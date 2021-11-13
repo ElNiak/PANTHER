@@ -9,4 +9,4 @@ cd $PROOTPATH/quic-implementations/mvfst/quic/samples
 cmake .
 make
 cd $PROOTPATH/quic-implementations/mvfst/_build/build/quic/samples
-make -j 6
+make #-j 6
