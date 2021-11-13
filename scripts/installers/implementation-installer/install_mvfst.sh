@@ -1,6 +1,6 @@
 cp $PROOTPATH/ressources/tls-keys-patch.diff $PROOTPATH/quic-implementations/mvfst/
 cp $PROOTPATH/ressources/samples-build-patch.diff $PROOTPATH/quic-implementations/mvfst/
-cd mvfst
+cd $PROOTPATH/quic-implementations/mvfst/
 git checkout 36111c1
 git apply tls-keys-patch.diff
 bash build_helper.sh

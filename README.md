@@ -2,9 +2,11 @@
 
 ## Installation
 
+Currently, only work under Ubuntu 16
+
 With Python Virtual Environment
 ```
-export VirtualEnv="activate"
+export VirtualEnv="env"
 sudo apt install virtualenv
 virtualenv -p /usr/bin/python2.7 env
 source env/bin/activate

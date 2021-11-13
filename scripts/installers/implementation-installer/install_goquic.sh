@@ -4,8 +4,10 @@ cd $PROOTPATH/quic-implementations/
 wget https://dl.google.com/go/go1.14.linux-amd64.tar.gz  &> /dev/null
 tar xfz go1.14.linux-amd64.tar.gz &> /dev/null
 rm go1.14.linux-amd64.tar.gz
+cd go/src
+./all.bash
 #Install project
-cd quic-go/
+cd $PROOTPATH/quic-implementations/quic-go/
 export PATH="/go/bin:${PATH}"
 mkdir client server
 go get ./...
