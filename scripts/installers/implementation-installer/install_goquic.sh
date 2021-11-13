@@ -1,14 +1,13 @@
 #Clone quic-go project
-cd $PROOTPATH/quic-implementations/
+cd /
 #Install go
-wget https://dl.google.com/go/go1.14.linux-amd64.tar.gz  &> /dev/null
-tar xfz go1.14.linux-amd64.tar.gz &> /dev/null
-rm go1.14.linux-amd64.tar.gz
-cd go/src
-./all.bash
+sudo wget https://dl.google.com/go/go1.14.linux-amd64.tar.gz  &> /dev/null
+sudo tar xfz go1.14.linux-amd64.tar.gz &> /dev/null
+sudo rm go1.14.linux-amd64.tar.gz
+export PATH="/go/bin:${PATH}"
+
 #Install project
 cd $PROOTPATH/quic-implementations/quic-go/
-export PATH="/go/bin:${PATH}"
 mkdir client server
 go get ./...
 go build -o $PROOTPATH/quic-implementations/quic-go/client/client $PROOTPATH/ressources/go_client/main.go
