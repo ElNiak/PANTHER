@@ -55,7 +55,7 @@ bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing lsquic: <-------------"
 
-bash install_lsquic.sh
+bash install_lsquic.sh # still some problem
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
 
