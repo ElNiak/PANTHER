@@ -2,6 +2,9 @@
 PROOTPATH=$PWD
 export PROOTPATH
 
+source $HOME/.cargo/env
+
+
 PYTP=/usr/local
 if [[ ! -v VirtualEnv ]]; then
     echo "VirtualEnv is not set"
