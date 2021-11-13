@@ -8,6 +8,7 @@ export PATH="/go/bin:${PATH}"
 
 #Install project
 cd $PROOTPATH/quic-implementations/quic-go/
+git checkout v0.20.0
 mkdir client server
 go get ./...
 go build -o $PROOTPATH/quic-implementations/quic-go/client/client $PROOTPATH/ressources/go_client/main.go

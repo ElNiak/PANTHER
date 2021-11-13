@@ -6,7 +6,7 @@ export PROOTPATH
 
 printf '%s\n' "-------------> Installing dependencies: <-------------"
 sudo apt-get -y install python python3-pip libssl-dev python3-dev g++ cmake python-ply git python-tk tix gperf pkg-config libssl-dev doxygen libev-dev libhttp-parser-dev libbsd-dev faketime libscope-guard-perl libtest-tcp-perl libbrotli-dev
-sudo apt-get install graphviz libgraphviz-dev pkg-config # python-pygraphviz
+sudo apt-get install graphviz libgraphviz-dev pkg-config tshark python-pip # python-pygraphviz
 sudo pip2 install pexpect
 sudo pip2 install gperf
 
@@ -25,6 +25,7 @@ git submodule update --recursive
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
 cd QUIC-Ivy/
+git checkout rfc9000
 mkdir doc/examples/quic/build
 mkdir doc/examples/quic/test/temp
 
