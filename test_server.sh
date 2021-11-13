@@ -1,6 +1,7 @@
 #go build -o $HOME/TVOQE_UPGRADE_27/quic/quic-go/server/server $HOME/TVOQE_UPGRADE_27/quic/quic-go/example/echo/echo.go
 PROOTPATH=$PWD
 export PROOTPATH
+export PATH="/go/bin:${PATH}"
 
 source $HOME/.cargo/env
 

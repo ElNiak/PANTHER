@@ -25,6 +25,7 @@ git submodule update --recursive
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
 cd QUIC-Ivy/
+git stash
 git checkout rfc9000
 mkdir doc/examples/quic/build
 mkdir doc/examples/quic/test/temp
@@ -56,7 +57,7 @@ bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing lsquic: <-------------"
 
-bash install_lsquic.sh # still some problem
+bash install_lsquic.sh 
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
 

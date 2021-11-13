@@ -1,6 +1,7 @@
 # TOREDO : ./build/quic_client_test_tp_error good cid
 PROOTPATH=$PWD
 export PROOTPATH
+export PATH="/go/bin:${PATH}"
 
 source $HOME/.cargo/env
 
