@@ -14,6 +14,8 @@ sudo apt remove cmake
 sudo snap install cmake --classic
 cmake --version
 
+# curl -fsSL https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3.5
+
 printf '%s\n' "-------------> Init submodules: <-------------"
 
 git submodule update --init --recursive

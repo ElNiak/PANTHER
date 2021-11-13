@@ -2,7 +2,7 @@
 
 ## Installation
 
-Currently, only work under Ubuntu 16
+Currently, only work under Ubuntu 18
 
 With Python Virtual Environment
 ```
