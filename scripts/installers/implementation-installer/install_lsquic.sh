@@ -6,6 +6,7 @@ sudo apt-get install -y build-essential software-properties-common \
 
 cmake . &&  make
 export BORINGSSL=$PWD
+export PATH="/go/bin:${PATH}"
 
 cd $PROOTPATH/quic-implementations/lsquic
 cmake -DBORINGSSL_DIR=$BORINGSSL .
