@@ -20,7 +20,7 @@ fi
 servers=(
 		 quant 
 		 picoquic
-		 mvfst
+		 # mvfst
 		 lsquic
 		 quic-go
 		 aioquic
@@ -30,9 +30,9 @@ servers=(
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 tests_server=(
-	      #quic_server_test_stream
+	      quic_server_test_stream
 	      #quic_server_test_version_negociation_ext
-	      quic_server_test_retry
+	      #quic_server_test_retry
 	      #quic_server_test_version_negociation
           #quic_server_test_unkown
 	      #quic_server_test_blocked_streams_maxstream_error
