@@ -38,4 +38,3 @@ cp -f $PROOTPATH/quic-implementations/picotls/include/picotls.h /usr/local/lib/p
 cp -f $PROOTPATH/quic-implementations/picotls/include/picotls.h $PROOTPATH/QUIC-Ivy/ivy/include
 cp -r -f $PROOTPATH/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ivy/include/picotls
 cp -r -f $PROOTPATH/quic-implementations/picotls/include/picotls/. $PROOTPATH/QUIC-Ivy/ivy/include/picotls
-
