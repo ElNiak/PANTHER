@@ -123,7 +123,7 @@ for j in "${tests_client[@]}"; do
     cnt2=0
     for i in "${clients[@]}"; do
         :
-	export SSLKEYLOGFILE=$PROOTPATH+"/tls-keys/${i}_key.log"
+	export SSLKEYLOGFILE=$PROOTPATH"/tls-keys/${i}_key.log"
 	k=1
         until [ $k -gt $ITER ]; do
             printf "\n\Iteration => $k \n"
