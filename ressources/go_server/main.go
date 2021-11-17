@@ -16,7 +16,6 @@ import (
 	"github.com/lucas-clemente/quic-go/http3"
 	"github.com/lucas-clemente/quic-go/interop/http09"
 	"github.com/lucas-clemente/quic-go/interop/utils"
-	"github.com/lucas-clemente/quic-go/qlog"
 )
 
 var tlsConf *tls.Config
@@ -28,7 +27,6 @@ func main() {
 	flag.Parse()
 
 	log.SetOutput(os.Stdout)
-	//log.setLogLevel(utils.LogLevelDebug)
 
 	keyLog, err := utils.GetSSLKeyLog()
 	if err != nil {
@@ -39,23 +37,15 @@ func main() {
 		defer keyLog.Close()
 	}
 
-	getLogWriter, err := utils.GetQLOGWriter()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
 
 	// a quic.Config that doesn't do a Retry
 	quicConf := &quic.Config{
 		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
-		//ConnectionIDLength: 8,
-		Tracer: qlog.NewTracer(getLogWriter),
-		//DisablePathMTUDiscovery: true,
-		//EnableDatagrams: false,
-		HandshakeIdleTimeout: 0,
-		MaxIdleTimeout: 0,
+		ConnectionIDLength: 8,    
+        HandshakeIdleTimeout: 0,
+        MaxIdleTimeout: 0,
+		//Tracer: qlog.NewTracer(getLogWriter),
 	}
-
 
 	cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
 	if err != nil {
@@ -63,7 +53,6 @@ func main() {
 		os.Exit(1)
 	}
 	tlsConf = &tls.Config{
-		InsecureSkipVerify: true,
 		Certificates: []tls.Certificate{cert},
 		KeyLogWriter: keyLog,
 	}
@@ -84,11 +73,6 @@ func runHTTP09Server(quicConf *quic.Config, port int) error {
 		QuicConfig: quicConf,
 	}
 
-	//http.FileServer()
-//	http.DefaultServeMux.Handle("/", http.FileServer(http.Dir("/www")))
-	//http.DefaultServeMux.Handle("/index.html", http.FileServer(http.Dir("/var/www/html/index/")))
-	//handler := &bufferHandler{make([]byte, 5000000)}
-	//http.DefaultServeMux.Handle("/index.html", http.FileServer(http.Dir("/home/chris/TVOQE_UPGRADE_27/QUIC-Ivy/doc/examples/quic/")))
 	handler := &bufferHandler{make([]byte, 5000000)}
 	http.DefaultServeMux.Handle("/index.html", handler)
 	return server.ListenAndServe()
@@ -114,7 +98,7 @@ func (h *bufferHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("wrong URL path: %s: %+v", r.URL.Path, err)
 		return
 	}*/
-	size := 5000
+	size := 50000;
 	w.WriteHeader(200)
 	var written int = 0
 	for written < size {

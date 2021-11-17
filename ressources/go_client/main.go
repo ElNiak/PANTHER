@@ -1,25 +1,23 @@
 package main
 
 import (
-"bytes"
-"crypto/tls"
-"crypto/x509"
-"flag"
-"fmt"
-"io"
+	"bytes"
+	"crypto/tls"
+	"crypto/x509"
+	"flag"
+	"fmt"
+	"io"
 	"io/ioutil"
-	"net"
 	"log"
-"net/http"
-"os"
-"sync"
+	"net"
+	"net/http"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
-//"github.com/lucas-clemente/quic-go/http3"
 	"github.com/lucas-clemente/quic-go/interop/http09"
-	"github.com/lucas-clemente/quic-go/interop/utils"
-	"github.com/lucas-clemente/quic-go/qlog"
+	//"github.com/lucas-clemente/quic-go/interop/utils"
 )
 
 type logger struct {
@@ -49,7 +47,7 @@ func main() {
 	if !*verbose {
 		logger.enabled = false
 	}
-	log.SetOutput(os.Stdout)
+
 	var keyLog io.Writer
 	if len(*keyLogFile) > 0 {
 		f, err := os.Create(*keyLogFile)
@@ -65,21 +63,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-
-	getLogWriter, err := utils.GetQLOGWriter()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
-
 	// a quic.Config that doesn't do a Retry
 	var quicConf = &quic.Config{
 		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 		ConnectionIDLength: 8,
-		Tracer:      qlog.NewTracer(getLogWriter),
+		//Tracer:      qlog.NewTracer(getLogWriter),
 		//DisablePathMTUDiscovery: true,
 	}
-
 
 	roundTripper := &http09.RoundTripper{
 		TLSClientConfig: &tls.Config{
