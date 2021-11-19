@@ -7,17 +7,15 @@ RUN apt-get install --fix-missing -y git wget tar
 
 # add credentials on build TODO
 ARG SSH_PRIVATE_KEY
-RUN mkdir /root/.ssh/
-COPY .ssh/id_rsa /root/.ssh/id_rsa
-RUN chmod 400 /root/.ssh/id_rsa
+#RUN mkdir /root/.ssh/
+#COPY .ssh/id_rsa /root/.ssh/id_rsa
+#RUN chmod 400 /root/.ssh/id_rsa
 
 # make sure your domain is accepted
-RUN touch /root/.ssh/known_hosts
-RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
-
+#RUN touch /root/.ssh/known_hosts
+#RUN ssh-keyscan github.com >> /root/.ssh/known_hosts
 ADD src/mvfst/tls-keys-patch.diff tls-keys-patch.diff
 ADD src/download_quic_implementation.sh download_quic_implementation.sh 
-
 RUN bash download_quic_implementation.sh
 
 FROM ubuntu:18.04
@@ -48,7 +46,9 @@ RUN pip3 install setuptools-rust
 # Install Ivy
 
 COPY --from=intermediate QUIC-Ivy /QUIC-Ivy
-RUN cd /QUIC-Ivy && python build_submodules.py
+RUN cd /QUIC-Ivy; ls; python build_submodules.py
+ #RUN ls
+#RUN python build_submodules.py
 RUN pip install ms-ivy
 
 # Add ressource file

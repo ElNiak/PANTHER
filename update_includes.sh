@@ -30,7 +30,7 @@ echo "CP picotls lib"
 cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-core.a /usr/local/lib/python2.7/dist-packages/ivy/lib
 cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-core.a $PROOTPATH/QUIC-Ivy/ivy/lib
 cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-minicrypto.a /usr/local/lib/python2.7/dist-packages/ivy/lib
-cp -f $PROOTPATH/quic-implementationspicotls/libpicotls-minicrypto.a $PROOTPATH/QUIC-Ivy/ivy/lib
+cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-minicrypto.a $PROOTPATH/QUIC-Ivy/ivy/lib
 cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-openssl.a /usr/local/lib/python2.7/dist-packages/ivy/lib
 cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-openssl.a $PROOTPATH/QUIC-Ivy/ivy/lib
 

@@ -13,7 +13,7 @@
 servers=(quant quinn mvfst picoquic quic-go aioquic quiche)
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29 hq-29 hq-29)
 
-tests_server=(#quic_server_test_stream
+tests_server=(quic_server_test_stream
               #quic_server_test_unkown
 	          #quic_server_test_blocked_streams_maxstream_error
               #quic_server_test_tp_limit_newcoid
@@ -34,7 +34,7 @@ tests_server=(#quic_server_test_stream
 
               # No migration to see what happen
               #quic_server_test_stream_limit_error     # ~Good remve one requirement
-              quic_server_test_crypto_limit_error     # Good
+              #quic_server_test_crypto_limit_error     # Good
               #quic_server_test_retirecoid_error       # Good
               #quic_server_test_newcoid_rtp_error      # Good
               #quic_server_test_newcoid_length_error   # Good
@@ -122,5 +122,5 @@ cp -R /QUIC-Ivy/doc/examples/quic/test/temp/ /results
 
 
 cd /results
-#python create-csv.py
+python create-csv.py
 #python update_key_aioquic.py

@@ -5,13 +5,22 @@ PROOTPATH=$PWD
 export PROOTPATH
 
 printf '%s\n' "-------------> Installing dependencies: <-------------"
-sudo apt-get -y install python python3-pip libssl-dev python3-dev g++ cmake python-ply git python-tk tix gperf pkg-config libssl-dev doxygen libev-dev libhttp-parser-dev libbsd-dev faketime libscope-guard-perl libtest-tcp-perl libbrotli-dev
-sudo apt-get install graphviz libgraphviz-dev pkg-config tshark python-pip # python-pygraphviz
-sudo pip2 install pexpect
-sudo pip2 install gperf
+sudo apt-get --fix-missing  -y install tzdata curl wget tar 
+sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix gperf pkg-config libssl-dev lsof
+sudo apt-get install  --fix-missing  -y doxygen pkg-config faketime libscope-guard-perl libtest-tcp-perl libbrotli-dev
+sudo apt-get install  --fix-missing  -y libev-dev libhttp-parser-dev libbsd-dev snapd
+sudo apt-get install  --fix-missing  -y cmake wireshark tshark rand
+sudo apt-get install  --fix-missing  -y binutils autoconf automake autotools-dev libtool pkg-config libev-dev libjemalloc-dev ca-certificates mime-support
+sudo apt-get install  --fix-missing  -y libboost-all-dev libevent-dev libdouble-conversion-dev libgoogle-glog-dev libgflags-dev libiberty-dev liblz4-dev liblzma-dev
+sudo apt-get install  --fix-missing  -y libsnappy-dev zlib1g-dev binutils-dev libjemalloc-dev libsodium-dev sudo
+sudo apt-get install  --fix-missing  -y git python3 python3-dev python3-pip build-essential libffi-dev python-dev cargo
+sudo apt-get install  --fix-missing  -y build-essential software-properties-common zlib1g-dev libevent-dev
+sudo pip2 install pexpect chardet
+sudo pip2 install gperf pandas scandir
+sudo pip3 install setuptools-rust
 
 sudo apt remove cmake
-sudo snap install cmake --classic
+sudo snap install cmake --classic --yes
 cmake --version
 
 # curl -fsSL https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3.5
@@ -24,48 +33,37 @@ git submodule update --recursive
 
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
-cd QUIC-Ivy/
-git stash
-git checkout rfc9000
-mkdir doc/examples/quic/build
-mkdir doc/examples/quic/test/temp
-
-sudo rm -r /usr/local/lib/python2.7/dist-packages && sudo mkdir /usr/local/lib/python2.7/dist-packages
-python2.7 build_submodules.py
-sudo pip2 install ms-ivy #global install
-
-rm doc/examples/quic/test/test.py
-cp $PROOTPATH/ressources/test.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
+# bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
 
 cd $PROOTPATH/scripts/installers/implementation-installer/
 
 printf '%s\n' "-------------> Installing picoquic: <-------------"
 
-bash install_picoquic.sh
+#bash install_picoquic.sh
 
 printf '%s\n' "-------------> Installing quant: <-------------"
 
-bash install_quant.sh
+#bash install_quant.sh
 
 printf '%s\n' "-------------> Installing quic-go: <-------------"
 
-bash install_goquic.sh
+#bash install_goquic.sh
 
 printf '%s\n' "-------------> Installing aioquic: <-------------"
 
-bash install_aioquic.sh
+#bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing lsquic: <-------------"
 
-bash install_lsquic.sh 
+#bash install_lsquic.sh 
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
 
-bash install_quiche.sh
+#bash install_quiche.sh
 
 printf '%s\n' "-------------> Installing quinn: <-------------"
 
-bash install_quinn.sh
+#bash install_quinn.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 

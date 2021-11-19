@@ -4,7 +4,7 @@
 
 Currently, only work under Ubuntu 18
 
-With Python Virtual Environment
+With Python Virtual Environment (todo)
 ```
 export VirtualEnv="env"
 sudo apt install virtualenv

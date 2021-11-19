@@ -20,7 +20,7 @@ fi
 servers=(
 		 quant 
 		 picoquic
-		 # mvfst
+		 # mvfst # Not working anymore (installation) tocheck
 		 lsquic
 		 quic-go
 		 aioquic
@@ -34,10 +34,10 @@ tests_server=(
 	      #quic_server_test_version_negociation_ext
 	      #quic_server_test_retry
 	      #quic_server_test_version_negociation
-          #quic_server_test_unkown
+          quic_server_test_unkown
 	      #quic_server_test_blocked_streams_maxstream_error
           #quic_server_test_tp_limit_newcoid
-	      #quic_server_test_max 
+	      quic_server_test_max 
 	      #quic_server_test_token_error  
           #quic_server_test_tp_error #quant: corrected in master
           #quic_server_test_tp_acticoid_error
@@ -89,6 +89,7 @@ sudo cp $PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_utils/quic_ser_deser.h $PROOT
 
 
 export TEST_TYPE=server
+export IS_NOT_DOCKER=true
 
 rm $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/test.py
 cp $PROOTPATH/ressources/test.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
@@ -111,7 +112,7 @@ done
 printf "Create SSLLOGFILE TEST \n"
 for j in "${servers[@]}"; do
     :
-    touch $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/temp/${j}_key.log
+    touch $PROOTPATH"/tls-keys/${j}_key.log"
 done
 
 cnt=0

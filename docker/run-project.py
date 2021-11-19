@@ -8,7 +8,7 @@ import os
 from os import listdir
 from os.path import isfile, join
 
-# sudo python run-project.py -b true -m server -p /home/student/Toward-verification-of-QUIC-extensions/installer/TVOQE -i 100
+# sudo python run-project.py -b true -m server -p /home/user/Documents/QUIC-FormalVerification -i 100
 
 def usage():
     message = "Usage: ./run-project -b[uild] <true/false> -m[ode] <client/server/all> -p <path/> -i <iteration>"
@@ -47,7 +47,7 @@ def main(argv):
             path = arg  
             if not path[-1] == "/" and not path[-1] == "\\":
                 path += "/"
-        elif opt == '-d' and arg.lower() == "true":                
+        elif opt == '-d': 
             delete = True
 
     if delete: 

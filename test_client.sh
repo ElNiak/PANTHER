@@ -84,6 +84,7 @@ sudo cp $PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_utils/quic_ser_deser.h $PROOT
 
 
 export TEST_TYPE=client
+export IS_NOT_DOCKER=true
 
 rm $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/test.py
 cp $PROOTPATH/ressources/test.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
@@ -107,7 +108,7 @@ done
 printf "Create SSLLOGFILE TEST \n"
 for j in "${clients[@]}"; do
     :
-    touch /home/chris/TVOQE_UPGRADE_27/QUIC-Ivy/doc/examples/quic/test/temp/${j}_key.log
+    touch $PROOTPATH"/tls-keys/${j}_key.log"
 done
 
 
@@ -124,6 +125,7 @@ for j in "${tests_client[@]}"; do
     for i in "${clients[@]}"; do
         :
 	export SSLKEYLOGFILE=$PROOTPATH"/tls-keys/${i}_key.log"
+	echo $SSLKEYLOGFILE
 	k=1
         until [ $k -gt $ITER ]; do
             printf "\n\Iteration => $k \n"

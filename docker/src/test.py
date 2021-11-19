@@ -366,19 +366,42 @@ try:
 
     num_failures = 0
     for test in all_tests:
-        if not test_pattern_obj.match(test.name):
-            continue
-        for test_command in range(0,iters):
-            status = test.run(test_command)
-            if not status:
-                num_failures += 1
-        if getstats:
-            import stats
-            with open_out(test.name+'.dat') as out:
-                save = os.getcwd()
-                os.chdir(output_path)
-                stats.doit(test.name,out)
-                os.chdir(save)
+            #if not test_pattern_obj.match(test.name):
+            if not test_pattern == test.name:
+                continue
+            for test_command in range(0,iters):
+		        #TODO refactor
+                if "quic_server_test_retry" in test.name: 
+                    if quic_name == "quant":
+                        quic_cmd = scdir+'/quant/Debug/bin/server -r -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log'
+                    elif quic_name == "picoquic":
+                        quic_cmd = './picoquicdemo -r -l - -D -L -q /home/chris/qlog_picoquic' 
+                if "quic_server_test_version_negociation" in test.name: 
+                    if quic_name == "quant":
+                        quic_cmd = scdir+'/quant/Debug/bin/server -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log'
+                    elif quic_name == "picoquic":
+                        quic_cmd = './picoquicdemo -l - -D -L -q /home/chris/qlog_picoquic' 
+
+                if "quic_client_test_retry" in test.name: #todo 
+                    if quic_name == "quant":
+                        quic_cmd = scdir + '/quant/Debug/bin/client -e 0xff00001d -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html'
+                    elif quic_name == "picoquic":
+                        quic_cmd = './picoquicdemo -v ff00001d -l - -D -L -a hq-29 localhost 4443' 
+                if "quic_client_test_version_negociation" in test.name:
+                    if quic_name == "quant":
+                        quic_cmd = scdir + '/quant/Debug/bin/client -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html'
+                    elif quic_name == "picoquic":
+                        quic_cmd = './picoquicdemo -l - -D -L -a hq-29 localhost 4443' 
+                status = test.run(test_command)
+                if not status:
+                    num_failures += 1
+            if getstats:
+                import stats
+                with open_out(test.name+'.dat') as out:
+                    save = os.getcwd()
+                    os.chdir(output_path)
+                    stats.doit(test.name,out)
+                    os.chdir(save)
     if num_failures:
         print 'error: {} tests(s) failed'.format(num_failures)
     else:
