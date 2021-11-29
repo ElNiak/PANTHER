@@ -21,7 +21,7 @@ servers=(
 		 quant 
 		 picoquic
 		 # mvfst # Not working anymore (installation) tocheck
-		 lsquic
+		 # lsquic # Internal error with server
 		 quic-go
 		 aioquic
 		 quinn
@@ -34,10 +34,10 @@ tests_server=(
 	      #quic_server_test_version_negociation_ext
 	      #quic_server_test_retry
 	      #quic_server_test_version_negociation
-          quic_server_test_unkown
+          #quic_server_test_unkown
 	      #quic_server_test_blocked_streams_maxstream_error
           #quic_server_test_tp_limit_newcoid
-	      quic_server_test_max 
+	      #quic_server_test_max 
 	      #quic_server_test_token_error  
           #quic_server_test_tp_error #quant: corrected in master
           #quic_server_test_tp_acticoid_error
@@ -108,6 +108,7 @@ for j in "${tests_server[@]}"; do
     printf "\n"
 done
 
+sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
 
 printf "Create SSLLOGFILE TEST \n"
 for j in "${servers[@]}"; do
@@ -136,15 +137,16 @@ for j in "${tests_server[@]}"; do
 			export CNT=$cnt
 			export RND=$RANDOM
 			export TEST_ALPN=hq-29
-            touch temp/${cnt}_${i}_${j}.pcap
-            sudo chmod o=xw temp/${cnt}_${i}_${j}.pcap
-            sudo tshark -i lo -w temp/${cnt}_${i}_${j}.pcap -f "udp" & 
+			pcap_i=$((`(find temp/* -maxdepth 0 -type d | wc -l)`))
+            touch temp/${pcap_i}_${i}_${j}.pcap
+            sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
+            sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp" & 
 	    	python test.py iters=1 server=$i test=$j > res_server.txt 2>&1
             printf "\n"
 	    	((k++))
             sudo pkill tshark
             cat res_server.txt
-            cp res_server.txt temp/${cnt}/res_server.txt
+            mv res_server.txt temp/${pcap_i}/res_server.txt
 	    	cnt=$((cnt + 1))
 	done
 	cnt2=$((cnt2 + 1))

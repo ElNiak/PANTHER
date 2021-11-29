@@ -8,7 +8,10 @@ ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
 cmake --version
 
 cd $PROOTPATH/quic-implementations/quant/
+git stash
+git checkout 29
 git submodule update --init --recursive
+cp $PROOTPATH/ressources/quant/cid.h lib/src/cid.h # for 16 bytes max
 mkdir Debug 
 cd Debug
 cmake ..

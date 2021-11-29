@@ -10,6 +10,7 @@ export PATH="/go/bin:${PATH}"
 cd $PROOTPATH/quic-implementations/quic-go/
 git checkout v0.20.0
 mkdir client server
+echo "go get"
 go get ./...
 go build -o $PROOTPATH/quic-implementations/quic-go/client/client $PROOTPATH/ressources/quic-go/go_client/main.go
 go build -o $PROOTPATH/quic-implementations/quic-go/server/server $PROOTPATH/ressources/quic-go/go_server/main.go

@@ -1,4 +1,6 @@
 cd $PROOTPATH/quic-implementations/aioquic
+git stash
+git checkout 0.9.3 
 export PYTHONPATH=$PWD
 source $HOME/.cargo/env
 python3 -m pip install setuptools_rust

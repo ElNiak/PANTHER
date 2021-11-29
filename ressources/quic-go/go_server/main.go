@@ -36,6 +36,7 @@ func main() {
 	if keyLog != nil {
 		defer keyLog.Close()
 	}
+	log.Printf("test")
 
 
 	// a quic.Config that doesn't do a Retry
@@ -75,6 +76,7 @@ func runHTTP09Server(quicConf *quic.Config, port int) error {
 
 	handler := &bufferHandler{make([]byte, 5000000)}
 	http.DefaultServeMux.Handle("/index.html", handler)
+	log.Printf("start server")
 	return server.ListenAndServe()
 }
 

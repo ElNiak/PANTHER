@@ -18,7 +18,7 @@ fi
 clients=(
 		 quant 
 		 picoquic
-		 mvfst
+		 #mvfst
 		 lsquic
 		 quic-go
 		 aioquic
@@ -29,8 +29,8 @@ clients=(
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
-	      #quic_client_test_max
-	      quic_client_test_retry
+	      quic_client_test_max
+	      #quic_client_test_retry
 	      #quic_client_test_version_negociation
 	      #quic_client_test_stream #useless here
 	      #quic_client_test_ext_min_ack_delay
@@ -104,6 +104,7 @@ for j in "${tests_client[@]}"; do
     printf "\n"
 done
 
+sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
 
 printf "Create SSLLOGFILE TEST \n"
 for j in "${clients[@]}"; do
@@ -134,14 +135,15 @@ for j in "${tests_client[@]}"; do
 			export TEST_ALPN=hq-29
 			export CNT=$cnt
 			export RND=$RANDOM
-            touch temp/${cnt}_${i}_${j}.pcap
-            sudo chmod o=xw temp/${cnt}_${i}_${j}.pcap
-            sudo tshark -i lo -w temp/${cnt}_${i}_${j}.pcap -f "udp" & 
+			pcap_i=$((`(find temp/* -maxdepth 0 -type d | wc -l)`))
+            touch temp/${pcap_i}_${i}_${j}.pcap
+            sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
+            sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp" & 
             python test.py iters=1 client=$i test=$j > res_client.txt 2>&1
             printf "\n"
 	    	((k++))
             cat res_client.txt
-            cp res_client.txt temp/${cnt}/res_client.txt
+            mv res_client.txt temp/${pcap_i}/res_client.txt
 	    	cnt=$((cnt + 1))
             kill $(lsof -i udp) >/dev/null 2>&1
             sudo pkill tshark

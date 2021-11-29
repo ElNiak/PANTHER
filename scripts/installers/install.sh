@@ -19,7 +19,7 @@ sudo pip2 install pexpect chardet
 sudo pip2 install gperf pandas scandir
 sudo pip3 install setuptools-rust
 
-sudo apt remove cmake
+sudo apt remove cmake -y
 sudo snap install cmake --classic --yes
 cmake --version
 
@@ -27,13 +27,13 @@ cmake --version
 
 printf '%s\n' "-------------> Init submodules: <-------------"
 
-git submodule update --init --recursive
-git submodule update --recursive
+#git submodule update --init --recursive
+#git submodule update --recursive
 
 
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
-# bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
+bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
 
 cd $PROOTPATH/scripts/installers/implementation-installer/
 
@@ -47,7 +47,7 @@ printf '%s\n' "-------------> Installing quant: <-------------"
 
 printf '%s\n' "-------------> Installing quic-go: <-------------"
 
-#bash install_goquic.sh
+# bash install_goquic.sh
 
 printf '%s\n' "-------------> Installing aioquic: <-------------"
 
@@ -59,7 +59,7 @@ printf '%s\n' "-------------> Installing lsquic: <-------------"
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
 
-#bash install_quiche.sh
+# bash install_quiche.sh
 
 printf '%s\n' "-------------> Installing quinn: <-------------"
 
@@ -67,5 +67,5 @@ printf '%s\n' "-------------> Installing quinn: <-------------"
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 
-bash install_mvfst.sh # still some problem
+# bash install_mvfst.sh # still some problem
 
