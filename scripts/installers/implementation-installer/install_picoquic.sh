@@ -1,6 +1,7 @@
 
 #Install picotls
 printf '%s\n' "-------------> Installing PicoTLS:"
+export OPENSSL_INCLUDE_DIR=/usr/include/openssl
 cd $PROOTPATH/quic-implementations/picotls/
 git checkout 47327f8d032f6bc2093a15c32e666ab6384ecca2 # 2464adadf28c1b924416831d24ca62380936a209
 git submodule init

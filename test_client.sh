@@ -104,7 +104,7 @@ for j in "${tests_client[@]}"; do
     printf "\n"
 done
 
-sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
+#sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
 
 printf "Create SSLLOGFILE TEST \n"
 for j in "${clients[@]}"; do
