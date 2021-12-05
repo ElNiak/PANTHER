@@ -17,13 +17,15 @@ printf '%s\n' "-------------> Installing PicoQUIC:"
 cd $PROOTPATH/quic-implementations/picoquic/
 git stash
 git checkout 639c9e685d37e74d357d3dd8599b9dbff90934af # 639c9e685d37e74d357d3dd8599b9dbff90934af
-sudo snap remove cmake
-sudo apt remove cmake
-sudo apt-get install cmake
-#sudo snap install cmake --classic 
-cmake --version
 
-cmake .
+# sudo snap remove cmake
+# sudo apt remove cmake
+# sudo apt-get install cmake
+/usr/bin/cmake --version
+#sudo snap install cmake --classic 
+
+
+/usr/bin/cmake .
 make
 ./picoquic_ct
 

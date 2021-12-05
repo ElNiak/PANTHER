@@ -19,10 +19,12 @@ sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply p
 sudo apt-get install -y libunwind-dev
 
 sudo apt remove cmake -y
-#sudo apt-get install cmake
 sudo snap remove cmake
 sudo snap install cmake --classic
+sudo apt-get install cmake
 cmake --version
+/usr/bin/cmake --version
+
 
 # curl -fsSL https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3.5
 
@@ -33,7 +35,7 @@ git submodule update --recursive
 
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
-bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
+#bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
 
 cd $PROOTPATH/scripts/installers/implementation-installer/
 
