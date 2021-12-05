@@ -35,7 +35,7 @@ git submodule update --recursive
 
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
-#bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
+bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
 
 cd $PROOTPATH/scripts/installers/implementation-installer/
 
