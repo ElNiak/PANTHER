@@ -44,7 +44,7 @@ servers = [
 clients = [
     ['picoquic',[scdir + '/picoquic','./picoquicdemo -v ff00001d -l - -D -L -a hq-29 localhost 4443']], # -b myqlog.bin -R ff00001d -v ff00001e 
     ['pquic',[scdir + '/pquic','./picoquicdemo -D -L -v ff00001d localhost 4443 ']],
-    ['quant',['..',scdir + '/quant/Debug/bin/client -s -e 0xff00001d -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html']], #-c leaf_cert.pem '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -o -u -c leaf_cert.pem -c keypair.pem -a  -c false -u  -e 0xff00001d
+    ['quant',['..',scdir + '/quant/Debug/bin/client -e 0xff00001d -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html']], #-c leaf_cert.pem '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -o -u -c leaf_cert.pem -c keypair.pem -a  -c false -u  -e 0xff00001d
     ['winquic',['..','true']], 
     ['minq',['..','go run '+ scdir + '/go/src/github.com/ekr/minq/bin/client/main.go ']],
     ['chromium',[scdircr + '/chromium/src','./out/Default/quic_client --host=127.0.0.1 --port=6121 --disable_certificate_verification  https://www.example.org/ --v=1 --quic_versions=h3-23']],
@@ -394,14 +394,14 @@ def main():
                     if quic_name == "quant":
                         quic_cmd = scdir+'/quant/Debug/bin/server -r -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log'
                     elif quic_name == "picoquic":
-                        quic_cmd = './picoquicdemo -r -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'qlog_picoquic' 
+                        quic_cmd = './picoquicdemo -r -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlog/picoquic' 
                 if "quic_server_test_version_negociation" in test.name: 
                     if quic_name == "quant":
                         quic_cmd = scdir+'/quant/Debug/bin/server -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log'
                     elif quic_name == "picoquic":
-                        quic_cmd = './picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'qlog_picoquic' 
+                        quic_cmd = './picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlog/picoquic' 
 
-                if "quic_client_test_retry" in test.name: #todo 
+                if "quic_client_test_retry" in test.name: #TODO 
                     if quic_name == "quant":
                         quic_cmd = scdir + '/quant/Debug/bin/client -e 0xff00001d -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html'
                     elif quic_name == "picoquic":

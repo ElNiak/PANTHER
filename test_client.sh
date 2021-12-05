@@ -22,7 +22,7 @@ clients=(
 		 lsquic
 		 quic-go
 		 aioquic
-		 quinn
+		 quinn # Not working: unknown reason
 		 quiche
 		 )
 

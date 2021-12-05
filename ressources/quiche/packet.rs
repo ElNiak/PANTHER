@@ -44,11 +44,11 @@ const KEY_PHASE_BIT: u8 = 0x04;
 const TYPE_MASK: u8 = 0x30;
 const PKT_NUM_MASK: u8 = 0x03;
 
-pub const MAX_CID_LEN: u8 = 16;
+pub const MAX_CID_LEN: u8 = 16; //TODO before 20
 
 pub const MAX_PKT_NUM_LEN: usize = 4;
 
-const SAMPLE_LEN: usize = 16; //TODO before 20
+const SAMPLE_LEN: usize = 16; 
 
 pub const EPOCH_INITIAL: usize = 0;
 pub const EPOCH_HANDSHAKE: usize = 1;

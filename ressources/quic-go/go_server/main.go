@@ -43,7 +43,7 @@ func main() {
 	quicConf := &quic.Config{
 		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 		ConnectionIDLength: 8,    
-        HandshakeIdleTimeout: 0,
+        //HandshakeIdleTimeout: 0,
         MaxIdleTimeout: 0,
 		//Tracer: qlog.NewTracer(getLogWriter),
 	}

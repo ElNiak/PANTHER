@@ -16,11 +16,11 @@ sudo apt-get install  --fix-missing  -y libsnappy-dev zlib1g-dev binutils-dev li
 sudo apt-get install  --fix-missing  -y git python3 python3-dev python3-pip build-essential libffi-dev python-dev cargo
 sudo apt-get install  --fix-missing  -y build-essential software-properties-common zlib1g-dev libevent-dev
 sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix pkg-config libssl-dev # TODO
-sudo pip2 install pexpect chardet
-sudo pip2 install gperf pandas scandir
-sudo pip3 install setuptools-rust
+sudo apt-get install -y libunwind-dev
 
 sudo apt remove cmake -y
+#sudo apt-get install cmake
+sudo snap remove cmake
 sudo snap install cmake --classic
 cmake --version
 
@@ -31,7 +31,6 @@ printf '%s\n' "-------------> Init submodules: <-------------"
 git submodule update --init --recursive
 git submodule update --recursive
 
-
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
 bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
@@ -40,33 +39,33 @@ cd $PROOTPATH/scripts/installers/implementation-installer/
 
 printf '%s\n' "-------------> Installing picoquic: <-------------"
 
-#bash install_picoquic.sh
+bash install_picoquic.sh
 
 printf '%s\n' "-------------> Installing quant: <-------------"
 
-#bash install_quant.sh
+bash install_quant.sh
 
 printf '%s\n' "-------------> Installing quic-go: <-------------"
 
-# bash install_goquic.sh
-
-printf '%s\n' "-------------> Installing aioquic: <-------------"
-
-#bash install_aioquic.sh
+bash install_goquic.sh
 
 printf '%s\n' "-------------> Installing lsquic: <-------------"
 
-#bash install_lsquic.sh 
+bash install_lsquic.sh 
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
 
-# bash install_quiche.sh
+bash install_quiche.sh
 
 printf '%s\n' "-------------> Installing quinn: <-------------"
 
-#bash install_quinn.sh
+bash install_quinn.sh
+
+printf '%s\n' "-------------> Installing aioquic: <-------------"
+
+bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 
-# bash install_mvfst.sh # still some problem
+#bash install_mvfst.sh # still some problem
 
