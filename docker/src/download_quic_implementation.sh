@@ -3,7 +3,7 @@
 cd /
 # Clone Ivy project 
 echo "----> Cloning Ivy"
-git clone --recurse-submodules https://ElNiak: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@github.com/ElNiak/QUIC-Ivy.git --branch quic_29
+git clone --recurse-submodules https://git@github.com/ElNiak/QUIC-Ivy.git --branch quic_29
 mkdir /QUIC-Ivy/doc/examples/quic/build
 mkdir /QUIC-Ivy/doc/examples/quic/test/temp
 cd /
