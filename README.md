@@ -19,3 +19,14 @@ Without Python Virtual Environment
 cd scripts/installers/
 bash install.sh
 ```
+
+
+## TODO
+
+- reput the adversarial env for tested (!= port, adress, cid) -> long run (40 min same server)
+
+- Why sometimes the deserializer do not take the full packet ?
+
+- NS3
+
+- Why removing the dcil and scil field ?

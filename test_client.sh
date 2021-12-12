@@ -18,19 +18,19 @@ fi
 clients=(
 		 quant 
 		 picoquic
-		 #mvfst
-		 lsquic
-		 quic-go
-		 aioquic
-		 quinn # Not working: unknown reason
-		 quiche
+		 #mvfst # Not working: unknown reason
+		 #lsquic
+		 #quic-go
+		 #aioquic
+		 #quinn # Not working: unknown reason
+		 #quiche
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
-	      quic_client_test_max
-	      #quic_client_test_retry
+	      #quic_client_test_max
+	      quic_client_test_retry
 	      #quic_client_test_version_negociation
 	      #quic_client_test_stream #useless here
 	      #quic_client_test_ext_min_ack_delay

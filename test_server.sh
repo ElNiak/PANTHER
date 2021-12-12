@@ -18,11 +18,11 @@ fi
 
 
 servers=(
-		 quant 
-		 picoquic
+		 #quant 
+		 #picoquic
 		 # mvfst # Not working anymore (installation) tocheck
 		 # lsquic # Internal error with server
-		 quic-go
+		 # quic-go
 		 aioquic
 		 quinn
 		 quiche
@@ -30,10 +30,10 @@ servers=(
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 tests_server=(
-	      quic_server_test_stream
+	      #quic_server_test_stream
 	      #quic_server_test_version_negociation_ext
-	      #quic_server_test_retry
-	      #quic_server_test_version_negociation
+	      quic_server_test_retry
+	      #quic_server_test_version_negociation # why tls offset good with it and not with retry
           #quic_server_test_unkown
 	      #quic_server_test_blocked_streams_maxstream_error
           #quic_server_test_tp_limit_newcoid
