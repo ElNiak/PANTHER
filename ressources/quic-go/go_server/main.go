@@ -24,6 +24,7 @@ func main() {
 	certFile := flag.String("c", "/certs/cert.pem", "cert file")
 	keyFile := flag.String("k", "/certs/priv.key", "private key file")
 	port := flag.Int("p", 443, "port to bind on")
+	doRetry := flag.Bool("r", false, "do retry (default=false)")
 	flag.Parse()
 
 	log.SetOutput(os.Stdout)
@@ -40,12 +41,23 @@ func main() {
 
 
 	// a quic.Config that doesn't do a Retry
-	quicConf := &quic.Config{
-		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
-		ConnectionIDLength: 8,    
-        //HandshakeIdleTimeout: 0,
-        MaxIdleTimeout: 0,
-		//Tracer: qlog.NewTracer(getLogWriter),
+	quicConf := nil
+	if !doRetry {
+		quicConf := &quic.Config{
+			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
+			ConnectionIDLength: 8,    
+			HandshakeIdleTimeout: 0,
+			MaxIdleTimeout: 0,
+			//Tracer: qlog.NewTracer(getLogWriter),
+		}
+	} else {
+		quicConf := &quic.Config{
+			//AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
+			ConnectionIDLength: 8,    
+			HandshakeIdleTimeout: 0,
+			MaxIdleTimeout: 0,
+			//Tracer: qlog.NewTracer(getLogWriter),
+		}
 	}
 
 	cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)

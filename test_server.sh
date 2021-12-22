@@ -19,13 +19,13 @@ fi
 
 servers=(
 		 quant 
-		 picoquic
+		 # picoquic
 		 # mvfst # Not working anymore (installation) tocheck
 		 # lsquic # Internal error with server
 		 # quic-go
-		 aioquic
-		 quinn
-		 quiche
+		 # aioquic
+		 # quinn
+		 # quiche
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
@@ -34,7 +34,7 @@ tests_server=(
 	      #quic_server_test_version_negociation_ext
 		  #quic_server_test_0rtt
 	      quic_server_test_retry
-	      quic_server_test_version_negociation 
+	      # quic_server_test_version_negociation 
           #quic_server_test_unkown
 	      #quic_server_test_blocked_streams_maxstream_error
           #quic_server_test_tp_limit_newcoid
