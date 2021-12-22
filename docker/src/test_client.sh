@@ -77,7 +77,7 @@ for j in "${servers[@]}"; do
 done
 
 export TEST_TYPE=client
-export IS_NOT_DOCKER=true
+export IS_NOT_DOCKER=false
 
 printf "\n"
 cd /QUIC-Ivy/doc/examples/quic/test/

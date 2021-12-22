@@ -86,7 +86,7 @@ ITER=$1
 sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
 
 export TEST_TYPE=server
-export IS_NOT_DOCKER=true
+export IS_NOT_DOCKER=false
 
 export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
 echo $ZRTTSSLKEYLOGFILE
