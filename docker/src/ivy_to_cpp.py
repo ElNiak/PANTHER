@@ -2894,7 +2894,7 @@ struct ivy_binary_ser_128 : public ivy_ser_128 {
     std::vector<char> res;
     void setn(int128_t inp, int len) {
         for (int i = len-1; i >= 0 ; i--)
-            res.push_back((inp>>(8*i))&0xff); //16 ?
+            res.push_back((inp>>(8*i))&0xff); //16 ? no
     }
     void set(int128_t inp) {
         setn(inp,sizeof(int128_t));
@@ -2936,8 +2936,8 @@ struct ivy_deser_128 {
     virtual void  open_field(const std::string &) = 0;
     virtual void  close_field() = 0;
     virtual int   open_tag(const std::vector<std::string> &) {
-	std::cout << "ivy_deser_128 open_tag deser_err" << std::endl; 
-	throw deser_err();
+	    std::cout << "ivy_deser_128 open_tag deser_err" << std::endl; 
+	    throw deser_err();
     }
     virtual void  close_tag() {}
     virtual void  end() = 0;
@@ -5112,8 +5112,41 @@ int ask_ret(long long bound) {
 	
     virtual void ivy_assert(bool truth,const char *msg){
         if (!truth) {
+            int i;
             __ivy_out << "assertion_failed(\\"" << msg << "\\")" << std::endl;
-            std::cerr << msg << ": error: assertion failed\\n";
+
+            std::string::size_type pos = std::string(msg).find(".ivy");
+            std::string path = "";
+            if (pos != std::string::npos)
+                path = std::string(msg+0,msg+pos);
+
+            std::string lineNumber = "1";
+            std::string::size_type pos_n = std::string(msg).find("line");
+            if (pos_n != std::string::npos)
+                    lineNumber = std::string(msg+pos_n,msg+std::string(msg).length());
+            int num;
+            sscanf(lineNumber.c_str(),"%*[^0-9]%d", &num);
+            lineNumber = std::to_string(num);
+
+            std::string command = "";
+            if(path.find("test") != std::string::npos) 
+		        path = std::string("$PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_tests/") + path;
+        
+            command = std::string("sed \'") + lineNumber + std::string("!d\' ")  + path + std::string(".ivy > temps.txt");
+            //std::cerr << command.c_str() << std::endl;
+
+            if (system(NULL)) i=system(command.c_str());
+            else exit (EXIT_FAILURE);
+
+	        std::ifstream ifs("temps.txt"); //.rdbuf()
+	        std::stringstream strStream;
+	        strStream << ifs.rdbuf();
+	        std::string str = strStream.str();
+
+            std::cerr << str << std::endl;
+	        if(std::remove("temps.txt") != 0) 
+		        std::cerr << "error: remove(temps.txt) failed\\n";
+	        std::cerr << msg << ": error: assertion failed\\n";
             CLOSE_TRACE
             __ivy_exit(1);
         }
@@ -5124,6 +5157,8 @@ int ask_ret(long long bound) {
     virtual void ivy_assume(bool truth,const char *msg){
         if (!truth) {
             int i;
+            __ivy_out << "assumption_failed(\\"" << msg << "\\")" << std::endl;
+            
             std::string::size_type pos = std::string(msg).find(".ivy");
             std::string path = "";
             if (pos != std::string::npos)
@@ -5139,27 +5174,23 @@ int ask_ret(long long bound) {
 
             std::string command = "";
             if(path.find("test") != std::string::npos) 
-            path = std::string("/QUIC-Ivy/doc/examples/quic/quic_tests/") + path;
+		    path = std::string("$PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_tests/") + path;
+        
             command = std::string("sed \'") + lineNumber + std::string("!d\' ")  + path + std::string(".ivy > temps.txt");
             //std::cerr << command.c_str() << std::endl;
 
             if (system(NULL)) i=system(command.c_str());
             else exit (EXIT_FAILURE);
 
-            std::ifstream ifs("temps.txt"); //.rdbuf()
-            std::stringstream strStream;
-            strStream << ifs.rdbuf();
-            std::string str = strStream.str();
+	        std::ifstream ifs("temps.txt"); //.rdbuf()
+	        std::stringstream strStream;
+	        strStream << ifs.rdbuf();
+	        std::string str = strStream.str();
 
-            //std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-            //str.erase(std::remove(str.begin(), str.end(), "\t"), str.end());
-	    	
             std::cerr << str << std::endl;
-            if(std::remove("temps.txt") != 0) 
-                std::cerr << "error: remove(temps.txt) failed\\n";
-            std::cerr << msg << ": error: assumption failed\\n";
-            __ivy_out << "assumption_failed(\\"" << msg << "\\")" << std::endl;
-            __ivy_out << "assumption_failed(\\"" << str << "\\")" << std::endl;
+	        if(std::remove("temps.txt") != 0) 
+		        std::cerr << "error: remove(temps.txt) failed\\n";
+	        std::cerr << msg << ": error: assumption failed\\n";
             __ivy_exit(1);
         }
     }
@@ -6306,6 +6337,9 @@ def main_int(is_ivyc):
                             cmd = cmd + ' -lz3'
                         cmd += libspec
                         cmd += ' -pthread'
+                        from os import environ
+                        if environ.get('IS_NOT_DOCKER') is not None:
+                            cmd += ' -D IS_NOT_DOCKER'
                     print cmd
                     sys.stdout.flush()
                     with iu.WorkingDir(builddir):

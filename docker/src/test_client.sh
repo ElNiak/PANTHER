@@ -10,6 +10,12 @@
 #TODO update quic-go .go #TODODODODO
 # TODO Test all clients in local
 
+PROOTPATH=$PWD
+export PROOTPATH
+export PATH="/go/bin:${PATH}"
+
+source $HOME/.cargo/env
+
 servers=(quinn picoquic quic-go aioquic quiche lsquic) # quant mvfst 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29 hq-29)
 
@@ -17,25 +23,28 @@ alpn=(hq-29 hq-29 hq-29 hq-29 hq-29 hq-29)
 #mvfst => cid = 1
 #other => 0
 
-tests_client=(quic_client_test_max
-              quic_client_test_stream
-              quic_client_test_tp_error
-              quic_client_test_unknown
-              quic_client_test_tp_unknown
-              quic_client_test_double_tp_error
-              quic_client_test_tp_acticoid_error
-              quic_client_test_tp_limit_acticoid_error
-              quic_client_test_blocked_streams_maxstream_error
-              quic_client_test_retirecoid_error
-              #quic_client_test_token_error
-              quic_client_test_newcoid_zero_error
-              quic_client_test_accept_maxdata
-              quic_client_test_tp_prefadd_error
-              quic_client_test_no_odci
-              quic_client_test_ext_min_ack_delay
-              quic_client_test_tp_unkown
-              quic_client_test_limit_max_error
-              quic_client_test_new_token_error
+tests_client=(
+                quic_client_test_retry
+	            quic_client_test_version_negociation
+            #   quic_client_test_max
+            #   quic_client_test_stream
+            #   quic_client_test_tp_error
+            #   quic_client_test_unknown
+            #   quic_client_test_tp_unknown
+            #   quic_client_test_double_tp_error
+            #   quic_client_test_tp_acticoid_error
+            #   quic_client_test_tp_limit_acticoid_error
+            #   quic_client_test_blocked_streams_maxstream_error
+            #   quic_client_test_retirecoid_error
+            #   #quic_client_test_token_error
+            #   quic_client_test_newcoid_zero_error
+            #   quic_client_test_accept_maxdata
+            #   quic_client_test_tp_prefadd_error
+            #   quic_client_test_no_odci
+            #   quic_client_test_ext_min_ack_delay
+            #   quic_client_test_tp_unkown
+            #   quic_client_test_limit_max_error
+            #   quic_client_test_new_token_error
               )
 
 bash install_ivy.sh
@@ -68,6 +77,7 @@ for j in "${servers[@]}"; do
 done
 
 export TEST_TYPE=client
+export IS_NOT_DOCKER=true
 
 printf "\n"
 cd /QUIC-Ivy/doc/examples/quic/test/
@@ -77,6 +87,12 @@ for j in "${tests_client[@]}"; do
     :
     printf "Client => $j  "
     cnt2=0
+    if [ $j = quic_client_test_0rtt ]; then
+		echo "test"
+		export ZERORTT_TEST=true
+	else
+		unset ZERORTT_TEST
+	fi
     for i in "${servers[@]}"; do
         :
         export SSLKEYLOGFILE="/results/temp/${i}_key.log"

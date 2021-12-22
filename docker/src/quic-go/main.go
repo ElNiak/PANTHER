@@ -34,6 +34,7 @@ func main() {
 	verbose := flag.Bool("v", false, "verbose")
 	printData := flag.Bool("P", false, "printData the data")
 	keyLogFile := flag.String("X", "", "key log file")
+	doVN := flag.Bool("V", false, "version negociation")
 	requestSize := flag.Int("G", 50000, "amount of bytes to ask for in the request")
 	flag.Bool("R", false, "force RTT connection establishment")
 
@@ -64,11 +65,22 @@ func main() {
 	}
 
 	// a quic.Config that doesn't do a Retry
-	var quicConf = &quic.Config{
-		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
-		ConnectionIDLength: 8,
-		//Tracer:      qlog.NewTracer(getLogWriter),
-		//DisablePathMTUDiscovery: true,
+	var quicConf = nil
+	if !doVN {
+		quicConf = &quic.Config{
+			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
+			ConnectionIDLength: 8,
+			//Tracer:      qlog.NewTracer(getLogWriter),
+			//DisablePathMTUDiscovery: true,
+		}
+	} else {
+		quicConf = &quic.Config{
+			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
+			ConnectionIDLength: 8,
+			Versions: [] protocol.VersionNumber{},
+			//Tracer:      qlog.NewTracer(getLogWriter),
+			//DisablePathMTUDiscovery: true,
+		}
 	}
 
 	roundTripper := &http09.RoundTripper{

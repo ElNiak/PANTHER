@@ -436,8 +436,7 @@ class LongBV(XBVI):
         XBVI.emit_templates(self)
         add_impl(
 """
-/*
-int128_t atoint128_t(std::string const & in)
+/*int128_t atoint128_t(std::string const & in)
 {
     //https://stackoverflow.com/questions/45608424/atoi-for-int128-t-type
     int128_t res = 0;
@@ -470,7 +469,7 @@ int128_t atoint128_t(std::string const & in)
     }
 
     return res;
-} */
+}*/
 
 std::ostream &operator <<(std::ostream &s, const CLASSNAME &t){
     //s << t.val;

@@ -13,6 +13,10 @@ for j in "${array[@]}"; do :
     fi
 done
 
+cp -f $PROOTPATH/QUIC-Ivy/ivy/ivy_to_cpp.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_to_cpp.py
+cp -f $PROOTPATH/QUIC-Ivy/ivy/ivy_solver.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_solver.py
+cp -f $PROOTPATH/QUIC-Ivy/ivy/ivy_cpp_types.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_cpp_types.py
+
 cd /usr/local/lib/python2.7/dist-packages/ivy/
 python -m compileall ivy_to_cpp.py
 python -m compileall ivy_cpp_types.py

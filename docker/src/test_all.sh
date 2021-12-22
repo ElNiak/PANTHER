@@ -1,5 +1,10 @@
 #!/bin/bash
 
+PROOTPATH=$PWD
+export PROOTPATH
+export PATH="/go/bin:${PATH}"
+source $HOME/.cargo/env
+
 #
 # Launch the server & client suite test for each implementation
 #

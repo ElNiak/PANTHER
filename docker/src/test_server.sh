@@ -1,4 +1,8 @@
 #!/bin/bash
+PROOTPATH=$PWD
+export PROOTPATH
+export PATH="/go/bin:${PATH}"
+source $HOME/.cargo/env
 
 #
 # Launch the server suite test for each implementation
@@ -13,7 +17,10 @@
 servers=(quant quinn mvfst picoquic quic-go aioquic quiche)
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29 hq-29 hq-29)
 
-tests_server=(quic_server_test_stream
+tests_server=(#quic_server_test_stream
+              #quic_server_test_0rtt
+	          quic_server_test_retry
+	          quic_server_test_version_negociation 
               #quic_server_test_unkown
 	          #quic_server_test_blocked_streams_maxstream_error
               #quic_server_test_tp_limit_newcoid
@@ -76,7 +83,14 @@ done
 
 ITER=$1
 
+sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
+
 export TEST_TYPE=server
+export IS_NOT_DOCKER=true
+
+export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
+echo $ZRTTSSLKEYLOGFILE
+
 
 printf "\n"
 cd /QUIC-Ivy/doc/examples/quic/test/
@@ -86,6 +100,12 @@ for j in "${tests_server[@]}"; do
     :
     printf "Server => $j  "
     cnt2=0
+    if [ $j = quic_server_test_0rtt ]; then
+		echo "test"
+		export ZERORTT_TEST=true
+	else
+		unset ZERORTT_TEST
+	fi
     for i in "${servers[@]}"; do
         :
         export SSLKEYLOGFILE="/results/temp/${i}_key.log"

@@ -84,6 +84,7 @@ COPY src/quic-go/cert.pem /certs/cert.pem
 COPY --from=intermediate aioquic /quic/aioquic
 # Aioquic server fix
 # COPY src/aioquic/connection.py /quic/aioquic/quic/connection.py 
+COPY src/aioquic/http3_client.py /quic/aioquic/quic/conhttp3_clientnection.py
 COPY --from=intermediate mvfst /quic/mvfst
 # # TODO should be in the first part
 COPY src/mvfst/generic /quic/mvfst/quic/samples/generic
