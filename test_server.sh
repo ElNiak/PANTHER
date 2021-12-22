@@ -18,8 +18,8 @@ fi
 
 
 servers=(
-		 #quant 
-		 #picoquic
+		 quant 
+		 picoquic
 		 # mvfst # Not working anymore (installation) tocheck
 		 # lsquic # Internal error with server
 		 # quic-go
@@ -32,8 +32,9 @@ alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 tests_server=(
 	      #quic_server_test_stream
 	      #quic_server_test_version_negociation_ext
+		  #quic_server_test_0rtt
 	      quic_server_test_retry
-	      #quic_server_test_version_negociation # why tls offset good with it and not with retry
+	      quic_server_test_version_negociation 
           #quic_server_test_unkown
 	      #quic_server_test_blocked_streams_maxstream_error
           #quic_server_test_tp_limit_newcoid
@@ -116,6 +117,9 @@ for j in "${servers[@]}"; do
     touch $PROOTPATH"/tls-keys/${j}_key.log"
 done
 
+export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
+echo $ZRTTSSLKEYLOGFILE
+
 cnt=0
 ITER=1
 printf "\n"
@@ -125,6 +129,12 @@ for j in "${tests_server[@]}"; do
     :
     printf "Server => $j  "
     cnt2=0
+	if [ $j = quic_server_test_0rtt ]; then
+		echo "test"
+		export ZERORTT_TEST=true
+	else
+		unset ZERORTT_TEST
+	fi
     for i in "${servers[@]}"; do
         :
 	export SSLKEYLOGFILE=$PROOTPATH"/tls-keys/${i}_key.log"
@@ -141,8 +151,12 @@ for j in "${tests_server[@]}"; do
             touch temp/${pcap_i}_${i}_${j}.pcap
             sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
             sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp" & 
-	    	python test.py iters=1 server=$i test=$j > res_server.txt 2>&1
-            printf "\n"
+	    	if [ $k = 1 ]; then
+				python test.py iters=1 server=$i test=$j run=true keep_alive=false > res_server.txt 2>&1
+            else
+				python test.py iters=1 server=$i test=$j run=false > res_server.txt 2>&1
+			fi
+			printf "\n"
 	    	((k++))
             sudo pkill tshark
             cat res_server.txt

@@ -27,7 +27,7 @@ scdircr = os.environ.get('QUIC_IMPL_DIR',os.environ.get('HOME','') + '/TVOQE_Per
 servers = [
     ['picoquic',[scdir+'/picoquic','./picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/picoquic']], # -b myqlog.bins _pico.log -r
     ['pquic',[scdir+'/pquic','./picoquicdemo -l - -D -L']],
-    ['quant',['..', scdir+'/quant/Debug/bin/server -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log']], # -o
+    ['quant',['..', scdir+'/quant/Debug/bin/server -x 1000 -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log']], # -o
     ['winquic',['..','true']],
     ['minq',['..','go run '+ scdir + '/go/src/github.com/ekr/minq/bin/server/main.go']],
     ['chromium',[scdircr+'/chromium/src','./out/Default/quic_server --port=4443 --quic_response_cache_dir=/tmp/quic-data/www.example.org   --certificate_file=net/tools/quic/certs/out/leaf_cert.pem --key_file=net/tools/quic/certs/out/leaf_cert.pkcs8 --quic-enable-version-99  --generate_dynamic_responses --allow_unknown_root_cert --v=1']], # --quic_versions=h3-25
@@ -96,6 +96,7 @@ server_tests = [
       ['quic_server_test_version_negociation','test_completed'],
       ['quic_server_test_version_negociation_ext','test_completed'],
       ['quic_server_test_retry','test_completed'],
+      ['quic_server_test_0rtt','test_completed'],
       ]
     ],
 ]
@@ -127,6 +128,7 @@ client_tests = [
       ['quic_client_test_new_token_error','test_completed'],
       ['quic_client_test_version_negociation','test_completed'],
       ['quic_client_test_retry','test_completed'],
+      ['quic_client_test_0rtt','test_completed'],
       ]
     ],
 ]
@@ -139,7 +141,7 @@ run = True               # For server/client's test, launch or not the server/cl
 test_pattern = '*'       # Test to launch regex, * match all test
 time = 100               # Timeout
 is_client = False        # True -> client tested <=> False -> server tested
-
+keep_alive = False
 # server_addr=0xc0a80101 client_addr=0xc0a80102
 # Can be added in the command to parametrize more the command line
 ivy_options = {'server_addr':None,'client_addr':None,'max_stream_data':None,'initial_max_streams_bidi':None}
@@ -162,6 +164,7 @@ options:
     test=<test name pattern>
     stats={{true,false}}
     run={{true,false}}
+    keep_alive={{true,false}}
     """.format(sys.argv[0])
     sys.exit(1)
 
@@ -218,11 +221,12 @@ class Test(object):
                     try:
                         ok = self.expect(test_command,iev)
                     except KeyboardInterrupt:
-                        if run:
+                        if run and not keep_alive:
+                            print("cool")
                             quic_process.terminate()
                         raise KeyboardInterrupt
                     # If run => get exit status of process
-                    if run:
+                    if run and not keep_alive:
                         quic_process.terminate()
                         retcode = quic_process.wait()
                         if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
@@ -290,8 +294,14 @@ class IvyTest(Test):
         timeout_cmd = '' if platform.system() == 'Windows' else 'timeout {} '.format(time)
         randomSeed = random.randint(0,1000)
         random.seed(datetime.now())
-        return ' '.join(['{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,self.name,randomSeed,0,'' if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
-
+        if "quic_server_test_0rtt" in self.name: # TODO build quic_server_test_stream
+            return "unset ZERORTT_TEST; " + (' '.join(['{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,"quic_server_test_stream",randomSeed,0,'' 
+            if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)) + ";export ZERORTT_TEST=true;" +' '.join(['{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,self.name,randomSeed,0,'' 
+            if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
+        else:
+            return ' '.join(['{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,self.name,randomSeed,0,'' 
+            if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
+        
 def get_tests(cls,arr):
     for checkd in arr:
         dir,checkl = checkd
@@ -326,6 +336,10 @@ def main():
             if val not in ['true','false']:
                 usage()
             run = val == 'true'
+        elif name == 'keep_alive':
+            if val not in ['true','false']:
+                usage()
+            keep_alive = val == 'true'
         elif name == 'test':
             test_pattern = val
         elif name == 'time':
@@ -392,7 +406,7 @@ def main():
 		        #todo refactor
                 if "quic_server_test_retry" in test.name: 
                     if quic_name == "quant":
-                        quic_cmd = scdir+'/quant/Debug/bin/server -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -r'
+                        quic_cmd = scdir+'/quant/Debug/bin/server -x 1000 -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -r'
                     elif quic_name == "picoquic":
                         quic_cmd = './picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlog/picoquic -r' 
                     elif quic_name == "aioquic":
@@ -402,48 +416,28 @@ def main():
                     elif quic_name == "quinn":
                         quic_cmd = 'cargo run -vv --example server '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443'
                     elif quic_name == "quic-go":
-                        pass
+                        quic_cmd = './server -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key -r -p 4443 127.0.0.1'
                     elif quic_name == "mvfst":
-                        pass
-                if "quic_server_test_version_negociation" in test.name: 
-                    if quic_name == "quant":
-                        quic_cmd = scdir+'/quant/Debug/bin/server -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log'
-                    elif quic_name == "picoquic":
-                        quic_cmd = './picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlog/picoquic' 
-                    elif quic_name == "quiche":
-                        pass
-                    elif quic_name == "quinn":
-                        quic_cmd = "cargo run -vv --example server '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/index.html --keylog --listen 127.0.0.1:4443"
-                    elif quic_name == "quic-go":
-                        pass
-                    elif quic_name == "mvfst":
-                        pass
-                if "quic_client_test_retry" in test.name: #TODO 
-                    if quic_name == "quant":
-                        quic_cmd = scdir + '/quant/Debug/bin/client -e 0xff00001d -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html'
-                    elif quic_name == "picoquic":
-                        quic_cmd = './picoquicdemo -v ff00001d -l - -D -L -a hq-29 localhost 4443' 
-                    elif quic_name == "quiche":
-                        pass
-                    elif quic_name == "quinn":
-                        pass
-                    elif quic_name == "quic-go":
-                        pass
-                    elif quic_name == "mvfst":
-                        pass
+                        quic_cmd = "./echo -mode=server -host=127.0.0.1 -port=4443  -v=10 -pr=true"
+
                 if "quic_client_test_version_negociation" in test.name:
                     if quic_name == "quant":
                         quic_cmd = scdir + '/quant/Debug/bin/client -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html'
                     elif quic_name == "picoquic":
-                        quic_cmd = './picoquicdemo -l - -D -L -a hq-29 localhost 4443' 
+                        quic_cmd = './picoquicdemo -v babababa -l - -D -L -a hq-29 localhost 4443' 
                     elif quic_name == "quiche":
-                        pass
+                        quic_cmd = "cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 20"
                     elif quic_name == "quinn":
                         pass
                     elif quic_name == "quic-go":
-                        pass
+                        quic_cmd = './client -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -P -G 5000000 -v 127.0.0.1 4443'
                     elif quic_name == "mvfst":
                         pass
+                    elif quic_name == "aioquic":
+                        quic_cmd = 'python3 examples/http3_client.py --version_negociation -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -v -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html'
+                    elif quic_name == "lsquic":
+                        quic_cmd = "./http_client -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1"
+                
                 status = test.run(test_command)
                 if not status:
                     num_failures += 1

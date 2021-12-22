@@ -30,3 +30,10 @@ bash install.sh
 - NS3
 
 - Why removing the dcil and scil field ?
+
+- VN: when the list no contain "Supported Version: Unknown (0x0a1a2a3a) (GREASE)"
+    => never run read() from udp_impl.ivy TODO
+
+- TODO 0rtt same keys + tps
+
+- How to activate the generation of 2 packets at the same time ?

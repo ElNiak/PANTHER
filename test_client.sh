@@ -21,7 +21,7 @@ clients=(
 		 #mvfst # Not working: unknown reason
 		 #lsquic
 		 #quic-go
-		 #aioquic
+		 aioquic
 		 #quinn # Not working: unknown reason
 		 #quiche
 		 )
@@ -30,8 +30,9 @@ alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
 	      #quic_client_test_max
+		  #quic_client_test_0rtt
 	      quic_client_test_retry
-	      #quic_client_test_version_negociation
+	      quic_client_test_version_negociation
 	      #quic_client_test_stream #useless here
 	      #quic_client_test_ext_min_ack_delay
 	      #quic_client_test_tp_error
@@ -90,6 +91,8 @@ rm $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/test.py
 cp $PROOTPATH/ressources/test.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
 cd $PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_tests
 
+export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
+echo $ZRTTSSLKEYLOGFILE
 
 printf "BUILDING TEST \n"
 for j in "${tests_client[@]}"; do
@@ -123,6 +126,12 @@ for j in "${tests_client[@]}"; do
     :
     printf "Client => $j  "
     cnt2=0
+	if [ $j = quic_client_test_0rtt ]; then
+		echo "test"
+		export ZERORTT_TEST=true
+	else
+		unset ZERORTT_TEST
+	fi
     for i in "${clients[@]}"; do
         :
 	export SSLKEYLOGFILE=$PROOTPATH"/tls-keys/${i}_key.log"
@@ -139,8 +148,12 @@ for j in "${tests_client[@]}"; do
             touch temp/${pcap_i}_${i}_${j}.pcap
             sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
             sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp" & 
-            python test.py iters=1 client=$i test=$j > res_client.txt 2>&1
-            printf "\n"
+            if [ $k = 1 ]; then
+				python test.py iters=1 client=$i test=$j run=true keep_alive=true > res_client.txt 2>&1
+            else
+				python test.py iters=1 client=$i test=$j run=false > res_client.txt 2>&1
+			fi
+			printf "\n"
 	    	((k++))
             cat res_client.txt
             mv res_client.txt temp/${pcap_i}/res_client.txt
