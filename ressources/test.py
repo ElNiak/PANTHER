@@ -424,7 +424,7 @@ def main():
                     if quic_name == "quant":
                         quic_cmd = scdir + '/quant/Debug/bin/client -c false -r 20 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html'
                     elif quic_name == "picoquic":
-                        quic_cmd = './picoquicdemo -v babababa -l - -D -L -a hq-29 localhost 4443' 
+                        quic_cmd = './picoquicdemo -v ff00001d -v ff00001e -l - -D -L -a hq-29 localhost 4443' 
                     elif quic_name == "quiche":
                         quic_cmd = "cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 20"
                     elif quic_name == "quinn":

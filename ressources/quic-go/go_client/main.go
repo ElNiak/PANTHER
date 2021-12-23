@@ -65,15 +65,13 @@ func main() {
 	}
 
 	// a quic.Config that doesn't do a Retry
-	var quicConf = nil
-	if !doVN {
-		quicConf = &quic.Config{
-			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
-			ConnectionIDLength: 8,
-			//Tracer:      qlog.NewTracer(getLogWriter),
-			//DisablePathMTUDiscovery: true,
-		}
-	} else {
+	quicConf := &quic.Config{
+		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
+		ConnectionIDLength: 8,
+		//Tracer:      qlog.NewTracer(getLogWriter),
+		//DisablePathMTUDiscovery: true,
+	}
+	if doVN {
 		quicConf = &quic.Config{
 			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 			ConnectionIDLength: 8,
@@ -81,8 +79,8 @@ func main() {
 			//Tracer:      qlog.NewTracer(getLogWriter),
 			//DisablePathMTUDiscovery: true,
 		}
-	}
-
+	} 
+	
 	roundTripper := &http09.RoundTripper{
 		TLSClientConfig: &tls.Config{
 			RootCAs:            pool,
