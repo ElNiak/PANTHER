@@ -3,62 +3,6 @@ import pandas as pd
 import os
 import scandir
 
-server_tests = [
-    'quic_server_test_stream',
-    'quic_server_test_handshake_done_error',
-    'quic_server_test_reset_stream',
-    'quic_server_test_connection_close',
-    'quic_server_test_stop_sending',
-    'quic_server_test_max',
-    'quic_server_test_token_error',
-    'quic_server_test_tp_error',
-    'quic_server_test_double_tp_error',
-    'quic_server_test_tp_acticoid_error',
-    'quic_server_test_tp_limit_acticoid_error',
-    'quic_server_test_blocked_streams_maxstream_error',
-    'quic_server_test_retirecoid_error',
-    'quic_server_test_newcoid_zero_error',
-    'quic_server_test_accept_maxdata',
-    'quic_server_test_unkown',
-    'quic_server_test_tp_limit_newcoid',
-    'quic_server_test_ext_min_ack_delay',
-    'quic_server_test_no_icid',
-    'quic_server_test_stream_limit_error',
-    'quic_server_test_crypto_limit_error',
-    'quic_server_test_newconnectionid_error',
-    'quic_server_test_newcoid_rtp_error',
-    'quic_server_test_newcoid_length_error',
-    'quic_server_test_new_token_error',
-    'quic_server_test_stop_sending_error',
-    'quic_server_test_unkown_tp',
-    'quic_server_test_max_limit_error',
-    'quic_server_test_max_error'
-]
-
-# List of available client's tests
-client_tests = [
-    'quic_client_test_max',
-    'quic_client_test_token_error',
-    'quic_client_test_tp_error',
-    'quic_client_test_double_tp_error',
-    'quic_client_test_tp_acticoid_error',
-    'quic_client_test_tp_limit_acticoid_error',
-    'quic_client_test_blocked_streams_maxstream_error',
-    'quic_client_test_retirecoid_error',
-    'quic_client_test_newcoid_zero_error',
-    'quic_client_test_accept_maxdata',
-    'quic_client_test_tp_prefadd_error',
-    'quic_client_test_handshake_done_error',
-    'quic_client_test_stateless_reset_token',
-    'quic_client_test_ext_min_ack_delay',
-    'quic_client_test_no_odci',
-    'quic_client_test_tp_unknown',
-    'quic_client_test_stream',
-    'quic_client_test_unkown_tp',
-    'quic_client_test_max_limit_error'
-    'quic_client_test_new_token_error'
-]
-
 frame = pd.DataFrame(
     columns=["Run", "Implementation", "Mode", "TestName", "Status", "ErrorIEV", "OutputFile"])
 
@@ -74,13 +18,19 @@ def readlastline(filename):
             second_last = lines[-2]
     return last, second_last
 
+def lines_that_contain(string, filename):
+    with open(filename, 'r',encoding = "ISO-8859-1") as f:
+        lines = f.read().splitlines()
+        return [line for line in lines if string in line]
 
-foldername = os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH','')) + "/results/temp/"  #"/home/chris/Toward-verification-of-QUIC-extensions/installer/TVOQE/results/errors/server/local/mvfst_server_newcoid/temp/" 
+
+foldername = "/home/user/Documents/QUIC-FormalVerification/results/client-retry-vn-3/"  #"/home/chris/Toward-verification-of-QUIC-extensions/installer/TVOQE/results/errors/server/local/mvfst_server_newcoid/temp/" 
 # foldername = "/home/student/Toward-verification-of-QUIC-extensions/installer/TVOQE"
 # foldername = "/results/temp/"
 subfolders = [f.path for f in scandir.scandir(foldername) if f.is_dir()]
 run = 0
 for fol in subfolders:
+    #print(fol)
     for file in os.listdir(fol):
         if file.endswith(".iev"):
             fullPath = os.path.join(fol, file)
@@ -91,10 +41,7 @@ for fol in subfolders:
             match = ""
             if "server" in file:
                 mode = "server"
-                for n in server_tests:
-                    if n in file:
-                        test_name = file.replace('.iev', '')
-                        break
+                test_name = file.replace('.iev', '')
                 if os.path.isfile('res_server.txt'):
                     with open(os.path.join(fol, "res_server.txt"), "r") as f:
                         for li in f:
@@ -132,10 +79,7 @@ for fol in subfolders:
                                   match = "quant"
 
             else:
-                for n in client_tests:
-                    if n in file:
-                        test_name = file.replace('.iev', '')
-                        break
+                test_name = file.replace('.iev', '')
                 if os.path.isfile('res_client.txt'):
                     with open(os.path.join(fol, "res_client.txt"), "r") as f:
                         for li in f:
@@ -173,8 +117,24 @@ for fol in subfolders:
             err = file.replace(".iev", ".err")
             errPath = os.path.join(fol, err)
             with open(fullPath, "r") as f:
+                contents = f.read()
                 last, second_last = readlastline(fullPath)
-                if last in "test_completed\n":
+                errors = []
+                if not "server" in file and os.path.isfile('res_client.txt'):
+                    errors = lines_that_contain("require",os.path.join(fol, "res_client.txt"))
+                elif os.path.isfile('res_server.txt'):
+                    errors = lines_that_contain("require",os.path.join(fol, "res_server.txt"))
+                if len(errors) > 0:
+                    last = errors[0].replace('"    ',"")
+                    second_last = ""
+                if "frame.connection_close:" in contents:
+                    start_index = contents.find("frame.connection_close:")
+                    end_index = contents.find(",",start_index)
+                    last = contents[start_index:end_index+1].replace(",","") + "}"
+                    second_last = ""
+                last = last.replace("\n","").replace("    ","").replace(",","").replace(";","")
+                second_last = second_last.replace("\n","").replace("    ","").replace(",","").replace(";","")
+                if "test_completed" in contents:
                     frame = frame.append(
                         {"Run": run,
                          "Implementation": match,
@@ -194,7 +154,7 @@ for fol in subfolders:
                          "ErrorIEV": last+"+"+second_last,
                          "NbPktSend": 0,  # TODO
                          "OutputFile": fullPath}, ignore_index=True)
-                run += 1
+    run += 1
 
 
 today = date.today()
