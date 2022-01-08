@@ -19,22 +19,28 @@ fi
 
 servers=(
 		 quant 
-		 # picoquic
+		 #quant-vuln
+		 #picoquic
+		 #picoquic-vuln
 		 # mvfst # Not working anymore (installation) tocheck
 		 # lsquic # Internal error with server
-		 # quic-go
-		 # aioquic
+		 quic-go
+		 #aioquic
 		 # quinn
 		 # quiche
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 tests_server=(
-	      #quic_server_test_stream
+		  #quic_server_test_ncid_quant_vulne
+	      quic_server_test_stream
 	      #quic_server_test_version_negociation_ext
+		  #quic_server_test_0rtt_stream
 		  #quic_server_test_0rtt
 	      quic_server_test_retry
-	      # quic_server_test_version_negociation 
+		  #quic_server_test_stream_vuln
+		  #quic_server_test_retry_reuse_key
+	      #quic_server_test_version_negociation 
           #quic_server_test_unkown
 	      #quic_server_test_blocked_streams_maxstream_error
           #quic_server_test_tp_limit_newcoid
@@ -107,6 +113,26 @@ for j in "${tests_server[@]}"; do
     rm $j.cpp
     rm $j.h
     printf "\n"
+	if [ $j = quic_server_test_0rtt ]; then
+		ivyc target=test quic_server_test_0rtt_stream.ivy #TODO update g++ add lib
+		cp quic_server_test_0rtt_stream $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		cp quic_server_test_0rtt_stream.cpp $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		cp quic_server_test_0rtt_stream.h $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		rm quic_server_test_0rtt_stream
+		rm quic_server_test_0rtt_stream.cpp
+		rm quic_server_test_0rtt_stream.h
+		printf "\n"
+	fi
+	if [ $j = quic_server_test_retry_reuse_key ]; then
+		ivyc target=test quic_server_test_retry.ivy #TODO update g++ add lib
+		cp quic_server_test_retry $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		cp quic_server_test_retry.cpp $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		cp quic_server_test_retry.h $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		rm quic_server_test_retry
+		rm quic_server_test_retry.cpp
+		rm quic_server_test_retry.h
+		printf "\n"
+	fi
 done
 
 sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
@@ -119,6 +145,13 @@ done
 
 export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
 echo $ZRTTSSLKEYLOGFILE
+export STFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt
+export RTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_retry_token.txt
+export NTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
+
+echo $STFILE
+echo $RTFILE
+echo $NTFILE
 
 cnt=0
 ITER=1
@@ -145,8 +178,12 @@ for j in "${tests_server[@]}"; do
             printf "\n\nTesting => $i \n"
 			export TEST_IMPL=$i
 			export CNT=$cnt
-			export RND=$RANDOM
-			export TEST_ALPN=hq-29
+			export RND=$RANDOM quic_server_test_stream_vuln
+			if [ $j = quic_server_test_retry_reuse_key ] || [ $j = quic_server_test_stream_vuln ]; then
+				export TEST_ALPN=hq-28
+			else
+				export TEST_ALPN=hq-29
+			fi
 			pcap_i=$((`(find temp/* -maxdepth 0 -type d | wc -l)`))
             touch temp/${pcap_i}_${i}_${j}.pcap
             sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
@@ -154,7 +191,7 @@ for j in "${tests_server[@]}"; do
 	    	if [ $k = 1 ]; then
 				python test.py iters=1 server=$i test=$j run=true keep_alive=false > res_server.txt 2>&1
             else
-				python test.py iters=1 server=$i test=$j run=false > res_server.txt 2>&1
+				python test.py iters=1 server=$i test=$j run=true > res_server.txt 2>&1
 			fi
 			printf "\n"
 	    	((k++))

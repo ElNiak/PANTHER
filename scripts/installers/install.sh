@@ -18,34 +18,42 @@ sudo apt-get install  --fix-missing  -y build-essential software-properties-comm
 sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix pkg-config libssl-dev # TODO
 sudo apt-get install -y libunwind-dev
 
-sudo apt remove cmake -y
-sudo snap remove cmake
-sudo snap install cmake --classic
-sudo apt-get install cmake
-cmake --version
-/usr/bin/cmake --version
+# sudo apt remove cmake -y
+# sudo snap remove cmake
+# sudo snap install cmake --classic
+# sudo apt-get install cmake
+# cmake --version
+# /usr/bin/cmake --version
 
 
 # curl -fsSL https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3.5
 
 printf '%s\n' "-------------> Init submodules: <-------------"
 
-git submodule update --init --recursive
-git submodule update --recursive
+#git submodule update --init --recursive
+#git submodule update --recursive
 
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
-bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
+#bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
 
 cd $PROOTPATH/scripts/installers/implementation-installer/
 
 printf '%s\n' "-------------> Installing picoquic: <-------------"
 
-bash install_picoquic.sh
+#bash install_picoquic.sh
+
+printf '%s\n' "-------------> Installing picoquic vuln: <-------------"
+
+#bash install_picoquic_vulne_retry.sh
 
 printf '%s\n' "-------------> Installing quant: <-------------"
 
-bash install_quant.sh
+#bash install_quant.sh
+
+printf '%s\n' "-------------> Installing quant vuln: <-------------"
+
+#bash install_quant_vulne.sh
 
 printf '%s\n' "-------------> Installing quic-go: <-------------"
 
@@ -53,19 +61,19 @@ bash install_goquic.sh
 
 printf '%s\n' "-------------> Installing lsquic: <-------------"
 
-bash install_lsquic.sh 
+#bash install_lsquic.sh 
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
 
-bash install_quiche.sh
+#bash install_quiche.sh
 
 printf '%s\n' "-------------> Installing quinn: <-------------"
 
-bash install_quinn.sh
+#bash install_quinn.sh
 
 printf '%s\n' "-------------> Installing aioquic: <-------------"
 
-bash install_aioquic.sh
+#bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 
