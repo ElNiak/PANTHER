@@ -18,6 +18,7 @@ import (
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/interop/http09"
 	//"github.com/lucas-clemente/quic-go/interop/utils"
+	"github.com/lucas-clemente/quic-go/internal/protocol"
 )
 
 type logger struct {
@@ -71,7 +72,7 @@ func main() {
 		//Tracer:      qlog.NewTracer(getLogWriter),
 		//DisablePathMTUDiscovery: true,
 	}
-	if doVN {
+	if *doVN {
 		quicConf = &quic.Config{
 			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 			ConnectionIDLength: 8,

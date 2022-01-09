@@ -48,8 +48,8 @@ func main() {
 		MaxIdleTimeout: 0,
 		//Tracer: qlog.NewTracer(getLogWriter),
 	}
-	if doRetry {
-		quicConf := &quic.Config{
+	if *doRetry {
+		quicConf = &quic.Config{
 			//AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 			ConnectionIDLength: 8,    
 			//HandshakeIdleTimeout: 0,

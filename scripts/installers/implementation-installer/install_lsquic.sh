@@ -10,6 +10,7 @@ export BORINGSSL=$PWD
 
 cd $PROOTPATH/quic-implementations/lsquic
 git checkout v2.29.4
+cp $PROOTPATH/ressources/lsquic/lsquic_types.h $PROOTPATH/quic-implementations/lsquic/include/lsquic_types.h
 cmake -DBORINGSSL_DIR=$BORINGSSL .
 make
 make test
