@@ -5113,7 +5113,7 @@ int ask_ret(long long bound) {
     virtual void ivy_assert(bool truth,const char *msg){
         if (!truth) {
             int i;
-            __ivy_out << "assertion_failed(\\"" << msg << "\\")" << std::endl;
+            //__ivy_out << "assertion_failed(\\"" << msg << "\\")" << std::endl;
 
             std::string::size_type pos = std::string(msg).find(".ivy");
             std::string path = "";
@@ -5143,6 +5143,8 @@ int ask_ret(long long bound) {
 	        strStream << ifs.rdbuf();
 	        std::string str = strStream.str();
 
+            __ivy_out << "assertion_failed(\\"" << str << "\\")" << std::endl;
+
             std::cerr << str << std::endl;
 	        if(std::remove("temps.txt") != 0) 
 		        std::cerr << "error: remove(temps.txt) failed\\n";
@@ -5157,7 +5159,7 @@ int ask_ret(long long bound) {
     virtual void ivy_assume(bool truth,const char *msg){
         if (!truth) {
             int i;
-            __ivy_out << "assumption_failed(\\"" << msg << "\\")" << std::endl;
+            //__ivy_out << "assumption_failed(\\"" << msg << "\\")" << std::endl;
             
             std::string::size_type pos = std::string(msg).find(".ivy");
             std::string path = "";
@@ -5186,6 +5188,8 @@ int ask_ret(long long bound) {
 	        std::stringstream strStream;
 	        strStream << ifs.rdbuf();
 	        std::string str = strStream.str();
+
+            __ivy_out << "assumption_failed(\\"" << str << "\\")" << std::endl;
 
             std::cerr << str << std::endl;
 	        if(std::remove("temps.txt") != 0) 

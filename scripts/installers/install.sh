@@ -35,7 +35,7 @@ printf '%s\n' "-------------> Init submodules: <-------------"
 
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
-bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
+#bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
 
 cd $PROOTPATH/scripts/installers/implementation-installer/
 
@@ -73,7 +73,7 @@ printf '%s\n' "-------------> Installing quinn: <-------------"
 
 printf '%s\n' "-------------> Installing aioquic: <-------------"
 
-# bash install_aioquic.sh
+bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 

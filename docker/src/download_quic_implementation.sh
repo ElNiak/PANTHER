@@ -3,9 +3,11 @@
 cd /
 # Clone Ivy project 
 echo "----> Cloning Ivy"
-git clone --recurse-submodules https://git@github.com/ElNiak/QUIC-Ivy.git --branch quic_29
+git clone --recurse-submodules https://git@github.com/ElNiak/QUIC-Ivy.git --branch rfc9000
+
 mkdir /QUIC-Ivy/doc/examples/quic/build
 mkdir /QUIC-Ivy/doc/examples/quic/test/temp
+ls
 cd /
 echo "----> Cloning Picotls"
 # Clone picotls project 
@@ -80,3 +82,4 @@ cd /
 git clone --recursive https://github.com/cloudflare/quiche
 cd /quiche
 git checkout 0.7.0
+git submodule update --init

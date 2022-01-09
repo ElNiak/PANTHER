@@ -14,10 +14,19 @@ source $HOME/.cargo/env
 # lsquic not working lsquic
 
 
-servers=(quant quinn mvfst picoquic quic-go aioquic quiche)
+servers=(
+	quant 
+	quinn 
+	mvfst 
+	picoquic 
+	quic-go 
+	aioquic 
+	quiche
+	)
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29 hq-29 hq-29)
 
-tests_server=(#quic_server_test_stream
+tests_server=(
+	      #quic_server_test_stream
               #quic_server_test_0rtt
 	          quic_server_test_retry
 	          quic_server_test_version_negociation 
@@ -119,16 +128,17 @@ for j in "${tests_server[@]}"; do
             export CNT=$count
             export RND=$RANDOM
             export TEST_ALPN=hq-29
+	    mkdir /QUIC-Ivy/doc/examples/quic/test/temp/${count}
             touch /QUIC-Ivy/doc/examples/quic/test/temp/${count}_${i}_${j}.pcap
             chmod o=xw /QUIC-Ivy/doc/examples/quic/test/temp/${count}_${i}_${j}.pcap
             tshark -i lo -w /QUIC-Ivy/doc/examples/quic/test/temp/${count}_${i}_${j}.pcap -f "udp" &
             python test.py iters=1 server=$i test=$j > res_server.txt 2>&1
             ((k++))
             printf "\n"
-            pkill tshark
             cat res_server.txt
             cp res_server.txt /QUIC-Ivy/doc/examples/quic/test/temp/${count}/res_server.txt
             count=$((count + 1))
+            pkill tshark
         done
         cnt2=$((cnt2 + 1))
 	    printf "\n"

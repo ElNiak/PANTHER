@@ -17,6 +17,7 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/interop/http09"
+	"github.com/lucas-clemente/quic-go/internal/protocol"
 	//"github.com/lucas-clemente/quic-go/interop/utils"
 )
 
@@ -36,7 +37,7 @@ func main() {
 	keyLogFile := flag.String("X", "", "key log file")
 	doVN := flag.Bool("V", false, "version negociation")
 	requestSize := flag.Int("G", 50000, "amount of bytes to ask for in the request")
-	isRTT := flag.Bool("R", false, "force RTT connection establishment")
+	//isRTT := flag.Bool("R", false, "force RTT connection establishment")
 
 	//secure := flag.Bool("secure", false, "do certificate verification")
 	flag.Parse()
@@ -71,7 +72,7 @@ func main() {
 		//Tracer:      qlog.NewTracer(getLogWriter),
 		//DisablePathMTUDiscovery: true,
 	}
-	if doVN {
+	if *doVN {
 		quicConf = &quic.Config{
 			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 			ConnectionIDLength: 8,
