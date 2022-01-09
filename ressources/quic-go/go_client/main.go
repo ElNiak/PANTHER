@@ -75,7 +75,7 @@ func main() {
 		quicConf = &quic.Config{
 			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 			ConnectionIDLength: 8,
-			Versions: [] protocol.VersionNumber{},
+			Versions: [] protocol.VersionNumber{0x22334455, 0xff00001d, 0x33445566},
 			//Tracer:      qlog.NewTracer(getLogWriter),
 			//DisablePathMTUDiscovery: true,
 		}

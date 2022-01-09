@@ -13,7 +13,7 @@ echo $array
 SUB='test'
 for j in "${array[@]}"; do : 
     if [[ ! "$j" == *"$SUB"* ]]; then
-	printf "Files => $j  \n" 
+	    printf "Files => $j  \n" 
     	cp $j /usr/local/lib/python2.7/dist-packages/ivy/include/1.7
     fi
 done
@@ -34,7 +34,10 @@ cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-minicrypto.a $PROOTPATH
 cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-openssl.a /usr/local/lib/python2.7/dist-packages/ivy/lib
 cp -f $PROOTPATH/quic-implementations/picotls/libpicotls-openssl.a $PROOTPATH/QUIC-Ivy/ivy/lib
 
-cp -f $PROOTPATH/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include
-cp -f $PROOTPATH/quic-implementations/picotls/include/picotls.h $PROOTPATH/QUIC-Ivy/ivy/include
+cp -f $PROOTPATH/ressources/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include
+cp -f $PROOTPATH/ressources/include/picotls.h $PROOTPATH/QUIC-Ivy/ivy/include
+
+# cp -f $PROOTPATH/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include
+# cp -f $PROOTPATH/quic-implementations/picotls/include/picotls.h $PROOTPATH/QUIC-Ivy/ivy/include
 cp -r -f $PROOTPATH/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ivy/include/picotls
 cp -r -f $PROOTPATH/quic-implementations/picotls/include/picotls/. $PROOTPATH/QUIC-Ivy/ivy/include/picotls

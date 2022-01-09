@@ -17,11 +17,12 @@ fi
 
 clients=(
 		 quant 
-		 picoquic
+		 #quant-vuln
+		# picoquic
 		 #mvfst # Not working: unknown reason
-		 #lsquic
-		 #quic-go
-		 aioquic
+		lsquic
+		#  quic-go
+		 #aioquic
 		 #quinn # Not working: unknown reason
 		 #quiche
 		 )
@@ -29,10 +30,10 @@ clients=(
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
-	      #quic_client_test_max
+	      quic_client_test_max
 		  #quic_client_test_0rtt
 	      quic_client_test_retry
-	      quic_client_test_version_negociation
+	      #quic_client_test_version_negociation
 	      #quic_client_test_stream #useless here
 	      #quic_client_test_ext_min_ack_delay
 	      #quic_client_test_tp_error
@@ -93,6 +94,14 @@ cd $PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_tests
 
 export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
 echo $ZRTTSSLKEYLOGFILE
+export STFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt
+export RTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_retry_token.txt
+export NTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
+
+echo $STFILE
+echo $RTFILE
+echo $NTFILE
+
 
 printf "BUILDING TEST \n"
 for j in "${tests_client[@]}"; do
@@ -149,7 +158,7 @@ for j in "${tests_client[@]}"; do
             sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
             sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp" & 
             if [ $k = 1 ]; then
-				python test.py iters=1 client=$i test=$j run=true keep_alive=true > res_client.txt 2>&1
+				python test.py iters=1 client=$i test=$j run=true gdb=false keep_alive=false > res_client.txt 2>&1
             else
 				python test.py iters=1 client=$i test=$j run=false > res_client.txt 2>&1
 			fi
