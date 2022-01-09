@@ -77,14 +77,15 @@ COPY --from=intermediate picoquic /quic/picoquic
 COPY --from=intermediate quant /quic/quant
 COPY src/quant/cid.h /quic/quant/lib/src/cid.h
 COPY --from=intermediate quic-go /quic/quic-go
-COPY src/quic-go/main.go /client/main.go
-COPY src/quic-go/server/main.go /server/main.go
+RUN mkdir /quic/quic-go/custom
+COPY src/quic-go/main.go /quic/quic-go/custom/client.go
+COPY src/quic-go/server/main.go /quic/quic-go/custom/server.go
 COPY src/quic-go/priv.key /certs/priv.key
 COPY src/quic-go/cert.pem /certs/cert.pem
 COPY --from=intermediate aioquic /quic/aioquic
 # Aioquic server fix
 # COPY src/aioquic/connection.py /quic/aioquic/quic/connection.py 
-COPY src/aioquic/http3_client.py /quic/aioquic/quic/conhttp3_clientnection.py
+COPY src/aioquic/http3_client.py /http3_client.py
 COPY --from=intermediate mvfst /quic/mvfst
 # # TODO should be in the first part
 COPY src/mvfst/generic /quic/mvfst/quic/samples/generic

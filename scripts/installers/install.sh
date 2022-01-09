@@ -69,5 +69,5 @@ bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 
-#bash install_mvfst.sh # still some problem
+bash install_mvfst.sh # still some problem
 
