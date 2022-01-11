@@ -20,24 +20,24 @@ fi
 servers=(
 		 quant 
 		 #quant-vuln
-		 #picoquic
+		 picoquic
 		 #picoquic-vuln
 		 # mvfst # Not working anymore (installation) tocheck
-		 # lsquic # Internal error with server
-		 quic-go
+		 #lsquic # Internal error with server
+		 #quic-go
 		 #aioquic
-		 # quinn
-		 # quiche
+		 #quinn
+		 #quiche
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 tests_server=(
 		  #quic_server_test_ncid_quant_vulne
-	      quic_server_test_stream
+	      #quic_server_test_stream
 	      #quic_server_test_version_negociation_ext
 		  #quic_server_test_0rtt_stream
-		  #quic_server_test_0rtt
-	      quic_server_test_retry
+		  quic_server_test_0rtt
+	      #quic_server_test_retry
 		  #quic_server_test_stream_vuln
 		  #quic_server_test_retry_reuse_key
 	      #quic_server_test_version_negociation 

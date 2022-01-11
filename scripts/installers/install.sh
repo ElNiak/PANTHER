@@ -45,7 +45,7 @@ printf '%s\n' "-------------> Installing picoquic: <-------------"
 
 printf '%s\n' "-------------> Installing picoquic vuln: <-------------"
 
-#bash install_picoquic_vulne_retry.sh
+bash install_picoquic_vulne_retry.sh
 
 printf '%s\n' "-------------> Installing quant: <-------------"
 
@@ -64,8 +64,8 @@ printf '%s\n' "-------------> Installing lsquic: <-------------"
 # bash install_lsquic.sh 
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
-
-# bash install_quiche.sh
+#cmake 3.12
+#bash install_quiche.sh
 
 printf '%s\n' "-------------> Installing quinn: <-------------"
 
@@ -73,7 +73,7 @@ printf '%s\n' "-------------> Installing quinn: <-------------"
 
 printf '%s\n' "-------------> Installing aioquic: <-------------"
 
-bash install_aioquic.sh
+#bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 

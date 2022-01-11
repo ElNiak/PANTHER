@@ -16,24 +16,25 @@ else
 fi
 
 clients=(
-		 quant 
+		 #quant 
 		 #quant-vuln
-		# picoquic
+	     #picoquic
 		 #mvfst # Not working: unknown reason
-		lsquic
-		#  quic-go
+		 lsquic
+		 #quic-go
 		 #aioquic
 		 #quinn # Not working: unknown reason
 		 #quiche
-		 )
+		)
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
-	      quic_client_test_max
+	      #quic_client_test_max
 		  #quic_client_test_0rtt
-	      quic_client_test_retry
+	      #quic_client_test_retry
 	      #quic_client_test_version_negociation
+		  quic_client_test_version_negociation_mim
 	      #quic_client_test_stream #useless here
 	      #quic_client_test_ext_min_ack_delay
 	      #quic_client_test_tp_error
@@ -140,6 +141,12 @@ for j in "${tests_client[@]}"; do
 		export ZERORTT_TEST=true
 	else
 		unset ZERORTT_TEST
+	fi
+	if [ $j = quic_client_test_version_negociation_mim ]; then
+		echo "test"
+		bash $PROOTPATH/mim-setup.sh
+	else
+		bash $PROOTPATH/mim-reset.sh
 	fi
     for i in "${clients[@]}"; do
         :
