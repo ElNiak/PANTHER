@@ -10,6 +10,7 @@ cmake .
 make
 make check
 
+
 # #Install picoquic
 printf "\n\n"
 printf "###### Installing PicoQUIC:\n\n"
@@ -28,21 +29,32 @@ rm go1.15.linux-amd64.tar.gz
 export PATH="/go/bin:${PATH}"
 
 cd /quic/quic-go/
-echo "Build go"
+echo "Build go 1"
 #export GOPATH=$PWD
+go mod init github.com/lucas-clemente/quic-go
+echo "Build go 2"
 go get ./...
 echo "Build client go"
-go build -o /client/client /client/main.go
+go build -o /client/client /quic/quic-go/custom/client.go
 echo "Build server go"
-go build -o /server/server /server/main.go
+go build -o /server/server /quic/quic-go/custom/server.go
 
 # Install aioquic
 cd /
 cd /quic/aioquic
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 export PYTHONPATH=$PWD
+#pip3 install pyopenssl==19.0.0
+
+python3 -m pip install --upgrade setuptools
+python3 -m pip install --upgrade pip
+python3 -m pip install --upgrade cryptography
+python3 -m pip install --upgrade cffi
 pip3 install -e .
 pip3 install aiofiles asgiref dnslib httpbin starlette wsproto
+rm /quic/aioquic/examples/http3_client.py
+cp /http3_client.py /quic/aioquic/examples/http3_client.py
+
 
 #Install Quant
 cd /
@@ -94,11 +106,13 @@ make test
 #Install Quinn
 cd /quic/quinn
 echo "Build quinn"
+cargo clean
 cargo build --examples
 cargo test
 
 #Install Quiche
 cd /quic/quiche/
+cargo clean
 cargo build --examples
 cargo test
 

@@ -4,7 +4,7 @@ wget https://github.com/Kitware/CMake/releases/download/v3.12.4/cmake-3.12.4-Lin
 chmod +x cmake-3.12.4-Linux-x86_64.sh
 mkdir /opt/cmake
 bash cmake-3.12.4-Linux-x86_64.sh --skip-license --prefix=/opt/cmake
-ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
+sudo ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
 cmake --version
 
 cd $PROOTPATH/quic-implementations/quant/

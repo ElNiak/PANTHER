@@ -16,7 +16,16 @@ export PATH="/go/bin:${PATH}"
 
 source $HOME/.cargo/env
 
-servers=(quinn picoquic quic-go aioquic quiche lsquic) # quant mvfst 
+servers=(
+    # quinn 
+    # picoquic 
+    quic-go 
+    #aioquic 
+    # quiche 
+    # lsquic 
+    # quant 
+    # mvfst
+    ) # quant mvfst 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29 hq-29)
 
 #quant => predaddr = 4
@@ -24,8 +33,8 @@ alpn=(hq-29 hq-29 hq-29 hq-29 hq-29 hq-29)
 #other => 0
 
 tests_client=(
-                quic_client_test_retry
-	            quic_client_test_version_negociation
+            #    quic_client_test_retry
+	        quic_client_test_version_negociation
             #   quic_client_test_max
             #   quic_client_test_stream
             #   quic_client_test_tp_error
@@ -104,6 +113,7 @@ for j in "${tests_client[@]}"; do
             export RND=$RANDOM
             export TEST_ALPN=hq-29 #${alpn[cnt2]}
             printf "\n\Iteration => $k \n"
+	    mkdir /QUIC-Ivy/doc/examples/quic/test/temp/${count}
             touch /QUIC-Ivy/doc/examples/quic/test/temp/${count}_${i}_${j}.pcap
             chmod o=xw /QUIC-Ivy/doc/examples/quic/test/temp/${count}_${i}_${j}.pcap
             tshark -i lo -w /QUIC-Ivy/doc/examples/quic/test/temp/${count}_${i}_${j}.pcap -f "udp" &

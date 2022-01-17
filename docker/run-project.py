@@ -58,11 +58,11 @@ def main(argv):
         os.system('docker build -t quic-ivy-uclouvain .')
 
     if mode == "all":
-        os.system('docker run --privileged -it -v '+ path + 'results:/results quic-ivy-uclouvain bash test_all.sh ' + str(it))
+        os.system('docker run --cpus="6.0" --memory="10g" --memory-reservation="9.5g" --privileged -it -v '+ path + 'results:/results quic-ivy-uclouvain bash test_all.sh ' + str(it))
     elif mode == "client":
-        os.system('docker run --privileged -it -v '+ path + 'results:/results quic-ivy-uclouvain bash test_client.sh ' + str(it))
+        os.system('docker run --cpus="6.0" --memory="10g" --memory-reservation="9.5g" --privileged -it -v '+ path + 'results:/results quic-ivy-uclouvain bash test_client.sh ' + str(it))
     elif mode == "server":
-        os.system('docker run --privileged -it -v '+ path + 'results:/results quic-ivy-uclouvain bash test_server.sh ' + str(it)) # test_server.sh ' + str(it)
+        os.system('docker run --cpus="6.0" --memory="10g" --memory-reservation="9.5g" --privileged -it -v '+ path + 'results:/results quic-ivy-uclouvain bash test_server.sh ' + str(it)) # test_server.sh ' + str(it)
 
     os.system('chmod -R 777 results/')
 
