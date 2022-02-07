@@ -20,9 +20,9 @@ clients=(
 		 #quant-vuln
 	     #picoquic
 		 #mvfst # Not working: unknown reason
-		 lsquic
+		 #lsquic
 		 #quic-go
-		 #aioquic
+		 aioquic
 		 #quinn # Not working: unknown reason
 		 #quiche
 		)
@@ -30,11 +30,11 @@ clients=(
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
-	      #quic_client_test_max
+	      quic_client_test_max
 		  #quic_client_test_0rtt
 	      #quic_client_test_retry
 	      #quic_client_test_version_negociation
-		  quic_client_test_version_negociation_mim
+		  #quic_client_test_version_negociation_mim
 	      #quic_client_test_stream #useless here
 	      #quic_client_test_ext_min_ack_delay
 	      #quic_client_test_tp_error

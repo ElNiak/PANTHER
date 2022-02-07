@@ -25,9 +25,9 @@ servers=(
 		 # mvfst # Not working anymore (installation) tocheck
 		 #lsquic # Internal error with server
 		 #quic-go
-		 #aioquic
-		 #quinn
-		 #quiche
+		 aioquic
+		 quinn
+		 quiche
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
@@ -146,10 +146,14 @@ done
 export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
 echo $ZRTTSSLKEYLOGFILE
 export STFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt
+export STFILE2=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_full.txt
+export STFILE3=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
 export RTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_retry_token.txt
 export NTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
 
 echo $STFILE
+echo $STFILE2
+echo $STFILE3
 echo $RTFILE
 echo $NTFILE
 
