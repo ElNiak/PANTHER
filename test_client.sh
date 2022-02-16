@@ -18,11 +18,11 @@ fi
 clients=(
 		 #quant 
 		 #quant-vuln
-	     #picoquic
+	     picoquic
 		 #mvfst # Not working: unknown reason
 		 #lsquic
 		 #quic-go
-		 aioquic
+		 #aioquic
 		 #quinn # Not working: unknown reason
 		 #quiche
 		)
@@ -30,8 +30,8 @@ clients=(
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
-	      quic_client_test_max
-		  #quic_client_test_0rtt
+	      #quic_client_test_max
+		  quic_client_test_0rtt
 	      #quic_client_test_retry
 	      #quic_client_test_version_negociation
 		  #quic_client_test_version_negociation_mim
@@ -98,8 +98,11 @@ echo $ZRTTSSLKEYLOGFILE
 export STFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt
 export RTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_retry_token.txt
 export NTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
+export RSTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_resumed_session_ticket.txt
+
 
 echo $STFILE
+echo $RSTFILE
 echo $RTFILE
 echo $NTFILE
 
@@ -115,6 +118,16 @@ for j in "${tests_client[@]}"; do
     rm $j.cpp
     rm $j.h
     printf "\n"
+	if [ $j = quic_client_test_0rtt ]; then
+		ivyc target=test quic_client_test_0rtt_max.ivy #TODO update g++ add lib
+		cp quic_client_test_0rtt_max $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		cp quic_client_test_0rtt_max.cpp $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		cp quic_client_test_0rtt_max.h $PROOTPATH/QUIC-Ivy/doc/examples/quic/build/
+		rm quic_client_test_0rtt_max
+		rm quic_client_test_0rtt_max.cpp
+		rm quic_client_test_0rtt_max.h
+		printf "\n"
+	fi
 done
 
 #sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
@@ -167,7 +180,7 @@ for j in "${tests_client[@]}"; do
             if [ $k = 1 ]; then
 				python test.py iters=1 client=$i test=$j run=true gdb=false keep_alive=false > res_client.txt 2>&1
             else
-				python test.py iters=1 client=$i test=$j run=false > res_client.txt 2>&1
+				python test.py iters=1 client=$i test=$j run=true > res_client.txt 2>&1
 			fi
 			printf "\n"
 	    	((k++))

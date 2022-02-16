@@ -45,9 +45,9 @@ servers = [
 
 clients = [
     # -z is for no 0rtt => Hello REtry request
-    ['picoquic',[scdir + '/picoquic','./picoquicdemo  -v ff00001d -l - -D -L -a hq-29 localhost 4443']], # -b myqlog.bin -R ff00001d -v ff00001e 
+    ['picoquic',[scdir + '/picoquic','./picoquicdemo -T '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin -v ff00001d -l - -D -L -a hq-29 localhost 4443']], # -b myqlog.bin -R ff00001d -v ff00001e  
     ['pquic',[scdir + '/pquic','./picoquicdemo -D -L -v ff00001d localhost 4443 ']],
-    ['quant',['..',scdir + '/quant/Debug/bin/client -e 0xff00001d -c false -r 10 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html']], #-c leaf_cert.pem '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -o -u -c leaf_cert.pem -c keypair.pem -a  -c false -u  -e 0xff00001d
+    ['quant',['..',scdir + '/quant/Debug/bin/client -e 0xff00001d -c false -r 10 -s '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html']], #-c leaf_cert.pem '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -o -u -c leaf_cert.pem -c keypair.pem -a  -c false -u  -e 0xff00001d
     ['quant-vuln',['..',scdir + '/quant-vuln/Debug/bin/client -e 0xff00001d -c false -r 10 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html']], #-c leaf_cert.pem '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -o -u -c leaf_cert.pem -c keypair.pem -a  -c false -u  -e 0xff00001d
     ['winquic',['..','true']], 
     ['minq',['..','go run '+ scdir + '/go/src/github.com/ekr/minq/bin/client/main.go ']],
@@ -129,7 +129,6 @@ client_tests = [
 	  ['quic_client_test_ext_min_ack_delay','test_completed'],
 	  ['quic_client_test_stateless_reset_token','test_completed'],
 	  ['quic_client_test_handshake_done_error','test_completed'],
-
       ['quic_client_test_unkown','test_completed'],
       ['quic_client_test_tp_unkown','test_completed'],
       ['quic_client_test_limit_max_error','test_completed'],
@@ -138,6 +137,7 @@ client_tests = [
       ['quic_client_test_version_negociation_mim','test_completed'],
       ['quic_client_test_retry','test_completed'],
       ['quic_client_test_0rtt','test_completed'],
+      ['quic_client_test_0rtt_max','test_completed'],
       ]
     ],
 ]
@@ -197,9 +197,20 @@ class Test(object):
         self.dir,self.name,self.res,self.opts = dir,args[0],args[-1],args[1:-1]
     
     def run(self,test_command):
+        global quic_cmd
+        os.system('> ' + os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin')
+        #old_test_command = test_command
+        #command = self.command(test_command)
+        # print '\n\n\n {} \n {} \n\n'.format(quic_cmd, test_command)
+        # if "quic_client_test_0rtt" in quic_cmd:
+        #     test_command = test_command.replace("quic_client_test_0rtt","quic_client_test_0rtt_max")
+            
         print '{}/{} ({}) ...'.format(self.dir,self.name,test_command)
         status = self.run_expect(test_command)
         print 'PASS' if status else 'FAIL'
+        # if "quic_client_test_0rtt" in quic_cmd:
+        #     print '{}/{} ({}) ...'.format(self.dir,self.name,old_test_command)
+        #     status = self.run_expect(old_test_command)
         return status
     
     def run_expect(self,test_command):
@@ -218,42 +229,54 @@ class Test(object):
             with open_out(self.name+str(test_command)+'.err') as err:
                 with open_out(self.name+str(test_command)+'.iev') as iev:
                     # If run => Launch the quic entity tested 
-                    if run:
-                        qcmd = 'sleep 4; ' + quic_cmd if is_client else quic_cmd.split() 
-                        print 'implementation command: {}'.format(qcmd)
-                        quic_process = subprocess.Popen(qcmd,
-                                                  cwd=quic_dir,
-                                                  stdout=out,
-                                                  stderr=err,
-                                                  shell=is_client)
-                        print 'quic_process pid: {}'.format(quic_process.pid)
-                    # Always launch the test itself that will apply (test_client_max eg)
-                    try:
-                        ok = self.expect(test_command,iev)
-                    except KeyboardInterrupt:
+                    looped = 1
+                    if "quic_client_test_0rtt" in self.name:
+                        looped = 2
+                    for i in range(0, looped):
+                        if run:
+                            global quic_cmd
+                            if i == 1:
+                                quic_cmd = quic_cmd.replace("4443","4444")
+                            qcmd = 'sleep 4; ' + quic_cmd if is_client else quic_cmd.split() 
+                            print 'implementation command: {}'.format(qcmd)
+                            quic_process = subprocess.Popen(qcmd,
+                                                    cwd=quic_dir,
+                                                    stdout=out,
+                                                    stderr=err,
+                                                    shell=is_client)
+                            print 'quic_process pid: {}'.format(quic_process.pid)
+                        # Always launch the test itself that will apply (test_client_max eg)
+                        try:
+                            ok = self.expect(test_command,iev,i)
+                        except KeyboardInterrupt:
+                            if run and not keep_alive:
+                                #print("cool")
+                                quic_process.terminate()
+                            raise KeyboardInterrupt
+                        # If run => get exit status of process
                         if run and not keep_alive:
-                            #print("cool")
+                            print "quic_process.terminate()"
                             quic_process.terminate()
-                        raise KeyboardInterrupt
-                    # If run => get exit status of process
-                    if run and not keep_alive:
-                        quic_process.terminate()
-                        retcode = quic_process.wait()
-                        if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
-                            iev.write('server_return_code({})\n'.format(retcode))
-                            print "server return code: {}".format(retcode)
-                            return False
+                            retcode = quic_process.wait()
+                            if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
+                                iev.write('server_return_code({})\n'.format(retcode))
+                                print "server return code: {}".format(retcode)
+                                return False
                     return ok
     # Allow to launh the c++ test (test_client_max e.g)             
-    def expect(self,test_command,iev):
+    def expect(self,test_command,iev,i):
         command = self.command(test_command)
-        print command
+        if "quic_client_test_0rtt" in command:
+            commands = command.split(";")
+            command = commands[i]
+            print "command is {} from {}\n".format(command,self.name)
         if platform.system() != 'Windows':
             oldcwd = os.getcwd()
             os.chdir(self.dir)
             proc = subprocess.Popen('sleep 3;'+command,stdout=iev,shell=True)
             os.chdir(oldcwd)
             try:
+                #proc.terminate()
                 retcode = proc.wait()
             except KeyboardInterrupt:
                 print 'terminating client process {}'.format(proc.pid)
@@ -306,6 +329,7 @@ class IvyTest(Test):
         randomSeed = random.randint(0,1000)
         random.seed(datetime.now())
         prefix = ""
+        # empty the ticket store
         if gdb:
             prefix=" gdb --args "
         if "quic_server_test_0rtt" in self.name: # TODO build quic_server_test_stream
@@ -316,9 +340,13 @@ class IvyTest(Test):
             return (' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,"quic_server_test_retry",randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)) + ";" +' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4989,2*test_command+4988))] + extra_args)
+        elif "quic_client_test_0rtt" in self.name:
+            return (' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,"quic_client_test_0rtt_max",randomSeed,0,'' 
+            if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)) + ";" +' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
+            if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4989,2*test_command+4988))] + extra_args)
         else:
-            return ' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
-            if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
+            return ' '.join(['{}{}./build/{} seed={} the_cid={} {};'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
+            if is_client else 'server_cid={} client_port={} client_port_alt={};'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
         
 def get_tests(cls,arr):
     for checkd in arr:
@@ -429,7 +457,9 @@ def main():
                 if "quic_server_test_retry_reuse_key" in test.name: 
                     if quic_name == "picoquic-vuln":
                         quic_cmd = './picoquicdemo -l n -D -L -r' 
-                elif quic_name == "picoquic":
+                    elif quic_name == "picoquic":
+                        quic_cmd = './picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlog/picoquic' 
+                        quic_cmd = './picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlog/picoquic' 
                         quic_cmd = './picoquicdemo -l - -D -L -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlog/picoquic' 
                     
                 if "quic_server_test_retry" in test.name: 

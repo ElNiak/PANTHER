@@ -25,9 +25,9 @@ servers=(
 		 # mvfst # Not working anymore (installation) tocheck
 		 #lsquic # Internal error with server
 		 #quic-go
-		 aioquic
-		 quinn
-		 quiche
+		 #aioquic
+		 #quinn
+		 #quiche
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
