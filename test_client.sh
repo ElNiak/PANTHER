@@ -18,11 +18,11 @@ fi
 clients=(
 		 #quant 
 		 #quant-vuln
-	     picoquic
+	     #picoquic
 		 #mvfst # Not working: unknown reason
 		 #lsquic
-		 #quic-go
-		 #aioquic
+		 #quic-go # todo 0rtt
+		 aioquic
 		 #quinn # Not working: unknown reason
 		 #quiche
 		)
@@ -94,11 +94,17 @@ cp $PROOTPATH/ressources/test.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
 cd $PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_tests
 
 export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
+export ZRTTSSLKEYLOGFILEC=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key_client.key
+
 echo $ZRTTSSLKEYLOGFILE
+echo $ZRTTSSLKEYLOGFILEC
 export STFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt
 export RTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_retry_token.txt
 export NTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
 export RSTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_resumed_session_ticket.txt
+export STFILE3=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
+
+#export STFILE3=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
 
 
 echo $STFILE

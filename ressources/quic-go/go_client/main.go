@@ -36,6 +36,7 @@ func main() {
 	printData := flag.Bool("P", false, "printData the data")
 	doVN := flag.Bool("V", false, "version negociation")
 	keyLogFile := flag.String("X", "", "key log file")
+	sessionFile := flag.String("S", "", "session file")
 	requestSize := flag.Int("G", 50000, "amount of bytes to ask for in the request")
 	flag.Bool("R", false, "force RTT connection establishment")
 
@@ -45,6 +46,162 @@ func main() {
 	port := flag.Arg(1)
 
 	logger := &logger{}
+	
+	runCountingProxy := func(serverPort int) (*quicproxy.QuicProxy, *uint32) {
+		var num0RTTPackets uint32 // to be used as an atomic
+		proxy, err := quicproxy.NewQuicProxy("localhost:0", &quicproxy.Opts{
+			RemoteAddr: fmt.Sprintf("localhost:%d", serverPort),
+			DelayPacket: func(_ quicproxy.Direction, data []byte) time.Duration {
+				for len(data) > 0 {
+					hdr, _, rest, err := wire.ParsePacket(data, 0)
+					Expect(err).ToNot(HaveOccurred())
+					if hdr.Type == protocol.PacketType0RTT {
+						atomic.AddUint32(&num0RTTPackets, 1)
+						break
+					}
+					data = rest
+				}
+				return rtt / 2
+			},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		
+		return proxy, &num0RTTPackets
+	}
+		
+	dialAndReceiveSessionTicket := func(serverConf *quic.Config) (*tls.Config, *tls.Config) {
+		tlsConf := getTLSConfig()
+		if serverConf == nil {
+			serverConf = getQuicConfig(&quic.Config{
+				AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
+			})
+			serverConf.Versions = []protocol.VersionNumber{version}
+		}
+		ln, err := quic.ListenAddrEarly(
+			"localhost:0",
+			tlsConf,
+			serverConf,
+		)
+		Expect(err).ToNot(HaveOccurred())
+		defer ln.Close()
+		
+		proxy, err := quicproxy.NewQuicProxy("localhost:0", &quicproxy.Opts{
+			RemoteAddr:  fmt.Sprintf("localhost:%d", ln.Addr().(*net.UDPAddr).Port),
+			DelayPacket: func(_ quicproxy.Direction, data []byte) time.Duration { return rtt / 2 },
+		})
+		Expect(err).ToNot(HaveOccurred())
+		defer proxy.Close()
+		
+		// dial the first session in order to receive a session ticket
+		done := make(chan struct{})
+		go func() {
+			defer GinkgoRecover()
+			defer close(done)
+			sess, err := ln.Accept(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			<-sess.Context().Done()
+		}()
+		
+		clientConf := getTLSClientConfig()
+		gets := make(chan string, 100)
+		puts := make(chan string, 100)
+		clientConf.ClientSessionCache = newClientSessionCache(gets, puts)
+		sess, err := quic.DialAddr(
+			fmt.Sprintf("localhost:%d", proxy.LocalPort()),
+			clientConf,
+			getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(puts).Should(Receive())
+		// received the session ticket. We're done here.
+		Expect(sess.CloseWithError(0, "")).To(Succeed())
+		Eventually(done).Should(BeClosed())
+		return tlsConf, clientConf
+	}
+		
+	transfer0RTTData := func(
+		ln quic.EarlyListener,
+		proxyPort int,
+		clientTLSConf *tls.Config,
+		clientConf *quic.Config,
+		testdata []byte, // data to transfer
+		) {
+						// now dial the second session, and use 0-RTT to send some data
+		done := make(chan struct{})
+		go func() {
+			defer GinkgoRecover()
+			sess, err := ln.Accept(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			str, err := sess.AcceptUniStream(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			data, err := io.ReadAll(str)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(data).To(Equal(testdata))
+			Expect(sess.ConnectionState().TLS.Used0RTT).To(BeTrue())
+			Expect(sess.CloseWithError(0, "")).To(Succeed())
+			close(done)
+		}()
+		
+		if clientConf == nil {
+			clientConf = getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}})
+		}
+		sess, err := quic.DialAddrEarly(
+			fmt.Sprintf("localhost:%d", proxyPort),
+			clientTLSConf,
+			clientConf,
+		)
+		Expect(err).ToNot(HaveOccurred())
+		defer sess.CloseWithError(0, "")
+		str, err := sess.OpenUniStream()
+		Expect(err).ToNot(HaveOccurred())
+		_, err = str.Write(testdata)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(str.Close()).To(Succeed())
+		Expect(sess.ConnectionState().TLS.Used0RTT).To(BeTrue())
+		Eventually(done).Should(BeClosed())
+		Eventually(sess.Context().Done()).Should(BeClosed())
+	}
+		
+	check0RTTRejected := func(
+		ln quic.EarlyListener,
+		proxyPort int,
+		clientConf *tls.Config,
+		) {
+		sess, err := quic.DialAddrEarly(
+			fmt.Sprintf("localhost:%d", proxyPort),
+			clientConf,
+			getQuicConfig(&quic.Config{Versions: []protocol.VersionNumber{version}}),
+		)
+		Expect(err).ToNot(HaveOccurred())
+		str, err := sess.OpenUniStream()
+		Expect(err).ToNot(HaveOccurred())
+		_, err = str.Write(make([]byte, 3000))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(str.Close()).To(Succeed())
+		Expect(sess.ConnectionState().TLS.Used0RTT).To(BeFalse())
+		
+		// make sure the server doesn't process the data
+		ctx, cancel := context.WithTimeout(context.Background(), scaleDuration(50*time.Millisecond))
+		defer cancel()
+		serverSess, err := ln.Accept(ctx)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(serverSess.ConnectionState().TLS.Used0RTT).To(BeFalse())
+		_, err = serverSess.AcceptUniStream(ctx)
+		Expect(err).To(Equal(context.DeadlineExceeded))
+		Expect(serverSess.CloseWithError(0, "")).To(Succeed())
+		Eventually(sess.Context().Done()).Should(BeClosed())
+	}
+		
+	// can be used to extract 0-RTT from a packetTracer
+	get0RTTPackets := func(packets []packet) []protocol.PacketNumber {
+		var zeroRTTPackets []protocol.PacketNumber
+		for _, p := range packets {
+			if p.hdr.Type == protocol.PacketType0RTT {
+				zeroRTTPackets = append(zeroRTTPackets, p.hdr.PacketNumber)
+			}
+		}
+		return zeroRTTPackets
+	}
 
 	if !*verbose {
 		logger.enabled = false
@@ -95,6 +252,10 @@ func main() {
 		Transport: roundTripper,
 	}
 
+	gets := make(chan string, 100)
+	puts := make(chan string, 100)
+	hclient.ClientSessionCache = newClientSessionCache(gets, puts)
+
 	var wg sync.WaitGroup
 	urls := []string{fmt.Sprintf("https://%s:%s/%d", address, port, *requestSize)}
 	wg.Add(len(urls))
@@ -131,4 +292,20 @@ func main() {
 		}(addr)
 	}
 	wg.Wait()
+}
+
+type clientSessionCache struct {
+	mutex sync.Mutex
+	cache map[string]*tls.ClientSessionState
+
+	gets chan<- string
+	puts chan<- string
+}
+
+func newClientSessionCache(gets, puts chan<- string) *clientSessionCache {
+	return &clientSessionCache{
+		cache: make(map[string]*tls.ClientSessionState),
+		gets:  gets,
+		puts:  puts,
+	}
 }

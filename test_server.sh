@@ -18,16 +18,16 @@ fi
 
 
 servers=(
-		 quant 
+		 #quant 
 		 #quant-vuln
-		 picoquic
+		 #picoquic
 		 #picoquic-vuln
 		 # mvfst # Not working anymore (installation) tocheck
 		 #lsquic # Internal error with server
 		 #quic-go
-		 #aioquic
+		 aioquic
 		 #quinn
-		 #quiche
+		 #quiche # 0rtt not working: 2 session ticket with unknown extension
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
@@ -158,7 +158,7 @@ echo $RTFILE
 echo $NTFILE
 
 cnt=0
-ITER=1
+ITER=4
 printf "\n"
 cd $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
 printf "TEST SERVER \n"
