@@ -18,16 +18,16 @@ fi
 
 
 servers=(
-		 #quant 
+		 quant 
 		 #quant-vuln
-		 #picoquic
+		 picoquic
 		 #picoquic-vuln
-		 # mvfst # Not working anymore (installation) tocheck
+		 mvfst # Not working anymore (installation) tocheck => ok now, set 1 cpu to compile + TODO configure 0rtt, no session ticket -> OKK -> need shim local var 
 		 #lsquic # Internal error with server
-		 #quic-go
+		 quic-go # error -> ok cert pb  + 0rtt need app_close and not co_close -> shim global var bugs
 		 aioquic
-		 #quinn
-		 #quiche # 0rtt not working: 2 session ticket with unknown extension
+		 quinn # cid 0x0 & 0x1 + comment 1 line in quic_frame
+		 quiche # 0rtt not working: 2 session ticket with unknown extension (ok now)
 		 )
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
@@ -158,7 +158,7 @@ echo $RTFILE
 echo $NTFILE
 
 cnt=0
-ITER=4
+ITER=1
 printf "\n"
 cd $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
 printf "TEST SERVER \n"
@@ -182,7 +182,7 @@ for j in "${tests_server[@]}"; do
             printf "\n\nTesting => $i \n"
 			export TEST_IMPL=$i
 			export CNT=$cnt
-			export RND=$RANDOM quic_server_test_stream_vuln
+			export RND=$RANDOM 
 			if [ $j = quic_server_test_retry_reuse_key ] || [ $j = quic_server_test_stream_vuln ]; then
 				export TEST_ALPN=hq-28
 			else
@@ -202,9 +202,9 @@ for j in "${tests_server[@]}"; do
             sudo pkill tshark
             cat res_server.txt
             mv res_server.txt temp/${pcap_i}/res_server.txt
-	    	cnt=$((cnt + 1))
+	    	cnt=$(($cnt + 1))
 	done
-	cnt2=$((cnt2 + 1))
+	cnt2=$(($cnt2 + 1))
 	printf "\n"
     done
 done

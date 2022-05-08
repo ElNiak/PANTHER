@@ -10,7 +10,9 @@ git apply tls-keys-patch.diff
 
 cp -R $PROOTPATH/ressources/mvfst/generic $PROOTPATH/quic-implementations/mvfst/quic/samples/generic
 cp $PROOTPATH/ressources/mvfst/samples-build-patch.diff $PROOTPATH/quic-implementations/mvfst/
-cp $PROOTPATH/ressources/mvfst/EchoClient.h $PROOTPATH/quic-implementations/mvfst/quic/samples/echo/EchoClient.h
+cp $PROOTPATH/ressources/mvfst/EchoClient.h $PROOTPATH/quic-implementations/mvfst/quic/samples/echo/EchoClient.h0
+cp $PROOTPATH/ressources/mvfst/EchoServer.h $PROOTPATH/quic-implementations/mvfst/quic/samples/echo/EchoServer.h
+
 echo "----> Cloning mvfst build_helper"
 bash build_helper.sh
 

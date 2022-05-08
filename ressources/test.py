@@ -34,12 +34,12 @@ servers = [
     ['minq',['..','go run '+ scdir + '/go/src/github.com/ekr/minq/bin/server/main.go']],
     ['chromium',[scdircr+'/chromium/src','./out/Default/quic_server --port=4443 --quic_response_cache_dir=/tmp/quic-data/www.example.org   --certificate_file=net/tools/quic/certs/out/leaf_cert.pem --key_file=net/tools/quic/certs/out/leaf_cert.pkcs8 --quic-enable-version-99  --generate_dynamic_responses --allow_unknown_root_cert --v=1']], # --quic_versions=h3-25
     #['quic-go',[scdir +'/quic-go/server/','./server -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/quic/certs/cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/quic/certs/priv.key -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'logs.txt -p 4443 127.0.0.1']],
-    ['quic-go',[scdir+'/quic-go/server/','./server -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key -p 4443 127.0.0.1']], # -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key
+    ['quic-go',[scdir+'/quic-go/server/','./server -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/priv.key -p 4443 127.0.0.1']], # -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key
     ['aioquic',[scdir +'/aioquic/','python3 examples/http3_server.py --quic-log '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/aioquic --certificate '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/quic-implementations/aioquic/tests/ssl_cert.pem --private-key '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/quic-implementations/aioquic/tests/ssl_key.pem  -v -v --host 127.0.0.1 --port 4443 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log']], #127.0.0.1
     ['quiche',[scdir+'/quiche/','cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-server --  --no-grease --cert tools/apps/src/bin/cert.crt --early-data --dump-packets '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quiche/dump_packet.txt --key tools/apps/src/bin/cert.key --no-retry --listen 127.0.0.1:4443' ]], #--early-data 
     ['mvfst',[scdir+'/mvfst/_build/build/quic/samples/','./echo -mode=server -host=127.0.0.1 -port=4443  -v=10 -pr=false ']],
     ['lsquic',[scdir+'/lsquic/bin/','./http_server -c www.example.org/,'+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem,'+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key -Q hq-29 -D -s 127.0.0.1:4443 -l event=debug,engine=debug -o version=FF00001D -G '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/']],
-    ['quinn',[scdir+'/quinn/','cargo run -vv --example server '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/index.html --keylog --listen 127.0.0.1:4443']], # home/chris/TVOQE_UPGRADE_27/QUIC-Ivy/doc/examples/quic/
+    ['quinn',[scdir+'/quinn/','cargo run -vv --example server '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/index.html --listen 127.0.0.1:4443']], # home/chris/TVOQE_UPGRADE_27/QUIC-Ivy/doc/examples/quic/
     ['quicly',[scdir+'/quicly/','./cli -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -a hq-29 -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key 127.0.0.1 4443']],
 ]
 
@@ -53,11 +53,11 @@ clients = [
     ['minq',['..','go run '+ scdir + '/go/src/github.com/ekr/minq/bin/client/main.go ']],
     ['chromium',[scdircr + '/chromium/src','./out/Default/quic_client --host=127.0.0.1 --port=6121 --disable_certificate_verification  https://www.example.org/ --v=1 --quic_versions=h3-23']],
     ['aioquic',[scdir + '/aioquic','python3 examples/http3_client.py --zero-rtt -s '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -v -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html']], #--ca-certs tests/pycacert.pem --ca-certs '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem --insecure 
-    ['quic-go',[scdir +'/quic-go/client/','./client -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -P -G 5000000 -v 127.0.0.1 4443 ']], #--secure -R  TODO 0rtt config
+    ['quic-go',[scdir +'/quic-go/client/','./client -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -P -v 127.0.0.1 4443 ']], #--secure -R  TODO 0rtt config
     ['quiche',[scdir + '/quiche/','cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --wire-version ff00001d --no-verify --body / -n 10']],
     # pipe for mvfst
     # mkdir tmp; mkfifo tmp/input.pipe; nohup ./basicsample  tmp/user.out 2> tmp/nohup.err
-    ['mvfst',[scdir + '/mvfst/_build/build/quic/samples/','./echo -mode=client -host="127.0.0.1" -port=4443 -pr=true -v=10 -stop_logging_if_full_disk ']], # echo "HELOOOOO" > 
+    ['mvfst',[scdir + '/mvfst/_build/build/quic/samples/','./echo -mode=client -host="127.0.0.1" -port=4443 -pr=false -v=10 -stop_logging_if_full_disk ']], # echo "HELOOOOO" > 
     ['lsquic',[scdir+ '/lsquic/bin/','./http_client -0 '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1 -o version=FF00001D -o scid_len=8']], #-C '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -W -g -j -i 1000  -n 1 -r 1 -a -4  -r 10 index.html index.html index.html index.html index.html index.html index.html  -C '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem
     ['quinn',[scdir+ '/quinn/','cargo run -vv --example client https://localhost:4443/index.html --keylog']], #--ca '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key  --keylog --ca '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem
 ]
@@ -266,6 +266,8 @@ class Test(object):
     # Allow to launh the c++ test (test_client_max e.g)             
     def expect(self,test_command,iev,i):
         command = self.command(test_command)
+        print(command)
+        #time.sleep(5)
         if "quic_client_test_0rtt" in command:
             commands = command.split(";")
             command = commands[i]
@@ -330,23 +332,25 @@ class IvyTest(Test):
         random.seed(datetime.now())
         prefix = ""
         # empty the ticket store
+        print(self.name)
+        #time.sleep(5)
         if gdb:
             prefix=" gdb --args "
-        if "quic_server_test_0rtt" in self.name: # TODO build quic_server_test_stream
+        if self.name == "quic_server_test_0rtt": # TODO build quic_server_test_stream
             return (' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,"quic_server_test_0rtt_stream",randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)) + ";sleep 1;" +' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
-        elif "quic_server_test_retry_reuse_key" in self.name:
+        elif self.name == "quic_server_test_retry_reuse_key":
             return (' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,"quic_server_test_retry",randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)) + ";" +' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4989,2*test_command+4988))] + extra_args)
-        elif "quic_client_test_0rtt" in self.name:
+        elif self.name == "quic_client_test_0rtt":
             return (' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,"quic_client_test_0rtt_max",randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)) + ";" +' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
             if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4989,2*test_command+4988))] + extra_args)
         else:
-            return ' '.join(['{}{}./build/{} seed={} the_cid={} {};'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
-            if is_client else 'server_cid={} client_port={} client_port_alt={};'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
+            return ' '.join(['{}{}./build/{} seed={} the_cid={} {}'.format(timeout_cmd,prefix,self.name,randomSeed,0,'' 
+            if is_client else 'server_cid={} client_port={} client_port_alt={}'.format(1,2*test_command+4987,2*test_command+4988))] + extra_args)
         
 def get_tests(cls,arr):
     for checkd in arr:
@@ -476,7 +480,7 @@ def main():
                     elif quic_name == "quinn":
                         quic_cmd = 'cargo run -vv --example server '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443'
                     elif quic_name == "quic-go":
-                        quic_cmd = './server -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key -r -p 4443 127.0.0.1'
+                        quic_cmd = './server -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/priv.key -r -p 4443 127.0.0.1'
                     elif quic_name == "mvfst":
                         quic_cmd = "./echo -mode=server -host=127.0.0.1 -port=4443  -v=10 -pr=true"
 
@@ -492,7 +496,7 @@ def main():
                     elif quic_name == "quinn":
                         pass
                     elif quic_name == "quic-go":
-                        quic_cmd = './client -V -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -P -G 5000000 -v 127.0.0.1 4443'
+                        quic_cmd = './client -V -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -P -v 127.0.0.1 4443'
                     elif quic_name == "mvfst":
                         pass
                     elif quic_name == "aioquic":

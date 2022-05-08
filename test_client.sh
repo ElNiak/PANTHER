@@ -21,8 +21,8 @@ clients=(
 	     #picoquic
 		 #mvfst # Not working: unknown reason
 		 #lsquic
-		 #quic-go # todo 0rtt
-		 aioquic
+		 quic-go # todo 0rtt
+		 #aioquic
 		 #quinn # Not working: unknown reason
 		 #quiche
 		)
@@ -30,8 +30,8 @@ clients=(
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
 
 tests_client=(
-	      #quic_client_test_max
-		  quic_client_test_0rtt
+	      quic_client_test_max
+		  #quic_client_test_0rtt
 	      #quic_client_test_retry
 	      #quic_client_test_version_negociation
 		  #quic_client_test_version_negociation_mim
@@ -136,7 +136,7 @@ for j in "${tests_client[@]}"; do
 	fi
 done
 
-#sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
+sudo sysctl -w net.core.rmem_max=2500000 # for quic-go
 
 printf "Create SSLLOGFILE TEST \n"
 for j in "${clients[@]}"; do
