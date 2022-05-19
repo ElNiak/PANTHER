@@ -30,18 +30,18 @@ sudo apt-get install -y libunwind-dev
 
 printf '%s\n' "-------------> Init submodules: <-------------"
 
-# git submodule update --init --recursive
-# git submodule update --recursive
+git submodule update --init --recursive
+git submodule update --recursive
 
 printf '%s\n' "-------------> Installing Ivy: <-------------"
 
-#bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
+bash $PROOTPATH/scripts/installers/implementation-installer/install_ivy.sh
 
 cd $PROOTPATH/scripts/installers/implementation-installer/
 
 printf '%s\n' "-------------> Installing picoquic: <-------------"
 
-# bash install_picoquic.sh
+bash install_picoquic.sh
 
 printf '%s\n' "-------------> Installing picoquic vuln: <-------------"
 
@@ -49,33 +49,33 @@ bash install_picoquic_vulne_retry.sh
 
 printf '%s\n' "-------------> Installing quant: <-------------"
 
-# bash install_quant.sh
+bash install_quant.sh
 
 printf '%s\n' "-------------> Installing quant vuln: <-------------"
 
-#bash install_quant_vulne.sh
+bash install_quant_vulne.sh
 
 printf '%s\n' "-------------> Installing quic-go: <-------------"
 
-# bash install_goquic.sh
+bash install_goquic.sh
 
 printf '%s\n' "-------------> Installing lsquic: <-------------"
 
-# bash install_lsquic.sh 
+bash install_lsquic.sh 
 
 printf '%s\n' "-------------> Installing quiche: <-------------"
 #cmake 3.12
-#bash install_quiche.sh
+bash install_quiche.sh
 
 printf '%s\n' "-------------> Installing quinn: <-------------"
 
-# bash install_quinn.sh
+bash install_quinn.sh
 
 printf '%s\n' "-------------> Installing aioquic: <-------------"
 
-#bash install_aioquic.sh
+bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 
-# bash install_mvfst.sh # still some problem
+bash install_mvfst.sh # still some problem
 

@@ -18,15 +18,15 @@ fi
 
 
 servers=(
-		 quant 
-		 #quant-vuln
-		 picoquic
-		 #picoquic-vuln
-		 mvfst # Not working anymore (installation) tocheck => ok now, set 1 cpu to compile + TODO configure 0rtt, no session ticket -> OKK -> need shim local var 
-		 #lsquic # Internal error with server
-		 quic-go # error -> ok cert pb  + 0rtt need app_close and not co_close -> shim global var bugs
-		 aioquic
-		 quinn # cid 0x0 & 0x1 + comment 1 line in quic_frame
+		#  quant 
+		#  #quant-vuln
+		#  picoquic
+		#  #picoquic-vuln
+		# #  mvfst # Not working anymore (installation) tocheck => ok now, set 1 cpu to compile + TODO configure 0rtt, no session ticket -> OKK -> need shim local var 
+		# #  #lsquic # Internal error with server
+		# #  quic-go # error -> ok cert pb  + 0rtt need app_close and not co_close -> shim global var bugs
+		# #  aioquic
+		#  quinn # cid 0x0 & 0x1 + comment 1 line in quic_frame
 		 quiche # 0rtt not working: 2 session ticket with unknown extension (ok now)
 		 )
 
@@ -191,7 +191,8 @@ for j in "${tests_server[@]}"; do
 			pcap_i=$((`(find temp/* -maxdepth 0 -type d | wc -l)`))
             touch temp/${pcap_i}_${i}_${j}.pcap
             sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
-            sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp" & 
+			#  -Y "quic"
+            sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp"  &  
 	    	if [ $k = 1 ]; then
 				python test.py iters=1 server=$i test=$j run=true keep_alive=false > res_server.txt 2>&1
             else

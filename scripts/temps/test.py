@@ -1,5 +1,6 @@
 # This script runs a sequence of tests on the picoquicdemo server. 
 
+from unittest import skip
 import pexpect
 import os
 import sys
@@ -54,12 +55,12 @@ clients = [
     ['chromium',[scdircr + '/chromium/src','./out/Default/quic_client --host=127.0.0.1 --port=6121 --disable_certificate_verification  https://www.example.org/ --v=1 --quic_versions=h3-23']],
     ['aioquic',[scdir + '/aioquic','python3 examples/http3_client.py --zero-rtt -s '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -v -q '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html']], #--ca-certs tests/pycacert.pem --ca-certs '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem --insecure 
     ['quic-go',[scdir +'/quic-go/client/','./client -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -P -v 127.0.0.1 4443 ']], #--secure -R  TODO 0rtt config
-    ['quiche',[scdir + '/quiche/','cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --wire-version ff00001d --no-verify --body / -n 10']],
+    ['quiche',[scdir + '/quiche/','RUST_LOG="debug" RUST_BACKTRACE=1 cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --session-file '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin --wire-version ff00001d --no-verify --body / -n 5']],
     # pipe for mvfst
     # mkdir tmp; mkfifo tmp/input.pipe; nohup ./basicsample  tmp/user.out 2> tmp/nohup.err
     ['mvfst',[scdir + '/mvfst/_build/build/quic/samples/','./echo -mode=client -host="127.0.0.1" -port=4443 -pr=false -v=10 -stop_logging_if_full_disk ']], # echo "HELOOOOO" > 
     ['lsquic',[scdir+ '/lsquic/bin/','./http_client -0 '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1 -o version=FF00001D -o scid_len=8']], #-C '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem -W -g -j -i 1000  -n 1 -r 1 -a -4  -r 10 index.html index.html index.html index.html index.html index.html index.html  -C '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem
-    ['quinn',[scdir+ '/quinn/','cargo run -vv --example client https://localhost:4443/index.html --keylog']], #--ca '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key  --keylog --ca '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem
+    ['quinn',[scdir+ '/quinn/','RUST_LOG="debug" RUST_BACKTRACE=1 cargo run -vv --example client https://localhost:4443/index.html --keylog']], #--ca '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.key  --keylog --ca '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem
 ]
 
 #List of available server's tests 
@@ -198,7 +199,7 @@ class Test(object):
     
     def run(self,test_command):
         global quic_cmd
-        os.system('> ' + os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin')
+        #os.system('> ' + os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tickets/ticket.bin') # TODO
         #old_test_command = test_command
         #command = self.command(test_command)
         # print '\n\n\n {} \n {} \n\n'.format(quic_cmd, test_command)
@@ -230,21 +231,33 @@ class Test(object):
                 with open_out(self.name+str(test_command)+'.iev') as iev:
                     # If run => Launch the quic entity tested 
                     looped = 1
-                    if "quic_client_test_0rtt" in self.name:
+                    if "quic_client_test_0rtt" in self.name: #  and not "./client -X" in quic_cmd
                         looped = 2
                     for i in range(0, looped):
                         if run:
                             global quic_cmd
                             if i == 1:
                                 quic_cmd = quic_cmd.replace("4443","4444")
-                            qcmd = 'sleep 5; ' + quic_cmd if is_client else quic_cmd.split() 
-                            print 'implementation command: {}'.format(qcmd)
-                            quic_process = subprocess.Popen(qcmd,
-                                                    cwd=quic_dir,
-                                                    stdout=out,
-                                                    stderr=err,
-                                                    shell=is_client)
-                            print 'quic_process pid: {}'.format(quic_process.pid)
+                                if "echo" in quic_cmd:
+                                    quic_cmd = quic_cmd + " -zrtt=true"
+                                elif "quiche-client" in quic_cmd:
+                                    quic_cmd = quic_cmd + " --early-data"
+                            if i == 0 and "./client -X" in quic_cmd and  "quic_client_test_0rtt" in self.name:
+                                quic_cmd = quic_cmd.replace("./client -X", "./client -R -X") 
+                            elif i == 0 and "cargo run -vv --example client" in quic_cmd and  "quic_client_test_0rtt" in self.name:
+                                quic_cmd = quic_cmd + " --zrtt"
+                            
+                            if "quic_client_test_0rtt" in self.name and ("./client -R -X" in quic_cmd or "cargo run -vv --example client" in quic_cmd) and i == 1: # 
+                                pass 
+                            else:
+                                qcmd = 'sleep 5; ' + quic_cmd if is_client else quic_cmd.split() 
+                                print 'implementation command: {}'.format(qcmd)
+                                quic_process = subprocess.Popen(qcmd,
+                                                            cwd=quic_dir,
+                                                            stdout=out,
+                                                            stderr=err,
+                                                            shell=is_client)
+                                print 'quic_process pid: {}'.format(quic_process.pid)
                         # Always launch the test itself that will apply (test_client_max eg)
                         try:
                             ok = self.expect(test_command,iev,i)
@@ -254,7 +267,7 @@ class Test(object):
                                 quic_process.terminate()
                             raise KeyboardInterrupt
                         # If run => get exit status of process
-                        if run and not keep_alive:
+                        if run and not keep_alive and ("./client -X" in quic_cmd and "quic_client_test_0rtt" in self.name):
                             print "quic_process.terminate()"
                             quic_process.terminate()
                             retcode = quic_process.wait()
@@ -476,9 +489,9 @@ def main():
                     elif quic_name == "aioquic":
                         quic_cmd = 'python3 examples/http3_server.py --quic-log '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/aioquic --certificate '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/quic-implementations/aioquic/tests/ssl_cert.pem --private-key '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/quic-implementations/aioquic/tests/ssl_key.pem  -v -r --host 127.0.0.1 --port 4443 -l '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log'
                     elif quic_name == "quiche":
-                        quic_cmd = 'cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-server --  --cert tools/apps/src/bin/cert.crt --early-data --dump-packets '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quiche/dump_packet.txt --key tools/apps/src/bin/cert.key --listen 127.0.0.1:4443'
+                        quic_cmd = 'RUST_LOG="debug" cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-server --  --cert tools/apps/src/bin/cert.crt --early-data --dump-packets '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/qlogs/quiche/dump_packet.txt --key tools/apps/src/bin/cert.key --listen 127.0.0.1:4443'
                     elif quic_name == "quinn":
-                        quic_cmd = 'cargo run -vv --example server '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443'
+                        quic_cmd = 'RUST_LOG="debug" cargo run -vv --example server '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443'
                     elif quic_name == "quic-go":
                         quic_cmd = './server -c '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/cert.pem -k '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/QUIC-Ivy/doc/examples/quic/priv.key -r -p 4443 127.0.0.1'
                     elif quic_name == "mvfst":
@@ -492,11 +505,11 @@ def main():
                     elif quic_name == "picoquic": # -v ff00001d -v ff00001e -v babababa
                         quic_cmd = './picoquicdemo -z -l - -D -L -a hq-29 localhost 4443' 
                     elif quic_name == "quiche":
-                        quic_cmd = "cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 10"
+                        quic_cmd = 'RUST_LOG="debug" cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 5'
                     elif quic_name == "quinn":
                         pass
                     elif quic_name == "quic-go":
-                        quic_cmd = './client -V -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -P -v 127.0.0.1 4443'
+                        quic_cmd = './client -X '+os.environ.get('QUIC_IMPL_DIR',os.environ.get('PROOTPATH',''))+'/tls-keys/secret.log -V -P -v 127.0.0.1 4443'
                     elif quic_name == "mvfst":
                         pass
                     elif quic_name == "aioquic":
@@ -512,7 +525,7 @@ def main():
                 with open_out(test.name+'.dat') as out:
                     save = os.getcwd()
                     os.chdir(output_path)
-                    stats.doit(test.name,out)
+                    stats.make_dat(test.name,out)
                     os.chdir(save)
         if num_failures:
             print 'error: {} tests(s) failed'.format(num_failures)

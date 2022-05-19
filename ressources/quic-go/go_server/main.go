@@ -46,6 +46,8 @@ func main() {
 		ConnectionIDLength: 8,    
 		//HandshakeIdleTimeout: 0,
 		MaxIdleTimeout: 0,
+		//EnableDatagrams:true,
+		//DisablePathMTUDiscovery: true,
 		//Tracer: qlog.NewTracer(getLogWriter),
 	}
 	if *doRetry {
@@ -66,13 +68,15 @@ func main() {
 	tlsConf = &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		KeyLogWriter: keyLog,
+		InsecureSkipVerify: true,
 	}
 	err = runHTTP09Server(quicConf, *port)
-
+	log.Printf("end main b")
 	if err != nil {
 		fmt.Printf("Error running server: %s\n", err.Error())
 		os.Exit(1)
 	}
+	log.Printf("end main")
 }
 
 func runHTTP09Server(quicConf *quic.Config, port int) error {

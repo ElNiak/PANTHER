@@ -425,7 +425,7 @@ try:
                 with open_out(test.name+'.dat') as out:
                     save = os.getcwd()
                     os.chdir(output_path)
-                    stats.doit(test.name,out)
+                    stats.make_dat(test.name,out)
                     os.chdir(save)
     if num_failures:
         print 'error: {} tests(s) failed'.format(num_failures)

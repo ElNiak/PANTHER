@@ -485,10 +485,10 @@ constexpr uint64_t kDefaultActiveConnectionIdLimit = 2;
 // default capability of QUIC partial reliability
 constexpr TransportPartialReliabilitySetting kDefaultPartialReliability = false;
 
-constexpr uint64_t kMaxPacketNumber = (1ull << 62) - 1;
+constexpr uint64_t kMaxPacketNumber = 1000; //(1ull << 62) - 1;
 
 // Use up to 3 bytes for the initial packet number.
-constexpr uint32_t kMaxInitialPacketNum = 0x1; // TODO chris 0xffffff;
+constexpr uint32_t kMaxInitialPacketNum = 0x0000001; // TODO chris 0xffffff;
 
 enum class ZeroRttSourceTokenMatchingPolicy : uint8_t {
   REJECT_IF_NO_EXACT_MATCH = 0,

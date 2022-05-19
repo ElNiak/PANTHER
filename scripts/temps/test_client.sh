@@ -16,15 +16,15 @@ else
 fi
 
 clients=(
-		 #quant 
+		 quant # sometimes decryption problem
 		 #quant-vuln
-	     #picoquic
-		 #mvfst # Not working: unknown reason
-		 #lsquic
-		 quic-go # todo 0rtt
-		 #aioquic
-		 #quinn # Not working: unknown reason
-		 #quiche
+	     picoquic
+		#  mvfst # Not working: unknown reason (ok now, vn condition problem) (todo 0rtt) -> check why few packet are sent -> +- ok now, somtime 0rtt done, sometime not
+		#  lsquic
+		#  quic-go # 0rtt (todo -> ok now) + set max cid  (ok now)
+		#  aioquic
+	    #  quinn # Not working: unknown reason (ok now, check alpn + ignore cert) -> no co_close ? + 0rtt todo +- ok now
+		quiche # 0rtt client not implemented in v0.0.7 -> update to 0.9.0  +- ok now, somtime 0rtt done, sometime not (check other version)
 		)
 
 alpn=(hq-29 hq-29 hq-29 hq-29 hq-29)
@@ -91,6 +91,11 @@ export IS_NOT_DOCKER=true
 
 rm $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/test.py
 cp $PROOTPATH/ressources/test.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
+cp $PROOTPATH/ressources/stats.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
+cp $PROOTPATH/ressources/plot.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
+cp $PROOTPATH/ressources/show.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
+cp $PROOTPATH/ressources/outliers.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
+
 cd $PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_tests
 
 export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
@@ -154,7 +159,6 @@ printf "TEST CLIENT \n"
 for j in "${tests_client[@]}"; do
     :
     printf "Client => $j  "
-    cnt2=0
 	if [ $j = quic_client_test_0rtt ]; then
 		echo "test"
 		export ZERORTT_TEST=true
@@ -178,15 +182,17 @@ for j in "${tests_client[@]}"; do
 			export TEST_IMPL=$i
 			export TEST_ALPN=hq-29
 			export CNT=$cnt
-			export RND=$RANDOM
+			export RND=$RANDOM # check if usefull -> for seed
+			> $PROOTPATH/tickets/ticket.bin
 			pcap_i=$((`(find temp/* -maxdepth 0 -type d | wc -l)`))
             touch temp/${pcap_i}_${i}_${j}.pcap
             sudo chmod o=xw temp/${pcap_i}_${i}_${j}.pcap
+			# -Y "quic"
             sudo tshark -i lo -w temp/${pcap_i}_${i}_${j}.pcap -f "udp" & 
             if [ $k = 1 ]; then
-				python test.py iters=1 client=$i test=$j run=true gdb=false keep_alive=false > res_client.txt 2>&1
+				python test.py iters=1 stats=false client=$i test=$j run=true gdb=false keep_alive=false > res_client.txt 2>&1
             else
-				python test.py iters=1 client=$i test=$j run=true > res_client.txt 2>&1
+				python test.py iters=1 stats=false client=$i test=$j run=true > res_client.txt 2>&1
 			fi
 			printf "\n"
 	    	((k++))
@@ -196,7 +202,6 @@ for j in "${tests_client[@]}"; do
             kill $(lsof -i udp) >/dev/null 2>&1
             sudo pkill tshark
         done
-	cnt2=$((cnt2 + 1))
 	printf "\n"
     done
 done

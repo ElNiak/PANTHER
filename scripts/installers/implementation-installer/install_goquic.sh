@@ -13,6 +13,7 @@ mkdir client server
 echo "go get"
 cp $PROOTPATH/ressources/quic-go/go_client/main.go $PROOTPATH/quic-implementations/quic-go/client/main.go
 cp $PROOTPATH/ressources/quic-go/go_server/main.go $PROOTPATH/quic-implementations/quic-go/server/main.go
+cp $PROOTPATH/ressources/quic-go/connection_id.go $PROOTPATH/quic-implementations/quic-go/internal/protocol/connection_id.go
 
 go mod init github.com/lucas-clemente/quic-go
 go get ./...
