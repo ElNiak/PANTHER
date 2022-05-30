@@ -1,7 +1,7 @@
 import argparse
 from .constants import *
 
-class ArgumentsParser:
+class ArgumentParserRunner:
     def __init__(self):        
         self.parser = argparse.ArgumentParser(conflict_handler='resolve') 
         self.group = self.parser.add_argument_group('QUIC verification with Ivy')

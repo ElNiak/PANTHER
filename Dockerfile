@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:18.04  
 
 # Install dependencies
 
@@ -8,6 +8,14 @@ RUN apt-get install -y apt-utils git
 RUN git clone --recurse-submodules https://github.com/ElNiak/QUIC-FormalVerification.git
 
 WORKDIR /QUIC-FormalVerification/scripts/installers
+RUN apt-get install  --fix-missing  -y git python3 python3-dev python3-pip build-essential 
+RUN python3 update-for-docker.py
 RUN bash install.sh
-RUN /usr/bin/python3 /home/user/Documents/QUIC-RFC9000/run_experiments.py --mode client --categories retry_test --update_include_tls  --timeout 30 --getstats  --implementations quant picoquic --iter 2 --compile
+WORKDIR /QUIC-FormalVerification
+ARG MODE
+ARG CATE
+ARG TIME
+ARG IMPL
+ARG ITER
+RUN python3 run_experiments.py --not_docker --mode $MODE --categories $CATE --update_include_tls  --timeout $TIME --getstats  --implementations $IMPL --iter $ITER --compile
 

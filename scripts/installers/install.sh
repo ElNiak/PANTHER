@@ -6,7 +6,7 @@ export PROOTPATH
 
 printf '%s\n' "-------------> Installing dependencies: <-------------"
 sudo apt-get --fix-missing  -y install tzdata curl wget tar 
-sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix gperf pkg-config libssl-dev lsof
+sudo apt-get install  --fix-missing  -y python2.7 python-pip g++ cmake python-ply python-pygraphviz git python-tk tix gperf pkg-config libssl-dev lsof
 sudo apt-get install  --fix-missing  -y doxygen pkg-config faketime libscope-guard-perl libtest-tcp-perl libbrotli-dev
 sudo apt-get install  --fix-missing  -y libev-dev libhttp-parser-dev libbsd-dev snapd
 sudo apt-get install  --fix-missing  -y cmake wireshark tshark rand
@@ -18,12 +18,13 @@ sudo apt-get install  --fix-missing  -y build-essential software-properties-comm
 sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix pkg-config libssl-dev # TODO
 sudo apt-get install  --fix-missing  -y libunwind-dev
 
-# sudo apt remove cmake -y
-# sudo snap remove cmake
-# sudo snap install cmake --classic
-# sudo apt-get install cmake
-# cmake --version
-# /usr/bin/cmake --version
+sudo apt remove cmake -y
+sudo snap remove cmake
+
+sudo snap install cmake --classic
+sudo apt-get install cmake
+cmake --version
+/usr/bin/cmake --version
 
 
 # curl -fsSL https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3.5
@@ -77,5 +78,5 @@ bash install_aioquic.sh
 
 printf '%s\n' "-------------> Installing mvfst: <-------------"
 
-bash install_mvfst.sh # still some problem
+bash install_mvfst.sh 
 
