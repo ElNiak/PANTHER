@@ -25,10 +25,16 @@ def main(argv):
 
     if args.build: # TODO add no_cache option
         print("build")
-        os.system('sudo docker build '+\
-            ' --build-arg MODE='+ str(args.mode) +' --build-arg CATE='+ str(args.categories) +' --build-arg TIME='+ str(args.timeout) +' --build-arg IMPL='+ ' '.join([str(elem) for elem in args.implementations]) +' ' +\
-            '--build-arg ITER='+ str(args.iter) +' ' +\
-            ' -t quic-ivy-uclouvain .')
+        command = 'sudo docker build'+\
+            ' -t quic-ivy-uclouvain ' +\
+            ' --build-arg MODE='+ str(args.mode) +\
+            ' --build-arg CATE='+ str(args.categories) +\
+            ' --build-arg TIME='+ str(args.timeout) +\
+            ' --build-arg IMPL='+ ' '.join([str(elem) for elem in args.implementations])  +\
+            ' --build-arg ITER='+ str(args.iter) +\
+            ' .'
+        print(command)
+        os.system(command)
 
     command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
         ' --privileged -it -v '+ args.docker_output_path + 'results:/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic/test/temp ' +\
