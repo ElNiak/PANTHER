@@ -30,7 +30,7 @@ def main(argv):
                      'ITER='+ str(args.iter) +' ' +\
             ' -t quic-ivy-uclouvain .')
 
-    command = 'sudo docker run --cpus="6.0" --memory="10g" --memory-reservation="9.5g" ' +\
+    command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
         ' --privileged -it -v '+ args.docker_output_path + 'results:/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic/test/temp ' +\
         ' --name quic-ivy-uclouvain quic-ivy-uclouvain'
     print(command)
