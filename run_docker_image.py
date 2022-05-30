@@ -25,12 +25,13 @@ def main(argv):
 
     if args.build:
         print("build")
-        os.system('sudo docker build -t quic-ivy-uclouvain .')
+        os.system('sudo docker build '+\
+            ' --build-arg MODE='+ str(args.mode) +',CATE='+ str(args.categories) +',TIME='+ str(args.timeout) +',IMPL='+ ' '.join([str(elem) for elem in args.implementations]) +',' +\
+                     'ITER='+ str(args.iter) +' ' +\
+            ' -t quic-ivy-uclouvain .')
 
     command = 'sudo docker run --cpus="6.0" --memory="10g" --memory-reservation="9.5g" ' +\
         ' --privileged -it -v '+ args.docker_output_path + 'results:/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic/test/temp ' +\
-        ' --build-arg MODE='+ str(args.mode) +',CATE='+ str(args.categories) +',TIME='+ str(args.timeout) +',IMPL='+ ' '.join([str(elem) for elem in args.implementations]) +',' +\
-                     'ITER='+ str(args.iter) +' ' +\
         ' --name quic-ivy-uclouvain quic-ivy-uclouvain'
     print(command)
     os.system(command)
