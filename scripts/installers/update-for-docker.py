@@ -25,14 +25,14 @@ def getListOfFiles(dirName):
 
 allFile = getListOfFiles(".")
 
-for file in allFile:
+for f in allFile:
     # Read in the file
-    with open(file, 'r') as file :
+    with open(f, 'r') as file :
         filedata = file.read()
 
     # Replace the target string
     filedata = filedata.replace('sudo', '')
 
     # Write the file out again
-    with open(file, 'w') as file:
+    with open(f, 'w') as file:
         file.write(filedata)
