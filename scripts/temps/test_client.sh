@@ -98,24 +98,23 @@ cp $PROOTPATH/ressources/outliers.py $PROOTPATH/QUIC-Ivy/doc/examples/quic/test/
 
 cd $PROOTPATH/QUIC-Ivy/doc/examples/quic/quic_tests
 
-export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
-export ZRTTSSLKEYLOGFILEC=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key_client.key
+export ZRTT_SSLKEYLOG_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
 
-echo $ZRTTSSLKEYLOGFILE
-echo $ZRTTSSLKEYLOGFILEC
+echo $ZRTT_SSLKEYLOG_FILE
+echo $ZRTT_SSLKEYLOG_FILEC
 export STFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt
 export RTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_retry_token.txt
-export NTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
-export RSTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_resumed_session_ticket.txt
-export STFILE3=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
+export NEW_TOKEN_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
+export ENCRYPT_TICKET_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt
+export SESSION_TICKET_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
 
-#export STFILE3=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
+#export SESSION_TICKET_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
 
 
 echo $STFILE
-echo $RSTFILE
+echo $ENCRYPT_TICKET_FILE
 echo $RTFILE
-echo $NTFILE
+echo $NEW_TOKEN_FILE
 
 
 printf "BUILDING TEST \n"

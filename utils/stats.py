@@ -6,6 +6,12 @@ import pandas as pd
 from utils.constants import *
 from scapy.all import *
 
+specials = [
+    "quic_server_test_0rtt",
+    "quic_client_test_0rtt",
+    "quic_server_test_retry_reuse_key"
+]
+
 counts = [
     ['frame.ack','frame.ack.handle'],
     ['frame.stream','frame.stream.handle'],
@@ -67,9 +73,12 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
                      "tls_recv_event",
                      "recv_packet", 
                      "recv_packet_retry",
+                     "handshake_done",
+                     "tls.finished",
                      "recv_packet_vn",
                      "recv_packet_0rtt",
-                     "undecryptable_packet_event"]) # TODO add frame type
+                     "undecryptable_packet_event",
+                     "version_not_found_event"]) # TODO add frame type
 
     iev_content = out.read()
     
@@ -78,12 +87,16 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
     
     packets = rdpcap(pcapFile)
     nPkt = len(packets)
+
+    threshold = 1
+    if test_name in specials:
+        threshold = 2
     
     df = df.append({"Run": run_id,
                      "Implementation": implem_name,
                      "Mode": mode,
                      "TestName": test_name,
-                     "isPass": True if "test_completed" == error_iev else False,
+                     "isPass": True if iev_content.count("test_completed") == threshold  else False,
                      "ErrorIEV": error_iev,
                      "NbPktSend": nPkt,  
                      "OutputFile": OutputFile,
@@ -101,7 +114,10 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
                      "recv_packet_retry":iev_content.count("recv_packet_retry"),
                      "recv_packet_vn":iev_content.count("recv_packet_vn"),
                      "recv_packet_0rtt":iev_content.count("recv_packet_0rtt"),
-                     "undecryptable_packet_event":iev_content.count("undecryptable_packet_event")},
+                     "undecryptable_packet_event":iev_content.count("undecryptable_packet_event"),
+                     "handshake_done":iev_content.count("frame.handshake_done.handle"),
+                     "tls.finished":iev_content.count("tls.finished"),
+                     "version_not_found":iev_content.count("version_not_found_event")},
                      ignore_index=True)
 
     df.to_csv(RESULT_DIR + 'temp/data.csv', index=False)

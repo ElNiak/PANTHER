@@ -16,7 +16,7 @@ sudo apt-get install  --fix-missing  -y libsnappy-dev zlib1g-dev binutils-dev li
 sudo apt-get install  --fix-missing  -y git python3 python3-dev python3-pip build-essential libffi-dev python-dev cargo
 sudo apt-get install  --fix-missing  -y build-essential software-properties-common zlib1g-dev libevent-dev
 sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix pkg-config libssl-dev # TODO
-sudo apt-get install -y libunwind-dev
+sudo apt-get install  --fix-missing  -y libunwind-dev
 
 # sudo apt remove cmake -y
 # sudo snap remove cmake

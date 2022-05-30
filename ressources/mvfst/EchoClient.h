@@ -359,8 +359,8 @@ class EchoClient : public quic::QuicSocket::ConnectionCallback,
     auto pskSaveFile = std::string("/home/user/Documents/QUIC-RFC9000/ticket_mvfst.bin");
     auto pskLoadFile = std::string("/home/user/Documents/QUIC-RFC9000/ticket_mvfst.bin");
     if(const char* env_p = std::getenv("PROOTPATH")) {
-       pskSaveFile = std::string(env_p) + std::string("/tickets/ticket.bin");
-       pskLoadFile = std::string(env_p) + std::string("/tickets/ticket.bin");
+       pskSaveFile = std::string(env_p) + std::string("/tickets/ticket_mvfst.bin");
+       pskLoadFile = std::string(env_p) + std::string("/tickets/ticket_mvfst.bin");
     }
     auto pskCache_ =
           std::make_shared<BasicPersistentQuicPskCache>(pskSaveFile, pskLoadFile);

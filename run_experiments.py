@@ -3,6 +3,7 @@ import logging
 import subprocess
 import sys
 import time
+import progressbar
 from h11 import SERVER
 from utils.Runner import Runner
 from utils.ArgumentsParser import ArgumentsParser
@@ -12,6 +13,7 @@ from utils.CustomFormatter import CustomFormatter
 # TODO refactor
 # TODO change os.system with subprocess or with python funct
 # TODO to finish
+# TODO add barplot progression
 
 import os
 
@@ -22,13 +24,11 @@ IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
 os.environ['PROOTPATH'] = SOURCE_DIR
 os.environ['PATH'] = "/go/bin:${"+ os.getenv('PATH') +"}"
 
-os.environ['ZRTTSSLKEYLOGFILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.key"
-os.environ['ZRTTSSLKEYLOGFILEC'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key_client.key"
-os.environ['STFILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt"
-os.environ['RTFILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt"
-os.environ['NTFILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt"
-os.environ['RSTFILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_resumed_session_ticket.txt"
-os.environ['STFILE3'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt"
+os.environ['ZRTT_SSLKEYLOG_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.key"
+os.environ['RETRY_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt"
+os.environ['NEW_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt"
+os.environ['ENCRYPT_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt"
+os.environ['SESSION_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt"
 
 os.system("$HOME/.cargo/env") # TODO source
 
@@ -110,7 +110,7 @@ def build_tests(mode, categories):
         true_categories = TESTS_SERVER.keys()
     else:
         true_categories = TESTS_CLIENT.keys()
-    folder = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests"
+    folder = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
     os.chdir(folder)
     if "all" in categories:
         files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy") and mode in f]
@@ -185,13 +185,15 @@ def main():
     if implementations == None:
         implementations = IMPLEMENTATIONS.keys()
 
+    bar_f = progressbar.ProgressBar(max_value=len(executed_tests)*len(implementations)*args.iter)
+    bar_f.start()
     count_1 = 0
     for test in executed_tests:
-        log.info("Test: "+test)
         if test == "quic_server_test_0rtt" or test == "quic_client_test_0rtt":
             os.environ['ZERORTT_TEST']="true"
         else:
-            del os.environ['ZERORTT_TEST']
+            if 'ZERORTT_TEST' in os.environ:
+                del os.environ['ZERORTT_TEST']
 
         if test == "quic_client_test_version_negociation_mim":
             os.system("bash "+ SOURCE_DIR + "/mim-setup.sh")
@@ -199,12 +201,13 @@ def main():
             os.system("bash "+ SOURCE_DIR + "/mim-reset.sh")
         for implementation in implementations:  
             print(implementations)
-            log.info("Implementation: "+implementation)
             os.environ['TEST_IMPL'] = implementation
             os.environ['TEST_ALPN'] = "hq-29"
             os.environ['SSLKEYLOGFILE'] = SOURCE_DIR +"/tls-keys/"+implementation+"_key.log"
             for i in range(0,args.iter):
-                log.info("Iteration: "+str(i) +"/" + str(args.iter))
+                log.info("Test: "+test)
+                log.info("Implementation: "+implementation)
+                log.info("Iteration: "+str(i+1) +"/" + str(args.iter))
                 os.environ['CNT'] = str(count_1)
                 #os.environ['RND'] = os.getenv("RANDOM")
                 os.system("> "+ SOURCE_DIR +"/tickets/ticket.bin")
@@ -225,7 +228,7 @@ def main():
                             pcap_name,
                             "-i", "lo", "-f", 'udp'],
                             stdout=sys.stdout)
-                runner.quic_name = implementation
+                runner.quic_implementation = implementation
                 os.system("mkdir " + ivy_dir)
                 ivy_out = ivy_dir + '/ivy_stdout.txt'
                 ivy_err = ivy_dir + '/ivy_stderr.txt'
@@ -234,7 +237,7 @@ def main():
                 log.info("\tStart run")
                 try:
                     runner.output_path = None
-                    runner.run_exp(test,pcap_i,pcap_name)
+                    runner.run_exp(test,pcap_i,pcap_name,i)
                 except Exception as e:
                     print(e)
                 finally: # In Runner.py
@@ -242,14 +245,15 @@ def main():
                     sys.stderr.close()
                     sys.stdout = sys.__stdout__
                     sys.stderr = sys.__stderr__
-                    os.system("cat " + ivy_out)
-                    os.system("cat " + ivy_err)
+                    os.system("tail -2 " + ivy_err)
+                    os.system("tail -2 " + ivy_out)
                     os.system("kill $(lsof -i udp) >/dev/null 2>&1")
                     log.info("\tKill thsark")
                     os.system("sudo pkill tshark")
-                #p.kill()
-                count_1 += 1
-
+                    #p.kill()
+                    count_1 += 1
+                    bar_f.update(count_1)
+    bar_f.finish()
     remove_includes(included_files)
 
 if __name__ == "__main__":

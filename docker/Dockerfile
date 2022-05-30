@@ -47,7 +47,7 @@ RUN pip3 install setuptools-rust
 
 COPY --from=intermediate QUIC-Ivy /QUIC-Ivy
 RUN cd /QUIC-Ivy; ls; python build_submodules.py
- #RUN ls
+#RUN ls
 #RUN python build_submodules.py
 RUN pip install ms-ivy
 

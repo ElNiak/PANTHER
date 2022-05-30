@@ -31,10 +31,10 @@ class ArgumentsParser:
             default=1
         )
         self.group.add_argument(
-            '--quic_name', 
-            help='Name of the client/server tested (default: None)',
-            type=str, 
-            default=""
+            '--nclient', 
+            help='Number of client per test for server implementation (default: 1)',
+            type=int, 
+            default=1
         )
         self.group.add_argument(
             '--getstats', 

@@ -143,19 +143,19 @@ for j in "${servers[@]}"; do
     touch $PROOTPATH"/tls-keys/${j}_key.log"
 done
 
-export ZRTTSSLKEYLOGFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
-echo $ZRTTSSLKEYLOGFILE
+export ZRTT_SSLKEYLOG_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_tls_key.key
+echo $ZRTT_SSLKEYLOG_FILE
 export STFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket.txt
 export STFILE2=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_full.txt
-export STFILE3=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
+export SESSION_TICKET_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt
 export RTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_retry_token.txt
-export NTFILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
+export NEW_TOKEN_FILE=$PROOTPATH/QUIC-Ivy/doc/examples/quic/last_new_token.txt
 
 echo $STFILE
 echo $STFILE2
-echo $STFILE3
+echo $SESSION_TICKET_FILE
 echo $RTFILE
-echo $NTFILE
+echo $NEW_TOKEN_FILE
 
 cnt=0
 ITER=1
