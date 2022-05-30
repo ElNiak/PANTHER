@@ -28,7 +28,7 @@ allFile = getListOfFiles(".")
 for f in allFile:
     # Read in the file
     print(f)
-    if f.endswith(".sh"):
+    if f.endswith(".sh") and "install" in f:
         with open(f, 'r') as file :
             filedata = file.read()
 
