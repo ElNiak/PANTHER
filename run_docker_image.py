@@ -23,11 +23,11 @@ def main(argv):
         os.system('sudo docker rm $(sudo docker ps -aq)')
         os.system('sudo docker rmi $(sudo docker images -aq)')
 
-    if args.build:
+    if args.build: # TODO add no_cache option
         print("build")
         os.system('sudo docker build '+\
-            ' --build-arg MODE='+ str(args.mode) +' CATE='+ str(args.categories) +' TIME='+ str(args.timeout) +' IMPL='+ ' '.join([str(elem) for elem in args.implementations]) +' ' +\
-                     ' ITER='+ str(args.iter) +' ' +\
+            ' --build-arg MODE='+ str(args.mode) +' --build-arg CATE='+ str(args.categories) +' --build-arg TIME='+ str(args.timeout) +' --build-arg IMPL='+ ' '.join([str(elem) for elem in args.implementations]) +' ' +\
+            '--build-arg ITER='+ str(args.iter) +' ' +\
             ' -t quic-ivy-uclouvain .')
 
     command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
