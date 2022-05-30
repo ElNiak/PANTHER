@@ -27,12 +27,14 @@ allFile = getListOfFiles(".")
 
 for f in allFile:
     # Read in the file
-    with open(f, 'r') as file :
-        filedata = file.read()
+    print(f)
+    if f.endswith(".sh"):
+        with open(f, 'r') as file :
+            filedata = file.read()
 
-    # Replace the target string
-    filedata = filedata.replace('sudo', '')
+        # Replace the target string
+        filedata = filedata.replace('sudo', '')
 
-    # Write the file out again
-    with open(f, 'w') as file:
-        file.write(filedata)
+        # Write the file out again
+        with open(f, 'w') as file:
+            file.write(filedata)
