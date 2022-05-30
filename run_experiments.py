@@ -6,7 +6,7 @@ import time
 import progressbar
 from h11 import SERVER
 from utils.Runner import Runner
-from ArgumentsParserRunner import ArgumentsParserRunner
+from utils.ArgumentParserRunner import ArgumentParserRunner
 from utils.constants import *
 from utils.CustomFormatter import CustomFormatter
 
@@ -163,7 +163,7 @@ def compile_file(file):
 
 def main():
     global COMPILE
-    args_parser = ArgumentsParserRunner()
+    args_parser = ArgumentParserRunner()
     args = args_parser.parse_arguments()
     log.info(args)
     COMPILE = args.compile

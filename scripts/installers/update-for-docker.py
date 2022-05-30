@@ -27,7 +27,7 @@ allFile = getListOfFiles(".")
 
 for f in allFile:
     # Read in the file
-    if f.endswith(".sh") and "implementation-installer/install" in f:
+    if f.endswith(".sh") and ("implementation-installer/install" in f or "install.sh" in f):
         print(f)
         with open(f, 'r') as file :
             filedata = file.read()
