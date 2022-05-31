@@ -43,6 +43,7 @@ class IvyTest(object):
         self.specials = {
             "quic_server_test_0rtt":"quic_server_test_0rtt_stream",
             "quic_client_test_0rtt":"quic_client_test_0rtt_max",
+            "quic_client_test_0rtt_invalid":"quic_client_test_0rtt_max",
             "quic_server_test_retry_reuse_key":"quic_server_test_retry"
         }
 

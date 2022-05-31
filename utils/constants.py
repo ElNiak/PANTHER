@@ -89,7 +89,8 @@ TESTS_CLIENT = {
         'quic_client_test_retirecoid_error',
     ],
     "0rtt_test": [
-        "quic_client_test_0rtt"
+        "quic_client_test_0rtt",
+        "quic_client_test_0rtt_invalid"
     ],
     "retry_test": [
         "quic_client_test_retry"

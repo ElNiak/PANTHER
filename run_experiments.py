@@ -30,6 +30,14 @@ os.environ['NEW_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_n
 os.environ['ENCRYPT_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt"
 os.environ['SESSION_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt"
 
+os.environ['active_connection_id_limit'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/active_connection_id_limit.txt"
+os.environ['initial_max_stream_id_bidi'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_id_bidi.txt"
+os.environ['initial_max_stream_data_bidi_local'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt"
+os.environ['initial_max_data'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_data.txt"
+os.environ['initial_max_stream_data_bidi_remote'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt"
+os.environ['initial_max_stream_data_uni'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt"
+
+
 os.system("$HOME/.cargo/env") # TODO source
 
 MEMORY_PROFILING = False
@@ -142,6 +150,9 @@ def build_file(file):
     compile_file(file)
     if "quic_server_test_0rtt" in file:
         file = file.replace("quic_server_test_0rtt","quic_server_test_0rtt_stream")
+        compile_file(file)
+    elif "quic_client_test_0rtt_invalid" in file:
+        file = file.replace("quic_client_test_0rtt_invalid","quic_client_test_0rtt_max")
         compile_file(file)
     elif "quic_client_test_0rtt" in file:
         file = file.replace("quic_client_test_0rtt","quic_client_test_0rtt_max")

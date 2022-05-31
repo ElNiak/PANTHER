@@ -11,6 +11,8 @@ WORKDIR /QUIC-FormalVerification/scripts/installers
 RUN apt-get install  --fix-missing  -y git python3 python3-dev python3-pip build-essential 
 RUN python3 update-for-docker.py
 RUN DEBIAN_FRONTEND="noninteractive" bash install.sh
+WORKDIR /QUIC-FormalVerification/utils
+RUN python3 update-for-docker.py
 WORKDIR /QUIC-FormalVerification
 ARG MODE
 ARG CATE
