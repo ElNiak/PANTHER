@@ -6,7 +6,7 @@ import pandas as pd
 from utils.constants import *
 from scapy.all import *
 
-specials = [
+specials = [ # TODO 
     "quic_server_test_0rtt",
     "quic_client_test_0rtt",
     "quic_server_test_retry_reuse_key"
@@ -91,6 +91,8 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
     threshold = 1
     if test_name in specials:
         threshold = 2
+
+    # TODO special case for "error" tests
     
     df = df.append({"Run": run_id,
                      "Implementation": implem_name,

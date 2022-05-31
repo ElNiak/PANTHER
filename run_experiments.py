@@ -38,7 +38,7 @@ os.environ['initial_max_stream_data_bidi_remote'] = SOURCE_DIR + "/QUIC-Ivy/doc/
 os.environ['initial_max_stream_data_uni'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt"
 
 
-os.system("$HOME/.cargo/env") # TODO source
+subprocess.Popen("$HOME/.cargo/env") # TODO source
 
 MEMORY_PROFILING = False
 
@@ -63,33 +63,50 @@ def update_includes_ptls():
     files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy")]
     for file in files:
         log.info(" " + file)
-        os.system("sudo cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/")
-    os.system("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_to_cpp.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_to_cpp.py")
-    os.system("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_solver.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_solver.py")
-    os.system("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_cpp_types.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_cpp_types.py")
+        subprocess.Popen("sudo cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_to_cpp.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_to_cpp.py", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_solver.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_solver.py", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_cpp_types.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_cpp_types.py", 
+                                                shell=True, executable="/bin/bash")
     #cd /usr/local/lib/python2.7/dist-packages/ivy/
 
     os.chdir('/usr/local/lib/python2.7/dist-packages/ivy/')
 
-    os.system("sudo python -m compileall ivy_to_cpp.py")
-    os.system("sudo python -m compileall ivy_cpp_types.py")
-    os.system("sudo python -m compileall ivy_solver.py")
+    subprocess.Popen("sudo python -m compileall ivy_to_cpp.py", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo python -m compileall ivy_cpp_types.py", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo python -m compileall ivy_solver.py", 
+                                                shell=True, executable="/bin/bash")
 
     #echo "CP picotls lib"
-    os.system("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a /usr/local/lib/python2.7/dist-packages/ivy/lib")
-    os.system("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib")
-    os.system("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a /usr/local/lib/python2.7/dist-packages/ivy/lib")
-    os.system("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib")
-    os.system("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a /usr/local/lib/python2.7/dist-packages/ivy/lib")
-    os.system("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
+                                                shell=True, executable="/bin/bash")
 
-    os.system("sudo cp -f " + SOURCE_DIR + "/ressources/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include")
-    os.system("sudo cp -f " + SOURCE_DIR + "/ressources/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/ressources/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/ressources/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include", 
+                                                shell=True, executable="/bin/bash")
 
     # cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include
     # cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include
-    os.system("sudo cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ivy/include/picotls")
-    os.system("sudo cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + SOURCE_DIR + "/QUIC-Ivy/ivy/include/picotls")
+    subprocess.Popen("sudo cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ivy/include/picotls", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + SOURCE_DIR + "/QUIC-Ivy/ivy/include/picotls", 
+                                                shell=True, executable="/bin/bash")
 
     os.chdir(SOURCE_DIR)
 
@@ -102,15 +119,18 @@ def update_includes(included_files):
         for file in files:
             log.info(" " + file)
             included_files.append(file)
-            os.system("sudo cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/")
-    os.system("sudo cp "+ path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/")
+            subprocess.Popen("sudo cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
+                                                shell=True, executable="/bin/bash")
+    subprocess.Popen("sudo cp "+ path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
+                                                shell=True, executable="/bin/bash")
 
 def remove_includes(included_files):
     log.info("Reset \"include\" path of python")
     for file in included_files:
         log.info(" " + file)
         nameFileShort = file.split("/")[-1]
-        os.system("sudo rm /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/" + nameFileShort)
+        subprocess.Popen("sudo rm /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/" + nameFileShort, 
+                                                shell=True, executable="/bin/bash")
 
 def build_tests(mode, categories):
     executed_tests = []
@@ -175,13 +195,20 @@ def build_file(file):
 def compile_file(file):
     global COMPILE
     if COMPILE:
-        os.system("ivyc target=test " + file)
-        os.system("cp "+ file.replace('.ivy','')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/")
-        os.system("cp "+ file.replace('.ivy','.cpp')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/")
-        os.system("cp "+ file.replace('.ivy','.h')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/")
-        os.system("rm "+ file.replace('.ivy',''))
-        os.system("rm "+ file.replace('.ivy','.cpp'))
-        os.system("rm "+ file.replace('.ivy','.h'))
+        subprocess.Popen("ivyc target=test " + file, 
+                                                shell=True, executable="/bin/bash")
+        subprocess.Popen("cp "+ file.replace('.ivy','')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+                                                shell=True, executable="/bin/bash")
+        subprocess.Popen("cp "+ file.replace('.ivy','.cpp')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+                                                shell=True, executable="/bin/bash")
+        subprocess.Popen("cp "+ file.replace('.ivy','.h')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+                                                shell=True, executable="/bin/bash")
+        subprocess.Popen("rm "+ file.replace('.ivy',''), 
+                                                shell=True, executable="/bin/bash")
+        subprocess.Popen("rm "+ file.replace('.ivy','.cpp'), 
+                                                shell=True, executable="/bin/bash")
+        subprocess.Popen("rm "+ file.replace('.ivy','.h'), 
+                                                shell=True, executable="/bin/bash")
 
 def main():
     global COMPILE
@@ -197,7 +224,8 @@ def main():
     os.environ['TEST_TYPE']     = args.mode
     os.environ['IS_NOT_DOCKER'] = "true" if args.not_docker  else "false"
 
-    os.system("sudo sysctl -w net.core.rmem_max=2500000") # for quic-go
+    subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
+                        shell=True, executable="/bin/bash") # for quic-go
     
     executed_tests = build_tests(args.mode, args.categories)
 
@@ -224,9 +252,11 @@ def main():
                 del os.environ['ZERORTT_TEST']
 
         if test == "quic_client_test_version_negociation_mim":
-            os.system("bash "+ SOURCE_DIR + "/mim-setup.sh")
+            subprocess.Popen("bash "+ SOURCE_DIR + "/mim-setup.sh", 
+                                                shell=True, executable="/bin/bash")
         else:
-            os.system("bash "+ SOURCE_DIR + "/mim-reset.sh")
+            subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
+                                                shell=True, executable="/bin/bash")
 
         for j in range(0,ni):
             for implementation in implementations:  
@@ -244,7 +274,8 @@ def main():
                     log.info("Iteration: "+str(i+1) +"/" + str(args.iter))
                     os.environ['CNT'] = str(count_1)
                     #os.environ['RND'] = os.getenv("RANDOM")
-                    os.system("> "+ SOURCE_DIR +"/tickets/ticket.bin")
+                    subprocess.Popen("> "+ SOURCE_DIR +"/tickets/ticket.bin", 
+                                                shell=True, executable="/bin/bash")
                     path = SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/'
                     #print(path)
                     folders = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
@@ -253,8 +284,10 @@ def main():
                     log.info(pcap_i)
                     ivy_dir = path+str(pcap_i)
                     pcap_name = ivy_dir +"_"+ implementation +"_"+ test +".pcap"
-                    os.system("touch "+pcap_name)
-                    os.system("sudo chmod o=xw "+ pcap_name)
+                    subprocess.Popen("touch "+pcap_name, 
+                                                shell=True, executable="/bin/bash")
+                    subprocess.Popen("sudo chmod o=xw "+ pcap_name, 
+                                                shell=True, executable="/bin/bash")
                     log.info("\tStart thsark")
                     #time.sleep(10) # for server test 
                     # TODO kill entual old quic implem
@@ -263,7 +296,8 @@ def main():
                                 "-i", "lo", "-f", 'udp'],
                                 stdout=sys.stdout)
                     runner.quic_implementation = implementation
-                    os.system("mkdir " + ivy_dir)
+                    subprocess.Popen("mkdir " + ivy_dir, 
+                                                shell=True, executable="/bin/bash")
                     ivy_out = ivy_dir + '/ivy_stdout.txt'
                     ivy_err = ivy_dir + '/ivy_stderr.txt'
                     sys.stdout = open(ivy_out, 'w')
@@ -279,11 +313,15 @@ def main():
                         sys.stderr.close()
                         sys.stdout = sys.__stdout__
                         sys.stderr = sys.__stderr__
-                        os.system("tail -2 " + ivy_err)
-                        os.system("tail -2 " + ivy_out)
-                        os.system("kill $(lsof -i udp) >/dev/null 2>&1")
+                        subprocess.Popen("tail -2 " + ivy_err, 
+                                                shell=True, executable="/bin/bash")
+                        subprocess.Popen("tail -2 " + ivy_out, 
+                                                shell=True, executable="/bin/bash")
+                        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1", 
+                                                shell=True, executable="/bin/bash")
                         log.info("\tKill thsark")
-                        os.system("sudo pkill tshark")
+                        subprocess.Popen("sudo pkill tshark", 
+                                                shell=True, executable="/bin/bash")
                         #p.kill()
                         count_1 += 1
                         bar_f.update(count_1)
@@ -303,8 +341,8 @@ if __name__ == "__main__":
         sys.stderr.close() 
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
-        os.system("kill $(lsof -i udp) >/dev/null 2>&1") 
-        os.system("sudo pkill tshark")
+        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
+        subprocess.Popen("sudo pkill tshark")
 
     if MEMORY_PROFILING:
         snapshot = tracemalloc.take_snapshot()
