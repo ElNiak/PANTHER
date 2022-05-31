@@ -38,7 +38,7 @@ os.environ['initial_max_stream_data_bidi_remote'] = SOURCE_DIR + "/QUIC-Ivy/doc/
 os.environ['initial_max_stream_data_uni'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt"
 
 
-subprocess.Popen("$HOME/.cargo/env") # TODO source
+subprocess.Popen("$HOME/.cargo/env",shell=True, executable="/bin/bash").wait() # TODO source
 
 MEMORY_PROFILING = False
 
@@ -64,49 +64,49 @@ def update_includes_ptls():
     for file in files:
         log.info(" " + file)
         subprocess.Popen("sudo cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_to_cpp.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_to_cpp.py", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_solver.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_solver.py", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_cpp_types.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_cpp_types.py", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     #cd /usr/local/lib/python2.7/dist-packages/ivy/
 
     os.chdir('/usr/local/lib/python2.7/dist-packages/ivy/')
 
     subprocess.Popen("sudo python -m compileall ivy_to_cpp.py", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo python -m compileall ivy_cpp_types.py", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo python -m compileall ivy_solver.py", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
     #echo "CP picotls lib"
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/ressources/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -f " + SOURCE_DIR + "/ressources/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
     # cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include
     # cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include
     subprocess.Popen("sudo cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ivy/include/picotls", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + SOURCE_DIR + "/QUIC-Ivy/ivy/include/picotls", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
     os.chdir(SOURCE_DIR)
 
@@ -120,9 +120,9 @@ def update_includes(included_files):
             log.info(" " + file)
             included_files.append(file)
             subprocess.Popen("sudo cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo cp "+ path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
 def remove_includes(included_files):
     log.info("Reset \"include\" path of python")
@@ -130,7 +130,7 @@ def remove_includes(included_files):
         log.info(" " + file)
         nameFileShort = file.split("/")[-1]
         subprocess.Popen("sudo rm /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/" + nameFileShort, 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
 def build_tests(mode, categories):
     executed_tests = []
@@ -196,19 +196,19 @@ def compile_file(file):
     global COMPILE
     if COMPILE:
         subprocess.Popen("ivyc target=test " + file, 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
         subprocess.Popen("cp "+ file.replace('.ivy','')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
         subprocess.Popen("cp "+ file.replace('.ivy','.cpp')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
         subprocess.Popen("cp "+ file.replace('.ivy','.h')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
         subprocess.Popen("rm "+ file.replace('.ivy',''), 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
         subprocess.Popen("rm "+ file.replace('.ivy','.cpp'), 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
         subprocess.Popen("rm "+ file.replace('.ivy','.h'), 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
 def main():
     global COMPILE
@@ -225,7 +225,7 @@ def main():
     os.environ['IS_NOT_DOCKER'] = "true" if args.not_docker  else "false"
 
     subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
-                        shell=True, executable="/bin/bash") # for quic-go
+                        shell=True, executable="/bin/bash").wait() # for quic-go
     
     executed_tests = build_tests(args.mode, args.categories)
 
@@ -253,10 +253,10 @@ def main():
 
         if test == "quic_client_test_version_negociation_mim":
             subprocess.Popen("bash "+ SOURCE_DIR + "/mim-setup.sh", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
         else:
             subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
 
         for j in range(0,ni):
             for implementation in implementations:  
@@ -275,7 +275,7 @@ def main():
                     os.environ['CNT'] = str(count_1)
                     #os.environ['RND'] = os.getenv("RANDOM")
                     subprocess.Popen("> "+ SOURCE_DIR +"/tickets/ticket.bin", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                     path = SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/'
                     #print(path)
                     folders = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
@@ -285,9 +285,9 @@ def main():
                     ivy_dir = path+str(pcap_i)
                     pcap_name = ivy_dir +"_"+ implementation +"_"+ test +".pcap"
                     subprocess.Popen("touch "+pcap_name, 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                     subprocess.Popen("sudo chmod o=xw "+ pcap_name, 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                     log.info("\tStart thsark")
                     #time.sleep(10) # for server test 
                     # TODO kill entual old quic implem
@@ -297,7 +297,7 @@ def main():
                                 stdout=sys.stdout)
                     runner.quic_implementation = implementation
                     subprocess.Popen("mkdir " + ivy_dir, 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                     ivy_out = ivy_dir + '/ivy_stdout.txt'
                     ivy_err = ivy_dir + '/ivy_stderr.txt'
                     sys.stdout = open(ivy_out, 'w')
@@ -314,14 +314,14 @@ def main():
                         sys.stdout = sys.__stdout__
                         sys.stderr = sys.__stderr__
                         subprocess.Popen("tail -2 " + ivy_err, 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                         subprocess.Popen("tail -2 " + ivy_out, 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                         subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                         log.info("\tKill thsark")
                         subprocess.Popen("sudo pkill tshark", 
-                                                shell=True, executable="/bin/bash")
+                                                shell=True, executable="/bin/bash").wait()
                         #p.kill()
                         count_1 += 1
                         bar_f.update(count_1)
