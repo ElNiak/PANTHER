@@ -37,7 +37,7 @@ def main(argv):
         os.system(command)
 
     command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
-        ' --privileged -it -v '+ args.docker_output_path + 'results:/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic/test/temp ' +\
+        ' --privileged -it -v '+ args.docker_output_path + ':/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic/test/temp ' +\
         ' --name quic-ivy-uclouvain quic-ivy-uclouvain'
     print(command)
     os.system(command)
