@@ -39,15 +39,19 @@ class IvyTest(object):
         self.extra_args = extra_args
         self.implementation_name = implementation_name
         self.nclient = nclient
+        self.j = 0
 
         self.specials = {
             "quic_server_test_0rtt":"quic_server_test_0rtt_stream",
+            "quic_client_test_new_token_address_validation":"quic_client_test_new_token_address_validation",
             "quic_client_test_0rtt":"quic_client_test_0rtt_max",
+            "quic_client_test_0rtt_add_val":"quic_client_test_0rtt_max_add_val",
             "quic_client_test_0rtt_invalid":"quic_client_test_0rtt_max",
             "quic_server_test_retry_reuse_key":"quic_server_test_retry"
         }
 
-    def run(self,iteration,quic_cmd): 
+    def run(self,iteration,quic_cmd,j): 
+        self.j = j
         print('{}/{} ({}) ...'.format(self.dir,self.name,iteration))
         status = self.run_expect(iteration,quic_cmd)
         print('PASS' if status else 'FAIL')
@@ -215,7 +219,7 @@ class IvyTest(object):
         random.seed(datetime.now())
         prefix = ""
 
-        server_port = 4443
+        server_port   = 4443
         server_port_2 = 4444
 
         client_port   = 2*iteration+4987+iclient
@@ -247,7 +251,13 @@ class IvyTest(object):
             # TODO refactor
             prefix=" gdb --args "
         if self.name in self.specials.keys(): # TODO build quic_server_test_stream
-            return (' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} {}'.format(timeout_cmd,prefix,self.dir,self.specials[self.name],randomSeed,the_cid,server_port,''  
+            first_test = self.specials[self.name]
+            if self.name == "quic_client_test_0rtt" or self.name == "quic_server_test_0rtt":
+                if self.j == 1:
+                    first_test += "_app_close"
+                elif self.j == 2:
+                    first_test += "_co_close"
+            return (' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} {}'.format(timeout_cmd,prefix,self.dir,first_test,randomSeed,the_cid,server_port,''  
                 if self.is_client else 'server_cid={} client_port={} client_port_alt={}'.format(server_cid,client_port,client_port_2))] + self.extra_args)) + \
                 ";sleep 1;" + \
                 ' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} {}'.format(timeout_cmd,prefix,self.dir,self.name,randomSeed,the_cid_2,server_port_2,''  # TODO port + iteration -> change imple

@@ -62,7 +62,7 @@ class Runner:
             }
         }
 
-    def run_exp(self, test, run_id, pcap_name,iteration):
+    def run_exp(self, test, run_id, pcap_name,iteration,j):
         if self.output_path is None:
             path = SOURCE_DIR  + '/QUIC-Ivy/doc/examples/quic/test/temp/' 
             path = os.path.join(path,str(run_id))
@@ -115,7 +115,7 @@ class Runner:
                     quic_cmd_upt = self.update_command(test)
                     quic_cmd = quic_cmd if quic_cmd_upt == "" else quic_cmd_upt
                     print(quic_cmd)
-                    status = test.run(iteration,quic_cmd)
+                    status = test.run(iteration,quic_cmd,j)
                     print(status)
                     if not status:
                         num_failures += 1

@@ -90,7 +90,9 @@ TESTS_CLIENT = {
     ],
     "0rtt_test": [
         "quic_client_test_0rtt",
-        "quic_client_test_0rtt_invalid"
+        "quic_client_test_0rtt_invalid",
+        "quic_client_test_new_token_address_validation",
+        "quic_client_test_0rtt_add_val"
     ],
     "retry_test": [
         "quic_client_test_retry"

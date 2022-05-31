@@ -151,11 +151,22 @@ def build_file(file):
     if "quic_server_test_0rtt" in file:
         file = file.replace("quic_server_test_0rtt","quic_server_test_0rtt_stream")
         compile_file(file)
+        file = file.replace("quic_server_test_0rtt_stream","quic_server_test_0rtt_stream_co_close")
+        compile_file(file)
+        file = file.replace("quic_server_test_0rtt_stream_co_close","quic_server_test_0rtt_stream_app_close")
+        compile_file(file)
     elif "quic_client_test_0rtt_invalid" in file:
         file = file.replace("quic_client_test_0rtt_invalid","quic_client_test_0rtt_max")
         compile_file(file)
+    elif "quic_client_test_0rtt_add_val" in file:
+        file = file.replace("quic_client_test_0rtt_add_val","quic_client_test_0rtt_max_add_val")
+        compile_file(file)
     elif "quic_client_test_0rtt" in file:
         file = file.replace("quic_client_test_0rtt","quic_client_test_0rtt_max")
+        compile_file(file)
+        file = file.replace("quic_client_test_0rtt_max","quic_client_test_0rtt_max_co_close")
+        compile_file(file)
+        file = file.replace("quic_client_test_0rtt_max_co_close","quic_client_test_0rtt_max_app_close")
         compile_file(file)
     elif "quic_server_test_retry_reuse_key" in file:
         file = file.replace("quic_server_test_retry_reuse_key","quic_server_test_retry")
@@ -196,12 +207,18 @@ def main():
     if implementations == None:
         implementations = IMPLEMENTATIONS.keys()
 
-    bar_f = progressbar.ProgressBar(max_value=len(executed_tests)*len(implementations)*args.iter)
+    if  "quic_server_test_0rtt" in executed_tests or  "quic_client_test_0rtt" in executed_tests:
+        bar_f = progressbar.ProgressBar(max_value=(len(executed_tests)+2)*len(implementations)*args.iter)
+    else:
+        bar_f = progressbar.ProgressBar(max_value=len(executed_tests)*len(implementations)*args.iter)
     bar_f.start()
     count_1 = 0
     for test in executed_tests:
+        initial_test = test
+        ni = 1
         if test == "quic_server_test_0rtt" or test == "quic_client_test_0rtt":
-            os.environ['ZERORTT_TEST']="true"
+            os.environ['ZERORTT_TEST']="true" 
+            ni = 3
         else:
             if 'ZERORTT_TEST' in os.environ:
                 del os.environ['ZERORTT_TEST']
@@ -210,60 +227,66 @@ def main():
             os.system("bash "+ SOURCE_DIR + "/mim-setup.sh")
         else:
             os.system("bash "+ SOURCE_DIR + "/mim-reset.sh")
-        for implementation in implementations:  
-            print(implementations)
-            os.environ['TEST_IMPL'] = implementation
-            os.environ['TEST_ALPN'] = "hq-29"
-            os.environ['SSLKEYLOGFILE'] = SOURCE_DIR +"/tls-keys/"+implementation+"_key.log"
-            for i in range(0,args.iter):
-                log.info("Test: "+test)
-                log.info("Implementation: "+implementation)
-                log.info("Iteration: "+str(i+1) +"/" + str(args.iter))
-                os.environ['CNT'] = str(count_1)
-                #os.environ['RND'] = os.getenv("RANDOM")
-                os.system("> "+ SOURCE_DIR +"/tickets/ticket.bin")
-                path = SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/'
-                #print(path)
-                folders = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
-                #print(folders)
-                pcap_i = len(folders)
-                log.info(pcap_i)
-                ivy_dir = path+str(pcap_i)
-                pcap_name = ivy_dir +"_"+ implementation +"_"+ test +".pcap"
-                os.system("touch "+pcap_name)
-                os.system("sudo chmod o=xw "+ pcap_name)
-                log.info("\tStart thsark")
-                #time.sleep(10) # for server test 
-                # TODO kill entual old quic implem
-                p = subprocess.Popen(["sudo", "tshark", "-w",
-                            pcap_name,
-                            "-i", "lo", "-f", 'udp'],
-                            stdout=sys.stdout)
-                runner.quic_implementation = implementation
-                os.system("mkdir " + ivy_dir)
-                ivy_out = ivy_dir + '/ivy_stdout.txt'
-                ivy_err = ivy_dir + '/ivy_stderr.txt'
-                sys.stdout = open(ivy_out, 'w')
-                sys.stderr = open(ivy_err, 'w')
-                log.info("\tStart run")
-                try:
-                    runner.output_path = None
-                    runner.run_exp(test,pcap_i,pcap_name,i)
-                except Exception as e:
-                    print(e)
-                finally: # In Runner.py
-                    sys.stdout.close()
-                    sys.stderr.close()
-                    sys.stdout = sys.__stdout__
-                    sys.stderr = sys.__stderr__
-                    os.system("tail -2 " + ivy_err)
-                    os.system("tail -2 " + ivy_out)
-                    os.system("kill $(lsof -i udp) >/dev/null 2>&1")
-                    log.info("\tKill thsark")
-                    os.system("sudo pkill tshark")
-                    #p.kill()
-                    count_1 += 1
-                    bar_f.update(count_1)
+
+        for j in range(0,ni):
+            for implementation in implementations:  
+                print(implementations)
+                os.environ['TEST_IMPL'] = implementation
+                os.environ['TEST_ALPN'] = "hq-29"
+                os.environ['SSLKEYLOGFILE'] = SOURCE_DIR +"/tls-keys/"+implementation+"_key.log"
+                for i in range(0,args.iter):
+                    if j == 1:
+                        test = initial_test + "_app_close"
+                    elif j == 2:
+                        test = initial_test + "_co_close"
+                    log.info("Test: "+test)
+                    log.info("Implementation: "+implementation)
+                    log.info("Iteration: "+str(i+1) +"/" + str(args.iter))
+                    os.environ['CNT'] = str(count_1)
+                    #os.environ['RND'] = os.getenv("RANDOM")
+                    os.system("> "+ SOURCE_DIR +"/tickets/ticket.bin")
+                    path = SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/'
+                    #print(path)
+                    folders = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
+                    #print(folders)
+                    pcap_i = len(folders)
+                    log.info(pcap_i)
+                    ivy_dir = path+str(pcap_i)
+                    pcap_name = ivy_dir +"_"+ implementation +"_"+ test +".pcap"
+                    os.system("touch "+pcap_name)
+                    os.system("sudo chmod o=xw "+ pcap_name)
+                    log.info("\tStart thsark")
+                    #time.sleep(10) # for server test 
+                    # TODO kill entual old quic implem
+                    p = subprocess.Popen(["sudo", "tshark", "-w",
+                                pcap_name,
+                                "-i", "lo", "-f", 'udp'],
+                                stdout=sys.stdout)
+                    runner.quic_implementation = implementation
+                    os.system("mkdir " + ivy_dir)
+                    ivy_out = ivy_dir + '/ivy_stdout.txt'
+                    ivy_err = ivy_dir + '/ivy_stderr.txt'
+                    sys.stdout = open(ivy_out, 'w')
+                    sys.stderr = open(ivy_err, 'w')
+                    log.info("\tStart run")
+                    try:
+                        runner.output_path = None
+                        runner.run_exp(initial_test,pcap_i,pcap_name,i,j)
+                    except Exception as e:
+                        print(e)
+                    finally: # In Runner.py
+                        sys.stdout.close()
+                        sys.stderr.close()
+                        sys.stdout = sys.__stdout__
+                        sys.stderr = sys.__stderr__
+                        os.system("tail -2 " + ivy_err)
+                        os.system("tail -2 " + ivy_out)
+                        os.system("kill $(lsof -i udp) >/dev/null 2>&1")
+                        log.info("\tKill thsark")
+                        os.system("sudo pkill tshark")
+                        #p.kill()
+                        count_1 += 1
+                        bar_f.update(count_1)
     bar_f.finish()
     remove_includes(included_files)
 
