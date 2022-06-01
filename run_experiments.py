@@ -129,7 +129,7 @@ def remove_includes(included_files):
     for file in included_files:
         log.info(" " + file)
         nameFileShort = file.split("/")[-1]
-        subprocess.Popen("sudo rm /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/" + nameFileShort, 
+        subprocess.Popen("sudo /bin/rm /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/" + nameFileShort, 
                                                 shell=True, executable="/bin/bash").wait()
 
 def build_tests(mode, categories):
@@ -197,17 +197,17 @@ def compile_file(file):
     if COMPILE:
         subprocess.Popen("ivyc target=test " + file, 
                                                 shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("cp "+ file.replace('.ivy','')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+        subprocess.Popen("/bin/cp "+ file.replace('.ivy','')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
                                                 shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("cp "+ file.replace('.ivy','.cpp')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+        subprocess.Popen("/bin/cp "+ file.replace('.ivy','.cpp')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
                                                 shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("cp "+ file.replace('.ivy','.h')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+        subprocess.Popen("/bin/cp "+ file.replace('.ivy','.h')  + " "+ SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
                                                 shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("rm "+ file.replace('.ivy',''), 
+        subprocess.Popen("/bin/rm "+ file.replace('.ivy',''), 
                                                 shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("rm "+ file.replace('.ivy','.cpp'), 
+        subprocess.Popen("/bin/rm "+ file.replace('.ivy','.cpp'), 
                                                 shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("rm "+ file.replace('.ivy','.h'), 
+        subprocess.Popen("/bin/rm "+ file.replace('.ivy','.h'), 
                                                 shell=True, executable="/bin/bash").wait()
 
 def main():
