@@ -22,7 +22,7 @@ sudo apt-get install --fix-missing  -y libssl-dev
 sudo apt remove cmake -y
 sudo snap remove cmake
 
-pip3 install progressbar
+pip3 install progressbar2
 
 sudo snap install cmake --classic
 sudo apt-get install cmake
