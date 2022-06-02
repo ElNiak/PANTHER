@@ -73,8 +73,8 @@ class ArgumentParserRunner:
             action="store_true"
         )
         self.group.add_argument(
-            '--not_docker', 
-            help='Dont use docker (default:False)',
+            '--docker', 
+            help='Use docker (default:False)',
             action="store_true"
         )
         self.group.add_argument(

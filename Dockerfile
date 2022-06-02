@@ -22,5 +22,5 @@ ARG TIME
 ARG IMPL
 ARG ITER
 # --implementations $IMPL
-RUN python3 run_experiments.py --not_docker --mode $MODE --categories $CATE --update_include_tls  --timeout $TIME --getstats  --iter $ITER --compile
+RUN python3 run_experiments.py --docker --mode $MODE --categories $CATE --update_include_tls  --timeout $TIME --getstats  --iter $ITER --compile
 
