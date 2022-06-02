@@ -219,6 +219,12 @@ class IvyTest(object):
         random.seed(datetime.now())
         prefix = ""
 
+        # TODO 
+        initial_version = 0 
+        send_co_close   = True
+        send_app_close  = True 
+
+
         server_port   = 4443
         server_port_2 = 4444
 
