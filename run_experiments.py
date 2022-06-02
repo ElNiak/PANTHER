@@ -222,8 +222,11 @@ def main():
     update_includes(included_files)
     
     os.environ['TEST_TYPE']     = args.mode
-    os.environ['IS_NOT_DOCKER'] = "true" if args.not_docker  else "false"
-
+    if not args.docker:
+        os.environ['IS_NOT_DOCKER'] = "true" 
+    else:
+        if 'IS_NOT_DOCKER' in os.environ:
+            del os.environ['IS_NOT_DOCKER']
     subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
                         shell=True, executable="/bin/bash").wait() # for quic-go
     
