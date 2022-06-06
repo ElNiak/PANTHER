@@ -289,7 +289,7 @@ def main():
                     pcap_name = ivy_dir +"_"+ implementation +"_"+ test +".pcap"
                     subprocess.Popen("touch "+pcap_name, 
                                                 shell=True, executable="/bin/bash").wait()
-                    subprocess.Popen("sudo chmod o=xw "+ pcap_name, 
+                    subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
                                                 shell=True, executable="/bin/bash").wait()
                     log.info("\tStart thsark")
                     #time.sleep(10) # for server test 
@@ -299,7 +299,7 @@ def main():
                                 "-i", "lo", "-f", 'udp'],
                                 stdout=sys.stdout)
                     runner.quic_implementation = implementation
-                    subprocess.Popen("mkdir " + ivy_dir, 
+                    subprocess.Popen("/bin/mkdir " + ivy_dir, 
                                                 shell=True, executable="/bin/bash").wait()
                     ivy_out = ivy_dir + '/ivy_stdout.txt'
                     ivy_err = ivy_dir + '/ivy_stderr.txt'
@@ -316,14 +316,14 @@ def main():
                         sys.stderr.close()
                         sys.stdout = sys.__stdout__
                         sys.stderr = sys.__stderr__
-                        subprocess.Popen("tail -2 " + ivy_err, 
+                        subprocess.Popen("/bin/tail -2 " + ivy_err, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("tail -2 " + ivy_out, 
+                        subprocess.Popen("/bin/tail -2 " + ivy_out, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1", 
+                        subprocess.Popen("/bin/kill $(lsof -i udp) >/dev/null 2>&1", 
                                                 shell=True, executable="/bin/bash").wait()
                         log.info("\tKill thsark")
-                        subprocess.Popen("sudo pkill tshark", 
+                        subprocess.Popen("sudo /bin/pkill tshark", 
                                                 shell=True, executable="/bin/bash").wait()
                         #p.kill()
                         count_1 += 1
