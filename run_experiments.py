@@ -255,10 +255,10 @@ def main():
                 del os.environ['ZERORTT_TEST']
 
         if test == "quic_client_test_version_negociation_mim":
-            subprocess.Popen("bash "+ SOURCE_DIR + "/mim-setup.sh", 
+            subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-setup.sh", 
                                                 shell=True, executable="/bin/bash").wait()
         else:
-            subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
+            subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-reset.sh", 
                                                 shell=True, executable="/bin/bash").wait()
 
         for j in range(0,ni):
@@ -344,8 +344,8 @@ if __name__ == "__main__":
         sys.stderr.close() 
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
-        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
-        subprocess.Popen("sudo pkill tshark")
+        subprocess.Popen("/bin/kill $(lsof -i udp) >/dev/null 2>&1") 
+        subprocess.Popen("sudo /bin/pkill tshark")
 
     if MEMORY_PROFILING:
         snapshot = tracemalloc.take_snapshot()
