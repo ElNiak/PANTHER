@@ -4,7 +4,7 @@ FROM ubuntu:18.04
 
 RUN apt-get update  && apt-get -y install alien
 RUN apt-get install -y apt-utils git
-
+RUN apt-get install iptables
 RUN git clone --recurse-submodules --branch quic-draft29 https://github.com/ElNiak/QUIC-FormalVerification.git
 
 WORKDIR /QUIC-FormalVerification/scripts/installers
