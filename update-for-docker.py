@@ -4,7 +4,7 @@ allFile = [f for f in os.listdir('.') if os.path.isfile(f)]
 
 for f in allFile:
     # Read in the file
-    if f.endswith(".py"):
+    if f.endswith(".py") or f.endswith(".sh"):
         print(f)
         with open(f, 'r') as file :
             filedata = file.read()
