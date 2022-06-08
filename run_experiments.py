@@ -254,12 +254,12 @@ def main():
             if 'ZERORTT_TEST' in os.environ:
                 del os.environ['ZERORTT_TEST']
 
-        if test == "quic_client_test_version_negociation_mim":
-            subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-setup.sh", 
-                                                shell=True, executable="/bin/bash").wait()
-        else:
-            subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-reset.sh", 
-                                                shell=True, executable="/bin/bash").wait()
+        #if test == "quic_client_test_version_negociation_mim":
+        #    subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-setup.sh", 
+        #                                        shell=True, executable="/bin/bash").wait()
+        #else:
+        #    subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-reset.sh", 
+        #                                        shell=True, executable="/bin/bash").wait()
 
         for j in range(0,ni):
             for implementation in implementations:  
