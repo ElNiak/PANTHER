@@ -27,18 +27,18 @@ def main(argv):
         print("build")
         command = 'sudo docker build'+\
             ' -t quic-ivy-uclouvain ' +\
-            ' --build-arg MODE='+ str(args.mode) +\
-            ' --build-arg CATE='+ str(args.categories) +\
-            ' --build-arg TIME='+ str(args.timeout) +\
-            ' --build-arg IMPL='+ ' '.join([str(elem) for elem in args.implementations])  +\
-            ' --build-arg ITER='+ str(args.iter) +\
             ' .'
         print(command)
         os.system(command)
 
     command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
                 ' --privileged -it -v '+ args.docker_output_path + ':/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic/test/temp ' +\
-                ' --name quic-ivy-uclouvain quic-ivy-uclouvain'
+                ' --name quic-ivy-uclouvain quic-ivy-uclouvain ' +\
+                'python3 run_experiments.py --docker --mode '+ str(args.mode) +\
+                ' --categories '+ str(args.categories) +\
+                ' --update_include_tls  --timeout '+ str(args.timeout) +\
+                ' --getstats  --iter '+ str(args.iter) +\
+                ' --compile'
     print(command)
     os.system(command)
 
