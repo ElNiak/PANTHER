@@ -344,7 +344,7 @@ if __name__ == "__main__":
         sys.stderr.close() 
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
-        subprocess.Popen("/bin/kill $(lsof -i udp) >/dev/null 2>&1") 
+        subprocess.Popen("/bin/kill $(/usr/bin/lsof -i udp) >/dev/null 2>&1") 
         subprocess.Popen("sudo /usr/bin/pkill tshark")
 
     if MEMORY_PROFILING:
