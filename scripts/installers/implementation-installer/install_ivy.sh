@@ -9,8 +9,10 @@ mkdir doc/examples/quic/test/temp
 sudo rm -r /usr/local/lib/python2.7/dist-packages && sudo mkdir /usr/local/lib/python2.7/dist-packages
 sudo pip2 install pexpect chardet
 sudo pip2 install gperf pandas scandir
+sudo pip2 install ply
 sudo pip3 install pexpect chardet
 sudo pip3 install gperf pandas scandir
+sudo pip3 install ply
 python2.7 build_submodules.py
 sudo pip2 install ms-ivy #global install
 
