@@ -316,14 +316,14 @@ def main():
                         sys.stderr.close()
                         sys.stdout = sys.__stdout__
                         sys.stderr = sys.__stderr__
-                        subprocess.Popen("/bin/tail -2 " + ivy_err, 
+                        subprocess.Popen("/usr/bin/tail -2 " + ivy_err, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("/bin/tail -2 " + ivy_out, 
+                        subprocess.Popen("/usr/bin/tail -2 " + ivy_out, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("/bin/kill $(lsof -i udp) >/dev/null 2>&1", 
+                        subprocess.Popen("/usr/bin/tail $(lsof -i udp) >/dev/null 2>&1", 
                                                 shell=True, executable="/bin/bash").wait()
                         log.info("\tKill thsark")
-                        subprocess.Popen("sudo /bin/pkill tshark", 
+                        subprocess.Popen("sudo /usr/bin/pkill tshark", 
                                                 shell=True, executable="/bin/bash").wait()
                         #p.kill()
                         count_1 += 1
@@ -345,7 +345,7 @@ if __name__ == "__main__":
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
         subprocess.Popen("/bin/kill $(lsof -i udp) >/dev/null 2>&1") 
-        subprocess.Popen("sudo /bin/pkill tshark")
+        subprocess.Popen("sudo /usr/bin/pkill tshark")
 
     if MEMORY_PROFILING:
         snapshot = tracemalloc.take_snapshot()
