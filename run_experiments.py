@@ -320,8 +320,8 @@ def main():
                                                 shell=True, executable="/bin/bash").wait()
                         subprocess.Popen("/usr/bin/tail -2 " + ivy_out, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("/usr/bin/tail $(/usr/bin/lsof -i udp) >/dev/null 2>&1", 
-                                                shell=True, executable="/bin/bash").wait()
+                        #subprocess.Popen("/usr/bin/tail $(/usr/bin/lsof -i udp) >/dev/null 2>&1", # deadlock in docker todo
+                        #                        shell=True, executable="/bin/bash").wait()
                         log.info("\tKill thsark")
                         subprocess.Popen("sudo /usr/bin/pkill tshark", 
                                                 shell=True, executable="/bin/bash").wait()
