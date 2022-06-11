@@ -298,6 +298,8 @@ def main():
                                 pcap_name,
                                 "-i", "lo", "-f", 'udp'],
                                 stdout=sys.stdout)
+                    # hack to allow tshark to launch
+                    time.sleep(3)
                     runner.quic_implementation = implementation
                     subprocess.Popen("/bin/mkdir " + ivy_dir, 
                                                 shell=True, executable="/bin/bash").wait()
