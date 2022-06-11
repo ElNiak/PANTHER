@@ -36,6 +36,7 @@ def main(argv):
                 ' --name quic-ivy-uclouvain quic-ivy-uclouvain ' +\
                 'python3 run_experiments.py --docker --mode '+ str(args.mode) +\
                 ' --categories '+ str(args.categories) +\
+                ' --implementations '+ ' '.join([str(elem) for elem in args.implementations]) +\
                 ' --update_include_tls  --timeout '+ str(args.timeout) +\
                 ' --getstats  --iter '+ str(args.iter) +\
                 ' --compile'
