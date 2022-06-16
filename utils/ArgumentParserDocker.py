@@ -16,6 +16,11 @@ class ArgumentParserDocker:
             action="store_true"
         )
         self.group.add_argument(
+            '--remove', 
+            help='remove old docker images/containers (default:False)',
+            action="store_true"
+        )
+        self.group.add_argument(
             '--docker_output_path', 
             help='Experiment output path (default: docker-output/)',
             type=str, 
