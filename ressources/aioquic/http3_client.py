@@ -458,6 +458,8 @@ if __name__ == "__main__":
                 configuration.session_ticket = pickle.load(fp)
         except FileNotFoundError:
             pass
+        except EOFError:
+            pass
 
     if uvloop is not None:
         uvloop.install()
