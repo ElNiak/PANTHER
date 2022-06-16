@@ -332,7 +332,12 @@ def main():
                         bar_f.update(count_1)
     bar_f.finish()
     remove_includes(included_files)
-
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tls-keys/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tickets/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/qlogs/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
 if __name__ == "__main__":
     if MEMORY_PROFILING:
         tracemalloc.start()
