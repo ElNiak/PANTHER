@@ -19,8 +19,10 @@ def main(argv):
     args_parser = ArgumentParser()
     args = args_parser.parse_arguments()
     print(args)
-    if args.delete: 
+    if args.remove: 
         os.system('sudo docker rm $(sudo docker ps -aq)')
+
+    if args.delete: 
         os.system('sudo docker rmi $(sudo docker images -aq)')
 
     if args.build: # TODO add no_cache option
@@ -30,6 +32,10 @@ def main(argv):
             ' .'
         print(command)
         os.system(command)
+
+
+    if not os.path.isdir(SOURCE_DIR + "/" + args.docker_output_path):
+        os.mkdir(SOURCE_DIR + "/" + args.docker_output_path)
 
     command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
                 ' --privileged -it -v '+ SOURCE_DIR + "/" + args.docker_output_path + ':/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic/test/temp ' +\
