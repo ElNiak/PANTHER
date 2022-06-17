@@ -58,7 +58,7 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
     except:
         df = pd.DataFrame(
             columns=["Run", "Implementation", "Mode", "TestName", 
-                     "Status", 
+                     "isPass", 
                      "ErrorIEV", 
                      "OutputFile", 
                      "packet_event",

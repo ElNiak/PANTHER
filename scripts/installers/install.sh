@@ -18,6 +18,7 @@ sudo apt-get install  --fix-missing  -y build-essential software-properties-comm
 sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix pkg-config libssl-dev # TODO
 sudo apt-get install  --fix-missing  -y libunwind-dev
 sudo apt-get install --fix-missing  -y libssl-dev
+sudo apt-get install  --fix-missing  -y python3.9 python3.9-dev python3.9-pip
 
 sudo apt remove cmake -y
 sudo snap remove cmake
