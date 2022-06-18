@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 import progressbar
-from h11 import SERVER
+#from h11 import SERVER
 from utils.Runner import Runner
 from utils.ArgumentParserRunner import ArgumentParserRunner
 from utils.constants import *
