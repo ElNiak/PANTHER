@@ -19,7 +19,7 @@ sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply p
 sudo apt-get install  --fix-missing  -y libunwind-dev
 sudo apt-get install --fix-missing  -y libssl-dev
 sudo apt install --fix-missing  -y software-properties-common
-sudo add-apt-repository ppa:deadsnakes/ppa
+sudo add-apt-repository ppa:deadsnakes/ppa -y
 sudo apt-get install  --fix-missing  -y python3.9 python3.9-dev #python3.9-pip
 
 sudo apt remove cmake -y
