@@ -5,6 +5,7 @@ git checkout 0.9.3
 export PYTHONPATH=$PWD
 source $HOME/.cargo/env
 
+python3.9 -m ensurepip --upgrade
 python3.9 -m pip uninstall --yes setuptools
 python3.9 -m pip uninstall --yes cryptography
 python3.9 -m pip uninstall --yes cffi
