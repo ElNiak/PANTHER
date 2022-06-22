@@ -21,7 +21,8 @@ sudo apt-get install --fix-missing  -y libssl-dev
 
 sudo apt install --fix-missing  -y software-properties-common
 sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt-get install  --fix-missing  -y python3.9 python3.9-dev #python3.9-pip
+sudo apt-get install --fix-missing  -y python3.9 python3.9-dev #python3.9-pip
+sudo apt-get install --fix-missing  -y python3.9-distutils
 
 sudo apt remove cmake -y
 sudo snap remove cmake
