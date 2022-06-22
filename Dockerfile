@@ -16,4 +16,4 @@ WORKDIR /QUIC-FormalVerification/utils
 RUN python3 update-for-docker.py
 WORKDIR /QUIC-FormalVerification
 RUN python3 update-for-docker.py
-
+ENV PATH="/root/.cargo/bin:${PATH}"
