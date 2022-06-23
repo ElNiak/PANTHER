@@ -11,6 +11,8 @@ python3.9 -m pip uninstall --yes cryptography
 python3.9 -m pip uninstall --yes cffi
 python3.9 -m pip uninstall --yes setuptools-rust
 python3.9 -m pip install --upgrade setuptools
+python3.9 -m pip install --upgrade pip
+python3.9 -m pip install --upgrade distlib
 python3.9 -m pip install --upgrade setuptools-rust
 python3.9 -m pip install --upgrade launchpadlib
 python3.9 -m pip install --upgrade cryptography
