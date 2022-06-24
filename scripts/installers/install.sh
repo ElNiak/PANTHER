@@ -21,8 +21,8 @@ sudo apt-get install --fix-missing  -y libssl-dev
 
 sudo apt install --fix-missing  -y software-properties-common
 sudo add-apt-repository -y ppa:deadsnakes/ppa
-sudo apt-get install --fix-missing  -y python3.9 python3.9-dev #python3.9-pip
-sudo apt-get install --fix-missing  -y python3.9-distutils
+sudo apt-get install --fix-missing  -y python3.7 python3.7-dev #python3.9-pip
+sudo apt-get install --fix-missing  -y python3.7-distutils
 
 sudo apt remove cmake -y
 sudo snap remove cmake
@@ -30,6 +30,7 @@ sudo snap remove cmake
 pip3 uninstall progressbar2
 pip3 uninstall progressbar
 pip3 install progressbar2
+pip3 install scapy
 
 sudo snap install cmake --classic
 sudo apt-get install cmake
