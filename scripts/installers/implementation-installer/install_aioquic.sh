@@ -14,9 +14,9 @@ python3.7 -m pip install --upgrade setuptools
 python3.7 -m pip install --upgrade pip
 python3.7 -m pip install --upgrade distlib
 python3.7 -m pip install --upgrade setuptools-rust
-#python3.7 -m pip install --upgrade launchpadlib
-#python3.7 -m pip install --upgrade cryptography
-#python3.7 -m pip install --upgrade cffi
+python3.7 -m pip install --upgrade launchpadlib
+python3.7 -m pip install --upgrade cryptography
+python3.7 -m pip install --upgrade cffi
 python3.7 -m pip install -e .
 python3.7 -m pip install aiofiles asgiref dnslib httpbin starlette wsproto
 
