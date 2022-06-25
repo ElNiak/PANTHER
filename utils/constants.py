@@ -166,13 +166,13 @@ IMPLEMENTATIONS = {
     # Client: Not working: unknown reason (ok now, check alpn + ignore cert) -> no co_close ? + 0rtt todo +- ok now
     "quinn":[ # TODO RUST_LOG="debug" RUST_BACKTRACE=1  server
         [IMPLEM_DIR + '/quinn/','cargo run -vv --example server '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/index.html --listen 127.0.0.1:4443'],
-        [IMPLEM_DIR + '/quinn/','RUST_LOG="debug" RUST_BACKTRACE=1 cargo run -vv --example client https://localhost:4443/index.html --keylog']
+        [IMPLEM_DIR + '/quinn/','cargo run -vv --example client https://localhost:4443/index.html --keylog']
     ],
     # Server: 0rtt not working: 2 session ticket with unknown extension (ok now)
     # Client: 0rtt client not implemented in v0.0.7 -> update to 0.9.0  +- ok now, somtime 0rtt done, sometime not (check other version)
     "quiche":[ # TODO RUST_LOG="debug" RUST_BACKTRACE=1 
         [IMPLEM_DIR + '/quiche/','cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-server --  --no-grease --cert '+ SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/cert.pem --early-data --dump-packets '+SOURCE_DIR +'/qlogs/quiche/dump_packet.txt --key '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/priv.key --no-retry --listen 127.0.0.1:4443' ],
-        [IMPLEM_DIR + '/quiche/','RUST_LOG="debug" RUST_BACKTRACE=1 cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --session-file '+SOURCE_DIR +'/tickets/ticket.bin --wire-version ff00001d --no-verify --body / -n 5']
+        [IMPLEM_DIR + '/quiche/','cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --session-file '+SOURCE_DIR +'/tickets/ticket.bin --wire-version ff00001d --no-verify --body / -n 5']
     ],
     # Server:
     # Client:
