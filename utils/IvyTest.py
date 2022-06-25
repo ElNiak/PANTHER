@@ -95,7 +95,7 @@ class IvyTest(object):
                             if "quic_client_test_0rtt" in self.name and (self.implementation_name == "quinn" or self.implementation_name == "quic-go") and i == 1: # 
                                 pass 
                             else:
-                                qcmd =  ('/bin/sleep 5; ' if self.is_client else "") + "exec " + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
+                                qcmd =  ('/usr/bin/sleep 5; ' if self.is_client else "") + "exec " + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
                                 # if not self.is_client:
                                 #     qcmd.insert(0,"exec")
                                 print('implementation command: {}'.format(qcmd))
