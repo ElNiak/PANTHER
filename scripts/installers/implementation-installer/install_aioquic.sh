@@ -18,7 +18,7 @@ python3.7 -m pip install --upgrade setuptools-rust
 #python3.7 -m pip install --upgrade cryptography
 #python3.7 -m pip install --upgrade cffi
 python3.7 -m pip install -e .
-#python3.7 -m pip install aiofiles asgiref dnslib httpbin starlette wsproto
+python3.7 -m pip install aiofiles asgiref dnslib httpbin starlette wsproto
 
 rm $PROOTPATH/quic-implementations/aioquic/examples/http3_client.py
 cp $PROOTPATH/ressources/aioquic/http3_client.py $PROOTPATH/quic-implementations/aioquic/examples/http3_client.py
