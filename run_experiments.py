@@ -23,6 +23,9 @@ IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
 os.environ['PROOTPATH'] = SOURCE_DIR
 os.environ['PATH'] = "/go/bin:${"+ os.getenv('PATH') +"}"
 
+os.environ['RUST_LOG'] = "debug"
+os.environ['RUST_BACKTRACE'] = 1 
+ 
 os.environ['ZRTT_SSLKEYLOG_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.key"
 os.environ['RETRY_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt"
 os.environ['NEW_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt"
