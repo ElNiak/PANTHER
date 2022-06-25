@@ -1,6 +1,6 @@
 cd QUIC-Ivy/
 git stash
-git checkout rfc9000 # rfc9000 # quic_29 
+git checkout quic-draft29 #rfc9000 # rfc9000 # quic_29 
 git submodule update --init --recursive
 git submodule update --recursive
 mkdir doc/examples/quic/build
