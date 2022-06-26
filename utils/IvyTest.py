@@ -156,7 +156,7 @@ class IvyTest(object):
         if platform.system() != 'Windows':
             oldcwd = os.getcwd()
             os.chdir(self.dir)
-            proc = subprocess.Popen('sleep 3;'+command,
+            proc = subprocess.Popen('/bin/sleep 3;'+command,
                 cwd=QUIC_DIR,
                 stdout=iev,
                 stderr=sys.stderr,
