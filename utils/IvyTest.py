@@ -265,7 +265,7 @@ class IvyTest(object):
                     first_test += "_co_close"
             return (' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} {}'.format(timeout_cmd,prefix,self.dir,first_test,randomSeed,the_cid,server_port,''  
                 if self.is_client else 'server_cid={} client_port={} client_port_alt={}'.format(server_cid,client_port,client_port_2))] + self.extra_args)) + \
-                ";/bin/sleep 1;" + \
+                ";/usr/bin/sleep 1;" + \
                 ' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} {}'.format(timeout_cmd,prefix,self.dir,self.name,randomSeed,the_cid_2,server_port_2,''  # TODO port + iteration -> change imple
                 if self.is_client else 'server_cid={} client_port={} client_port_alt={}'.format(server_cid_2,client_port,client_port_2))] + self.extra_args)
         else:
