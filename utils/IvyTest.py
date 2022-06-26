@@ -95,7 +95,7 @@ class IvyTest(object):
                             if "quic_client_test_0rtt" in self.name and (self.implementation_name == "quinn" or self.implementation_name == "quic-go") and i == 1: # 
                                 pass 
                             else:
-                                qcmd =  ('/usr/bin/sleep 5; ' if self.is_client else "") + "exec " + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
+                                qcmd =  ('/bin/sleep 5; ' if self.is_client else "") + "exec " + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
                                 # if not self.is_client:
                                 #     qcmd.insert(0,"exec")
                                 print('implementation command: {}'.format(qcmd))
@@ -265,7 +265,7 @@ class IvyTest(object):
                     first_test += "_co_close"
             return (' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} {}'.format(timeout_cmd,prefix,self.dir,first_test,randomSeed,the_cid,server_port,''  
                 if self.is_client else 'server_cid={} client_port={} client_port_alt={}'.format(server_cid,client_port,client_port_2))] + self.extra_args)) + \
-                ";/usr/bin/sleep 1;" + \
+                ";/bin/sleep 1;" + \
                 ' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} {}'.format(timeout_cmd,prefix,self.dir,self.name,randomSeed,the_cid_2,server_port_2,''  # TODO port + iteration -> change imple
                 if self.is_client else 'server_cid={} client_port={} client_port_alt={}'.format(server_cid_2,client_port,client_port_2))] + self.extra_args)
         else:
