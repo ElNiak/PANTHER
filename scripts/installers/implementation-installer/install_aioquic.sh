@@ -17,6 +17,7 @@ python3.8 -m pip install --upgrade setuptools-rust
 python3.8 -m pip install --upgrade launchpadlib
 python3.8 -m pip install --upgrade cryptography
 python3.8 -m pip install --upgrade cffi
+python3.8 -m pip install .
 python3.8 -m pip install -e .
 python3.8 -m pip install aiofiles asgiref dnslib httpbin starlette wsproto
 
