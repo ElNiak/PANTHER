@@ -82,7 +82,7 @@ bash install_quiche.sh
 
 printf '%s\n' "-------------> Installing quinn: <-------------"
 cd $PROOTPATH/scripts/installers/implementation-installer/
-#bash install_quinn.sh
+bash install_quinn.sh
 
 printf '%s\n' "-------------> Installing aioquic: <-------------"
 cd $PROOTPATH/scripts/installers/implementation-installer/
