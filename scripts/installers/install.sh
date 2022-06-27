@@ -17,7 +17,7 @@ sudo apt-get install  --fix-missing  -y git python3 python3-dev python3-pip buil
 sudo apt-get install  --fix-missing  -y build-essential software-properties-common zlib1g-dev libevent-dev
 sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix pkg-config libssl-dev # TODO
 sudo apt-get install  --fix-missing  -y libunwind-dev
-sudo apt-get install --fix-missing  -y libssl-dev
+sudo apt-get install  --fix-missing  -y libssl-dev
 
 sudo apt install --fix-missing  -y software-properties-common
 sudo add-apt-repository -y ppa:deadsnakes/ppa
@@ -32,8 +32,8 @@ pip3 uninstall progressbar
 pip3 install progressbar2
 pip3 install scapy
 
-sudo snap install cmake --classic
-sudo apt-get install cmake
+sudo snap install cmake --classic --yes
+sudo apt-get install -y --fix-missing   cmake 
 cmake --version
 /usr/bin/cmake --version
 
