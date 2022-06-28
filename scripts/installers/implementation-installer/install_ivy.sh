@@ -10,10 +10,10 @@ sudo rm -r /usr/local/lib/python2.7/dist-packages && sudo mkdir /usr/local/lib/p
 sudo pip2 install pexpect chardet
 sudo pip2 install gperf pandas scandir
 sudo pip2 install ply
-sudo pip3 install pexpect chardet
-sudo pip3 install gperf pandas scandir
-sudo pip3 install ply
-python2.7 build_submodules.py
+sudo python3 -m pip install pexpect chardet
+sudo python3 -m pip install gperf pandas scandir
+sudo python3 -m pip install ply
+sudo python2.7 build_submodules.py
 sudo pip2 install ms-ivy #global install
 
 rm doc/examples/quic/test/test.py
