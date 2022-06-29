@@ -13,6 +13,12 @@ sudo pip2 install ply
 sudo python3 -m pip install pexpect chardet
 sudo python3 -m pip install gperf pandas scandir
 sudo python3 -m pip install ply
+sudo pip install pexpect chardet
+sudo pip install gperf pandas scandir
+sudo pip install ply
+sudo pip3 install pexpect chardet
+sudo pip3 install gperf pandas scandir
+sudo pip3 install ply
 sudo python2.7 build_submodules.py
 sudo pip2 install ms-ivy #global install
 
