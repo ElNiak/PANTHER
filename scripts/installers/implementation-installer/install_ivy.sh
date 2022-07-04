@@ -19,7 +19,7 @@ sudo pip install ply
 sudo pip3 install pexpect chardet
 sudo pip3 install gperf pandas scandir
 sudo pip3 install ply
-sudo python2.7 build_submodules.py
+python2.7 build_submodules.py
 sudo pip2 install ms-ivy #global install
 
 rm doc/examples/quic/test/test.py
