@@ -2,7 +2,8 @@ cd $PROOTPATH/quic-implementations/aioquic
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 git stash
 git checkout 0.9.3 
-export PYTHONPATH=$PWD
+export PYTHONPATH=$PWD:$PYTHONPATH
+export PYTHONPATH=$PWD/src/aioquic:$PYTHONPATH
 source $HOME/.cargo/env
 
 python3.8 -m ensurepip --upgrade
