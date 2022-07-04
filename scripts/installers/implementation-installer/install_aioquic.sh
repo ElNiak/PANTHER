@@ -2,7 +2,7 @@ cd $PROOTPATH/quic-implementations/aioquic
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 git stash
 git checkout 0.9.3 
-export PYTHONPATH=$PWD:$PYTHONPATH
+export PYTHONPATH=$PWD:/usr/bin/:$PYTHONPATH
 #export PYTHONPATH=$PWD/src/aioquic:$PYTHONPATH
 source $HOME/.cargo/env
 
@@ -12,6 +12,12 @@ python3.8 -m pip uninstall --yes cryptography
 python3.8 -m pip uninstall --yes cffi
 python3.8 -m pip uninstall --yes setuptools-rust
 python3.8 -m pip uninstall --yes werkzeug
+
+python3.8 -m pip uninstall --yes setuptools --user
+python3.8 -m pip uninstall --yes cryptography --user
+python3.8 -m pip uninstall --yes cffi --user
+python3.8 -m pip uninstall --yes setuptools-rust --user
+python3.8 -m pip uninstall --yes werkzeug --user
 
 python3.8 -m pip install --upgrade setuptools
 python3.8 -m pip install --upgrade pip
