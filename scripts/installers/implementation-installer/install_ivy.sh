@@ -3,6 +3,8 @@ git stash
 git checkout quic-draft29 #rfc9000 # rfc9000 # quic_29 
 git submodule update --init --recursive
 git submodule update --recursive
+git config --global --add safe.directory $PROOTPATH/QUIC-Ivy/submodules/picotls
+
 mkdir doc/examples/quic/build
 mkdir doc/examples/quic/test/temp
 
@@ -19,7 +21,10 @@ sudo pip install ply
 sudo pip3 install pexpect chardet
 sudo pip3 install gperf pandas scandir
 sudo pip3 install ply
-sudo python2.7 build_submodules.py
+
+
+echo "building submodules"
+python2.7 build_submodules.py
 sudo pip2 install ms-ivy #global install
 
 rm doc/examples/quic/test/test.py
