@@ -8,6 +8,8 @@ git submodule update --init --recursive
 git submodule update --recursive
 cp $PROOTPATH/ressources/quinn/lib.rs quinn-proto/src/lib.rs
 cp $PROOTPATH/ressources/quinn/client.rs quinn/examples/client.rs
+cp $PROOTPATH/ressources/quinn/Cargo.toml quinn/Cargo.toml
+
 source $HOME/.cargo/env
 cargo build --examples
 cargo test
