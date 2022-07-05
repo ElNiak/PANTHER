@@ -19,17 +19,17 @@ python3.8 -m pip uninstall --yes cffi --isolated
 python3.8 -m pip uninstall --yes setuptools-rust --isolated
 python3.8 -m pip uninstall --yes werkzeug --isolated
 
-python3.8 -m pip install --upgrade setuptools
-python3.8 -m pip install --upgrade pip
-python3.8 -m pip install --upgrade distlib
-python3.8 -m pip install --upgrade setuptools-rust
-python3.8 -m pip install --upgrade launchpadlib
-python3.8 -m pip install --upgrade cryptography
-python3.8 -m pip install --upgrade cffi
-python3.8 -m pip install --upgrade werkzeug==2.0.3
-python3.8 -m pip install .
-python3.8 -m pip install -e .
-python3.8 -m pip install aiofiles asgiref dnslib httpbin starlette wsproto
+python3.8 -m pip install --upgrade setuptools --no-cache-dir
+python3.8 -m pip install --upgrade pip --no-cache-dir
+python3.8 -m pip install --upgrade distlib --no-cache-dir
+python3.8 -m pip install --upgrade setuptools-rust --no-cache-dir
+python3.8 -m pip install --upgrade launchpadlib --no-cache-dir
+python3.8 -m pip install --upgrade cryptography --no-cache-dir
+python3.8 -m pip install --upgrade cffi --no-cache-dir
+python3.8 -m pip install --upgrade werkzeug==2.0.3 --no-cache-dir
+python3.8 -m pip install . --no-cache-dir
+python3.8 -m pip install -e . --no-cache-dir
+python3.8 -m pip install aiofiles asgiref dnslib httpbin starlette wsproto --no-cache-dir
 
 rm $PROOTPATH/quic-implementations/aioquic/examples/http3_client.py
 cp $PROOTPATH/ressources/aioquic/http3_client.py $PROOTPATH/quic-implementations/aioquic/examples/http3_client.py
