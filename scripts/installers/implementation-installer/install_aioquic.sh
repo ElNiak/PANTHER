@@ -13,11 +13,11 @@ python3.8 -m pip uninstall --yes cffi
 python3.8 -m pip uninstall --yes setuptools-rust
 python3.8 -m pip uninstall --yes werkzeug
 
-python3.8 -m pip uninstall --yes setuptools --user
-python3.8 -m pip uninstall --yes cryptography --user
-python3.8 -m pip uninstall --yes cffi --user
-python3.8 -m pip uninstall --yes setuptools-rust --user
-python3.8 -m pip uninstall --yes werkzeug --user
+python3.8 -m pip uninstall --yes setuptools --isolated
+python3.8 -m pip uninstall --yes cryptography --isolated
+python3.8 -m pip uninstall --yes cffi --isolated
+python3.8 -m pip uninstall --yes setuptools-rust --isolated
+python3.8 -m pip uninstall --yes werkzeug --isolated
 
 python3.8 -m pip install --upgrade setuptools
 python3.8 -m pip install --upgrade pip
