@@ -13,8 +13,9 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y
 source $HOME/.cargo/env
 cd quiche/
 git stash
-git checkout 0.10.0 #0.7.0 # master # 0.9.0 for quic client ! TODO
+git fetch
+git checkout 4bda0917dd5aa535f39214063ee85c2cad00ceb2 #0.7.0 # master # 0.9.0 for quic client ! TODO
 git submodule update --init
-cp $PROOTPATH/ressources/quiche/packet_0.9.0.rs src/packet.rs
+# cp $PROOTPATH/ressources/quiche/rfc9000/packet_0.9.0.rs src/packet.rs
 cargo build --examples
 cargo test

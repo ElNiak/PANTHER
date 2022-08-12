@@ -7,17 +7,28 @@ class ArgumentParserRunner:
         self.group = self.parser.add_argument_group('QUIC verification with Ivy')
         self.group.add_argument(
             '--mode', 
-            help='Mode of experiments - "client" vs "server" (default)',
+            help='Mode of experiments - "client" vs "server" (default) vs "mim"',
             type=str, 
             default="server"
         )
-        
         self.group.add_argument(
             '--implementations', 
             help='Implementations tested ('+ str([*IMPLEMENTATIONS])  +') (default: all)',
             type=str, 
             nargs='+',
         )
+        self.group.add_argument(
+            '--nb_request', 
+            help='Number of request send by implementations (not always possible) (default: 10)',
+            type=int, 
+            default=10 # TODO enforce
+        ) 
+        self.group.add_argument(
+            '--initial_version', 
+            help='Initial version (default: 1)',
+            type=int, 
+            default=1 # TODO enforce
+        ) 
         self.group.add_argument(
             '--dir', 
             help='Output directory to create (default: temp/)',
@@ -78,10 +89,15 @@ class ArgumentParserRunner:
             action="store_true"
         )
         self.group.add_argument(
+            '--vnet', 
+            help='Use virtual network (default:False)',
+            action="store_true"
+        )
+        self.group.add_argument(
             '--alpn', 
-            help='alpn (default: hq-29)',
+            help='alpn (default: hq-interop)',
             type=str, 
-            default="hq-29"
+            default="hq-interop"
         )
         self.group.add_argument(
             '--categories', 

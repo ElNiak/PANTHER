@@ -594,6 +594,7 @@ def base_name(name):
     return split_name(name)[0]
 
 def parent_child_name(name):
+    print(name)
     parts = name.rsplit(ivy_compose_character,1)
     if len(parts) == 2:
         return parts

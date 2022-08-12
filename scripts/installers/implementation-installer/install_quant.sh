@@ -9,9 +9,9 @@ cmake --version
 
 cd $PROOTPATH/quic-implementations/quant/
 git stash
-git checkout 29
+git checkout 9e309c05f79fb6aa3889dcf7df60b550249d2a2a
 git submodule update --init --recursive
-cp $PROOTPATH/ressources/quant/cid.h lib/src/cid.h # for 16 bytes max
+cp $PROOTPATH/ressources/quant/rfc9000/cid.h lib/src/cid.h # for 16 bytes max
 mkdir Debug 
 cd Debug
 cmake ..

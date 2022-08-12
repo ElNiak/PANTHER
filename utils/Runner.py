@@ -15,9 +15,13 @@ class Runner:
         self.test_pattern = '*'        # Test to launch regex, * match all test
         self.time = args.timeout       # Timeout
         self.is_client = False if args.mode == "server" else True     # True -> client tested <=> False -> server tested
+        self.is_mim    = True  if args.mode == "mim"    else False     # True -> client tested <=> False -> server tested
+        print("is_mim = " + str(self.is_mim))
+        self.vnet = True if args.vnet else False
         self.keep_alive = args.keep_alive
         self.gdb = args.gdb
         self.nclient = args.nclient
+        self.initial_version = args.initial_version
         if args.mode == "client":
             self.nclient = 1
         # server_addr=0xc0a80101 client_addr=0xc0a80102
@@ -29,15 +33,18 @@ class Runner:
 
         self.specials = {
             "quic_server_test_retry_reuse_key": {
-                "picoquic-vuln":'./picoquicdemo -l n -D -L -r',
-                "picoquic":'./picoquicdemo -l - -D -L -q '+SOURCE_DIR +'/qlog/picoquic' 
+                "picoquic-vuln":'./picoquicdemo -l "n"  -D -L -r',
+                "picoquic":'./picoquicdemo -l - -r -D -L -q '+SOURCE_DIR +'/qlog/picoquic',
+                "quant":IMPLEM_DIR+'/quant/Debug/bin/server -x 1000 -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+SOURCE_DIR +'/qlogs/quant -l '+SOURCE_DIR +'/tls-keys/secret.log -r',
+                "quant-vuln":IMPLEM_DIR+'/quant-vuln/Debug/bin/server -x 1000 -d . -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+SOURCE_DIR +'/qlogs/quant -l '+SOURCE_DIR +'/tls-keys/secret.log -r'
             },
             "quic_server_test_retry":{
                 "quant":IMPLEM_DIR+'/quant/Debug/bin/server -x 1000 -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+SOURCE_DIR +'/qlogs/quant -l '+SOURCE_DIR +'/tls-keys/secret.log -r',
                 "quant-vuln":IMPLEM_DIR+'/quant-vuln/Debug/bin/server -x 1000 -d . -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+SOURCE_DIR +'/qlogs/quant -l '+SOURCE_DIR +'/tls-keys/secret.log -r',
-                "picoquic":'./picoquicdemo -l - -D -L -q '+SOURCE_DIR +'/qlog/picoquic -r',
-                "aioquic":'python3 examples/http3_server.py --quic-log '+SOURCE_DIR +'/qlogs/aioquic --certificate '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_cert.pem --private-key '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_key.pem  -v -r --host 127.0.0.1 --port 4443 -l '+SOURCE_DIR +'/tls-keys/secret.log' ,
-                "quiche":'cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-server --  --cert tools/apps/src/bin/cert.crt --early-data --dump-packets '+SOURCE_DIR +'/qlogs/quiche/dump_packet.txt --key tools/apps/src/bin/cert.key --listen 127.0.0.1:4443',
+                "picoquic":'./picoquicdemo -l "n" -D -L -q '+SOURCE_DIR +'/qlog/picoquic -r',
+                "picoquic-vuln":'./picoquicdemo -l - -D -L -r',                
+                "aioquic":'python3.9 examples/http3_server.py --quic-log '+SOURCE_DIR +'/qlogs/aioquic --certificate '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_cert.pem --private-key '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_key.pem  -v --retry --host 127.0.0.1 --port 4443 -l '+SOURCE_DIR +'/tls-keys/secret.log' ,
+                "quiche":'cargo run --bin quiche-server --  --cert '+ SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/cert.pem --early-data --dump-packets '+SOURCE_DIR +'/qlogs/quiche/dump_packet.txt --key '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/priv.key --listen 127.0.0.1:4443',
                 "quinn":'cargo run -vv --example server '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443',
                 "quic-go":'./server -c '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/cert.pem -k '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/priv.key -r -p 4443 127.0.0.1',
                 "mvfst": "./echo -mode=server -host=127.0.0.1 -port=4443  -v=10 -pr=true"
@@ -45,20 +52,32 @@ class Runner:
             "quic_client_test_version_negociation":{
                 "quant":IMPLEM_DIR + '/quant/Debug/bin/client -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html',
                 "quant-vuln":IMPLEM_DIR + '/quant-vuln/Debug/bin/client -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html',
-                "picoquic": './picoquicdemo -z -l - -D -L -a hq-29 localhost 4443' ,
-                "aioquic":  'python3 examples/http3_client.py --version_negociation -l '+SOURCE_DIR +'/tls-keys/secret.log -v -q '+SOURCE_DIR +'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html',
-                "quiche": 'RUST_LOG="debug" cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 5',
+                "picoquic": './picoquicdemo -z -l - -D -L -a hq-interop localhost 4443' ,
+                "aioquic":  'python3.9 examples/http3_client.py --version_negociation -l '+SOURCE_DIR +'/tls-keys/secret.log -v -q '+SOURCE_DIR +'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html',
+                "quiche": 'RUST_LOG="debug" cargo run --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 5',
                 "quic-go":'./client -X '+SOURCE_DIR +'/tls-keys/secret.log -V -P -v 127.0.0.1 4443',
-                "lsquic":"./http_client -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1  -o scid_len=8"
+                "lsquic":"./http_client -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1  -o scid_len=8",
+                "lsquic-vuln":"./http_client -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1 -o version=FF00001D -o scid_len=8"
             },
-            "quic_client_test_version_negociation_mim":{
+            "quic_client_test_version_negociation_mim_forge":{
                 "quant":IMPLEM_DIR + '/quant/Debug/bin/client -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html',
                 "quant-vuln":IMPLEM_DIR + '/quant-vuln/Debug/bin/client -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html',
-                "picoquic": './picoquicdemo -z -l - -D -L -a hq-29 localhost 4443' ,
-                "aioquic":  'python3 examples/http3_client.py --version_negociation -l '+SOURCE_DIR +'/tls-keys/secret.log -v -q '+SOURCE_DIR +'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html',
-                "quiche": 'RUST_LOG="debug" cargo run --manifest-path=tools/apps/Cargo.toml --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 5',
+                "picoquic": './picoquicdemo -G bbr -l - -D -L -a hq-interop -v 00000001 localhost 4443' , # CUBIC important for rtt
+                "aioquic":  'python3.9 examples/http3_client.py --version_negociation -l '+SOURCE_DIR +'/tls-keys/secret.log -v -q '+SOURCE_DIR +'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html',
+                "quiche": 'RUST_LOG="debug" cargo run --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 5',
                 "quic-go":'./client -X '+SOURCE_DIR +'/tls-keys/secret.log -V -P -v 127.0.0.1 4443',
-                "lsquic":"./http_client -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1  -o scid_len=8"
+                "lsquic":"./http_client -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1  -o scid_len=8",
+                "lsquic-vuln":"./http_client -4 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1  -o scid_len=8"
+            },
+            "quic_client_test_version_negociation_mim_manual":{
+                "quant":IMPLEM_DIR + '/quant/Debug/bin/client -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html',
+                "quant-vuln":IMPLEM_DIR + '/quant-vuln/Debug/bin/client -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html',
+                "picoquic": './picoquicdemo -l - -D -L -a hq-29 localhost 4443' ,
+                "aioquic":  'python3.9 examples/http3_client.py --version_negociation -l '+SOURCE_DIR +'/tls-keys/secret.log -v -q '+SOURCE_DIR +'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html https://localhost:4443/index.html',
+                "quiche": 'RUST_LOG="debug" cargo run --bin quiche-client -- https://localhost:4443/index.html --dump-json --no-verify --body / -n 5',
+                "quic-go":'./client -X '+SOURCE_DIR +'/tls-keys/secret.log -V -P -v 127.0.0.1 4443',
+                "lsquic":"./http_client -4 -Q hq-29 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1  -o scid_len=8",
+                "lsquic-vuln":"./http_client -4 -R 50 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1  -o scid_len=8"
             }
         }
 
@@ -66,6 +85,7 @@ class Runner:
         if self.output_path is None:
             path = SOURCE_DIR  + '/QUIC-Ivy/doc/examples/quic/test/temp/' 
             path = os.path.join(path,str(run_id))
+            print("is_mim = " + str(self.is_mim))
             print("path = " + path)
             if not os.path.exists(path):
                 #Create the output directory
@@ -85,6 +105,10 @@ class Runner:
             exit(1)
 
         quic_dir, quic_cmd = IMPLEMENTATIONS[self.quic_implementation][1 if self.is_client else 0]
+        quic_dir_opposite, quic_cmd_opposite = IMPLEMENTATIONS[self.quic_implementation][0 if self.is_client else 1]
+
+    
+
         #quic_cmd = quic_cmd.replace("./","/")
         #quic_dir = quic_cmd # TODO
         #We have to launch the tested quic ourself
@@ -104,7 +128,8 @@ class Runner:
             self.all_tests.append(IvyTest(dir,[test,"test_completed"],self.is_client,self.run, 
                                                 self.keep_alive, self.time, self.gdb, 
                                                 quic_dir,self.output_path,self.extra_args,
-                                                self.quic_implementation,self.nclient))
+                                                self.quic_implementation,self.nclient,
+                                                self.initial_version, self.is_mim,self.vnet))
             print(self.all_tests)
             num_failures = 0
             for test in self.all_tests:
@@ -115,7 +140,7 @@ class Runner:
                     quic_cmd_upt = self.update_command(test)
                     quic_cmd = quic_cmd if quic_cmd_upt == "" else quic_cmd_upt
                     print(quic_cmd)
-                    status = test.run(iteration,quic_cmd,j)
+                    status = test.run(iteration,quic_cmd,j,quic_cmd_opposite)
                     print(status)
                     if not status:
                         num_failures += 1

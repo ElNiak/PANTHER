@@ -32,30 +32,6 @@ impl rustls::ServerCertVerifier for SkipCertificationVerification {
     }
 }
 
-pub fn insecure() -> ClientConfig {
-    let mut cfg = quinn::ClientConfigBuilder::default().build();
-
-    // Get a mutable reference to the 'crypto' config in the 'client config'.
-    let tls_cfg: &mut rustls::ClientConfig =
-        std::sync::Arc::get_mut(&mut cfg.crypto).unwrap();
-
-    // Change the certification verifier.
-    // This is only available when compiled with the 'dangerous_configuration' feature.
-    tls_cfg
-        .dangerous()
-        .set_certificate_verifier(Arc::new(SkipCertificationVerification));
-    cfg
-}
-
-// fn configure_client() -> ClientConfig {
-//     let crypto = rustls::ClientConfig::builder()
-//         .with_safe_defaults()
-//         .with_custom_certificate_verifier(SkipServerVerification::new())
-//         .with_no_client_auth();
-
-//     ClientConfig::new(Arc::new(crypto))
-// }
-
 /// HTTP/0.9 over QUIC client
 #[derive(StructOpt, Debug)]
 #[structopt(name = "client")]
@@ -149,15 +125,6 @@ async fn run(options: Opt) -> Result<()> {
             .await
             .map_err(|e| anyhow!("failed to connect: {}", e))?;
         
-        // let stream = new_conn
-        //     .connection
-        //     .open_bi()
-        //     .await
-        //     .map_err(|e| anyhow!("failed to open stream: {}", e))?;
-        // hq_get(stream, "/")
-        //     .await
-        //     .map_err(|e| anyhow!("simple request failed: {}", e))?;
-
         let request = format!("GET {}\r\n", url.path());
         let start = Instant::now();
         let mut i = 0;
@@ -215,7 +182,7 @@ async fn run(options: Opt) -> Result<()> {
 
         let mut url2 = url.clone();
         url2.set_port(Some(4444));
-        let remote2 = (url2.host_str().unwrap(), url2.port().unwrap_or(4433))
+        let remote2 = (url2.host_str().unwrap(), url2.port().unwrap_or(4444))
             .to_socket_addrs()?
             .next()
             .ok_or_else(|| anyhow!("couldn't resolve to an address"))?;
@@ -277,7 +244,7 @@ async fn run(options: Opt) -> Result<()> {
 
     } else {
         let mut endpoint = quinn::Endpoint::builder();
-        let mut client_config = quinn::ClientConfigBuilder::default(); //insecure(); //configure_client(); //
+        let mut client_config = quinn::ClientConfigBuilder::default();
         client_config.protocols(common::ALPN_QUIC_HTTP);
         if options.keylog {
             client_config.enable_keylog();

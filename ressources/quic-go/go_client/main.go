@@ -17,7 +17,6 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/lucas-clemente/quic-go/interop/http09"
-	//"github.com/lucas-clemente/quic-go/interop/utils"
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 )
 
@@ -52,10 +51,7 @@ func main() {
 	printData := flag.Bool("P", false, "printData the data")
 	doVN := flag.Bool("V", false, "version negociation")
 	keyLogFile := flag.String("X", "", "key log file")
-	//requestSize := flag.Int("G", 50000, "amount of bytes to ask for in the request")
 	use0RTT := flag.Bool("R", false, "force RTT connection establishment")
-
-	//secure := flag.Bool("secure", false, "do certificate verification")
 	flag.Parse()
 	address := flag.Arg(0)
 	port := flag.Arg(1)
@@ -87,16 +83,12 @@ func main() {
 	quicConf := &quic.Config{
 		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 		ConnectionIDLength: 8,
-		//Tracer:      qlog.NewTracer(getLogWriter),
-		//DisablePathMTUDiscovery: true,
 	}
 	if *doVN {
 		quicConf = &quic.Config{
 			AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
 			ConnectionIDLength: 8,
 			Versions: [] protocol.VersionNumber{0x22334455, 0xff00001d, 0x33445566},
-			//Tracer:      qlog.NewTracer(getLogWriter),
-			//DisablePathMTUDiscovery: true,
 		}
 	} 
 
@@ -116,9 +108,6 @@ func main() {
 
 	defer roundTripper.Close()
 	
-	// hclient := &http.Client{
-	// 	Transport: roundTripper,
-	// }
 
 	var url = fmt.Sprintf("https://%s:%s/%s", address, port, "index.html")
 	var wg sync.WaitGroup
@@ -161,10 +150,8 @@ func main() {
 				println("done")
 				logger.Logf("Got %d bytes", n)
 			}
-			//if !*use0RTT {
 			log.Printf("wg.Done()")
 			wg.Done()
-			//}
 		}(addr)
 	}
 
@@ -239,38 +226,3 @@ func main() {
 		wg.Wait()
 	}
 }
-
-// func downloadFiles(cl http.RoundTripper, urls []string, use0RTT bool) error {
-// 	var g errgroup.Group
-// 	for _, u := range urls {
-// 		url := u
-// 		g.Go(func() error {
-// 			return downloadFile(cl, url, use0RTT)
-// 		})
-// 	}
-// 	return g.Wait()
-// }
-
-// func downloadFile(cl http.RoundTripper, url string, use0RTT bool) error {
-// 	method := http.MethodGet
-// 	if use0RTT {
-// 		method = http09.MethodGet0RTT
-// 	}
-// 	req, err := http.NewRequest(method, url, nil)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	rsp, err := cl.RoundTrip(req)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer rsp.Body.Close()
-
-// 	file, err := os.Create("/downloads" + req.URL.Path)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer file.Close()
-// 	_, err = io.Copy(file, rsp.Body)
-// 	return err
-// }

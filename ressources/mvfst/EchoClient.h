@@ -87,17 +87,6 @@ class BasicPersistentQuicPskCache : public BasicQuicPskCache {
             psk.ticketHandshakeTime.time_since_epoch())
             .count();
 
-    LOG(INFO) << "\n serializePsk psk.ticketIssueTime "  << " \n";
-    LOG(INFO) << ticketIssueTime;
-    LOG(INFO) << ticketExpirationTime;
-    LOG(INFO) << ticketHandshakeTime;
-    // LOG(INFO) << "\n serializePsk psk.time now "  << " \n";
-    // //LOG(INFO) <  psk.ticketIssueTime;
-    // std::time_t now_c = std::chrono::system_clock::to_time_t(psk.ticketIssueTime);
-    // std::tm now_tm = *std::localtime(&now_c);
-    // char bbb[20];
-    // LOG(INFO) << strftime(bbb, 20, "%d.%m.%Y %H:%M:%S", &now_tm);
-
     auto serialized = folly::IOBuf::create(0);
     folly::io::Appender appender(serialized.get(), 512);
     fizz::detail::writeBuf<uint16_t>(
@@ -195,11 +184,6 @@ class BasicPersistentQuicPskCache : public BasicQuicPskCache {
 
     LOG(INFO) << "\n deserializePsk psk.ticketIssueTime "  << " \n";
     LOG(INFO) << ticketIssueTime;
-    //LOG(INFO) <  psk.ticketIssueTime;
-    // std::time_t now_c = std::chrono::system_clock::to_time_t(psk.ticketIssueTime);
-    // std::tm now_tm = *std::localtime(&now_c);
-    // char bbb[20];
-    // LOG(INFO) << strftime(bbb, 20, "%d.%m.%Y %H:%M:%S", &now_tm);
 
     uint64_t ticketExpirationTime;
     fizz::detail::read(ticketExpirationTime, cursor);
@@ -353,9 +337,7 @@ class EchoClient : public quic::QuicSocket::ConnectionCallback,
     folly::ScopedEventBaseThread networkThread("EchoClientThread");
     auto evb = networkThread.getEventBase();
     folly::SocketAddress addr(host_.c_str(), port_);
-
-    //std::shared_ptr<QuicPskCache> pskCache_;
-    // pskCache_ = std::make_shared<BasicQuicPskCache>();
+    
     auto pskSaveFile = std::string("/home/user/Documents/QUIC-RFC9000/ticket_mvfst.bin");
     auto pskLoadFile = std::string("/home/user/Documents/QUIC-RFC9000/ticket_mvfst.bin");
     if(const char* env_p = std::getenv("PROOTPATH")) {
@@ -371,9 +353,6 @@ class EchoClient : public quic::QuicSocket::ConnectionCallback,
 
       clientCtx->setSupportedAlpns({"hq-29"});
       clientCtx->setClock(std::make_shared<NiceMock<fizz::test::MockClock>>());
-
-      // auto serverCtx = test::createServerCtx();
-      // serverCtx->setSupportedAlpns({"h1q-fb", "hq"});
 
       auto fizzClientContext =
           FizzClientQuicHandshakeContext::Builder()
@@ -403,30 +382,15 @@ class EchoClient : public quic::QuicSocket::ConnectionCallback,
       if(zrtt_) {
         clientCtx->setSendEarlyData(true);
         auto cachedPsk = pskCache_->getPsk(hostname);
-        //     setupZeroRttOnClientCtx(*clientCtx,hostname);
         if(cachedPsk) {
           pskCache_->putPsk(hostname, cachedPsk.value()); 
         }
       }
 
-      // folly::Optional<std::string> alpn = std::string("hq-29");
-      // bool performedValidation = false;
-      // quicClient_->setEarlyDataAppParamsFunctions(
-      //     [&](const folly::Optional<std::string>& alpnToValidate, const Buf&) {
-      //       performedValidation = true;
-      //       EXPECT_EQ(alpnToValidate, alpn);
-      //       return true;
-      //     },
-      //     []() -> Buf { return nullptr; });
-
       quicClient_->setTransportStatsCallback(
           std::make_shared<LogQuicStats>("client"));
-
-      // test::setupZeroRttOnServerCtx(*serverCtx, cachedPsk);
-
       
       LOG(INFO) << "EchoClient connecting to " << addr.describe();
-      //quicClient_->getConn().zeroRttWriteCipher;
       quicClient_->start(this);
     });
 
@@ -448,24 +412,6 @@ class EchoClient : public quic::QuicSocket::ConnectionCallback,
     std::pair p(QuicErrorCode(TransportErrorCode::NO_ERROR), std::string("No error"));
     quicClient_->closeNow(p);
 
-    // loop until Ctrl+D
-    /*
-    while (std::getline(std::cin, message)) {
-        if (message.empty()) {
-          continue;
-        }
-        evb->runInEventBaseThreadAndWait([=] {
-          // create new stream for each message
-          auto streamId = client->createBidirectionalStream().value();
-          client->setReadCallback(streamId, this);
-          if (prEnabled_) {
-            client->setDataExpiredCallback(streamId, this);
-          }
-          pendingOutput_[streamId].append(folly::IOBuf::copyBuffer(message));
-          sendMessage(streamId, pendingOutput_[streamId]);
-        });
-      }
-      */
     LOG(INFO) << "EchoClient stopping client";
   }
 

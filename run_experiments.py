@@ -21,24 +21,28 @@ SOURCE_DIR =  os.getenv('PWD')
 IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
 
 # Set environment variables
-os.environ['PROOTPATH'] = SOURCE_DIR
-os.environ['PATH'] = "/go/bin:${"+ os.getenv('PATH') +"}"
+for env_var in ENV_VAR:
+    os.environ[env_var] = ENV_VAR[env_var]
+    print(env_var, ENV_VAR[env_var])
 
-os.environ['ZRTT_SSLKEYLOG_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.key"
-os.environ['RETRY_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt"
-os.environ['NEW_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt"
-os.environ['ENCRYPT_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt"
-os.environ['SESSION_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt"
+# os.environ['PROOTPATH'] = SOURCE_DIR
+# os.environ['PATH'] = "/go/bin:${"+ os.getenv('PATH') +"}"
 
-os.environ['active_connection_id_limit'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/active_connection_id_limit.txt"
-os.environ['initial_max_stream_id_bidi'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_id_bidi.txt"
-os.environ['initial_max_stream_data_bidi_local'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt"
-os.environ['initial_max_data'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_data.txt"
-os.environ['initial_max_stream_data_bidi_remote'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt"
-os.environ['initial_max_stream_data_uni'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt"
+# os.environ['ZRTT_SSLKEYLOG_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.key"
+# os.environ['RETRY_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt"
+# os.environ['NEW_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt"
+# os.environ['ENCRYPT_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt"
+# os.environ['SESSION_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt"
+# os.environ['SAVED_PACKET'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/saved_packet.txt"
 
+# os.environ['active_connection_id_limit'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/active_connection_id_limit.txt"
+# os.environ['initial_max_stream_id_bidi'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_id_bidi.txt"
+# os.environ['initial_max_stream_data_bidi_local'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt"
+# os.environ['initial_max_data'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_data.txt"
+# os.environ['initial_max_stream_data_bidi_remote'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt"
+# os.environ['initial_max_stream_data_uni'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt"
 
-subprocess.Popen("$HOME/.cargo/env",shell=True, executable="/bin/bash").wait() # TODO source
+subprocess.Popen("source $HOME/.cargo/env",shell=True, executable="/bin/bash").wait() # TODO source
 
 MEMORY_PROFILING = False
 
@@ -71,6 +75,12 @@ def update_includes_ptls():
                                                 shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_cpp_types.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_cpp_types.py", 
                                                 shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_parser.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_parser.py", 
+                                                shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_ast.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_ast.py", 
+                                                shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_compiler.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_compiler.py", 
+                                                shell=True, executable="/bin/bash").wait()
     #cd /usr/local/lib/python2.7/dist-packages/ivy/
 
     os.chdir('/usr/local/lib/python2.7/dist-packages/ivy/')
@@ -81,32 +91,30 @@ def update_includes_ptls():
                                                 shell=True, executable="/bin/bash").wait()
     subprocess.Popen("sudo python -m compileall ivy_solver.py", 
                                                 shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo python -m compileall ivy_parser.py", 
+                                                shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo python -m compileall ivy_ast.py", 
+                                                shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo python -m compileall ivy_compiler.py", 
+                                                shell=True, executable="/bin/bash").wait()
 
     #echo "CP picotls lib"
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
+    subprocess.Popen("sudo /bin/cp -f -a " + SOURCE_DIR + "/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
                                                 shell=True, executable="/bin/bash").wait()
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-core.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
-                                                shell=True, executable="/bin/bash").wait()
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
-                                                shell=True, executable="/bin/bash").wait()
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-minicrypto.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
-                                                shell=True, executable="/bin/bash").wait()
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
-                                                shell=True, executable="/bin/bash").wait()
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/libpicotls-openssl.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
-                                                shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -f -a " + SOURCE_DIR + "/quic-implementations/picotls/*.a " + SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
+                                                shell=True, executable="/bin/bash").wait()                                          
 
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/ressources/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include", 
+    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include", 
                                                 shell=True, executable="/bin/bash").wait()
-    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/ressources/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include", 
+    subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include", 
                                                 shell=True, executable="/bin/bash").wait()
 
     # cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include
     # cp -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy/ivy/include
     subprocess.Popen("sudo /bin/cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ivy/include/picotls", 
                                                 shell=True, executable="/bin/bash").wait()
-    subprocess.Popen("sudo /bin/cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + SOURCE_DIR + "/QUIC-Ivy/ivy/include/picotls", 
-                                                shell=True, executable="/bin/bash").wait()
+    # subprocess.Popen("sudo /bin/cp -r -f " + SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + SOURCE_DIR + "/QUIC-Ivy/ivy/include/picotls", 
+    #                                             shell=True, executable="/bin/bash").wait()
 
     os.chdir(SOURCE_DIR)
 
@@ -136,6 +144,8 @@ def build_tests(mode, categories):
     executed_tests = []
     if mode == "server":
         true_categories = TESTS_SERVER.keys()
+    elif mode == "mim":
+        true_categories = TESTS_MIM.keys()
     else:
         true_categories = TESTS_CLIENT.keys()
     folder = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
@@ -151,6 +161,9 @@ def build_tests(mode, categories):
         if mode == "server":
             log.info(TESTS_SERVER[categories])
             files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_SERVER[categories]]
+        elif mode == "mim":
+            log.info(TESTS_MIM[categories])
+            files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_MIM[categories]]
         else:
             log.info(TESTS_CLIENT[categories])
             files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_CLIENT[categories]]
@@ -180,6 +193,9 @@ def build_file(file):
         compile_file(file)
     elif "quic_client_test_0rtt_add_val" in file:
         file = file.replace("quic_client_test_0rtt_add_val","quic_client_test_0rtt_max_add_val")
+        compile_file(file)
+    elif "quic_client_test_0rtt_mim_replay" in file:
+        file = file.replace("quic_client_test_0rtt_mim_replay","quic_client_test_0rtt_max")
         compile_file(file)
     elif "quic_client_test_0rtt" in file:
         file = file.replace("quic_client_test_0rtt","quic_client_test_0rtt_max")
@@ -215,6 +231,8 @@ def main():
     args_parser = ArgumentParserRunner()
     args = args_parser.parse_arguments()
     log.info(args)
+    os.environ['INITIAL_VERSION'] = str(args.initial_version)
+    ENV_VAR["INITIAL_VERSION"] = str(args.initial_version)
     COMPILE = args.compile
     included_files = list()
     if args.update_include_tls:
@@ -222,14 +240,23 @@ def main():
     update_includes(included_files)
     
     os.environ['TEST_TYPE']     = args.mode
+    ENV_VAR["TEST_TYPE"]        = args.mode
     if not args.docker:
         os.environ['IS_NOT_DOCKER'] = "true" 
+        ENV_VAR["IS_NOT_DOCKER"]    = "true"
     else:
         if 'IS_NOT_DOCKER' in os.environ:
             del os.environ['IS_NOT_DOCKER']
+        if 'IS_NOT_DOCKER' in ENV_VAR:
+            del ENV_VAR['IS_NOT_DOCKER']
     subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
                         shell=True, executable="/bin/bash").wait() # for quic-go
-    
+    if args.vnet:
+        subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_setup.sh", 
+                                                 shell=True, executable="/bin/bash").wait()
+    else:
+        subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                                                 shell=True, executable="/bin/bash").wait()
     executed_tests = build_tests(args.mode, args.categories)
 
     runner = Runner(args)
@@ -247,26 +274,37 @@ def main():
     for test in executed_tests:
         initial_test = test
         ni = 1
-        if test == "quic_server_test_0rtt" or test == "quic_client_test_0rtt":
+        if test == "quic_client_test_0rtt_mim_replay":
             os.environ['ZERORTT_TEST']="true" 
+            ENV_VAR["ZERORTT_TEST"]="true"
+        elif test == "quic_server_test_0rtt" or test == "quic_client_test_0rtt":
+            os.environ['ZERORTT_TEST']="true" 
+            ENV_VAR["ZERORTT_TEST"]="true"
             ni = 3
         else:
             if 'ZERORTT_TEST' in os.environ:
                 del os.environ['ZERORTT_TEST']
-
-        if test == "quic_client_test_version_negociation_mim":
-            subprocess.Popen("bash "+ SOURCE_DIR + "/mim-setup.sh", 
-                                                shell=True, executable="/bin/bash").wait()
+            if 'ZERORTT_TEST' in ENV_VAR:
+                del ENV_VAR["ZERORTT_TEST"]
+        if test == "quic_server_test_retry_reuse_key": # TODO
+            runner.nclient = 2
         else:
-            subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
-                                                shell=True, executable="/bin/bash").wait()
-
+            runner.nclient = args.nclient
+        # if "quic_client_test_version_negociation_mim" in test:
+        #     subprocess.Popen("bash "+ SOURCE_DIR + "/mim-setup.sh", 
+        #                                         shell=True, executable="/bin/bash").wait()
+        # else:
+        #     subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
+        #                                         shell=True, executable="/bin/bash").wait()
         for j in range(0,ni):
             for implementation in implementations:  
                 print(implementations)
                 os.environ['TEST_IMPL'] = implementation
-                os.environ['TEST_ALPN'] = "hq-29"
+                ENV_VAR["TEST_IMPL"] = implementation
+                os.environ['TEST_ALPN'] = args.alpn if implementation != "mvfst" else "hq"
+                ENV_VAR["TEST_ALPN"] = args.alpn if implementation != "mvfst" else "hq"
                 os.environ['SSLKEYLOGFILE'] = SOURCE_DIR +"/tls-keys/"+implementation+"_key.log"
+                ENV_VAR["SSLKEYLOGFILE"] = SOURCE_DIR +"/tls-keys/"+implementation+"_key.log"
                 for i in range(0,args.iter):
                     if j == 1:
                         test = initial_test + "_app_close"
@@ -276,6 +314,7 @@ def main():
                     log.info("Implementation: "+implementation)
                     log.info("Iteration: "+str(i+1) +"/" + str(args.iter))
                     os.environ['CNT'] = str(count_1)
+                    ENV_VAR["CNT"] = str(count_1)
                     #os.environ['RND'] = os.getenv("RANDOM")
                     subprocess.Popen("> "+ SOURCE_DIR +"/tickets/ticket.bin", 
                                                 shell=True, executable="/bin/bash").wait()
@@ -294,10 +333,15 @@ def main():
                     log.info("\tStart thsark")
                     #time.sleep(10) # for server test 
                     # TODO kill entual old quic implem
+
+                    if args.vnet:
+                        interface = "vbridge"
+                    else:
+                        interface = "lo"
                     p = subprocess.Popen(["sudo", "tshark", "-w",
-                                pcap_name,
-                                "-i", "lo", "-f", 'udp'],
-                                stdout=sys.stdout)
+                                        pcap_name,
+                                        "-i", interface, "-f", 'udp'],
+                                        stdout=sys.stdout)
                     runner.quic_implementation = implementation
                     subprocess.Popen("mkdir " + ivy_dir, 
                                                 shell=True, executable="/bin/bash").wait()
@@ -328,6 +372,11 @@ def main():
                         #p.kill()
                         count_1 += 1
                         bar_f.update(count_1)
+                        subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
+                                                 shell=True, executable="/bin/bash").wait()
+    if args.vnet:
+        subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                        shell=True, executable="/bin/bash").wait()
     bar_f.finish()
     remove_includes(included_files)
 
@@ -346,6 +395,8 @@ if __name__ == "__main__":
         sys.stderr = sys.__stderr__
         subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
         subprocess.Popen("sudo pkill tshark")
+        subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                        shell=True, executable="/bin/bash").wait()
 
     if MEMORY_PROFILING:
         snapshot = tracemalloc.take_snapshot()
