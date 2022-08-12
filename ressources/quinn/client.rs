@@ -165,7 +165,7 @@ async fn run(options: Opt) -> Result<()> {
 
         new_conn.connection.close(0u32.into(), b"done");
 
-        let ten_millis = time::Duration::from_millis(15000);
+        let ten_millis = time::Duration::from_millis(7000);
         thread::sleep(ten_millis);
 
 

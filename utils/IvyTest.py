@@ -166,8 +166,6 @@ class IvyTest(object):
                                                                 shell=True, #self.is_client, 
                                                                 preexec_fn=os.setsid)
                             print('quic_process_2 pid: {}'.format(quic_process_2.pid))
-                        
-                        
                         try:
                             ok = True
                             for iclient in range(0,self.nclient): # TODO for multiple implem client only
@@ -418,4 +416,3 @@ class IvyTest(object):
         else:
             return ' '.join(['{}{}{}/{} seed={} the_cid={} server_port={} iversion={} server_addr={} modify_packets={} {}'.format(timeout_cmd,prefix,self.dir,self.name,randomSeed,the_cid,server_port,initial_version,ip_server,modify_packets,'' 
             if self.is_client else 'server_cid={} client_port={} client_port_alt={} client_addr={}'.format(server_cid,client_port,client_port_alt,ip_client))] + self.extra_args + ([""] if self.vnet else [""])) #  TODO remove last param +[""] if self.vnet else [""]
-  

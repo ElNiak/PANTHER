@@ -4,7 +4,6 @@ import subprocess
 import sys
 import time
 import progressbar
-from h11 import SERVER
 from utils.Runner import Runner
 from utils.ArgumentParserRunner import ArgumentParserRunner
 from utils.constants import *
@@ -24,23 +23,6 @@ IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
 for env_var in ENV_VAR:
     os.environ[env_var] = ENV_VAR[env_var]
     print(env_var, ENV_VAR[env_var])
-
-# os.environ['PROOTPATH'] = SOURCE_DIR
-# os.environ['PATH'] = "/go/bin:${"+ os.getenv('PATH') +"}"
-
-# os.environ['ZRTT_SSLKEYLOG_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.key"
-# os.environ['RETRY_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt"
-# os.environ['NEW_TOKEN_FILE']  = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt"
-# os.environ['ENCRYPT_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt"
-# os.environ['SESSION_TICKET_FILE'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt"
-# os.environ['SAVED_PACKET'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/saved_packet.txt"
-
-# os.environ['active_connection_id_limit'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/active_connection_id_limit.txt"
-# os.environ['initial_max_stream_id_bidi'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_id_bidi.txt"
-# os.environ['initial_max_stream_data_bidi_local'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt"
-# os.environ['initial_max_data'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_data.txt"
-# os.environ['initial_max_stream_data_bidi_remote'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt"
-# os.environ['initial_max_stream_data_uni'] = SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt"
 
 subprocess.Popen("source $HOME/.cargo/env",shell=True, executable="/bin/bash").wait() # TODO source
 
@@ -296,6 +278,14 @@ def main():
         # else:
         #     subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
         #                                         shell=True, executable="/bin/bash").wait()
+
+        #if test == "quic_client_test_version_negociation_mim":
+        #    subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-setup.sh", 
+        #                                        shell=True, executable="/bin/bash").wait()
+        #else:
+        #    subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/mim-reset.sh", 
+        #                                        shell=True, executable="/bin/bash").wait()
+
         for j in range(0,ni):
             for implementation in implementations:  
                 print(implementations)
@@ -328,7 +318,7 @@ def main():
                     pcap_name = ivy_dir +"_"+ implementation +"_"+ test +".pcap"
                     subprocess.Popen("touch "+pcap_name, 
                                                 shell=True, executable="/bin/bash").wait()
-                    subprocess.Popen("sudo chmod o=xw "+ pcap_name, 
+                    subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
                                                 shell=True, executable="/bin/bash").wait()
                     log.info("\tStart thsark")
                     #time.sleep(10) # for server test 
@@ -342,8 +332,9 @@ def main():
                                         pcap_name,
                                         "-i", interface, "-f", 'udp'],
                                         stdout=sys.stdout)
+                    time.sleep(3)
                     runner.quic_implementation = implementation
-                    subprocess.Popen("mkdir " + ivy_dir, 
+                    subprocess.Popen("/bin/mkdir " + ivy_dir, 
                                                 shell=True, executable="/bin/bash").wait()
                     ivy_out = ivy_dir + '/ivy_stdout.txt'
                     ivy_err = ivy_dir + '/ivy_stderr.txt'
@@ -360,14 +351,14 @@ def main():
                         sys.stderr.close()
                         sys.stdout = sys.__stdout__
                         sys.stderr = sys.__stderr__
-                        subprocess.Popen("tail -2 " + ivy_err, 
+                        subprocess.Popen("/usr/bin/tail -2 " + ivy_err, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("tail -2 " + ivy_out, 
+                        subprocess.Popen("/usr/bin/tail -2 " + ivy_out, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1", 
-                                                shell=True, executable="/bin/bash").wait()
+                        #subprocess.Popen("/usr/bin/tail $(/usr/bin/lsof -i udp) >/dev/null 2>&1", # deadlock in docker todo
+                        #                        shell=True, executable="/bin/bash").wait()
                         log.info("\tKill thsark")
-                        subprocess.Popen("sudo pkill tshark", 
+                        subprocess.Popen("sudo /usr/bin/pkill tshark", 
                                                 shell=True, executable="/bin/bash").wait()
                         #p.kill()
                         count_1 += 1
@@ -379,7 +370,12 @@ def main():
                         shell=True, executable="/bin/bash").wait()
     bar_f.finish()
     remove_includes(included_files)
-
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tls-keys/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tickets/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/qlogs/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
 if __name__ == "__main__":
     if MEMORY_PROFILING:
         tracemalloc.start()
@@ -397,6 +393,8 @@ if __name__ == "__main__":
         subprocess.Popen("sudo pkill tshark")
         subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
                         shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("/bin/kill $(/usr/bin/lsof -i udp) >/dev/null 2>&1") 
+        subprocess.Popen("sudo /usr/bin/pkill tshark")
 
     if MEMORY_PROFILING:
         snapshot = tracemalloc.take_snapshot()

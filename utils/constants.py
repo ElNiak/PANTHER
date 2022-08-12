@@ -1,6 +1,6 @@
 import os
 
-SOURCE_DIR =  os.getenv('PWD')
+SOURCE_DIR =  os.getcwd()
 IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
 QUIC_DIR   =  SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/'
 RESULT_DIR =  SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/'
