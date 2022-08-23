@@ -289,7 +289,7 @@ def main():
                     pcap_name = ivy_dir +"_"+ implementation +"_"+ test +".pcap"
                     subprocess.Popen("touch "+pcap_name, 
                                                 shell=True, executable="/bin/bash").wait()
-                    subprocess.Popen("sudo chmod o=xw "+ pcap_name, 
+                    subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
                                                 shell=True, executable="/bin/bash").wait()
                     log.info("\tStart thsark")
                     #time.sleep(10) # for server test 
