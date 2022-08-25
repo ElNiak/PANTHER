@@ -299,7 +299,7 @@ def main():
                                 "-i", "lo", "-f", 'udp'],
                                 stdout=sys.stdout)
                     runner.quic_implementation = implementation
-                    subprocess.Popen("mkdir " + ivy_dir, 
+                    subprocess.Popen("/bin/mkdir " + ivy_dir, 
                                                 shell=True, executable="/bin/bash").wait()
                     ivy_out = ivy_dir + '/ivy_stdout.txt'
                     ivy_err = ivy_dir + '/ivy_stderr.txt'
@@ -316,20 +316,26 @@ def main():
                         sys.stderr.close()
                         sys.stdout = sys.__stdout__
                         sys.stderr = sys.__stderr__
-                        subprocess.Popen("tail -2 " + ivy_err, 
+                        subprocess.Popen("/usr/bin/tail -2 " + ivy_err, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("tail -2 " + ivy_out, 
+                        subprocess.Popen("/usr/bin/tail -2 " + ivy_out, 
                                                 shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1", 
+                        subprocess.Popen("/bin/kill $(lsof -i udp) >/dev/null 2>&1", 
                                                 shell=True, executable="/bin/bash").wait()
                         log.info("\tKill thsark")
-                        subprocess.Popen("sudo pkill tshark", 
+                        subprocess.Popen("sudo /usr/bin/pkill tshark", 
                                                 shell=True, executable="/bin/bash").wait()
                         #p.kill()
                         count_1 += 1
                         bar_f.update(count_1)
     bar_f.finish()
     remove_includes(included_files)
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tls-keys/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tickets/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
+    subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/qlogs/ " + SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+                        shell=True, executable="/bin/bash").wait()
 
 if __name__ == "__main__":
     if MEMORY_PROFILING:
@@ -344,8 +350,8 @@ if __name__ == "__main__":
         sys.stderr.close() 
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
-        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
-        subprocess.Popen("sudo pkill tshark")
+        subprocess.Popen("/bin/kill $(lsof -i udp) >/dev/null 2>&1") 
+        subprocess.Popen("sudo /usr/bin/pkill tshark")
 
     if MEMORY_PROFILING:
         snapshot = tracemalloc.take_snapshot()
