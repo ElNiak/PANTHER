@@ -394,8 +394,8 @@ class IvyTest(object):
                 else:
                     envs = envs + env_var + "=\"" + os.environ.get(env_var) + "\" "
             prefix = "sudo ip netns exec n0 " + envs 
-            ip_server = 0x0a000002 if not self.is_client else 0x0a000001
-            ip_client = 0x0a000001 if not self.is_client else 0x0a000002
+            ip_server = 0x0a000201 if not self.is_client else 0x0a000101
+            ip_client = 0x0a000101 if not self.is_client else 0x0a000201
         else:
             ip_server = 0x7f000001
             ip_client = ip_server
