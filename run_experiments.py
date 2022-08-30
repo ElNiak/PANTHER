@@ -416,12 +416,11 @@ if __name__ == "__main__":
         sys.stdout.close()
         sys.stderr.close() 
         sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
-        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
+        sys.stderr = sys.__stderr__        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
         subprocess.Popen("sudo pkill tshark")
         subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
                         shell=True, executable="/bin/bash").wait()
         subprocess.Popen("/bin/kill $(/usr/bin/lsof -i udp) >/dev/null 2>&1") 
         subprocess.Popen("sudo /usr/bin/pkill tshark")
 
-   
+

@@ -33,6 +33,7 @@ for f in allFile:
             filedata = file.read()
 
         # Replace the target string
+        filedata = filedata.replace('"sudo",', '')
         filedata = filedata.replace('sudo', '')
 
         # Write the file out again
