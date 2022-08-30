@@ -14,8 +14,7 @@ import os
 
 
 # TODO redo aioquic
-# screen -dm bash -c 'python3 run_docker_image.py --mode client --categories 0rtt_test --update_include_tls  --timeout 30 --getstats --implementations aioquic --iter 100 --compile --delete --build --remove --docker_output_path docker-output-100-client-aioquic/ >> 100_client_0rtt_aioquic; \
-#                     python3 run_docker_image.py --mode server --categories 0rtt_test --update_include_tls  --timeout 30 --getstats --implementations aioquic --iter 100 --compile --remove  --docker_output_path docker-output-100-server-aioquic/ >> 100_server_0rtt_aioquic;'
+screen -dm bash -c 'python3 run_docker_image.py --mode client --categories 0rtt_test --update_include_tls  --timeout 30 --getstats --implementations aioquic --iter 1 --compile --delete --build --remove --docker_output_path docker-output-100-client-aioquic/ >> 100_client_0rtt_aioquic;'
 
 
 # screen -dm bash -c 'python3 run_docker_image.py --mode client --categories 0rtt_test --update_include_tls  --timeout 30 --getstats --implementations picoquic --iter 100 --compile --remove --docker_output_path docker-output-100-client-picoquic/ >> 100_client_0rtt_picoquic; \

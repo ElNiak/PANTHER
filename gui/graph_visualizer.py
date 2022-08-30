@@ -2,7 +2,10 @@ from struct import pack
 from plantuml import PlantUML
 import re
 
-def generate_graph_input(ivy_trace_path,plantuml_path):
+def generate_graph_input(ivy_trace_path,plantuml_path, 
+            show_packet_details=True,
+            show_frames=True, show_tls_events=True, 
+            show_frames_content=True, show_ivy_events_details=True,):
     with open(ivy_trace_path, 'r') as ivy_trace:
         with open(plantuml_path, 'w') as plantuml_file:
             plantuml_file.write('@startuml' + '\n')
@@ -35,13 +38,15 @@ def generate_graph_input(ivy_trace_path,plantuml_path):
 
                     packet = "**" + packet 
                     
-                    
+                    packet_contents = brackets[2].split('payload')[0].split(',')
+
                     brackets[2] = line[line.rfind("payload"):]
                     #print(brackets[2])
-                    packet_payload = brackets[2].split('payload:[{')[1]
-                    packet_contents = brackets[2].split('payload:[{')[0].split(',')
-                    for elem in packet_contents:
-                        packet += elem + "\\n"
+
+                    if show_packet_details:
+                        packet_payload = brackets[2].split('payload')[1]
+                        for elem in packet_contents:
+                            packet += elem + "\\n"
 
                     plantuml_file.write(endpoints[source_address] + ' --> ' + endpoints[destination_address] + ' : ' + packet + '\n')
                     
@@ -52,24 +57,29 @@ def generate_graph_input(ivy_trace_path,plantuml_path):
                     print(brackets)
                     print("\n")
                     
-                    if packet_payload != "":
-                        packet_payload += "}"
-                        packet_frames = packet_payload.split("},{")
-                        for frames in packet_frames:
-                            frames = frames.replace("}","]")
-                            frames = frames.replace("{","[")
-                            #print(frames)
-                            frames = frames[0:(frames.rfind("data:") + len("data:") if "data" in frames else len(frames))]  + "...]"
-                            plantuml_file.write(frames + '\n')
+                    if show_frames:
+                        if packet_payload != "":
+                            packet_payload += "}"
+                            packet_frames = packet_payload.split("},{")
+                            for frames in packet_frames:
+                                frames = frames.replace("}","]")
+                                frames = frames.replace("{","[")
+                                #print(frames)
+                                if show_frames_content:
+                                    pass
+                                frames = frames[0:(frames.rfind("data:") + len("data:") if "data" in frames else len(frames))]  + "...]"
+                                plantuml_file.write(frames + '\n')
                     plantuml_file.write("end note" + '\n\n')
                     #exit(0)
 
+                    if show_tls_events:
+                        pass
 
             plantuml_file.write('@enduml' + '\n')
 
 
-path = "/home/user/Documents/QUIC-RFC9000/QUIC-Ivy/doc/examples/quic/test/temp/45/quic_client_test_version_negociation_mim_modify0.iev"
-plantuml_file = "/home/user/Documents/QUIC-RFC9000/plantuml.puml"
-generate_graph_input(path, plantuml_file)
-plantuml_obj = PlantUML(url="http://www.plantuml.com/plantuml/img/",  basic_auth={}, form_auth={}, http_opts={}, request_opts={})
-plantuml_obj.processes_file(plantuml_file, "/home/user/Documents/QUIC-RFC9000/plantuml.png")
+# path = "/home/user/Documents/QUIC-RFC9000/QUIC-Ivy/doc/examples/quic/test/temp/45/quic_client_test_version_negociation_mim_modify0.iev"
+# plantuml_file = "/home/user/Documents/QUIC-RFC9000/plantuml.puml"
+# generate_graph_input(path, plantuml_file)
+# plantuml_obj = PlantUML(url="http://www.plantuml.com/plantuml/img/",  basic_auth={}, form_auth={}, http_opts={}, request_opts={})
+# plantuml_obj.processes_file(plantuml_file, "/home/user/Documents/QUIC-RFC9000/plantuml.png")

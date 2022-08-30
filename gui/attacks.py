@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'standard.ui'
+# Form implementation generated from reading ui file 'attacks.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.4
 #
@@ -9,35 +9,12 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from utils.constants import *
-from gui.terminal_widget import embeddedTerminal
-from run_experiments import *
-
-class UIvyQUICExperiments(object):
-
-    def __init__(self, dir_path=None,experiments=None):
-        self.dir_path = dir_path
-        self.ivy_temps_path = dir_path + "/QUIC-Ivy/doc/examples/quic/test/temp/"
-        self.server_tests = []
-        self.server_tests_checkbox = []
-        for cate in TESTS_SERVER:
-            for test in TESTS_SERVER[cate]:
-                self.server_tests.append(test)
-        self.client_tests = []
-        self.client_tests_checkbox = []
-        for cate in TESTS_CLIENT:
-            for test in TESTS_CLIENT[cate]:
-                self.client_tests.append(test)
-
-        self.implem_tests_checkbox = []
-
-        self.experiments = experiments
 
 
+class UIvyQUICAttacks(object):
     def setupUi(self, IvyQUIC):
         IvyQUIC.setObjectName("IvyQUIC")
-        IvyQUIC.resize(933, 703)
-        
+        IvyQUIC.resize(934, 674)
         self.centralwidget = QtWidgets.QWidget(IvyQUIC)
         self.centralwidget.setObjectName("centralwidget")
         self.horizontalLayout = QtWidgets.QHBoxLayout(self.centralwidget)
@@ -46,7 +23,7 @@ class UIvyQUICExperiments(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setObjectName("scrollArea")
         self.scrollAreaWidgetContents = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 298, 639))
+        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 214, 610))
         self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
         self.horizontalLayout_2 = QtWidgets.QHBoxLayout(self.scrollAreaWidgetContents)
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
@@ -58,32 +35,18 @@ class UIvyQUICExperiments(object):
         self.label_10 = QtWidgets.QLabel(self.scrollAreaWidgetContents)
         self.label_10.setObjectName("label_10")
         self.verticalLayout_2.addWidget(self.label_10, 0, QtCore.Qt.AlignTop)
-
-        for server_test in self.server_tests:
-            checkBox = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
-            checkBox.setObjectName("checkBox_3")
-            self.server_tests_checkbox.append({"name": server_test, "checkbox": checkBox})
-            self.verticalLayout_2.addWidget(checkBox)
-
-        # self.checkBox = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
-        # self.checkBox.setObjectName("checkBox")
-        # self.verticalLayout_2.addWidget(self.checkBox)
-        self.label_11 = QtWidgets.QLabel(self.scrollAreaWidgetContents)
-        self.label_11.setObjectName("label_11")
-        self.verticalLayout_2.addWidget(self.label_11)
-
-        for client_test in self.client_tests:
-            checkBox = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
-            checkBox.setObjectName("checkBox_3")
-            self.server_tests_checkbox.append({"name": client_test, "checkbox": checkBox})
-            self.verticalLayout_2.addWidget(checkBox)
-
-        # self.checkBox_6 = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
-        # self.checkBox_6.setObjectName("checkBox_6")
-        # self.verticalLayout_2.addWidget(self.checkBox_6)
-        # self.checkBox_5 = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
-        # self.checkBox_5.setObjectName("checkBox_5")
-        # self.verticalLayout_2.addWidget(self.checkBox_5)
+        self.checkBox_3 = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
+        self.checkBox_3.setObjectName("checkBox_3")
+        self.verticalLayout_2.addWidget(self.checkBox_3)
+        self.checkBox = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
+        self.checkBox.setObjectName("checkBox")
+        self.verticalLayout_2.addWidget(self.checkBox)
+        self.checkBox_6 = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
+        self.checkBox_6.setObjectName("checkBox_6")
+        self.verticalLayout_2.addWidget(self.checkBox_6)
+        self.checkBox_5 = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
+        self.checkBox_5.setObjectName("checkBox_5")
+        self.verticalLayout_2.addWidget(self.checkBox_5)
         self.label_12 = QtWidgets.QLabel(self.scrollAreaWidgetContents)
         self.label_12.setMaximumSize(QtCore.QSize(220, 107))
         self.label_12.setText("")
@@ -96,7 +59,7 @@ class UIvyQUICExperiments(object):
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollArea_2.setObjectName("scrollArea_2")
         self.scrollAreaWidgetContents_2 = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents_2.setGeometry(QtCore.QRect(0, 0, 297, 639))
+        self.scrollAreaWidgetContents_2.setGeometry(QtCore.QRect(0, 0, 249, 610))
         self.scrollAreaWidgetContents_2.setObjectName("scrollAreaWidgetContents_2")
         self.verticalLayout = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents_2)
         self.verticalLayout.setObjectName("verticalLayout")
@@ -105,33 +68,42 @@ class UIvyQUICExperiments(object):
         self.label_2 = QtWidgets.QLabel(self.scrollAreaWidgetContents_2)
         self.label_2.setObjectName("label_2")
         self.verticalLayout_3.addWidget(self.label_2, 0, QtCore.Qt.AlignTop)
-        # self.checkBox_2 = QtWidgets.QCheckBox(self.scrollAreaWidgetContents_2)
-        # self.checkBox_2.setObjectName("checkBox_2")
-        # self.verticalLayout_3.addWidget(self.checkBox_2)
-        for implem in IMPLEMENTATIONS.keys():
-            checkBox = QtWidgets.QCheckBox(self.scrollAreaWidgetContents)
-            checkBox.setObjectName("checkBox_3")
-            self.implem_tests_checkbox.append({"name": implem, "checkbox": checkBox})
-            self.verticalLayout_3.addWidget(checkBox)
-
+        self.checkBox_2 = QtWidgets.QCheckBox(self.scrollAreaWidgetContents_2)
+        self.checkBox_2.setObjectName("checkBox_2")
+        self.verticalLayout_3.addWidget(self.checkBox_2)
         self.verticalLayout.addLayout(self.verticalLayout_3)
         self.scrollArea_2.setWidget(self.scrollAreaWidgetContents_2)
         self.horizontalLayout.addWidget(self.scrollArea_2)
-        self.scrollArea_3 = QtWidgets.QScrollArea(self.centralwidget)
-        self.scrollArea_3.setWidgetResizable(True)
-        self.scrollArea_3.setObjectName("scrollArea_3")
+        self.scrollArea_4 = QtWidgets.QScrollArea(self.centralwidget)
+        self.scrollArea_4.setWidgetResizable(True)
+        self.scrollArea_4.setObjectName("scrollArea_4")
         self.scrollAreaWidgetContents_4 = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents_4.setGeometry(QtCore.QRect(0, 0, 302, 639))
+        self.scrollAreaWidgetContents_4.setGeometry(QtCore.QRect(0, 0, 213, 610))
         self.scrollAreaWidgetContents_4.setObjectName("scrollAreaWidgetContents_4")
         self.verticalLayout_7 = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents_4)
         self.verticalLayout_7.setObjectName("verticalLayout_7")
+        self.verticalLayout_4 = QtWidgets.QVBoxLayout()
+        self.verticalLayout_4.setObjectName("verticalLayout_4")
+        self.label_11 = QtWidgets.QLabel(self.scrollAreaWidgetContents_4)
+        self.label_11.setObjectName("label_11")
+        self.verticalLayout_4.addWidget(self.label_11, 0, QtCore.Qt.AlignTop)
+        self.verticalLayout_7.addLayout(self.verticalLayout_4)
+        self.scrollArea_4.setWidget(self.scrollAreaWidgetContents_4)
+        self.horizontalLayout.addWidget(self.scrollArea_4)
+        self.scrollArea_3 = QtWidgets.QScrollArea(self.centralwidget)
+        self.scrollArea_3.setWidgetResizable(True)
+        self.scrollArea_3.setObjectName("scrollArea_3")
+        self.scrollAreaWidgetContents_3 = QtWidgets.QWidget()
+        self.scrollAreaWidgetContents_3.setGeometry(QtCore.QRect(0, 0, 200, 630))
+        self.scrollAreaWidgetContents_3.setObjectName("scrollAreaWidgetContents_3")
+        self.verticalLayout_8 = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents_3)
+        self.verticalLayout_8.setObjectName("verticalLayout_8")
         self.verticalLayout_5 = QtWidgets.QVBoxLayout()
         self.verticalLayout_5.setObjectName("verticalLayout_5")
-        self.pushButton = QtWidgets.QPushButton(self.scrollAreaWidgetContents_4)
+        self.pushButton = QtWidgets.QPushButton(self.scrollAreaWidgetContents_3)
         self.pushButton.setObjectName("pushButton")
-        self.pushButton.clicked.connect(self.setup_pushButton)
         self.verticalLayout_5.addWidget(self.pushButton)
-        self.groupBox = QtWidgets.QGroupBox(self.scrollAreaWidgetContents_4)
+        self.groupBox = QtWidgets.QGroupBox(self.scrollAreaWidgetContents_3)
         self.groupBox.setObjectName("groupBox")
         self.horizontalLayout_3 = QtWidgets.QHBoxLayout(self.groupBox)
         self.horizontalLayout_3.setObjectName("horizontalLayout_3")
@@ -144,38 +116,24 @@ class UIvyQUICExperiments(object):
         self.spinBox.setProperty("value", 1)
         self.spinBox.setObjectName("spinBox")
         self.verticalLayout_6.addWidget(self.spinBox)
-
-        self.verticalLayout_exemode = QtWidgets.QVBoxLayout()
-        self.verticalLayout_exemode.setObjectName("verticalLayout_exemode")
-        self.groupBox_exemode = QtWidgets.QGroupBox(self.scrollAreaWidgetContents_4)
-        self.groupBox_exemode.setObjectName("groupBox_exemode")
-        self.groupBox_exemode.setLayout(self.verticalLayout_exemode)
-
-        # self.label_4 = QtWidgets.QLabel(self.groupBox_exemode)
-        # self.label_4.setObjectName("label_4")
-        self.verticalLayout_6.addWidget(self.groupBox_exemode)
-        self.radioButton_2 = QtWidgets.QRadioButton(self.groupBox_exemode)
+        self.label_4 = QtWidgets.QLabel(self.groupBox)
+        self.label_4.setObjectName("label_4")
+        self.verticalLayout_6.addWidget(self.label_4)
+        self.radioButton_2 = QtWidgets.QRadioButton(self.groupBox)
         self.radioButton_2.setObjectName("radioButton_2")
-        self.verticalLayout_exemode.addWidget(self.radioButton_2)
-        self.radioButton = QtWidgets.QRadioButton(self.groupBox_exemode)
+        self.verticalLayout_6.addWidget(self.radioButton_2)
+        self.radioButton = QtWidgets.QRadioButton(self.groupBox)
         self.radioButton.setObjectName("radioButton")
-        self.verticalLayout_exemode.addWidget(self.radioButton)
-
-        self.verticalLayout_network = QtWidgets.QVBoxLayout()
-        self.verticalLayout_network.setObjectName("verticalLayout_network")
-        self.groupBox_network = QtWidgets.QGroupBox(self.scrollAreaWidgetContents_4)
-        self.groupBox_network.setObjectName("groupBox_network")
-        self.groupBox_network.setLayout(self.verticalLayout_network)
-
-        # self.label_5 = QtWidgets.QLabel(self.groupBox_network)
-        # self.label_5.setObjectName("label_5")
-        self.verticalLayout_6.addWidget(self.groupBox_network)
-        self.radioButton_3 = QtWidgets.QRadioButton(self.groupBox_network)
+        self.verticalLayout_6.addWidget(self.radioButton)
+        self.label_5 = QtWidgets.QLabel(self.groupBox)
+        self.label_5.setObjectName("label_5")
+        self.verticalLayout_6.addWidget(self.label_5)
+        self.radioButton_3 = QtWidgets.QRadioButton(self.groupBox)
         self.radioButton_3.setObjectName("radioButton_3")
-        self.verticalLayout_network.addWidget(self.radioButton_3)
-        self.radioButton_4 = QtWidgets.QRadioButton(self.groupBox_network)
+        self.verticalLayout_6.addWidget(self.radioButton_3)
+        self.radioButton_4 = QtWidgets.QRadioButton(self.groupBox)
         self.radioButton_4.setObjectName("radioButton_4")
-        self.verticalLayout_network.addWidget(self.radioButton_4)
+        self.verticalLayout_6.addWidget(self.radioButton_4)
         self.label_6 = QtWidgets.QLabel(self.groupBox)
         self.label_6.setObjectName("label_6")
         self.verticalLayout_6.addWidget(self.label_6)
@@ -215,15 +173,15 @@ class UIvyQUICExperiments(object):
         self.verticalLayout_6.addWidget(self.checkBox_4)
         self.horizontalLayout_3.addLayout(self.verticalLayout_6)
         self.verticalLayout_5.addWidget(self.groupBox)
-        self.verticalLayout_7.addLayout(self.verticalLayout_5)
-        self.scrollArea_3.setWidget(self.scrollAreaWidgetContents_4)
+        self.verticalLayout_8.addLayout(self.verticalLayout_5)
+        self.scrollArea_3.setWidget(self.scrollAreaWidgetContents_3)
         self.horizontalLayout.addWidget(self.scrollArea_3)
         IvyQUIC.setCentralWidget(self.centralwidget)
         self.statusbar = QtWidgets.QStatusBar(IvyQUIC)
         self.statusbar.setObjectName("statusbar")
         IvyQUIC.setStatusBar(self.statusbar)
         self.menubar = QtWidgets.QMenuBar(IvyQUIC)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 933, 22))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 934, 22))
         self.menubar.setObjectName("menubar")
         self.menuTest_mode = QtWidgets.QMenu(self.menubar)
         self.menuTest_mode.setObjectName("menuTest_mode")
@@ -239,41 +197,26 @@ class UIvyQUICExperiments(object):
         self.retranslateUi(IvyQUIC)
         QtCore.QMetaObject.connectSlotsByName(IvyQUIC)
 
-    def setup_pushButton(self):
-        import os
-        current_exp = self.ivy_temps_path + str(self.spinBox.value())
-        dirs = os.listdir( current_exp )
-        for server_test in self.server_tests_checkbox:
-            if server_test["checkbox"].isChecked():
-                pass
-                
-        
     def retranslateUi(self, IvyQUIC):
         _translate = QtCore.QCoreApplication.translate
-        IvyQUIC.setWindowTitle(_translate("IvyQUIC", "Ivy QUIC - Classical"))
+        IvyQUIC.setWindowTitle(_translate("IvyQUIC", "Ivy QUIC - Attacker"))
         self.label.setText(_translate("IvyQUIC", "<html><head/><body><p align=\"center\"><span style=\" font-weight:600;\">AVAILABLE TESTS</span></p></body></html>"))
-        self.label_10.setText(_translate("IvyQUIC", "<html><head/><body><p align=\"center\"><span style=\" font-weight:600;\">Server tests</span></p></body></html>"))
-        for checkbox in self.server_tests_checkbox:
-            checkbox["checkbox"].setText(_translate("IvyQUIC", checkbox["name"]))
-        # self.checkBox_3.setText(_translate("IvyQUIC", "Test 1"))
-        # self.checkBox.setText(_translate("IvyQUIC", "Test 2"))
-        self.label_11.setText(_translate("IvyQUIC", "<html><head/><body><p align=\"center\"><span style=\" font-weight:600;\">Client tests</span></p></body></html>"))
-        for checkbox in self.client_tests_checkbox:
-            checkbox["checkbox"].setText(_translate("IvyQUIC", checkbox["name"]))
-        # self.checkBox_6.setText(_translate("IvyQUIC", "Test 1"))
-        # self.checkBox_5.setText(_translate("IvyQUIC", "Test 2"))
+        self.label_10.setText(_translate("IvyQUIC", "<html><head/><body><p align=\"center\"><span style=\" font-weight:600;\">Attacker tests</span></p></body></html>"))
+        self.checkBox_3.setText(_translate("IvyQUIC", "Test 1"))
+        self.checkBox.setText(_translate("IvyQUIC", "Test 2"))
+        self.checkBox_6.setText(_translate("IvyQUIC", "Test 1"))
+        self.checkBox_5.setText(_translate("IvyQUIC", "Test 2"))
         self.label_2.setText(_translate("IvyQUIC", "<html><head/><body><p align=\"center\"><span style=\" font-weight:600;\">AVAILABLE IMPLEMENTATIONS</span></p></body></html>"))
-        
-        # self.checkBox_2.setText(_translate("IvyQUIC", "Implementation 1"))
-        for checkbox in self.implem_tests_checkbox:
-            checkbox["checkbox"].setText(_translate("IvyQUIC", checkbox["name"]))
-        self.pushButton.setText(_translate("IvyQUIC", "Start\nexperiments"))
+        self.checkBox_2.setText(_translate("IvyQUIC", "Implementation 1"))
+        self.label_11.setText(_translate("IvyQUIC", "<html><head/><body><p align=\"center\"><span style=\" font-weight:600;\">ATTACKER BEHAVIOR</span></p></body></html>"))
+        self.pushButton.setText(_translate("IvyQUIC", "Start\n"
+"experiments"))
         self.groupBox.setTitle(_translate("IvyQUIC", "Parameters"))
         self.label_3.setText(_translate("IvyQUIC", "<html><head/><body><p><span style=\" font-weight:600;\">Number of iterations</span></p></body></html>"))
-        self.groupBox_exemode.setTitle(_translate("IvyQUIC", "Execution mode"))
+        self.label_4.setText(_translate("IvyQUIC", "<html><head/><body><p><span style=\" font-weight:600;\">Execution mode</span></p></body></html>"))
         self.radioButton_2.setText(_translate("IvyQUIC", "Run on docker"))
         self.radioButton.setText(_translate("IvyQUIC", "Run locally"))
-        self.groupBox_network.setTitle(_translate("IvyQUIC", "Network mode"))
+        self.label_5.setText(_translate("IvyQUIC", "<html><head/><body><p><span style=\" font-weight:600;\">Network mode</span></p></body></html>"))
         self.radioButton_3.setText(_translate("IvyQUIC", "localhost"))
         self.radioButton_4.setText(_translate("IvyQUIC", "vnet"))
         self.label_6.setText(_translate("IvyQUIC", "<html><head/><body><p><span style=\" font-weight:600;\">Others</span></p></body></html>"))
@@ -293,7 +236,7 @@ class UIvyQUICExperiments(object):
         item = self.listWidget_2.item(0)
         item.setText(_translate("IvyQUIC", "hq-29"))
         item = self.listWidget_2.item(1)
-        item.setText(_translate("IvyQUIC", "hq-28"))
+        item.setText(_translate("IvyQUIC", "hq-29"))
         item = self.listWidget_2.item(2)
         item.setText(_translate("IvyQUIC", "hq-interop"))
         self.listWidget_2.setSortingEnabled(__sortingEnabled)
@@ -308,7 +251,7 @@ if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
     IvyQUIC = QtWidgets.QMainWindow()
-    ui = UIvyQUICExperiments()
+    ui = UIvyQUICAttacks()
     ui.setupUi(IvyQUIC)
     IvyQUIC.show()
     sys.exit(app.exec_())

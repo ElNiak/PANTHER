@@ -118,8 +118,8 @@ class IvyTest(object):
                                         quic_cmd = quic_cmd + envs + quic_cmd_copy 
                                     else :
                                         quic_cmd = "exec " + quic_cmd
-                                        quic_cmd = quic_cmd.replace("10.0.0.1","localhost")
-                                        quic_cmd = quic_cmd.replace("10.0.0.2","localhost")
+                                        quic_cmd = quic_cmd.replace("10.0.1.1","localhost")
+                                        quic_cmd = quic_cmd.replace("10.0.2.1","localhost")
                                         quic_cmd = quic_cmd.replace("n1.0","lo")
 
                                     qcmd =  ('sleep 5; ' if self.is_client else "") + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
