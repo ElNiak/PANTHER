@@ -8,8 +8,6 @@ from utils.Runner import Runner
 from utils.ArgumentParserRunner import ArgumentParserRunner
 from utils.constants import *
 from utils.CustomFormatter import CustomFormatter
-from gui.results import UIvyQUICResults
-from gui.standard import *
 import tracemalloc 
 
 # TODO refactor
@@ -21,7 +19,7 @@ import os
 
 
 class ExperimentRunner:
-    SOURCE_DIR =  os.getenv('PWD')
+    SOURCE_DIR =  os.getcwd()
     IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
     MEMORY_PROFILING = False
     COMPILE = False
@@ -397,10 +395,12 @@ class ExperimentRunner:
 def main():
     experiments = ExperimentRunner()
     if experiments.args.gui:
+        from gui.results import UIvyQUICResults
+        # from gui.standard import *
         from PyQt5 import QtWidgets
         app = QtWidgets.QApplication(sys.argv)
         IvyQUIC = QtWidgets.QMainWindow()
-        ui = UIvyQUICExperiments(ExperimentRunner.SOURCE_DIR, experiments) #UIvyQUICResults(SOURCE_DIR)
+        ui = UIvyQUICResults(ExperimentRunner.SOURCE_DIR, experiments) #UIvyQUICResults(SOURCE_DIR)
         ui.setupUi(IvyQUIC)
         IvyQUIC.show()
         sys.exit(app.exec_())
@@ -416,7 +416,8 @@ if __name__ == "__main__":
         sys.stdout.close()
         sys.stderr.close() 
         sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
+        sys.stderr = sys.__stderr__       
+        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
         subprocess.Popen("sudo pkill tshark")
         subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
                         shell=True, executable="/bin/bash").wait()
