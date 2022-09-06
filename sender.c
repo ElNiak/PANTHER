@@ -1,3 +1,10 @@
+/**
+ * It sends a message to a destination IP address and port, from a source IP address and port, on a
+ * specific network interface
+ * 
+ * @param argc the number of arguments
+ * @param argv 
+ */
 #include <sys/socket.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +17,7 @@
 
 int main(int argc, char* argv[])
 {
+    /* Declaring variables. */
     char *ip_dst = NULL;
     char *ip_src = NULL;
     char *dev = NULL;
