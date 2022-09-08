@@ -76,6 +76,13 @@ pkill listener
 gcc sender.c -o sender -Werror -Wall
 gcc listener.c -o listener -Werror -Wall
 
+ifconfig
+echo "--------------------------------------------------"
+sudo ip netns exec ivy ifconfig
+echo "--------------------------------------------------"
+sudo ip netns exec implem ifconfig
+echo "----"
+
 #pkill wireshark
 #ip netns exec ivy    wireshark -i any -Y udp 2>/dev/null &
 #ip netns exec implem wireshark -i any -Y udp 2>/dev/null &
