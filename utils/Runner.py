@@ -81,7 +81,7 @@ class Runner:
             }
         }
 
-    def run_exp(self, test, run_id, pcap_name,iteration,j):
+    def run_exp(self, test, run_id, pcap_name,iteration,j,do_gperf):
         if self.output_path is None:
             path = SOURCE_DIR  + '/QUIC-Ivy/doc/examples/quic/test/temp/' 
             path = os.path.join(path,str(run_id))
@@ -129,7 +129,7 @@ class Runner:
                                                 self.keep_alive, self.time, self.gdb, 
                                                 quic_dir,self.output_path,self.extra_args,
                                                 self.quic_implementation,self.nclient,
-                                                self.initial_version, self.is_mim,self.vnet))
+                                                self.initial_version, self.is_mim,self.vnet, do_gperf))
             print(self.all_tests)
             num_failures = 0
             for test in self.all_tests:
@@ -155,6 +155,10 @@ class Runner:
                         stats.update_csv(run_id,self.quic_implementation, "client" if self.is_client else "server", 
                                 test.name,pcap_name,os.path.join(self.output_path,
                                 test.name+str(iteration)+'.iev'),out)
+                # if self.do_gperf:
+                #     os.system("pprof --pdf "+ command + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_cpu.prof > ' + os.path.join(self.output_path,self.name+str(iteration))+'_cpu.pdf')
+                #     # os.system("pprof --pdf "+ command + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_heap.prof >' + os.path.join(self.output_path,self.name+str(iteration))+'_heap.pdf')
+            #
             if num_failures:
                 print('error: {} tests(s) failed'.format(num_failures))
             else:

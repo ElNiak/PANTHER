@@ -83,10 +83,10 @@ echo "--------------------------------------------------"
 sudo ip netns exec implem ifconfig
 echo "----"
 
-#pkill wireshark
-#ip netns exec ivy    wireshark -i any -Y udp 2>/dev/null &
-#ip netns exec implem wireshark -i any -Y udp 2>/dev/null &
-#read -p "Press [Enter] to continue..."
+pkill wireshark
+ip netns exec ivy    wireshark -i any -Y udp 2>/dev/null &
+ip netns exec implem wireshark -i any -Y udp 2>/dev/null &
+read -p "Press [Enter] to continue..."
 
 mitm ivy 10.0.0.1 60444 10.0.0.3 60443 lo ivy &
 mitm ivy 10.0.0.3 60443 10.0.0.1 60444 ivy lo &

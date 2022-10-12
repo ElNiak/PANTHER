@@ -1,5 +1,12 @@
 #!/bin/sh
 
+
+# Ivy spec send on lo 
+# Ivy mim spec send on lo to reach Ivy spec
+# Ivy mim spec send on ivy to reach implem
+# implem send on implem to reach ivy mim spec
+
+
 ip netns del implem        
 ip netns del ivy 
 
@@ -15,9 +22,10 @@ ip link set ivy    netns ivy
 ip link set implem netns implem
 
 
-# ip netns exec ivy    ip addr add 10.0.0.1/24 dev lo
 ip netns exec ivy    ip addr add 10.0.0.1/24 dev ivy
-# ip netns exec ivy    ip addr add 10.0.0.3/24 dev lo
+ip netns exec ivy    ip addr add 10.0.0.2/24 dev lo
+ip netns exec ivy    ip addr add 10.0.0.3/24 dev lo
+
 ip netns exec implem ip addr add 10.0.0.3/24 dev implem
 
 ip netns exec ivy    ip link set ivy    up
@@ -32,14 +40,12 @@ ip netns exec ivy    ip link   set dev lo   up
 ip netns exec implem ip link   set dev lo   up
 
 
-# ip netns exec ivy    ip route add 10.0.0.3 dev lo
-# ip netns exec implem ip route add 10.0.0.1 via 10.0.0.2
+ip netns exec ivy    ip route add 10.0.0.3 dev lo
+ip netns exec implem ip route add 10.0.0.1 via 10.0.0.2
 
 
-# ip netns exec ivy    sysctl -w net.ipv4.conf.all.accept_local=1
+ip netns exec ivy    sysctl -w net.ipv4.conf.all.accept_local=1
 
 
-ip netns exec ivy    ping   10.0.0.1 -c1
+ip netns exec ivy    ping        10.0.0.1 -c1
 ip netns exec ivy    ping -I ivy 10.0.0.3 -c1
-ip netns exec implem ping -I implem  10.0.0.1 -c1.
-ip netns exec implem ping   10.0.0.1 -c1

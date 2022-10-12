@@ -94,6 +94,9 @@ class ExperimentRunner:
                                                     shell=True, executable="/bin/bash").wait()
         subprocess.Popen("sudo python -m compileall ivy_compiler.py", 
                                                     shell=True, executable="/bin/bash").wait()
+        
+        subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
+                                                    shell=True, executable="/bin/bash").wait()
 
         #echo "CP picotls lib"
         subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
@@ -241,8 +244,12 @@ class ExperimentRunner:
         subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
                             shell=True, executable="/bin/bash").wait() # for quic-go
         if self.args.vnet:
-            subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/vnet_setup.sh", 
-                                                    shell=True, executable="/bin/bash").wait()
+            if self.args.mode == "mim" or self.args.categories == "attacks_test":
+                subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/vnet_setup_mim.sh", 
+                                                        shell=True, executable="/bin/bash").wait()
+            else:
+                subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/vnet_setup.sh", 
+                                                        shell=True, executable="/bin/bash").wait() 
         else:
             subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/vnet_reset.sh", 
                                                     shell=True, executable="/bin/bash").wait()
@@ -293,6 +300,7 @@ class ExperimentRunner:
             #    subprocess.Popen("/bin/bash "+ ExperimentRunner.SOURCE_DIR + "/mim-reset.sh", 
             #                                        shell=True, executable="/bin/bash").wait()
 
+
             for j in range(0,ni):
                 for implementation in implementations:  
                     print(implementations)
@@ -324,23 +332,52 @@ class ExperimentRunner:
                         ivy_dir = path+str(pcap_i)
                         subprocess.Popen("/bin/mkdir " + ivy_dir, 
                                                     shell=True, executable="/bin/bash").wait()
-                        pcap_name = ivy_dir +"/"+ implementation +"_"+ test +".pcap"
-                        subprocess.Popen("touch "+pcap_name, 
-                                                    shell=True, executable="/bin/bash").wait()
-                        subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
-                                                    shell=True, executable="/bin/bash").wait()
+                        if self.args.vnet:
+                            pcap_name = ivy_dir +"/ivy_lo_"+ implementation +"_"+ test +".pcap"
+                            subprocess.Popen("touch "+pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("touch "+pcap_name.replace("ivy_lo_","ivy_ivy_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name.replace("ivy_lo_","ivy_ivy_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("touch "+pcap_name.replace("ivy_lo_","implem_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name.replace("ivy_lo_","implem_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                        else:
+                            pcap_name = ivy_dir +"/"+ implementation +"_"+ test +".pcap"
+                            subprocess.Popen("touch "+pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
                         self.log.info("\tStart thsark")
                         #time.sleep(10) # for server test 
                         # TODO kill entual old quic implem
 
                         if self.args.vnet:
-                            interface = "vbridge"
+                            interface = "lo"
+                            p = subprocess.Popen(["ip", "netns", "exec", "ivy", "tshark", "-w",
+                                                pcap_name,
+                                                "-i", interface, "-f", 'udp'],
+                                                stdout=sys.stdout)
+                            interface = "ivy"
+                            p = subprocess.Popen(["ip", "netns", "exec", "ivy", "tshark", "-w",
+                                                    pcap_name.replace("ivy_lo_","ivy_ivy_"),
+                                                    "-i", interface, "-f", 'udp'],
+                                                    stdout=sys.stdout)
+                            interface = "implem"
+                            p = subprocess.Popen(["ip", "netns", "exec", "implem", "tshark", "-w",
+                                                pcap_name.replace("ivy_lo_","implem_"),
+                                                "-i", interface, "-f", 'udp'],
+                                                stdout=sys.stdout)
                         else:
                             interface = "lo"
-                        p = subprocess.Popen(["sudo", "tshark", "-w",
-                                            pcap_name,
-                                            "-i", interface, "-f", 'udp'],
-                                            stdout=sys.stdout)
+                            p = subprocess.Popen(["sudo", "tshark", "-w",
+                                                pcap_name,
+                                                "-i", interface, "-f", 'udp'],
+                                                stdout=sys.stdout)
                         time.sleep(3)
                         runner.quic_implementation = implementation
                         
@@ -351,7 +388,8 @@ class ExperimentRunner:
                         self.log.info("\tStart run")
                         try:
                             runner.output_path = None
-                            runner.run_exp(initial_test,pcap_i,pcap_name,i,j)
+                            runner.run_exp(initial_test,pcap_i,pcap_name,i,j,self.args.gperf)
+                            
                         except Exception as e:
                             print(e)
                         finally: # In Runner.py
@@ -378,12 +416,12 @@ class ExperimentRunner:
                             shell=True, executable="/bin/bash").wait()
         bar_f.finish()
         self.remove_includes()
-        subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tls-keys/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
-                            shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tickets/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
-                            shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/qlogs/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
-                            shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tls-keys/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+        #                     shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tickets/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+        #                     shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/qlogs/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+        #                     shell=True, executable="/bin/bash").wait()
         if ExperimentRunner.MEMORY_PROFILING:
             snapshot = tracemalloc.take_snapshot()
             top_stats = snapshot.statistics('lineno')

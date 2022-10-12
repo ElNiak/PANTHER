@@ -27,7 +27,7 @@ else:
 class IvyTest(object):
     def __init__(self,dir,args, is_client, run, keep_alive, time, gdb, 
                  quic_dir,output_path,extra_args, implementation_name,
-                 nclient,initial_version, is_mim, vnet):
+                 nclient,initial_version, is_mim, vnet, do_gperf):
         self.dir,self.name,self.res,self.opts = dir,args[0],args[-1],args[1:-1]
         self.is_client = is_client
         self.runn = run
@@ -43,6 +43,7 @@ class IvyTest(object):
         self.j = 0
         self.is_mim = is_mim
         self.vnet = vnet
+        self.do_gperf = do_gperf
 
         self.specials = {
             "quic_server_test_0rtt":"quic_server_test_0rtt_stream",
@@ -76,6 +77,13 @@ class IvyTest(object):
         with self.open_out(self.name+str(iteration)+'.out') as out:
             with self.open_out(self.name+str(iteration)+'.err') as err:
                 with self.open_out(self.name+str(iteration)+'.iev') as iev:
+                    # if self.do_gperf:
+                    #     f = open(os.path.join(self.output_path,self.name+str(iteration))+'_cpu.prof', "w")
+                    #     f.write("")
+                    #     f.close()
+                    #     f = open(os.path.join(self.output_path,self.name+str(iteration))+'_heap.prof', "w")
+                    #     f.write("")
+                    #     f.close()
                     # If run => Launch the quic entity tested 
                     looped = 1
                     # TODO refactor
@@ -86,6 +94,7 @@ class IvyTest(object):
                             if self.is_mim:
                                 pass
                             else:
+                                # TODO refactor
                                 if i == 1:
                                     quic_cmd = quic_cmd.replace("4443","4444")
                                     if self.implementation_name == "mvfst":
@@ -106,7 +115,7 @@ class IvyTest(object):
                                 else:
                                     if self.vnet:
                                         quic_cmd_copy = quic_cmd
-                                        quic_cmd = "sudo ip netns exec n1 " 
+                                        quic_cmd = "sudo ip netns exec implem " 
                                         # if self.implementation_name == "picoquic":
                                         #     quic_cmd = "cd " + IMPLEM_DIR + '/picoquic;'  + quic_cmd + "cd " + IMPLEM_DIR + '/picoquic;'
                                         envs = "env - "
@@ -118,9 +127,11 @@ class IvyTest(object):
                                         quic_cmd = quic_cmd + envs + quic_cmd_copy 
                                     else :
                                         quic_cmd = "exec " + quic_cmd
-                                        quic_cmd = quic_cmd.replace("10.0.1.1","localhost")
-                                        quic_cmd = quic_cmd.replace("10.0.2.1","localhost")
-                                        quic_cmd = quic_cmd.replace("n1.0","lo")
+                                        quic_cmd = quic_cmd.replace("10.0.0.1","localhost")
+                                        quic_cmd = quic_cmd.replace("10.0.0.3","localhost")
+                                        quic_cmd = quic_cmd.replace("quic-implementations","XXXXXXXX")
+                                        quic_cmd = quic_cmd.replace("implem","lo")
+                                        quic_cmd = quic_cmd.replace("XXXXXXXX","quic-implementations")
 
                                     qcmd =  ('sleep 5; ' if self.is_client else "") + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
                                     # if not self.is_client:
@@ -128,6 +139,8 @@ class IvyTest(object):
 
                                     if "quiche" in self.implementation_name or "quinn" in self.implementation_name:
                                         qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
+                                    #elif "aioquic" in self.implementation_name:
+                                    #    qcmd = "PYTHONPATH=/QUIC-FormalVerification/quic-implementations/aioquic/ " + qcmd  
                                     print('implementation command: {}'.format(qcmd))
                                     quic_process = subprocess.Popen(qcmd,
                                                                 cwd=self.quic_dir,
@@ -189,10 +202,11 @@ class IvyTest(object):
                                     quic_process_1.terminate()
                                     quic_process_2.terminate()
                                 raise KeyboardInterrupt
-                        
+                            
                         if self.run and not self.keep_alive and not (self.implementation_name == "quic-go" and  "quic_client_test_0rtt" in self.name):
                             print("quic_process.terminate()")
                             if not self.is_mim:
+                                # The above code is terminating the process.
                                 quic_process.terminate()
                                 retcode = quic_process.wait()
                                 print(retcode)
@@ -291,6 +305,9 @@ class IvyTest(object):
             if retcode != 0:
                 iev.write('ivy_return_code({})\n'.format(retcode))
                 print('client return code: {}'.format(retcode))
+            if self.do_gperf:
+                os.system("pprof --pdf "+ self.dir+"/"+self.name + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_cpu.prof > ' + os.path.join(self.output_path,self.name+str(iteration))+'_cpu.pdf')
+            #     os.system("pprof --pdf "+ command + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_heap.prof >' + os.path.join(self.output_path,self.name+str(iteration))+'_heap.pdf')
             #sleep(1)
             return retcode == 0
         else:
@@ -328,7 +345,10 @@ class IvyTest(object):
     
     def command(self, iteration, iclient):
         import platform
-        strace_cmd = "strace -e sendto" # TODO
+        strace_cmd = "strace -k -e sched_getaffinity" #"strace -e sendto" # TODO strace -e sendto
+        # 'HEAPPROFILE='+ os.path.join(self.output_path,self.name+str(iteration)) +'_heap.prof '
+        gperf_cmd = "LD_PRELOAD=/usr/local/lib/libprofiler.so CPUPROFILE="+ os.path.join(self.output_path,self.name+str(iteration)) + '_cpu.prof ' if self.do_gperf \
+                    else ""
         timeout_cmd = '' if platform.system() == 'Windows' else 'timeout {} '.format(self.time)
         randomSeed = random.randint(0,1000)
         random.seed(datetime.now())
@@ -393,9 +413,9 @@ class IvyTest(object):
                     envs = envs + env_var + "=\"" + ENV_VAR[env_var] + "\" "
                 else:
                     envs = envs + env_var + "=\"" + os.environ.get(env_var) + "\" "
-            prefix = "sudo ip netns exec n0 " + envs 
-            ip_server = 0x0a000201 if not self.is_client else 0x0a000101
-            ip_client = 0x0a000101 if not self.is_client else 0x0a000201
+            prefix = "sudo ip netns exec ivy " + envs  + " " + strace_cmd + " " +  gperf_cmd + " " 
+            ip_server = 0x0a000003 if not self.is_client else 0x0a000001
+            ip_client = 0x0a000001 if not self.is_client else 0x0a000003
         else:
             ip_server = 0x7f000001
             ip_client = ip_server

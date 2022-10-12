@@ -50,13 +50,13 @@ extern "C" {
 #define PICOQUIC_MAX_PACKETS_IN_POOL 0x8000
 #define PICOQUIC_STORED_IP_MAX 16
 
-#define PICOQUIC_INITIAL_RTT 250000ull /* 250 ms */
+#define PICOQUIC_INITIAL_RTT 2000000ull /* 250 -> 2 sec ms */
 #define PICOQUIC_TARGET_RENO_RTT 100000ull /* 100 ms */
 #define PICOQUIC_TARGET_SATELLITE_RTT 610000ull /* 610 ms, practical maximum for non-pathological RTT */
-#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 1000000ull /* 250 ms chris: one sec */
-#define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 5000000ull /* one second CHRIS 5 sec*/ 
+#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 2000000ull /* 250 ms chris: 2 sec */
+#define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 10000000ull /* one second CHRIS 10 sec*/ 
 #define PICOQUIC_LARGE_RETRANSMIT_TIMER 7000000ull /* two seconds CHRIS 7 sec */
-#define PICOQUIC_MIN_RETRANSMIT_TIMER 50000ull /* 50 ms */
+#define PICOQUIC_MIN_RETRANSMIT_TIMER 2000000ull /* 50 ms -> 1 sec */
 #define PICOQUIC_ACK_DELAY_MAX 10000ull /* 10 ms */
 #define PICOQUIC_ACK_DELAY_MAX_DEFAULT 25000ull /* 25 ms, per protocol spec */
 #define PICOQUIC_ACK_DELAY_MIN 1000ull /* 1 ms */
@@ -77,8 +77,8 @@ extern "C" {
 #define PICOQUIC_SPURIOUS_RETRANSMIT_DELAY_MAX 1000000ull /* one second */
 
 #define PICOQUIC_MICROSEC_SILENCE_MAX 120000000ull /* 120 seconds for now */
-#define PICOQUIC_MICROSEC_HANDSHAKE_MAX 30000000ull /* 30 seconds for now */
-#define PICOQUIC_MICROSEC_WAIT_MAX 10000000ull /* 10 seconds for now */
+#define PICOQUIC_MICROSEC_HANDSHAKE_MAX 60000000ull /* 30*CHRIS -> 60 seconds for now */
+#define PICOQUIC_MICROSEC_WAIT_MAX 20000000ull /* 10->20 seconds for now */
 
 #define PICOQUIC_MICROSEC_STATELESS_RESET_INTERVAL_DEFAULT 100000ull /* max 10 stateless reset by second by default */
 

@@ -110,6 +110,11 @@ class ArgumentParserRunner:
             help='UI (default:False)',
             action="store_true"
         )
+        self.group.add_argument(
+            '--gperf', 
+            help='gperf (default:False)',
+            action="store_true"
+        )
        
         
     def parse_arguments(self, allow_unk=False):

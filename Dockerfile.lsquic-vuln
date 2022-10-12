@@ -1,0 +1,29 @@
+FROM shadow-ivy-picotls:latest
+
+ADD quic-implementations/boringssl-vuln /QUIC-FormalVerification/quic-implementations/boringssl-vuln
+ADD quic-implementations/lsquic-vuln /QUIC-FormalVerification/quic-implementations/lsquic-vuln
+
+WORKDIR /QUIC-FormalVerification/quic-implementations/boringssl-vuln/
+ENV PATH="/go/bin:${PATH}"
+RUN git checkout fetch # 47327f8d032f6bc2093a15c32e666ab6384ecca2
+RUN git submodule init
+RUN git submodule update
+
+RUN apt-get update 
+RUN apt-get install -y build-essential software-properties-common \
+                       zlib1g-dev libevent-dev
+RUN cmake . &&  make
+ENV BORINGSSL=$PWD
+
+
+WORKDIR /QUIC-FormalVerification/quic-implementations/lsquic-vuln/
+RUN git checkout v2.29.4 # 639c9e685d37e74d357d3dd8599b9dbff90934af
+RUN git submodule update --init --recursive
+RUN git submodule update --recursive
+COPY ressources/lsquic/lsquic_types.h /QUIC-FormalVerification/quic-implementations/lsquic/include/lsquic_types.h
+RUN cmake -DBORINGSSL_DIR=$BORINGSSL .
+RUN make
+RUN make test || true
+
+WORKDIR /QUIC-FormalVerification
+
