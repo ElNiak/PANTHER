@@ -106,6 +106,8 @@ TESTS_MIM = {
     ]
 }
 
+TESTS_CUSTOM = []
+
 # ptls_openssl_x25519
 TESTS_CLIENT = {
     "global_test": [
@@ -155,6 +157,24 @@ TESTS_CLIENT = {
     ],
 }
 # TODO make interface dynamic
+
+# TODO automatic in compose
+# TODO seems useless
+IMPLEMENTATIONS_PORTS = {
+    "ivy":49150,
+    "quant":49152,
+    "quant-vuln":49153,
+    "picoquic":49154,
+    "picoquic-vuln":49155,
+    "mvfst":49156,
+    "lsquic":49157,
+    "lsquic-vuln":49158,
+    "quic-go":49159,
+    "aioquic":49160,
+    "quinn":49161,
+    "quiche":49162,
+}
+
 
 IMPLEMENTATIONS = {
     # Server:

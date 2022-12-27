@@ -54,6 +54,7 @@ class ExperimentRunner:
         ExperimentRunner.COMPILE = self.args.compile
 
         self.executed_tests = []
+        self.count_1 = None
 
 
     def update_includes_ptls(self):
@@ -132,6 +133,9 @@ class ExperimentRunner:
         subprocess.Popen("sudo /bin/cp "+ path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
                                                     shell=True, executable="/bin/bash").wait()
 
+    def set_custom(self, custom):
+        TESTS_CUSTOM = custom
+        
     def remove_includes(self):
         self.log.info("Reset \"include\" path of python")
         for file in self.included_files:
@@ -140,42 +144,80 @@ class ExperimentRunner:
             subprocess.Popen("sudo /bin/rm /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/" + nameFileShort, 
                                                     shell=True, executable="/bin/bash").wait()
 
-    def build_tests(self,mode, categories):
+    def build_tests(self,mode, categories,tc=None):
+        custom = False
         if mode == "server":
             true_categories = TESTS_SERVER.keys()
         elif mode == "mim":
             true_categories = TESTS_MIM.keys()
-        else:
+        elif mode == "client":
             true_categories = TESTS_CLIENT.keys()
-        folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
-        os.chdir(folder)
-        if "all" in categories:
-            files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy") and mode in f]
-            for file in files:
-                self.log.info(" " + file)
-                nameFileShort = file.split("/")[-1]
-                self.executed_tests.append(nameFileShort.replace(".ivy",""))
-                self.build_file(nameFileShort)
-        elif categories in true_categories:
-            if mode == "server":
-                self.log.info(TESTS_SERVER[categories])
-                files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_SERVER[categories]]
-            elif mode == "mim":
-                self.log.info(TESTS_MIM[categories])
-                files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_MIM[categories]]
+        else:
+            custom = True
+        if not custom:
+            folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+            os.chdir(folder)
+            if "all" in categories:
+                files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy") and mode in f]
+                for file in files:
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
+            elif categories in true_categories:
+                if mode == "server":
+                    self.log.info(TESTS_SERVER[categories])
+                    files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_SERVER[categories]]
+                elif mode == "mim":
+                    self.log.info(TESTS_MIM[categories])
+                    files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_MIM[categories]]
+                elif mode == "client":
+                    self.log.info(TESTS_CLIENT[categories])
+                    files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_CLIENT[categories]]
+                    
+                for file in files:
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
             else:
-                self.log.info(TESTS_CLIENT[categories])
-                files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_CLIENT[categories]]
-            for file in files:
-                self.log.info(" " + file)
-                nameFileShort = file.split("/")[-1]
+                self.log.info(" " +categories)
+                nameFileShort = categories.split("/")[-1]
                 self.executed_tests.append(nameFileShort.replace(".ivy",""))
                 self.build_file(nameFileShort)
         else:
-            self.log.info(" " +categories)
-            nameFileShort = categories.split("/")[-1]
-            self.executed_tests.append(nameFileShort.replace(".ivy",""))
-            self.build_file(nameFileShort)
+            if tc is not None:
+                TESTS_CUSTOM = tc # STRANGE changing variable in worker.py do not change it here
+            self.log.info(" " + str(len(TESTS_CUSTOM)))
+            self.log.info(TESTS_CUSTOM)
+            for file in TESTS_CUSTOM:
+                if "server" in file:
+                    mode = "server"
+                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    os.chdir(folder)
+                    file = os.path.join(folder, file) + ".ivy"
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
+                elif "client" in file:
+                    mode = "client"
+                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    os.chdir(folder)
+                    file = os.path.join(folder, file) + ".ivy"
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
+                else:
+                    mode = "mim"
+                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    os.chdir(folder)
+                    file = os.path.join(folder, file) + ".ivy"
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
 
     def build_file(self,file):
         self.compile_file(file)
@@ -223,15 +265,21 @@ class ExperimentRunner:
             subprocess.Popen("/bin/rm "+ file.replace('.ivy','.h'), 
                                                     shell=True, executable="/bin/bash").wait()
 
-    def launch_experiments(self):
+    def launch_experiments(self,tc=None):
         if ExperimentRunner.MEMORY_PROFILING:
             tracemalloc.start()
-        
+            
         if self.args.update_include_tls:
             self.update_includes_ptls()
         self.update_includes()
         
-        os.environ['TEST_TYPE']     = self.args.mode
+        self.executed_tests = []
+        
+        os.environ['INITIAL_VERSION'] = str(self.args.initial_version)
+        ENV_VAR["INITIAL_VERSION"] = str(self.args.initial_version)
+        ExperimentRunner.COMPILE = self.args.compile
+        
+        os.environ['TEST_TYPE']     = self.args.mode # TODO for dockercompose -> change for custom
         ENV_VAR["TEST_TYPE"]        = self.args.mode
         if not self.args.docker:
             os.environ['IS_NOT_DOCKER'] = "true" 
@@ -253,7 +301,7 @@ class ExperimentRunner:
         else:
             subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/vnet_reset.sh", 
                                                     shell=True, executable="/bin/bash").wait()
-        self.build_tests(self.args.mode, self.args.categories)
+        self.build_tests(self.args.mode, self.args.categories, tc=tc)
 
         runner = Runner(self.args)
 
@@ -266,7 +314,11 @@ class ExperimentRunner:
         else:
             bar_f = progressbar.ProgressBar(max_value=len(self.executed_tests)*len(implementations)*self.args.iter)
         bar_f.start()
-        count_1 = 0
+        self.count_1 = 0
+        
+        # subprocess.Popen("echo '' >> "+ ExperimentRunner.SOURCE_DIR +"/tickets/ticket.bin", 
+        #                 shell=True, executable="/bin/bash").wait()
+        
         for test in self.executed_tests:
             initial_test = test
             ni = 1
@@ -299,8 +351,7 @@ class ExperimentRunner:
             #else:
             #    subprocess.Popen("/bin/bash "+ ExperimentRunner.SOURCE_DIR + "/mim-reset.sh", 
             #                                        shell=True, executable="/bin/bash").wait()
-
-
+            
             for j in range(0,ni):
                 for implementation in implementations:  
                     print(implementations)
@@ -318,8 +369,8 @@ class ExperimentRunner:
                         self.log.info("Test: "+test)
                         self.log.info("Implementation: "+implementation)
                         self.log.info("Iteration: "+str(i+1) +"/" + str(self.args.iter))
-                        os.environ['CNT'] = str(count_1)
-                        ENV_VAR["CNT"] = str(count_1)
+                        os.environ['CNT'] = str(self.count_1)
+                        ENV_VAR["CNT"] = str(self.count_1)
                         #os.environ['RND'] = os.getenv("RANDOM")
                         subprocess.Popen("> "+ ExperimentRunner.SOURCE_DIR +"/tickets/ticket.bin", 
                                                     shell=True, executable="/bin/bash").wait()
@@ -407,15 +458,17 @@ class ExperimentRunner:
                             subprocess.Popen("sudo /usr/bin/pkill tshark", 
                                                     shell=True, executable="/bin/bash").wait()
                             #p.kill()
-                            count_1 += 1
-                            bar_f.update(count_1)
+                            self.count_1 += 1
+                            bar_f.update(self.count_1)
                             subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/mim-reset.sh", 
                                                     shell=True, executable="/bin/bash").wait()
         if self.args.vnet:
             subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/vnet_reset.sh", 
                             shell=True, executable="/bin/bash").wait()
         bar_f.finish()
+        self.count_1 = None
         self.remove_includes()
+        TESTS_CUSTOM = []
         # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tls-keys/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
         #                     shell=True, executable="/bin/bash").wait()
         # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tickets/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
@@ -432,15 +485,25 @@ class ExperimentRunner:
 
 def main():
     experiments = ExperimentRunner()
-    if experiments.args.gui:
+    if experiments.args.gui: # TODO 
         from gui.results import UIvyQUICResults
-        # from gui.standard import *
+        from gui.standard import UIvyQUICExperiments
         from PyQt5 import QtWidgets
         app = QtWidgets.QApplication(sys.argv)
         IvyQUIC = QtWidgets.QMainWindow()
-        ui = UIvyQUICResults(ExperimentRunner.SOURCE_DIR, experiments) #UIvyQUICResults(SOURCE_DIR)
+        ui = UIvyQUICResults(ExperimentRunner.SOURCE_DIR) #UIvyQUICResults(SOURCE_DIR)
         ui.setupUi(IvyQUIC)
         IvyQUIC.show()
+        sys.exit(app.exec_())
+    elif experiments.args.webapp:
+        from webapp.server import IvyServer
+        app = IvyServer(ExperimentRunner.SOURCE_DIR, experiments)
+        app.run()
+        sys.exit(app.exec_())
+    elif experiments.args.worker:
+        from webapp.worker import IvyWorker
+        app = IvyWorker(ExperimentRunner.SOURCE_DIR, experiments)
+        app.run()
         sys.exit(app.exec_())
     else:
         experiments.launch_experiments()

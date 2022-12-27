@@ -154,7 +154,7 @@ class Runner:
                     with open(os.path.join(self.output_path,test.name+str(iteration)+'.iev'),"r") as out:
                         stats.update_csv(run_id,self.quic_implementation, "client" if self.is_client else "server", 
                                 test.name,pcap_name,os.path.join(self.output_path,
-                                test.name+str(iteration)+'.iev'),out)
+                                test.name+str(iteration)+'.iev'),out,self.initial_version)
                 # if self.do_gperf:
                 #     os.system("pprof --pdf "+ command + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_cpu.prof > ' + os.path.join(self.output_path,self.name+str(iteration))+'_cpu.pdf')
                 #     # os.system("pprof --pdf "+ command + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_heap.prof >' + os.path.join(self.output_path,self.name+str(iteration))+'_heap.pdf')

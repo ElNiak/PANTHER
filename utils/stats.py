@@ -1,3 +1,4 @@
+import datetime
 import utils.ivy_ev_parser as ev
 import utils.ivy_utils as iu
 import os
@@ -50,7 +51,7 @@ def count(x):
 def maxz(x):
     return 0 if len(x) == 0 else max(x)
 
-def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
+def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out,initial_version):
     
     try:
         df = pd.read_csv(RESULT_DIR + 'temp/data.csv')
@@ -78,7 +79,9 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
                      "recv_packet_vn",
                      "recv_packet_0rtt",
                      "undecryptable_packet_event",
-                     "version_not_found_event"]) # TODO add frame type
+                     "version_not_found_event",
+                     "date",
+                     "initial_version"]) # TODO add frame type
 
     iev_content = out.read()
     
@@ -96,7 +99,7 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
     
     df = df.append({"Run": run_id,
                      "Implementation": implem_name,
-                     "Mode": mode,
+                     "Mode": "Client" if "client" in test_name else "Server",
                      "TestName": test_name,
                      "isPass": True if iev_content.count("test_completed") == threshold  else False,
                      "ErrorIEV": error_iev,
@@ -119,7 +122,9 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out):
                      "undecryptable_packet_event":iev_content.count("undecryptable_packet_event"),
                      "handshake_done":iev_content.count("frame.handshake_done.handle"),
                      "tls.finished":iev_content.count("tls.finished"),
-                     "version_not_found":iev_content.count("version_not_found_event")},
+                     "version_not_found":iev_content.count("version_not_found_event"),
+                     "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                     "initial_version": initial_version},
                      ignore_index=True)
 
     df.to_csv(RESULT_DIR + 'temp/data.csv', index=False)

@@ -111,6 +111,16 @@ class ArgumentParserRunner:
             action="store_true"
         )
         self.group.add_argument(
+            '--webapp', 
+            help='WebApp UI (default:False)',
+            action="store_true"
+        )
+        self.group.add_argument(
+            '--worker', 
+            help='Worker server mode (default:False)',
+            action="store_true"
+        )
+        self.group.add_argument(
             '--gperf', 
             help='gperf (default:False)',
             action="store_true"
