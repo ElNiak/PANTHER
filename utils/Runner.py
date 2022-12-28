@@ -124,6 +124,8 @@ class Runner:
             dir = SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/build'
             print(test)
             checkl = [test]
+            self.is_client = False if  "server" in test else True     # True -> client tested <=> False -> server tested
+            self.is_mim    = True  if  "mim"    in test else False     # True -> client tested <=> False -> server teste
             self.all_tests.clear() # TODO
             self.all_tests.append(IvyTest(dir,[test,"test_completed"],self.is_client,self.run, 
                                                 self.keep_alive, self.time, self.gdb, 

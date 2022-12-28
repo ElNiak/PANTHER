@@ -56,7 +56,8 @@ IMPLEM="picoquic" MODE="server" CATE="global_test" ITER="1" OPT="--vnet" make te
 make compose;
 ```
 
-Then go at http://ivy-standalone/
+Then go at http://ivy-standalone/ 
+Also add "tls_cert" to your trust certificate in your browser
 
 ## :books: TODO
 

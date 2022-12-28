@@ -113,29 +113,33 @@ class IvyServer:
     @app.route('/progress', methods = ['GET', 'POST'])
     def progress():
         if IvyServer.implems_used is not None:
+            from utils.constants import TESTS_CUSTOM
             res = requests.post('http://'+ IvyServer.current_implem+'-ivy:80/progress')
             IvyServer.app.logger.info(res.text)
             if res.text != "None":            
                 if int(res.text) == IvyServer.experiments.args.iter:
-                    if len(IvyServer.implems_used) > 0:
-                        IvyServer.current_implem = IvyServer.implems_used.pop()
-                        IvyServer.experiments.args.implementations = [IvyServer.current_implem]
-                        print(IvyServer.experiments.args)
-                        data = IvyServer.experiments.args.__dict__
-                        from utils.constants import TESTS_CUSTOM
-                        data["tests"] = TESTS_CUSTOM
-                        res = requests.post('http://'+ IvyServer.current_implem+'-ivy:80/run-exp', json=data)
-                        IvyServer.app.logger.info(res.text)
+                    if IvyServer.current_count + int(res.text) < len(TESTS_CUSTOM) * IvyServer.experiments.args.iter : # TODO some bugs
                         IvyServer.current_count += int(res.text)
-                        
                     else:
-                        IvyServer.current_count = 0
-                        IvyServer.implems_used = None
-                        IvyServer.current_implem = None
-                        IvyServer.experiments.args.iter = 0
-                        from utils.constants import TESTS_CUSTOM
-                        TESTS_CUSTOM = []
-            
+                        if len(IvyServer.implems_used) > 0:
+                            IvyServer.current_implem = IvyServer.implems_used.pop()
+                            IvyServer.experiments.args.implementations = [IvyServer.current_implem]
+                            print(IvyServer.experiments.args)
+                            data = IvyServer.experiments.args.__dict__
+                            data["tests"] = TESTS_CUSTOM
+                            ress = requests.post('http://'+ IvyServer.current_implem+'-ivy:80/run-exp', json=data)
+                            IvyServer.app.logger.info(res.text)
+                            IvyServer.current_count += int(res.text)
+                            
+                        else:
+                            IvyServer.current_count = 0
+                            IvyServer.implems_used = None
+                            IvyServer.current_implem = None
+                            IvyServer.experiments.args.iter = 0
+                            TESTS_CUSTOM = []
+                return str(IvyServer.current_count+int(res.text))
+            else: 
+                return str(IvyServer.current_count)
             # for imple in IvyServer.implems_used: # One by one due to tshark with only one host
             #     res = requests.post('http://'+ imple+'-ivy:80/progress')
             #     IvyServer.app.logger.info(res.text)
@@ -147,7 +151,6 @@ class IvyServer:
             IvyServer.app.logger.info(IvyServer.current_implem)
         else:
             return "None"
-        return str(IvyServer.current_count+int(res.text))
 
     @app.route('/index.html', methods = ['GET', 'POST'])
     def serve_index():
@@ -156,9 +159,18 @@ class IvyServer:
         :return: the upload function.
         """
         from utils.constants import TESTS_CUSTOM
-        TESTS_CUSTOM = []
+        # TESTS_CUSTOM = []
         if request.method == 'POST':
             print(request.form)
+            
+            if IvyServer.implems_used is not None:
+                return render_template('index.html', 
+                                server_tests=IvyServer.server_tests, 
+                                client_tests=IvyServer.client_tests,
+                                nb_exp=IvyServer.nb_exp, 
+                                implems=IvyServer.implems,
+                                progress=0,
+                                iteration=int(IvyServer.experiments.args.iter) * (len(IvyServer.implems_used)+1) * len(TESTS_CUSTOM)) # TODO 0rtt
             
             for c in request.form:
                 for elem in request.form.getlist(c):
@@ -203,12 +215,17 @@ class IvyServer:
                                 nb_exp=IvyServer.nb_exp, 
                                 implems=IvyServer.implems,
                                 progress=0,
-                                iteration=int(IvyServer.experiments.args.iter) * len(IvyServer.implems) * len(TESTS_CUSTOM)) # TODO 0rtt
+                                iteration=int(IvyServer.experiments.args.iter) * (len(IvyServer.implems_used)+1) * len(TESTS_CUSTOM)) # TODO 0rtt
         else:
             # if IvyServer.x is not None:
             #     IvyServer.x.join()
             #     IvyServer.x = None
             #     IvyServer.implems_used = None
+            
+            if IvyServer.implems_used is not None:
+                ln = len(IvyServer.implems_used)
+            else:
+                ln = 0
             
             return render_template('index.html', 
                                 server_tests=IvyServer.server_tests, 
@@ -216,7 +233,7 @@ class IvyServer:
                                 nb_exp=IvyServer.nb_exp, 
                                 implems=IvyServer.implems,
                                 progress=IvyServer.experiments.count_1,
-                                iteration=int(IvyServer.experiments.args.iter) * len(IvyServer.implems) * len(TESTS_CUSTOM))
+                                iteration=int(IvyServer.experiments.args.iter) * ln * len(TESTS_CUSTOM))
             
     
     @app.route('/directory/<int:directory>/file/<path:file>')
@@ -262,7 +279,7 @@ class IvyServer:
             items_page = paginator.page(paginator.num_pages)
             
         df_csv = pd.read_csv(IvyServer.ivy_temps_path + 'data.csv').set_index('Run')
-        result_row = df_csv.iloc[IvyServer.nb_exp-int(page)]
+        result_row = df_csv.iloc[IvyServer.nb_exp-int(page)-1]
         summary = {}
         summary["nb_pkt"] = result_row["NbPktSend"]
         summary["initial_version"] = result_row["initial_version"]

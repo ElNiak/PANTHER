@@ -205,6 +205,10 @@ change-permissions:
 test-vnet:
 	docker run --privileged -it picoquic-ivy ./setup_namespace.sh
 
+launch-teams:
+	docker build -t teams -f Dockerfile.teams  .
+	xhost +local:docker
+	docker run --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$(DISPLAY) -it teams
 
 compose:
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/test/temp
