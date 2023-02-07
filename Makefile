@@ -8,12 +8,12 @@ clean:
 install:
 	git submodule update --init --recursive 
 	git submodule update --recursive
-	cd QUIC-Ivy;
-	git submodule update --init --recursive 
-	git submodule update --recursive
-	git checkout rfc-9000
-	mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp
-	cd submodules/picotls/
+	cd QUIC-Ivy; \
+	git submodule update --init --recursive; \
+	git submodule update --recursive; \
+	git checkout quic-rfc9000; \
+	mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; \
+	cd submodules/picotls/; \
 	git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
 
 ###################################################################################################
