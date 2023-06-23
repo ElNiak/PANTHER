@@ -4,6 +4,8 @@
 import itertools
 import utils.ivy_utils as iu
 
+import ivy_tracer
+
 def mymap(fun,obj):
     res = obj.map(fun)
     return res

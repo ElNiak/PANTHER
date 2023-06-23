@@ -10,7 +10,7 @@ import json
 import os
 import socket
 import threading
-
+import uuid
 import requests
 # from tkinter import N
 from flask import Flask, flash, request, redirect, url_for, send_from_directory, Response, session, render_template
@@ -23,11 +23,12 @@ from django.core.paginator import (
     EmptyPage,
     PageNotAnInteger,
 )
-import json
 import datetime
 from flask_cors import CORS
 import pathlib
 import pandas as pd
+from npf_web_extension.app import export
+import execnet
 
 class IvyServer:
     ROOTPATH = os.getcwd()
@@ -47,6 +48,7 @@ class IvyServer:
         IvyServer.ivy_model_path = dir_path + "/QUIC-Ivy/doc/examples/quic"
         IvyServer.ivy_test_path = dir_path  + "/QUIC-Ivy/doc/examples/quic/quic_tests/"
         IvyServer.ivy_temps_path = dir_path + "/QUIC-Ivy/doc/examples/quic/test/temp/"
+        IvyServer.ivy_include_path = dir_path + "/QUIC-Ivy/ivy/include/1.7/"
         IvyServer.local_path = os.environ["ROOT_PATH"] + "/QUIC-Ivy/doc/examples/quic/test/temp/"
         IvyServer.key_path = SOURCE_DIR + "/tls-keys/"
         IvyServer.server_tests = []
@@ -124,7 +126,7 @@ class IvyServer:
                         if len(IvyServer.implems_used) > 0:
                             IvyServer.current_implem = IvyServer.implems_used.pop()
                             IvyServer.experiments.args.implementations = [IvyServer.current_implem]
-                            print(IvyServer.experiments.args)
+                            IvyServer.app.logger.info(IvyServer.experiments.args)
                             data = IvyServer.experiments.args.__dict__
                             data["tests"] = TESTS_CUSTOM
                             ress = requests.post('http://'+ IvyServer.current_implem+'-ivy:80/run-exp', json=data)
@@ -140,15 +142,6 @@ class IvyServer:
                 return str(IvyServer.current_count+int(res.text))
             else: 
                 return str(IvyServer.current_count)
-            # for imple in IvyServer.implems_used: # One by one due to tshark with only one host
-            #     res = requests.post('http://'+ imple+'-ivy:80/progress')
-            #     IvyServer.app.logger.info(res.text)
-            #     if res.text != "None":
-            #         if count is None:
-            #             count = int(res.text)
-            #         else:
-            #             count += int(res.text)
-            IvyServer.app.logger.info(IvyServer.current_implem)
         else:
             return "None"
 
@@ -161,7 +154,7 @@ class IvyServer:
         from utils.constants import TESTS_CUSTOM
         # TESTS_CUSTOM = []
         if request.method == 'POST':
-            print(request.form)
+            IvyServer.app.logger.info(request.form)
             
             if IvyServer.implems_used is not None:
                 return render_template('index.html', 
@@ -174,7 +167,7 @@ class IvyServer:
             
             for c in request.form:
                 for elem in request.form.getlist(c):
-                    print(elem)
+                    IvyServer.app.logger.info(elem)
             
             IvyServer.experiments.args.mode = "custom"
             IvyServer.experiments.args.initial_version = 1 if request.form["version"] == "rfc9000" else (29 if request.form["version"] == "draft29" else 28)
@@ -194,20 +187,12 @@ class IvyServer:
             
             IvyServer.current_implem = IvyServer.implems_used.pop()
             IvyServer.experiments.args.implementations = [IvyServer.current_implem]
-            print(IvyServer.experiments.args)
+            IvyServer.app.logger.info(IvyServer.experiments.args)
             data = IvyServer.experiments.args.__dict__
+            IvyServer.experiments.args.ivy_ui = True if "ivy_ui" in request.form.keys() else False
             data["tests"] = TESTS_CUSTOM
             res = requests.post('http://'+ IvyServer.current_implem+'-ivy:80/run-exp', json=data)
             IvyServer.app.logger.info(res.text)
-            # for imple in request.form.getlist("implem"):
-            #     IvyServer.experiments.args.implementations = [imple]
-            #     print(IvyServer.experiments.args)
-            #     data = IvyServer.experiments.args.__dict__
-            #     data["tests"] = TESTS_CUSTOM
-            #     res = requests.post('http://'+ imple+'-ivy:80/run-exp', json=data)
-            #     IvyServer.app.logger.info(res.text)
-                # IvyServer.x = threading.Thread(target=IvyServer.experiments.launch_experiments, args=())
-                # IvyServer.x.start()
         
             return render_template('index.html', 
                                 server_tests=IvyServer.server_tests, 
@@ -217,15 +202,12 @@ class IvyServer:
                                 progress=0,
                                 iteration=int(IvyServer.experiments.args.iter) * (len(IvyServer.implems_used)+1) * len(TESTS_CUSTOM)) # TODO 0rtt
         else:
-            # if IvyServer.x is not None:
-            #     IvyServer.x.join()
-            #     IvyServer.x = None
-            #     IvyServer.implems_used = None
-            
             if IvyServer.implems_used is not None:
                 ln = len(IvyServer.implems_used)
             else:
-                ln = 0
+                ln = 0 
+                
+            print("SWAG")
             
             return render_template('index.html', 
                                 server_tests=IvyServer.server_tests, 
@@ -250,8 +232,8 @@ class IvyServer:
         It creates a folder for the project, and then calls the upload function
         :return: the upload function.
         """
-        print(IvyServer.ivy_temps_path)
-        print(os.listdir(IvyServer.ivy_temps_path))
+        IvyServer.app.logger.info(IvyServer.ivy_temps_path)
+        IvyServer.app.logger.info(os.listdir(IvyServer.ivy_temps_path))
         IvyServer.nb_exp = len(os.listdir(IvyServer.ivy_temps_path)) - 2
         
         
@@ -263,8 +245,8 @@ class IvyServer:
             pass
         # Get queryset of items to paginate
         rge = range(IvyServer.nb_exp,0,-1)
-        print([i for i in rge])
-        print(page)
+        IvyServer.app.logger.info([i for i in rge])
+        IvyServer.app.logger.info(page)
         items = [i for i in rge]
 
         # Paginate items
@@ -279,7 +261,65 @@ class IvyServer:
             items_page = paginator.page(paginator.num_pages)
             
         df_csv = pd.read_csv(IvyServer.ivy_temps_path + 'data.csv').set_index('Run')
-        result_row = df_csv.iloc[IvyServer.nb_exp-int(page)-1]
+        IvyServer.app.logger.info(IvyServer.nb_exp-int(page))
+        
+        result_row = df_csv.iloc[-1]
+        output = "df_csv_row.html"
+            # TODO change the label
+        #result_row.to_frame().T
+        #subdf = df_csv.drop("ErrorIEV", axis=1).drop("OutputFile", axis=1).drop("date", axis=1).drop("date", axis=1).drop("date", axis=1) #.reset_index()
+        subdf = df_csv[['Implementation', 'NbPktSend',"packet_event","recv_packet"]]
+        subdf.fillna(0,inplace=True)
+        #subdf["isPass"] = subdf["isPass"].astype(int)
+        subdf["NbPktSend"] = subdf["NbPktSend"].astype(int)
+        print(subdf)
+        print(df_csv.columns)
+        print(subdf.columns)
+        #subdf.columns = df_csv.columns
+        configurationData = [
+                {
+                "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
+                "name": "Experiences coverage view",
+                "parameters": ["Implementation","Run"],
+                "measurements": ["NbPktSend"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
+                "data": subdf.to_csv()
+                },
+                {
+                "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
+                "name": "Experiences packet view",
+                "parameters": ["Implementation","Run"],
+                "measurements": ["packet_event", "recv_packet"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
+                "data": subdf.to_csv() # index=False -> need index
+                },
+                # {
+                # "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
+                # "name": "Experiences coverage view",
+                # "parameters": ["Implementation", "Mode", "TestName"],
+                # "measurements": ["packet_event","packet_event_retry","packet_event_vn","packet_event_0rtt","packet_event_coal_0rtt", "recv_packet","recv_packet_retry","handshake_done","tls.finished","recv_packet_vn","recv_packet_0rtt","undecryptable_packet_event","version_not_found_event","date","initial_version","NbPktSend","version_not_found"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
+                # "data": subdf.to_csv(index=False)
+                # },
+            ]
+        configurationData = {
+                "id": str(uuid.uuid4()), # Must be unique
+                "name": "Quickstart example",
+                "parameters": ["N", "algorithm", "num_cpus", "cpu_brand"],
+                "measurements": ["efficiency"],
+                "data": """algorithm,N,num_cpus,efficiency,cpu_brand
+                Algorithm 1,10,1,0.75,Ryzen
+                Algorithm 1,10,4,0.85,Ryzen
+                Algorithm 1,10,8,0.90,Ryzen
+                Algorithm 2,10,1,0.65,Ryzen
+                Algorithm 2,10,4,0.80,Ryzen
+                Algorithm 2,10,8,0.87,Ryzen
+                """, # Raw data in csv format
+            }
+        export(configurationData, output)
+        
+        print(configurationData)
+        
+        with open(output, 'r') as f:
+            df_csv_content = f.read()
+            
         summary = {}
         summary["nb_pkt"] = result_row["NbPktSend"]
         summary["initial_version"] = result_row["initial_version"]
@@ -295,7 +335,7 @@ class IvyServer:
         qlog_file=""
         pcap_file=""
         for file in exp_dir:
-            print(file)
+            IvyServer.app.logger.info(file)
             if 'ivy_stderr.txt' in file:
                 with open(IvyServer.current_exp + '/' + file, 'r') as f:
                     content = f.read()
@@ -330,7 +370,7 @@ class IvyServer:
                 c_time = os.path.getctime(IvyServer.current_exp + '/' + file)
                 # convert creation timestamp into DateTime object
                 dt_c = datetime.datetime.fromtimestamp(c_time)
-                print('Created on:', dt_c)
+                IvyServer.app.logger.info('Created on:' +  str(dt_c))
                 summary["date"] = dt_c
                 test_name = file.replace('.iev', '')[0:-1]
                 summary["test_name"] = test_name
@@ -359,24 +399,9 @@ class IvyServer:
                 # Now we need qlogs and pcap informations
                 summary["implementation"] = file.split('_')[0] 
                 summary["test_type"] = file.split('_')[2]
-                data_pcap = {
-                    "file": pcap_file,
-                    "secrets": IvyServer.key_path + '/'+ summary["implementation"] +'_key.log' # TODO 
-                }
-                #res = requests.post('http://ivy-visualizer:80/#/', params=data_pcap)
-                # IvyServer.app.logger.info(res)
-                # #res = requests.get('http://ivy-visualizer:80/#/sequence')
-                # IvyServer.app.logger.info(res.text)
-                # IvyServer.app.logger.info(res)
           
             elif ".qlog" in file:
-                # TODO modify ivy script and implem to generate qlog file in the same directory as pcap
                 qlog_file = file
-                data_qlog = {
-                    "file": qlog_file, # TODO
-                }
-                #res = requests.post('http://ivy-visualizer:80/#/', params=data_qlog)
-                #IvyServer.app.logger.info(res)
             
         # Get page number from request, 
         # default to first page
@@ -389,8 +414,8 @@ class IvyServer:
             base64_utf8_str = ''
             ext = 'png'
         dataurl = f'data:image/{ext};base64,{base64_utf8_str}'
-        print(items_page)
-        print(paginator)
+        IvyServer.app.logger.info(items_page)
+        IvyServer.app.logger.info(paginator)
     
         
         return render_template('results.html', 
@@ -406,7 +431,8 @@ class IvyServer:
                            plantuml_file_png=dataurl,
                            summary=summary, # "http://"+IvyServer.vizualiser_ip+":80/?file=http://"
                            pcap_frame_link="http://ivy-visualizer:80/?file=http://ivy-standalone:80/directory/" +  str(IvyServer.nb_exp-int(page)) + "/file/" + pcap_file + "&secrets=http://ivy-standalone:80/key/" + summary["implementation"] +'_key.log' if pcap_file != '' else None,
-                           qlog_frame_link="http://ivy-visualizer:80/?file=http://ivy-standalone:80/directory/" +  str(IvyServer.nb_exp-int(page)) + "/file/" + qlog_file if qlog_file != '' else None,)
+                           qlog_frame_link="http://ivy-visualizer:80/?file=http://ivy-standalone:80/directory/" +  str(IvyServer.nb_exp-int(page)) + "/file/" + qlog_file if qlog_file != '' else None,
+                           df_csv_content=df_csv_content)
 
     @app.route('/results-global.html', methods = ['GET', 'POST'])
     def serve_results_global():
@@ -416,7 +442,7 @@ class IvyServer:
         """
         IvyServer.nb_exp = len(os.listdir(IvyServer.ivy_temps_path)) - 2
         
-        print(request.form)
+        IvyServer.app.logger.info(request.form)
         
         summary = {}
         df_csv = pd.read_csv(IvyServer.ivy_temps_path + 'data.csv',parse_dates=['date'])
@@ -426,9 +452,9 @@ class IvyServer:
         df_date_min_max = df_simplify_date['date'].agg(['min', 'max'])
         df_nb_date = df_simplify_date['date'].nunique()
         df_dates = df_simplify_date['date'].unique()
-        print(list(df_dates))
-        print(df_date_min_max)
-        print(df_nb_date)
+        IvyServer.app.logger.info(list(df_dates))
+        IvyServer.app.logger.info(df_date_min_max)
+        IvyServer.app.logger.info(df_nb_date)
         minimum_date = df_date_min_max["min"]
         maximum_date = df_date_min_max["max"]
                 
@@ -478,7 +504,7 @@ class IvyServer:
                         subdf = subdf.loc[subdf['isPass'] == ispass]
             elif key == "implem":
                 for i in request.form.getlist("implem"):
-                    print(i)
+                    IvyServer.app.logger.info(i)
                     if subdf is None:
                         subdf = df_csv.loc[df_csv['Implementation'] == i]
                     else: 
@@ -500,6 +526,57 @@ class IvyServer:
             df_csv = subdf
             
         csv_text = df_csv.to_csv()
+        
+        
+        output = "df_csv.html"
+            # TODO change the label
+        configurationData = [
+                {
+                "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
+                "name": "Experiences coverage view",
+                "parameters": ["Implementation", "Mode", "TestName"],
+                "measurements": ["isPass","ErrorIEV","packet_event","packet_event_retry","packet_event_vn","packet_event_0rtt","packet_event_coal_0rtt", "recv_packet","recv_packet_retry","handshake_done","tls.finished","recv_packet_vn","recv_packet_0rtt","undecryptable_packet_event","version_not_found_event","date","initial_version","NbPktSend","version_not_found"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
+                "data": df_csv.to_csv(index=False)
+                },
+                {
+                "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
+                "name": "Experiences coverage view",
+                "parameters": ["Implementation", "Mode", "TestName"],
+                "measurements": ["isPass","ErrorIEV","packet_event","packet_event_retry","packet_event_vn","packet_event_0rtt","packet_event_coal_0rtt", "recv_packet","recv_packet_retry","handshake_done","tls.finished","recv_packet_vn","recv_packet_0rtt","undecryptable_packet_event","version_not_found_event","date","initial_version","NbPktSend","version_not_found"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
+                "data": df_csv.to_csv(index=False)
+                },
+                {
+                "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
+                "name": "Experiences coverage view",
+                "parameters": ["Implementation", "Mode", "TestName"],
+                "measurements": ["isPass","ErrorIEV","packet_event","packet_event_retry","packet_event_vn","packet_event_0rtt","packet_event_coal_0rtt", "recv_packet","recv_packet_retry","handshake_done","tls.finished","recv_packet_vn","recv_packet_0rtt","undecryptable_packet_event","version_not_found_event","date","initial_version","NbPktSend","version_not_found"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
+                "data": df_csv.to_csv(index=False)
+                },
+            ]
+            # configurationData = {
+                # "id": "1234567-1234567894567878241-12456", # Must be unique
+                # "name": "Quickstart example",
+                # "parameters": ["N", "algorithm", "num_cpus", "cpu_brand"],
+                # "measurements": ["efficiency"],
+                # "data": """algorithm,N,num_cpus,efficiency,cpu_brand
+                # Algorithm 1,10,1,0.75,Ryzen
+                # Algorithm 1,10,4,0.85,Ryzen
+                # Algorithm 1,10,8,0.90,Ryzen
+                # Algorithm 2,10,1,0.65,Ryzen
+                # Algorithm 2,10,4,0.80,Ryzen
+                # Algorithm 2,10,8,0.87,Ryzen
+                # """, # Raw data in csv format
+            # }
+        # The above code is not valid Python code. It appears to be the beginning of a comment or
+        # documentation string, but it is missing the closing characters.
+        
+        export(configurationData, output)
+        
+        print(configurationData)
+        
+        with open(output, 'r') as f:
+            df_csv_content = f.read()
+             
             
         return render_template('result-global.html', 
                            nb_exp=IvyServer.nb_exp,
@@ -512,7 +589,8 @@ class IvyServer:
                            min_date=None,
                            max_date=None,
                            df_nb_date=df_nb_date,
-                           df_dates=list(df_dates))
+                           df_dates=list(df_dates),
+                           df_csv_content=df_csv_content)
 
 
     def get_attack_model(self, attack_model):
@@ -523,26 +601,199 @@ class IvyServer:
         """
         return attack_model
     
-    def get_quic_model(self):
+    def get_quic_model():
         """
         It returns the quic model
         :param quic_model: the quic model
         :return: the quic model
         """
+        base_path_test = os.path.join(IvyServer.ivy_model_path,"quic_tests/client_tests/quic_client_test.ivy")
         model = {}
-        for dir in os.listdir(IvyServer.ivy_model_path):
-            if os.isdir(dir) and ('quic_' in dir or 'tls_' in dir ) and dir != 'quic_tests' and dir != 'quic_fsm':
-                model[dir] = {}
-                for file in os.listdir(IvyServer.ivy_model_path + '/' + dir):
-                    if '.ivy' in file:
-                        model[dir][file] = {}
-                        with open(IvyServer.ivy_model_path + '/' + dir + '/' + file, 'r') as f:
-                            content = f.read()
-                            for line in content.splitlines():
-                                if 'include' in line:
-                                    model[dir][file][line.split(' ')[1]] = line.split(' ')[2]
-                            
+        
+        # TODO use ivy parser
+        
+        includes_to_add = []
+        includes_to_done = []
+        with open(base_path_test, 'r') as f:
+            content = f.read()
+            for line in content.splitlines():
+                if line.startswith("include "):
+                    IvyServer.app.logger.info(line)
+                    includes_to_add.append(line.split(' ')[-1]+".ivy")
+                    
+        IvyServer.app.logger.info(includes_to_add)
+        
+        model["ivy_base"] = {}
+        
+        while len(includes_to_add) > 0:
+            IvyServer.app.logger.info(includes_to_add)  
+            for dir in os.listdir(IvyServer.ivy_model_path):
+                IvyServer.app.logger.info(dir)      
+                if os.path.isdir(os.path.join(IvyServer.ivy_model_path,dir)) and ('quic_' in dir or 'tls_' in dir ) and dir != 'quic_tests': #  and dir != 'quic_fsm'
+                    if dir not in model:
+                        model[dir] = {}
+                    for file in os.listdir(IvyServer.ivy_model_path + '/' + dir):
+                        IvyServer.app.logger.info(file) 
+                        if '.ivy' in file and file in includes_to_add:
+                            includes_to_add.remove(file)
+                            includes_to_done.append(file)
+                            if file not in model[dir]:
+                                model[dir][file] = {}
+                                model[dir][file]["include"] = []
+                                model[dir][file]["function"] = []
+                                model[dir][file]["relation"] = []
+                                model[dir][file]["export"] = []
+                                model[dir][file]["action"] = {}
+                            with open(IvyServer.ivy_model_path + '/' + dir + '/' + file, 'r') as f:
+                                content = f.read()
+                                for line in content.splitlines():
+                                    line = line.lstrip()
+                                    if line.startswith("include "):
+                                        IvyServer.app.logger.info(line)
+                                        include_ivy = line.split("#")[0]
+                                        include_ivy = include_ivy.split(' ')[-1]+".ivy"
+                                        if include_ivy != ".ivy":
+                                            if include_ivy not in includes_to_done and include_ivy not in includes_to_add:
+                                                includes_to_add.append(include_ivy)
+                                            model[dir][file]["include"].append(include_ivy)
+                                    elif line.startswith("function "):
+                                        IvyServer.app.logger.info(line)
+                                        include_ivy = line.split("#")[0]
+                                        include_ivy = include_ivy.replace("function ", '')
+                                        if include_ivy != ".ivy":
+                                            model[dir][file]["function"].append(include_ivy)
+                                    elif line.startswith("relation "):
+                                        IvyServer.app.logger.info(line)
+                                        include_ivy = line.split("#")[0]
+                                        include_ivy = include_ivy.replace("relation ", '')
+                                        if include_ivy != ".ivy":
+                                            model[dir][file]["relation"].append(include_ivy)
+                                    elif line.startswith("export "):
+                                        IvyServer.app.logger.info(line)
+                                        include_ivy = line.split("#")[0]
+                                        include_ivy = include_ivy.replace("export ", '')
+                                        if include_ivy != ".ivy":
+                                            model[dir][file]["export"].append(include_ivy)
+                                    elif line.startswith("action "):
+                                        IvyServer.app.logger.info(line)
+                                        include_ivy = line.split("#")[0]
+                                        include_ivy = include_ivy.replace("action ", '')
+                                        if include_ivy != ".ivy":
+                                            if include_ivy not in model[dir][file]["action"]:
+                                                model[dir][file]["action"][include_ivy] = []
+                                            
+                            IvyServer.app.logger.info(model)  
+            for file in os.listdir(IvyServer.ivy_include_path):
+                IvyServer.app.logger.info(file) 
+                if '.ivy' in file and file in includes_to_add:
+                    includes_to_add.remove(file)
+                    includes_to_done.append(file)
+                    if file not in model["ivy_base"]:
+                        model["ivy_base"][file] = {}
+                    with open(IvyServer.ivy_include_path  + '/' + file, 'r') as f:
+                        content = f.read()
+                        for line in content.splitlines():
+                            if line.startswith("include "):
+                                IvyServer.app.logger.info(line)
+                                include_ivy = line.split("#")[0]
+                                include_ivy = include_ivy.split(' ')[-1]+".ivy"
+                                if include_ivy != ".ivy":
+                                    if include_ivy not in includes_to_done and include_ivy not in includes_to_add:
+                                        includes_to_add.append(include_ivy)
+                                    model["ivy_base"][file]["include"] = include_ivy
+                    IvyServer.app.logger.info(model) 
+        IvyServer.app.logger.info(json.dumps(model, indent=4, sort_keys=True))                 
         return model
+    
+    
+    @app.route('/kg/graph/json', methods = ['GET'])
+    def get_json_graph():
+        """
+        It returns the json graph of the knowledge graph
+        :return: the json graph of the knowledge graph
+        """ 
+        parents = []
+        with open("/tmp/cytoscape_config.json", 'r') as json_file:
+            data = json.load(json_file)
+            print(len(data))
+            i = 0
+            to_remove = []
+            for elem in data:
+                if elem["group"] == "shapes":
+                    #del data[elem]
+                    print("swag")
+                    #elem = None
+                    to_remove.append(elem)
+                data[i]["locked"] = False
+                if data[i]["group"] == "nodes":
+                    data[i]["position"] = None
+                if data[i]["group"] == "edges":
+                    data[i]["data"]["approxpoints"] = None
+                    data[i]["data"]["bspline"] = None
+                    data[i]["data"]["arrowend"] = None
+                # if "cluster" in data[i]["data"]:
+                #     data[i]["data"]["parent"] = data[i]["data"]["cluster"]
+                if "\n" in data[i]["data"]["label"]: # probably a module
+                    children = data[i]["data"]["label"].split("\n")[1:]
+                    children_updated = []
+                    for child in children:
+                        child = child.split(".")[0]
+                        children_updated.append(child)
+                    for elem in data:
+                        if elem["data"]["label"] in children_updated:
+                            elem["data"]["parent"] = data[i]["data"]["id"]
+                            data[i]["data"]["label"] = data[i]["data"]["label"].split("\n")[0] # TODO only one
+                            parents.append(data[i]["data"]["id"])
+                if "." in data[i]["data"]["label"]:
+                    parent = data[i]["data"]["label"].split(".")[0]
+                    #parent_id = data[i]["data"]["id"]
+                    # TODO not greedy
+                    for elem in data:
+                        if elem["data"]["label"] == parent:
+                            data[i]["data"]["parent"] = elem["data"]["id"]
+                            parents.append(elem["data"]["id"])
+
+                # else:
+                #     data[i]["classes"] = data[i]["classes"] + " groupIcon" 
+ 
+                if "client" in data[i]["data"]["label"] or "server" in data[i]["data"]["label"]: 
+                    data[i]["data"]["kind"] = "TelcoCloudVirtualDevice"
+                elif "frame" in data[i]["data"]["label"] or "packet" in data[i]["data"]["label"]:
+                    data[i]["data"]["kind"] = "VNF"
+                else:
+                    data[i]["data"]["kind"] = "NetworkService"
+                
+                data[i]["data"]["displayName"] = data[i]["data"]["label"].split("\n")[0]
+                
+                if "frame" in data[i]["data"]["label"] or "packet" in data[i]["data"]["label"]:
+                    data[i]["data"]["operationalState"] = "notWorking"
+                else:
+                    data[i]["data"]["operationalState"] = "Working"
+                    
+                data[i]["data"]["alarmSeverity"] = "cleared"
+                
+                # if data[i]["group"] == "nodes":
+                #     data[i]["classes"] = data[i]["classes"] + " nodeIcon" 
+                
+                print(elem)
+                i+=1
+            for elem in to_remove:
+                data.remove(elem)
+            
+            for i in range(len(data)):
+                 if data[i]["group"] == "nodes":
+                    if data[i]["data"]["id"] in parents:
+                        data[i]["classes"] = data[i]["classes"] + " groupIcon" 
+                    else:
+                        data[i]["classes"] = data[i]["classes"] + " nodeIcon" 
+            print(len(data))
+            print(i)
+        response = IvyServer.app.response_class(
+            response=json.dumps(data),
+            status=200,
+            mimetype='application/json'
+        )
+        return response
     
     @app.route('/creator.html', methods = ['GET', 'POST'])
     def serve_attack():
@@ -550,6 +801,115 @@ class IvyServer:
         It creates a folder for the project, and then calls the upload function
         :return: the upload function.
         """
+        
+        def call_python_version(Version, Module, Function, ArgumentList):
+            folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/server_tests/"
+            IvyServer.experiments.update_includes_ptls()
+            IvyServer.experiments.update_includes()
+            # //env:PATH=%s//env:PYTHONPATH=%s , os.getenv('PATH'), os.getenv('PYTHONPATH'))
+            gw      = execnet.makegateway("popen//python=python%s//chdir=%s" % (Version, folder))
+            # os.chdir(folder)
+            channel = gw.remote_exec("""
+                from %s import %s as the_function
+                import ivy.ivy_module
+                import sys
+                import os
+                import json
+                sys.argv = ['ivy_init.py', 'quic_server_test_stream.ivy']
+                #channel.send(os.getcwd())
+                with ivy.ivy_module.Module():
+                    tree = the_function(**channel.receive())
+                
+                def is_jsonable(x):
+                    try:
+                        json.dumps(x)
+                        return True
+                    except (TypeError, OverflowError):
+                        return False
+
+                def my_dict(obj):
+                    if not  hasattr(obj,"__dict__"):
+                        if is_jsonable(obj):
+                            return obj
+                        else:
+                            element = []
+                            if isinstance(obj, list):
+                                for item in obj:
+                                    element.append(my_dict(item))
+                                return element
+                            elif isinstance(obj, set):
+                                return my_dict(list(obj))
+                            else:
+                                return str(obj)
+                    result = {}
+                    for key, val in obj.__dict__.items():
+                        if key.startswith("_"):
+                            continue
+                        element = []
+                        if isinstance(val, list):
+                            for item in val:
+                                element.append(my_dict(item))
+                        elif isinstance(val, set):
+                            element = my_dict(list(val))
+                        elif isinstance(val, dict):
+                            for keyi, vali in val.items():
+                                if is_jsonable(vali):
+                                    element.append(my_dict(vali))
+                                else:
+                                    element.append(str(vali))
+                        else:
+                            element = my_dict(val)
+                        result[key] = element
+                    return result
+                # json.loads(json.dumps(tree, default=lambda o: o.__dict__ if hasattr(o, '__dict__') else o))
+                res = my_dict(tree)
+                print(res)
+                channel.send(res)
+            """ % (Module, Function))
+            channel.send(ArgumentList) # 
+            #print(channel.receive())
+            return channel.receive()
+
+        try:
+            # pedantic=true isolate_mode=test isolate=this
+            result = call_python_version("2.7", "ivy.ivy_init", "ivy_init",  
+                                         {"show_compiled":"true", 
+                                          "pedantic":"true", 
+                                          "isolate_mode":"test", 
+                                          "isolate":"this",
+                                          "ui":"cti",
+                                          "create_isolate":False}) 
+            #print(result) 
+            json_object = json.dumps(result, indent=4)
+            # Writing to sample.json
+            with open("sample.json", "w") as outfile:
+                outfile.write(json_object)
+        except Exception as e:
+            print(e)
+            
+        def buildNodes(nodeRecord):
+            data = {"id": str(nodeRecord.n._id), "label": next(iter(nodeRecord.n.labels))}
+            data.update(nodeRecord.n.properties)
+
+            return {"data": data}
+
+        def buildEdges(relationRecord):
+            data = {"source": str(relationRecord.r.start_node._id),
+                    "target": str(relationRecord.r.end_node._id),
+                    "relationship": relationRecord.r.rel.type}
+
+            return {"data": data}
+            
+        # IvyServer.experiments.remove_includes()
+        # IvyServer.experiments.included_files = list()
+
+        # analysis_graph = ivy_init()
+        # print(analysis_graph)
+        model = IvyServer.get_quic_model()
+        json_object = json.dumps(model, indent=4)
+        # Writing to sample.json
+        with open("sample_model.json", "w") as outfile:
+            outfile.write(json_object)
         return render_template('creator.html')
 
     def run(self):

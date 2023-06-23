@@ -23,14 +23,17 @@ setup(name='ivy-webapp',
       author='ElNiak from UCLouvain',
       author_email='nomail@uclouvain.com',
       license='MIT', 
-      packages=find_packages(),
-      setup_requires=['wheel'],
+      packages=find_packages(), 
+      setup_requires=['wheel'], # "importlib-metadata", ,"importlib_metadata"
       install_requires=[
           'flask', # malwexp
           "flask_session",
           "django",
           "requests",
-          "Flask-Cors==3.0.10"
+          "Flask-Cors==3.0.10",
+          "npf-web-extension",
+          'execnet'
           #"pytracemalloc==0.9.1"
           ],
+      
       zip_safe=False)

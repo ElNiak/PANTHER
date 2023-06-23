@@ -42,6 +42,14 @@ build-docker-ivy:
 	docker build -t $(IMPLEM) -f Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build -t $(IMPLEM)-ivy -f Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
+build-docker-ivy-appmap:
+	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/test/temp
+	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/build
+	docker build -t $(IMPLEM) -f Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
+	docker build -t $(IMPLEM)-ivy -f Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
+	docker build -t $(IMPLEM)-ivy-appmap -f Dockerfile.appmap --build-arg image=$(IMPLEM)-ivy .
+
+
 # build-allinone-docker-ivy:
 # 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/test/temp
 # 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/build
@@ -150,7 +158,7 @@ launch-webapp:
 
 # IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="--vnet" make test-draft29
 # IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="--vnet" make test-draft29
-# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="3" OPT="" make test-draft29
+# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="" make test-draft29
 test-draft29:
 	docker run --privileged --cpus="$(NPROC).0" \
 			   -v $(PWD)/tls-keys:/tmp/QUIC-FormalVerification/tls-keys \
@@ -158,12 +166,32 @@ test-draft29:
 			   -v $(PWD)/qlogs:/tmp/QUIC-FormalVerification/qlogs \
 			   -v $(PWD)/QUIC-Ivy/doc/examples/quic:/tmp/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic \
 			   -v $(PWD)/QUIC-Ivy/ivy/ivy_to_cpp.py:/tmp/QUIC-FormalVerification/QUIC-Ivy/ivy/ivy_to_cpp.py \
+			   -v $(PWD)/QUIC-Ivy/ivy/ivy_tracer.py:/tmp/QUIC-FormalVerification/QUIC-Ivy/ivy/ivy_tracer.py \
+			   -v $(PWD)/QUIC-Ivy/ivy/ivy_compiler.py:/tmp/QUIC-FormalVerification/QUIC-Ivy/ivy/ivy_compiler.py \
 			   -v $(PWD)/QUIC-Ivy/ivy/include/1.7:/tmp/QUIC-FormalVerification/QUIC-Ivy/ivy/include/1.7 \
 			   -it $(IMPLEM)-ivy python3 run_experiments.py --mode $(MODE) --categories $(CATE) --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29 --docker $(OPT) || true
 
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/test/temp
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/build
+
+# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="--vnet" make test-draft29-appmap
+test-draft29-appmap:
+	#-v $(PWD)/run_experiments.py:/tmp/QUIC-FormalVerification/run_experiments.py \
+	docker run --privileged --cpus="$(NPROC).0" \
+			   -e APPMAP=true \
+			   -v $(PWD)/tls-keys:/tmp/QUIC-FormalVerification/tls-keys \
+			   -v $(PWD)/tickets:/tmp/QUIC-FormalVerification/tickets \
+			   -v $(PWD)/qlogs:/tmp/QUIC-FormalVerification/qlogs \
+			   -v $(PWD)/QUIC-Ivy/doc/examples/quic:/tmp/QUIC-FormalVerification/QUIC-Ivy/doc/examples/quic \
+			   -v $(PWD)/QUIC-Ivy/ivy/ivy_to_cpp.py:/tmp/QUIC-FormalVerification/QUIC-Ivy/ivy/ivy_to_cpp.py \
+			   -v $(PWD)/QUIC-Ivy/ivy/include/1.7:/tmp/QUIC-FormalVerification/QUIC-Ivy/ivy/include/1.7 \
+			   -it $(IMPLEM)-ivy-appmap python3 run_experiments.py --mode $(MODE) --categories $(CATE) --update_include_tls \
+			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29 --docker $(OPT) || true
+
+	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/test/temp
+	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/build
+
 
 # IMPLEM="picoquic" MODE="client" CATE="attacks_test" ITER="1" OPT="--vnet" make gperf-draft29
 gperf-draft29:
@@ -213,6 +241,7 @@ launch-teams:
 compose:
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/test/temp
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/build .
+	xhost +
 	docker-compose up -d
 	bash update_etc_hosts.sh  # TODO make copy before
 

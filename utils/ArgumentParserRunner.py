@@ -111,6 +111,11 @@ class ArgumentParserRunner:
             action="store_true"
         )
         self.group.add_argument(
+            '--ivy_ui', 
+            help='Ivy UI (default:False)',
+            action="store_true"
+        )
+        self.group.add_argument(
             '--webapp', 
             help='WebApp UI (default:False)',
             action="store_true"

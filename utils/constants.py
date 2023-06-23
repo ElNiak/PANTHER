@@ -4,11 +4,10 @@ SOURCE_DIR =  os.getcwd()
 IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
 QUIC_DIR   =  SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/'
 RESULT_DIR =  SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/'
-
+IVY_DIR    =   SOURCE_DIR + '/QUIC-Ivy'
 ENV_VAR = {
     "PROOTPATH": SOURCE_DIR,
     #"PYTHONPATH": IMPLEM_DIR + "/aioquic",
-    "PATH": os.getenv('PATH') + ":/go/bin", # "/go/bin:${"+ os.getenv('PATH') +"}", #
     "ZRTT_SSLKEYLOGFILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.txt",
     "RETRY_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt",
     "NEW_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt",
@@ -38,8 +37,16 @@ ENV_VAR = {
     # "initial_max_bidi_streams":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_bidi_streams.txt",
     # "initial_max_uni_streams":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_uni_streams.txt",
     # "max_packet_size":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_packet_size.txt",
+    #"LD_LIBRARY_PATH": os.getenv('LD_LIBRARY_PATH') + ":" + IVY_DIR +"/submodules/z3/build", # "/go/bin:${"+ os.getenv('PATH') +"}", #
+    "PATH": os.getenv('PATH') + ":/go/bin:" + IVY_DIR +"/submodules/z3/build", # "/go/bin:${"+ os.getenv('PATH') +"}", #
+    "PYTHONPATH": os.getenv('PYTHONPATH') + ":"+  IVY_DIR +"/submodules/z3/build/python",
 }
 
+# cp lib/libz3.so submodules/z3/build/python/z3
+# cp lib/libz3.so submodules/z3/build/python/z3; export IVY_INCLUDE_PATH=IVY_INCLUDE_PATH:/usr/local/lib/python2.7/dist-packages/ivy/include/1.7;export Z3_LIBRARY_DIRS=$PWD/submodules/z3/build; export Z3_LIBRARY_PATH=$PWD/submodules/z3/build; export PATH=$PATH:$PWD/submodules/z3/build; export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/submodules/z3/build; export PYTHONPATH=$PYTHONPATH:$PWD/submodules/z3/build/python; ivy ui=cti doc/examples/client_server_example.ivy
+# cp lib/libz3.so submodules/z3/build/python/z3; export IVY_INCLUDE_PATH=IVY_INCLUDE_PATH:/usr/local/lib/python2.7/dist-packages/ivy/include/1.7;export Z3_LIBRARY_DIRS=$PWD/submodules/z3/build; export Z3_LIBRARY_PATH=$PWD/submodules/z3/build; export PATH=$PATH:$PWD/submodules/z3/build; export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/submodules/z3/build; export PYTHONPATH=$PYTHONPATH:$PWD/submodules/z3/build/python; cd doc/examples/quic/quic_tests/server_tests; ivy ui=cti show_compiled=false pedantic=true isolate_mode=test isolate=this quic_server_test_stream.ivy; cd ../../../../..
+# cp lib/libz3.so submodules/z3/build/python/z3; export IVY_INCLUDE_PATH=IVY_INCLUDE_PATH:/usr/local/lib/python2.7/dist-packages/ivy/include/1.7;export Z3_LIBRARY_DIRS=$PWD/submodules/z3/build; export Z3_LIBRARY_PATH=$PWD/submodules/z3/build; export PATH=$PATH:$PWD/submodules/z3/build; export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/submodules/z3/build; export PYTHONPATH=$PYTHONPATH:$PWD/submodules/z3/build/python; cd doc/examples/quic/quic_tests/server_tests; ivy_check diagnose=true show_compiled=false pedantic=true isolate_mode=test isolate=this quic_server_test_stream.ivy; cd ../../../../..
+# cp lib/libz3.so submodules/z3/build/python/z3; export IVY_INCLUDE_PATH=IVY_INCLUDE_PATH:/usr/local/lib/python2.7/dist-packages/ivy/include/1.7;export Z3_LIBRARY_DIRS=$PWD/submodules/z3/build; export Z3_LIBRARY_PATH=$PWD/submodules/z3/build; export PATH=$PATH:$PWD/submodules/z3/build; export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/submodules/z3/build; export PYTHONPATH=$PYTHONPATH:$PWD/submodules/z3/build/python; cd doc/examples/quic/quic_tests/server_tests; ivy_check diagnose=true show_compiled=false pedantic=true trusted=false  trace=true isolate_mode=test isolate=this quic_server_test_stream.ivy; cd ../../../../..
 
 # ptls_openssl_secp256r1
 TESTS_SERVER = {

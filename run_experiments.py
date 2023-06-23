@@ -10,6 +10,8 @@ from utils.constants import *
 from utils.CustomFormatter import CustomFormatter
 import tracemalloc 
 
+from plantuml import PlantUML
+
 # TODO refactor
 # TODO change os.system with subprocess or with python funct
 # TODO to finish
@@ -62,6 +64,11 @@ class ExperimentRunner:
         # TODO should use makefile
         folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/include/1.7"
         self.log.info("Update \"include\" path of python with updated version of the TLS project from \n\t"+folder)
+        self.log.info("TESTSSS")
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_tracer.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_tracer.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo python -m compileall ivy_tracer.py", 
+                                                    shell=True, executable="/bin/bash").wait()
         files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy")]
         for file in files:
             self.log.info(" " + file)
@@ -77,12 +84,31 @@ class ExperimentRunner:
                                                     shell=True, executable="/bin/bash").wait()
         subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_ast.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_ast.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_compiler.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_compiler.py", 
+        # subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_compiler.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_compiler.py", 
+        #                                             shell=True, executable="/bin/bash").wait() # TODO
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_ui.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_ui.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/cy_render.py /usr/local/lib/python2.7/dist-packages/ivy/cy_render.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_graph_ui.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_trace.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_trace.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/tk_ui.py /usr/local/lib/python2.7/dist-packages/ivy/tk_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/tk_graph_ui.py /usr/local/lib/python2.7/dist-packages/ivy/tk_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_actions.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_actions.py", 
+        #                                             shell=True, executable="/bin/bash").wait() # TODO
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy.py /usr/local/lib/python2.7/dist-packages/ivy/ivy.py", 
                                                     shell=True, executable="/bin/bash").wait()
         #cd /usr/local/lib/python2.7/dist-packages/ivy/
 
         os.chdir('/usr/local/lib/python2.7/dist-packages/ivy/')
 
+        
         subprocess.Popen("sudo python -m compileall ivy_to_cpp.py", 
                                                     shell=True, executable="/bin/bash").wait()
         subprocess.Popen("sudo python -m compileall ivy_cpp_types.py", 
@@ -93,7 +119,34 @@ class ExperimentRunner:
                                                     shell=True, executable="/bin/bash").wait()
         subprocess.Popen("sudo python -m compileall ivy_ast.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo python -m compileall ivy_compiler.py", 
+        # subprocess.Popen("sudo python -m compileall ivy_compiler.py", 
+        #                                             shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo python -m compileall ivy_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()  
+        
+        subprocess.Popen("sudo python -m compileall ivy_trace.py", 
+                                                    shell=True, executable="/bin/bash").wait()  
+        
+        subprocess.Popen("sudo python -m compileall cy_render.py", 
+                                                    shell=True, executable="/bin/bash").wait()  
+        
+        subprocess.Popen("sudo python -m compileall ivy_ui_cti.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        subprocess.Popen("sudo python -m compileall tk_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        subprocess.Popen("sudo python -m compileall tk_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        
+        subprocess.Popen("sudo python -m compileall ivy_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        # subprocess.Popen("sudo python -m compileall ivy_actions.py",  # TODO
+        #                                             shell=True, executable="/bin/bash").wait()
+        
+        subprocess.Popen("sudo python -m compileall ivy.py", 
                                                     shell=True, executable="/bin/bash").wait()
         
         subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
@@ -116,7 +169,7 @@ class ExperimentRunner:
                                                     shell=True, executable="/bin/bash").wait()
         # subprocess.Popen("sudo /bin/cp -r -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/include/picotls", 
         #                                             shell=True, executable="/bin/bash").wait()
-
+ 
         os.chdir(ExperimentRunner.SOURCE_DIR)
 
     def update_includes(self):
@@ -199,6 +252,15 @@ class ExperimentRunner:
                     self.log.info(" " + file)
                     nameFileShort = file.split("/")[-1]
                     self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    if self.args.ivy_ui:
+                        # oldcwd = os.getcwd()
+                        # os.chdir(QUIC_DIR)
+                        subprocess.Popen("ivy show_compiled=false pedantic=true isolate_mode=test isolate=this ui=cti " + nameFileShort, 
+                                        shell=True, 
+                                        # cwd=QUIC_DIR,
+                                        executable="/bin/bash").wait()
+                        # os.chdir(oldcwd)
+                        exit(0)
                     self.build_file(nameFileShort)
                 elif "client" in file:
                     mode = "client"
@@ -250,7 +312,7 @@ class ExperimentRunner:
 
     def compile_file(self,file):
         if ExperimentRunner.COMPILE:
-            subprocess.Popen("ivyc target=test " + file, 
+            subprocess.Popen("ivyc trace=true show_compiled=true target=test " + file, 
                                                     shell=True, executable="/bin/bash").wait()
             subprocess.Popen("/bin/cp "+ file.replace('.ivy','')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
                                                     shell=True, executable="/bin/bash").wait()
@@ -268,6 +330,8 @@ class ExperimentRunner:
     def launch_experiments(self,tc=None):
         if ExperimentRunner.MEMORY_PROFILING:
             tracemalloc.start()
+            
+        self.included_files = list()
             
         if self.args.update_include_tls:
             self.update_includes_ptls()
@@ -481,6 +545,19 @@ class ExperimentRunner:
             self.log.info("[ Top 50 ]")
             for stat in top_stats[:50]:
                 self.log.info(stat)
+                
+        try:
+            plantuml_file = "/ivy_trace.txt"
+            plantuml_obj = PlantUML(url="http://www.plantuml.com/plantuml/img/",  basic_auth={}, form_auth={}, http_opts={}, request_opts={})
+
+            plantuml_file_png = plantuml_file.replace('.puml', '.png') #"media/" + str(nb_exp) + "_plantuml.png"
+            plantuml_obj.processes_file(plantuml_file,  plantuml_file_png)
+            print("done")
+        except Exception as e:
+            print(e)
+            pass
+                
+        time.sleep(100)
 
 
 def main():
