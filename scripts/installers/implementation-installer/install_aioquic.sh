@@ -4,7 +4,7 @@ git stash
 git fetch
 git checkout d272be10b93b09b75325b139090007dae16b9f16
 git pull
-export PYTHONPATH=$PWD
+export PYTHONPATH=${PYTHONPATH}:$PWD
 source $HOME/.cargo/env
 
 sudo apt install --yes software-properties-common

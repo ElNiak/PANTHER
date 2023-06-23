@@ -7,7 +7,8 @@ RESULT_DIR =  SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/'
 IVY_DIR    =   SOURCE_DIR + '/QUIC-Ivy'
 ENV_VAR = {
     "PROOTPATH": SOURCE_DIR,
-    #"PYTHONPATH": IMPLEM_DIR + "/aioquic",
+    "PYTHONPATH": "${PYTHONPATH}:" + IMPLEM_DIR + "/aioquic",
+    "PATH": os.getenv('PATH') + ":/go/bin", # "/go/bin:${"+ os.getenv('PATH') +"}", #
     "ZRTT_SSLKEYLOGFILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.txt",
     "RETRY_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt",
     "NEW_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt",

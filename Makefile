@@ -229,6 +229,12 @@ change-permissions:
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/test/temp
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy/doc/examples/quic/build
 
+test-local-server-rfc9000:
+	python3 run_experiments.py --mode server --categories global_tests --update_include_tls \
+			   --timeout 180 --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop
+test-local-client-rfc9000:
+	python3 run_experiments.py --mode client --categories global_tests --update_include_tls \
+			   --timeout 180 --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop
 
 test-vnet:
 	docker run --privileged -it picoquic-ivy ./setup_namespace.sh
