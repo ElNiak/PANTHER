@@ -18,7 +18,7 @@ from gui.wireshark_widget import embeddedTerminal
 class UIvyQUICResults(object):
     def __init__(self, dir_path):
         self.dir_path = dir_path
-        self.ivy_temps_path = dir_path + "/QUIC-Ivy/doc/examples/quic/test/temp/"
+        self.ivy_temps_path = dir_path + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
     
     def setupUi(self, IvyQUIC):
         IvyQUIC.setObjectName("IvyQUIC")

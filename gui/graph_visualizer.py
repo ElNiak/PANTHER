@@ -78,7 +78,7 @@ def generate_graph_input(ivy_trace_path,plantuml_path,
             plantuml_file.write('@enduml' + '\n')
 
 
-# path = "/home/user/Documents/QUIC-RFC9000/QUIC-Ivy/doc/examples/quic/test/temp/45/quic_client_test_version_negociation_mim_modify0.iev"
+# path = "/home/user/Documents/QUIC-RFC9000/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/45/quic_client_test_version_negociation_mim_modify0.iev"
 # plantuml_file = "/home/user/Documents/QUIC-RFC9000/plantuml.puml"
 # generate_graph_input(path, plantuml_file)
 # plantuml_obj = PlantUML(url="http://www.plantuml.com/plantuml/img/",  basic_auth={}, form_auth={}, http_opts={}, request_opts={})

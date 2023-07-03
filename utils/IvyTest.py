@@ -132,6 +132,8 @@ class IvyTest(object):
                                         quic_cmd = quic_cmd.replace("quic-implementations","XXXXXXXX")
                                         quic_cmd = quic_cmd.replace("implem","lo")
                                         quic_cmd = quic_cmd.replace("XXXXXXXX","quic-implementations")
+                                        quic_cmd = quic_cmd.replace("VERSION","00000001" if ENV_VAR["INITIAL_VERSION"] == "1" else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"))
+                                        quic_cmd = quic_cmd.replace("ALPN",ENV_VAR["TEST_ALPN"])
 
                                     qcmd =  ('sleep 5; ' if self.is_client else "") + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
                                     # if not self.is_client:
@@ -350,6 +352,7 @@ class IvyTest(object):
         gperf_cmd = "LD_PRELOAD=/usr/local/lib/libprofiler.so CPUPROFILE="+ os.path.join(self.output_path,self.name+str(iteration)) + '_cpu.prof ' if self.do_gperf \
                     else ""
         timeout_cmd = '' if platform.system() == 'Windows' else 'timeout {} '.format(self.time)
+        os.environ['TIMEOUT_IVY'] = str(self.time)
         randomSeed = random.randint(0,1000)
         random.seed(datetime.now())
         prefix = ""

@@ -45,11 +45,11 @@ class IvyServer:
     
     def __init__(self,dir_path=None,experiments=None):
         IvyServer.dir_path = dir_path
-        IvyServer.ivy_model_path = dir_path + "/QUIC-Ivy/doc/examples/quic"
-        IvyServer.ivy_test_path = dir_path  + "/QUIC-Ivy/doc/examples/quic/quic_tests/"
-        IvyServer.ivy_temps_path = dir_path + "/QUIC-Ivy/doc/examples/quic/test/temp/"
-        IvyServer.ivy_include_path = dir_path + "/QUIC-Ivy/ivy/include/1.7/"
-        IvyServer.local_path = os.environ["ROOT_PATH"] + "/QUIC-Ivy/doc/examples/quic/test/temp/"
+        IvyServer.ivy_model_path = dir_path + "/QUIC-Ivy-Attacker/doc/examples/quic"
+        IvyServer.ivy_test_path = dir_path  + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/"
+        IvyServer.ivy_temps_path = dir_path + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
+        IvyServer.ivy_include_path = dir_path + "/QUIC-Ivy-Attacker/ivy/include/1.7/"
+        IvyServer.local_path = os.environ["ROOT_PATH"] + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
         IvyServer.key_path = SOURCE_DIR + "/tls-keys/"
         IvyServer.server_tests = []
         IvyServer.server_tests_checkbox = []
@@ -152,20 +152,21 @@ class IvyServer:
         :return: the upload function.
         """
         from utils.constants import TESTS_CUSTOM
-        # TESTS_CUSTOM = []
+        
         if request.method == 'POST':
+            TESTS_CUSTOM = []
             IvyServer.app.logger.info(request.form)
             
-            if IvyServer.implems_used is not None:
-                return render_template('index.html', 
-                                server_tests=IvyServer.server_tests, 
-                                client_tests=IvyServer.client_tests,
-                                nb_exp=IvyServer.nb_exp, 
-                                implems=IvyServer.implems,
-                                progress=0,
-                                iteration=int(IvyServer.experiments.args.iter) * (len(IvyServer.implems_used)+1) * len(TESTS_CUSTOM)) # TODO 0rtt
+            # if IvyServer.implems_used is not None:
+            #     return render_template('index.html', 
+            #                     server_tests=IvyServer.server_tests, 
+            #                     client_tests=IvyServer.client_tests,
+            #                     nb_exp=IvyServer.nb_exp, 
+            #                     implems=IvyServer.implems,
+            #                     progress=0,
+            #                     iteration=int(IvyServer.experiments.args.iter) * (len(IvyServer.implems_used)+1) * len(TESTS_CUSTOM)) # TODO 0rtt
             
-            for c in request.form:
+            for c in request.form: 
                 for elem in request.form.getlist(c):
                     IvyServer.app.logger.info(elem)
             
@@ -803,7 +804,7 @@ class IvyServer:
         """
         
         def call_python_version(Version, Module, Function, ArgumentList):
-            folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/server_tests/"
+            folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
             IvyServer.experiments.update_includes_ptls()
             IvyServer.experiments.update_includes()
             # //env:PATH=%s//env:PYTHONPATH=%s , os.getenv('PATH'), os.getenv('PYTHONPATH'))

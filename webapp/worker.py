@@ -37,7 +37,7 @@ class IvyWorker:
     
     def __init__(self,dir_path=None,experiments=None):
         IvyWorker.dir_path = dir_path
-        IvyWorker.ivy_temps_path = dir_path + "/QUIC-Ivy/doc/examples/quic/test/temp/"
+        IvyWorker.ivy_temps_path = dir_path + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
         IvyWorker.server_tests = []
         IvyWorker.server_tests_checkbox = []
         for cate in TESTS_SERVER:

@@ -17,7 +17,7 @@ class UIvyQUICExperiments(object):
 
     def __init__(self, dir_path=None,experiments=None):
         self.dir_path = dir_path
-        self.ivy_temps_path = dir_path + "/QUIC-Ivy/doc/examples/quic/test/temp/"
+        self.ivy_temps_path = dir_path + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
         self.server_tests = []
         self.server_tests_checkbox = []
         for cate in TESTS_SERVER:

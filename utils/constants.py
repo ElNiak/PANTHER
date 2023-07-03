@@ -2,45 +2,49 @@ import os
 
 SOURCE_DIR =  os.getcwd()
 IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
-QUIC_DIR   =  SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/'
-RESULT_DIR =  SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/'
-IVY_DIR    =   SOURCE_DIR + '/QUIC-Ivy'
+QUIC_DIR   =  SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/'
+RESULT_DIR =  SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/'
+IVY_DIR    =   SOURCE_DIR + '/QUIC-Ivy-Attacker'
 ENV_VAR = {
+    "IVY_INCLUDE_PATH":"${IVY_INCLUDE_PATH}:/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7",
+    "Z3_LIBRARY_DIRS": IVY_DIR + "/submodules/z3/build",
+    "Z3_LIBRARY_PATH": IVY_DIR + "/submodules/z3/build;",
+    "LD_LIBRARY_PATH":"${LD_LIBRARY_PATH}:" + IVY_DIR +"/submodules/z3/build",
     "PROOTPATH": SOURCE_DIR,
-    "PYTHONPATH": "${PYTHONPATH}:" + IMPLEM_DIR + "/aioquic",
-    "PATH": os.getenv('PATH') + ":/go/bin", # "/go/bin:${"+ os.getenv('PATH') +"}", #
-    "ZRTT_SSLKEYLOGFILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_tls_key.txt",
-    "RETRY_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_retry_token.txt",
-    "NEW_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_new_token.txt",
-    "ENCRYPT_TICKET_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt",
-    "SESSION_TICKET_FILE": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/last_session_ticket_cb.txt",
-    "SAVED_PACKET": SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/saved_packet.txt",
+    "PYTHONPATH": "${PYTHONPATH}:" + IMPLEM_DIR + "/aioquic:"+IVY_DIR+"/submodules/z3/build/python",
+    #"PATH": os.getenv('PATH') + ":/go/bin", # "/go/bin:${"+ os.getenv('PATH') +"}", #
+    "ZRTT_SSLKEYLOGFILE": SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/last_tls_key.txt",
+    "RETRY_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/last_retry_token.txt",
+    "NEW_TOKEN_FILE": SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/last_new_token.txt",
+    "ENCRYPT_TICKET_FILE": SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/last_encrypt_session_ticket.txt",
+    "SESSION_TICKET_FILE": SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/last_session_ticket_cb.txt",
+    "SAVED_PACKET": SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/saved_packet.txt",
     
-    # "max_idle_timeout":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_idle_timeout.txt",
-    # "max_ack_delay":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_ack_delay.txt",
-    # "max_udp_payload_size":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_udp_payload_size.txt",
-    # "max_datagram_frame_size":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_datagram_frame_size.txt",
-    # "max_stream_data_bidi_local":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_stream_data_bidi_local.txt",
-    # "max_stream_data_bidi_remote":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_stream_data_bidi_remote.txt",
-    # "max_stream_data_uni":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_stream_data_uni.txt",
-    "initial_max_stream_id_bidi":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_id_bidi.txt",
-    # "initial_max_stream_id_uni":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_id_uni.txt",
-    # "max_data":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_data.txt",
-    # "max_bidi_streams":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_bidi_streams.txt",
-    # "max_uni_streams":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_uni_streams.txt",
+    # "max_idle_timeout":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_idle_timeout.txt",
+    # "max_ack_delay":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_ack_delay.txt",
+    # "max_udp_payload_size":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_udp_payload_size.txt",
+    # "max_datagram_frame_size":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_datagram_frame_size.txt",
+    # "max_stream_data_bidi_local":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_stream_data_bidi_local.txt",
+    # "max_stream_data_bidi_remote":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_stream_data_bidi_remote.txt",
+    # "max_stream_data_uni":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_stream_data_uni.txt",
+    "initial_max_stream_id_bidi":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_stream_id_bidi.txt",
+    # "initial_max_stream_id_uni":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_stream_id_uni.txt",
+    # "max_data":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_data.txt",
+    # "max_bidi_streams":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_bidi_streams.txt",
+    # "max_uni_streams":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_uni_streams.txt",
     
-    "active_connection_id_limit":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/active_connection_id_limit.txt",
-    "initial_max_stream_data_bidi_local":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt",
-    "initial_max_stream_data_bidi_remote":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt",
-    "initial_max_stream_data_uni":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt",   
-    "initial_max_data":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_data.txt",
+    "active_connection_id_limit":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/active_connection_id_limit.txt",
+    "initial_max_stream_data_bidi_local":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_stream_data_bidi_local.txt",
+    "initial_max_stream_data_bidi_remote":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_stream_data_bidi_remote.txt",
+    "initial_max_stream_data_uni":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_stream_data_uni.txt",   
+    "initial_max_data":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_data.txt",
     
-    # "initial_max_bidi_streams":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_bidi_streams.txt",
-    # "initial_max_uni_streams":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/initial_max_uni_streams.txt",
-    # "max_packet_size":  SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/max_packet_size.txt",
+    # "initial_max_bidi_streams":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_bidi_streams.txt",
+    # "initial_max_uni_streams":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/initial_max_uni_streams.txt",
+    # "max_packet_size":  SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/max_packet_size.txt",
     #"LD_LIBRARY_PATH": os.getenv('LD_LIBRARY_PATH') + ":" + IVY_DIR +"/submodules/z3/build", # "/go/bin:${"+ os.getenv('PATH') +"}", #
     "PATH": os.getenv('PATH') + ":/go/bin:" + IVY_DIR +"/submodules/z3/build", # "/go/bin:${"+ os.getenv('PATH') +"}", #
-    "PYTHONPATH": os.getenv('PYTHONPATH') + ":"+  IVY_DIR +"/submodules/z3/build/python",
+    #"PYTHONPATH": os.getenv('PYTHONPATH') + ":"+  IVY_DIR +"/submodules/z3/build/python",
 }
 
 # cp lib/libz3.so submodules/z3/build/python/z3
@@ -189,19 +193,19 @@ IMPLEMENTATIONS = {
     # Client: sometimes decryption problem
     "quant":[ # NOT available in RFC9000 06/06/22
         [QUIC_DIR, IMPLEM_DIR + '/quant/Debug/bin/server -i implem -x 1000 -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+SOURCE_DIR +'/qlogs/quant -l '+SOURCE_DIR +'/tls-keys/secret.log'],
-        [QUIC_DIR, IMPLEM_DIR + '/quant/Debug/bin/client -e 0xff00001d -i implem -c false -r 10 -s '+SOURCE_DIR +'/tickets/ticket.bin -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://10.0.0.1:4443/index.html']
+        [QUIC_DIR, IMPLEM_DIR + '/quant/Debug/bin/client -e 0xVERSION -i implem -c false -r 10 -s '+SOURCE_DIR +'/tickets/ticket.bin -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant -t 3600 -v 5  https://10.0.0.1:4443/index.html']
     ],
     # Server: quic_server_test_ncid_quant_vulne
     # Client: quic_client_test_version_negociation_mim 
     "quant-vuln":[
         [QUIC_DIR, IMPLEM_DIR + '/quant/Debug/bin/server -x 1000 -d . -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q '+SOURCE_DIR +'/qlogs/quant-vuln -l '+SOURCE_DIR +'/tls-keys/secret.log'],
-        [QUIC_DIR, IMPLEM_DIR + '/quant/Debug/bin/client -e 0xff00001c -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant-vuln -t 3600 -v 5  https://10.0.0.1:4443/index.html']
+        [QUIC_DIR, IMPLEM_DIR + '/quant/Debug/bin/client -e VERSION -c false -r 10 -l '+SOURCE_DIR +'/tls-keys/secret.log -q '+SOURCE_DIR +'/qlogs/quant-vuln -t 3600 -v 5  https://10.0.0.1:4443/index.html']
     ],
     # Server:
     # Client:
     "picoquic":[
-        [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a hq-29 -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
-        [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a hq-29 -T '+SOURCE_DIR +'/tickets/ticket.bin -v ff00001d -l - -D -L  10.0.0.1 4443']
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a ALPN -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a ALPN -T '+SOURCE_DIR +'/tickets/ticket.bin -v VERSION -l - -D -L  10.0.0.1 4443']
     ],
     # Server: quic_server_test_retry_reuse_key
     # Client:
@@ -224,19 +228,19 @@ IMPLEMENTATIONS = {
     # Server: Internal error
     # Client:
     "lsquic":[
-        [IMPLEM_DIR + '/lsquic/bin/','./http_server -c www.example.org/,'+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem,'+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/leaf_cert.key -Q hq-interop -D -s 127.0.0.1:4443 -l event=debug,engine=debug -o version=00000001 -G '+SOURCE_DIR +'/tls-keys/'],
-        [IMPLEM_DIR + '/lsquic/bin/','./http_client -0 '+SOURCE_DIR +'/tickets/ticket.bin -4 -Q hq-interop -R 10 -w 7 -r 7 -s 10.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1 -o version=00000001 -o scid_len=8']
+        [IMPLEM_DIR + '/lsquic/bin/','./http_server -c www.example.org/,'+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/leaf_cert.pem,'+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/leaf_cert.key -Q ALPN -D -s 127.0.0.1:4443 -l event=debug,engine=debug -o version=VERSION -G '+SOURCE_DIR +'/tls-keys/'],
+        [IMPLEM_DIR + '/lsquic/bin/','./http_client -0 '+SOURCE_DIR +'/tickets/ticket.bin -4 -Q ALPN -R 10 -w 7 -r 7 -s 10.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1 -o version=VERSION -o scid_len=8']
     ],
     # Server: Internal error
     # Client:
     "lsquic-vuln":[
-        [IMPLEM_DIR + '/lsquic-vuln/bin/','./http_server -c www.example.org/,'+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/leaf_cert.pem,'+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/leaf_cert.key -Q hq-interop -D -s 127.0.0.1:4443 -l event=debug,engine=debug -o version=ff00001d -G '+SOURCE_DIR +'/tls-keys/'],
-        [IMPLEM_DIR + '/lsquic-vuln/bin/','./http_client -0 '+SOURCE_DIR +'/tickets/ticket.bin -4 -Q hq-29 -R 10 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1 -o version=ff00001d -o scid_len=8']
+        [IMPLEM_DIR + '/lsquic-vuln/bin/','./http_server -c www.example.org/,'+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/leaf_cert.pem,'+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/leaf_cert.key -Q ALPN -D -s 127.0.0.1:4443 -l event=debug,engine=debug -o version=VERSION -G '+SOURCE_DIR +'/tls-keys/'],
+        [IMPLEM_DIR + '/lsquic-vuln/bin/','./http_client -0 '+SOURCE_DIR +'/tickets/ticket.bin -4 -Q ALPN -R 10 -w 7 -r 7 -s 127.0.0.1:4443 -t -l event=debug,engine=debug -p /1.html /2.html /3.html /4.html /5.html /6.html /7.html -H 127.0.0.1 -o version=VERSION -o scid_len=8']
     ],
     # Server: error -> ok cert pb  + 0rtt need app_close and not co_close -> shim global var bugs
     # Client: 0rtt (todo -> ok now) + set max cid  (ok now)
     "quic-go":[
-        [IMPLEM_DIR + '/quic-go/server/','./server -c '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/cert.pem -k '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/priv.key -p 4443 127.0.0.1'],
+        [IMPLEM_DIR + '/quic-go/server/','./server -c '+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/cert.pem -k '+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/priv.key -p 4443 127.0.0.1'],
         [IMPLEM_DIR + '/quic-go/client/','./client -X '+SOURCE_DIR +'/tls-keys/secret.log -P -v 127.0.0.1 4443 ']
     ],
     # Server:
@@ -248,14 +252,14 @@ IMPLEMENTATIONS = {
     # Server: cid 0x0 & 0x1 + comment 1 line in quic_frame
     # Client: Not working: unknown reason (ok now, check alpn + ignore cert) -> no co_close ? + 0rtt todo +- ok now
     "quinn":[ # TODO RUST_LOG="debug" RUST_BACKTRACE=1  server
-        [IMPLEM_DIR + '/quinn/','cargo run -vv --example server '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/index.html --listen 127.0.0.1:4443'],
+        [IMPLEM_DIR + '/quinn/','cargo run -vv --example server '+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/index.html --listen 127.0.0.1:4443'],
         [IMPLEM_DIR + '/quinn/','cargo run -vv --example client https://10.0.0.1:4443/index.html --keylog']
     ],
     # Server: 0rtt not working: 2 session ticket with unknown extension (ok now)
     # Client: 0rtt client not implemented in v0.0.7 -> update to 0.9.0  +- ok now, somtime 0rtt done, sometime not (check other version)
     "quiche":[ # TODO RUST_LOG="debug" RUST_BACKTRACE=1 
-        [IMPLEM_DIR + '/quiche/','cargo run --bin quiche-server --  --root . --no-grease --cert '+ SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/cert.pem --early-data --dump-packets '+SOURCE_DIR +'/qlogs/quiche/dump_packet.txt --key '+SOURCE_DIR +'/QUIC-Ivy/doc/examples/quic/priv.key --no-retry --listen 127.0.0.1:4443' ],
-        [IMPLEM_DIR + '/quiche/','cargo run --bin quiche-client -- https://10.0.0.1:4443/index.html --dump-json --session-file '+SOURCE_DIR +'/tickets/ticket.bin --wire-version 00000001 --no-verify --body / -n 5']
+        [IMPLEM_DIR + '/quiche/','cargo run --bin quiche-server --  --root . --no-grease --cert '+ SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/cert.pem --early-data --dump-packets '+SOURCE_DIR +'/qlogs/quiche/dump_packet.txt --key '+SOURCE_DIR +'/QUIC-Ivy-Attacker/doc/examples/quic/priv.key --no-retry --listen 127.0.0.1:4443' ],
+        [IMPLEM_DIR + '/quiche/','cargo run --bin quiche-client -- https://10.0.0.1:4443/index.html --dump-json --session-file '+SOURCE_DIR +'/tickets/ticket.bin --wire-version VERSION --no-verify --body / -n 5']
     ],
     # Server:
     # Client:

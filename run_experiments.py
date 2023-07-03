@@ -8,7 +8,7 @@ from utils.Runner import Runner
 from utils.ArgumentParserRunner import ArgumentParserRunner
 from utils.constants import *
 from utils.CustomFormatter import CustomFormatter
-import tracemalloc 
+import tracemalloc  
 
 from plantuml import PlantUML
 
@@ -62,53 +62,68 @@ class ExperimentRunner:
     def update_includes_ptls(self):
         # Note we use subprocess in order to get sudo rights
         # TODO should use makefile
-        folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/include/1.7"
+        os.chdir(ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/")
+        os.system("sudo python2.7 setup.py install")
+        os.system("sudo cp lib/libz3.so submodules/z3/build/python/z3")
+        # cp lib/libz3.so submodules/z3/build/python/z3; 
+        # export IVY_INCLUDE_PATH=IVY_INCLUDE_PATH:/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7;
+        # export Z3_LIBRARY_DIRS=$PWD/submodules/z3/build; 
+        # export Z3_LIBRARY_PATH=$PWD/submodules/z3/build; 
+        # export PATH=$PATH:$PWD/submodules/z3/build; 
+        # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/submodules/z3/build; 
+        # export PYTHONPATH=$PYTHONPATH:$PWD/submodules/z3/build/python; 
+          
+        
+        folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include/1.7"
         self.log.info("Update \"include\" path of python with updated version of the TLS project from \n\t"+folder)
-        self.log.info("TESTSSS")
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_tracer.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_tracer.py", 
-                                                    shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo python -m compileall ivy_tracer.py", 
-                                                    shell=True, executable="/bin/bash").wait()
+        # self.log.info("TESTSSS")
+        # subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_tracer.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_tracer.py", 
+        #                                             shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo python -m compileall ivy_tracer.py", 
+        #                                             shell=True, executable="/bin/bash").wait()
         files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy")]
+        self.log.info("Copying file to /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/")
         for file in files:
             self.log.info(" " + file)
-            subprocess.Popen("sudo /bin/cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
+            subprocess.Popen("sudo /bin/cp "+ file +" /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_to_cpp.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_to_cpp.py", 
+        """
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_to_cpp.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_to_cpp.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_solver.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_solver.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_solver.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_solver.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_cpp_types.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_cpp_types.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_cpp_types.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_cpp_types.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_parser.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_parser.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_parser.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_parser.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_ast.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_ast.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_ast.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_ast.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        # subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_compiler.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_compiler.py", 
+        # subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_compiler.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_compiler.py", 
         #                                             shell=True, executable="/bin/bash").wait() # TODO
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_ui.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_ui.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_ui.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_ui.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_ui.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_ui.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_ui.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_ui.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/cy_render.py /usr/local/lib/python2.7/dist-packages/ivy/cy_render.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/cy_render.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/cy_render.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_graph_ui.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_graph_ui.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_graph_ui.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_graph_ui.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_trace.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_trace.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_trace.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_trace.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/tk_ui.py /usr/local/lib/python2.7/dist-packages/ivy/tk_ui.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/tk_ui.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/tk_ui.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/tk_graph_ui.py /usr/local/lib/python2.7/dist-packages/ivy/tk_graph_ui.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/tk_graph_ui.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/tk_graph_ui.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        # subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy_actions.py /usr/local/lib/python2.7/dist-packages/ivy/ivy_actions.py", 
+        # subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_actions.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_actions.py", 
         #                                             shell=True, executable="/bin/bash").wait() # TODO
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/ivy.py /usr/local/lib/python2.7/dist-packages/ivy/ivy.py", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy.py /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        #cd /usr/local/lib/python2.7/dist-packages/ivy/
-
-        os.chdir('/usr/local/lib/python2.7/dist-packages/ivy/')
-
+        #cd /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/
+        """
         
+        os.chdir('/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/')
+
+        """
         subprocess.Popen("sudo python -m compileall ivy_to_cpp.py", 
                                                     shell=True, executable="/bin/bash").wait()
         subprocess.Popen("sudo python -m compileall ivy_cpp_types.py", 
@@ -148,32 +163,32 @@ class ExperimentRunner:
         
         subprocess.Popen("sudo python -m compileall ivy.py", 
                                                     shell=True, executable="/bin/bash").wait()
-        
-        subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
+        """
+        subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/lib/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib", 
                                                     shell=True, executable="/bin/bash").wait()
 
         #echo "CP picotls lib"
-        subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ivy/lib", 
+        subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/*.a " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/lib", 
+        subprocess.Popen("sudo /bin/cp -f -a " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/*.a " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/lib", 
                                                     shell=True, executable="/bin/bash").wait()                                          
 
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/include", 
+        subprocess.Popen("sudo /bin/cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include", 
                                                     shell=True, executable="/bin/bash").wait()
 
-        # cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include
-        # cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/include
-        subprocess.Popen("sudo /bin/cp -r -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ivy/include/picotls", 
+        # cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include
+        # cp -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include
+        subprocess.Popen("sudo /bin/cp -r -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/picotls", 
                                                     shell=True, executable="/bin/bash").wait()
-        # subprocess.Popen("sudo /bin/cp -r -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/ivy/include/picotls", 
+        # subprocess.Popen("sudo /bin/cp -r -f " + ExperimentRunner.SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include/picotls", 
         #                                             shell=True, executable="/bin/bash").wait()
  
         os.chdir(ExperimentRunner.SOURCE_DIR)
 
     def update_includes(self):
-        path = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic"
+        path = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic"
         self.log.info("Update \"include\" path of python with updated version of the project from \n\t"+path)
         subfolder = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
         for folder in subfolder:
@@ -181,9 +196,9 @@ class ExperimentRunner:
             for file in files:
                 self.log.info(" " + file)
                 self.included_files.append(file)
-                subprocess.Popen("sudo /bin/cp "+ file +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
+                subprocess.Popen("sudo /bin/cp "+ file +" /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
                                                     shell=True, executable="/bin/bash").wait()
-        subprocess.Popen("sudo /bin/cp "+ path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/", 
+        subprocess.Popen("sudo /bin/cp "+ path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
                                                     shell=True, executable="/bin/bash").wait()
 
     def set_custom(self, custom):
@@ -194,7 +209,7 @@ class ExperimentRunner:
         for file in self.included_files:
             self.log.info(" " + file)
             nameFileShort = file.split("/")[-1]
-            subprocess.Popen("sudo /bin/rm /usr/local/lib/python2.7/dist-packages/ivy/include/1.7/" + nameFileShort, 
+            subprocess.Popen("sudo /bin/rm /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/" + nameFileShort, 
                                                     shell=True, executable="/bin/bash").wait()
 
     def build_tests(self,mode, categories,tc=None):
@@ -208,7 +223,7 @@ class ExperimentRunner:
         else:
             custom = True
         if not custom:
-            folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+            folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
             os.chdir(folder)
             if "all" in categories:
                 files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy") and mode in f]
@@ -246,7 +261,7 @@ class ExperimentRunner:
             for file in TESTS_CUSTOM:
                 if "server" in file:
                     mode = "server"
-                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
                     os.chdir(folder)
                     file = os.path.join(folder, file) + ".ivy"
                     self.log.info(" " + file)
@@ -264,7 +279,7 @@ class ExperimentRunner:
                     self.build_file(nameFileShort)
                 elif "client" in file:
                     mode = "client"
-                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
                     os.chdir(folder)
                     file = os.path.join(folder, file) + ".ivy"
                     self.log.info(" " + file)
@@ -273,7 +288,7 @@ class ExperimentRunner:
                     self.build_file(nameFileShort)
                 else:
                     mode = "mim"
-                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    folder = ExperimentRunner.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
                     os.chdir(folder)
                     file = os.path.join(folder, file) + ".ivy"
                     self.log.info(" " + file)
@@ -312,13 +327,13 @@ class ExperimentRunner:
 
     def compile_file(self,file):
         if ExperimentRunner.COMPILE:
-            subprocess.Popen("ivyc trace=true show_compiled=true target=test " + file, 
+            subprocess.Popen("ivyc trace=false show_compiled=false target=test " + file, 
                                                     shell=True, executable="/bin/bash").wait()
-            subprocess.Popen("/bin/cp "+ file.replace('.ivy','')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+            subprocess.Popen("/bin/cp "+ file.replace('.ivy','')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
                                                     shell=True, executable="/bin/bash").wait()
-            subprocess.Popen("/bin/cp "+ file.replace('.ivy','.cpp')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+            subprocess.Popen("/bin/cp "+ file.replace('.ivy','.cpp')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
                                                     shell=True, executable="/bin/bash").wait()
-            subprocess.Popen("/bin/cp "+ file.replace('.ivy','.h')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy/doc/examples/quic/build/", 
+            subprocess.Popen("/bin/cp "+ file.replace('.ivy','.h')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
                                                     shell=True, executable="/bin/bash").wait()
             subprocess.Popen("/bin/rm "+ file.replace('.ivy',''), 
                                                     shell=True, executable="/bin/bash").wait()
@@ -343,8 +358,6 @@ class ExperimentRunner:
         ENV_VAR["INITIAL_VERSION"] = str(self.args.initial_version)
         ExperimentRunner.COMPILE = self.args.compile
         
-        os.environ['TEST_TYPE']     = self.args.mode # TODO for dockercompose -> change for custom
-        ENV_VAR["TEST_TYPE"]        = self.args.mode
         if not self.args.docker:
             os.environ['IS_NOT_DOCKER'] = "true" 
             ENV_VAR["IS_NOT_DOCKER"]    = "true"
@@ -438,7 +451,7 @@ class ExperimentRunner:
                         #os.environ['RND'] = os.getenv("RANDOM")
                         subprocess.Popen("> "+ ExperimentRunner.SOURCE_DIR +"/tickets/ticket.bin", 
                                                     shell=True, executable="/bin/bash").wait()
-                        path = ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/'
+                        path = ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/'
                         #print(path)
                         folders = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
                         #print(folders)
@@ -503,6 +516,8 @@ class ExperimentRunner:
                         self.log.info("\tStart run")
                         try:
                             runner.output_path = None
+                            os.environ['TEST_TYPE']     = "server" if "server" in initial_test else "client" # TODO for dockercompose -> change for custom
+                            ENV_VAR["TEST_TYPE"]        = "server" if "server" in initial_test else "client"# self.args.mode
                             runner.run_exp(initial_test,pcap_i,pcap_name,i,j,self.args.gperf)
                             
                         except Exception as e:
@@ -533,11 +548,11 @@ class ExperimentRunner:
         self.count_1 = None
         self.remove_includes()
         TESTS_CUSTOM = []
-        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tls-keys/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tls-keys/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/', 
         #                     shell=True, executable="/bin/bash").wait()
-        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tickets/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tickets/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/', 
         #                     shell=True, executable="/bin/bash").wait()
-        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/qlogs/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy/doc/examples/quic/test/temp/', 
+        # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/qlogs/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/', 
         #                     shell=True, executable="/bin/bash").wait()
         if ExperimentRunner.MEMORY_PROFILING:
             snapshot = tracemalloc.take_snapshot()

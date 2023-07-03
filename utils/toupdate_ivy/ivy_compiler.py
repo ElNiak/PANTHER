@@ -25,7 +25,7 @@ import ivy_printer
 import ivy_proof as ip
 from collections import defaultdict
 from tarjan import tarjan
-import ivy_tracer
+# import ivy_tracer
 
 opt_mutax = iu.BooleanParameter("mutax",False)
 
