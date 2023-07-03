@@ -12,9 +12,11 @@ install:
 	git submodule update --init --recursive 
 	git submodule update --recursive
 	# git checkout rfc-9000
+	git checkout master
 	mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp
 	cd submodules/picotls/
 	git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
+	make build-docker-compose-full
 
 ###################################################################################################
 # BUILDER
