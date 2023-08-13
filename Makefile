@@ -5,6 +5,12 @@ clean:
 	#docker kill $(docker ps -q)
 	docker image prune -a
 
+clean-docker:
+	docker image prune
+	docker image prune -a
+	docker rmi $(docker images -a -q) 
+	#  docker system prune -a -f
+
 install:
 	git submodule update --init --recursive 
 	git submodule update --recursive
@@ -253,6 +259,11 @@ launch-teams:
 	xhost +local:docker
 	docker run --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$(DISPLAY) -it teams
 
+permissions:
+	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/test/temp
+	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/build
+	
+# https://jtreminio.com/blog/running-docker-containers-as-current-host-user/
 compose:
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/test/temp
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/build .

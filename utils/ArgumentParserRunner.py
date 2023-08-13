@@ -94,6 +94,11 @@ class ArgumentParserRunner:
             action="store_true"
         )
         self.group.add_argument(
+            '--shadow', 
+            help='Use Shadow simulator (default:False)',
+            action="store_true"
+        )
+        self.group.add_argument(
             '--alpn', 
             help='alpn (default: hq-interop)',
             type=str, 

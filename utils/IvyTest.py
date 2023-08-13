@@ -135,7 +135,7 @@ class IvyTest(object):
                                         quic_cmd = quic_cmd.replace("VERSION","00000001" if ENV_VAR["INITIAL_VERSION"] == "1" else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"))
                                         quic_cmd = quic_cmd.replace("ALPN",ENV_VAR["TEST_ALPN"])
 
-                                    qcmd =  ('sleep 5; ' if self.is_client else "") + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
+                                    qcmd =  ('sleep 5; ' if self.is_client and "IS_NOT_SHADOW" in os.environ else "") + quic_cmd # if self.is_client else quic_cmd.split()  #if is client 'sleep 5; ' +
                                     # if not self.is_client:
                                     #     qcmd.insert(0,"exec")
 
@@ -144,13 +144,34 @@ class IvyTest(object):
                                     #elif "aioquic" in self.implementation_name:
                                     #    qcmd = "PYTHONPATH=/QUIC-FormalVerification/quic-implementations/aioquic/ " + qcmd  
                                     print('implementation command: {}'.format(qcmd))
-                                    quic_process = subprocess.Popen(qcmd,
-                                                                cwd=self.quic_dir,
-                                                                stdout=out,
-                                                                stderr=err,
-                                                                shell=True, #self.is_client, 
-                                                                preexec_fn=os.setsid)
-                                    print('quic_process pid: {}'.format(quic_process.pid))
+                                    if "IS_NOT_SHADOW" in os.environ :
+                                        print("not shadow test:")
+                                        quic_process = subprocess.Popen(qcmd,
+                                                                    cwd=self.quic_dir,
+                                                                    stdout=out,
+                                                                    stderr=err,
+                                                                    shell=True, #self.is_client, 
+                                                                    preexec_fn=os.setsid)
+                                        print('quic_process pid: {}'.format(quic_process.pid))
+                                    else:
+                                        print("shadow test:")
+                                        if "client_test" in self.name:
+                                            file = "shadow_client_test.yml"
+                                        else:
+                                            file = "shadow_server_test.yml"
+                                        # with open(file, "rw") as f:
+                                        #     content = f.read() # todo replace
+                                        os.chdir("/tmp/QUIC-FormalVerification")
+                                        print("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
+                                        os.system("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
+                                        os.system("mv /tmp/QUIC-FormalVerification/shadow.log "+self.output_path+"/shadow.log")
+                                        print("command: shadow " + file + " > shadow.log")
+                                        try:
+                                            os.system("shadow " + file + " > shadow.log")
+                                        except:
+                                            pass
+                                        
+                                            
                             # Always launch the test itself that will apply (test_client_max eg)
                         
                                                 # If run => get exit status of process 
@@ -181,59 +202,61 @@ class IvyTest(object):
                                                                 shell=True, #self.is_client, 
                                                                 preexec_fn=os.setsid)
                             print('quic_process_2 pid: {}'.format(quic_process_2.pid))
-                        try:
-                            ok = True
-                            for iclient in range(0,self.nclient): # TODO for multiple implem client only
-                                print("iclient = "+ str(iclient))
-                                ok = ok and self.expect(iteration,iev,i,iclient)
-                        except KeyboardInterrupt:
-                            if not self.is_mim:
-                                if self.run and not self.keep_alive:
-                                    print("cool kill")
-                                    if self.vnet:
-                                        subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/vnet_reset.sh", 
-                                        shell=True, executable="/bin/bash").wait()
-                                    quic_process.terminate()
-                                raise KeyboardInterrupt
-                            else:
-                                if self.run and not self.keep_alive:
-                                    print("cool kill")
-                                    if self.vnet:
-                                        subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/vnet_reset.sh", 
-                                        shell=True, executable="/bin/bash").wait()
-                                    quic_process_1.terminate()
-                                    quic_process_2.terminate()
-                                raise KeyboardInterrupt
+                        ok = True
+                        if "IS_NOT_SHADOW" in os.environ :
+                            try:
+                                
+                                for iclient in range(0,self.nclient): # TODO for multiple implem client only
+                                    print("iclient = "+ str(iclient))
+                                    ok = ok and self.expect(iteration,iev,i,iclient)
+                            except KeyboardInterrupt:
+                                if not self.is_mim:
+                                    if self.run and not self.keep_alive:
+                                        print("cool kill")
+                                        if self.vnet:
+                                            subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                                            shell=True, executable="/bin/bash").wait()
+                                        quic_process.terminate()
+                                    raise KeyboardInterrupt
+                                else:
+                                    if self.run and not self.keep_alive:
+                                        print("cool kill")
+                                        if self.vnet:
+                                            subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                                            shell=True, executable="/bin/bash").wait()
+                                        quic_process_1.terminate()
+                                        quic_process_2.terminate()
+                                    raise KeyboardInterrupt
                             
-                        if self.run and not self.keep_alive and not (self.implementation_name == "quic-go" and  "quic_client_test_0rtt" in self.name):
-                            print("quic_process.terminate()")
-                            if not self.is_mim:
-                                # The above code is terminating the process.
-                                quic_process.terminate()
-                                retcode = quic_process.wait()
-                                print(retcode)
-                                if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
-                                    iev.write('server_return_code({})\n'.format(retcode))
-                                    print("server return code: {}".format(retcode))
-                                    quic_process.kill()
-                                    return False
-                            else:
-                                quic_process_1.terminate()
-                                retcode = quic_process_1.wait()
-                                print(retcode)
-                                if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
-                                    iev.write('server_return_code({})\n'.format(retcode))
-                                    print("server return code: {}".format(retcode))
-                                    quic_process_1.kill()
-                                    return False
-                                quic_process_2.terminate()
-                                retcode = quic_process_2.wait()
-                                print(retcode)
-                                if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
-                                    iev.write('server_return_code({})\n'.format(retcode))
-                                    print("server return code: {}".format(retcode))
-                                    quic_process_2.kill()
-                                    return False
+                            if self.run and not self.keep_alive and not (self.implementation_name == "quic-go" and  "quic_client_test_0rtt" in self.name):
+                                print("quic_process.terminate()")
+                                if not self.is_mim:
+                                    # The above code is terminating the process.
+                                    quic_process.terminate()
+                                    retcode = quic_process.wait()
+                                    print(retcode)
+                                    if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
+                                        iev.write('server_return_code({})\n'.format(retcode))
+                                        print("server return code: {}".format(retcode))
+                                        quic_process.kill()
+                                        return False
+                                else:
+                                    quic_process_1.terminate()
+                                    retcode = quic_process_1.wait()
+                                    print(retcode)
+                                    if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
+                                        iev.write('server_return_code({})\n'.format(retcode))
+                                        print("server return code: {}".format(retcode))
+                                        quic_process_1.kill()
+                                        return False
+                                    quic_process_2.terminate()
+                                    retcode = quic_process_2.wait()
+                                    print(retcode)
+                                    if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
+                                        iev.write('server_return_code({})\n'.format(retcode))
+                                        print("server return code: {}".format(retcode))
+                                        quic_process_2.kill()
+                                        return False
             if not self.is_mim:
                 if quic_process != None:
                     try:
@@ -347,7 +370,7 @@ class IvyTest(object):
     
     def command(self, iteration, iclient):
         import platform
-        strace_cmd = "strace -k -e sched_getaffinity" #"strace -e sendto" # TODO strace -e sendto
+        strace_cmd = "strace -k -e '!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time'" #"strace -e sendto" # TODO strace -e sendto
         # 'HEAPPROFILE='+ os.path.join(self.output_path,self.name+str(iteration)) +'_heap.prof '
         gperf_cmd = "LD_PRELOAD=/usr/local/lib/libprofiler.so CPUPROFILE="+ os.path.join(self.output_path,self.name+str(iteration)) + '_cpu.prof ' if self.do_gperf \
                     else ""
@@ -420,6 +443,7 @@ class IvyTest(object):
             ip_server = 0x0a000003 if not self.is_client else 0x0a000001
             ip_client = 0x0a000001 if not self.is_client else 0x0a000003
         else:
+            # prefix = strace_cmd + " "
             ip_server = 0x7f000001
             ip_client = ip_server
 

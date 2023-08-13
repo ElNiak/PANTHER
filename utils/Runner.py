@@ -89,9 +89,11 @@ class Runner:
             print("is_mim = " + str(self.is_mim))
             self.is_client = ENV_VAR["TEST_TYPE"] == "client"
             self.initial_version = ENV_VAR["INITIAL_VERSION"]
+            is_shadow = "IS_NOT_SHADOW" not in ENV_VAR.keys()
             print("is_client = " + str(self.is_client))
             print("initial_version = " + str(self.initial_version))
             print("path = " + path)
+            print("is_shadow = " + str(is_shadow))
             if not os.path.exists(path):
                 #Create the output directory
                 try:  
@@ -151,6 +153,10 @@ class Runner:
                     print(status)
                     if not status:
                         num_failures += 1
+                    if "IS_NOT_SHADOW" not in ENV_VAR.keys():
+                        print("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
+                        os.system("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
+                        os.system("mv /tmp/QUIC-FormalVerification/shadow.log "+self.output_path+"/shadow.log")
                 if self.getstats:
                     import utils.stats as stats
                     with open(os.path.join(self.output_path,test.name+str(iteration)+'.dat'),"w") as out:

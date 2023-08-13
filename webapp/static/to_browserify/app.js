@@ -290,6 +290,16 @@ $.get(
             fit: true,
             nodeDimensionsIncludeLabels: true,
             avoidOverlap: true,
+            //padding: 10,
+            spacingFactor: 2,
+            // edgeSep: 2,
+            // nodeSep:2,
+            //align:"UD",
+            rankDir:"TB",
+            ranker:"network-simplex",
+            sort: function (a, b) {
+              return a.data('weight') - b.data('weight')
+            }
           },
           fisheye: false,
           animate: true,
@@ -394,6 +404,93 @@ $.get(
             'target-arrow-shape': 'triangle',
             //LABEL
             label: "",
+            content: "data(label)"
+          }
+        },
+        { //TODO
+          selector: "edge.comp",
+          style: {
+            width: 10,
+            "line-color": "#b8b8b8",
+            "curve-style": "bezier",
+            'target-arrow-shape': 'triangle',
+            //LABEL
+            label: "",
+            //content: "data(label)"
+          }
+        },
+        { //TODO
+          selector: "edge.before",
+          style: {
+            width: 1,
+            "line-color": "red",
+            "curve-style": "bezier",
+            'target-arrow-shape': 'triangle',
+            //LABEL
+            label: "",
+            //content: "data(label)"
+          }
+        },
+        { //TODO
+          selector: "edge.implementation",
+          style: {
+            width: 1,
+            "line-color": "blue",
+            "curve-style": "bezier",
+            'target-arrow-shape': 'triangle',
+            //LABEL
+            label: "",
+            //content: "data(label)"
+          }
+        },
+        { //TODO
+          selector: "edge.assertion",
+          style: {
+            width: 1,
+            "line-color": "#b8b8b8",
+            "curve-style": "bezier",
+            "line-style": "dashed",
+            'target-arrow-shape': 'triangle',
+            //LABEL
+            label: "",
+            //content: "data(label)"
+          }
+        },
+        { //TODO
+          selector: "edge.call",
+          style: {
+            width: 1,
+            "line-color": "orange",
+            "curve-style": "bezier",
+            "line-style": "dashed",
+            "line-dash-pattern": [36, 1, 2, 1].map((e) => e * 5),
+            'target-arrow-shape': 'triangle',
+            //LABEL
+            label: "",
+            //content: "data(label)"
+          }
+        },
+        { //TODO
+          selector: "edge.after",
+          style: {
+            width: 1,
+            "line-color": "green",
+            "curve-style": "bezier",
+            'target-arrow-shape': 'triangle',
+            //LABEL
+            label: "",
+            //content: "data(label)"
+          }
+        },
+        { //TODO
+          selector: "edge.around",
+          style: {
+            width: 1,
+            "line-color": "#b8b8b8",
+            "curve-style": "bezier",
+            'target-arrow-shape': 'triangle',
+            //LABEL
+            label: "",
             //content: "data(label)"
           }
         },
@@ -415,12 +512,19 @@ $.get(
 
       layout: {
         name: "dagre",
-        padding: 0,
-        spacingFactor: 0,
+        // padding: 10,
+        spacingFactor: 2,
         nodeDimensionsIncludeLabels: true,
         fit: true,
         avoidOverlap: true,
-        ranker:"network-simplex"
+        // edgeSep: 2,
+        // nodeSep:2,
+        // align:"UD",
+        rankDir:"TB",
+        ranker:"network-simplex",
+        sort: function (a, b) {
+          return a.data('weight') - b.data('weight')
+        }
       },
 
       elements: data,
@@ -528,13 +632,13 @@ $.get(
         },
         show: {
           event: "click",
-          //ready: true
+          ready: true
         },
-        /*position: {
+        position: {
           my: 'bottom center', 
           at: 'top center',
           target: this
-        },*/
+        },
         hide: {
           event: "click"
         },
@@ -880,7 +984,11 @@ $.get(
       animate: "end",
       randomize: false,
       fit: true,
-      nodeDimensionsIncludeLabels: true
+      nodeDimensionsIncludeLabels: true,
+      //padding: 10,
+      spacingFactor: 2,
+      avoidOverlap: true,
+      ranker:"network-simplex"
     }
     var layout = makeLayout()
 

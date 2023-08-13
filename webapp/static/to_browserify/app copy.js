@@ -689,6 +689,8 @@ $.get(
       }
     ]);
 
+    
+
     cy.nodes().on("expandcollapse.beforecollapse", function (e) {
       console.log("Triggered before a node is collapsed");
     });

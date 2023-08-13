@@ -329,6 +329,8 @@ class ExperimentRunner:
         if ExperimentRunner.COMPILE:
             subprocess.Popen("ivyc trace=false show_compiled=false target=test " + file, 
                                                     shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("/usr/bin/chmod +x "+ file.replace('.ivy',''), 
+                                                    shell=True, executable="/bin/bash").wait()
             subprocess.Popen("/bin/cp "+ file.replace('.ivy','')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
                                                     shell=True, executable="/bin/bash").wait()
             subprocess.Popen("/bin/cp "+ file.replace('.ivy','.cpp')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
@@ -366,6 +368,21 @@ class ExperimentRunner:
                 del os.environ['IS_NOT_DOCKER']
             if 'IS_NOT_DOCKER' in ENV_VAR:
                 del ENV_VAR['IS_NOT_DOCKER']
+        
+        print("shadow:")
+        print(self.args.shadow)
+        if not self.args.shadow:
+            os.environ['IS_NOT_SHADOW'] = "true" 
+            ENV_VAR["IS_NOT_SHADOW"]    = "true"
+        else:
+            if 'IS_NOT_SHADOW' in os.environ:
+                del os.environ['IS_NOT_SHADOW']
+            if 'IS_NOT_SHADOW' in ENV_VAR:
+                del ENV_VAR['IS_NOT_SHADOW']
+                
+        print('IS_NOT_SHADOW' in os.environ)
+        print('IS_NOT_SHADOW' in ENV_VAR)
+                
         subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
                             shell=True, executable="/bin/bash").wait() # for quic-go
         if self.args.vnet:
@@ -415,6 +432,7 @@ class ExperimentRunner:
                 runner.nclient = 2
             else:
                 runner.nclient = self.args.nclient
+            
             # if "quic_client_test_version_negociation_mim" in test:
             #     subprocess.Popen("bash "+ ExperimentRunner.SOURCE_DIR + "/mim-setup.sh", 
             #                                         shell=True, executable="/bin/bash").wait()
@@ -546,7 +564,7 @@ class ExperimentRunner:
                             shell=True, executable="/bin/bash").wait()
         bar_f.finish()
         self.count_1 = None
-        self.remove_includes()
+        # self.remove_includes()
         TESTS_CUSTOM = []
         # subprocess.Popen("sudo /bin/cp -r "+ ExperimentRunner.SOURCE_DIR +"/tls-keys/ " + ExperimentRunner.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/', 
         #                     shell=True, executable="/bin/bash").wait()
