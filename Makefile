@@ -81,7 +81,10 @@ build-docker-ivy-gperf:
 build-docker-compose:
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/test/temp
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/build .
+	IMPLEM="picoquic-shadow" make build-docker-ivy
+	IMPLEM="picoquic-old-shadow" make build-docker-ivy
 	IMPLEM="picoquic" make build-docker-ivy
+	IMPLEM="picoquic-shadow-bad" make build-docker-ivy
 	IMPLEM="quant" make build-docker-ivy
 	make build-docker-visualizer
 	make build-docker-ivy-standalone-short
@@ -89,6 +92,9 @@ build-docker-compose:
 build-docker-compose-full:
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/test/temp
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/build .
+	IMPLEM="picoquic-shadow" make build-docker
+	IMPLEM="picoquic-old-shadow" make build-docker
+	IMPLEM="picoquic-shadow-bad" make build-docker
 	IMPLEM="picoquic" make build-docker
 	IMPLEM="quant" make build-docker
 	make build-docker-visualizer

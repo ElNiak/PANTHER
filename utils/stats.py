@@ -97,7 +97,7 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out,in
 
     # TODO special case for "error" tests
     
-    df = df.append({"Run": run_id,
+    df = pd.concat([df,pd.DataFrame([{"Run": run_id,
                      "Implementation": implem_name,
                      "Mode": "Client" if "client" in test_name else "Server",
                      "TestName": test_name,
@@ -124,8 +124,10 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out,in
                      "tls.finished":iev_content.count("tls.finished"),
                      "version_not_found":iev_content.count("version_not_found_event"),
                      "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                     "initial_version": initial_version},
+                     "initial_version": initial_version}])],
                      ignore_index=True)
+    
+    print(df)
 
     df.to_csv(RESULT_DIR + 'temp/data.csv', index=False)
     

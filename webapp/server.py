@@ -178,6 +178,10 @@ class IvyServer:
             IvyServer.experiments.args.vnet = True if request.form["net_mode"] == "vnet" else False
             IvyServer.experiments.args.shadow = True if request.form["net_mode"] == "shadow" else False
             IvyServer.experiments.args.iter = int(request.form["iteration"])
+            IvyServer.experiments.args.internal_iteration = int(request.form["internal_iteration"])
+            IvyServer.experiments.args.loss = int(request.form["loss"])
+            IvyServer.experiments.args.jitter = int(request.form["Jitter"])
+            IvyServer.experiments.args.latency = int(request.form["Latency"])
             IvyServer.experiments.args.timeout = int(request.form["timeout"])
             # TODO docker
             
@@ -238,7 +242,7 @@ class IvyServer:
         """
         IvyServer.app.logger.info(IvyServer.ivy_temps_path)
         IvyServer.app.logger.info(os.listdir(IvyServer.ivy_temps_path))
-        IvyServer.nb_exp = len(os.listdir(IvyServer.ivy_temps_path)) - 2
+        IvyServer.nb_exp = len(os.listdir(IvyServer.ivy_temps_path)) - 3 #2
         
         
         default_page = 0
@@ -284,14 +288,14 @@ class IvyServer:
                 {
                 "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
                 "name": "Experiences coverage view",
-                "parameters": ["Implementation","Run"],
+                "parameters": ["Run"], # "Implementation",
                 "measurements": ["NbPktSend"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
                 "data": subdf.to_csv()
                 },
                 {
                 "id": str(uuid.uuid4()), # Must be unique TODO df_csv_scdg['filename']
                 "name": "Experiences packet view",
-                "parameters": ["Implementation","Run"],
+                "parameters": ["Run"], # "Implementation"
                 "measurements": ["packet_event", "recv_packet"], # , "Total number of blocks",'Number Syscall found' , 'Number Address found', 'Number of blocks visited', "Total number of blocks","time"
                 "data": subdf.to_csv() # index=False -> need index
                 },
@@ -303,20 +307,20 @@ class IvyServer:
                 # "data": subdf.to_csv(index=False)
                 # },
             ]
-        configurationData = {
-                "id": str(uuid.uuid4()), # Must be unique
-                "name": "Quickstart example",
-                "parameters": ["N", "algorithm", "num_cpus", "cpu_brand"],
-                "measurements": ["efficiency"],
-                "data": """algorithm,N,num_cpus,efficiency,cpu_brand
-                Algorithm 1,10,1,0.75,Ryzen
-                Algorithm 1,10,4,0.85,Ryzen
-                Algorithm 1,10,8,0.90,Ryzen
-                Algorithm 2,10,1,0.65,Ryzen
-                Algorithm 2,10,4,0.80,Ryzen
-                Algorithm 2,10,8,0.87,Ryzen
-                """, # Raw data in csv format
-            }
+        # configurationData = {
+        #         "id": str(uuid.uuid4()), # Must be unique
+        #         "name": "Quickstart example",
+        #         "parameters": ["N", "algorithm", "num_cpus", "cpu_brand"],
+        #         "measurements": ["efficiency"],
+        #         "data": """algorithm,N,num_cpus,efficiency,cpu_brand
+        #         Algorithm 1,10,1,0.75,Ryzen
+        #         Algorithm 1,10,4,0.85,Ryzen
+        #         Algorithm 1,10,8,0.90,Ryzen
+        #         Algorithm 2,10,1,0.65,Ryzen
+        #         Algorithm 2,10,4,0.80,Ryzen
+        #         Algorithm 2,10,8,0.87,Ryzen
+        #         """, # Raw data in csv format
+        #     }
         export(configurationData, output)
         
         #IvyServer.app.logger.info(configurationData)

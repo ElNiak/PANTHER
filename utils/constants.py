@@ -112,6 +112,12 @@ TESTS_SERVER = {
     "tp_ext": [
         "quic_server_test_version_negociation_ext",
         "quic_server_test_ext_min_ack_delay"
+    ],
+    "recover_test": [
+        "quic_server_test_timeout",
+        "quic_server_test_timeout_no_sleep",
+        "quic_server_test_loss_recovery",
+        "quic_server_test_congestion_control"
     ]
 }
 
@@ -126,9 +132,9 @@ TESTS_CUSTOM = []
 # ptls_openssl_x25519
 TESTS_CLIENT = {
     "global_test": [
-        'quic_client_test_max'
+        'quic_client_test_max',
         # 'quic_client_test_accept_maxdata',
-        # 'quic_client_test_ext_min_ack_delay',
+        'quic_client_test_ext_min_ack_delay',
     ],
     "unknow_test": [
         'quic_client_test_unknown',
@@ -170,6 +176,12 @@ TESTS_CLIENT = {
         # "quic_client_test_0rtt_mim_replay"
 
     ],
+    "recover_test": [
+        "quic_client_test_timeout",
+        "quic_client_test_timeout_no_sleep",
+        "quic_client_test_loss_recovery",
+        "quic_client_test_congestion_control"
+    ]
 }
 # TODO make interface dynamic
 
@@ -207,6 +219,24 @@ IMPLEMENTATIONS = {
     # Server:
     # Client:
     "picoquic":[
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a ALPN -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a ALPN -T '+SOURCE_DIR +'/tickets/ticket.bin -v VERSION -l - -D -L  10.0.0.1 4443']
+    ],
+    # Server:
+    # Client:
+    "picoquic-shadow":[
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a ALPN -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a ALPN -T '+SOURCE_DIR +'/tickets/ticket.bin -v VERSION -l - -D -L  10.0.0.1 4443']
+    ],
+    # Server:
+    # Client:
+    "picoquic-old-shadow":[
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a ALPN -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a ALPN -T '+SOURCE_DIR +'/tickets/ticket.bin -v VERSION -l - -D -L  10.0.0.1 4443']
+    ],
+    # Server:
+    # Client:
+    "picoquic-shadow-bad":[
         [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a ALPN -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
         [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a ALPN -T '+SOURCE_DIR +'/tickets/ticket.bin -v VERSION -l - -D -L  10.0.0.1 4443']
     ],

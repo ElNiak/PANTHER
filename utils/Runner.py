@@ -153,10 +153,25 @@ class Runner:
                     print(status)
                     if not status:
                         num_failures += 1
+                    # TODO could be improve but i dont want to refactor all the code
                     if "IS_NOT_SHADOW" not in ENV_VAR.keys():
                         print("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
                         os.system("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
                         os.system("mv /tmp/QUIC-FormalVerification/shadow.log "+self.output_path+"/shadow.log")
+                        os.system("rm "+ pcap_name)
+                        os.system("cp "+self.output_path +"/shadow.data/hosts/client/eth0.pcap "+pcap_name)
+                        if self.is_client:
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/server/*.stderr >>"+ os.path.join(self.output_path, 'ivy_stderr.txt'))
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/server/*.stdout >>"+ os.path.join(self.output_path, test.name+str(iteration)+'.iev'))
+                            
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/client/*.stdout >>"+ os.path.join(self.output_path, test.name+str(iteration)+'.out'))
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/client/*.stderr >>"+ os.path.join(self.output_path, test.name+str(iteration)+'.err'))
+                        else:
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/client/*.stderr >>" + os.path.join(self.output_path, 'ivy_stderr.txt'))
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/client/*.stdout >> "+ os.path.join(self.output_path, test.name+str(iteration)+'.iev'))
+                
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/server/*.stdout >>"+ os.path.join(self.output_path, test.name+str(iteration)+'.out'))
+                            os.system("cat "+self.output_path +"/shadow.data/hosts/server/*.stderr >>"+ os.path.join(self.output_path, test.name+str(iteration)+'.err'))
                 if self.getstats:
                     import utils.stats as stats
                     with open(os.path.join(self.output_path,test.name+str(iteration)+'.dat'),"w") as out:
@@ -164,10 +179,22 @@ class Runner:
                         os.chdir(self.output_path)
                         stats.make_dat(test.name,out)
                         os.chdir(save)
-                    with open(os.path.join(self.output_path,test.name+str(iteration)+'.iev'),"r") as out:
+                    filename = os.path.join(self.output_path,test.name+str(iteration)+'.iev')
+                    # if "IS_NOT_SHADOW" not in ENV_VAR.keys():
+                    #     filename = os.path.join(self.output_path, "shadow.data/hosts/server/" + test.name+'.stdout')
+                    with open(filename,"r") as out:
+                        #if "IS_NOT_SHADOW" not in ENV_VAR.keys():
                         stats.update_csv(run_id,self.quic_implementation, "client" if self.is_client else "server", 
-                                test.name,pcap_name,os.path.join(self.output_path,
-                                test.name+str(iteration)+'.iev'),out,self.initial_version)
+                            test.name,pcap_name,os.path.join(self.output_path, test.name+str(iteration)+'.iev'),out,self.initial_version)
+                        # else:
+                        #     if self.is_client:
+                        #         stats.update_csv(run_id,self.quic_implementation, "client", 
+                        #                 test.name,os.path.join(self.output_path,"shadow.data/hosts/server/eth0.pcap"),
+                        #                 os.path.join(self.output_path, "shadow.data/hosts/server/" + test.name+'.stdout'),out,self.initial_version)
+                        #     else:
+                        #         stats.update_csv(run_id,self.quic_implementation, "server", 
+                        #                 test.name,os.path.join(self.output_path,"shadow.data/hosts/client/eth0.pcap"),
+                        #                 os.path.join(self.output_path, "shadow.data/hosts/client/" + test.name+'.stdout'),out,self.initial_version)
                 # if self.do_gperf:
                 #     os.system("pprof --pdf "+ command + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_cpu.prof > ' + os.path.join(self.output_path,self.name+str(iteration))+'_cpu.pdf')
                 #     # os.system("pprof --pdf "+ command + " "+ os.path.join(self.output_path,self.name+str(iteration))+'_heap.prof >' + os.path.join(self.output_path,self.name+str(iteration))+'_heap.pdf')

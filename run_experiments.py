@@ -327,8 +327,12 @@ class ExperimentRunner:
 
     def compile_file(self,file):
         if ExperimentRunner.COMPILE:
-            subprocess.Popen("ivyc trace=false show_compiled=false target=test " + file, 
+            child= subprocess.Popen("ivyc trace=false show_compiled=false target=test test_iters="+ str(self.args.internal_iteration) + "  " + file, 
                                                     shell=True, executable="/bin/bash").wait()
+            rc = child
+            print(rc)
+            if rc != 0:
+                exit(1)
             subprocess.Popen("/usr/bin/chmod +x "+ file.replace('.ivy',''), 
                                                     shell=True, executable="/bin/bash").wait()
             subprocess.Popen("/bin/cp "+ file.replace('.ivy','')  + " "+ ExperimentRunner.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
@@ -379,9 +383,15 @@ class ExperimentRunner:
                 del os.environ['IS_NOT_SHADOW']
             if 'IS_NOT_SHADOW' in ENV_VAR:
                 del ENV_VAR['IS_NOT_SHADOW']
-                
+        ENV_VAR["LOSS"] = self.args.loss
+        ENV_VAR["LATENCY"] = self.args.latency
+        ENV_VAR["JITTER"] = self.args.jitter
+        print(ENV_VAR["LOSS"])
+        print(ENV_VAR["LATENCY"])
+        print(ENV_VAR["JITTER"])
         print('IS_NOT_SHADOW' in os.environ)
         print('IS_NOT_SHADOW' in ENV_VAR)
+        
                 
         subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
                             shell=True, executable="/bin/bash").wait() # for quic-go
@@ -590,7 +600,7 @@ class ExperimentRunner:
             print(e)
             pass
                 
-        time.sleep(100)
+        # time.sleep(100)
 
 
 def main():

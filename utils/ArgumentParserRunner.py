@@ -42,6 +42,12 @@ class ArgumentParserRunner:
             default=1
         )
         self.group.add_argument(
+            '--internal_iteration', 
+            help='Number of Ivy iteration per test (default: 100)',
+            type=int, 
+            default=100
+        )
+        self.group.add_argument(
             '--nclient', 
             help='Number of client per test for server implementation (default: 1)',
             type=int, 
@@ -134,6 +140,24 @@ class ArgumentParserRunner:
             '--gperf', 
             help='gperf (default:False)',
             action="store_true"
+        )
+        self.group.add_argument(
+            '--loss', 
+            help='Shadow: loss (default:0)',
+            type=float, 
+            default=0
+        )
+        self.group.add_argument(
+            '--jitter', 
+            help='Shadow: jitter (default:0)',
+            type=int, 
+            default=0
+        )
+        self.group.add_argument(
+            '--latency', 
+            help='Shadow: latency (default:0)',
+            type=int, 
+            default=0
         )
        
         

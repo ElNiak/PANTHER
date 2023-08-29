@@ -155,16 +155,31 @@ class IvyTest(object):
                                         print('quic_process pid: {}'.format(quic_process.pid))
                                     else:
                                         print("shadow test:")
+                                        for env_var in ENV_VAR:
+                                            print(env_var, ENV_VAR[env_var])
                                         if "client_test" in self.name:
-                                            file = "shadow_client_test.yml"
+                                            file = "/tmp/QUIC-FormalVerification/shadow_client_test.yml"
+                                            file_temp = "/tmp/QUIC-FormalVerification/shadow_client_test_template.yml"
                                         else:
-                                            file = "shadow_server_test.yml"
-                                        # with open(file, "rw") as f:
-                                        #     content = f.read() # todo replace
+                                            file = "/tmp/QUIC-FormalVerification/shadow_server_test.yml"
+                                            file_temp = "/tmp/QUIC-FormalVerification/shadow_server_test_template.yml"
+                                        with open(file_temp, "r") as f:
+                                            content = f.read() # todo replace
+                                        with open(file, "w") as f:
+                                            content = content.replace("<VERSION>", ENV_VAR["INITIAL_VERSION"])
+                                            content = content.replace("<IMPLEMENTATION>", ENV_VAR["TEST_IMPL"])
+                                            content = content.replace("<ALPN>", ENV_VAR["TEST_ALPN"])
+                                            content = content.replace("<SSLKEYLOGFILE>", ENV_VAR["SSLKEYLOGFILE"])
+                                            content = content.replace("<TEST_NAME>", self.name)
+                                            content = content.replace("<JITTER>", str(ENV_VAR["JITTER"]))
+                                            content = content.replace("<LATENCY>", str(ENV_VAR["LATENCY"]))
+                                            content = content.replace("<LOSS>", str(float(ENV_VAR["LOSS"])))
+                                            print(content)
+                                            f.write(content)
                                         os.chdir("/tmp/QUIC-FormalVerification")
-                                        print("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
-                                        os.system("mv /tmp/QUIC-FormalVerification/shadow.data/ "+self.output_path)
-                                        os.system("mv /tmp/QUIC-FormalVerification/shadow.log "+self.output_path+"/shadow.log")
+                                        print("rm -r /tmp/QUIC-FormalVerification/shadow.data/ ")
+                                        os.system("rm -r /tmp/QUIC-FormalVerification/shadow.data/ ")
+                                        os.system("rm  /tmp/QUIC-FormalVerification/shadow.log ")
                                         print("command: shadow " + file + " > shadow.log")
                                         try:
                                             os.system("shadow " + file + " > shadow.log")
