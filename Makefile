@@ -82,6 +82,7 @@ build-docker-compose:
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/test/temp
 	sudo chown -R $(USER):$(USER) $(PWD)/QUIC-Ivy-Attacker/doc/examples/quic/build .
 	IMPLEM="picoquic-shadow" make build-docker-ivy
+	IMPLEM="picoquic-no-retransmission-shadow" make build-docker-ivy
 	IMPLEM="picoquic-old-shadow" make build-docker-ivy
 	IMPLEM="picoquic" make build-docker-ivy
 	IMPLEM="picoquic-shadow-bad" make build-docker-ivy
@@ -95,6 +96,7 @@ build-docker-compose-full:
 	IMPLEM="picoquic-shadow" make build-docker
 	IMPLEM="picoquic-old-shadow" make build-docker
 	IMPLEM="picoquic-shadow-bad" make build-docker
+	IMPLEM="picoquic-no-retransmission-shadow" make build-docker
 	IMPLEM="picoquic" make build-docker
 	IMPLEM="quant" make build-docker
 	make build-docker-visualizer

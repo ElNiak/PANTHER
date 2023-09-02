@@ -180,7 +180,9 @@ class Runner:
                         stats.make_dat(test.name,out)
                         os.chdir(save)
                     filename = os.path.join(self.output_path,test.name+str(iteration)+'.iev')
-                    # if "IS_NOT_SHADOW" not in ENV_VAR.keys():
+                    if "IS_NOT_SHADOW" not in ENV_VAR.keys():
+                        os.system("cp /tmp/QUIC-FormalVerification/quic-implementations/picoquic/picoquicdemo " + self.output_path + "/picoquicdemo")
+                        os.system("cp /tmp/QUIC-FormalVerification/QUIC-Ivy-Attacker/doc/examples/quic/build/" + test.name + " " +self.output_path + "/" + test.name)
                     #     filename = os.path.join(self.output_path, "shadow.data/hosts/server/" + test.name+'.stdout')
                     with open(filename,"r") as out:
                         #if "IS_NOT_SHADOW" not in ENV_VAR.keys():

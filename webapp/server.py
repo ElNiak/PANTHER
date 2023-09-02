@@ -179,7 +179,7 @@ class IvyServer:
             IvyServer.experiments.args.shadow = True if request.form["net_mode"] == "shadow" else False
             IvyServer.experiments.args.iter = int(request.form["iteration"])
             IvyServer.experiments.args.internal_iteration = int(request.form["internal_iteration"])
-            IvyServer.experiments.args.loss = int(request.form["loss"])
+            IvyServer.experiments.args.loss = float(request.form["loss"])/100
             IvyServer.experiments.args.jitter = int(request.form["Jitter"])
             IvyServer.experiments.args.latency = int(request.form["Latency"])
             IvyServer.experiments.args.timeout = int(request.form["timeout"])

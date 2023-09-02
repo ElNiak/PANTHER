@@ -116,6 +116,8 @@ TESTS_SERVER = {
     "recover_test": [
         "quic_server_test_timeout",
         "quic_server_test_timeout_no_sleep",
+        "quic_server_test_timeout_no_sleep_migration",
+        "quic_server_test_timeout_no_sleep_validation",
         "quic_server_test_loss_recovery",
         "quic_server_test_congestion_control"
     ]
@@ -180,6 +182,7 @@ TESTS_CLIENT = {
         "quic_client_test_timeout",
         "quic_client_test_timeout_no_sleep",
         "quic_client_test_loss_recovery",
+        "quic_client_test_timeout_no_sleep_validation",
         "quic_client_test_congestion_control"
     ]
 }
@@ -237,6 +240,11 @@ IMPLEMENTATIONS = {
     # Server:
     # Client:
     "picoquic-shadow-bad":[
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a ALPN -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
+        [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a ALPN -T '+SOURCE_DIR +'/tickets/ticket.bin -v VERSION -l - -D -L  10.0.0.1 4443']
+    ],
+    # picoquic-no-retransmission-shadow
+    "picoquic-no-retransmission-shadow":[
         [IMPLEM_DIR + '/picoquic','./picoquicdemo -e implem -a ALPN -l - -D -L -q '+SOURCE_DIR +'/qlogs/picoquic'],
         [IMPLEM_DIR + '/picoquic','./picoquicdemo -n servername -e implem -a ALPN -T '+SOURCE_DIR +'/tickets/ticket.bin -v VERSION -l - -D -L  10.0.0.1 4443']
     ],
