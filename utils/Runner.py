@@ -181,7 +181,16 @@ class Runner:
                         os.chdir(save)
                     filename = os.path.join(self.output_path,test.name+str(iteration)+'.iev')
                     if "IS_NOT_SHADOW" not in ENV_VAR.keys():
-                        os.system("cp /tmp/QUIC-FormalVerification/quic-implementations/picoquic/picoquicdemo " + self.output_path + "/picoquicdemo")
+                        # os.system("cp /tmp/QUIC-FormalVerification/quic-implementations/picoquic/picoquicdemo " + self.output_path + "/picoquicdemo")
+                        # os.system("cp /tmp/QUIC-FormalVerification/QUIC-Ivy-Attacker/doc/examples/quic/build/" + test.name + " " +self.output_path + "/" + test.name)
+                        try:
+                            os.system("cp /tmp/QUIC-FormalVerification/quic-implementations/ping-pong/miniP_client " + self.output_path + "/miniP_client")
+                        except:
+                            pass
+                        try:
+                            os.system("cp /tmp/QUIC-FormalVerification/quic-implementations/ping-pong/miniP_server " + self.output_path + "/miniP_server")
+                        except:
+                            pass
                         os.system("cp /tmp/QUIC-FormalVerification/QUIC-Ivy-Attacker/doc/examples/quic/build/" + test.name + " " +self.output_path + "/" + test.name)
                     #     filename = os.path.join(self.output_path, "shadow.data/hosts/server/" + test.name+'.stdout')
                     with open(filename,"r") as out:

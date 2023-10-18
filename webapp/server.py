@@ -30,7 +30,7 @@ import pandas as pd
 from npf_web_extension.app import export
 import execnet
 
-DEBUG = False
+DEBUG = True
 
 class IvyServer:
     ROOTPATH = os.getcwd()
@@ -2575,6 +2575,7 @@ class IvyServer:
                                                     elif action_name.split(".")[-1] in stripped_line: # TODO 
                                                         if action_name.split(".")[-1] in stripped_line:
                                                             if DEBUG:
+                                                                print(stripped_line)
                                                                 print("Char after:")
                                                                 print(stripped_line.split(action_name.split(".")[-1])[0][-1])
                                                                 print("Char before:")

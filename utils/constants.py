@@ -114,12 +114,18 @@ TESTS_SERVER = {
         "quic_server_test_ext_min_ack_delay"
     ],
     "recover_test": [
+        "quic_server_test_deadconnection",
+        "quic_server_test_deadconnection_no_sleep",
+        "quic_server_test_deadconnection_signal",
+        "quic_server_test_deadconnection_no_sleep_migration",
+        "quic_server_test_deadconnection_no_sleep_validation",
         "quic_server_test_timeout",
         "quic_server_test_timeout_no_sleep",
         "quic_server_test_timeout_no_sleep_migration",
         "quic_server_test_timeout_no_sleep_validation",
         "quic_server_test_loss_recovery",
-        "quic_server_test_congestion_control"
+        "quic_server_test_congestion_control",
+        "ping_server_test"
     ]
 }
 
@@ -179,11 +185,16 @@ TESTS_CLIENT = {
 
     ],
     "recover_test": [
+        "quic_client_test_deadconnection",
+        "quic_client_test_deadconnection_signal",
+        "quic_client_test_deadconnection_no_sleep",
+        "quic_client_test_deadconnection_no_sleep_validation",
         "quic_client_test_timeout",
         "quic_client_test_timeout_no_sleep",
-        "quic_client_test_loss_recovery",
         "quic_client_test_timeout_no_sleep_validation",
-        "quic_client_test_congestion_control"
+        "quic_client_test_loss_recovery",
+        "quic_client_test_congestion_control",
+        "ping_client_test"
     ]
 }
 # TODO make interface dynamic
@@ -253,6 +264,20 @@ IMPLEMENTATIONS = {
     "picoquic-vuln":[
         [IMPLEM_DIR + '/picoquic-vuln','./picoquicdemo -D -L'],
         [""]
+    ],
+    # Server: 
+    # Client:
+    "ping-pong":[
+        [IMPLEM_DIR + '/miniP_server','./miniP_server -i 11.0.0.2 -p "4443"'],
+        [IMPLEM_DIR + '/miniP_server','./miniP_client -i 11.0.0.1 -p "4987"']
+    ],
+    "ping-pong-flaky":[
+        [IMPLEM_DIR + '/miniP_server','./miniP_server -i 11.0.0.2 -p "4443"'],
+        [IMPLEM_DIR + '/miniP_server','./miniP_client -i 11.0.0.1 -p "4987"']
+    ],
+    "ping-pong-fail":[
+        [IMPLEM_DIR + '/miniP_server','./miniP_server -i 11.0.0.2 -p "4443"'],
+        [IMPLEM_DIR + '/miniP_server','./miniP_client -i 11.0.0.1 -p "4987"']
     ],
     # Server:
     # Client:
