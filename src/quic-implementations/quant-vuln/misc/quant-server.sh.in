@@ -1,0 +1,62 @@
+#! /usr/bin/env bash
+
+# sudo apt install ninja-build aha mailutils python-certbot-apache pkgconf g++ \
+#   mercurial cmake
+
+function make_name() {
+        local path cid
+        path=$(dirname "$1")
+        cid=$(grep -o 'new serv conn.*cid=[^ ]*' "$1" | cut -f2 -d= | cut -f2 -d: | head -n1)
+        echo "$path/$cid"
+}
+
+export PATH="$PATH:~/bin"
+
+logdir=/mnt/www
+name="$logdir/log"
+new=$(make_name "$name.html")
+# %N only works on Linux
+[ -f "$new.html" ] && new="$new-"$(date +%N)
+[ -f "$name.html" ] && mv "$name.html" "$new.html"
+[ -f "$name.qlog" ] && mv "$name.qlog" "$new.qlog"
+
+# send email if we crashed
+if grep -E -i -q 'assertion failed|AddressSanitizer|runtime error|ecn=CE|ecn=ETC1' "$new.html"; then
+        mail -s "$new" lars@eggert.org -A "$new" < /dev/null
+fi
+
+cat <<-EOF > "$logdir/.htaccess"
+Options Indexes
+DirectoryIndex
+IndexIgnore @eaDir .htaccess
+IndexIgnoreReset ON
+IndexOptions FancyIndexing SuppressIcon NameWidth=*
+IndexOrderDefault Descending Date
+RewriteRule ^log$ /$(basename "$new") [R]
+Header set Access-Control-Allow-Origin "*"
+Header set Access-Control-Allow-Methods "*"
+Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+AddType application/octet-stream .qlog
+EOF
+
+mkdir -p @CMAKE_BINARY_DIR@
+cd @CMAKE_BINARY_DIR@ || exit
+prev=$(git rev-list HEAD -n 1)
+git pull --recurse-submodules
+git submodule sync
+git submodule update --init --recursive
+if [ "$prev" = "$(git rev-list HEAD -n 1)" ]; then
+        cmake -GNinja ..
+        ninja
+        sudo setcap 'cap_net_bind_service=+ep' bin/server
+fi
+
+env ASAN_OPTIONS=strict_string_checks=1:strict_init_order=1:\
+detect_stack_use_after_return=1:detect_leaks=1:check_initialization_order=1:\
+alloc_dealloc_mismatch=1:detect_invalid_pointer_pairs=1 \
+LSAN_OPTIONS=verbosity=1:log_threads=1 \
+UBSAN_OPTIONS=suppressions=misc/gcc-ubsan-suppressions.txt \
+bin/server -v5 -i enx00e04c68199d -p 443 -p 4433 -p 4434 \
+    -d "$logdir" -q "$logdir" -t 20 \
+    -c /mnt/certs/fullchain.pem -k /mnt/certs/privkey.pem \
+    2>&1 | aha -s > "$name.html"

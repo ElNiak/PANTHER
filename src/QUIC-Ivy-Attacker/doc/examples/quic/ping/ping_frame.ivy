@@ -1,0 +1,135 @@
+#lang ivy1.7
+
+include collections
+include order
+
+object frame = {
+
+    # The base type for frames
+
+    type this
+
+
+    # (0x01)
+    object ping = {
+        # Ping frames contain no data, check peers still alive
+        variant this of frame = struct {
+            data : stream_data
+        }
+    }
+
+    # (0x02)
+    object pong = {
+        # Pong frames contain no data, check peers still alive
+        variant this of frame = struct {
+            data : stream_data
+        }
+    }
+
+    # (0x03)
+    object timestamp = {
+        # Timestamp frames contain no data, check peers still alive
+        variant this of frame = struct {
+            time : milliseconds
+        }
+    }
+
+    instance idx : unbounded_sequence
+    instance arr : array(idx,this)
+}       
+
+function queued_frames : frame.arr
+function num_queued_frames : frame.idx
+
+relation ping_frame_pending
+relation timestamp_frame_pending
+
+
+function estimated_latency : milliseconds
+
+after init {
+    ping_frame_pending := false;
+    timestamp_frame_pending := false;
+}
+
+object frame = {
+    ...
+    action handle(f:this) = {
+        require false; 
+    }
+}
+
+object frame = {
+    ...
+    object ping = {
+        ...
+        action handle(f:frame.ping)
+
+        around handle {
+            current_time := time_api.c_timer.now_millis_last_bp;
+            call show_current_time(current_time);
+            if _generating {
+                require f.data = ping_data; # TODO when not quic
+            }
+            require f.data.end = 4;
+            require ~ping_frame_pending;
+            ...
+            ping_frame_pending := true;
+            timestamp_frame_pending := true;
+            call enqueue_frame(f);
+        }
+    }
+}
+
+object frame = {
+    ...
+    object pong = {
+        ...
+        action handle(f:frame.pong)
+
+        around handle {
+            if _generating {
+                require f.data = ping_data; # TODO
+            } else {
+                current_time := time_api.c_timer.now_millis_last_bp;
+                call show_current_time(current_time);
+                enough_wait := current_time < 3000;
+                require enough_wait;
+            }
+            require f.data.end = 4;
+            require ping_frame_pending;
+            ...
+            ping_frame_pending := false;
+            timestamp_frame_pending := true;
+            call enqueue_frame(f);
+        }
+    }
+}
+
+object frame = {
+    ...
+    object timestamp = {
+        ...
+        action handle(f:frame.timestamp)
+
+        around handle {
+            if _generating {
+                f.time := time_api.c_timer.now_millis;
+            } else {
+                estimated_latency := time_api.c_timer.now_millis - f.time;
+                call show_estimated_latency(estimated_latency);
+            }
+            require timestamp_frame_pending;
+            ...
+            timestamp_frame_pending := false;
+            call enqueue_frame(f);
+        }
+    }
+}
+
+import action show_estimated_latency(l:milliseconds)
+
+action enqueue_frame(f:frame) = {
+    queued_frames := queued_frames.append(f);
+    num_queued_frames := queued_frames.end;
+}

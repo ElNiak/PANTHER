@@ -4,37 +4,24 @@
 
 ### Locally
 
-```
-TODO not updated
-``` 
+Possible but no automatic way for now
 
-### Locally with Docker
+### Locally with Docker (Recommanded)
 
-Currently, only work under Ubuntu 18
-
+First time:
 ```
 make install
-
-# First build for each implementation (done like that for isolation)
-# IMPLEM="<implem>" make build-docker
-IMPLEM="picoquic" make build-docker
-IMPLEM="quant" make build-docker
-
-# For shorter build
-# IMPLEM="<implem>" make build-docker-ivy
-IMPLEM="picoquic" make build-docker-ivy
-IMPLEM="quant" make build-docker-ivy
 ```
 
-### Locally with Docker Compose
+Then to update:
+```
+make build-docker-compose
+```
 
-```
-make build-docker-compose; 
-```
 
 ## :books: Run tests
 
-### Locally
+### Locally (attached to container)
 
 ```
 python3 run_experiments.py --mode client --categories all --update_include_tls \
@@ -50,7 +37,7 @@ IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="--vnet" make te
 IMPLEM="picoquic" MODE="server" CATE="global_test" ITER="1" OPT="--vnet" make test-rfc9000
 ```
 
-### Locally with Docker Compose (WebAPP)
+### Locally with Docker Compose - WebApp (Recommanded)
 
 ```
 make compose;

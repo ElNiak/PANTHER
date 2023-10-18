@@ -1,0 +1,122 @@
+#lang ivy1.7
+
+# In the previous exercise, we wrote a specification for our (buggy)
+# shared file editing program that allowed us to expose the bug via
+# randomized testing. Part of what made this possible is that our
+# specification is a saftey property exressed as a non-interfering
+# monitor. That made it easy to determine at test time whether the
+# specified property was satisfied.
+#
+# Randomized testing is quite effectoive in uncovering race
+# conditions, but is nonetheless a bit hit-or-miss. There are other
+# approaches to testing that are more systematic. One of these is
+# *finite-state model checking*. In this approach, we create a
+# finite-state model of our program and automatically explore *all* of
+# the states that the model can reach.
+#
+# Finite-state model can be a bit limiting. For example, our program
+# is not finite-state because the file can grow arbitarily long and
+# the set of messages stored in the network can be arbitraily
+# large. To make a finite-state model, we must restrict the behavior
+# so that the amount of data is finitely bounded. Such a srestriction
+# means we might miss a error. On the other hand, being systematic in
+# searching for errors tends to offset this weakness. Most bugs in
+# real programs can occur even for very small data if we choose the
+# inputs carefully.
+#
+# To make a fintie-state model of our program we will have to make two changes:
+#
+# - Restrict the file size to be no more that a fixed number `file_size`.
+# - Restrict the number of messages to be no more than a fixed number `queue_size`.
+#
+# Ivy provides templates in its standard library to do both of these
+# these.  The `vector_bounded` template creates a type of vectors that
+# can have at most a given number of elements. If we try to append one
+# too many elements, the state space search is cut off. Similary the
+# `tcp_bounded` network model is similar to `tcp`, except the
+# exploratino is cut off when the number of queued messages exceeds a
+# fixed bound.
+
+#
+# Our code is the same as before, except for the use of these templates.
+#
+
+include numbers
+include collections
+include network
+
+global {
+
+
+    alias byte = uint[2]
+
+    # We use the `vector_bounded` template to model files that are
+    # limited to 4 bytes.
+    
+    instance file : vector_bounded(byte,4)
+    type pid = {0..1}
+
+    # We use the `tcp_bounded` tempate to model a network that can
+    # queue up to 2 messages on any channel.
+
+    instance net : tcp_bounded.net(byte,2)
+
+}
+
+process host(self:pid) = {
+
+    export action append(val:byte)
+    import action show(content:file)
+    
+    instance sock : net.socket
+    var contents : file
+
+    after init {
+        contents := file.empty;
+    }
+   
+    implement append {
+        assert false;
+        contents := contents.append(val);
+        sock.send(host(1-self).sock.id,val);
+        show(contents);
+    }
+    
+    implement sock.recv(src:tcp.endpoint,val:byte) {
+        contents := contents.append(val);
+        show(contents);
+    }
+} 
+
+# Our specification is unchanged.
+
+specification {
+
+    var msg_count : uint[3]
+
+    after init {
+        msg_count := 0;
+    }
+
+    after host.sock.send(self:pid, dst:tcp.endpoint, val:byte) {
+        msg_count := msg_count + 1;
+        ensure false;
+    }
+
+    after host.sock.recv(self:pid, dst:tcp.endpoint, val:byte) {
+        msg_count := msg_count - 1;
+        # ensure msg_count = 0 -> host(0).contents = host(1).contents;
+        ensure false;
+    }
+}
+
+# Finally, we use the following directive to tell the Ivy verifier to use
+# finite-state model checking.
+
+attribute method = mc
+
+#
+# To apply finite=-state model checking, use the following command:
+#
+#     $ ivy_check append3.ivy
+#
