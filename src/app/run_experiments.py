@@ -5,7 +5,7 @@ import sys
 import time
 import progressbar
 from utils.Runner import Runner
-from utils.ArgumentParserRunner import ArgumentParserRunner
+from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 from utils.constants import *
 from utils.CustomFormatter import CustomFormatter
 import tracemalloc  
