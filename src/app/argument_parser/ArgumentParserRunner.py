@@ -1,5 +1,5 @@
 import argparse
-from .constants import *
+from utils.constants import *
 
 class ArgumentParserRunner:
     def __init__(self):        

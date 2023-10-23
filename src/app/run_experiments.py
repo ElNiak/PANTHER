@@ -605,17 +605,17 @@ class ExperimentRunner:
 
 def main():
     experiments = ExperimentRunner()
-    if experiments.args.gui: # TODO 
-        from gui.results import UIvyQUICResults
-        from gui.standard import UIvyQUICExperiments
-        from PyQt5 import QtWidgets
-        app = QtWidgets.QApplication(sys.argv)
-        IvyQUIC = QtWidgets.QMainWindow()
-        ui = UIvyQUICResults(ExperimentRunner.SOURCE_DIR) #UIvyQUICResults(SOURCE_DIR)
-        ui.setupUi(IvyQUIC)
-        IvyQUIC.show()
-        sys.exit(app.exec_())
-    elif experiments.args.webapp:
+    # if experiments.args.gui: # TODO 
+    #     vscode-file://vscode-app/snap/code/143/usr/share/code/resources/app/out/vs/code/electron-sandbox/workbench/workbench.htmlfrom gui.results import UIvyQUICResults
+    #     from gui.standard import UIvyQUICExperiments
+    #     from PyQt5 import QtWidgets
+    #     app = QtWidgets.QApplication(sys.argv)
+    #     IvyQUIC = QtWidgets.QMainWindow()
+    #     ui = UIvyQUICResults(ExperimentRunner.SOURCE_DIR) #UIvyQUICResults(SOURCE_DIR)
+    #     ui.setupUi(IvyQUIC)
+    #     IvyQUIC.show()
+    #     sys.exit(app.exec_())
+    if experiments.args.webapp:
         from webapp.server import IvyServer
         app = IvyServer(ExperimentRunner.SOURCE_DIR, experiments)
         app.run()

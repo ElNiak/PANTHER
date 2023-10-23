@@ -16,7 +16,7 @@ import requests
 from flask import Flask, flash, request, redirect, url_for, send_from_directory, Response, session, render_template
 from werkzeug.utils import secure_filename
 from run_experiments import *
-from gui.graph_visualizer import *
+# from gui.graph_visualizer import *
 from base64 import b64encode
 from django.core.paginator import (
     Paginator,
