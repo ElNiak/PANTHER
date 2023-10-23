@@ -19,6 +19,7 @@ from plantuml import PlantUML
 
 import os
 
+import configparser
 
 class ExperimentRunner:
     SOURCE_DIR =  os.getcwd()
@@ -27,6 +28,9 @@ class ExperimentRunner:
     COMPILE = False
 
     def __init__(self):
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        
         # Set environment variables
         for env_var in ENV_VAR:
             os.environ[env_var] = ENV_VAR[env_var]

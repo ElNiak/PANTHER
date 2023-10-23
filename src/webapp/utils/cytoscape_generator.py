@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 
 DEBUG = True
 logger = logging.getLogger('cytoscape_generator')

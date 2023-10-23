@@ -52,8 +52,6 @@ Also add "tls_cert" to your trust certificate in your browser
 
 - Why sometimes the deserializer do not take the full packet ?
 
-- NS3
-
 - Why removing the dcil and scil field ?
 
 - VN: when the list no contain "Supported Version: Unknown (0x0a1a2a3a) (GREASE)"

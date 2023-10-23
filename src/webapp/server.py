@@ -54,11 +54,13 @@ class IvyServer:
         IvyServer.ivy_include_path = dir_path + "/QUIC-Ivy-Attacker/ivy/include/1.7/"
         IvyServer.local_path = os.environ["ROOT_PATH"] + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
         IvyServer.key_path = SOURCE_DIR + "/tls-keys/"
+        
         IvyServer.server_tests = []
         IvyServer.server_tests_checkbox = []
         for cate in TESTS_SERVER:
             for test in TESTS_SERVER[cate]:
                 IvyServer.server_tests.append(test)
+        
         IvyServer.client_tests = []
         IvyServer.client_tests_checkbox = []
         for cate in TESTS_CLIENT:
@@ -159,15 +161,6 @@ class IvyServer:
         if request.method == 'POST':
             TESTS_CUSTOM = []
             IvyServer.app.logger.info(request.form)
-            
-            # if IvyServer.implems_used is not None:
-            #     return render_template('index.html', 
-            #                     server_tests=IvyServer.server_tests, 
-            #                     client_tests=IvyServer.client_tests,
-            #                     nb_exp=IvyServer.nb_exp, 
-            #                     implems=IvyServer.implems,
-            #                     progress=0,
-            #                     iteration=int(IvyServer.experiments.args.iter) * (len(IvyServer.implems_used)+1) * len(TESTS_CUSTOM)) # TODO 0rtt
             
             for c in request.form: 
                 for elem in request.form.getlist(c):
