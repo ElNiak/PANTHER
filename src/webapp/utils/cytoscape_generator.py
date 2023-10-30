@@ -2533,9 +2533,9 @@ def init_tp_mapping(content, mapping, splitted_line):
 def get_prefix(splitted_line):
     prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
     if "server_test" in splitted_line[0]:
-        prefix = "/tmp/QUIC-FormalVerification/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
+        prefix = "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
     elif "client_test" in splitted_line[0]:
-        prefix = "/tmp/QUIC-FormalVerification/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/client_tests/"
+        prefix = "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/client_tests/"
     return prefix
 
 def change_permission(ivy_test_path):

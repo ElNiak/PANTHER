@@ -1,4 +1,4 @@
-# :skull_and_crossbones: QUIC Formal Verification :skull_and_crossbones:
+# :skull_and_crossbones: PFV (Protocols Formal Verification) :skull_and_crossbones:
 
 ## :books: Installation
 
@@ -24,7 +24,7 @@ make build-docker-compose
 ### Locally (attached to container)
 
 ```
-python3 run_experiments.py --mode client --categories all --update_include_tls \
+python3 pfv.py --mode client --categories all --update_include_tls \
 		--timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29  
 ```
 

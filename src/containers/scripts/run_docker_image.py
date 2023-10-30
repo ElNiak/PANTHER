@@ -64,7 +64,7 @@ def main(argv):
     command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
                 ' --privileged -it -v '+ SOURCE_DIR + "/" + args.docker_output_path + ':/QUIC-FormalVerification/QUIC-Ivy-Attacker/doc/examples/quic/test/temp ' +\
                 ' --name quic-ivy-uclouvain quic-ivy-uclouvain ' +\
-                'python3 run_experiments.py --docker --mode '+ str(args.mode) +\
+                'python3 pfv.py --docker --mode '+ str(args.mode) +\
                 ' --categories '+ str(args.categories) +\
                 ' --implementations '+ ' '.join([str(elem) for elem in args.implementations]) +\
                 ' --update_include_tls  --timeout '+ str(args.timeout) +\
