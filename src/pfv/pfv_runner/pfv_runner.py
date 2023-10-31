@@ -6,6 +6,8 @@ import logging
 import progressbar
 import subprocess
 import time
+import socket 
+
 
 from pfv_utils.pfv_constant import * 
 from logger.CustomFormatter import ch
@@ -39,6 +41,9 @@ class Runner:
         self.current_executed_test_count = 0
         
         self.implems = implems
+        
+        self.webapp_ip = socket.gethostbyname("ivy-picotls-standalone")
+        print(self.webapp_ip)
         
         # TODO make less general 
         if  "quic_server_test_0rtt" in executed_test or  "quic_client_test_0rtt" in executed_test:

@@ -151,8 +151,7 @@ class QUICIvyTest(IvyTest):
             self.implem_cmd = self.implem_cmd.replace("ALPN",ENV_VAR["TEST_ALPN"])
     
     def generate_shadow_config(self):
-        server_implem_args = self.implem_conf[0][self.implementation_name]["interface"] + " " + self.implem_conf[0][self.implementation_name]["interface-value"] \
-            + " " + self.implem_conf[0][self.implementation_name]["cert-param"] + " " + self.implem_conf[0][self.implementation_name]["cert-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
+        server_implem_args = self.implem_conf[0][self.implementation_name]["cert-param"] + " " + self.implem_conf[0][self.implementation_name]["cert-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
             + " " + self.implem_conf[0][self.implementation_name]["key-param"] + " " + self.implem_conf[0][self.implementation_name]["key-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
             + " " + self.implem_conf[0][self.implementation_name]["root-cert-param"] + " " + self.implem_conf[0][self.implementation_name]["root-cert-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
             + " " + self.implem_conf[0][self.implementation_name]["log-param"] + " " + self.implem_conf[0][self.implementation_name]["log-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
@@ -176,8 +175,7 @@ class QUICIvyTest(IvyTest):
         server_implem_args = server_implem_args.replace("ALPN",ENV_VAR["TEST_ALPN"])
         server_implem_args = re.sub('\s{2,}', ' ', server_implem_args)
         
-        client_implem_args = self.implem_conf[1][self.implementation_name]["interface"] + " " + self.implem_conf[1][self.implementation_name]["interface-value"] \
-            + " " + self.implem_conf[1][self.implementation_name]["cert-param"] + " " + self.implem_conf[1][self.implementation_name]["cert-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
+        client_implem_args = self.implem_conf[1][self.implementation_name]["cert-param"] + " " + self.implem_conf[1][self.implementation_name]["cert-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
             + " " + self.implem_conf[1][self.implementation_name]["key-param"] + " " + self.implem_conf[1][self.implementation_name]["key-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
             + " " + self.implem_conf[1][self.implementation_name]["root-cert-param"] + " " + self.implem_conf[1][self.implementation_name]["root-cert-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
             + " " + self.implem_conf[1][self.implementation_name]["log-param"] + " " + self.implem_conf[1][self.implementation_name]["log-file"].replace("$SOURCE_DIR",SOURCE_DIR) \
@@ -547,6 +545,9 @@ class QUICIvyTest(IvyTest):
             prefix = "sudo ip netns exec ivy " + envs  + " " + strace_cmd + " " +  gperf_cmd + " " 
             ip_server = 0x0a000003 if not self.is_client else 0x0a000001
             ip_client = 0x0a000001 if not self.is_client else 0x0a000003
+        elif self.config["net_parameters"].getboolean("shadow"):
+            ip_server = 0x0b000002 if not self.is_client else 0x0b000001
+            ip_client = 0x0b000001 if not self.is_client else 0x0b000002
         else:
             # prefix = strace_cmd + " "
             ip_server = 0x7f000001

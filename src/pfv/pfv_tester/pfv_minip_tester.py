@@ -229,6 +229,9 @@ class MiniPIvyTest(IvyTest):
             prefix = "sudo ip netns exec ivy " + envs  + " " + strace_cmd + " " +  gperf_cmd + " " 
             ip_server = 0x0a000003 if not self.is_client else 0x0a000001
             ip_client = 0x0a000001 if not self.is_client else 0x0a000003
+        elif self.config["net_parameters"].getboolean("shadow"):
+            ip_server = 0x0b000002 if not self.is_client else 0x0b000001
+            ip_client = 0x0b000001 if not self.is_client else 0x0b000002
         else:
             # prefix = strace_cmd + " "
             ip_server = 0x7f000001

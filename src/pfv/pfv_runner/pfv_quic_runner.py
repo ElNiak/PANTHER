@@ -2,6 +2,8 @@ import os
 import re
 import sys
 import subprocess
+import requests
+import time 
 
 from pfv_runner.pfv_runner import Runner
 from pfv_utils.pfv_constant import * 
@@ -158,6 +160,17 @@ class QUICRunner(Runner):
                             sys.stderr.close()
                             sys.stdout = sys.__stdout__
                             sys.stderr = sys.__stderr__
+                            
+                            x = None
+                            while x is None or x.status_code != 200:
+                                try:
+                                    print("Update count")
+                                    x = requests.get('http://'+ self.webapp_ip +'/update-count')
+                                    self.log.info(x)
+                                except Exception as e:
+                                    time.sleep(5)
+                                    print(e)
+                
                             
                             subprocess.Popen("/usr/bin/tail -2 " + ivy_err, 
                                                     shell=True, executable="/bin/bash").wait()

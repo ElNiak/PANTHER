@@ -338,7 +338,9 @@ class PFV:
                 self.log.info("done")
             except Exception as e:
                 print(e)
-                pass
+
+        self.log.info("END")
+        exit(0)
 
 def main():
     experiments = PFV()

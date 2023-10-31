@@ -94,13 +94,7 @@ class PFVClient:
         r.headers["Pragma"] = "no-cache"
         r.headers["Expires"] = "0"
         r.headers['Cache-Control'] = 'public, max-age=0'
-        return r
-
-    @app.route('/progress', methods = ['GET', 'POST'])
-    def progress():
-        #PFVClient.app.logger.info(PFVClient.experiments.count_1)
-        return "0" #str(PFVClient.experiments.count_1)
-        
+        return r        
 
     def run(self):
         PFVClient.app.run(host='0.0.0.0', port=80, use_reloader=True)

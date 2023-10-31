@@ -2,6 +2,8 @@ import os
 import re
 import sys
 import subprocess
+import requests
+import time
 
 from pfv_runner.pfv_runner import Runner
 from pfv_utils.pfv_constant import * 
@@ -101,13 +103,28 @@ class MiniPRunner(Runner):
                         try:
                             status = test.run(i,j, nclient, exp_folder)
                         except Exception as e:
-                            self.log.info(e)
+                            print(e)
                         finally: # In Runner.py
+                            try:
+                                x = requests.get('http://ivy-picotls-standalone/update-count')
+                                self.log.info(x)
+                            except:
+                                pass
                             sys.stdout.close()
                             sys.stderr.close()
                             sys.stdout = sys.__stdout__
                             sys.stderr = sys.__stderr__
                             
+                            x = None
+                            while x is None or x.status_code != 200:
+                                try:
+                                    print("Update count")
+                                    x = requests.get('http://'+ self.webapp_ip +'/update-count')
+                                    self.log.info(x)
+                                except Exception as e:
+                                    time.sleep(5)
+                                    print(e)
+                                    
                             subprocess.Popen("/usr/bin/tail -2 " + ivy_err, 
                                                     shell=True, executable="/bin/bash").wait()
                             subprocess.Popen("/usr/bin/tail -2 " + ivy_out, 

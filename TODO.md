@@ -25,8 +25,12 @@
 
 * refactor /result with accordingly -> to allow and adapt multiple protocol
 
+* Allow to add new implementation configuration
+
 ## PVF architecture
 
 * Make docker internal system match to current system
 
 * build.py to replace makefile
+
+* update docker compose file

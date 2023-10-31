@@ -9,7 +9,9 @@ from cgitb import html
 import json
 import os
 import socket
+import time
 import uuid
+import threading
 import requests
 from flask import Flask, flash, request, redirect, url_for, send_from_directory, Response, session, render_template, jsonify
 from werkzeug.utils import secure_filename
@@ -53,6 +55,7 @@ class PFVServer:
                 
         # Setup configuration
         PFVServer.config = PFVServer.setup_config()
+        PFVServer.enable_impems = {}
         PFVServer.protocol_conf = PFVServer.setup_protocol_parameters(PFVServer.current_protocol,dir_path)
 
         PFVServer.total_exp_in_dir = len(os.listdir(PFVServer.ivy_temps_path)) - 2
@@ -61,7 +64,10 @@ class PFVServer:
         
         PFVServer.current_tests = []
         PFVServer.implems_used = []
+        
+        PFVServer.total_exp = 0
         PFVServer.current_count = 0
+        PFVServer.started_exp = False
         PFVServer.current_implem = None
         
         PFVServer.choices_args = {}
@@ -131,7 +137,14 @@ class PFVServer:
                 implem_conf_client = configparser.ConfigParser(allow_no_value=True)
                 implem_conf_client.read(os.path.join(implem_config_path_client, file_path))
                 PFVServer.implems[implem_name] = [implem_conf_server, implem_conf_client]
-        
+        global_conf_file = "configs/global-conf.ini"
+        global_config    = configparser.ConfigParser(allow_no_value=True)
+        global_config.read(global_conf_file)
+        for key in global_config:
+            if "implementations" in key:
+                implem = key.replace("-implementations","")
+                for i in global_config[key]:
+                    PFVServer.enable_impems[i] = global_config[key].getboolean(i)
         return protocol_conf
         
     
@@ -160,10 +173,20 @@ class PFVServer:
         """
         return redirect('index.html', code =302)
     
-    @app.route('/progress', methods = ['GET', 'POST'])
+    @app.route('/progress', methods = ['GET'])
     def progress():
-        return "None"
+        return "None" if not PFVServer.started_exp else str(PFVServer.current_count)
 
+    
+    @app.route('/update-count', methods = ['GET'])
+    def update_count():
+        PFVServer.current_count += 1
+        if PFVServer.started_exp:
+            if PFVServer.current_count == PFVServer.total_exp:
+                PFVServer.started_exp   = False
+                PFVServer.current_count = 0
+                PFVServer.total_exp     = 0
+        return "ok"
     
     def get_args():
         PFVServer.choices_args = {}
@@ -237,6 +260,33 @@ class PFVServer:
         prot_arg = args_list
         return json_arg, prot_arg
     
+    def start_exp(exp_args, prot_args):
+        for impl in PFVServer.implems_used:
+            PFVServer.app.logger.info(impl)
+            # TODO send directly parsed args of implem from here ?
+            # for key,value in PFVServer.implems[impl].items():
+            #     if key in exp_args:
+            #         exp_args[key] = value
+            #     else:
+            #         exp_args[key] = value
+            req = {
+                "args": exp_args,
+                "prot_args": prot_args,
+                "protocol": PFVServer.current_protocol,
+                "implementation": impl,
+                "tests": PFVServer.current_tests,
+            }
+            response = requests.post('http://'+impl+'-ivy:80/run-exp', json=req)
+            PFVServer.app.logger.info(str(response.content))
+            
+            while PFVServer.current_count < PFVServer.total_exp/len(PFVServer.implems_used):
+                # wait
+                time.sleep(10)
+                print("wait")
+                print(PFVServer.current_count)
+                print(PFVServer.total_exp/len(PFVServer.implems_used))
+            print("finish")
+    
     
     @app.route('/index.html', methods = ['GET', 'POST'])
     def serve_index():
@@ -303,27 +353,17 @@ class PFVServer:
             PFVServer.app.logger.info(str(exp_args))
             PFVServer.app.logger.info(str(prot_args))
             PFVServer.app.logger.info(str(PFVServer.current_tests))
-            for impl in PFVServer.implems_used:
-                PFVServer.app.logger.info(impl)
-                # TODO send directly parsed args of implem from here ?
-                # for key,value in PFVServer.implems[impl].items():
-                #     if key in exp_args:
-                #         exp_args[key] = value
-                #     else:
-                #         exp_args[key] = value
-                req = {
-                    "args": exp_args,
-                    "prot_args": prot_args,
-                    "protocol": PFVServer.current_protocol,
-                    "implementation": impl,
-                    "tests": PFVServer.current_tests,
-                }
-                response = requests.post('http://'+impl+'-ivy:80/run-exp', json=req)
-                PFVServer.app.logger.info(str(response.content))
-        
+            PFVServer.started_exp = True
+            PFVServer.total_exp = len(PFVServer.implems_used) * len(PFVServer.current_tests) * int(PFVServer.config["global_parameters"]["iter"])
+            
+            thread = threading.Thread(target=PFVServer.start_exp, args=([exp_args, prot_args])) 
+            thread.daemon = True
+            thread.start()
+            
             return render_template('index.html', 
                                 json_arg=json_arg,
                                 prot_arg=prot_arg,
+                                enable_impems=PFVServer.enable_impems,
                                 base_conf=PFVServer.config,
                                 protocol_conf=PFVServer.protocol_conf,
                                 supported_protocols=PFVServer.supported_protocols,
@@ -331,8 +371,8 @@ class PFVServer:
                                 tests=PFVServer.tests, 
                                 nb_exp=PFVServer.total_exp_in_dir, 
                                 implems=PFVServer.implems,
-                                progress=0,
-                                iteration=int(PFVServer.config["global_parameters"]["iter"]) * (len(PFVServer.implems_used)+1) * len(PFVServer.current_tests)) # TODO 0rtt
+                                progress=PFVServer.current_count,
+                                iteration=PFVServer.total_exp) # TODO 0rtt
         else:
             
             if request.args.get('prot', '') and request.args.get('prot', '') in PFVServer.supported_protocols:
@@ -355,6 +395,7 @@ class PFVServer:
             return render_template('index.html', 
                                 json_arg=json_arg,
                                 prot_arg=prot_arg,
+                                enable_impems=PFVServer.enable_impems,
                                 base_conf=PFVServer.config,
                                 supported_protocols=PFVServer.supported_protocols,
                                 current_protocol= PFVServer.current_protocol,
@@ -362,8 +403,8 @@ class PFVServer:
                                 tests=PFVServer.tests, 
                                 nb_exp=PFVServer.total_exp_in_dir, 
                                 implems=PFVServer.implems,
-                                progress=0, #PFVServer.experiments.count_1,
-                                iteration=int(PFVServer.config["global_parameters"]["iter"]) * ln * len(PFVServer.current_tests))
+                                progress=PFVServer.current_count, #PFVServer.experiments.count_1,
+                                iteration=PFVServer.total_exp)
             
     @app.route('/directory/<int:directory>/file/<path:file>')
     def send_file(directory,file):
