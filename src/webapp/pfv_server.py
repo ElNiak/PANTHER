@@ -354,7 +354,7 @@ class PFVServer:
             PFVServer.app.logger.info(str(prot_args))
             PFVServer.app.logger.info(str(PFVServer.current_tests))
             PFVServer.started_exp = True
-            PFVServer.total_exp = len(PFVServer.implems_used) * len(PFVServer.current_tests) * int(PFVServer.config["global_parameters"]["iter"])
+            PFVServer.total_exp = len(PFVServer.implems_used) * len(PFVServer.current_tests) * int(exp_args["iter"])
             
             thread = threading.Thread(target=PFVServer.start_exp, args=([exp_args, prot_args])) 
             thread.daemon = True
