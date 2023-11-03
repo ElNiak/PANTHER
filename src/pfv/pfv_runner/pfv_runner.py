@@ -52,6 +52,7 @@ class Runner:
             self.bar_total_test = progressbar.ProgressBar(max_value=self.nb_test_to_execute*self.config["global_parameters"].getint("iter"))
 
     def save_shadow_binaries(self,implem, test,run_id):
+        # TODO save shadow yml for better reproductibiltiy
         if self.config["net_parameters"].getboolean("shadow"):
             self.log.info("Save shadow binaries:")
             if test.mode == "client":

@@ -19,9 +19,9 @@ install:
 	# git checkout rfc-9000
 	# git checkout master
 	cd src/QUIC-Ivy-Attacker;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
-	cd src/QUIC-Ivy-Attacker;mkdir protocol-testing/quic/build; mkdir protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
-	cd src/QUIC-Ivy-Attacker;mkdir protocol-testing/bgp/build; mkdir protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
-	cd src/QUIC-Ivy-Attacker;mkdir protocol-testing/minip/build; mkdir protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
+	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
+	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
+	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
 	make checkout-git
 	make build-docker-compose-full
 
@@ -46,10 +46,10 @@ checkout-git:
 
 # IMPLEM="picoquic" make build-docker
 build-docker:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
-	# [+] Building 1046.5s (19/19) FINISHED                                                                                                                                           docker:default
+	# [+] Building 1046.5s (19/19) FINISHED                                                                                                                                           
 	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
 	docker build --rm -t shadow-ivy -f src/containers/Dockerfile.shadow .
 	docker build --rm -t shadow-ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=shadow-ivy .
@@ -58,7 +58,7 @@ build-docker:
 
 # IMPLEM="picoquic" make build-docker-ivy
 build-docker-ivy:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
@@ -66,45 +66,50 @@ build-docker-ivy:
 
 # IMPLEM="picoquic" make build-docker-ivy-short
 build-docker-ivy-short:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
 # IMPLEM="picoquic" make build-docker-ivy-gperf
 build-docker-ivy-gperf:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 	docker build --rm -t $(IMPLEM)-ivy-gperf -f src/containers/Dockerfile.gperf --build-arg image=$(IMPLEM) .
 
 build-docker-compose:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	# QUIC
 	IMPLEM="picoquic-shadow" make build-docker-ivy
 	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-ivy
 	# IMPLEM="picoquic-old-shadow" make build-docker-ivy
 	# IMPLEM="picoquic" make build-docker-ivy
 	# IMPLEM="picoquic-shadow-bad" make build-docker-ivy
 	# IMPLEM="quant" make build-docker-ivy
+	# MiniP
+	IMPLEM="ping-pong" make build-docker-ivy
+	# IMPLEM="ping-pong-flaky" make build-docker-ivy
+	# IMPLEM="ping-pong-fail" make build-docker-ivy
+	# BGP
+	# IMPLEM="gobgp" make build-docker-ivy
+	IMPLEM="bird" make build-docker-ivy
+	# QUIC tools
+	# make build-docker-visualizer
+	make build-docker-ivy-standalone
+
+build-docker-compose-full:
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	IMPLEM="picoquic-shadow" make build-docker
+	# IMPLEM="picoquic-old-shadow" make build-docker-ivy
+	# IMPLEM="picoquic-shadow-bad" make build-docker-ivy
+	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-ivy
+	IMPLEM="picoquic" make build-docker-ivy
+	# IMPLEM="quant" make build-docker-ivy
 	IMPLEM="ping-pong" make build-docker-ivy
 	# IMPLEM="ping-pong-flaky" make build-docker-ivy
 	# IMPLEM="ping-pong-fail" make build-docker-ivy
 	# make build-docker-visualizer
 	make build-docker-ivy-standalone-short
-
-build-docker-compose-full:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
-	 .
-	IMPLEM="picoquic-shadow" make build-docker
-	# IMPLEM="picoquic-old-shadow" make build-docker
-	# IMPLEM="picoquic-shadow-bad" make build-docker
-	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker
-	IMPLEM="picoquic" make build-docker
-	# IMPLEM="quant" make build-docker
-	IMPLEM="ping-pong" make build-docker
-	# IMPLEM="ping-pong-flaky" make build-docker
-	# IMPLEM="ping-pong-fail" make build-docker
-	# make build-docker-visualizer
-	make build-docker-ivy-standalone
 	
 
 # ----------------------------
@@ -118,22 +123,20 @@ build-docker-visualizer:
 # TODO make lighter -> remove all ivy stuff only webserver
 # make build-docker-ivy-standalone
 build-docker-ivy-standalone:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
-	
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
 	docker build --rm -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
 	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
 build-docker-ivy-standalone-short:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
 # IMPLEM="picoquic" make build-docker-implem
 build-docker-implem:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
-	
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	docker build --rm -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ubuntu-ivy .
 	docker build --rm -t $(IMPLEM)-standalone -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=ivy-picotls .
@@ -162,7 +165,7 @@ launch-webapp:
 			   -it $(IMPLEM)-ivy python3 pfv.py --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --webapp --compile  --initial_version 29 --alpn hq-29 --docker $(OPT)
 
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 
 
@@ -182,7 +185,7 @@ test-draft29:
 			   -it $(IMPLEM)-ivy python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29 --docker $(OPT) || true
 
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 
 # IMPLEM="picoquic" MODE="client" CATE="attacks_test" ITER="1" OPT="--vnet" make gperf-draft29
@@ -196,7 +199,7 @@ gperf-draft29:
 			   -it $(IMPLEM)-ivy-gperf python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile --gperf --initial_version 29 --alpn hq-29 --docker $(OPT) || true
 
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 	# pprof $(PWD)/src/QUIC-Ivy-Attacker/doc/examples/quic /tmp/prof.out
 
@@ -214,12 +217,12 @@ test-rfc9000:
 			   -it $(IMPLEM)-ivy python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop --docker $(OPT) || true
 
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 
 change-permissions:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/
-	sudo chown -R $(USER):$(USER) $(PWD)/src/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/
 
 test-local-server-rfc9000:
 	python3 pfv.py --mode server --categories global_tests --update_include_tls \
@@ -237,13 +240,12 @@ launch-teams:
 	docker run --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$(DISPLAY) -it teams
 
 permissions:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	
 # https://jtreminio.com/blog/running-docker-containers-as-current-host-user/
 compose:
-	sudo chown -R $(USER):$(USER) $(PWD)/src/QUIC-Ivy-Attacker/
-	 .
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
 	xhost +
 	docker-compose up -d
 	cd src/pfv/scripts/hosts/; bash update_etc_hosts.sh  # TODO make copy before
