@@ -9,18 +9,23 @@ clean-docker:
 	docker image prune
 	docker image prune -a
 	docker rmi $(docker images -a -q) 
-	#  docker system prune -a -f
+
+clean-docker-full:
+	docker image prune
+	docker image prune -a
+	docker system prune -a -f
+	docker rmi $(docker images -a -q) 
 
 install:
 	git submodule update --init --recursive 
 	git submodule update --recursive
+	cd src/Protocols-Ivy/; git fetch; git checkout development-CoAP
 	cd src/Protocols-Ivy;git submodule update --init --recursive 
 	cd src/Protocols-Ivy;git submodule update --recursive
-	# git checkout rfc-9000
-	# git checkout master
 	cd src/Protocols-Ivy;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
-	cd src/Protocols-Ivy;mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
+	cd src/Protocols-Ivy;mkdir -p protocol-testing/quic/build;  mkdir -p protocol-testing/quic/test/temp;  touch protocol-testing/quic/test/temp/data.csv
 	cd src/Protocols-Ivy;mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
+	cd src/Protocols-Ivy;mkdir -p protocol-testing/coap/build; mkdir -p protocol-testing/coap/test/temp;   touch protocol-testing/coap/test/temp/data.csv
 	make checkout-git
 	make build-docker-compose-full
 
@@ -46,7 +51,6 @@ checkout-git:
 # IMPLEM="picoquic" make build-docker
 build-docker:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	# [+] Building 1046.5s (19/19) FINISHED                                                                                                                                           
 	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
@@ -58,7 +62,6 @@ build-docker:
 # IMPLEM="picoquic" make build-docker-ivy
 build-docker-ivy:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
 	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
@@ -66,7 +69,6 @@ build-docker-ivy:
 # IMPLEM="picoquic" make build-docker-ivy-short
 build-docker-ivy-short:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
 # IMPLEM="picoquic" make build-docker-ivy-gperf
@@ -105,7 +107,7 @@ build-docker-compose-full:
 	# IMPLEM="ping-pong-flaky" make build-docker-ivy
 	# IMPLEM="ping-pong-fail" make build-docker-ivy
 	# make build-docker-visualizer
-	make build-docker-ivy-standalone-short
+	make build-docker-ivy-standalone
 	
 
 # ----------------------------
@@ -122,12 +124,11 @@ build-docker-ivy-standalone:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
-	docker build --rm -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
+	docker build -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
 	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
 build-docker-ivy-standalone-short:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
 	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
 # IMPLEM="picoquic" make build-docker-implem

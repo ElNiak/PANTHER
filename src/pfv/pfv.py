@@ -10,6 +10,8 @@ from pfv_utils.pfv_constant import *
 
 from pfv_runner.pfv_quic_runner import QUICRunner
 from pfv_runner.pfv_minip_runner import MiniPRunner
+from pfv_runner.pfv_coap_runner import CoAPRunner
+
 
 from logger.CustomFormatter import ch
 
@@ -294,6 +296,8 @@ class PFV:
             runner = QUICRunner(self.config, self.protocol_conf, self.current_protocol, self.implems, self.tests)
         elif self.config["verified_protocol"].getboolean("minip"):
             runner = MiniPRunner(self.config, self.protocol_conf, self.current_protocol, self.implems, self.tests)
+        elif self.config["verified_protocol"].getboolean("coap"):
+            runner = CoAPRunner(self.config, self.protocol_conf, self.current_protocol, self.implems, self.tests)
         else:
             self.log.info("No protocols selected")
             exit(0)
