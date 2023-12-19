@@ -134,6 +134,14 @@ class QUICRunner(Runner):
                         self.log.info("Implementation: "+implem)
                         self.log.info("Iteration: "+str(i+1) +"/" + str(self.config["global_parameters"].getint("iter")))
                         
+                        if self.config["net_parameters"].getboolean("vnet"):
+                            subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_setup.sh", 
+                                                                        shell=True, executable="/bin/bash").wait() 
+                        else: # TODO check if still works here, was not there before (check old project commit if needed)
+                            subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                                                                    shell=True, executable="/bin/bash").wait()
+                         
+                         
                         exp_folder, run_id   = self.create_exp_folder()
                         pcap_name            = self.config_pcap(exp_folder, implem, test.name)
                         pcap_process         = self.record_pcap(pcap_name)
@@ -186,6 +194,10 @@ class QUICRunner(Runner):
                                 pcap_process.kill()
                             except:
                                 pass
+                            
+                            if self.config["net_parameters"].getboolean("vnet"):
+                                subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                                                                        shell=True, executable="/bin/bash").wait() 
                             
                             self.current_executed_test_count += 1
                             self.bar_total_test.update(self.current_executed_test_count)

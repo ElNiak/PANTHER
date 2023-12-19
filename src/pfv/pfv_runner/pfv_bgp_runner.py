@@ -20,19 +20,25 @@ class BGPRunner(Runner):
             with open(os.path.join(self.config["global_parameters"]["dir"]+str(run_id),test.name+str(i)+'.dat'),"w") as out:
                 save = os.getcwd()
                 os.chdir(self.config["global_parameters"]["dir"]+str(run_id))
-                stats.make_dat(test.name,out)
+                try:
+                    stats.make_dat(test.name,out)
+                except Exception as e:
+                    print(e)
                 os.chdir(save)
             filename = os.path.join(self.config["global_parameters"]["dir"]+str(run_id),test.name+str(i)+'.iev')
-            with open(filename,"r") as out:
-                stats.update_csv(run_id,
-                                implem, 
-                                test.mode, 
-                                test.name,
-                                pcap_name,
-                                os.path.join(self.config["global_parameters"]["dir"]+str(run_id), 
-                                test.name+str(i)+'.iev'),
-                                out,
-                                self.protocol_conf['bgp_parameters'].getint("initial_version"))
+            try:
+                with open(filename,"r") as out:
+                    stats.update_csv(run_id,
+                                    implem, 
+                                    test.mode, 
+                                    test.name,
+                                    pcap_name,
+                                    os.path.join(self.config["global_parameters"]["dir"]+str(run_id), 
+                                    test.name+str(i)+'.iev'),
+                                    out,
+                                    self.protocol_conf['bgp_parameters'].getint("initial_version"))
+            except Exception as e:
+                print(e)
     
                                
     def run_exp(self,implem):
@@ -87,29 +93,36 @@ class BGPRunner(Runner):
                         self.log.info("Implementation: "+implem)
                         self.log.info("Iteration: "+str(i+1) +"/" + str(self.config["global_parameters"].getint("iter")))
                         
+                        if self.config["net_parameters"].getboolean("vnet"):
+                            subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_setup.sh", 
+                                                                        shell=True, executable="/bin/bash").wait() 
+                        else: # TODO check if still works here, was not there before (check old project commit if needed)
+                            subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                                                                    shell=True, executable="/bin/bash").wait()
+                         
                         exp_folder, run_id   = self.create_exp_folder()
                         pcap_name            = self.config_pcap(exp_folder, implem, test.name)
                         pcap_process         = self.record_pcap(pcap_name)
+                        
+                        self.log.info("Output folder:" + exp_folder)
                         
                         ivy_out = exp_folder + '/ivy_stdout.txt'
                         ivy_err = exp_folder + '/ivy_stderr.txt'
                         sys.stdout = open(ivy_out, 'w')
                         sys.stderr = open(ivy_err, 'w')
-                        self.log.info("\tStart run")
+                        
+                        self.log.info("Start run")
                         
                         os.environ['TEST_TYPE']= test.mode.split("_")[0]
                         ENV_VAR["TEST_TYPE"]   = test.mode.split("_")[0]
+                        
+                           
                         status = False
                         try:
                             status = test.run(i,j, nclient, exp_folder)
                         except Exception as e:
                             print(e)
                         finally: # In Runner.py
-                            try:
-                                x = requests.get('http://ivy-picotls-standalone/update-count')
-                                self.log.info(x)
-                            except:
-                                pass
                             sys.stdout.close()
                             sys.stderr.close()
                             sys.stdout = sys.__stdout__
@@ -132,19 +145,27 @@ class BGPRunner(Runner):
                             #subprocess.Popen("/usr/bin/tail $(/usr/bin/lsof -i udp) >/dev/null 2>&1", # deadlock in docker todo
                             #                        shell=True, executable="/bin/bash").wait()
                             
-                            self.log.info("\tKill thsark")
+                            self.log.info("Kill thsark")
                             subprocess.Popen("sudo /usr/bin/pkill tshark", 
+                                                    shell=True, executable="/bin/bash").wait()
+                            self.log.info("Reload BGP")
+                            subprocess.Popen("bash stop_daemon.sh",
                                                     shell=True, executable="/bin/bash").wait()
                             try:
                                 pcap_process.kill()
                             except:
                                 pass
                             
+                            if self.config["net_parameters"].getboolean("vnet"):
+                                self.log.info("VNET reset")
+                                subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                                                                        shell=True, executable="/bin/bash").wait() 
+                            
                             self.current_executed_test_count += 1
                             self.bar_total_test.update(self.current_executed_test_count)
                             subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
                                                     shell=True, executable="/bin/bash").wait()
-                            self.log.info(status)
+                            self.log.info("End run status: "+str(status))
                             if not status:
                                 num_failures += 1
                             
@@ -165,10 +186,13 @@ class BGPRunner(Runner):
             self.current_executed_test_count = None
             if num_failures:
                 self.log.info('error: {} tests(s) failed'.format(num_failures))
+                return False
             else:
                 self.log.info('OK')
+                return True
         except KeyboardInterrupt:
             self.log.info('terminated')
+            return False
             
         
         

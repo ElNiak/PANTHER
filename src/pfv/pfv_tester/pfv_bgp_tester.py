@@ -39,13 +39,45 @@ class BGPIvyTest(IvyTest):
         super().__init__(args,implem_dir_server,implem_dir_client,extra_args,implementation_name,mode,config,protocol_conf,implem_conf,current_protocol)
            
     def update_implementation_command(self,i):
-        pass
+        return i
     
     # TODO add if to avoid space in command
     # TODO Reorder config param to loop and generate command eaisier
     def generate_implementation_command(self):
-        server_command = ""
-        client_command = ""
+        server_command = """
+frr defaults traditional
+log syslog informational
+debug bgp neighbor
+ipv6 forwarding
+!
+ip route 10.0.0.1/32 10.0.0.3
+!
+service integrated-vtysh-config
+!
+    router bgp 2
+    bgp ebgp-requires-policy
+    neighbor 10.0.0.1 remote-as 1
+    neighbor 10.0.0.1 description Router1
+    neighbor 10.0.0.1 ebgp-multihop 5
+    network 10.0.0.3 mask 255.255.255.255
+    !
+    address-family ipv4 unicast
+    redistribute connected
+    neighbor 10.0.0.1 route-map IMPORT in
+    neighbor 10.0.0.1 route-map EXPORT out
+    exit-address-family
+    !
+route-map EXPORT deny 100
+!
+route-map EXPORT permit 1
+ match interface implem
+!
+route-map IMPORT deny 1
+!
+line vty
+!
+""" # TODO now only for frr
+        client_command = server_command
         
         if self.is_client:
             return [client_command ,server_command]
@@ -54,20 +86,31 @@ class BGPIvyTest(IvyTest):
     
     def start_implementation(self, i, out, err):
         if self.run:
-            self.implem_cmd = self.update_implementation_command(i)
+            self.update_implementation_command(i)
             self.log.info(self.implem_cmd)
-            qcmd =  ('sleep 5; ' if self.is_client and not self.config["net_parameters"].getboolean("shadow") else "") + self.implem_cmd # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
-            qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
-            self.log.info('implementation command: {}'.format(qcmd))
+            
             if not self.config["net_parameters"].getboolean("shadow") :
                 self.log.info("not shadow test:")
-                implem_process = subprocess.Popen(qcmd,
-                                            cwd=(self.implem_dir_client if self.is_client else self.implem_dir_server),
-                                            stdout=out,
-                                            stderr=err,
-                                            shell=True, #self.is_client, 
-                                            preexec_fn=os.setsid)
-                self.log.info('implem_process pid: {}'.format(implem_process.pid))
+                self.log.info("Update bgp config:")
+                qcmd =  """
+                        cat > /etc/frr/frr.conf << EOL
+                        """ \
+                        + \
+                        self.implem_cmd 
+                
+                subprocess.Popen(qcmd,
+                                shell=True)
+                # os.system("/bin/bash -c 'source /usr/lib/frr/frrcommon.sh && /usr/lib/frr/watchfrr $(daemon_list)'")
+                # os.system("/usr/lib/frr/frr-reload")
+                self.implem_process = subprocess.Popen("(ip netns exec implem /usr/bin/tini -- bash start_daemon.sh) &",
+                                shell=True,
+                                preexec_fn=os.setsid,
+                                stdout=out,
+                                stderr=err).wait()
+                sleep(5)
+                os.system("vtysh -c 'show ip bgp summary'")
+                os.system("vtysh -c 'show ip bgp'")
+                # self.log.info('implem_process pid: {}'.format(self.implem_process.pid))
             else:
                 # TODO use config file
                 self.log.info("shadow test:")
@@ -80,7 +123,6 @@ class BGPIvyTest(IvyTest):
                 with open(file_temp, "r") as f:
                     content = f.read() # todo replace
                 with open(file, "w") as f:
-                    content = content.replace("<VERSION>", ENV_VAR["INITIAL_VERSION"])
                     content = content.replace("<IMPLEMENTATION>", ENV_VAR["TEST_IMPL"])
                     content = content.replace("<ALPN>", ENV_VAR["TEST_ALPN"])
                     content = content.replace("<SSLKEYLOGFILE>", ENV_VAR["SSLKEYLOGFILE"])
@@ -110,7 +152,7 @@ class BGPIvyTest(IvyTest):
                     self.log.info("iclient = "+ str(iclient))
                     ok = ok and self.run_tester(iteration,iev,i,iclient)
             except KeyboardInterrupt:
-                if self.run and not self.keep_alive:
+                if self.run and not self.config["global_parameters"].getboolean("keep_alive"):
                     self.log.info("cool kill")
                     if self.config["net_parameters"].getboolean("vnet"):
                         subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/vnet_reset.sh", 
@@ -118,7 +160,7 @@ class BGPIvyTest(IvyTest):
                     self.implem_process.terminate()
                 raise KeyboardInterrupt
             
-            if self.run and not self.keep_alive:
+            if self.run and not self.config["global_parameters"].getboolean("keep_alive"):
                 self.log.info("implem_process.terminate()")
                 # The above code is terminating the process.
                 self.implem_process.terminate()
@@ -152,4 +194,33 @@ class BGPIvyTest(IvyTest):
         randomSeed = random.randint(0,1000)
         random.seed(datetime.now())
 
-        return ""
+        prefix = ""
+        speaker_id     = 1
+        speaker_id_impl     = 2 # TODO
+
+        print(self.name)
+        #time.sleep(5)
+        if self.config["debug_parameters"].getboolean("gdb"):
+            # TODO refactor
+            prefix=" gdb --args "
+        if self.config["net_parameters"].getboolean("vnet"):
+            envs = "env - "
+            for env_var in ENV_VAR:
+                if env_var != "PATH": # TODO remove it is useless
+                    envs = envs + env_var + "=\"" + str(ENV_VAR[env_var]) + "\" "
+                else:
+                    envs = envs + env_var + "=\"" + os.environ.get(env_var) + "\" "
+            prefix = "sudo ip netns exec ivy " + envs  + " " + (strace_cmd if self.config["debug_parameters"].getboolean("strace") else "") + " " +  gperf_cmd + " " 
+            ip_server = 0x0a000003 if not self.is_client else 0x0a000001
+            ip_client = 0x0a000001 if not self.is_client else 0x0a000003
+        elif self.config["net_parameters"].getboolean("shadow"):
+            ip_server = 0x0b000002 if not self.is_client else 0x0b000001
+            ip_client = 0x0b000001 if not self.is_client else 0x0b000002
+        else:
+            # prefix = strace_cmd + " "
+            ip_server = 0x7f000001
+            ip_client = ip_server
+
+
+        return ' '.join(['{}{}{}/{} seed={} speaker_id={} speaker_addr={}  {}'.format(timeout_cmd,prefix,self.config["global_parameters"]["build_dir"],self.name,randomSeed,speaker_id,ip_client,'' 
+            if self.is_client else 'speaker_impl_id={}  speaker_impl_addr={}'.format(speaker_id_impl,ip_server))] + self.extra_args + ([""] if self.config["net_parameters"].getboolean("vnet") else [""])) 

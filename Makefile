@@ -93,6 +93,7 @@ build-docker-compose:
 	# BGP
 	# IMPLEM="gobgp" make build-docker-ivy
 	IMPLEM="bird" make build-docker-ivy
+	IMPLEM="frr" make build-docker-ivy
 	# QUIC tools
 	# make build-docker-visualizer
 	make build-docker-ivy-standalone

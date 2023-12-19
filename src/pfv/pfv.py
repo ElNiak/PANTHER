@@ -36,9 +36,9 @@ class PFV:
         
         # Setup environment variables
         for env_var in ENV_VAR:
-            os.environ[env_var] = ENV_VAR[env_var]
+            os.environ[env_var] = str(ENV_VAR[env_var])
             self.log.info("ENV_VAR="+ env_var)
-            self.log.info("ENV_VAL="+ ENV_VAR[env_var])
+            self.log.info("ENV_VAL="+ str(ENV_VAR[env_var]))
         
         self.ivy_include_path = SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include/1.7/"
                 
@@ -171,6 +171,7 @@ class PFV:
     def build_tests(self,test_to_do={}):
         self.log.info(" " + str(len(test_to_do)))
         self.log.info(test_to_do)
+        assert len(test_to_do) > 0
         self.available_modes = test_to_do.keys()
         self.log.info(self.available_modes)
         for mode in self.available_modes:
@@ -318,9 +319,11 @@ class PFV:
                 sys.stdout = sys.__stdout__
                 sys.stderr = sys.__stderr__
                 if self.config["net_parameters"].getboolean("vnet"):
+                    self.log.info("Reset vnet")
                     subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
                                     shell=True, executable="/bin/bash").wait()
         
+        self.log.info("END 1 ")
         if self.config["debug_parameters"].getboolean("memprof"):
             snapshot = tracemalloc.take_snapshot()
             top_stats = snapshot.statistics('lineno')
@@ -339,7 +342,7 @@ class PFV:
             except Exception as e:
                 print(e)
 
-        self.log.info("END")
+        self.log.info("END 1")
         exit(0)
 
 def main():
@@ -373,5 +376,6 @@ if __name__ == "__main__":
                         shell=True, executable="/bin/bash").wait()
         subprocess.Popen("/bin/kill $(/usr/bin/lsof -i udp) >/dev/null 2>&1") 
         subprocess.Popen("sudo /usr/bin/pkill tshark")
+        subprocess.Popen("sudo /usr/bin/pkill tini")
 
 

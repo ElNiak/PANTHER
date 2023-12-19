@@ -40,7 +40,7 @@ class MiniPIvyTest(IvyTest):
         super().__init__(args,implem_dir_server,implem_dir_client,extra_args,implementation_name,mode,config,protocol_conf,implem_conf,current_protocol)
            
     def update_implementation_command(self,i):
-        pass
+        return i
     
     def generate_shadow_config(self):
         server_implem_args = self.implem_conf[0][self.implementation_name]["source-format"].replace("[source]", 
@@ -141,13 +141,13 @@ class MiniPIvyTest(IvyTest):
             self.log.info('implementation command: {}'.format(qcmd))
             if not self.config["net_parameters"].getboolean("shadow") :
                 self.log.info("not shadow test:")
-                implem_process = subprocess.Popen(qcmd,
+                self.implem_process = subprocess.Popen(qcmd,
                                             cwd=(self.implem_dir_client if self.is_client else self.implem_dir_server),
                                             stdout=out,
                                             stderr=err,
                                             shell=True, #self.is_client, 
                                             preexec_fn=os.setsid)
-                self.log.info('implem_process pid: {}'.format(implem_process.pid))
+                self.log.info('implem_process pid: {}'.format(self.implem_process.pid))
             else:
                 # TODO use config file
                 self.log.info("Generating shadow config:")
@@ -167,7 +167,7 @@ class MiniPIvyTest(IvyTest):
                     self.log.info("iclient = "+ str(iclient))
                     ok = ok and self.run_tester(iteration,iev,i,iclient)
             except KeyboardInterrupt:
-                if self.run and not self.keep_alive:
+                if self.run and not self.config["global_parameters"].getboolean("keep_alive"):
                     self.log.info("cool kill")
                     if self.config["net_parameters"].getboolean("vnet"):
                         subprocess.Popen("/bin/bash "+ SOURCE_DIR + "/vnet_reset.sh", 
@@ -175,7 +175,7 @@ class MiniPIvyTest(IvyTest):
                     self.implem_process.terminate()
                 raise KeyboardInterrupt
             
-            if self.run and not self.keep_alive:
+            if self.run and not self.config["global_parameters"].getboolean("keep_alive"):
                 self.log.info("implem_process.terminate()")
                 # The above code is terminating the process.
                 self.implem_process.terminate()

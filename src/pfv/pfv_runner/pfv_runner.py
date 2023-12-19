@@ -37,14 +37,17 @@ class Runner:
         
         self.extra_args = [] # TODO
         self.executed_tests = executed_test
-        self.nb_test_to_execute = len(self.executed_tests)
+        self.nb_test_to_execute = 0
+        for mode in self.executed_tests.keys():
+            self.nb_test_to_execute += len(self.executed_tests[mode])
         self.current_executed_test_count = 0
         
         self.implems = implems
         
         self.webapp_ip = socket.gethostbyname("ivy-picotls-standalone")
         print(self.webapp_ip)
-        
+        print(self.nb_test_to_execute)
+        print(self.nb_test_to_execute*self.config["global_parameters"].getint("iter"))
         # TODO make less general 
         if  "quic_server_test_0rtt" in executed_test or  "quic_client_test_0rtt" in executed_test:
             self.bar_total_test = progressbar.ProgressBar(max_value=(self.nb_test_to_execute+2)*self.config["global_parameters"].getint("iter"))
@@ -80,17 +83,21 @@ class Runner:
             interface = "lo"
             p = subprocess.Popen(["ip", "netns", "exec", "ivy", "tshark", "-w",
                                 pcap_name,
-                                "-i", interface, "-f", 'udp'],
+                                "-i", interface, "-f", self.protocol_conf[self.current_protocol + '_parameters']["protocol"]],
+                                stdout=sys.stdout)
+            p = subprocess.Popen(["ip", "netns", "exec", "implem", "tshark", "-w",
+                                pcap_name.replace("ivy_lo_","implem_lo_"),
+                                "-i", interface, "-f", self.protocol_conf[self.current_protocol + '_parameters']["protocol"]],
                                 stdout=sys.stdout)
             interface = "ivy"
             p = subprocess.Popen(["ip", "netns", "exec", "ivy", "tshark", "-w",
                                     pcap_name.replace("ivy_lo_","ivy_ivy_"),
-                                    "-i", interface, "-f", 'udp'],
+                                    "-i", interface, "-f", self.protocol_conf[self.current_protocol + '_parameters']["protocol"]],
                                     stdout=sys.stdout)
             interface = "implem"
             p = subprocess.Popen(["ip", "netns", "exec", "implem", "tshark", "-w",
                                 pcap_name.replace("ivy_lo_","implem_"),
-                                "-i", interface, "-f", 'udp'],
+                                "-i", interface, "-f", self.protocol_conf[self.current_protocol + '_parameters']["protocol"]],
                                 stdout=sys.stdout)
         elif self.config["net_parameters"].getboolean("shadow"):
             p = None
@@ -98,7 +105,7 @@ class Runner:
             interface = "lo"
             p = subprocess.Popen(["sudo", "tshark", "-w",
                                 pcap_name,
-                                "-i", interface, "-f", 'udp'],
+                                "-i", interface, "-f", self.protocol_conf[self.current_protocol + '_parameters']["protocol"]],
                                 stdout=sys.stdout)
         time.sleep(3) # TODO
         return p
@@ -112,7 +119,11 @@ class Runner:
                                         shell=True, executable="/bin/bash").wait()
             subprocess.Popen("touch "+pcap_name.replace("ivy_lo_","ivy_ivy_"), 
                                         shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("touch "+pcap_name.replace("ivy_lo_","implem_lo_"), 
+                                        shell=True, executable="/bin/bash").wait()
             subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name.replace("ivy_lo_","ivy_ivy_"), 
+                                        shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name.replace("ivy_lo_","implem_lo_"), 
                                         shell=True, executable="/bin/bash").wait()
             subprocess.Popen("touch "+pcap_name.replace("ivy_lo_","implem_"), 
                                         shell=True, executable="/bin/bash").wait()
