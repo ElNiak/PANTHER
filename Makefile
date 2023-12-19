@@ -20,7 +20,6 @@ install:
 	# git checkout master
 	cd src/QUIC-Ivy-Attacker;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
 	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
-	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
 	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
 	make checkout-git
 	make build-docker-compose-full
@@ -90,10 +89,6 @@ build-docker-compose:
 	IMPLEM="ping-pong" make build-docker-ivy
 	# IMPLEM="ping-pong-flaky" make build-docker-ivy
 	# IMPLEM="ping-pong-fail" make build-docker-ivy
-	# BGP
-	# IMPLEM="gobgp" make build-docker-ivy
-	IMPLEM="bird" make build-docker-ivy
-	IMPLEM="frr" make build-docker-ivy
 	# QUIC tools
 	# make build-docker-visualizer
 	make build-docker-ivy-standalone

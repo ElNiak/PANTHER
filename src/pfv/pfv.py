@@ -9,7 +9,6 @@ import os
 from pfv_utils.pfv_constant import *
 
 from pfv_runner.pfv_quic_runner import QUICRunner
-from pfv_runner.pfv_bgp_runner import BGPRunner
 from pfv_runner.pfv_minip_runner import MiniPRunner
 
 from logger.CustomFormatter import ch
@@ -295,8 +294,6 @@ class PFV:
             runner = QUICRunner(self.config, self.protocol_conf, self.current_protocol, self.implems, self.tests)
         elif self.config["verified_protocol"].getboolean("minip"):
             runner = MiniPRunner(self.config, self.protocol_conf, self.current_protocol, self.implems, self.tests)
-        elif self.config["verified_protocol"].getboolean("bgp"):
-            runner = BGPRunner(self.config, self.protocol_conf, self.current_protocol, self.implems, self.tests)
         else:
             self.log.info("No protocols selected")
             exit(0)
