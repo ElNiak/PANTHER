@@ -62,7 +62,7 @@ def main(argv):
         os.mkdir(SOURCE_DIR + "/" + args.docker_output_path)
 
     command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
-                ' --privileged -it -v '+ SOURCE_DIR + "/" + args.docker_output_path + ':/QUIC-FormalVerification/QUIC-Ivy-Attacker/doc/examples/quic/test/temp ' +\
+                ' --privileged -it -v '+ SOURCE_DIR + "/" + args.docker_output_path + ':/QUIC-FormalVerification/Protocols-Ivy/doc/examples/quic/test/temp ' +\
                 ' --name quic-ivy-uclouvain quic-ivy-uclouvain ' +\
                 'python3 pfv.py --docker --mode '+ str(args.mode) +\
                 ' --categories '+ str(args.categories) +\

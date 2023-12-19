@@ -14,20 +14,20 @@ clean-docker:
 install:
 	git submodule update --init --recursive 
 	git submodule update --recursive
-	cd src/QUIC-Ivy-Attacker;git submodule update --init --recursive 
-	cd src/QUIC-Ivy-Attacker;git submodule update --recursive
+	cd src/Protocols-Ivy;git checkout development-BGP; git submodule update --init --recursive 
+	cd src/Protocols-Ivy;git checkout development-BGP; git submodule update --recursive
 	# git checkout rfc-9000
 	# git checkout master
-	cd src/QUIC-Ivy-Attacker;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
-	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
-	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
-	cd src/QUIC-Ivy-Attacker;mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
+	cd src/Protocols-Ivy;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
+	cd src/Protocols-Ivy;mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
+	cd src/Protocols-Ivy;mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
+	cd src/Protocols-Ivy;mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
 	make checkout-git
 	make build-docker-compose-full
 
 
 checkout-git:
-	cd src/QUIC-Ivy-Attacker/submodules/picotls/;git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
+	cd src/Protocols-Ivy/submodules/picotls/;git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
 	cd src/implementations/quic-implementations/aioquic/;git checkout d272be10b93b09b75325b139090007dae16b9f16
 	cd src/implementations/quic-implementations/boringssl/; git checkout a9670a8b476470e6f874fef3554e8059683e1413; git submodule init; git submodule update
 	cd src/implementations/quic-implementations/lsquic/; git checkout 0a4f8953dc92dd3085e48ed90f293f052cff8427; 
@@ -46,7 +46,7 @@ checkout-git:
 
 # IMPLEM="picoquic" make build-docker
 build-docker:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	# [+] Building 1046.5s (19/19) FINISHED                                                                                                                                           
@@ -58,7 +58,7 @@ build-docker:
 
 # IMPLEM="picoquic" make build-docker-ivy
 build-docker-ivy:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
@@ -66,19 +66,19 @@ build-docker-ivy:
 
 # IMPLEM="picoquic" make build-docker-ivy-short
 build-docker-ivy-short:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
 # IMPLEM="picoquic" make build-docker-ivy-gperf
 build-docker-ivy-gperf:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 	docker build --rm -t $(IMPLEM)-ivy-gperf -f src/containers/Dockerfile.gperf --build-arg image=$(IMPLEM) .
 
 build-docker-compose:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	# QUIC
 	IMPLEM="picoquic-shadow" make build-docker-ivy
 	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-ivy
@@ -99,7 +99,7 @@ build-docker-compose:
 	make build-docker-ivy-standalone
 
 build-docker-compose-full:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	IMPLEM="picoquic-shadow" make build-docker
 	# IMPLEM="picoquic-old-shadow" make build-docker-ivy
 	# IMPLEM="picoquic-shadow-bad" make build-docker-ivy
@@ -124,20 +124,20 @@ build-docker-visualizer:
 # TODO make lighter -> remove all ivy stuff only webserver
 # make build-docker-ivy-standalone
 build-docker-ivy-standalone:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
 	docker build --rm -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
 	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
 build-docker-ivy-standalone-short:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
 # IMPLEM="picoquic" make build-docker-implem
 build-docker-implem:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	docker build --rm -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ubuntu-ivy .
 	docker build --rm -t $(IMPLEM)-standalone -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=ivy-picotls .
@@ -159,14 +159,14 @@ launch-webapp:
 			   -v $(PWD)/tls-keys:/PFV/tls-keys \
 			   -v $(PWD)/tickets:/PFV/tickets \
 			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/doc/examples/quic:/PFV/QUIC-Ivy-Attacker/doc/examples/quic \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/ivy_to_cpp.py:/PFV/QUIC-Ivy-Attacker/ivy/ivy_to_cpp.py \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/include/1.7:/PFV/QUIC-Ivy-Attacker/ivy/include/1.7 \
+			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_to_cpp.py:/PFV/Protocols-Ivy/ivy/ivy_to_cpp.py \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
     		   -e DISPLAY=$(DISPLAY) \
 			   -it $(IMPLEM)-ivy python3 pfv.py --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --webapp --compile  --initial_version 29 --alpn hq-29 --docker $(OPT)
 
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 
 
@@ -178,15 +178,15 @@ test-draft29:
 			   -v $(PWD)/tls-keys:/PFV/tls-keys \
 			   -v $(PWD)/tickets:/PFV/tickets \
 			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/doc/examples/quic:/PFV/QUIC-Ivy-Attacker/doc/examples/quic \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/ivy_to_cpp.py:/PFV/QUIC-Ivy-Attacker/ivy/ivy_to_cpp.py \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/ivy_tracer.py:/PFV/QUIC-Ivy-Attacker/ivy/ivy_tracer.py \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/ivy_compiler.py:/PFV/QUIC-Ivy-Attacker/ivy/ivy_compiler.py \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/include/1.7:/PFV/QUIC-Ivy-Attacker/ivy/include/1.7 \
+			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_to_cpp.py:/PFV/Protocols-Ivy/ivy/ivy_to_cpp.py \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_tracer.py:/PFV/Protocols-Ivy/ivy/ivy_tracer.py \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_compiler.py:/PFV/Protocols-Ivy/ivy/ivy_compiler.py \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
 			   -it $(IMPLEM)-ivy python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29 --docker $(OPT) || true
 
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 
 # IMPLEM="picoquic" MODE="client" CATE="attacks_test" ITER="1" OPT="--vnet" make gperf-draft29
@@ -195,14 +195,14 @@ gperf-draft29:
 			   -v $(PWD)/tls-keys:/PFV/tls-keys \
 			   -v $(PWD)/tickets:/PFV/tickets \
 			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/doc/examples/quic:/PFV/QUIC-Ivy-Attacker/doc/examples/quic \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/include/1.7:/PFV/QUIC-Ivy-Attacker/ivy/include/1.7 \
+			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
 			   -it $(IMPLEM)-ivy-gperf python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile --gperf --initial_version 29 --alpn hq-29 --docker $(OPT) || true
 
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
-	# pprof $(PWD)/src/QUIC-Ivy-Attacker/doc/examples/quic /tmp/prof.out
+	# pprof $(PWD)/src/Protocols-Ivy/doc/examples/quic /tmp/prof.out
 
 
 
@@ -213,12 +213,12 @@ test-rfc9000:
 			   -v $(PWD)/tls-keys:/PFV/tls-keys \
 			   -v $(PWD)/tickets:/PFV/tickets \
 			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/doc/examples/quic:/PFV/QUIC-Ivy-Attacker/doc/examples/quic \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/include/1.7:/PFV/QUIC-Ivy-Attacker/ivy/include/1.7 \
+			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
 			   -it $(IMPLEM)-ivy python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
 			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop --docker $(OPT) || true
 
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 
 change-permissions:
@@ -233,7 +233,7 @@ test-local-client-rfc9000:
 			   --timeout 180 --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop
 
 test-vnet:
-	docker run --privileged -it picoQUIC-Ivy-Attacker ./setup_namespace.sh
+	docker run --privileged -it Protocols-Ivy ./setup_namespace.sh
 
 launch-teams:
 	docker build --rm -t teams -f src/containers/Dockerfile.teams  .
@@ -241,12 +241,12 @@ launch-teams:
 	docker run --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$(DISPLAY) -it teams
 
 permissions:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	
 # https://jtreminio.com/blog/running-docker-containers-as-current-host-user/
 compose:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/QUIC-Ivy-Attacker/
+	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	xhost +
 	docker-compose up -d
 	cd src/pfv/scripts/hosts/; bash update_etc_hosts.sh  # TODO make copy before
@@ -257,6 +257,6 @@ start-bash:
 			   -v $(PWD)/tls-keys:/PFV/tls-keys \
 			   -v $(PWD)/tickets:/PFV/tickets \
 			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/doc/examples/quic:/PFV/QUIC-Ivy-Attacker/doc/examples/quic \
-			   -v $(PWD)/src/QUIC-Ivy-Attacker/ivy/include/1.7:/PFV/QUIC-Ivy-Attacker/ivy/include/1.7 \
+			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
+			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
 			   -it $(IMPLEM)-ivy bash

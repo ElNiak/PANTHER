@@ -40,7 +40,7 @@ class PFV:
             self.log.info("ENV_VAR="+ env_var)
             self.log.info("ENV_VAL="+ str(ENV_VAR[env_var]))
         
-        self.ivy_include_path = SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include/1.7/"
+        self.ivy_include_path = SOURCE_DIR + "/Protocols-Ivy/ivy/include/1.7/"
                 
         # Setup configuration
         self.log.info("START SETUP CONFIGURATION")
@@ -87,10 +87,10 @@ class PFV:
 
         protocol_conf.read('configs/'+protocol+'/'+protocol+'_config.ini')
         # TODO change var name at the end
-        self.ivy_model_path = dir_path + "/QUIC-Ivy-Attacker/protocol-testing/" + protocol
-        self.config.set('global_parameters', "tests_dir", dir_path + "/QUIC-Ivy-Attacker/protocol-testing/"+ protocol +"/"+protocol +"_tests/")
-        self.config.set('global_parameters', "dir"      , dir_path + "/QUIC-Ivy-Attacker/protocol-testing/"+ protocol +"/test/temp/")
-        self.config.set('global_parameters', "build_dir", dir_path + "/QUIC-Ivy-Attacker/protocol-testing/"+ protocol +"/build/")
+        self.ivy_model_path = dir_path + "/Protocols-Ivy/protocol-testing/" + protocol
+        self.config.set('global_parameters', "tests_dir", dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/"+protocol +"_tests/")
+        self.config.set('global_parameters', "dir"      , dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/test/temp/")
+        self.config.set('global_parameters', "build_dir", dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/build/")
         for cate in protocol_conf.keys():
             if "test" in cate:
                 self.tests[cate] = []
@@ -112,7 +112,7 @@ class PFV:
     
     def update_ivy(self):
         # Note we use subprocess in order to get sudo rights
-        os.chdir(SOURCE_DIR + "/QUIC-Ivy-Attacker/")
+        os.chdir(SOURCE_DIR + "/Protocols-Ivy/")
         os.system("sudo python2.7 setup.py install")
         os.system("sudo cp lib/libz3.so submodules/z3/build/python/z3")
         # TODO extract variable for path -> put in module path
@@ -125,7 +125,7 @@ class PFV:
                                                     shell=True, executable="/bin/bash").wait()
         
         os.chdir('/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/')
-        subprocess.Popen("sudo /bin/cp -f -a " + SOURCE_DIR + "/QUIC-Ivy-Attacker/lib/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib", 
+        subprocess.Popen("sudo /bin/cp -f -a " + SOURCE_DIR + "/Protocols-Ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib", 
                                                     shell=True, executable="/bin/bash").wait()
 
         
@@ -133,12 +133,12 @@ class PFV:
             self.log.info("Copying QUIC libraries")
             subprocess.Popen("sudo /bin/cp -f -a " + SOURCE_DIR + "/implementations/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib", 
                                                         shell=True, executable="/bin/bash").wait()
-            subprocess.Popen("sudo /bin/cp -f -a " + SOURCE_DIR + "/implementations/quic-implementations/picotls/*.a " + SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/lib", 
+            subprocess.Popen("sudo /bin/cp -f -a " + SOURCE_DIR + "/implementations/quic-implementations/picotls/*.a " + SOURCE_DIR + "/Protocols-Ivy/ivy/lib", 
                                                         shell=True, executable="/bin/bash").wait()                                          
 
             subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/implementations/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include", 
                                                         shell=True, executable="/bin/bash").wait()
-            subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/implementations/quic-implementations/picotls/include/picotls.h " + SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include", 
+            subprocess.Popen("sudo /bin/cp -f " + SOURCE_DIR + "/implementations/quic-implementations/picotls/include/picotls.h " + SOURCE_DIR + "/Protocols-Ivy/ivy/include", 
                                                         shell=True, executable="/bin/bash").wait()
             subprocess.Popen("sudo /bin/cp -r -f " + SOURCE_DIR + "/implementations/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/picotls", 
                                                         shell=True, executable="/bin/bash").wait()

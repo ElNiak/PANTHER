@@ -45,11 +45,11 @@ class IvyServer:
     
     def __init__(self,dir_path=None,experiments=None):
         IvyServer.dir_path = dir_path
-        IvyServer.ivy_model_path = dir_path + "/QUIC-Ivy-Attacker/doc/examples/quic"
-        IvyServer.ivy_test_path = dir_path  + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/"
-        IvyServer.ivy_temps_path = dir_path + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
-        IvyServer.ivy_include_path = dir_path + "/QUIC-Ivy-Attacker/ivy/include/1.7/"
-        IvyServer.local_path = os.environ["ROOT_PATH"] + "/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/"
+        IvyServer.ivy_model_path = dir_path + "/Protocols-Ivy/doc/examples/quic"
+        IvyServer.ivy_test_path = dir_path  + "/Protocols-Ivy/doc/examples/quic/quic_tests/"
+        IvyServer.ivy_temps_path = dir_path + "/Protocols-Ivy/doc/examples/quic/test/temp/"
+        IvyServer.ivy_include_path = dir_path + "/Protocols-Ivy/ivy/include/1.7/"
+        IvyServer.local_path = os.environ["ROOT_PATH"] + "/Protocols-Ivy/doc/examples/quic/test/temp/"
         IvyServer.key_path = SOURCE_DIR + "/tls-keys/"
         IvyServer.server_tests = []
         IvyServer.server_tests_checkbox = []
@@ -664,9 +664,9 @@ class IvyServer:
                         prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
                         
                         if "server_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/server_tests/"
                         elif "client_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/client_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/client_tests/"
                         
                         if "quic_transport_parameters" in splitted_line[0]:
                             tp_name = splitted_line[2].replace(" ", "").replace(".set","").replace("\n", "")
@@ -1128,9 +1128,9 @@ class IvyServer:
                         prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
                         
                         if "server_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/server_tests/"
                         elif "client_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/client_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/client_tests/"
                         if not splitted_line[0] in mapping:
                             mapping[splitted_line[0]] = [ ]
                             
@@ -1447,9 +1447,9 @@ class IvyServer:
                         prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
                         
                         if "server_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/server_tests/"
                         elif "client_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/client_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/client_tests/"
                         if not splitted_line[0] in mapping:
                             mapping[splitted_line[0]] = [ ]
                         
@@ -1718,9 +1718,9 @@ class IvyServer:
                         prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
                         
                         if "server_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/server_tests/"
                         elif "client_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/client_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/client_tests/"
                         if not splitted_line[0] in mapping:
                             mapping[splitted_line[0]] = [ ]
                         
@@ -1773,9 +1773,9 @@ class IvyServer:
                         prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
                         
                         if "server_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/server_tests/"
                         elif "client_test" in splitted_line[0]:
-                            prefix =  "/PFV/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/client_tests/"
+                            prefix =  "/PFV/Protocols-Ivy/doc/examples/quic/quic_tests/client_tests/"
                         if not splitted_line[0] in mapping:
                             mapping[splitted_line[0]] = [ ]
                         
@@ -2022,7 +2022,7 @@ class IvyServer:
         IvyServer.experiments.update_includes_ptls()
         IvyServer.experiments.update_includes()
         def call_python_version(Version, Module, Function, ArgumentList):
-            folder = PFV.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/server_tests/"
+            folder = PFV.SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/quic_tests/server_tests/"
             IvyServer.experiments.update_includes_ptls()
             IvyServer.experiments.update_includes()
             # //env:PATH=%s//env:PYTHONPATH=%s , os.getenv('PATH'), os.getenv('PYTHONPATH'))

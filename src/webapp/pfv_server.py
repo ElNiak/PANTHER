@@ -51,7 +51,7 @@ class PFVServer:
                 default_settings = default_config.read()
                 configfile.write(default_settings)
         PFVServer.dir_path         = dir_path
-        PFVServer.ivy_include_path = dir_path + "/QUIC-Ivy-Attacker/ivy/include/1.7/"
+        PFVServer.ivy_include_path = dir_path + "/Protocols-Ivy/ivy/include/1.7/"
                 
         # Setup configuration
         PFVServer.config = PFVServer.setup_config()
@@ -116,10 +116,10 @@ class PFVServer:
             protocol_conf.read('configs/'+protocol+'/default_'+protocol+'_config.ini')
         else:
             protocol_conf.read('configs/'+protocol+'/'+protocol+'_config.ini')
-        PFVServer.ivy_model_path = dir_path + "/QUIC-Ivy-Attacker/protocol-testing/" + protocol
-        PFVServer.ivy_test_path = dir_path  + "/QUIC-Ivy-Attacker/protocol-testing/"+ protocol +"/tests/"
-        PFVServer.ivy_temps_path = dir_path + "/QUIC-Ivy-Attacker/protocol-testing/"+ protocol +"/test/temp/"
-        PFVServer.local_path = os.environ["ROOT_PATH"] + "/QUIC-Ivy-Attacker/protocol-testing/"+ protocol +"/test/temp/"
+        PFVServer.ivy_model_path = dir_path + "/Protocols-Ivy/protocol-testing/" + protocol
+        PFVServer.ivy_test_path = dir_path  + "/Protocols-Ivy/protocol-testing/"+ protocol +"/tests/"
+        PFVServer.ivy_temps_path = dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/test/temp/"
+        PFVServer.local_path = os.environ["ROOT_PATH"] + "/Protocols-Ivy/protocol-testing/"+ protocol +"/test/temp/"
         for cate in protocol_conf.keys():
             if "test" in cate:
                 PFVServer.tests[cate] = []
