@@ -14,7 +14,7 @@ clean-docker:
 install:
 	git submodule update --init --recursive 
 	git submodule update --recursive
-	cd src/Protocols-Ivy/; git fetch; git checkout development-CoAP
+	cd src/Protocols-Ivy/; git fetch; git checkout master
 	cd src/Protocols-Ivy;git submodule update --init --recursive 
 	cd src/Protocols-Ivy;git submodule update --recursive
 	cd src/Protocols-Ivy;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
