@@ -14,12 +14,11 @@ clean-docker:
 install:
 	git submodule update --init --recursive 
 	git submodule update --recursive
+	cd src/Protocols-Ivy/; git fetch; git checkout development-CoAP
 	cd src/Protocols-Ivy;git submodule update --init --recursive 
 	cd src/Protocols-Ivy;git submodule update --recursive
-	# git checkout rfc-9000
-	# git checkout master
 	cd src/Protocols-Ivy;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
-	cd src/Protocols-Ivy;mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
+	cd src/Protocols-Ivy;mkdir -p protocol-testing/quic/build;  mkdir -p protocol-testing/quic/test/temp;  touch protocol-testing/quic/test/temp/data.csv
 	cd src/Protocols-Ivy;mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
 	make checkout-git
 	make build-docker-compose-full
