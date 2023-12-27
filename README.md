@@ -1,5 +1,17 @@
 # :skull_and_crossbones: PFV (Protocols Formal Verification) :skull_and_crossbones:
 
+This tool presents a novel approach to bolstering network
+protocol verification by integrating the Shadow network simulator with
+the Ivy formal verification tool to check time properties. Furthermore,
+it extends Ivy’s capabilities with a dedicated time module, enabling the
+verification of complex quantitative-time properties. The methodology
+is applied to real-world protocols by enhancing the QUIC formal specifi-
+cation in Ivy, verifying key specifications, and demonstrating its practi-
+cality on the picoquic implementation. This revealed an error in the im-
+plementation which underscores the effectiveness of the approach. This
+integration opens new avenues for more detailed, efficient, and accurate
+protocol testing and verification.
+
 ## :books: Installation
 
 ### Locally
