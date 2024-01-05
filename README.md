@@ -235,6 +235,27 @@ make compose
 
 </details>
 
+## :open_file_folder: Some details about
+
+<details>
+<summary>Click to expand</summary>
+
+### :open_file_folder: Ivy
+
+<details>
+<summary>Click to expand</summary>
+
+</details>
+
+### :open_file_folder: Shadow
+
+<details>
+<summary>Click to expand</summary>
+
+</details>
+
+</details>
+
 ## :open_file_folder: Project Structure
 
 <details>
@@ -295,5 +316,12 @@ PFV/
 
 </details>
 
+
+</details>
+
+## :open_file_folder: References
+
+<details>
+<summary>Click to expand</summary>
 
 </details>
