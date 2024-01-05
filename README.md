@@ -13,49 +13,39 @@ For now the following protocols are supported:
 - [ ] BGP
 - [ ] CoAP
 
-## :wrench: Installation
+## :wrench: Installation (Docker - Recommended)
 
-### :computer: Local Installation
+### :computer: Local Installation (Not Recommended)
 
 <details>
 <summary>Click to expand</summary>
 
-Clone the repository and initialize submodules:
+See Dockerfile for dependencies and commands
+
+</details>
+
+### :whale: Single implementation 
+
+<details>
+<summary>Click to expand</summary>
 
 ```bash
-git submodule update --init --recursive
-git submodule update --recursive
-```
-
-Switch to the development branch for CoAP protocol:
-
-```bash
-cd src/Protocols-Ivy/
-git fetch
-git checkout development-CoAP
-```
-
-Then, proceed with the installation:
-
-```bash
-make install
+# For a full installation including all dependencies and configurations:
+IMPLEM="picoquic" make build-docker
 ```
 </details>
 
-### :whale: Installation with Docker (Recommended)
+### :whale: WebApp (Recommended) 
 
 <details>
 <summary>Click to expand</summary>
 
-For a full installation including all dependencies and configurations:
-
 ```bash
+# For first installation 
+make install
+# For major update in ivy:
 make build-docker-compose-full
-```
-
-For a standard installation:
-
-```bash
+# For a minor update in some implementation:
 make build-docker-compose
 ```
 </details>
@@ -65,9 +55,8 @@ make build-docker-compose
 <details>
 <summary>Click to expand</summary>
 
-To clean Docker images and system:
-
 ```bash
+# To clean Docker images and system:
 make clean-docker-full
 ```
 </details>
@@ -77,51 +66,88 @@ make clean-docker-full
 <details>
 <summary>Click to expand</summary>
 
-The PFV project is organized into several key directories, with `src/` and `src/Protocols-Ivy/` being crucial for the core functionalities:
 
-### `src/` Directory
+The PFV project is organized into the following key directories:
 
-This directory contains the primary source code and components of the PFV project:
-
-- **`Protocols-Ivy/`**: The heart of protocol specifications. It houses the Ivy formal verification tool configurations and specifications for various protocols.
-- **`implementations/`**: Contains different QUIC implementation modules, such as `picoquic`, `aioquic`, and `lsquic`. This area is crucial for testing and comparing various implementations against the formal specifications.
-- **`containers/`**: Holds Dockerfile definitions for creating different environment setups and implementation-specific containers, enabling a modular and isolated testing environment.
-
-### `src/Protocols-Ivy/` Directory
-
-This directory is pivotal for the protocol verification process:
-
-- **`doc/`**: Documentation and examples relevant to the protocols, including practical use cases and setup guides.
-   - **`examples/`**: Contains example protocols and their implementation, such as QUIC and MiniP. It's a great starting point for understanding how protocols are structured within PFV.
-- **`protocol-testing/`**: This subdirectory is essential for the testing framework. It includes configurations and scripts for formal verification tests of different protocols like QUIC, MiniP, and potentially others.
-   - **`quic/`, `minip/`, `coap/`**: Each subdirectory corresponds to a specific protocol, containing build and test scripts tailored for that protocol.
-- **`ivy/`**: Contains the Ivy tool's core files, libraries, and scripts necessary for protocol verification.
-
-
-</details>
-
-## :hammer_and_wrench: Updating Docker Compose File
-
-<details>
-<summary>Click to expand</summary>
-
-To update `docker-compose.yml`, edit the file in the `docker/` directory and run:
-
-```bash
-make build-docker-compose
 ```
+PFV/
+└── data/
+└── src/
+    ├── Protocols-Ivy/
+    │   ├── protocol-testing/
+    │   │   ├── quic/
+    │   │   ├── minip/
+    │   │   ├── coap/
+    │   │   └── [other protocols]
+    │   └── ivy/[ivy-core]
+    ├── implementations/
+    │   ├── quic-implementations/
+    │   │       ├── picoquic/
+    │   │       ├── aioquic/
+    │   │       ├── lsquic/
+    │   │       └── [protocol implementations]
+    │   └── [other protocols]
+    ├── containers/
+    │   └── [Dockerfile definitions]
+    └── pfv/
+        ├── pfv.py
+        ├── pfv_runner/ [test preparation]
+        ├── ...
+        ├── pfv_tester/ [test execution]
+        └── configs/
+            └── [configuration files]
+```
+- `data/`: Data directory for storing results and logs.
+- `pfv/`: Main PFV module.
+- `Protocols-Ivy/`: Core of protocol specifications and testing.
+- `implementations/`: Various QUIC implementation modules.
+- `containers/`: Dockerfile definitions for different environments.
+
+
 </details>
+
 
 ## :computer: Usage
 
+### :computer: Tests parameters
+
 <details>
 <summary>Click to expand</summary>
 
-PFV offers a wide range of command-line options to tailor its functionality to your needs:
-
-[Include detailed usage instructions here, as provided in the previous response]
-
 </details>
+
+
+### :computer: Attach to Docker Container (command line)
+
+<details>
+<summary>Click to expand</summary>
+
+```bash
+# Start a Docker container for interactive Bash access
+IMPLEM="picoquic" make start-bash
+python3 pfv.py --mode client --categories all --update_include_tls \
+		--timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29  
+# Example: Runs a Docker container with 'picoquic' for interactive Bash access
+```
+</details>
+
+### :computer: From webapp
+
+<details>
+<summary>Click to expand</summary>
+
+Update the `docker-compose.yml` file with the protocol implementation and run the following command:
+
+```bash
+# Compose the full Docker environment for all implementations
+make compose
+# Example: Sets up and runs Docker Compose environment
+```
+</details>
+
+## :computer: Adding new protocol
+
+### :computer: Add new protocol implementation
 
 ## :framed_picture: Architecture Diagrams
 
