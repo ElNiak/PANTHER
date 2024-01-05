@@ -174,9 +174,9 @@ make compose
 
 TODO
 
-<details>
+</details>
 
-<details>
+</details>
 
 ## :open_file_folder: Project Structure
 
