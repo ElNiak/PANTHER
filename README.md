@@ -37,18 +37,16 @@ IMPLEM="picoquic" make build-docker
 
 ### :whale: WebApp (Recommended) 
 
-<details>
-<summary>Click to expand</summary>
-
 ```bash
 # For first installation 
 make install
-# For major update in ivy:
+
+# For modification: 
+##  For major update in ivy:
 make build-docker-compose-full
-# For a minor update in some implementation:
+## For a minor update in some implementation:
 make build-docker-compose
 ```
-</details>
 
 ### :warning: Clean Up
 
@@ -59,51 +57,6 @@ make build-docker-compose
 # To clean Docker images and system:
 make clean-docker-full
 ```
-</details>
-
-## :open_file_folder: Project Structure
-
-<details>
-<summary>Click to expand</summary>
-
-
-The PFV project is organized into the following key directories:
-
-```
-PFV/
-└── data/
-└── src/
-    ├── Protocols-Ivy/
-    │   ├── protocol-testing/
-    │   │   ├── quic/
-    │   │   ├── minip/
-    │   │   ├── coap/
-    │   │   └── [other protocols]
-    │   └── ivy/[ivy-core]
-    ├── implementations/
-    │   ├── quic-implementations/
-    │   │       ├── picoquic/
-    │   │       ├── aioquic/
-    │   │       ├── lsquic/
-    │   │       └── [protocol implementations]
-    │   └── [other protocols]
-    ├── containers/
-    │   └── [Dockerfile definitions]
-    └── pfv/
-        ├── pfv.py
-        ├── pfv_runner/ [test preparation]
-        ├── ...
-        ├── pfv_tester/ [test execution]
-        └── configs/
-            └── [configuration files]
-```
-- `data/`: Data directory for storing results and logs.
-- `pfv/`: Main PFV module.
-- `Protocols-Ivy/`: Core of protocol specifications and testing.
-- `implementations/`: Various QUIC implementation modules.
-- `containers/`: Dockerfile definitions for different environments.
-
-
 </details>
 
 
@@ -189,23 +142,6 @@ make compose
 ```
 </details>
 
-## :computer: Adding new protocol
-
-### :computer: Add new protocol implementation
-
-## :framed_picture: Architecture Diagrams
-
-### Docker Compose and Container Internal Layer Architecture
-
-<details>
-<summary>Click to expand</summary>
-
-| Docker Compose Architecture | Docker Container Internal Architecture |
-|:---------------------------:|:--------------------------------------:|
-| ![Docker Compose Architecture](res/DALL·E%202024-01-05%2006.59.32%20-%20A%20diagram%20illustrating%20the%20architecture%20of%20a%20Docker%20Compose%20setup%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20It%20shows%20various%20Docker%20contain.png) | ![Docker Container Internal Architecture](res/DALL·E%202024-01-05%2007.00.02%20-%20An%20internal%20architecture%20diagram%20of%20a%20Docker%20container%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20The%20diagram%20should%20show%20the%20layering%20of%20co.png) |
-
-</details>
-
 ## :book: Tutorial (Expand for details)
 
 <details>
@@ -218,3 +154,66 @@ make compose
 3. Start with running basic tests...
 
 </details>
+
+
+
+## :computer: Adding new protocol
+
+### :computer: Add new protocol implementation
+
+## :open_file_folder: Project Structure
+
+<details>
+<summary>Click to expand</summary>
+
+
+The PFV project is organized into the following key directories:
+
+```
+PFV/
+└── data/
+└── src/
+    ├── Protocols-Ivy/
+    │   ├── protocol-testing/
+    │   │   ├── quic/
+    │   │   ├── minip/
+    │   │   ├── coap/
+    │   │   └── [other protocols]
+    │   └── ivy/[ivy-core]
+    ├── implementations/
+    │   ├── quic-implementations/
+    │   │       ├── picoquic/
+    │   │       ├── aioquic/
+    │   │       ├── lsquic/
+    │   │       └── [protocol implementations]
+    │   └── [other protocols]
+    ├── containers/
+    │   └── [Dockerfile definitions]
+    └── pfv/
+        ├── pfv.py
+        ├── pfv_runner/ [test preparation]
+        ├── ...
+        ├── pfv_tester/ [test execution]
+        └── configs/
+            └── [configuration files]
+```
+- `data/`: Data directory for storing results and logs.
+- `pfv/`: Main PFV module.
+- `Protocols-Ivy/`: Core of protocol specifications and testing.
+- `implementations/`: Various QUIC implementation modules.
+- `containers/`: Dockerfile definitions for different environments.
+
+
+</details>
+
+## :framed_picture: Architecture Diagrams
+
+<details>
+<summary>Click to expand</summary>
+
+| Docker Compose Architecture | Docker Container Internal Architecture |
+|:---------------------------:|:--------------------------------------:|
+| ![Docker Compose Architecture](res/DALL·E%202024-01-05%2006.59.32%20-%20A%20diagram%20illustrating%20the%20architecture%20of%20a%20Docker%20Compose%20setup%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20It%20shows%20various%20Docker%20contain.png) | ![Docker Container Internal Architecture](res/DALL·E%202024-01-05%2007.00.02%20-%20An%20internal%20architecture%20diagram%20of%20a%20Docker%20container%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20The%20diagram%20should%20show%20the%20layering%20of%20co.png) |
+
+</details>
+
