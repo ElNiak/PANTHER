@@ -15,6 +15,9 @@ For now the following protocols are supported:
 
 ## :wrench: Installation 
 
+<details>
+<summary>Click to expand</summary>
+
 ### :computer: Local Installation (Not Recommended)
 
 <details>
@@ -59,8 +62,12 @@ make clean-docker-full
 ```
 </details>
 
+</details>
 
 ## :computer: Usage
+
+<details>
+<summary>Click to expand</summary>
 
 ### :book: Tests parameters
 
@@ -137,6 +144,7 @@ Update the `docker-compose.yml` file with the protocol implementation and run th
 make compose
 ```
 
+</details>
 
 ## :book: Tutorial (Expand for details)
 
@@ -155,13 +163,17 @@ make compose
 
 ## :computer: Adding new protocol
 
+<details>
+<summary>Click to expand</summary>
+
 ### :computer: Add new protocol implementation
+
+<details>
 
 ## :open_file_folder: Project Structure
 
 <details>
 <summary>Click to expand</summary>
-
 
 The PFV project is organized into the following key directories:
 
