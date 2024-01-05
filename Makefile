@@ -149,6 +149,7 @@ build-docker-compose-full:
 # Compose the full Docker environment for all implementations
 # Launch the web application interface for protocol testing
 compose:
+	docker network inspect net >/dev/null 2>&1 || docker network create --gateway 172.27.1.1 --subnet 172.27.1.0/24 net
     # Set up host permissions and launch Docker Compose
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	xhost +

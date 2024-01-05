@@ -13,7 +13,7 @@ For now the following protocols are supported:
 - [ ] BGP
 - [ ] CoAP
 
---
+---
 
 ## :wrench: Installation 
 
@@ -66,7 +66,7 @@ make clean-docker-full
 
 </details>
 
---
+---
 
 ## :computer: Usage
 
@@ -148,21 +148,69 @@ Update the `docker-compose.yml` file with the protocol implementation and run th
 make compose
 ```
 
+Then go to `172.27.1.10` to access the WebApp.
+
 </details>
 
---
+---
 
 ## :book: Tutorial
 
 <details>
 <summary>Click to expand</summary>
 
-### :computer: WebApp
+### :computer: WebApp (Recommended)
 
 <details>
 <summary>Click to expand</summary>
+Note that the similar approach can be used in the command line.
+# Ivy QUIC Web Application Quick Guide
 
+**Introduction**:
+This quick guide assists you in using the Ivy QUIC web application for testing QUIC implementations.
 
+**Configuration Steps**:
+
+1. **Choose Protocol**: Start by selecting the protocol (QUIC, MINIP, BGP) you want to test.
+
+![Choose Protocol](attachment://Screenshot from 2024-01-05 11-42-52.png)
+
+2. **Set Network Type**: Opt for localhost, vnet, or shadow based on your network testing environment.
+
+![Set Network Type](attachment://Screenshot from 2024-01-05 11-43-02.png)
+
+3. **Global Parameters**: Define directories for output, build, and tests using the 'Browse...' options and set the iteration count.
+
+![Global Parameters](attachment://Screenshot from 2024-01-05 11-43-16.png)
+
+4. **Debugging Options**: Toggle performance and memory profiling tools like gperf, gdb, and memprof as needed.
+
+![Debugging Options](attachment://Screenshot from 2024-01-05 11-43-37.png)
+
+5. **Adjust Test Settings**: Customize Shadow parameters such as loss, jitter, and latency for simulation accuracy.
+
+![Adjust Test Settings](attachment://Screenshot from 2024-01-05 11-43-41.png)
+
+6. **Protocol custom configuration**: Set the number of requests, initial version, number of clients, and ALPN for, e.g QUIC tests.
+
+![QUIC Verification](attachment://Screenshot from 2024-01-05 11-43-48.png)
+
+7. **Select Tests**: Choose from server, client, and MIM tests to target specific aspects of the QUIC protocol.
+
+![Select Tests](attachment://Screenshot from 2024-01-05 11-44-04.png)
+
+8. **Implementation Testing**: Pick the QUIC implementation you want to test from the available options.
+
+![Implementation Testing](attachment://Screenshot from 2024-01-05 11-43-48.png)
+
+9. **Start Experiments**: Hit 'Start Experiments' to begin the testing process with your configured settings.
+
+![Start Experiments](attachment://Screenshot from 2024-01-05 11-44-04.png)
+
+**Running the Tests**
+After setup, monitor the tests' progress and analyze the results. Make adjustments and re-run as necessary to ensure thorough testing.
+
+Refer to the in-app documentation for detailed instructions or contact support for troubleshooting assistance.
 </details>
 
 ### :computer: Adding new protocol
@@ -239,21 +287,46 @@ make compose
 ```
 </details>
 
-</details>
-
-## :open_file_folder: Some details about
+### :computer: Ivy Model Creation
 
 <details>
 <summary>Click to expand</summary>
 
-### :open_file_folder: Ivy
+Follow these steps to create an Ivy model for protocol verification:
+
+1. **RFC Analysis**: Carefully read the RFC to identify the protocol components, such as packet types and endpoints.
+
+2. **Modeling Components**: Model the identified components without the requirements initially. Focus on their fields, potential events, etc.
+
+3. **Serialization/Deserialization**: Implement serialization and deserialization functions for each event that could be transmitted over the network.
+
+4. **Incorporating RFC Requirements**: Integrate the requirements specified in the RFC with the modeled components to complete the Ivy model.
+
+</details>
+
+### :computer: Troubleshoting
 
 <details>
 <summary>Click to expand</summary>
 
 </details>
 
-### :open_file_folder: Shadow
+</details>
+
+
+## :book: Some details
+
+<details>
+<summary>Click to expand</summary>
+
+### :book: Ivy
+
+<details>
+<summary>Click to expand</summary>
+
+</details>
+
+### :book: Shadow
 
 <details>
 <summary>Click to expand</summary>
@@ -262,7 +335,7 @@ make compose
 
 </details>
 
---
+---
 
 ## :open_file_folder: Project Structure
 
@@ -327,11 +400,19 @@ PFV/
 
 </details>
 
---
+---
 
-## :open_file_folder: References
+## :book: References
 
 <details>
 <summary>Click to expand</summary>
+
+For further reading and context on the topics and methodologies used in this tool, refer to the following articles:
+1. [Ivy: Safety Verification by Interactive Generalization](https://dl.acm.org/doi/10.1145/3290368)
+2. Crochet, C., et al. - "Verifying QUIC Implementations Using Ivy" (2020)
+
+For other useful resources, see the following:
+1. [Ivy Documentation](https://microsoft.github.io/ivy-doc/)
+2. [Ivy GitHub Repository]()
 
 </details>
