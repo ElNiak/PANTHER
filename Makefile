@@ -1,31 +1,62 @@
-NPROC:=$(shell nproc)
+# Determine the number of processing cores available
+NPROC := $(shell nproc)
 
-# TODO for docker, more elegant
+###################################################################################################
+# CLEANUP COMMANDS
+###################################################################################################
+
+# Clean Docker images and containers
 clean:
-	#docker kill $(docker ps -q)
+    # This command removes all stopped containers and unused images
 	docker image prune -a
 
+# Remove all unused Docker images
 clean-docker:
+    # Removes unused Docker images
+	docker image prune
+    # Removes all Docker images
+	docker image prune -a
+    # Force removal of all images
+	docker rmi $(docker images -a -q)
+
+# Fully clean Docker environment
+clean-docker-full:
+    # Removes unused Docker images and containers
 	docker image prune
 	docker image prune -a
-	docker rmi $(docker images -a -q) 
-	#  docker system prune -a -f
+    # Fully clean the Docker system (containers, networks, and images)
+	docker system prune -a -f
+    # Force removal of all images
+	docker rmi $(docker images -a -q)
 
+###################################################################################################
+# INSTALLATION AND SETUP
+###################################################################################################
+
+# Install and update submodules, prepare directories
 install:
-	git submodule update --init --recursive 
+    # Initialize and update git submodules recursively
+	git submodule update --init --recursive
 	git submodule update --recursive
-	cd src/Protocols-Ivy/; git fetch; git checkout master
-	cd src/Protocols-Ivy;git submodule update --init --recursive 
-	cd src/Protocols-Ivy;git submodule update --recursive
-	cd src/Protocols-Ivy;mkdir doc/examples/quic/build; mkdir doc/examples/quic/test/temp; 
-	cd src/Protocols-Ivy;mkdir -p protocol-testing/quic/build;  mkdir -p protocol-testing/quic/test/temp;  touch protocol-testing/quic/test/temp/data.csv
-	cd src/Protocols-Ivy;mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
+    # Checkout specific branches and set up directories for QUIC protocol examples and testing
+	cd src/Protocols-Ivy/; git fetch; git checkout production
+	cd src/Protocols-Ivy; git submodule update --init --recursive
+	cd src/Protocols-Ivy; git submodule update --recursive
+    # Create necessary directories and files for QUIC, MiniP, and CoAP protocol testing
+	cd src/Protocols-Ivy; mkdir -p doc/examples/quic/build; mkdir -p doc/examples/quic/test/temp
+	cd src/Protocols-Ivy; mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
+	cd src/Protocols-Ivy; mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
+	cd src/Protocols-Ivy; mkdir -p protocol-testing/coap/build; mkdir -p protocol-testing/coap/test/temp; touch protocol-testing/coap/test/temp/data.csv
+	cd src/Protocols-Ivy; mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
+    # Perform additional setup and build Docker containers
 	make checkout-git
 	make build-docker-compose-full
 
-
+# Check out specific commits of submodules for consistency
 checkout-git:
-	cd src/Protocols-Ivy/submodules/picotls/;git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
+    # Specific commits are checked out for each submodule to ensure consistency and reproducibility
+	cd src/Protocols-Ivy/submodules/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
+    # QUIC implementations
 	cd src/implementations/quic-implementations/aioquic/;git checkout d272be10b93b09b75325b139090007dae16b9f16
 	cd src/implementations/quic-implementations/boringssl/; git checkout a9670a8b476470e6f874fef3554e8059683e1413; git submodule init; git submodule update
 	cd src/implementations/quic-implementations/lsquic/; git checkout 0a4f8953dc92dd3085e48ed90f293f052cff8427; 
@@ -35,222 +66,105 @@ checkout-git:
 	cd src/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76; 
 
 ###################################################################################################
-# BUILDER
+# DOCKER BUILD COMMANDS
 ###################################################################################################
 
-# ----------------------------
-# With Shadow
-# ----------------------------
-
-# IMPLEM="picoquic" make build-docker
+# Build Docker images for protocol testing with Shadow
+# Example: IMPLEM="picoquic" make build-docker
 build-docker:
+    # Change ownership of the Ivy Protocol source directory
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
+    # Build a series of Docker images, each dependent on the previous, for various testing environments
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
-	# [+] Building 1046.5s (19/19) FINISHED                                                                                                                                           
+    # [+] Building 1046.5s (19/19) FINISHED     
 	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
 	docker build --rm -t shadow-ivy -f src/containers/Dockerfile.shadow .
 	docker build --rm -t shadow-ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=shadow-ivy .
 	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
-# IMPLEM="picoquic" make build-docker-ivy
-build-docker-ivy:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
-	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
-
-
-# IMPLEM="picoquic" make build-docker-ivy-short
-build-docker-ivy-short:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
-
-# IMPLEM="picoquic" make build-docker-ivy-gperf
-build-docker-ivy-gperf:
+# Build Docker images for protocol testing with Shadow from implementation layer
+# Example: IMPLEM="picoquic" make build-docker-impem
+build-docker-impem:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
 	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
-	docker build --rm -t $(IMPLEM)-ivy-gperf -f src/containers/Dockerfile.gperf --build-arg image=$(IMPLEM) .
 
-build-docker-compose:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	# QUIC
-	IMPLEM="picoquic-shadow" make build-docker-ivy
-	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-ivy
-	# IMPLEM="picoquic-old-shadow" make build-docker-ivy
-	# IMPLEM="picoquic" make build-docker-ivy
-	# IMPLEM="picoquic-shadow-bad" make build-docker-ivy
-	# IMPLEM="quant" make build-docker-ivy
-	# MiniP
-	IMPLEM="ping-pong" make build-docker-ivy
-	# IMPLEM="ping-pong-flaky" make build-docker-ivy
-	# IMPLEM="ping-pong-fail" make build-docker-ivy
-	# QUIC tools
-	# make build-docker-visualizer
-	make build-docker-ivy-standalone
-
-build-docker-compose-full:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	IMPLEM="picoquic-shadow" make build-docker
-	# IMPLEM="picoquic-old-shadow" make build-docker-ivy
-	# IMPLEM="picoquic-shadow-bad" make build-docker-ivy
-	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-ivy
-	IMPLEM="picoquic" make build-docker-ivy
-	# IMPLEM="quant" make build-docker-ivy
-	IMPLEM="ping-pong" make build-docker-ivy
-	# IMPLEM="ping-pong-flaky" make build-docker-ivy
-	# IMPLEM="ping-pong-fail" make build-docker-ivy
-	# make build-docker-visualizer
-	make build-docker-ivy-standalone-short
-	
-
-# ----------------------------
-# Standalone TODO
-# ----------------------------
-
-
-build-docker-visualizer:
-	docker build --rm -t ivy-visualizer -f src/containers/Dockerfile.visualizer .
-
-# TODO make lighter -> remove all ivy stuff only webserver
-# make build-docker-ivy-standalone
-build-docker-ivy-standalone:
+build-docker-impem-standalone:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
-	docker build --rm -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
+	docker build -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
 	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
-build-docker-ivy-standalone-short:
+# Build Docker images for protocol testing with Shadow
+# TODO use docker-compose build command
+build-docker-compose:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
+    # QUIC
+	IMPLEM="picoquic-shadow" make build-docker-impem
+	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
+	# IMPLEM="picoquic-old-shadow" make build-docker-impem
+	# IMPLEM="picoquic" make build-docker-impem
+	# IMPLEM="picoquic-shadow-bad" make build-docker-impem
+	# IMPLEM="quant" make build-docker-impem
+    # MiniP
+	IMPLEM="ping-pong" make build-docker-impem
+	# IMPLEM="ping-pong-flaky" make build-docker-impem
+	# IMPLEM="ping-pong-fail" make build-docker-impem
+    # CoAP
+    # ...
+    # BGP 
+    # ...
+    # QUIC tools
+	# make build-docker-visualizer
+	make build-docker-impem-standalone
 
-# IMPLEM="picoquic" make build-docker-implem
-build-docker-implem:
+# Build Docker images for protocol testing with Shadow
+build-docker-compose-full:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
-	docker build --rm -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ubuntu-ivy .
-	docker build --rm -t $(IMPLEM)-standalone -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=ivy-picotls .
-
-build-all-docker-implem:
-	IMPLEM="picoquic" make build-docker-implem
-	IMPLEM="quant" make build-docker-implem
-	IMPLEM="aioquic" make build-docker-implem
-	IMPLEM="lsquic" make build-docker-implem
+    # QUIC
+	IMPLEM="picoquic-shadow" make build-docker
+	IMPLEM="picoquic-old-shadow" make build-docker-impem
+	IMPLEM="picoquic-shadow-bad" make build-docker-impem
+	IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
+	IMPLEM="picoquic" make build-docker-impem
+	IMPLEM="quant" make build-docker-impem
+    # MiniP
+	IMPLEM="ping-pong" make build-docker-impem
+	IMPLEM="ping-pong-flaky" make build-docker-impem
+	IMPLEM="ping-pong-fail" make build-docker-impem
+    # CoAP
+    # ...
+    # BGP 
+    # ...
+    # QUIC tools
+	make build-docker-visualizer
+	make build-docker-impem-standalone
 
 ###################################################################################################
-# RUNNER
+# RUNNER COMMANDS
 ###################################################################################################
 
-# IMPLEM="picoquic" make launch-webapp
-launch-webapp:
-	#xhost +local:docker 			   #-v /tmp/.X11-unix:/tmp/.X11-unix \
-	docker run --privileged --cpus="$(NPROC).0" \
-			   -v $(PWD)/tls-keys:/PFV/tls-keys \
-			   -v $(PWD)/tickets:/PFV/tickets \
-			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_to_cpp.py:/PFV/Protocols-Ivy/ivy/ivy_to_cpp.py \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
-    		   -e DISPLAY=$(DISPLAY) \
-			   -it $(IMPLEM)-ivy python3 pfv.py --update_include_tls \
-			   --timeout 180 --implementations $(IMPLEM) --webapp --compile  --initial_version 29 --alpn hq-29 --docker $(OPT)
-
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-
-
-# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="--vnet" make test-draft29
-# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="--vnet" make test-draft29
-# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="1" OPT="" make test-draft29
-test-draft29:
-	docker run --privileged --cpus="$(NPROC).0" \
-			   -v $(PWD)/tls-keys:/PFV/tls-keys \
-			   -v $(PWD)/tickets:/PFV/tickets \
-			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_to_cpp.py:/PFV/Protocols-Ivy/ivy/ivy_to_cpp.py \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_tracer.py:/PFV/Protocols-Ivy/ivy/ivy_tracer.py \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/ivy_compiler.py:/PFV/Protocols-Ivy/ivy/ivy_compiler.py \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
-			   -it $(IMPLEM)-ivy python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
-			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29 --docker $(OPT) || true
-
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-
-# IMPLEM="picoquic" MODE="client" CATE="attacks_test" ITER="1" OPT="--vnet" make gperf-draft29
-gperf-draft29:
-	docker run --privileged --env GPERF=true --cpus="$(NPROC).0" \
-			   -v $(PWD)/tls-keys:/PFV/tls-keys \
-			   -v $(PWD)/tickets:/PFV/tickets \
-			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
-			   -it $(IMPLEM)-ivy-gperf python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
-			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile --gperf --initial_version 29 --alpn hq-29 --docker $(OPT) || true
-
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-	# pprof $(PWD)/src/Protocols-Ivy/doc/examples/quic /tmp/prof.out
-
-
-
-# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="3" OPT="--vnet" make test-rfc9000
-# IMPLEM="picoquic" MODE="client" CATE="global_test" ITER="3" OPT="" make test-rfc9000
-test-rfc9000:
-	docker run --privileged --cpus="$(NPROC).0" \
-			   -v $(PWD)/tls-keys:/PFV/tls-keys \
-			   -v $(PWD)/tickets:/PFV/tickets \
-			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
-			   -it $(IMPLEM)-ivy python3 pfv.py --mode $(MODE) --categories $(CATE) --update_include_tls \
-			   --timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop --docker $(OPT) || true
-
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-
-change-permissions:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/
-
-test-local-server-rfc9000:
-	python3 pfv.py --mode server --categories global_tests --update_include_tls \
-			   --timeout 180 --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop
-test-local-client-rfc9000:
-	python3 pfv.py --mode client --categories global_tests --update_include_tls \
-			   --timeout 180 --iter $(ITER) --compile  --initial_version 1 --alpn hq-interop
-
-test-vnet:
-	docker run --privileged -it picoProtocols-Ivy ./setup_namespace.sh
-
-launch-teams:
-	docker build --rm -t teams -f src/containers/Dockerfile.teams  .
-	xhost +local:docker
-	docker run --privileged  -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$(DISPLAY) -it teams
-
-permissions:
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	
-# https://jtreminio.com/blog/running-docker-containers-as-current-host-user/
+# Compose the full Docker environment for all implementations
+# Launch the web application interface for protocol testing
 compose:
+	docker network inspect net >/dev/null 2>&1 || docker network create --gateway 172.27.1.1 --subnet 172.27.1.0/24 net
+    # Set up host permissions and launch Docker Compose
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	xhost +
 	docker-compose up -d
-	cd src/pfv/scripts/hosts/; bash update_etc_hosts.sh  # TODO make copy before
+    # Update host settings for network testing
+	cd src/pfv/scripts/hosts/; bash update_etc_hosts.sh
 
-# IMPLEM="picoquic" make start-bash
+# Start a Docker container for interactive Bash access
+# Example: IMPLEM="picoquic" make start-bash
 start-bash:
+    # Run a Docker container with increased memory limits and volume mounts
 	docker run --privileged --cpus="$(NPROC).0" --memory="10g" --memory-reservation="9.5g" \
-			   -v $(PWD)/tls-keys:/PFV/tls-keys \
-			   -v $(PWD)/tickets:/PFV/tickets \
-			   -v $(PWD)/qlogs:/PFV/qlogs \
-			   -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
-			   -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
-			   -it $(IMPLEM)-ivy bash
+               -v $(PWD)/tls-keys:/PFV/tls-keys \
+               -v $(PWD)/tickets:/PFV/tickets \
+               -v $(PWD)/qlogs:/PFV/qlogs \
+               -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
+               -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
+               -it $(IMPLEM)-ivy bash
