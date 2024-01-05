@@ -161,8 +161,7 @@ Then go to `172.27.1.10` to access the WebApp.
 
 ### :computer: WebApp (Recommended)
 
-<details>
-<summary>Click to expand</summary>
+
 Note that the similar approach can be used in the command line.
 # Ivy QUIC Web Application Quick Guide
 
@@ -211,15 +210,25 @@ This quick guide assists you in using the Ivy QUIC web application for testing Q
 After setup, monitor the tests' progress and analyze the results. Make adjustments and re-run as necessary to ensure thorough testing.
 
 Refer to the in-app documentation for detailed instructions or contact support for troubleshooting assistance.
-</details>
+
 
 ### :computer: Adding new protocol
 
 <details>
 <summary>Click to expand</summary>
 
-1. Create the corresponding Dockerfile in `src/containers/`, it should run over Ubuntu 20.04
-
+1. Add the corresponding configuration files in `src/pfv/configs/<new_protocol>/`:
+    * Host related configurations:
+        * `src/pfv/configs/<new_protocol>/implem-server/`: configuration files for the server implementation
+        * `src/pfv/configs/<new_protocol>/implem-client/`: configuration files for the client implementation
+        * (`src/pfv/configs/<new_protocol>/implem-<host_type>/`: configuration files for the <host_type> implementation)
+    * Protocol related configurations:
+        * `src/pfv/configs/<new_protocol>/[default_]<new_protocol>_config.ini`
+        * `src/pfv/configs/<new_protocol>/default_<new_protocol>_implem.ini`
+2. Create a folder in `src/implementations/<new_protocol>-implementations/` for the new protocol implementation
+3. Add in `src/pfv/pfv.py` and in `src/pfv/pfv_runner/pfv_<new_protocol>_runner.py` the new protocol implementation Runner.
+4. Add in `src/pfv/pfv_tester/pfv_<new_protocol>_tester.py` the new protocol implementation Tester.
+5. Add in `src/pfv/pfv_stats/pfv_<new_protocol>_stats.py` the new protocol implementation stats collector.
 
 </details>
 
@@ -228,9 +237,21 @@ Refer to the in-app documentation for detailed instructions or contact support f
 <details>
 <summary>Click to expand</summary>
 
-1. Create the corresponding Dockerfile in `src/containers/`, it should run over Ubuntu 20.04
-2. Add the corresponding configuration file in `src/pfv/configs/`
-3. Build the docker image with `IMPLEM=<new_implem> make build-docker`
+1. Create the corresponding Dockerfile in `src/containers/Dockerfile.<implem>`, it should run over Ubuntu 20.04
+```dockerfile
+ARG image
+FROM $image:latest
+ADD src/implementations/<protocol>-implementations/<implem> /PFV/implementations/<protocol>-implementations/<implem>
+WORKDIR /PFV/implementations/<protocol>-implementations/<implem>/
+
+### Install dependencies
+
+WORKDIR /PFV
+```
+
+2. Add the corresponding configuration file in `src/pfv/configs/<protocol>/.../<implem>.ini`
+3. Build the docker image with `IMPLEM=<implem> make build-docker`
+    * Also update the Makefile to add the new implementation (commit, building, etc)
 4. Add the new implementation in `docker-compose.yml` file such as:
 ```yaml
   <implem>-ivy:
@@ -301,6 +322,16 @@ Follow these steps to create an Ivy model for protocol verification:
 3. **Serialization/Deserialization**: Implement serialization and deserialization functions for each event that could be transmitted over the network.
 
 4. **Incorporating RFC Requirements**: Integrate the requirements specified in the RFC with the modeled components to complete the Ivy model.
+
+</details>
+
+### :computer: Shadows
+
+<details>
+<summary>Click to expand</summary>
+
+* **Configuration files:** TODO TOM
+* ETC
 
 </details>
 

@@ -66,7 +66,15 @@ checkout-git:
 	cd src/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76; 
 
 ###################################################################################################
-# DOCKER BUILD COMMANDS
+# Side tools building COMMANDS
+###################################################################################################
+
+# Build the QUIC Protocol visualizer tools
+build-docker-visualizer:
+	docker build --network=host --rm -t ivy-visualizer -f src/containers/Dockerfile.visualizer .
+
+###################################################################################################
+# docker build COMMANDS
 ###################################################################################################
 
 # Build Docker images for protocol testing with Shadow
@@ -75,27 +83,27 @@ build-docker:
     # Change ownership of the Ivy Protocol source directory
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
     # Build a series of Docker images, each dependent on the previous, for various testing environments
-	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
+	docker build --network=host --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
     # [+] Building 1046.5s (19/19) FINISHED     
-	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
-	docker build --rm -t shadow-ivy -f src/containers/Dockerfile.shadow .
-	docker build --rm -t shadow-ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=shadow-ivy .
-	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
-	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
+	docker build --network=host --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
+	docker build --network=host --rm -t shadow-ivy -f src/containers/Dockerfile.shadow .
+	docker build --network=host --rm -t shadow-ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=shadow-ivy .
+	docker build --network=host --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
+	docker build --network=host --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
 # Build Docker images for protocol testing with Shadow from implementation layer
 # Example: IMPLEM="picoquic" make build-docker-impem
 build-docker-impem:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	docker build --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
-	docker build --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
+	docker build --network=host --rm -t $(IMPLEM) -f src/containers/Dockerfile.$(IMPLEM) --build-arg image=shadow-ivy-picotls .
+	docker build --network=host --rm -t $(IMPLEM)-ivy -f src/containers/Dockerfile.ivy_2 --build-arg image=$(IMPLEM) .
 
 build-docker-impem-standalone:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
-	docker build --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
-	docker build --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
-	docker build -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
-	docker build --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
+	docker build --network=host --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
+	docker build --network=host --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
+	docker build --network=host -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
+	docker build --network=host --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
 
 # Build Docker images for protocol testing with Shadow
 # TODO use docker-compose build command
@@ -125,15 +133,15 @@ build-docker-compose-full:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
     # QUIC
 	IMPLEM="picoquic-shadow" make build-docker
-	IMPLEM="picoquic-old-shadow" make build-docker-impem
-	IMPLEM="picoquic-shadow-bad" make build-docker-impem
-	IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
+	# IMPLEM="picoquic-old-shadow" make build-docker-impem
+	# IMPLEM="picoquic-shadow-bad" make build-docker-impem
+	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
 	IMPLEM="picoquic" make build-docker-impem
-	IMPLEM="quant" make build-docker-impem
+	# IMPLEM="quant" make build-docker-impem
     # MiniP
 	IMPLEM="ping-pong" make build-docker-impem
-	IMPLEM="ping-pong-flaky" make build-docker-impem
-	IMPLEM="ping-pong-fail" make build-docker-impem
+	# IMPLEM="ping-pong-flaky" make build-docker-impem
+	# IMPLEM="ping-pong-fail" make build-docker-impem
     # CoAP
     # ...
     # BGP 
