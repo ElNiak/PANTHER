@@ -153,6 +153,9 @@ make compose
 
 ### Getting Started with PFV
 
+<details>
+<summary>Click to expand</summary>
+
 1. Clone the repository and navigate to the project directory.
 2. Follow the installation steps for Docker.
 3. Start with running basic tests...
@@ -173,6 +176,8 @@ make compose
 <details>
 <summary>Click to expand</summary>
 
+
+</details>
 
 </details>
 
