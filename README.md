@@ -321,7 +321,7 @@ Follow these steps to create an Ivy model for protocol verification:
 
 </details>
 
-### :computer: Shadows
+<!-- ### :computer: Shadows
 
 <details>
 <summary>Click to expand</summary>
@@ -329,20 +329,20 @@ Follow these steps to create an Ivy model for protocol verification:
 * **Configuration files:** TODO TOM
 * ETC
 
-</details>
+</details> -->
 
-### :computer: Troubleshoting
+<!-- ### :computer: Troubleshoting
 
 <details>
 <summary>Click to expand</summary>
 TODO
 </details>
 
-</details>
+</details> -->
 
 ---
 
-## :book: Some details
+<!-- ## :book: Some details
 
 <details>
 <summary>Click to expand</summary>
@@ -363,7 +363,7 @@ TODO
 
 </details>
 
----
+--- -->
 
 ## :open_file_folder: Project Structure
 
