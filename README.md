@@ -3,7 +3,6 @@
 ## :rocket: Overview
 
 PFV harnesses cutting-edge techniques in network protocol verification, merging the capabilities of the Shadow network simulator with the Ivy formal verification tool. This powerful combination facilitates the examination of time properties in network protocols. A specialized time module enhances Ivy, enabling it to handle complex quantitative-time properties with greater precision. PFV's effectiveness is highlighted through its application to the QUIC protocol. By refining QUIC's formal specification in Ivy, the tool not only verifies essential aspects of the protocol but also exposes real-world implementation errors, demonstrating its practical utility. This innovative integration paves the way for more thorough, efficient, and precise protocol testing and verification.
-Certainly! Here's the full version of the README for the PFV (Protocols Formal Verification) project, incorporating all the previous updates and the new "Usage" section:
 
 ### :heavy_plus_sign: Multi-Protocol Support
 
