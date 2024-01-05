@@ -77,10 +77,27 @@ make clean-docker-full
 <details>
 <summary>Click to expand</summary>
 
-- `protocols/`: Specifications for supported protocols.
-- `tools/`: Utility scripts.
-- `docker/`: Docker configurations.
-- `tests/`: Testing scripts.
+The PFV project is organized into several key directories, with `src/` and `src/Protocols-Ivy/` being crucial for the core functionalities:
+
+### `src/` Directory
+
+This directory contains the primary source code and components of the PFV project:
+
+- **`Protocols-Ivy/`**: The heart of protocol specifications. It houses the Ivy formal verification tool configurations and specifications for various protocols.
+- **`implementations/`**: Contains different QUIC implementation modules, such as `picoquic`, `aioquic`, and `lsquic`. This area is crucial for testing and comparing various implementations against the formal specifications.
+- **`containers/`**: Holds Dockerfile definitions for creating different environment setups and implementation-specific containers, enabling a modular and isolated testing environment.
+
+### `src/Protocols-Ivy/` Directory
+
+This directory is pivotal for the protocol verification process:
+
+- **`doc/`**: Documentation and examples relevant to the protocols, including practical use cases and setup guides.
+   - **`examples/`**: Contains example protocols and their implementation, such as QUIC and MiniP. It's a great starting point for understanding how protocols are structured within PFV.
+- **`protocol-testing/`**: This subdirectory is essential for the testing framework. It includes configurations and scripts for formal verification tests of different protocols like QUIC, MiniP, and potentially others.
+   - **`quic/`, `minip/`, `coap/`**: Each subdirectory corresponds to a specific protocol, containing build and test scripts tailored for that protocol.
+- **`ivy/`**: Contains the Ivy tool's core files, libraries, and scripts necessary for protocol verification.
+
+
 </details>
 
 ## :hammer_and_wrench: Updating Docker Compose File
