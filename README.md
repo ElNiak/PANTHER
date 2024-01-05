@@ -146,7 +146,7 @@ make compose
 
 </details>
 
-## :book: Tutorial (Expand for details)
+## :book: Tutorial
 
 <details>
 <summary>Click to expand</summary>
@@ -160,21 +160,19 @@ make compose
 </details>
 
 
-
-## :computer: Adding new protocol
-
-<details>
-<summary>Click to expand</summary>
-
-### :computer: Add new protocol implementation
-
+### :computer: WebApp
 
 <details>
 <summary>Click to expand</summary>
 
-TODO
 
 </details>
+
+### :computer: Adding new protocol
+
+<details>
+<summary>Click to expand</summary>
+
 
 </details>
 
