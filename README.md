@@ -161,55 +161,51 @@ Then go to `172.27.1.10` to access the WebApp.
 
 ### :computer: WebApp (Recommended)
 
-
-Note that the similar approach can be used in the command line.
-# Ivy QUIC Web Application Quick Guide
-
 **Introduction**:
+
 This quick guide assists you in using the Ivy QUIC web application for testing QUIC implementations.
+
+First go to: `http://172.0.1.10/index.html`
 
 **Configuration Steps**:
 
 1. **Choose Protocol**: Start by selecting the protocol (QUIC, MINIP, BGP) you want to test.
 
-![Choose Protocol](attachment://Screenshot from 2024-01-05 11-42-52.png)
+![Choose Protocol](res/2.png)
 
 2. **Set Network Type**: Opt for localhost, vnet, or shadow based on your network testing environment.
 
-![Set Network Type](attachment://Screenshot from 2024-01-05 11-43-02.png)
-
 3. **Global Parameters**: Define directories for output, build, and tests using the 'Browse...' options and set the iteration count.
-
-![Global Parameters](attachment://Screenshot from 2024-01-05 11-43-16.png)
 
 4. **Debugging Options**: Toggle performance and memory profiling tools like gperf, gdb, and memprof as needed.
 
-![Debugging Options](attachment://Screenshot from 2024-01-05 11-43-37.png)
+![Set Global parameters](res/1.png)
 
 5. **Adjust Test Settings**: Customize Shadow parameters such as loss, jitter, and latency for simulation accuracy.
 
-![Adjust Test Settings](attachment://Screenshot from 2024-01-05 11-43-41.png)
+![Adjust Test Settings](res/3.png)
 
 6. **Protocol custom configuration**: Set the number of requests, initial version, number of clients, and ALPN for, e.g QUIC tests.
 
-![QUIC Verification](attachment://Screenshot from 2024-01-05 11-43-48.png)
+![QUIC Verification](res/4.png)
 
 7. **Select Tests**: Choose from server, client, and MIM tests to target specific aspects of the QUIC protocol.
 
-![Select Tests](attachment://Screenshot from 2024-01-05 11-44-04.png)
+![Select Tests](res/5.png)
 
 8. **Implementation Testing**: Pick the QUIC implementation you want to test from the available options.
 
-![Implementation Testing](attachment://Screenshot from 2024-01-05 11-43-48.png)
-
 9. **Start Experiments**: Hit 'Start Experiments' to begin the testing process with your configured settings.
 
-![Start Experiments](attachment://Screenshot from 2024-01-05 11-44-04.png)
+![Implementation Testing](res/6.png)
 
-**Running the Tests**
+**Running the Tests**:
+
 After setup, monitor the tests' progress and analyze the results. Make adjustments and re-run as necessary to ensure thorough testing.
 
 Refer to the in-app documentation for detailed instructions or contact support for troubleshooting assistance.
+
+**Note that the similar approach can be used in the command line.**
 
 
 ### :computer: Adding new protocol
@@ -344,6 +340,7 @@ TODO
 
 </details>
 
+---
 
 ## :book: Some details
 
