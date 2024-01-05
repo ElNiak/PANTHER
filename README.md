@@ -62,7 +62,7 @@ make clean-docker-full
 
 ## :computer: Usage
 
-### :computer: Tests parameters
+### :book: Tests parameters
 
 <details>
 <summary>Click to expand</summary>
@@ -114,7 +114,7 @@ make clean-docker-full
 </details>
 
 
-### :computer: Attach to Docker Container (command line)
+### :computer: Single implementation (Command Line)
 
 <details>
 <summary>Click to expand</summary>
@@ -128,19 +128,15 @@ python3 pfv.py --mode client --categories all --update_include_tls \
 ```
 </details>
 
-### :computer: From webapp
-
-<details>
-<summary>Click to expand</summary>
+### :whale: WebApp (Recommended) 
 
 Update the `docker-compose.yml` file with the protocol implementation and run the following command:
 
 ```bash
 # Compose the full Docker environment for all implementations
 make compose
-# Example: Sets up and runs Docker Compose environment
 ```
-</details>
+
 
 ## :book: Tutorial (Expand for details)
 
