@@ -338,9 +338,11 @@ Follow these steps to create an Ivy model for protocol verification:
 TODO
 </details>
 
-</details> -->
-
 ---
+</details> 
+-->
+
+
 
 <!-- ## :book: Some details
 
@@ -360,10 +362,11 @@ TODO
 <summary>Click to expand</summary>
 TODO
 </details>
+-->
 
 </details>
 
---- -->
+--- 
 
 ## :open_file_folder: Project Structure
 
