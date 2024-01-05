@@ -1,36 +1,48 @@
-# TODOs
+# :memo: TODO List
 
-* Rename gits
+- [ ] Rename gits
 
-## PFV
+##  :memo: PFV
 
-* refactor
+- [ ] refactor
 
-* change os.system with subprocess or with python funct
+- [ ] change os.system with subprocess or with python funct
 
-* add barplot progression
+- [ ] add barplot progression
 
-* Complete config file
+- [ ] Complete config file
 
-* Add template to automatise the addition of new protocols without modifying the code
+- [ ] Add template to automatise the addition of new protocols without modifying the code
 
-    * should remove the <protocol>_runner/tester/stats.py
+    - [ ] should remove the <protocol>_runner/tester/stats.py
 
-    * Add envariable to config file and automatise
+    - [ ] Add envariable to config file and automatise
 
 
-## PFV webapp
+- [ ] Reinstate adversarial environment testing (different ports, addresses, connection IDs) for extended runs (approx. 40 minutes on the same server).
+- [ ] Investigate occasional incomplete packet deserialization.
+- [ ] Implement integration with NS3.
+- [ ] Clarify the removal of dcil and scil fields.
+- [ ] Address the VN issue where the list does not contain "Supported Version: Unknown (0x0a1a2a3a) (GREASE)" - [ ] leads to failure in read() execution in udp_impl.ivy.
+- [ ] Resolve the 0rtt issue with the same keys and transport parameters.
+- [ ] Explore methods to trigger simultaneous generation of multiple packets.
 
-* refactor /creator with accordingly -> to allow and adapt multiple protocol
+##  :memo: PFV webapp
 
-* refactor /result with accordingly -> to allow and adapt multiple protocol
+- [ ] refactor /creator with accordingly -> to allow and adapt multiple protocol
 
-* Allow to add new implementation configuration
+- [ ] refactor /result with accordingly -> to allow and adapt multiple protocol
 
-## PVF architecture
+- [ ] Allow to add new implementation configuration
 
-* Make docker internal system match to current system
+##  :memo: PVF architecture
 
-* build.py to replace makefile
+- [ ] Make docker internal system match to current system
 
-* update docker compose file
+- [ ] build.py to replace makefile
+
+- [ ] update docker compose file
+
+##  :memo: PVF LLM
+
+- [ ] Add LLM to the webapp
