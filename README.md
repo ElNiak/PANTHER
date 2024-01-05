@@ -13,6 +13,8 @@ For now the following protocols are supported:
 - [ ] BGP
 - [ ] CoAP
 
+--
+
 ## :wrench: Installation 
 
 <details>
@@ -63,6 +65,8 @@ make clean-docker-full
 </details>
 
 </details>
+
+--
 
 ## :computer: Usage
 
@@ -145,6 +149,8 @@ make compose
 ```
 
 </details>
+
+--
 
 ## :book: Tutorial
 
@@ -256,6 +262,8 @@ make compose
 
 </details>
 
+--
+
 ## :open_file_folder: Project Structure
 
 <details>
@@ -318,6 +326,8 @@ PFV/
 
 
 </details>
+
+--
 
 ## :open_file_folder: References
 
