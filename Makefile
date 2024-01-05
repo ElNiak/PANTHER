@@ -66,6 +66,13 @@ checkout-git:
 	cd src/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76; 
 
 ###################################################################################################
+# Side tools building COMMANDS
+###################################################################################################
+
+build-docker-visualizer:
+	docker build --rm -t ivy-visualizer -f src/containers/Dockerfile.visualizer .
+
+###################################################################################################
 # DOCKER BUILD COMMANDS
 ###################################################################################################
 
@@ -125,15 +132,15 @@ build-docker-compose-full:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
     # QUIC
 	IMPLEM="picoquic-shadow" make build-docker
-	IMPLEM="picoquic-old-shadow" make build-docker-impem
-	IMPLEM="picoquic-shadow-bad" make build-docker-impem
-	IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
+	# IMPLEM="picoquic-old-shadow" make build-docker-impem
+	# IMPLEM="picoquic-shadow-bad" make build-docker-impem
+	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
 	IMPLEM="picoquic" make build-docker-impem
-	IMPLEM="quant" make build-docker-impem
+	# IMPLEM="quant" make build-docker-impem
     # MiniP
 	IMPLEM="ping-pong" make build-docker-impem
-	IMPLEM="ping-pong-flaky" make build-docker-impem
-	IMPLEM="ping-pong-fail" make build-docker-impem
+	# IMPLEM="ping-pong-flaky" make build-docker-impem
+	# IMPLEM="ping-pong-fail" make build-docker-impem
     # CoAP
     # ...
     # BGP 
