@@ -183,6 +183,11 @@ TODO
 <details>
 <summary>Click to expand</summary>
 
+### :open_file_folder: Directory Structure
+
+<details>
+<summary>Click to expand</summary>
+
 The PFV project is organized into the following key directories:
 
 ```
@@ -222,7 +227,7 @@ PFV/
 
 </details>
 
-## :framed_picture: Architecture Diagrams
+### :framed_picture: Architecture Diagrams
 
 <details>
 <summary>Click to expand</summary>
@@ -233,3 +238,5 @@ PFV/
 
 </details>
 
+
+</details>
