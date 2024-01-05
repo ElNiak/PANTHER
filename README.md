@@ -151,18 +151,6 @@ make compose
 <details>
 <summary>Click to expand</summary>
 
-### Getting Started with PFV
-
-<details>
-<summary>Click to expand</summary>
-
-1. Clone the repository and navigate to the project directory.
-2. Follow the installation steps for Docker.
-3. Start with running basic tests...
-
-</details>
-
-
 ### :computer: WebApp
 
 <details>
@@ -176,7 +164,73 @@ make compose
 <details>
 <summary>Click to expand</summary>
 
+1. Create the corresponding Dockerfile in `src/containers/`, it should run over Ubuntu 20.04
 
+
+</details>
+
+### :computer: Adding new protocol implementation
+
+<details>
+<summary>Click to expand</summary>
+
+1. Create the corresponding Dockerfile in `src/containers/`, it should run over Ubuntu 20.04
+2. Add the corresponding configuration file in `src/pfv/configs/`
+3. Build the docker image with `IMPLEM=<new_implem> make build-docker`
+4. Add the new implementation in `docker-compose.yml` file such as:
+```yaml
+  <implem>-ivy:
+    hostname: <implem>-ivy
+    container_name: <implem>-ivy
+    image: "<implem>-ivy:latest"
+    command: python3 pfv.py --update_ivy --getstats --worker --compile  --docker
+    ports:
+      - "<new_pôrt>:80"
+    volumes:
+      - ${PWD}/src/webapp/pfv_client.py:/PFV/webapp/pfv_client.py
+      - ${PWD}/src/pfv/pfv.py:/PFV/pfv.py
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/topo.gml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/shadow_client_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test.yml:/PFV/shadow_server_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test_template.yml:/PFV/shadow_client_test_template.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test_template.yml:/PFV/shadow_server_test_template.yml
+      - ${PWD}/data/tls-keys:/PFV/tls-keys
+      - ${PWD}/data/tickets:/PFV/tickets
+      - ${PWD}/data/qlogs:/PFV/qlogs
+      - ${PWD}/src/pfv/pfv_utils/:/PFV/pfv_utils/
+      - ${PWD}/src/pfv/pfv_stats/:/PFV/pfv_stats/
+      - ${PWD}/src/pfv/pfv_runner/:/PFV/pfv_runner/
+      - ${PWD}/src/pfv/pfv_tester/:/PFV/pfv_tester/
+      - ${PWD}/src/pfv/ivy_utils/:/PFV/ivy_utils/
+      - ${PWD}/src/pfv/logger/:/PFV/logger/
+      - ${PWD}/src/pfv/argument_parser/:/PFV/argument_parser/
+      - ${PWD}/src/pfv/configs/:/PFV/configs/
+      - ${PWD}/src/Protocols-Ivy/protocol-testing/:/PFV/Protocols-Ivy/protocol-testing/
+      - ${PWD}/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic
+      - ${PWD}/src/Protocols-Ivy/ivy/:/PFV/Protocols-Ivy/ivy/
+      - ${PWD}/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    networks:
+      net:
+        ipv4_address: 172.27.0.<TODO>
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - NET_ADMIN
+    tmpfs:
+      - /dev/shm:rw,nosuid,nodev,exec,size=1024g
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=~/.Xauthority
+      - ROOT_PATH=${PWD} 
+      - MPLBACKEND='Agg'
+    restart: always
+    devices:
+      - /dev/dri:/dev/dri
+    depends_on:
+      - ivy-standalone
+```
 </details>
 
 </details>
