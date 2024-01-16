@@ -27,6 +27,10 @@
 
 * Allow to add new implementation configuration
 
+* https://github.com/Kanaries/pygwalker
+
+* parler du framework
+
 ## PVF architecture
 
 * Make docker internal system match to current system

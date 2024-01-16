@@ -47,7 +47,7 @@ IMPLEM="picoquic" make build-docker
 make install
 
 # For modification: 
-##  For major update in ivy:
+## For major update in ivy:
 make build-docker-compose-full
 ## For a minor update in some implementation:
 make build-docker-compose
