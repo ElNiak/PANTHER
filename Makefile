@@ -69,7 +69,14 @@ checkout-git:
 	cd src/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76; 
 
 ###################################################################################################
-# docker build  --network=host COMMANDS
+# Side tools building COMMANDS
+###################################################################################################
+
+build-docker-visualizer:
+	docker build --rm -t ivy-visualizer -f src/containers/Dockerfile.visualizer .
+
+###################################################################################################
+# DOCKER BUILD COMMANDS
 ###################################################################################################
 
 # Build Docker images for protocol testing with Shadow
