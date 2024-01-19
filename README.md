@@ -47,7 +47,7 @@ IMPLEM="picoquic" make build-docker
 make install
 
 # For modification: 
-##  For major update in ivy:
+## For major update in ivy:
 make build-docker-compose-full
 ## For a minor update in some implementation:
 make build-docker-compose
@@ -161,65 +161,70 @@ Then go to `172.27.1.10` to access the WebApp.
 
 ### :computer: WebApp (Recommended)
 
-<details>
-<summary>Click to expand</summary>
-Note that the similar approach can be used in the command line.
-# Ivy QUIC Web Application Quick Guide
-
 **Introduction**:
+
 This quick guide assists you in using the Ivy QUIC web application for testing QUIC implementations.
+
+First go to: `http://172.0.1.10/index.html`
 
 **Configuration Steps**:
 
 1. **Choose Protocol**: Start by selecting the protocol (QUIC, MINIP, BGP) you want to test.
 
-![Choose Protocol](attachment://Screenshot from 2024-01-05 11-42-52.png)
+![Choose Protocol](res/2.png)
 
 2. **Set Network Type**: Opt for localhost, vnet, or shadow based on your network testing environment.
 
-![Set Network Type](attachment://Screenshot from 2024-01-05 11-43-02.png)
-
 3. **Global Parameters**: Define directories for output, build, and tests using the 'Browse...' options and set the iteration count.
-
-![Global Parameters](attachment://Screenshot from 2024-01-05 11-43-16.png)
 
 4. **Debugging Options**: Toggle performance and memory profiling tools like gperf, gdb, and memprof as needed.
 
-![Debugging Options](attachment://Screenshot from 2024-01-05 11-43-37.png)
+![Set Global parameters](res/1.png)
 
 5. **Adjust Test Settings**: Customize Shadow parameters such as loss, jitter, and latency for simulation accuracy.
 
-![Adjust Test Settings](attachment://Screenshot from 2024-01-05 11-43-41.png)
+![Adjust Test Settings](res/3.png)
 
 6. **Protocol custom configuration**: Set the number of requests, initial version, number of clients, and ALPN for, e.g QUIC tests.
 
-![QUIC Verification](attachment://Screenshot from 2024-01-05 11-43-48.png)
+![QUIC Verification](res/4.png)
 
 7. **Select Tests**: Choose from server, client, and MIM tests to target specific aspects of the QUIC protocol.
 
-![Select Tests](attachment://Screenshot from 2024-01-05 11-44-04.png)
+![Select Tests](res/5.png)
 
 8. **Implementation Testing**: Pick the QUIC implementation you want to test from the available options.
 
-![Implementation Testing](attachment://Screenshot from 2024-01-05 11-43-48.png)
-
 9. **Start Experiments**: Hit 'Start Experiments' to begin the testing process with your configured settings.
 
-![Start Experiments](attachment://Screenshot from 2024-01-05 11-44-04.png)
+![Implementation Testing](res/6.png)
 
-**Running the Tests**
+**Running the Tests**:
+
 After setup, monitor the tests' progress and analyze the results. Make adjustments and re-run as necessary to ensure thorough testing.
 
 Refer to the in-app documentation for detailed instructions or contact support for troubleshooting assistance.
-</details>
+
+**Note that the similar approach can be used in the command line.**
+
 
 ### :computer: Adding new protocol
 
 <details>
 <summary>Click to expand</summary>
 
-1. Create the corresponding Dockerfile in `src/containers/`, it should run over Ubuntu 20.04
-
+1. Add the corresponding configuration files in `src/pfv/configs/<new_protocol>/`:
+    * Host related configurations:
+        * `src/pfv/configs/<new_protocol>/implem-server/`: configuration files for the server implementation
+        * `src/pfv/configs/<new_protocol>/implem-client/`: configuration files for the client implementation
+        * (`src/pfv/configs/<new_protocol>/implem-<host_type>/`: configuration files for the <host_type> implementation)
+    * Protocol related configurations:
+        * `src/pfv/configs/<new_protocol>/[default_]<new_protocol>_config.ini`
+        * `src/pfv/configs/<new_protocol>/default_<new_protocol>_implem.ini`
+2. Create a folder in `src/implementations/<new_protocol>-implementations/` for the new protocol implementation
+3. Add in `src/pfv/pfv.py` and in `src/pfv/pfv_runner/pfv_<new_protocol>_runner.py` the new protocol implementation Runner.
+4. Add in `src/pfv/pfv_tester/pfv_<new_protocol>_tester.py` the new protocol implementation Tester.
+5. Add in `src/pfv/pfv_stats/pfv_<new_protocol>_stats.py` the new protocol implementation stats collector.
 
 </details>
 
@@ -228,9 +233,21 @@ Refer to the in-app documentation for detailed instructions or contact support f
 <details>
 <summary>Click to expand</summary>
 
-1. Create the corresponding Dockerfile in `src/containers/`, it should run over Ubuntu 20.04
-2. Add the corresponding configuration file in `src/pfv/configs/`
-3. Build the docker image with `IMPLEM=<new_implem> make build-docker`
+1. Create the corresponding Dockerfile in `src/containers/Dockerfile.<implem>`, it should run over Ubuntu 20.04
+```dockerfile
+ARG image
+FROM $image:latest
+ADD src/implementations/<protocol>-implementations/<implem> /PFV/implementations/<protocol>-implementations/<implem>
+WORKDIR /PFV/implementations/<protocol>-implementations/<implem>/
+
+### Install dependencies
+
+WORKDIR /PFV
+```
+
+2. Add the corresponding configuration file in `src/pfv/configs/<protocol>/.../<implem>.ini`
+3. Build the docker image with `IMPLEM=<implem> make build-docker`
+    * Also update the Makefile to add the new implementation (commit, building, etc)
 4. Add the new implementation in `docker-compose.yml` file such as:
 ```yaml
   <implem>-ivy:
@@ -304,17 +321,30 @@ Follow these steps to create an Ivy model for protocol verification:
 
 </details>
 
-### :computer: Troubleshoting
+<!-- ### :computer: Shadows
+
+<details>
+<summary>Click to expand</summary>
+
+* **Configuration files:** TODO TOM
+* ETC
+
+</details> -->
+
+<!-- ### :computer: Troubleshoting
 
 <details>
 <summary>Click to expand</summary>
 TODO
 </details>
 
-</details>
+---
+</details> 
+-->
 
 
-## :book: Some details
+
+<!-- ## :book: Some details
 
 <details>
 <summary>Click to expand</summary>
@@ -332,10 +362,11 @@ TODO
 <summary>Click to expand</summary>
 TODO
 </details>
+-->
 
 </details>
 
----
+--- 
 
 ## :open_file_folder: Project Structure
 
