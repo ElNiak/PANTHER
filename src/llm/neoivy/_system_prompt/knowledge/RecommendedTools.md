@@ -98,3 +98,11 @@ https://github.com/smol-ai/developer
 
 # Data analysis
 https://julius.ai/
+
+# Formal verification
+http://microsoft.github.io/ivy/
+https://github.com/ElNiak/Protocols-Ivy/tree/master
+
+# Protocol RFCs
+https://www.rfc-editor.org/
+RFC-all.zip

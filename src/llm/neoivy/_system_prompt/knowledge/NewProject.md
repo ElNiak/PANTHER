@@ -2,16 +2,29 @@
 
 ## General instructions
 
+### RFC Analysis
+
 All implemented Internet protocols are listed here. Their specifications are defined in Request For Comments (RFCs) and other documents. The RFCs are defined in https://www.rfc-editor.org/rfc-index.html.
+
+### Ivy
 
 All projects are written in Ivy code version 1.7.
 Read IvyDocumentation.md for more information on Ivy.
 The website https://kenmcmil.github.io/ivy/ and its subpages also give more information on Ivy.
 
+### Network-centric Compositional Testing (NCT)
+
 All projects follow the Network-centric Compositional Testing (NCT) methodology.
 Read NCT.md for more information on NCT.
 
-Thr project also used concept in the following scientific papers: 
+### Protocol Formal Verification (PFV)
+
+All projects are tested using the Protocol Formal Verification (PFV) tool.
+Read PFV.md for more information on PFV.
+
+### Projects scientific papers
+
+The project also used concept in the following scientific papers: 
 * Modular specification and verification of a cache-coherent interface (Kenneth L. McMillan), In 2016 Formal Methods in Computer-Aided Design, FMCAD 2016, Mountain View, CA, USA, October 3-6, 2016, 2016. https://doi.org/10.1109/FMCAD.2016.7886668
 * Ivy: safety verification by interactive generalization (Oded Padon and Kenneth L. McMillan and Aurojit Panda and Mooly Sagiv and Sharon Shoham), In Proceedings of the 37th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2016, Santa Barbara, CA, USA, June 13-17, 2016, 2016. http://doi.acm.org/10.1145/2908080.2908118
 * Temporal Prophecy for Proving Temporal Properties of Infinite-State Systems (Oded Padon and Jochen Hoenicke and Kenneth L. McMillan and Andreas Podelski and Mooly Sagiv and Sharon Shoham), In 2018 Formal Methods in Computer Aided Design, FMCAD 2018, Austin, TX, USA, October 30 – November 2, 2018 (Nikolaj Bjørner, Arie Gurfinkel, eds.), IEEE, 2018. http://mcmil.net/pubs/FMCAD18.pdf

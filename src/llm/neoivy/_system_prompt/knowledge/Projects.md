@@ -1,42 +1,52 @@
-# Index
+# Projects
 
-All implemented Internet protocols are listed here. Their specifications are defined in Request For Comments (RFCs) and other documents. The RFCs are defined in https://www.rfc-editor.org/rfc-index.html.
+All implemented Internet protocols projets are listed here. Their specifications are defined in Request For Comments (RFCs) and other documents. The RFCs are defined in https://www.rfc-editor.org/rfc-index.html.
 
 ## Project Descriptions & Links
+## Layer 1: Application layer protocols
+No protocols yet
 
-## Chapter 1: Application layer protocols
-
-## Chapter 2: Transport layer protocols
+## Layer 2: Transport layer protocols
 * QUIC
 * UDP
 * TCP
 
-## Chapter 3: Security layer protocols
+## Layer 3: Security layer protocols
 * TLS1.3
 
-## Chapter 4: Network layer protocols
+## Layer 4: Network layer protocols
 * IPv4
 * IPv6
 
-## Chapter 5: Data link layer protocols
+## Layer 5: Data link layer protocols
+No protocols yet
 
-## Chapter 6: Physical layer protocols
+## Layer 6: Physical layer protocols
+No protocols yet
 
-## Chapter 7: Fake protocols
+## Layer 7: Fake protocols
 * MiniP
 
 # Project Descriptions & Links
 
+## Ivy
+
 All projects are written in Ivy code version 1.7.
 Read IvyDocumentation.md for more information on Ivy.
-The website https://kenmcmil.github.io/ivy/ and its subpages also give more information on Ivy.
+The website https://kenmcmil.github.io/ivy/{all_subrurls}
 Protocols-Ivy.zip contains the Ivy code for all projects.
+
+## Network-centric Compositional Testing (NCT)
 
 All projects follow the Network-centric Compositional Testing (NCT) methodology.
 Read NCT.md for more information on NCT.
 
+## Protocol Formal Verification (PFV)
+
 All projects are tested using the Protocol Formal Verification (PFV) tool.
 Read PFV.md for more information on PFV.
+
+## Projects scientific papers
 
 Thr project also used concept in the following scientific papers: 
 * Modular specification and verification of a cache-coherent interface (Kenneth L. McMillan), In 2016 Formal Methods in Computer-Aided Design, FMCAD 2016, Mountain View, CA, USA, October 3-6, 2016, 2016. https://doi.org/10.1109/FMCAD.2016.7886668
@@ -46,26 +56,29 @@ Thr project also used concept in the following scientific papers:
 * Deductive Verification in Decidable Fragments with Ivy (Kenneth L. McMillan and Oded Padon), In Static Analysis – 25th International Symposium, SAS 2018, Freiburg, Germany, August 29-31, 2018, Proceedings (Andreas Podelski, ed.), Springer, volume 11002, 2018 http://mcmil.net/pubs/SAS18.pdf
 * Formal specification and testing of QUIC (Kenneth L. McMillan and Lenore D. Zuck), In Proceedings of ACM Special Interest Group on Data Communication (SIGCOMM’19), ACM, 2019. http://mcmil.net/pubs/SIGCOMM19.pdf 
 
-# Chapter 1: Application layer protocols
-/
+## Layer 1: Application layer protocols
+No protocols yet
 
-# Chapter 2: Transport layer protocols
-Project QUIC: https://github.com/ElNiak/Protocols-Ivy/tree/master/protocol-testing/quic/
-Project UDP: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/udp_impl.ivy
-Project TCP: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/tcp_impl.ivy
+## Layer 2: Transport layer protocols
+* Protocol QUIC: https://github.com/ElNiak/Protocols-Ivy/tree/master/protocol-testing/quic/{all_subfolders}
 
-# Chapter 3: Security layer protocols
-Project TLS1.3: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/tls_picotls.ivy
+* Protocol UDP: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/udp_impl.ivy
 
-# Chapter 4: Network layer protocols
-Project IPv4: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/ip.ivy
-Project IPv6: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/ip6.ivy
+* Protocol TCP: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/tcp_impl.ivy
 
-# Chapter 5: Data link layer protocols
-/
+## Layer 3: Security layer protocols
+* Protocol TLS1.3: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/tls_picotls.ivy
 
-# Chapter 6: Physical layer protocols
-/
+# Layer 4: Network layer protocols
+* Protocol IPv4: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/ip.ivy
 
-# Chapter 7: Fake protocols
-Project MiniP: https://github.com/ElNiak/Protocols-Ivy/tree/master/protocol-testing/minip/
+* Protocol IPv6: https://github.com/ElNiak/Protocols-Ivy/blob/master/ivy/include/1.7/ip6.ivy
+
+## Layer 5: Data link layer protocols
+No protocols yet
+
+## Layer 6: Physical layer protocols
+No protocols yet
+
+## Layer 7: Fake protocols
+* Protocol MiniP: https://github.com/ElNiak/Protocols-Ivy/tree/master/protocol-testing/minip/{all_subfolders}

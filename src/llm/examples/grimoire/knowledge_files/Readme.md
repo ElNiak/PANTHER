@@ -1,5 +1,5 @@
 ## README
-Welcome to IvyGPT! 
+Welcome to Grimoire! 
 Coding Wizard
 
 # How is Grimoire better than base chatGPT?
@@ -12,9 +12,9 @@ with minimal effort
 Starter projects!
 Check out a 4 min video demo: [https://www.youtube.com/watch?v=kHuxGfGHqrw](https://www.youtube.com/watch?v=kHuxGfGHqrw)
 Build your first website in minutes. A link in bio portfolio / socials list
-type P to build it yourself
+Use P or PT to see all of the starter projects
 
-# 20+ hotkeys for coding tasks. Automatic suggestions & workflows.
+# 20+ hotkeys for coding tasks. Automatic suggestions & flows
 ## Easy for beginners
 ## Powerful & Fleixble for pros
 
@@ -25,7 +25,7 @@ WASD
 Debug row:
 A S D F G H J K
 Export:
-Z C V L, PDF, XC
+N ND Z C V L, PDF, XC
 
 **Tip for beginners:**
 Use 
@@ -34,15 +34,15 @@ SS
 to ask for explanations
 Repeat if necessary
 
-If all else fails: 
-SoS
+Stuck and don't know what to search for?
+Use SoS to automatically write searches for you!
 
 #### Usage:
 You can use ANY hotkey at ANY time, they do not have to be suggested to work.
 You are not limited to hotkeys. Feel free to chat & write prompts as you normally would w/ any GPT
 
 **Advanced usage:**
-Combine or combo hotkeys & prompts: 
+Combine and combo hotkeys with prompts
 
 
 # Grimoire includes a prepackaged prompt-gramming tutorial
@@ -59,13 +59,13 @@ The basics of coding
 -for beginners who learned prompting prior to traditional coding
 
 Explore new mediums
--Learn prompt 1st media making. Create images, videos, audio, 3d assets, and code using prompts
+-Learn prompt 1st media making. Create images, videos, audio, 3d assets, & code. Using prompts!
 -pic to code!
 
 Go full PRO
 -Advanced Prompt to code tools. Explore the cutting edge of writing code generatively
 -A full professional ai dev kit. Suitable for enterprise level, multimillion line, pre-existing codebases
--Using Cursor.sh, Github copilot and more
+-Using Cursor.sh, Github copilot & more
 
 
 # Getting Started
@@ -92,16 +92,19 @@ Featured Members:
 [Gif-PT](https://chat.openai.com/g/g-gbjSvXu6i-gif-pt)
 Turn dalle images into gifs automatically
 
-
 Exec func 
 Executive Function. Plan Step by Step. Reduce starting friction & resistance. 
 [Executive Func](https://chat.openai.com/g/g-H93fevKeK-exec-func)
 
+Cauldron
+Image mixer and editor. Similar Grimoire ideas, applied to dalle
+[Cauldron](https://chat.openai.com/g/g-TnyOV07bC-cauldron)
+
 ### HeyGPT + GPT & Me
-A package of iOS shortcuts to connect with the chatGPT api!
+A package of iOS shortcuts to connect with the openAi api!
 - Double the speed you use chatGPT on iOS
-- Use chatGPT directly in EVERY iOS & Mac app
-- Replace Siri\'s brain with a real assistant
+- Use chatGPT directly in ANY iOS & Mac app
+- Replace Siri's brain
 - Create scheduled GPT notifications
 - Only $1
 Download now on gumroad
@@ -111,10 +114,11 @@ Download now on gumroad
 [https://mindgoblinstudios.beehiiv.com/subscribe](https://mindgoblinstudios.beehiiv.com/subscribe)
 
 ## Feedback
-Send email the creator by tapping the Grimoire button at the top left of your screen and choosing Send Feedback. If you run into issues it helps if you can share the chat so I can debug it. Thanks!
+Send email the creator by tapping the Grimoire button at the top left of your screen and choosing Send Feedback.
+Helps if you can include a share link to the chat so I can debug. (not included by default). Thanks!
 
 ## Support further development
-### toss a coin to your Grimoire!
+## Toss a coin to your Grimoire!
 [https://tipjar.mindgoblinstudios.com/](https://tipjar.mindgoblinstudios.com/)
 
 # Lets get coding!
@@ -122,7 +126,7 @@ Send email the creator by tapping the Grimoire button at the top left of your sc
 
 Remember:
 Language is magic
-That\'s why they call it SPELLing
+That's why they call it SPELLing
 
 -
 
@@ -130,4 +134,4 @@ K for cmd menu
 P for project ideas
 KT for GP-Tavern
 RR for patch notes
-RRR for testimonials'
+RRR for testimonials

@@ -1,16 +1,16 @@
 # Ivy
 
-IVy is a tool for specifying, modeling, implementing and verifying
-protcols. IVy is intended to allow interactive development of
+Ivy is a tool for specifying, modeling, implementing and verifying
+protcols. Ivy is intended to allow interactive development of
 protocols and their proofs of correctness and to provide a platform
 for developing and experimenting with automated proof techniques. In
-particular, IVy provides interactive visualization of automated
+particular, Ivy provides interactive visualization of automated
 proofs, and supports a use model in which the human protocol designer
 and the automated tool interact to expose errors and prove
 correctness.
 
 
-IVy has two primary design goals: to be as *transparent* as possible,
+Ivy has two primary design goals: to be as *transparent* as possible,
 and to produce *design artifacts* that are useful even to engineers
 who may lack the skills or resources needed to construct formal
 proofs.
@@ -43,7 +43,7 @@ truth of any formula. In practice, using decidable logics makes proof
 automation more reliable and repeatable. It also makes it possible to
 give transparent explanations of proof failures.
 
-IVy's language is designed to make it practical to reduce all proof
+Ivy's language is designed to make it practical to reduce all proof
 obligations to statements in decidable logics. It provides primitives
 to support modeling in decidable logics, and also modular refinement
 techniques the makes it possible to separate the verification effort
@@ -1767,7 +1767,7 @@ the decidable fragment, Ivy produces an explanation for this in terms
 of specific formulas appearing in the program or its proof. The user then
 has a variety of options available for correcting the problem.
 
-When specifying and implementing a system in IVy, it's important to
+When specifying and implementing a system in Ivy, it's important to
 understand the decidable fragment, and also how verification
 conditions are produced. This understanding will help to plan a
 specification in advance to achieve decidable verification conditions,
@@ -1872,7 +1872,7 @@ The wlp calculus provides us with rules to cover all of the basic
 programming constructs in the Ivy language. For example, another way
 to look at the above example is to consider `requires` and `ensures`
 as program statements that have a semantics in terms of wlp.
-When verifying action `decr`, IVy treats the `requires` statement
+When verifying action `decr`, Ivy treats the `requires` statement
 as an *assumption* and the `ensures` statement as a *guarantee*.
 This means the program statement we must verify is really:
 
@@ -1983,10 +1983,10 @@ fragment.
 The decidable fragment
 ---------------------- 
 
-IVy defines a subset of first-order formulas as its *decidable
+Ivy defines a subset of first-order formulas as its *decidable
 fragment*. Whether a formula is in the fragment can depend on which
 theories are in use. The decidable fragment has the property that,
-given enough time and memory, the SMT solver Z3 that underlies IVy can
+given enough time and memory, the SMT solver Z3 that underlies Ivy can
 always determine whether a formula in the fragment is satisfiable, and
 if it is, give a model of the formula. In practice, Z3 behaves in a
 much more predictable, continuous and transparent manner than it does
@@ -2089,7 +2089,7 @@ EPR, and so the corresponding conjuncts of the negated VC also are.
 The guarantee formula occurs negatively as `exists X,Y. ~(r'(X,Y) -> X > Y)`.
 That is, when we see `~forall X. p(X)`, we convert it to the
 equivalent `exists X. ~p(X)` in prenex form. This formula is also in
-EPR. In fact, IVy will convert it to `~(r'(a,b) -> a > b)`, where *a*
+EPR. In fact, Ivy will convert it to `~(r'(a,b) -> a > b)`, where *a*
 and *b* are fresh constant symbols.
 
 In general, if we don't use function symbols, and if all of our assumptions
@@ -2274,9 +2274,9 @@ following rules:
 where *i* is the relevant argument position in *f* and `x = y` is
 considered equivalent to `y = x`.
 
-IVy constructs this graph for each negated VC. If the graph has a
+Ivy constructs this graph for each negated VC. If the graph has a
 cycle, Ivy reports the sequence of terms that induced the cycle (and
-gives references to line numbers in the IVy program). This information
+gives references to line numbers in the Ivy program). This information
 can be used to determine the source of the problem and and correct it.
 
 As an example, consider the following formula:
@@ -2397,7 +2397,7 @@ This is not only in FAU, it is actually quantifier-free.
 The fragment checker
 --------------------
 
-IVy's decidable fragment consists of all the formulas that are in FAU
+Ivy's decidable fragment consists of all the formulas that are in FAU
 after full unfolding of all the non-recursive definitions.
 
 However, Ivy's check for this is somewhat conservative. That is, since
@@ -2405,11 +2405,11 @@ fully unfolding all of the definitions could be exponential, Ivy
 over-approximates the set of terms that might occur under an instance
 of a defined symbol in a
 [context-insensitive](https://en.wikipedia.org/wiki/Data-flow_analysis)
-way.  This means IVy may occasionally report arcs in the relevant
+way.  This means Ivy may occasionally report arcs in the relevant
 vocabulary graph that would not occur if the analysis were fully
 precise.
 
-When a verification condition is not in the decidable fragment, IVy
+When a verification condition is not in the decidable fragment, Ivy
 refuses to check it, and instead produces an error message explaining
 the problem. This explanation is generally in the form of a list of
 terms that induce a cycle in the relevant vocabulary graph, or an
