@@ -56,7 +56,7 @@ and` when the user
                 - "Description" column: return the DESCRIPTION as written
             """
         )
-        print(instruction)
+        return instruction
 
     @staticmethod
     def stash():
@@ -89,7 +89,7 @@ and` when the user
               > **Key**: _Value_
             """
         )
-        print(instruction)
+        return instruction
 
     @staticmethod
     def recall():
@@ -104,7 +104,7 @@ and` when the user
                 > **Key**: complete text of value
             """
         )
-        print(instruction)
+        return instruction
 
 
     @staticmethod
@@ -152,7 +152,7 @@ and` when the user
             6. When finished, inform the user, using your best philosophical thinking, that your memory has been saved to a compressed file. Then, provide the user with a sandbox download link to `memory.zip.`.
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def question():
@@ -164,7 +164,7 @@ and` when the user
             1. Recursively ask more ?'s to check understanding, fill in gaps.
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def expand():
@@ -176,7 +176,7 @@ and` when the user
             1. Implementation plan. Smaller steps
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def export():
@@ -203,7 +203,7 @@ and` when the user
             1. zip the code files
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def improve():
@@ -216,7 +216,7 @@ and` when the user
             """
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def explain():
@@ -228,7 +228,7 @@ and` when the user
             1. Explain each line of code step by step, add descriptive comments
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def alternative():
@@ -240,7 +240,7 @@ and` when the user
             1. Show 2-3 alternatives, compare between options
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def next_step():
@@ -252,7 +252,7 @@ and` when the user
             1. Continue - Confirm, go to next step, perform again
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def output_code():
@@ -269,7 +269,7 @@ and` when the user
             1. From now, output code only. Limit prose. Just do; no talking. 
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def split_code():
@@ -282,7 +282,7 @@ and` when the user
             1.  Split into smaller parts, chunks, make tight conceptual pieces of code.
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def why():
@@ -294,7 +294,7 @@ and` when the user
             1. Explain high level plan
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def fix():
@@ -306,7 +306,7 @@ and` when the user
             1. Code didn't work - help debug it. Systematically narrow down the problem space
             """
         )
-        print(instruction)
+        return instruction
     
     @staticmethod
     def add_debug():
@@ -318,7 +318,7 @@ and` when the user
             1. Add print lines, coloured outlines or image placeholders to help debug.
             """
         )
-        print(instruction)
+        return instruction
         
 
     @staticmethod
@@ -410,7 +410,7 @@ and` when the user
             25. Apply step E from `experts_methodology` to step 5 from `new_project` for protocol {protol}
             """
         )
-        print(instruction)
+        return instruction
 
 def _get_methods_and_docstrings(cls):
     """

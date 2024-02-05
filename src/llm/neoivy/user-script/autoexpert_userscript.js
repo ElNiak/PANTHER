@@ -8,25 +8,18 @@
 // ==/UserScript==
 (function () {
   const autoExpertPaths = [{
-    "title": "Standard v5",
+    "title": "NeoPFV",
     "id": "std_5",
-    "user_url": "https://raw.githubusercontent.com/spdustin/ChatGPT-AutoExpert/dev__pre-eval/standard-edition/chatgpt_GPT4__about_me.md",
-    "model_url": "https://raw.githubusercontent.com/spdustin/ChatGPT-AutoExpert/dev__pre-eval/standard-edition/chatgpt_GPT4__custom_instructions.md",
+    "user_url": "https://raw.githubusercontent.com/ElNiak/PFV/development-LLM/src/llm/neopfv/standard_edition/chatgpt_GPT4__about_me.md",
+    "model_url": "https://raw.githubusercontent.com/ElNiak/PFV/development-LLM/src/llm/neopfv/standard_edition/chatgpt_GPT4__custom_instructions.md",
     "emoji": "🧠"
   },
   {
-    "title": "Dev v5",
+    "title": "NeoIvy",
     "id": "dev_5",
-    "user_url": "https://raw.githubusercontent.com/spdustin/ChatGPT-AutoExpert/dev__pre-eval/developer-edition/chatgpt__about_me.md",
-    "model_url": "https://raw.githubusercontent.com/spdustin/ChatGPT-AutoExpert/dev__pre-eval/developer-edition/chatgpt__custom_instructions.md",
+    "user_url": "https://raw.githubusercontent.com/ElNiak/PFV/development-LLM/src/llm/neoivy/standard_edition/chatgpt__about_me.md",
+    "model_url": "https://raw.githubusercontent.com/ElNiak/PFV/development-LLM/src/llm/neoivy/standard_edition/chatgpt__custom_instructions.md",
     "emoji": "💻"
-  },
-  {
-    "title": "Voice V5",
-    "id": "voice_5",
-    "user_url": "https://raw.githubusercontent.com/spdustin/ChatGPT-AutoExpert/dev__voice_edition/voice-edition/chatgpt_GPT4_voice__about_me.md",
-    "model_url": "https://raw.githubusercontent.com/spdustin/ChatGPT-AutoExpert/dev__voice_edition/voice-edition/chatgpt_GPT4_voice__custom_instructions.md",
-    "emoji": "💬"
   }
   ];
   const BASE_URL = 'https://chat.openai.com';
