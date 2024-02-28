@@ -39,7 +39,7 @@ install:
 	git submodule update --init --recursive
 	git submodule update --recursive
     # Checkout specific branches and set up directories for QUIC protocol examples and testing
-	cd src/Protocols-Ivy/; git fetch; git checkout production
+	cd src/Protocols-Ivy/; git fetch; git checkout master
 	cd src/Protocols-Ivy; git submodule update --init --recursive
 	cd src/Protocols-Ivy; git submodule update --recursive
     # Create necessary directories and files for QUIC, MiniP, and CoAP protocol testing
