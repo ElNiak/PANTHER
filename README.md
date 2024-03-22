@@ -1,7 +1,7 @@
 # :skull_and_crossbones: PFV (Protocols Formal Verification) :skull_and_crossbones:
 
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10819553.svg)](https://doi.org/10.5281/zenodo.10819553)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10819552.svg)](https://doi.org/10.5281/zenodo.10819552)
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white) ![C++](https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white) ![Debian](https://img.shields.io/badge/Debian-D70A53?style=for-the-badge&logo=debian&logoColor=white)
 
