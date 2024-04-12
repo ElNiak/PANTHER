@@ -1,0 +1,169 @@
+#lang ivy1.7
+
+include order
+include quic_infer
+include file
+include ivy_quic_shim_client
+include quic_locale
+include ivy_quic_client_behavior
+
+include ivy_quic_client_standard_tp
+
+# An endpoint MUST NOT initiate
+#   connection migration before the handshake is confirmed, as defined in
+#   section 4.1.2 of [QUIC-TLS].
+
+after init {
+	allowed_multiple_migration := false;
+    version_negociated := false;
+    # initial_version := 0xff00001c;
+}
+
+after init {
+    sock := net.open(endpoint_id.client,client.ep);
+    sock_alt := net.open(endpoint_id.client_alt,client_alt);
+    sock_vn := sock; # net.open(endpoint_id.client_vn,client_vn);
+    client.set_tls_id(0);
+    second_client.set_tls_id(0); # TODO to avoid error
+    server.set_tls_id(1);
+    var extns := tls_extensions.empty;
+    extns := extns.append(make_transport_parameters);
+    call tls_api.upper.create(0,false,extns);  # false means this instance of tls is not a server
+}
+
+after init {
+    # supported_versions := versions.empty;
+    # var v1 := stream_data.empty;
+    # v1 := v1.append(0xff);
+    # v1 := v1.append(0x0);
+    # v1 := v1.append(0x0);
+    # v1 := v1.append(0x1c); # TODO
+    # supported_versions := supported_versions.append(v1);
+
+    # supported_versions_bv := versions_bv.empty;
+    # supported_versions_bv := supported_versions_bv.append(0xff00001c);
+
+    token_saved := false;
+}
+
+# The protocol specification describes all the events occurring the
+# system at all protocol layers. When constructing the test mirror,
+# however, we need to generate only events that are outputs of the
+# environment. Ivy doesn't have any built-in mechanism to do this,
+# so we have to add a constraint to every generated action. 
+#
+# We also add other pre-conditions to the actions to try to restrict
+# them to relevant parameter values. 
+#
+# To restrict the generated events, we use the built-in predicate
+# "_generating" that is true if this is a generated event.
+#
+# This is the mirror constraint for the stream frame protocol. We add
+# some requirements to make the tests more interesting. In particular,
+# we don't want the tester to produce lots of tiny frames (or empty
+# ones) so we require that a stream frame send all of the available
+# stream data. 
+#
+# TODO: We reuquire tje `off` and `len` bits to be true. Maybe these should
+# determined in the low-level packet encoding stage.
+
+# static uint8_t test_frame_stream_hang[] = {
+#     0x01, 
+#     0x00, 0x0D, 0xFF, 0xFF, 0xFF, 0x01, 0x00,
+#     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+#     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+# };
+# https://github.com/private-octopus/picoquic/issues/969
+before frame.stream.handle(f:frame.stream,scid:cid,dcid:cid,e:quic_packet_type) {
+    if _generating {
+        require scid = the_cid;
+        require connected(the_cid) & dcid = connected_to(the_cid);
+        require f.len & f.off; 
+        require f.length > 0;
+        # require f.offset = stream_length(dcid,f.id);
+        # require f.length = (stream_app_data_end(dcid,f.id)) - f.offset;
+        #f.id := 0xffffffff;
+        f.offset := 0xffffffff;
+        #f.length:= 110;
+
+    };
+
+}
+
+# Generate rst_stream frames only for the environment process(es).
+
+before frame.rst_stream.handle(f:frame.rst_stream,scid:cid,dcid:cid) {
+    if _generating {
+        require scid = the_cid;
+        # f.id := 17;
+        # f.err_code := 1;
+        # f.final_offset := 0xffffffff; #0xFFFFFFFFFFFFFFFF; #bad
+    }
+}
+
+
+# static uint8_t test_frame_stream_hang[] = {
+#     0x01, 
+#     0x00, 0x0D, 0xFF, 0xFF, 0xFF, 0x01, 0x00,
+#     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+#     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
+# };
+
+# before frame.malicious_frame.handle(f:frame.malicious_frame,scid:cid,dcid:cid) {
+#     if _generating {
+#         require scid = the_cid;
+#         f.data := stream_data.empty;
+#         f.data := f.data.append(0x00);
+#         f.data := f.data.append(0x0D);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0x01);
+#         f.data := f.data.append(0x00);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#         f.data := f.data.append(0xFF);
+#     }
+# }
+
+export frame.ack.handle
+export frame.stream.handle ## V2
+export frame.crypto.handle
+export frame.path_response.handle
+export packet_event
+export client_send_event
+export tls_recv_event
+#export frame.new_connection_id.handle
+#export frame.retire_connection_id.handle
+#export frame.rst_stream.handle
+#export frame.malicious_frame.handle ## V1
+#export frame.max_stream_id.handle
+#export frame.connection_close.handle # TODO
+#export frame.max_stream_data.handle
+#export frame.max_data.handle
+
+# Final check
+#
+# When the test is complete, the tester calls the special action `_finalize`.
+# We use this action to make some heuristic checks, for example that some
+# data was actually received from the server. We can add advice to this
+# action with additional checks.
+
+export action _finalize = {
+    # chris TODO 
+    require is_no_error;
+    require conn_total_data(the_cid) > 0;
+    #call 
+}
+

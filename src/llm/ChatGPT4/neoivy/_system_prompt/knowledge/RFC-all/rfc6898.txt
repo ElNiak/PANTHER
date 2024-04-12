@@ -1,0 +1,619 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                             D. Li
+Request for Comments: 6898                                        Huawei
+Updates: 4204, 4207, 4209, 5818                            D. Ceccarelli
+Category: Standards Track                                       Ericsson
+ISSN: 2070-1721                                                L. Berger
+                                                                    LabN
+                                                              March 2013
+
+
+           Link Management Protocol Behavior Negotiation and
+                      Configuration Modifications
+
+Abstract
+
+   The Link Management Protocol (LMP) is used to coordinate the
+   properties, use, and faults of data links in networks controlled by
+   Generalized Multiprotocol Label Switching (GMPLS).  This document
+   defines an extension to LMP to negotiate capabilities and indicate
+   support for LMP extensions.  The defined extension is compatible with
+   non-supporting implementations.
+
+   This document updates RFC 4204, RFC 4207, RFC 4209, and RFC 5818.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6898.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 1]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+Copyright Notice
+
+   Copyright (c) 2013 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+      1.1. Conventions Used in This Document ..........................4
+   2. LMP Message Modifications .......................................4
+      2.1. Modified Message Formats ...................................4
+      2.2. Processing .................................................5
+   3. LMP Behavior Negotiation ........................................6
+      3.1. BehaviorConfig C-Type Format ...............................6
+      3.2. Processing .................................................7
+   4. Backward Compatibility ..........................................7
+   5. Security Considerations .........................................8
+   6. IANA Considerations .............................................9
+      6.1. New LMP Class Type .........................................9
+      6.2. New Capabilities Registry ..................................9
+   7. Normative References ...........................................10
+   8. Acknowledgments ................................................10
+   9. Contributors ...................................................10
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 2]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+1.  Introduction
+
+   The Link Management Protocol (LMP) [RFC4204] has been successfully
+   deployed in networks controlled by Generalized Multiprotocol Label
+   Switching (GMPLS).
+
+   New LMP behaviors and protocol extensions have been introduced in a
+   number of IETF documents, as set out later in this section.  It is
+   likely that future extensions will be made to support additional
+   functions.
+
+   In a network, if one LMP-capable node supports a new behavior or
+   protocol extension but its adjacent node does not, it is beneficial
+   to have a protocol mechanism to discover the capabilities of peer
+   nodes so that the right protocol extensions can be selected and the
+   correct features can be enabled.  There are no such procedures
+   defined in the base LMP specification [RFC4204]. [RFC4209] defined a
+   specific mechanism to identify support for the functions specified in
+   that document.  This document defines an LMP extension to support the
+   identification of supported LMP functions in a generic fashion, as
+   well as how a node supporting these extensions would communicate with
+   legacy nodes.
+
+   In [RFC4204], the basic behaviors have been defined around the use of
+   the standard LMP messages, which include Config, Hello, Verify, Test,
+   LinkSummary, and ChannelStatus.  Per [RFC4204], these behaviors MUST
+   be supported when LMP is implemented, and the message types from 1 to
+   20 have been assigned by IANA for these messages.  Support for all
+   functions required by [RFC4204] is assumed by this document.
+
+   In [RFC4207], the SONET/SDH technology-specific behavior and
+   information for LMP is defined.  The Trace behavior is added to LMP,
+   and the message types from 21 to 31 have been assigned by IANA for
+   the messages that provide the Trace function.
+
+   In [RFC4209], extensions to LMP are defined to allow it to be used
+   between a peer node and an adjacent Optical Line System (OLS).  The
+   LMP object class type and subobject class name have been extended to
+   support Dense Wavelength Division Multiplexing (DWDM) behavior.
+
+   In [RFC5818], the data channel consistency check behavior is defined,
+   and the message types from 32 to 34 have been assigned by IANA for
+   messages that provide this behavior.
+
+   It is likely that future extensions to LMP for other functions or
+   technologies will require the definition of further LMP messages.
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 3]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+   This document describes an LMP extension, referred to as behavior
+   negotiation, that enables the nodes at the ends of a link to identify
+   the LMP messages and functions supported by the adjacent node.  The
+   extension makes use of a new CONFIG object.  The use of this new
+   object does not preclude the use of existing or yet to be defined
+   CONFIG objects.
+
+   This document also modifies the format of messages that carry the
+   CONFIG object to allow for multiple objects.  Multiple CONFIG objects
+   allow behavior negotiation concurrent with existing usage of the
+   CONFIG object, i.e., HelloConfig C-Type defined in [RFC4204] and
+   LMP-WDM_CONFIG C-Type defined in [RFC4209].  This document modifies
+   the ConfigAck message to include CONFIG objects so that acceptable
+   parameters are explicitly identified.  It also describes how a node
+   that supports the extensions defined in this document interacts with
+   a legacy LMP-capable node.
+
+1.1.  Conventions Used in This Document
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+2.  LMP Message Modifications
+
+   LMP Config, ConfigNack, and ConfigAck messages are modified by this
+   document to allow for the inclusion of multiple CONFIG objects.  The
+   Config and ConfigNack messages were only defined to carry one CONFIG
+   object in [RFC4204].  The ConfigAck message, which was defined
+   without carrying any CONFIG objects in [RFC4204], is modified to
+   enable explicit identification of negotiated configuration
+   parameters.  The inclusion of CONFIG objects in ConfigAck messages is
+   triggered by the use of the BehaviorConfig object (defined below) in
+   a received Config message.
+
+   The message formats in the sections that follow use Backus-Naur Form
+   (BNF) encoding as defined in [RFC5511].
+
+2.1.  Modified Message Formats
+
+   The format of the Config message as updated by this document is as
+   follows:
+    <Config Message> ::= <Common Header> <LOCAL_CCID> <MESSAGE_ID>
+                         <LOCAL_NODE_ID> <CONFIG> [ <CONFIG> ... ]
+
+
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 4]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+   The format of the ConfigAck message as updated by this document is as
+   follows:
+
+    <ConfigAck Message> ::= <Common Header> <LOCAL_CCID> <LOCAL_NODE_ID>
+                            <REMOTE_CCID> <MESSAGE_ID_ACK>
+                            <REMOTE_NODE_ID>[ <CONFIG> ... ]
+
+   The format of the ConfigNack message as updated by this document is
+   as follows:
+
+    <ConfigNack Message> ::= <Common Header> <LOCAL_CCID>
+                             <LOCAL_NODE_ID>  <REMOTE_CCID>
+                             <MESSAGE_ID_ACK> <REMOTE_NODE_ID>
+                             <CONFIG> [ <CONFIG> ... ]
+
+2.2.  Processing
+
+   Nodes that support the extensions defined in this document MAY
+   include multiple CONFIG objects when sending a Config, ConfigAck, and
+   ConfigNack message.  A maximum of a single object of any particular
+   C-type SHALL be included.  A node that receives a message with
+   multiple CONFIG objects of the same C-type SHALL process the first
+   object of a particular C-type and ignore any subsequent CONFIG
+   objects of the same C-type.  Unless specified as part of the CONFIG
+   object definition, ordering of CONFIG objects with different C-type
+   values is not significant.
+
+   Nodes that support the extensions defined in this document MUST
+   include a BehaviorConfig type object when sending a Config message to
+   a neighbor whose support for the extensions is either known or
+   unknown.  When the neighbor is known to not support the extensions,
+   the object MUST NOT be sent.  Inclusion of other CONFIG objects in a
+   Config message is at the discretion of the message sender and is
+   based on the rules defined as part of CONFIG object definition.
+   Nodes MAY include HelloConfig, LMP-WDM_CONFIG, BehaviorConfig object
+   types in a single message.
+
+   Inclusion of multiple CONFIG objects in a ConfigNack message is based
+   on the processing of a received Config message.  Per [RFC4204],
+   "Parameters where agreement was reached MUST NOT be included in the
+   ConfigNack Message."  As such, a ConfigNack message MUST NOT include
+   CONFIG objects that are acceptable and MUST include any CONFIG
+   objects which are not acceptable.  When a CONFIG object is included
+   in a ConfigNack message, per [RFC4204], the object is to include
+   "acceptable alternate values for negotiable parameters".
+
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 5]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+   When sending a ConfigAck message, nodes supporting the extensions
+   defined in this document MUST include all CONFIG objects received in
+   the corresponding Config message when that message includes a CONFIG
+   object of type BehaviorConfig.
+
+3.  LMP Behavior Negotiation
+
+   The Config message is used in the control channel negotiation phase
+   of LMP [RFC4204].  The LMP behavior negotiation procedure is defined
+   in this document as an addition to this phase.
+
+   The Config message is defined in Section 12.3.1 of [RFC4204] and
+   carries the CONFIG object (class name 6) as defined in Section 13.6
+   of [RFC4204].
+
+   Two class types have been defined:
+
+   - C-Type = 1, HelloConfig, defined in [RFC4204]
+
+   - C-Type = 2, LMP-WDM_CONFIG, defined in [RFC4209]
+
+   This document defines a third C-Type to report and negotiate LMP
+   mechanisms and behaviors.  Its usage indicates support for the
+   extensions defined in this document.
+
+3.1.  BehaviorConfig C-Type Format
+
+   Class = 6
+
+   - C-Type = 3, BehaviorConfig
+
+       0                   1                   2                   3
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |S|D|C|                   Must Be Zero (MBZ)                    |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   Flags:
+
+     S: 1 bit
+
+      This bit indicates support for the Trace behavior of SONET/SDH
+      technology-specific defined in [RFC4207].
+
+     D: 1 bit
+
+      This bit indicates support for the DWDM behavior defined in
+      [RFC4209].
+
+
+
+Li, et al.                   Standards Track                    [Page 6]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+     C: 1 bit
+
+      This bit indicates support for the data channel consistency check
+      behavior defined in [RFC5818].
+
+     Must Be Zero (MBZ): Variable length
+
+      The remaining bits in the flags field MUST be set to zero (0).
+      This field MUST be sized to ensure 32-bit alignment of the object.
+
+      Other bits may be defined in future documents, in which case the
+      number of bits in the MBZ field is expected to change.
+
+3.2.  Processing
+
+   The inclusion of a BehaviorConfig type object in a message is
+   discussed above in Section 2.2.
+
+   When sending a BehaviorConfig type object, the N-bit (negotiable) in
+   the LMP object header MUST be set (N=1) in the LMP object header.
+
+   When sending a BehaviorConfig type object in Config and ConfigNack
+   messages, the flags field SHOULD be set based on the supported
+   capabilities of the sending node.  When sending a ConfigAck message,
+   the flags field MUST be set to the value received in the
+   corresponding Config message.
+
+   When receiving a BehaviorConfig type object, the node compares the
+   flags field against its capacities.  Any bit set in the MBZ portion
+   of the flags field MUST be interpreted as unacceptable.  Processing
+   related to unacceptable values in CONFIG objects is defined in
+   [RFC4204] and is not modified by this document.
+
+4.  Backward Compatibility
+
+   The required use of the BehaviorConfig type CONFIG object enables
+   nodes that support the extensions defined in this document to
+   explicitly identify when a neighboring node does not.  When a non-
+   supporting node receives a Config message with the BehaviorConfig
+   type CONFIG object or multiple CONFIG objects, its behavior is to be
+   one of the following behaviors:
+
+   a) Reject the Config message because of the unknown BehaviorConfig
+      object type and send a ConfigNack message which includes the
+      unsupported C-type.
+
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 7]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+   b) Reject the message because of multiple CONFIG objects and send a
+      ConfigNack message which includes all but one of the CONFIG
+      objects.
+
+   c) Silently ignore the one or more of the CONFIG object, and respond
+      with a ConfigAck message that does not include any CONFIG objects.
+
+   d) Treat the message as malformed, and discard it without any
+      response.
+
+   Behaviors (a) and (b) result in ConfigNack messages with a
+   BehaviorConfig type object whose contents are identical to what was
+   sent in the Config message.  Behavior (c) results in a ConfigAck
+   message without a BehaviorConfig type CONFIG object.  In each of
+   these cases, the node SHOULD explicitly identify that the LMP
+   neighbor does not support the extensions defined in this document.
+
+   Behavior (d) results in no response at all.  When the node reaches
+   the "retry limit", defined in [RFC4204], the node SHOULD infer that
+   the LMP neighbor does not support the extensions defined in this
+   document.
+
+   Once a node identifies a neighbor as not supporting the extensions
+   defined in this document, the node SHOULD follow previously defined
+   Config message usage.
+
+5.  Security Considerations
+
+   [RFC4204] describes how LMP messages between peers can be secured,
+   and these measures are equally applicable to messages carrying the
+   new CONFIG object defined in this document.
+
+   Alone, the procedures described in this document do not constitute a
+   security risk, since they do not cause any change in network state.
+   It would be possible, if the messages were intercepted or spoofed to
+   cause bogus alerts in the management plane, or to cause LMP peers to
+   consider that they could or could not operate protocol extensions,
+   and so the use of the LMP security measures are RECOMMENDED.
+
+   Note, however, that [RFC4204] references for security have been
+   updated with [RFC4301], and the current reference for IKEv2 is
+   [RFC5996].
+
+
+
+
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 8]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+6.  IANA Considerations
+
+6.1.  New LMP Class Type
+
+   IANA maintains the "Link Management Protocol (LMP) Parameters"
+   registry, which has a subregistry called "LMP Object Class name space
+   and Class type (C-Type)".
+
+   IANA has made an assignment from this registry as follows:
+
+      6   CONFIG                              [RFC4204]
+
+   CONFIG Object Class type name space:
+
+      C-Type        Description            Reference
+      ------------  ---------------------  ---------
+      3             BehaviorConfig         RFC 6898
+
+6.2.  New Capabilities Registry
+
+   IANA has created a new subregistry of the "Link Management Protocol
+   (LMP) Parameters" registry to track the Behavior Configuration bits
+   defined in Section 2 of this document.  This registry is called "LMP
+   Behavior Configuration Flags".
+
+   Allocations from this registry are by Standards Action.
+
+   Bits in this registry are numbered from zero as the most significant
+   bit (transmitted first).  The number of bits that can be present is
+   limited by the length field of the CONFIG object, which gives rise to
+   (255 x 32)-8 = 8152.  IANA is strongly recommended to allocate new
+   bits with the lowest available unused number.
+
+   The registry is initially populated as follows:
+
+      Bit    | Bit  | Meaning                                | Reference
+      Number | Name |                                        |
+      -------+------+----------------------------------------+----------
+        0    |   S  | SONET/SDH Test support                 | RFC 6898
+        1    |   D  | DWDM support                           | RFC 6898
+        2    |   C  | Data Channel consistency check support | RFC 6898
+
+
+
+
+
+
+
+
+
+
+Li, et al.                   Standards Track                    [Page 9]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+7.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4301]  Kent, S. and K. Seo, "Security Architecture for the
+              Internet Protocol", RFC 4301, December 2005.
+
+   [RFC5996]  Kaufman, C., Hoffman, P., Nir, Y., and P. Eronen,
+              "Internet Key Exchange Protocol Version 2 (IKEv2)", RFC
+              5996, September 2010.
+
+   [RFC4204]  Lang, J., Ed., "Link Management Protocol (LMP)", RFC 4204,
+              October 2005.
+
+   [RFC4207]  Lang, J. and D. Papadimitriou, "Synchronous Optical
+              Network (SONET)/Synchronous Digital Hierarchy (SDH)
+              Encoding for Link Management Protocol (LMP) Test
+              Messages", RFC 4207, October 2005.
+
+   [RFC4209]  Fredette, A., Ed., and J. Lang, Ed., "Link Management
+              Protocol (LMP) for Dense Wavelength Division Multiplexing
+              (DWDM) Optical Line Systems", RFC 4209, October 2005.
+
+   [RFC5818]  Li, D., Xu, H., Bardalai, S., Meuric, J., and D. Caviglia,
+              "Data Channel Status Confirmation Extensions for the Link
+              Management Protocol", RFC 5818, April 2010.
+
+   [RFC5511]  Farrel, A., "Routing Backus-Naur Form (RBNF): A Syntax
+              Used to Form Encoding Rules in Various Routing Protocol
+              Specifications", RFC 5511, April 2009.
+
+8.  Acknowledgments
+
+   Thanks to Adrian Farrel and Richard Graveman for their useful
+   comments.
+
+9.  Contributors
+
+   Diego Caviglia
+   Ericsson
+   Via E. Melen, 77
+   Genova - Erzelli
+   Italy
+   Phone: +39 010 600 3736
+   EMail: diego.caviglia@ericsson.com
+
+
+
+
+
+Li, et al.                   Standards Track                   [Page 10]
+
+RFC 6898                LMP Behavior Negotiation              March 2013
+
+
+Authors' Addresses
+
+   Dan Li
+   Huawei Technologies
+   F3-5-B R&D Center, Huawei Industrial Base,
+   Shenzhen 518129
+   China
+   Phone: +86 755-289-70230
+   EMail: huawei.danli@huawei.com
+
+   Daniele Ceccarelli
+   Ericsson
+   Via E. Melen, 77
+   Genova - Erzelli
+   Italy
+   EMail: daniele.ceccarelli@ericsson.com
+
+   Lou Berger
+   LabN Consulting, L.L.C.
+   EMail: lberger@labn.net
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Li, et al.                   Standards Track                   [Page 11]
+

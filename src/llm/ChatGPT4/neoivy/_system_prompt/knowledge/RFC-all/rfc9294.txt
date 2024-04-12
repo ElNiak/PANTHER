@@ -1,0 +1,653 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                K. Talaulikar, Ed.
+Request for Comments: 9294                                   Arrcus Inc.
+Category: Standards Track                                      P. Psenak
+ISSN: 2070-1721                                            Cisco Systems
+                                                             J. Tantsura
+                                                               Microsoft
+                                                             August 2022
+
+
+  Application-Specific Link Attributes Advertisement Using the Border
+                 Gateway Protocol - Link State (BGP-LS)
+
+Abstract
+
+   Extensions have been defined for link-state routing protocols that
+   enable distribution of application-specific link attributes for
+   existing as well as newer applications such as Segment Routing (SR).
+   This document defines extensions to the Border Gateway Protocol -
+   Link State (BGP-LS) to enable the advertisement of these application-
+   specific attributes as a part of the topology information from the
+   network.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9294.
+
+Copyright Notice
+
+   Copyright (c) 2022 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Revised BSD License text as described in Section 4.e of the
+   Trust Legal Provisions and are provided without warranty as described
+   in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Requirements Language
+   2.  Application-Specific Link Attributes TLV
+   3.  Application-Specific Link Attributes
+   4.  Procedures
+     4.1.  Illustration for IS-IS
+   5.  Deployment Considerations
+   6.  IANA Considerations
+   7.  Manageability Considerations
+   8.  Security Considerations
+   9.  References
+     9.1.  Normative References
+     9.2.  Informative References
+   Acknowledgements
+   Authors' Addresses
+
+1.  Introduction
+
+   The Border Gateway Protocol - Link State (BGP-LS) [RFC7752] enables
+   the distribution of the link-state topology information from link-
+   state routing protocols (viz., IS-IS [RFC1195], OSPFv2 [RFC2328], and
+   OSPFv3 [RFC5340]) to an application like a controller or Path
+   Computation Engine (PCE) via BGP.  The controller or PCE gets the
+   end-to-end topology information across IGP domains so it can perform
+   path computations for use cases like end-to-end traffic engineering
+   (TE).
+
+   The link-state topology information distributed via BGP-LS includes
+   link attributes that were originally defined for MPLS TE (i.e., using
+   RSVP-TE [RFC3209] or GMPLS [RFC4202] applications).  In recent years,
+   applications, such as Segment Routing (SR) Policy [RFC8402] and Loop-
+   Free Alternates (LFA) [RFC5286], which also make use of link
+   attributes, have been introduced.  [RFC8919] and [RFC8920] define
+   extensions for IS-IS and OSPF, respectively, that enable advertising
+   application-specific link attributes for these and other future
+   applications.  This has resulted in the need for a similar BGP-LS
+   extension to include this additional link-state topology information
+   from the link-state routing protocols.
+
+   This document defines the BGP-LS extensions for the advertisement of
+   application-specific link attributes.  It describes the advertisement
+   of these link attributes as top-level TLVs (i.e., as TLVs of the BGP-
+   LS Attribute) and as sub-TLVs of the (top-level) Application-Specific
+   Link Attributes (ASLA) TLV.  The document also describes the
+   procedures for the advertisement of these attributes from the
+   underlying IGPs and discusses their deployment aspects.
+
+1.1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  Application-Specific Link Attributes TLV
+
+   BGP-LS [RFC7752] specifies the Link Network Layer Reachability
+   Information (NLRI) for the advertisement of links and their
+   attributes using the BGP-LS Attribute.  The ASLA TLV is an optional
+   top-level BGP-LS Attribute TLV that is introduced for Link NLRIs.  It
+   is defined such that it may act as a container for certain existing
+   and future link attributes that require application-specific
+   definition.
+
+   The format of this TLV is as follows and is similar to the
+   corresponding ASLA sub-TLVs defined for OSPF and IS-IS in [RFC8920]
+   and [RFC8919], respectively.
+
+       0                   1                   2                   3
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |              Type             |             Length            |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      | SABM Length   | UDABM Length  |            Reserved           |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |     Standard Application Identifier Bit Mask (variable)      //
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |    User-Defined Application Identifier Bit Mask (variable)   //
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                      Link Attribute sub-TLVs                 //
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+             Figure 1: Application-Specific Link Attributes TLV
+
+   where:
+
+   Type:  1122
+
+   Length:  variable
+
+   SABM Length:  1-octet field that carries the Standard Application
+      Identifier Bit Mask Length in octets as defined in [RFC8920].
+
+   UDABM Length:  1-octet field that carries the User-Defined
+      Application Identifier Bit Mask Length in octets as defined in
+      [RFC8920].
+
+   Reserved:  2-octet field that MUST be set to zero on transmission and
+      MUST be ignored on reception.
+
+   Standard Application Identifier Bit Mask:  An optional set of bits
+      (of size 0, 4, or 8 octets as indicated by the SABM Length), where
+      each bit represents a single standard application as defined in
+      [RFC8919].
+
+   User-Defined Application Identifier Bit Mask:  An optional set of
+      bits (of size 0, 4, or 8 octets as indicated by the UDABM Length),
+      where each bit represents a single user-defined application as
+      defined in [RFC8919] and [RFC8920].
+
+   Link Attribute sub-TLVs:  BGP-LS Attribute TLVs corresponding to the
+      Link NLRI that are application-specific (including existing ones
+      as specified in Section 3) are included as sub-TLVs of the ASLA
+      TLV.
+
+   The semantics associated with the standard and user-defined bit masks
+   as well as the encoding scheme for application-specific attributes
+   are as specified in [RFC8920].
+
+   The ASLA TLV and its sub-TLVs can only be added to the BGP-LS
+   Attribute associated with the Link NLRI of the node that originates
+   the underlying IGP link attribute TLVs and sub-TLVs.  The procedures
+   for originating link attributes in the ASLA TLV from underlying IGPs
+   are specified in Section 4.
+
+3.  Application-Specific Link Attributes
+
+   Several BGP-LS Attribute TLVs corresponding to the Link NLRI are
+   defined in BGP-LS [RFC7752], and more may be added in the future.
+   Those attributes that have been determined to be, and advertised as,
+   application-specific in the underlying IGPs are also encoded
+   similarly in BGP-LS.
+
+   The following table lists the currently defined BGP-LS Attribute TLVs
+   corresponding to Link NLRI that can have application-specific
+   semantics based on the underlying IGP specifications [RFC8919]
+   [RFC8920].  These were originally defined with semantics for RSVP-TE
+   and GMPLS applications in BGP-LS by the respective reference
+   documents.
+
+     +================+========================+====================+
+     | TLV Code Point | Description            | Reference Document |
+     +================+========================+====================+
+     |      1088      | Administrative group   | [RFC7752]          |
+     |                | (color)                |                    |
+     +----------------+------------------------+--------------------+
+     |      1092      | TE Default Metric      | [RFC7752]          |
+     +----------------+------------------------+--------------------+
+     |      1096      | Shared Risk Link Group | [RFC7752]          |
+     +----------------+------------------------+--------------------+
+     |      1114      | Unidirectional Link    | [RFC8571]          |
+     |                | Delay                  |                    |
+     +----------------+------------------------+--------------------+
+     |      1115      | Min/Max Unidirectional | [RFC8571]          |
+     |                | Link Delay             |                    |
+     +----------------+------------------------+--------------------+
+     |      1116      | Unidirectional Delay   | [RFC8571]          |
+     |                | Variation              |                    |
+     +----------------+------------------------+--------------------+
+     |      1117      | Unidirectional Link    | [RFC8571]          |
+     |                | Loss                   |                    |
+     +----------------+------------------------+--------------------+
+     |      1118      | Unidirectional         | [RFC8571]          |
+     |                | Residual Bandwidth     |                    |
+     +----------------+------------------------+--------------------+
+     |      1119      | Unidirectional         | [RFC8571]          |
+     |                | Available Bandwidth    |                    |
+     +----------------+------------------------+--------------------+
+     |      1120      | Unidirectional         | [RFC8571]          |
+     |                | Utilized Bandwidth     |                    |
+     +----------------+------------------------+--------------------+
+     |      1173      | Extended               | [RFC9104]          |
+     |                | Administrative Group   |                    |
+     +----------------+------------------------+--------------------+
+
+     Table 1: Existing BGP-LS TLVs Identified as Application-Specific
+
+   All the BGP-LS Attribute TLVs listed in the table above are REQUIRED
+   to be advertised as a top-level TLV in the BGP-LS Attribute when used
+   to carry link attributes specific to RSVP-TE.
+
+   BGP-LS Attribute TLVs corresponding to Link NLRI that are advertised
+   in the underlying IGP as application-specific are REQUIRED to be
+   encoded within an ASLA TLV.
+
+   Link attributes that do not have application-specific semantics MUST
+   NOT be advertised within the ASLA TLV.
+
+   When the same application-specific link attributes are advertised
+   both within the ASLA TLV and as top-level TLVs in the BGP-LS
+   Attribute, the attributes advertised within the ASLA TLV take
+   precedence for the applications indicated in the ASLA TLV encoding.
+
+4.  Procedures
+
+   The BGP-LS originator learns of the association of an application-
+   specific attribute to one or more applications from the underlying
+   IGP protocol Link State Advertisements (LSAs) or Link State Packets
+   (LSPs) from which it is advertising the topology information.
+   [RFC8920] and [RFC8919] specify the mechanisms for advertising
+   application-specific link attributes in OSPF and IS-IS, respectively.
+
+   Application-specific link attributes received from an IGP node
+   without the use of ASLA encodings continue to be encoded using the
+   respective BGP-LS top-level TLVs listed in Table 1 as specified in
+   their respective reference documents.
+
+   While the ASLA encoding in OSPF is similar to that of BGP-LS, the
+   encoding in IS-IS differs and requires additional procedures when
+   conveying information into BGP-LS.  One of these differences arises
+   from the presence of the L-flag in the IS-IS encoding.  Another
+   difference arises due to the requirement to collate information from
+   two types of IS-IS encodings for application-specific link
+   information (i.e., the IS-IS ASLA sub-TLV and the IS-IS Application-
+   Specific Shared Risk Link Group (SRLG) TLV) [RFC8919] and to carry
+   them together in the BGP-LS ASLA TLV.
+
+   A BGP-LS originator node that is advertising link-state information
+   from the underlying IGP using ASLA encodings determines their BGP-LS
+   encoding based on the following rules:
+
+   1.  Application-specific link attributes received from an OSPF node
+       using an ASLA sub-TLV or from an IS-IS node using either an ASLA
+       sub-TLV or an Application-Specific SRLG TLV MUST be encoded in
+       the BGP-LS ASLA TLV as sub-TLVs.  Exceptions to this rule are
+       specified in (2)(F) and (2)(G) below.
+
+   2.  In the case of IS-IS, the specific procedures below are to be
+       followed:
+
+       A.  When application-specific link attributes are received from a
+           node with the L-flag set in the IS-IS ASLA sub-TLV and when
+           application bits (other than RSVP-TE) are set in the
+           application bit masks, then the application-specific link
+           attributes advertised in the corresponding legacy IS-IS TLVs
+           and sub-TLVs MUST be encoded within the BGP-LS ASLA TLV as
+           sub-TLVs with the application bits (other than the RSVP-TE
+           bit) copied from the IS-IS ASLA sub-TLV.  The link attributes
+           advertised in the legacy IS-IS TLVs and sub-TLVs are also
+           advertised in BGP-LS top-level TLVs as per [RFC7752],
+           [RFC8571], and [RFC9104].  The same procedure also applies
+           for the advertisement of the SRLG values from the IS-IS
+           Application-Specific SRLG TLV.
+
+       B.  When the IS-IS ASLA sub-TLV has the RSVP-TE application bit
+           set, then the link attributes for the corresponding IS-IS
+           ASLA sub-TLVs MUST be encoded using the respective BGP-LS
+           top-level TLVs as per [RFC7752], [RFC8571], and [RFC9104].
+           Similarly, when the IS-IS Application-Specific SRLG TLV has
+           the RSVP-TE application bit set, then the SRLG values within
+           it MUST be encoded using the top-level BGP-LS SRLG TLV (1096)
+           as per [RFC7752].
+
+       C.  The SRLGs advertised in one or more IS-IS Application-
+           Specific SRLG TLVs and the other link attributes advertised
+           in one or more IS-IS ASLA sub-TLVs are REQUIRED to be
+           collated, on a per-application basis, only for those
+           applications that meet all the following criteria:
+
+           *  their bit is set in the SABM or UDABM in one of the two
+              types of IS-IS encodings (e.g., IS-IS ASLA sub-TLV)
+
+           *  the other encoding type (e.g., IS-IS Application Specific
+              SRLG TLV) has an advertisement with zero-length
+              application bit masks
+
+           *  there is no corresponding advertisement of that other
+              encoding type (following the example, IS-IS Application
+              Specific SRLG TLV) with that specific application bit set
+
+           For each such application, its collated information MUST be
+           carried in a BGP-LS ASLA TLV with that application's bit set
+           in the SABM or UDABM.  See the illustration in Section 4.1.
+
+       D.  If the resulting set of collated link attributes and SRLG
+           values is common across multiple applications, they MAY be
+           advertised in a common BGP-LS ASLA TLV instance where the
+           bits for all such applications would be set in the
+           application bit mask.
+
+       E.  Both the SRLG values from IS-IS Application-Specific SRLG
+           TLVs and the link attributes from IS-IS ASLA sub-TLVs, with
+           the zero-length application bit mask, MUST be advertised into
+           a BGP-LS ASLA TLV with a zero-length application bit mask,
+           independent of the collation described above.
+
+       F.  [RFC8919] allows the advertisement of the Maximum Link
+           Bandwidth within an IS-IS ASLA sub-TLV even though it is not
+           an application-specific attribute.  However, when originating
+           the Maximum Link Bandwidth into BGP-LS, the attribute MUST be
+           encoded only in the top-level BGP-LS Maximum Link Bandwidth
+           TLV (1089) and MUST NOT be advertised within the BGP-LS ASLA
+           TLV.
+
+       G.  [RFC8919] also allows the advertisement of the Maximum
+           Reservable Link Bandwidth and the Unreserved Bandwidth within
+           an IS-IS ASLA sub-TLV even though these attributes are
+           specific to RSVP-TE application.  However, when originating
+           the Maximum Reservable Link Bandwidth and Unreserved
+           Bandwidth into BGP-LS, these attributes MUST be encoded only
+           in the BGP-LS top-level Maximum Reservable Link Bandwidth TLV
+           (1090) and Unreserved Bandwidth TLV (1091), respectively, and
+           not within the BGP-LS ASLA TLV.
+
+   These rules ensure that a BGP-LS originator performs the
+   advertisement for all application-specific link attributes from the
+   IGP nodes that support the ASLA extension.  Furthermore, it also
+   ensures that the top-level BGP-LS TLVs defined for RSVP-TE and GMPLS
+   applications continue to be used for advertisement of their
+   application-specific attributes.
+
+   A BGP-LS speaker would normally advertise all the application-
+   specific link attributes corresponding to RSVP-TE and GMPLS
+   applications as existing top-level BGP-LS TLVs while for other
+   applications they are encoded in the ASLA TLV(s) with appropriate
+   applicable bit mask setting.  An application-specific attribute value
+   received via a sub-TLV within the ASLA TLV has precedence over the
+   value received via a top-level TLV.
+
+4.1.  Illustration for IS-IS
+
+   This section illustrates the procedure for the advertisement of
+   application-specific link attributes from IS-IS into BGP-LS.
+
+   Consider the following advertisements for a link in IS-IS.  We start
+   with this set:
+
+   a.  IS-IS ASLA sub-TLV with the S, F, and X bits set on it that
+       carries certain application-specific link attributes
+
+   b.  IS-IS Application-Specific SRLG TLV with zero-length bit masks
+       with a set of application-specific SRLGs
+
+   c.  IS-IS Application-Specific SRLG TLV with the X bit set on it with
+       a set of application-specific SRLGs
+
+   The corresponding BGP-LS advertisements for that link are determined
+   as follows:
+
+   First, based on rule (1), the advertisements are conveyed to BGP-LS
+   to get the following "updated set":
+
+   1.  ASLA with the S, F, and X bits set on it that carries link
+       attributes from IS-IS advertisement (a)
+
+   2.  ASLA SRLG with zero-length bit masks with a set of SRLGs from IS-
+       IS advertisement (b)
+
+   3.  ASLA SRLG with the X bit set on it with a set of SRLGs from IS-IS
+       advertisement (c)
+
+   Next, we apply the rules from (2) to this "updated set", because all
+   of them were sourced from IS-IS, to derive a new set.
+
+   The next rule that applies is (2)(c), and it is determined that
+   collation is required for applications S and F; therefore, we get the
+   following "final set":
+
+   1.  ASLA with the S bit set on it that carries link attributes from
+       IS-IS advertisement (a) and SRLGs from IS-IS advertisement (b)
+       (this is collation for application S based on (2)(c))
+
+   2.  ASLA with the F bit set on it that carries link attributes from
+       IS-IS advertisement (a) and SRLGs from IS-IS advertisement (b)
+       (this is collation for application F based on (2)(c))
+
+   3.  ASLA with the X bit set on it that carries link attributes from
+       IS-IS advertisement (a) (remaining application not affected by
+       collation based on (2)(c))
+
+   4.  ASLA with zero-length bit masks with SRLGs from IS-IS
+       advertisement (b) (not affected by (2)(c) and therefore carried
+       forward unchanged from the "updated set")
+
+   5.  ASLA with the X bit set on it with SRLGs from IS-IS advertisement
+       (c) (not affected by (2)(c) and therefore carried forward
+       unchanged from the "updated set")
+
+   Implementations may optionally perform further consolidation by
+   processing the "final set" above based on (2)(d) to determine the
+   following "consolidated final set":
+
+   1.  ASLA with the S and F bits set on it that carries application-
+       specific link attributes from IS-IS advertisement (a) and SRLGs
+       from IS-IS advertisement (b) (this is the consolidation of items
+       1 and 2 of the "final set" based on (2)(d))
+
+   2.  ASLA with the X bit set on it that carries certain application-
+       specific link attributes from IS-IS advertisement (a) (it is
+       unaffected by this consolidation)
+
+   3.  ASLA with zero-length bit masks with a set of application-
+       specific SRLGs from IS-IS advertisement (b) (this is retained
+       based on (2)(e) and is unaffected by any further consolidation)
+
+   4.  ASLA with the X bit set on it with a set of application-specific
+       SRLGs from IS-IS advertisement (c) (it is unaffected by this
+       consolidation)
+
+   Further optimization (e.g., combining (2) and (4) from the
+   "consolidated final set" above into a single BGP-LS ASLA TLV) may be
+   possible while ensuring that the semantics are preserved between the
+   IS-IS and BGP-LS advertisements.  Such optimizations are outside the
+   scope of this document.
+
+5.  Deployment Considerations
+
+   BGP-LS sources the link-state topology information (including the
+   extensions introduced by this document) from the underlying link-
+   state IGP protocols.  The various deployment aspects related to the
+   advertisement and use of application-specific link attributes are
+   discussed in the Deployment Considerations sections of [RFC8920] and
+   [RFC8919].  The IGP backward-compatibility aspects described in those
+   documents associated with application-specific link attributes along
+   with the BGP-LS procedures specified in this document enable backward
+   compatibility in deployments of existing implementations of
+   [RFC7752], [RFC8571], and [RFC9104] for applications such as RSVP-TE,
+   SR Policy, and LFA.
+
+   It is recommended that only nodes supporting this specification are
+   selected as originators of BGP-LS information when advertising the
+   link-state information from the IGPs in deployments supporting
+   application-specific link attributes.
+
+   BGP-LS consumers that do not support this specification can continue
+   to use the existing top-level TLVs for link attributes for existing
+   applications as discussed above.  However, they would be able to
+   support neither the application-specific link attributes nor newer
+   applications that may be encoded only using the ASLA TLV.
+
+6.  IANA Considerations
+
+   IANA has assigned a code point from the "BGP-LS Node Descriptor, Link
+   Descriptor, Prefix Descriptor, and Attribute TLVs" registry as
+   described in the following table.  There is no "IS-IS TLV/Sub-TLV"
+   value for this entry.
+
+   +================+======================================+===========+
+   | TLV Code Point | Description                          | Reference |
+   +================+======================================+===========+
+   | 1122           | Application-Specific                 | RFC 9294  |
+   |                | Link Attributes                      |           |
+   +----------------+--------------------------------------+-----------+
+
+                  Table 2: ASLA TLV Code Point Allocation
+
+7.  Manageability Considerations
+
+   The protocol extensions introduced in this document augment the
+   existing IGP topology information defined in [RFC7752].  Procedures
+   and protocol extensions defined in this document do not affect the
+   BGP protocol operations and management other than as discussed in the
+   Manageability Considerations section of [RFC7752].  Specifically, the
+   malformed NLRI attribute tests in the Fault Management section of
+   [RFC7752] now encompass the BGP-LS TLVs defined in this document.
+
+   The extensions specified in this document do not specify any new
+   configuration or monitoring aspects in BGP or BGP-LS.  The
+   specification of BGP models is an ongoing work based on
+   [IDR-BGP-MODEL].
+
+8.  Security Considerations
+
+   Security considerations for acquiring and distributing BGP-LS
+   information are discussed in [RFC7752].  Specifically, the
+   considerations related to topology information, which are related to
+   traffic engineering, apply.
+
+   The TLVs introduced in this document are used to propagate the
+   application-specific link attributes IGP extensions defined in
+   [RFC8919] and [RFC8920].  It is assumed that the IGP instances
+   originating these TLVs will support all the required security (as
+   described in [RFC8919] and [RFC8920]).
+
+   This document defines a new way to advertise link attributes.
+   Tampering with the information defined in this document may affect
+   applications using it, including impacting traffic engineering, which
+   uses various link attributes for its path computation.  As the
+   advertisements defined in this document limit the scope to specific
+   applications, the impact of tampering is similarly limited in scope.
+   The advertisement of the link attribute information defined in this
+   document presents no significant additional risk beyond that
+   associated with the existing link attribute information already
+   supported in [RFC7752].
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC7752]  Gredler, H., Ed., Medved, J., Previdi, S., Farrel, A., and
+              S. Ray, "North-Bound Distribution of Link-State and
+              Traffic Engineering (TE) Information Using BGP", RFC 7752,
+              DOI 10.17487/RFC7752, March 2016,
+              <https://www.rfc-editor.org/info/rfc7752>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8571]  Ginsberg, L., Ed., Previdi, S., Wu, Q., Tantsura, J., and
+              C. Filsfils, "BGP - Link State (BGP-LS) Advertisement of
+              IGP Traffic Engineering Performance Metric Extensions",
+              RFC 8571, DOI 10.17487/RFC8571, March 2019,
+              <https://www.rfc-editor.org/info/rfc8571>.
+
+   [RFC8919]  Ginsberg, L., Psenak, P., Previdi, S., Henderickx, W., and
+              J. Drake, "IS-IS Application-Specific Link Attributes",
+              RFC 8919, DOI 10.17487/RFC8919, October 2020,
+              <https://www.rfc-editor.org/info/rfc8919>.
+
+   [RFC8920]  Psenak, P., Ed., Ginsberg, L., Henderickx, W., Tantsura,
+              J., and J. Drake, "OSPF Application-Specific Link
+              Attributes", RFC 8920, DOI 10.17487/RFC8920, October 2020,
+              <https://www.rfc-editor.org/info/rfc8920>.
+
+   [RFC9104]  Tantsura, J., Wang, Z., Wu, Q., and K. Talaulikar,
+              "Distribution of Traffic Engineering Extended
+              Administrative Groups Using the Border Gateway Protocol -
+              Link State (BGP-LS)", RFC 9104, DOI 10.17487/RFC9104,
+              August 2021, <https://www.rfc-editor.org/info/rfc9104>.
+
+9.2.  Informative References
+
+   [IDR-BGP-MODEL]
+              Jethanandani, M., Patel, K., Hares, S., and J. Haas, "BGP
+              YANG Model for Service Provider Networks", Work in
+              Progress, Internet-Draft, draft-ietf-idr-bgp-model-14, 3
+              July 2022, <https://datatracker.ietf.org/doc/html/draft-
+              ietf-idr-bgp-model-14>.
+
+   [RFC1195]  Callon, R., "Use of OSI IS-IS for routing in TCP/IP and
+              dual environments", RFC 1195, DOI 10.17487/RFC1195,
+              December 1990, <https://www.rfc-editor.org/info/rfc1195>.
+
+   [RFC2328]  Moy, J., "OSPF Version 2", STD 54, RFC 2328,
+              DOI 10.17487/RFC2328, April 1998,
+              <https://www.rfc-editor.org/info/rfc2328>.
+
+   [RFC3209]  Awduche, D., Berger, L., Gan, D., Li, T., Srinivasan, V.,
+              and G. Swallow, "RSVP-TE: Extensions to RSVP for LSP
+              Tunnels", RFC 3209, DOI 10.17487/RFC3209, December 2001,
+              <https://www.rfc-editor.org/info/rfc3209>.
+
+   [RFC4202]  Kompella, K., Ed. and Y. Rekhter, Ed., "Routing Extensions
+              in Support of Generalized Multi-Protocol Label Switching
+              (GMPLS)", RFC 4202, DOI 10.17487/RFC4202, October 2005,
+              <https://www.rfc-editor.org/info/rfc4202>.
+
+   [RFC5286]  Atlas, A., Ed. and A. Zinin, Ed., "Basic Specification for
+              IP Fast Reroute: Loop-Free Alternates", RFC 5286,
+              DOI 10.17487/RFC5286, September 2008,
+              <https://www.rfc-editor.org/info/rfc5286>.
+
+   [RFC5340]  Coltun, R., Ferguson, D., Moy, J., and A. Lindem, "OSPF
+              for IPv6", RFC 5340, DOI 10.17487/RFC5340, July 2008,
+              <https://www.rfc-editor.org/info/rfc5340>.
+
+   [RFC8402]  Filsfils, C., Ed., Previdi, S., Ed., Ginsberg, L.,
+              Decraene, B., Litkowski, S., and R. Shakir, "Segment
+              Routing Architecture", RFC 8402, DOI 10.17487/RFC8402,
+              July 2018, <https://www.rfc-editor.org/info/rfc8402>.
+
+Acknowledgements
+
+   The authors would like to thank Les Ginsberg, Baalajee S., Amalesh
+   Maity, Acee Lindem, Keyur Patel, Paul Wouters, Rudy Selderslaghs,
+   Kristy Paine, and Shraddha Hegde for their review and feedback on
+   this document.  The authors would like to thank Alvaro Retana for his
+   very detailed AD review and comments that improved this document.
+   The authors would also like to thank John Scudder for his detailed
+   review and feedback on clarifying the procedures along with the
+   example in Section 4.
+
+Authors' Addresses
+
+   Ketan Talaulikar (editor)
+   Arrcus Inc.
+   India
+   Email: ketant.ietf@gmail.com
+
+
+   Peter Psenak
+   Cisco Systems
+   Slovakia
+   Email: ppsenak@cisco.com
+
+
+   Jeff Tantsura
+   Microsoft
+   Email: jefftant.ietf@gmail.com

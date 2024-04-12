@@ -1,0 +1,528 @@
+#lang ivy1.7
+
+include quic_types
+include quic_transport_error_code
+include quic_frame
+include quic_transport_parameters
+include ip
+include quic_fsm_sending
+include quic_fsm_receiving
+
+# The packet protocol
+#
+# The packet protocol has several funcitons including establishing
+# connections and loss detection. Packets carry frames whihc implement
+# many other funcition of QUIC.
+#
+# QUIC Packets
+# ------------
+
+# This section defines the QUIC packet datatype. Packets are the basic
+# unit of communication between endpoints. A packet may be encoded in
+# either the long or the short format. There are packet types:
+# `initial`, `handshake`, `zero_rtt` and `one_rtt`. The `zero_rtt`
+# type is encoded in the short format, while others are encoded in the
+# long format.  Packets have associated source cid (long format only)
+# and destination cid, protocol version (long format only), and a
+# packet sequence number. An initial packet also has a *retry token*, which
+# is a (possibly empty) sequence of bytes.  The *payload* of the
+# packet consists of a sequence of *frames* (see frame.ivy).
+
+# TODO: retry and one_rtt packet types
+
+# ### Packet
+
+# The type `quic_packet` represents packet. 
+
+# The fields are:
+#
+# - *ptype*: the packet type [2]
+# - *pversion*: the protocol version, if long format, else 0 [3]
+# - *dst_cid*: the destination cid [4]
+# - *src_cid*: the source cid, if long format, else 0  [5]
+# - *token*: the retry token (see section 4.4.1)  [6]
+# - *seq_num*: the packet sequence number  [7]
+# - *payload*: the payload, a sequence of frames  [8]
+
+instance forged_pkts : array(index,stream_data)
+
+object forged_protected_quic_packet = {
+    type this = struct {
+        ptype : quic_packet_type, # [2]
+        pversion : version, # [3]
+        dst_cid : cid, # [4]
+        src_cid : cid, # [5]
+        token : stream_data, # [6]
+        protected_payload : stream_data # [8]
+    }
+
+    instance idx : unbounded_sequence
+    instance arr : array(idx,this)
+
+    #Hamid
+    instance retired_cids : array(idx, cid_seq)
+    #Hamid
+
+    action long(pkt:this) returns(res:bool) = {
+        res := pkt.ptype ~= quic_packet_type.one_rtt;
+    }
+}
+
+
+object forged_quic_packet = {
+    type this = struct {
+        ptype : quic_packet_type, # [2]
+        pversion : version, # [3]
+        dst_cid : cid, # [4]
+        src_cid : cid, # [5]
+        token : stream_data, # [6]
+        seq_num : pkt_num, # [7]
+        payload : frame.arr # [8]
+    }
+
+    instance idx : unbounded_sequence
+    instance arr : array(idx,this)
+
+    #Hamid
+    instance retired_cids : array(idx, cid_seq)
+    #Hamid
+
+    action long(pkt:this) returns(res:bool) = {
+        res := pkt.ptype ~= quic_packet_type.one_rtt;
+    }
+}
+
+# Note: Short header are considered to have scid of 0 so it is quite important to use this value
+
+# Packet protocol events
+# -----------------------
+
+# The packet event
+# ================
+#
+# This event corresponds to transmission of a QUIC packet.
+#
+# Parameters
+# ----------
+#
+# - `src`: the source endpoint
+# - `dst`: the destination endpoint
+# - `pkt` : the packet contents
+
+action forged_packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_quic_packet) = {}
+
+action modify_protected_packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_protected_quic_packet) = {}
+
+action forward_packet_to_client_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) = {}
+
+action forward_packet_to_server_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) = {}
+
+action replay_packet_to_server_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) = {}
+
+action reflect_packet_to_victim_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) = {}
+
+
+# Packet protocol state
+# ---------------------
+
+# This section defines the history variables that track the state of
+# the packet protocol. Some of these variables are shared between
+# protocol layers, so that the allowed interleavings of events at
+# different layers can be specified.
+#
+
+# Packet protocol state
+# ---------------------
+
+relation packed_forwarded(P:stream_data)
+
+relation packed_forwarded_arr(P:forged_pkts)
+
+# Initial state
+# -------------
+
+# The history variables are initialized as follows.  Initially, no
+# connections have been seen and no packets have been sent or
+# acknowledged.
+
+after init {
+    packed_forwarded(P) := false;
+    packed_forwarded_arr(P) := false;
+}
+
+# Packet event specification
+# --------------------------
+
+# A packet event represents the transmision of a QUIC packet `pkt`
+# from source endpoint `src` to a QUIC destination endpoint `dst`
+# containing a sequence of queued frames.
+#
+# ### Requirements
+#
+# - The packet payload may not be empty [7].
+#
+
+around forged_packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_quic_packet) {
+   #call show_connected(connected(the_cid), connected_to(the_cid));
+
+    # TEMPORARY: Do not allow zero_rtt packets
+
+    require pkt.ptype ~= quic_packet_type.zero_rtt & pkt.ptype ~= quic_packet_type.version_negociation & pkt.ptype ~= quic_packet_type.retry;
+    
+    # Extract the source and destination cid's and packet number from the packet.
+
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid;
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+    require pkt.token.end ~= 0 -> (retry_sent(client_initial_rcid) | retry_recv(scid) | pkt.token = tls_api.upper.get_old_new_token);
+
+    if (src = client_alt | dst = client_alt) & nclients = 1 {
+	    migration_done := true;
+	    #call net.close(endpoint_id.client,sock);	# destroy connection ?
+    };
+
+    # Similarly, an endpoint MUST NOT reuse a connection ID when sending to
+    # more than one destination address.  
+    
+    #if ~_generating  {
+    #    if ~migration_done {
+    #        cid_ip_mapped(dst) := pkt.dst_cid;
+    #    } else {
+    #        cid_ip_mapped(dst) := pkt.dst_cid;
+    #    };
+    #};
+
+    # The destination cid must represent an existing connection,
+    # except in the case of a client initial packet, when the
+    # destination cid may be the nonce cid chosen by the client for
+    # the given source cid. TODO: The standard says that on receiving
+    # the the server's cid, the clint must switch to it. However, we
+    # can't know when that server's cid has actually been received by
+    # the client. As an example, after the server sends its first
+    # initial packet, the client might still retransmit its initial
+    # packet using the nonce cid. In some cases, we can infer that the
+    # client has in fact seen the server's cid (for example, if it
+    # packet contains an ACK frame, or a CRYPTO frame that is
+    # reponsive to a server FRAME. This is trick to check, however,
+    # and the actual servers do not seem to check it.
+
+    require connected(dcid) |
+        pkt.ptype = quic_packet_type.initial
+        & is_client(scid)
+        & dcid = nonce_cid(scid);
+    
+
+    # On long headers, both cids are given. If the destination cid is
+    # connected, it must be connected to the source cid (otherwise it
+    # must be a nonce generated by a client). 
+    # On short headers (meaning one_rtt) the scid is not given, so we
+    # use the recorded value.
+
+    if pkt.long {
+        require connected(dcid) -> connected_to(dcid) = scid;
+    } else {
+        scid := connected_to(dcid);
+    };
+
+    if retry_sent(dcid) & ~_generating & ~zero_length_token & pkt.ptype = quic_packet_type.initial {
+        require dcid = client_initial_rcid;
+    };
+
+    # The packet type must match the encryption level of the queued
+    # frames at the source. 
+
+    require pkt.ptype = queued_level(scid);
+
+    # TEMPORARY: prevent big packet number jumps (work around minquic bug)
+    # Removed for MVFST that start with big PKT_NUM -> OK now
+    if  _generating {
+        # if ~is_client(scid) {
+        #     #client
+        #     require pkt.seq_num > last_pkt_num(scid,pkt.ptype);
+        #     require pkt.seq_num <= last_pkt_num(scid,pkt.ptype) + 0x15;
+        # } else {
+        #server
+        require pkt.seq_num = last_pkt_num(scid,pkt.ptype) + 0x1; # OK
+        # };
+        #require pkt.seq_num < last_pkt_num(scid,pkt.ptype) + 0x1 & pkt.seq_num > last_pkt_num(scid,pkt.ptype);
+    };
+    last_pkt_num(scid,pkt.ptype) := pkt.seq_num;
+    require ~sent_pkt(scid,pkt.ptype,pkt.seq_num);  # [4]
+    sent_pkt(scid,pkt.ptype,pkt.seq_num) := true;  # [1]
+
+    # The payload may not be empty
+
+    require num_queued_frames(scid) > 0;  # [7]
+
+    # The payload must exactly match the queued frames.
+
+    require pkt.payload = queued_frames(scid);
+
+    # TEMPORARY: don't allow client migration during handshake
+
+    require conn_seen(scid) & pkt.long & is_client(scid) -> conn_requested(src,dst,scid);
+
+    # Packet must be sent to the endpoint from which the highest numbered
+    # packet has been received. ~queued_challenge(dcid) & 
+    #call show_probing(dcid ,hi_non_probing(dcid));
+    require  conn_seen(dcid) -> hi_non_probing_endpoint(dcid,dst);  # [10]
+
+    # TEMPORARY: do not apply ack-only rule to generated packets
+    # This can be removed when we have a frame queue per encryption level
+
+    #call show_ack_credit(scid, ack_credit(scid), queued_ack_eliciting(scid), queued_non_ack(scid), pkt.seq_num);
+    require ~_generating & ~queued_non_ack(scid) -> ack_credit(scid) > 0;  # [5]
+
+    #Hamid - This is wrong, because if there is no ack credits, it prevents from sending a packet 
+    #        containing only a CONNECTION_CLOSE frame but we want to stop packets that contain only ACKs 
+    #    require ~_generating & ~queued_ack_eliciting(scid) -> ack_credit(scid) > 0;
+    #Hamid
+
+    # QUESTION: THis sentence is from draft-18 section 13.1: "An
+    #   endpoint MUST NOT send a packet containing only an ACK frame
+    #   in response to a packet containing only ACK or PADDING frames,
+    #   even if there are packet gaps which precede the received
+    #   packet." Do we interpret this to mean that an ack-only packet
+    #   cannot ack *only* ack-only packets?  Or that an ack-only
+    #   packet cannot ack *any* ack-only packets?
+    
+    # If the sender is in the draining state, this is the draining packet.
+    # Make sure that a draining packet has not previously been sent and
+    # that the packet contains a connection_close frame;
+
+    if conn_draining(scid) {
+        require ~draining_pkt_sent(scid) & queued_close(scid);
+    };
+
+    ...
+
+    # Here, we have the updates to the packet protocol state.
+
+    # TEMPORARY: The following are repeated because currently locals defined in
+    # the "before" section cannot be accessed in the "after" section.
+
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid if pkt.long else connected_to(dcid);
+
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+
+    # TODO: the following should not be here
+
+    if pkt.ptype = quic_packet_type.initial {
+        initial_token := pkt.token;
+        # An initial packet with an unseen destination cid is a connection request.
+        if ~conn_seen(dcid)  {
+            if ~zero_rtt_sent {
+                call show_initial_request_initial;
+                call tls_client_initial_request(src,dst,dcid,pkt.pversion,src_tls_id(src));
+            };
+            conn_requested(src,dst,scid) := true;
+        };
+        cid_to_token(dcid) := pkt.token;
+    };
+
+    conn_seen(scid) := true;  # [1]
+
+    # Update the ack credits. A non-ack packet sent to a destination
+    # increases the destination's ack credit. An ack packet decreases
+    # the sender's ack credit.
+
+#Hamid
+
+#    if queued_non_ack(scid) {
+#	ack_credit(dcid) := ack_credit(dcid) + 1;
+#    } else {
+#	ack_credit(scid) := ack_credit(scid) - 1;
+#    };
+
+    if queued_ack_eliciting(scid) {
+       ack_credit(dcid) := ack_credit(dcid) + 1;
+    };
+    if ~queued_non_ack(scid) {
+       ack_credit(scid) := ack_credit(scid) - 1;
+    };
+
+#Hamid
+
+    # If this is a non-probing packet, update the highest non-probing
+    # packet number seen on from this aid.
+    # QUESTION: what if two different paths send the same packet number?
+    # QUESTION: how do you compare packet numbers with different encryption levels?
+
+    if queued_non_probing(scid) {
+        if pkt.ptype = quic_packet_type.one_rtt {
+            if pkt.seq_num >= hi_non_probing(scid) {
+                hi_non_probing(scid) := pkt.seq_num;
+                hi_non_probing_endpoint(scid,src) := true;
+            }
+        } else {
+            hi_non_probing_endpoint(scid,src) := true;
+        }
+    };
+
+    # If the packet contains a close frame, then set `pkt_has_close`
+
+    if queued_close(scid) {
+        pkt_has_close(scid,pkt.ptype,pkt.seq_num) := true;
+    };
+
+    # If the sender is in the draining state, this is the draining packet.
+
+    if conn_draining(scid) {
+        draining_pkt_sent(scid) := true
+    };
+
+    if pkt.ptype = quic_packet_type.initial & ~first_initial_send & zero_rtt_allowed {
+        first_initial_send := true;
+        initial_scid := scid;
+        initial_dcid := dcid;
+        queued_level(the_cid) := quic_packet_type.zero_rtt; # todo multiple client
+    } else {
+        first_initial_send := false;
+    };
+
+    # The queued frames are deleted
+    
+    queued_frames(scid) := frame.arr.empty;
+    queued_non_probing(scid) := false;
+    queued_non_ack(scid) := false;
+    queued_close(scid) := false;
+    num_queued_frames(scid) := 0;
+#Hamid
+    queued_ack_eliciting(scid) := false;
+#Hamid
+}
+
+
+# Create/Forge new long packet based on previously received packets. 
+
+around modify_protected_packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_protected_quic_packet) {
+    require mim_agent.nat_configured;
+    require src ~= dst;
+    require ~(src = mim_agent.ep_out & dst = mim_agent.ep_in);
+    require ~(dst = mim_agent.ep_out & src = mim_agent.ep_in);
+    require ~mim_agent.forward_turn;
+    require mim_agent.ppkt_to_be_forge.end > 0;
+
+    require pkt.ptype = mim_agent.ppkt_to_be_forge_parsed.ptype;
+    require pkt.dst_cid = mim_agent.ppkt_to_be_forge_parsed.dst_cid;
+    require pkt.src_cid = mim_agent.ppkt_to_be_forge_parsed.src_cid;
+    require pkt.protected_payload = mim_agent.ppkt_to_be_forge_parsed.protected_payload;
+
+    ...
+
+    mim_agent.ppkt_to_be_forge := stream_data.empty;
+    mim_agent.forward_turn := true;
+}
+
+around forward_packet_to_client_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    require pkt.end > 0;
+    require mim_agent.nat_configured;
+    require src ~= dst;
+    require ~(src = mim_agent.ep_out & dst = mim_agent.ep_in);
+    require ~(dst = mim_agent.ep_out & src = mim_agent.ep_in);
+    #require mim_agent.forward_turn; # TODO more customization
+    #require mim_agent.last_cppkt_forwarded_to_client <= mim_agent.last_cppkt_forwarded_to_server;
+    require ~packed_forwarded_arr(pkt);
+    #require ~mim_agent.wait_forward;
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     require ~packed_forwarded(pkt.value(idx));
+    #     idx := idx.next; 
+    #};
+    # require dst = mim_client_target.ep;
+    ...
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     packed_forwarded(pkt.value(idx)) := true;
+    #     idx := idx.next; 
+    # };
+    packed_forwarded_arr(pkt) := true;
+    mim_agent.ppkt_to_be_forwarded_to_client(mim_agent.last_cppkt_forwarded_to_client) := forged_pkts.empty;  # help solver
+    mim_agent.force_server_forward := false;
+    mim_agent.forward_turn := false;
+}
+
+around forward_packet_to_server_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    require pkt.end > 0;
+    require mim_agent.nat_configured;
+    require src ~= dst;
+    require ~(src = mim_agent.ep_out & dst = mim_agent.ep_in);
+    require ~(dst = mim_agent.ep_out & src = mim_agent.ep_in);
+    #require ~mim_agent.forward_turn;
+    #require mim_agent.last_cppkt_forwarded_to_server <= mim_agent.last_cppkt_forwarded_to_client + 3;
+    require ~packed_forwarded_arr(pkt); # TODO not sure it works
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     require ~packed_forwarded(pkt.value(idx));
+    #     idx := idx.next; 
+    # };
+    # require dst = mim_server_target.ep;
+    ...
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     packed_forwarded(pkt.value(idx)) := true;
+    #     idx := idx.next; 
+    # };
+    packed_forwarded_arr(pkt) := true;
+    mim_agent.ppkt_to_be_forwarded_to_server(mim_agent.last_cppkt_forwarded_to_server) := forged_pkts.empty;
+    mim_agent.force_client_forward := false;
+    mim_agent.forward_turn := true;
+}
+
+
+around replay_packet_to_server_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    require pkt.end > 0;
+    require mim_agent.nat_configured;
+    require src ~= dst;
+    require ~(src = mim_agent.ep_out & dst = mim_agent.ep_in);
+    require ~(dst = mim_agent.ep_out & src = mim_agent.ep_in);
+    require ~mim_agent.forward_turn;
+    require ~packed_forwarded_arr(pkt); # TODO not sure it works
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     require ~packed_forwarded(pkt.value(idx));
+    #     idx := idx.next; 
+    # };
+    # require dst = mim_server_target.ep;
+    ...
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     packed_forwarded(pkt.value(idx)) := true;
+    #     idx := idx.next; 
+    # };
+    packed_forwarded_arr(pkt) := true;
+    mim_agent.ppkt_to_be_replayed_to_server := forged_pkts.empty;
+    mim_agent.force_client_forward := false;
+    mim_agent.forward_turn := true;
+}
+
+around reflect_packet_to_victim_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    require pkt.end > 0;
+    require mim_agent.nat_configured;
+    require src ~= dst;
+    require ~(src = mim_agent.ep_out & dst = mim_agent.ep_in);
+    require ~(dst = mim_agent.ep_out & src = mim_agent.ep_in);
+    #require mim_agent.forward_turn; # TODO more customization
+    require ~packed_forwarded_arr(pkt);
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     require ~packed_forwarded(pkt.value(idx));
+    #     idx := idx.next; 
+    #};
+    # require dst = mim_client_target.ep;
+    ...
+    # var idx := pkt.begin;
+    # while idx < pkt.end {
+    #     packed_forwarded(pkt.value(idx)) := true;
+    #     idx := idx.next; 
+    # };
+    packed_forwarded_arr(pkt) := true;
+    mim_agent.ppkt_to_be_reflected_to_victim := forged_pkts.empty;  # help solver
+    mim_agent.force_server_forward := false;
+   # mim_agent.forward_turn := false;
+}

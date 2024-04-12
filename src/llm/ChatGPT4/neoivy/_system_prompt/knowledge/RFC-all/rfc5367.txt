@@ -1,0 +1,507 @@
+
+
+
+
+
+
+Network Working Group                                       G. Camarillo
+Request for Comments: 5367                                      Ericsson
+Updates: 3265                                                 A.B. Roach
+Category: Standards Track                                        Tekelec
+                                                                O. Levin
+                                                   Microsoft Corporation
+                                                            October 2008
+
+
+           Subscriptions to Request-Contained Resource Lists
+                in the Session Initiation Protocol (SIP)
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Abstract
+
+   This document specifies a way to create subscription to a list of
+   resources in SIP.  This is achieved by including the list of
+   resources in the body of a SUBSCRIBE request.  Instead of having a
+   subscriber send a SUBSCRIBE request for each resource individually,
+   the subscriber defines the resource list, subscribes to it, and gets
+   notifications about changes in the resources' states using a single
+   SUBSCRIBE dialog.
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Terminology .....................................................2
+   3. User Agent Client Procedures ....................................2
+      3.1. Response Handling ..........................................2
+      3.2. Subsequent SUBSCRIBE Requests ..............................3
+   4. URI-List Document Format ........................................3
+   5. Resource List Server Behavior ...................................4
+      5.1. Subsequent SUBSCRIBE Requests ..............................4
+   6. Providing a URI to Manipulate a Resource List ...................4
+   7. Example .........................................................5
+   8. Security Considerations .........................................6
+   9. IANA Considerations .............................................6
+      9.1. List-Management Purpose Parameter Value ....................6
+      9.2. recipient-list-subscribe Option-Tag ........................7
+   10. Acknowledgments ................................................7
+   11. Normative References ...........................................7
+
+
+
+Camarillo                   Standards Track                     [Page 1]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+1.  Introduction
+
+   [RFC4662] specifies how to establish subscriptions to a homogeneous
+   resource list in SIP (which is specified in [RFC3261]) and defines
+   the procedures for getting notifications about changes in the state
+   of the associated resources.  Yet, list creation is outside the scope
+   of [RFC4662].
+
+   This document specifies a way to create a list with a set of
+   resources and subscribe to it using a single SIP request.  This is
+   achieved by including the list of resources (as defined in [RFC5363])
+   in the body of the SUBSCRIBE request.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+3.  User Agent Client Procedures
+
+   A UAC (User Agent Client) that wants to create a resource list and
+   subscribe to it using the mechanism described in this document
+   constructs a SUBSCRIBE request with at least one body, whose
+   disposition is type "recipient-list" as defined in [RFC5363], that
+   contains the URI list.  Additionally, the UAC MUST include the
+   'recipient-list-subscribe' option-tag (which is registered with the
+   IANA in Section 9) in a Require header field.  The UAC MUST build the
+   rest of the SUBSCRIBE request following the rules in [RFC3265].
+
+   The UAC MUST support the "rlmi+xml" format defined in [RFC4662] and
+   signal this by including "rlmi+xml" in the Accept header.  The UAC
+   MAY support additional formats and include them in the Accept header
+   field of the SUBSCRIBE request.
+
+3.1.  Response Handling
+
+   The status code in the response to the SUBSCRIBE request does not
+   provide any information about whether or not the resource list server
+   was able to successfully subscribe to the URIs in the URI list.  The
+   UAC obtains this information in the notifications sent by the server.
+
+
+
+
+
+
+
+
+
+
+Camarillo                   Standards Track                     [Page 2]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+3.2.  Subsequent SUBSCRIBE Requests
+
+   The previous sections have specified how to include a URI list in an
+   initial SUBSCRIBE request to a resource list server in order to
+   subscribe to the state of a set of resources.  Once the subscription
+   has been created and a dialog between the UAC and the resource list
+   server has been established, the UAC can send subsequent SUBSCRIBE
+   requests to, for example, extend the duration of the subscription.
+
+   At this point, there are no semantics associated with resource-list
+   bodies in subsequent SUBSCRIBE requests (although future extensions
+   can define them).  Therefore, UACs SHOULD NOT include resource-list
+   bodies in subsequent SUBSCRIBE requests to a resource list server.
+
+      Note that a difference between an initial SUBSCRIBE request and
+      subsequent ones is that while the initial request is sent to the
+      public URI of the resource list, subsequent ones are sent to the
+      URI provided by the server when the dialog is established.
+      Therefore, from the UAC's point of view, the resource identified
+      by the former URI supports recipient-list bodies, while the
+      resource identified by the latter does not support them.
+
+4.  URI-List Document Format
+
+   [RFC5363] mandates that each URI-list services specification, such as
+   the subscription service defined here, specifies the default format
+   for the recipient-list bodies used within the particular service.
+
+   The default format for the recipient-list bodies for the subscription
+   service defined in this document is the resource list format defined
+   in [RFC4826].  UAs (User Agents) generating recipient-list bodies
+   MUST support this format and MAY support other formats.  Resource
+   list servers able to handle recipient-list bodies MUST support this
+   format and MAY support other formats.
+
+   The Extensible Markup Language (XML) Configuration Access Protocol
+   (XCAP) resource list document provides features, such as hierarchical
+   lists and the ability to include entries by reference relative to the
+   XCAP root URI, that are not needed by the subscription service
+   defined here, which only needs to transfer a flat list of URIs
+   between a UA and the resource list server.  Therefore, when using the
+   default resource list document, UAs SHOULD use flat lists (i.e., no
+   hierarchical lists) and SHOULD NOT use <entry-ref> elements.  A
+   resource list server receiving a URI list with more information than
+   what has just been described MAY discard all the extra information.
+
+
+
+
+
+
+Camarillo                   Standards Track                     [Page 3]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+   Figure 1 shows an example of a flat list that follows the resource
+   list document.
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <resource-lists xmlns="urn:ietf:params:xml:ns:resource-lists"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+     <list>
+       <entry uri="sip:bill@example.com" />
+       <entry uri="sip:joe@example.org" />
+       <entry uri="sip:ted@example.net" />
+     </list>
+   </resource-lists>
+
+                            Figure 1: URI list
+
+5.  Resource List Server Behavior
+
+   Resource list servers that are able to receive and process SUBSCRIBE
+   requests with a recipient-list body SHOULD include a 'recipient-list-
+   subscribe' option-tag in a Supported header field when responding to
+   OPTIONS requests.
+
+   On reception of a SUBSCRIBE request with a URI list, a resource list
+   server that chooses to accept the "rlmi+xml" format MUST comply with
+   [RFC4662] for creating the subscription and reporting the changes in
+   the resources within the created dialog.
+
+5.1.  Subsequent SUBSCRIBE Requests
+
+   At this point, there are no semantics associated with resource-list
+   bodies in subsequent SUBSCRIBE requests (although future extensions
+   may define them).  Therefore, a resource list server receiving a
+   subsequent SUBSCRIBE request with a resource-list body, following
+   standard SIP procedures, rejects it with a 415 (Unsupported Media
+   Type) response.
+
+6.  Providing a URI to Manipulate a Resource List
+
+   A UAC can manipulate a resource list at a resource list server.  The
+   resource list server MAY provide a URI to manipulate the resource
+   list associated with a subscription using the Call-Info header field
+   in the NOTIFY request that establishes the subscription.  The
+   "purpose" parameter of the Call-Info header field MUST have a value
+   of 'list-management', which we register with the IANA in Section 9.
+   The following is an example of such a header field.
+
+   Call-Info: <http://xcap.example.com/your-list.xml>
+              ;purpose=list-management
+
+
+
+Camarillo                   Standards Track                     [Page 4]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+   The lifetime of a resource list to be manipulated by the URI provided
+   by the server is bundled to the lifetime of the subscription.  That
+   is, the resource list SHOULD be destroyed when the subscription
+   expires or is otherwise terminated.
+
+   Section 7.1 of [RFC3265] does not list the Call-Info header field in
+   the table of header fields that NOTIFY requests can carry.  This
+   document updates that table so that the Call-Info header field can be
+   optionally included in NOTIFY requests.
+
+7.  Example
+
+   The following is an example of a SUBSCRIBE request, which carries a
+   URI list in its body, sent by a UAC to a resource list server.
+
+   SUBSCRIBE  sip:rls@example.com SIP/2.0
+   Via: SIP/2.0/TCP terminal.example.com;branch=z9hG4bKwYb6QREiCL
+   Max-Forwards: 70
+   To: RLS <sip:rls@example.com>
+   From: <sip:adam@example.com>;tag=ie4hbb8t
+   Call-ID: cdB34qLToC@terminal.example.com
+   CSeq: 1 SUBSCRIBE
+   Contact: <sip:terminal.example.com>
+   Event: presence
+   Expires: 7200
+   Require: recipient-list-subscribe
+   Supported: eventlist
+   Accept: application/cpim-pidf+xml
+   Accept: application/rlmi+xml
+   Accept: multipart/related
+   Accept: multipart/signed
+   Accept: multipart/encrypted
+   Content-Type: application/resource-lists+xml
+   Content-Disposition: recipient-list
+   Content-Length: 337
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <resource-lists xmlns="urn:ietf:params:xml:ns:resource-lists"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+     <list>
+       <entry uri="sip:bill@example.com" />
+       <entry uri="sip:joe@example.org" />
+       <entry uri="sip:ted@example.net" />
+     </list>
+   </resource-lists>
+
+                        Figure 2: SUBSCRIBE request
+
+
+
+
+Camarillo                   Standards Track                     [Page 5]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+8.  Security Considerations
+
+   The Security Considerations section of [RFC4662] discusses security
+   issues related to resource list servers.  Resource list servers
+   accepting request-contained URI lists MUST also follow the security
+   guidelines given in [RFC4662].
+
+   "Framework and Security Considerations for Session Initiation
+   Protocol (SIP) URI-List Services" [RFC5363] discusses issues related
+   to SIP URI-list services.  Given that a resource list server sending
+   SUBSCRIBE requests to a set of users acts as a URI-list service,
+   implementations of resource list servers that handle request-
+   contained URI lists MUST follow the security-related rules in
+   [RFC5363].  These rules include opt-in lists and mandatory
+   authentication and authorization of clients.
+
+9.  IANA Considerations
+
+   The following sections describe the IANA registration of the 'list-
+   management' value for the "purpose" parameter of the Call-Info header
+   field and the 'recipient-list-subscribe' SIP option-tag.
+
+9.1.  List-Management Purpose Parameter Value
+
+   This document defines the 'list-management' value for the "purpose"
+   parameter of the Call-Info header field.  A reference to this RFC (in
+   double brackets) has been added to the existing "purpose" Call-Info
+   parameter entry in the SIP Parameters registry, which currently looks
+   as follows:
+
+                                                  Predefined
+   Header Field                  Parameter Name     Values     Reference
+   ----------------------------  ---------------   ---------   ---------
+   Call-Info                     purpose             Yes       [RFC3261]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Camarillo                   Standards Track                     [Page 6]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+9.2.  recipient-list-subscribe Option-Tag
+
+   This document defines the SIP option tag "recipient-list-subscribe".
+
+   The following row has been added to the "Option Tags" section of the
+   SIP Parameter Registry:
+
+   +--------------------------+----------------------------+-----------+
+   | Name                     | Description                | Reference |
+   +--------------------------+----------------------------+-----------+
+   | recipient-list-subscribe | This option tag is used to | [RFC5367] |
+   |                          | ensure that a server can   |           |
+   |                          | process the recipient-list |           |
+   |                          | body used in a SUBSCRIBE   |           |
+   |                          | request.                   |           |
+   +-------------------------------------------------------+-----------+
+
+10.  Acknowledgments
+
+   Cullen Jennings and Jonathan Rosenberg provided useful comments on
+   this document.
+
+11.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3261]  Rosenberg, J., Schulzrinne, H., Camarillo, G., Johnston,
+              A., Peterson, J., Sparks, R., Handley, M., and E.
+              Schooler, "SIP: Session Initiation Protocol", RFC 3261,
+              June 2002.
+
+   [RFC3265]  Roach, A.B., "Session Initiation Protocol (SIP)-Specific
+              Event Notification", RFC 3265, June 2002.
+
+   [RFC4662]  Roach, A.B., Campbell, B., and J. Rosenberg, "A Session
+              Initiation Protocol (SIP) Event Notification Extension for
+              Resource Lists", RFC 4662, August 2006.
+
+   [RFC4826]  Rosenberg, J., "Extensible Markup Language (XML) Formats
+              for Representing Resource Lists", RFC 4826, May 2007.
+
+   [RFC5363]  Camarillo, G. and A.B. Roach, "Framework and Security
+              Considerations for Session Initiation Protocol (SIP) URI-
+              List Services", RFC 5363, October 2008.
+
+
+
+
+
+
+Camarillo                   Standards Track                     [Page 7]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+Authors' Addresses
+
+   Gonzalo Camarillo
+   Ericsson
+   Hirsalantie 11
+   Jorvas  02420
+   Finland
+
+   EMail: Gonzalo.Camarillo@ericsson.com
+
+
+   Adam Roach
+   Tekelec
+   17210 Campbell Rd Ste 250
+   Dallas, TX  75252
+   USA
+
+   EMail: Adam.Roach@tekelec.com
+
+
+   Orit Levin
+   Microsoft Corporation
+   One Microsoft Way
+   Redmond, WA  98052
+
+   EMail: oritl@microsoft.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Camarillo                   Standards Track                     [Page 8]
+
+RFC 5367               SUBSCRIBE-Contained Lists            October 2008
+
+
+Full Copyright Statement
+
+   Copyright (C) The IETF Trust (2008).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+
+
+
+
+
+
+
+
+
+
+
+Camarillo                   Standards Track                     [Page 9]
+

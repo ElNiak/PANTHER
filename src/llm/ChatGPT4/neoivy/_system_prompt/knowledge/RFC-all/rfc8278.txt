@@ -1,0 +1,843 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                          P. Seite
+Request for Comments: 8278                                        Orange
+Category: Standards Track                                       A. Yegin
+ISSN: 2070-1721                                                 Actility
+                                                           S. Gundavelli
+                                                                   Cisco
+                                                            January 2018
+
+
+             Mobile Access Gateway (MAG) Multipath Options
+
+Abstract
+
+   This specification defines extensions to the Proxy Mobile IPv6
+   (PMIPv6) protocol that allow a mobile access gateway (MAG) to
+   register more than one proxy care-of address (pCoA) with the local
+   mobility anchor (LMA) and to simultaneously establish multiple IP
+   tunnels with the LMA.  This capability allows the MAG to utilize all
+   the available access networks to route the mobile node's IP traffic.
+   This document defines the following two new mobility header options:
+   the MAG Multipath Binding option and the MAG Identifier option.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8278.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Seite, et al.                Standards Track                    [Page 1]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+Copyright Notice
+
+   Copyright (c) 2018 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+   2.  Conventions and Terminology . . . . . . . . . . . . . . . . .   4
+     2.1.  Conventions . . . . . . . . . . . . . . . . . . . . . . .   4
+     2.2.  Terminology . . . . . . . . . . . . . . . . . . . . . . .   5
+   3.  Overview  . . . . . . . . . . . . . . . . . . . . . . . . . .   5
+     3.1.  Example Call Flow . . . . . . . . . . . . . . . . . . . .   5
+     3.2.  Traffic Distribution Schemes  . . . . . . . . . . . . . .   6
+   4.  Protocol Extensions . . . . . . . . . . . . . . . . . . . . .   7
+     4.1.  MAG Multipath Binding Option  . . . . . . . . . . . . . .   7
+     4.2.  MAG Identifier Option . . . . . . . . . . . . . . . . . .  10
+     4.3.  New Status Code for Proxy Binding Acknowledgement . . . .  11
+     4.4.  Signaling Considerations  . . . . . . . . . . . . . . . .  11
+   5.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  12
+   6.  Security Considerations . . . . . . . . . . . . . . . . . . .  12
+   7.  References  . . . . . . . . . . . . . . . . . . . . . . . . .  13
+     7.1.  Normative References  . . . . . . . . . . . . . . . . . .  13
+     7.2.  Informative References  . . . . . . . . . . . . . . . . .  14
+   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .  14
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .  15
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Seite, et al.                Standards Track                    [Page 2]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+1.  Introduction
+
+   Multihoming support on IP hosts can greatly improve the user
+   experience.  With the simultaneous use of multiple access networks,
+   multihoming brings better network connectivity, reliability, and
+   improved quality of communication.  The following are some of the
+   goals and benefits of multihoming support:
+
+   o  Redundancy/Fault-Recovery
+
+   o  Load balancing
+
+   o  Load sharing
+
+   o  Preference settings
+
+   According to [RFC4908], users of small-scale networks can benefit
+   from a mobile and fixed multihomed architecture using mobile IP
+   [RFC6275] and Network Mobility (NEMO) [RFC3963].
+
+   The motivation for this work is to extend the PMIPv6 protocol with
+   multihoming extensions [RFC4908] for realizing the following
+   capabilities:
+
+   o  Using GRE as mobile tunneling, possibly with its key extension
+      [RFC5845].
+
+   o  Using UDP encapsulation [RFC5844] in order to support NAT
+      traversal in an IPv4 networking environment.
+
+   o  Using the prefix delegation mechanism [RFC7148].
+
+   o  Using the Vendor Specific Mobility Option [RFC5094], for example,
+      to allow the MAG and LMA to exchange information (e.g., WAN
+      interface QoS metrics), which allows the appropriate traffic-
+      steering decisions to be made.
+
+   PMIPv6 relies on two mobility entities: the MAG, which acts as the
+   default gateway for the end node (either a mobile or a fixed node)
+   attached to the MAG's access links, and the LMA, which acts as the
+   topological anchor point.  IP tunnel is created with any one of the
+   supported encapsulation mode between the MAG and the LMA.  Then, the
+   MAG and LMA distribute the end node's traffic over these tunnels.
+   All PMIPv6 operations are performed on behalf of the end node and its
+   correspondent node.  Thus, it makes PMIPv6 well adapted to multihomed
+   architecture as considered in [RFC4908].  Taking the LTE and WLAN
+   networking environments as examples, the PMIPv6-based multihomed
+   architecture is depicted in Figure 1.  In this example, IP flows,
+
+
+
+Seite, et al.                Standards Track                    [Page 3]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+   Flow-1 and Flow-3 are routed over Tunnel-1 and Flow-2 is routed over
+   Tunnel-2.  However, IP traffic belonging to Flow-4 is distributed on
+   both Tunnel-1 and Tunnel-2 paths.
+
+     Flow-1
+      |
+      |Flow-2              _----_
+      | |         CoA-1  _(      )_   Tunnel-1  Flow-1
+      | |    .---=======(   LTE    )========\   Flow-3
+      | |    |           (_      _)          \  Flow-4
+      | |    |             '----'             \
+      | | +=====+                              \  +=====+    _----_
+      | '-|     |                               \ |     |  _(      )_
+      '---| MAG |                                 | LMA |-( Internet )--
+      .---|     |                                 |     |  (_      _)
+      | .-|     |                               / |     |    '----'
+      | | +=====+                              /  +=====+
+      | |    |             _----_             /
+      | |    |    CoA-2  _(      )_ Tunnel-2 /
+      | |    .---=======(   WLAN  )========/    Flow-2
+      | |                (_     _)              Flow-4
+      | |                  '----'
+      |Flow-3
+      |
+     Flow0-4
+
+             Figure 1: Multihomed MAG Using Proxy Mobile IPv6
+
+   The current version of PMIPv6 does not allow a MAG to register more
+   than one pCoA to the LMA.  In other words, only one MAG/LMA link,
+   i.e., IP-in-IP tunnel, can be used at the same time.  This document
+   overcomes this limitation by defining the multiple pCoAs extension
+   for PMIPv6.
+
+2.  Conventions and Terminology
+
+2.1.  Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+
+
+
+
+
+
+
+Seite, et al.                Standards Track                    [Page 4]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+2.2.  Terminology
+
+   All mobility-related terms used in this document are to be
+   interpreted as defined in [RFC5213], [RFC5844], and [RFC7148].
+   Additionally, this document uses the following term:
+
+   IP-in-IP
+
+      IP-within-IP encapsulation [RFC2473] [RFC4213]
+
+3.  Overview
+
+3.1.  Example Call Flow
+
+   Figure 2 is the call flow detailing multi-access support with PMIPv6.
+   The MAG in this example scenario is equipped with both WLAN and LTE
+   interfaces and is also configured with the multihoming functionality.
+   The steps of the call flow are as follows:
+
+   Steps (1) and (2): The MAG attaches to both WLAN and LTE networks.
+   Then, the MAG obtains two different pCoAs, respectfully.
+
+   Step (3): The MAG sends, over the LTE access, a Proxy Binding Update
+   (PBU) message with the new MAG Multipath Binding (MMB) and MAG
+   Network Access Identifier (MAG-NAI) options to the LMA.  The request
+   can be for a physical mobile node attached to the MAG or for a
+   logical mobile node configured on the mobile access gateway.  A
+   logical mobile node is a logical representation of a mobile node in
+   the form of a configuration that is always enabled on the MAG.  The
+   mobility session that is created (i.e., create a Binding Cache Entry
+   (BCE)) on the LMA will be marked with multipath support.
+
+   Step (4): The LMA sends back a Proxy Binding Acknowledgement (PBA)
+   including the Home Network Prefix (HNP) and other session parameters
+   allocated for that mobility session.
+
+   Step (5): IP tunnel is created between the MAG and the LMA over LTE
+   access with any one of the supported encapsulation modes.
+
+   Steps (6) to (8): The MAG repeats steps (3) to (5) on the WLAN
+   access.  The MAG includes the HNP, received on step (4) in the PBU.
+   The LMA updates its binding cache by creating a new mobility session
+   for this MAG.
+
+   Steps (9) and (10): The IP hosts MN_1 and MN_2 are assigned IP
+   addresses from the mobile network prefix delegated to the MAG by the
+   LMA.
+
+
+
+
+Seite, et al.                Standards Track                    [Page 5]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+   +=====+ +=====+     +=====+      +=====+      +=====+         +=====+
+   | MN_1| | MN_2|     | MAG |      | WLAN|      | LTE |         | LMA |
+   +=====+ +=====+     +=====+      +=====+      +=====+         +=====+
+      |       |           |            |            |               |
+      |       |           |            |            |               |
+      |       |           | (1) ATTACH |            |               |
+      |       |           | <--------> |            |               |
+      |       |           | (2) ATTACH              |               |
+      |       |           | <---------------------->|               |
+      |       |           | (3) PBU (MAG-NAI, MMB, ...)             |
+      |       |           | ------------------------*-------------->|
+      |       |           |                                         |
+      |       |           |                                   Accept PBU
+      |       |           |                               (allocate HNP,
+      |       |           |                                  create BCE)
+      |       |           | (4) PBA (MMB, ...)                      |
+      |       |           | <-----------------------*---------------|
+      |       |           | (5) TUNNEL INTERFACE CREATION over LTE  |
+      |       |           |-============== TUNNEL ==*==============-|
+      |       |           |                                         |
+      |       |           | (6) PBU (MAG-NAI, MMB, ...)             |
+      |       |           | -----------*--------------------------->|
+      |       |           |                                         |
+      |       |           |                                   Accept PBU
+      |       |           |                                 (update BCE)
+      |       |           | (7) PBA (MMB, ...)                      |
+      |       |           | <----------*--------------------------- |
+      |       |           | (8) TUNNEL INTERFACE CREATION over WLAN |
+      |       |           |-===========*== TUNNEL =================-|
+      |   (9) ATTACH      |                                         |
+      | <---------------> |                                         |
+      |       |(10) ATTACH|                                         |
+      |       |<--------> |                                         |
+
+      Figure 2: Functional Separation of the Control and User Planes
+
+3.2.  Traffic Distribution Schemes
+
+   When the MAG has registered a multipath binding with the LMA, there
+   will be multiple established overlay tunnels between them.  The MAG
+   and the LMA can use any one, or more, of the available tunnel paths
+   for routing the mobile node's IP traffic.  This specification does
+   not recommend or define any specific traffic distribution scheme.
+   However, it identifies two well-known approaches that implementations
+   can potentially use.  These approaches are per-flow and per-packet
+   traffic distribution schemes.
+
+
+
+
+
+Seite, et al.                Standards Track                    [Page 6]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+   Per-Flow Traffic Distribution:
+
+   o  In this approach, the MAG and the LMA associate each of the IP
+      flows (upstream and downstream) with a specific tunnel path.  The
+      packets in a given IP flow are always routed on the same overlay
+      tunnel path; they are never split and routed concurrently on more
+      than one tunnel path.  It is possible for a given flow to be moved
+      from one tunnel path to another, but the flow is never split.  The
+      decision to bind a given IP flow to a specific tunnel path is
+      based on the traffic distribution policy.  This traffic
+      distribution policy is either statically configured on both the
+      MAG and the LMA or dynamically negotiated over PMIPv6 signaling.
+      The Flow Binding extension [RFC6089] and Traffic Selectors for
+      Flow Bindings [RFC6088] define the mechanism and the semantics for
+      exchanging the traffic policy between two tunnel peers; the same
+      mechanism and the mobility options are used here.
+
+   Per-Packet Traffic Distribution:
+
+   o  In this approach, packets belonging to a given IP flow will be
+      split and routed across more than one tunnel path.  The exact
+      approach for traffic distribution or the distribution weights is
+      outside the scope of this specification.  In a very simplistic
+      approach, assuming that the established tunnel paths have
+      symmetric characteristics, the packets can be equally distributed
+      on all the available tunnel paths.  In a different scenario, when
+      the links have different speeds, the chosen approach can be based
+      on weighted distribution (e.g., n:m ratio).  However, in any of
+      these chosen approaches, implementations have to be sensitive to
+      issues related to asymmetric link characteristics and the
+      resulting issues such as reordering, buffering, and the impact on
+      application performance.  Care must be taken to ensure that there
+      is no negative impact on the application performance due to the
+      use of this approach.
+
+4.  Protocol Extensions
+
+4.1.  MAG Multipath Binding Option
+
+   The MAG Multipath Binding option is a new mobility header option
+   defined for use with PBU and PBA messages exchanged between the LMA
+   and the MAG.
+
+   This mobility header option is used for requesting multipath support.
+   It indicates that the MAG is requesting that the LMA register the
+   current CoA associated with the request as one of the many CoAs
+
+
+
+
+
+Seite, et al.                Standards Track                    [Page 7]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+   through which the MAG can be reached.  It is also used for carrying
+   the information related to the access network associated with the
+   CoA.
+
+   The MAG Multipath Binding option does not have any alignment
+   requirement.  Its format is as shown in Figure 3:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      Type     |   Length      |    If-ATT     |    If-Label   |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Binding ID   |B|O|             Reserved                      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                  Figure 3: MAG Multipath Binding Option
+
+   Type
+
+      Type: MAG Multipath Binding (63)
+
+   Length
+
+      8-bit unsigned integer indicating the length of the option in
+      octets, excluding the Type and Length fields.
+
+   Interface Access-Technology Type (If-ATT)
+
+      This 8-bit field identifies the Access-Technology type of the
+      interface through which the mobile node is connected.  The
+      permitted values for this are from the Access Technology Type
+      registry <https://www.iana.org/assignments/mobility-parameters/>
+      defined in [RFC5213].
+
+   Interface Label (If-Label)
+
+      This 8-bit unsigned integer represents the interface label.
+
+      The interface label is an identifier configured on the WAN
+      interface of the MAG.  All the WAN interfaces of the MAG that are
+      used for sending PBU messages are configured with a label.  The
+      labels merely identify the type of WAN interface and are primarily
+      used in application-routing policies.  For example, a Wi-Fi
+      interface can be configured with a label "9" and an LTE interface
+      with a label "11".  Furthermore, the same label may be configured
+      on two WAN interfaces of similar characteristics (e.g., two
+      Ethernet interfaces with the same label).
+
+
+
+
+Seite, et al.                Standards Track                    [Page 8]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+      Interface labels are signaled from the MAG to the LMA in the PBU
+      messages and both the LMA and MAG will be able to mark each of the
+      dynamically created Binding/Tunnel with the associated label.
+      These labels are used in generating consistent application-routing
+      rules on the both the LMA and the MAG.  For example, there can be
+      a policy requiring HTTP packets to be routed over an interface
+      that has the interface label of "9", and if any of the interfaces
+      with interface label "9" are not available, the traffic needs to
+      be routed over the interface with the interface label "11".  The
+      MAG and the LMA will be able to apply this routing rule with the
+      exchange of interface labels in PBU messages and by associating
+      the application flows to tunnels with the matching interface
+      labels.
+
+   Binding Identifier (BID)
+
+      This 8-bit unsigned integer is used for identifying the binding.
+      The permitted values are 1 through 254.  The values 0 and 255 are
+      reserved.
+
+      The MAG identifies each of the mobile node's bindings with a
+      unique identifier.  The MAG includes the identifier in the PBU
+      message; when the PBU request is accepted by the LMA, the
+      resulting binding is associated with this BID in the mobile node's
+      Binding Cache entry.
+
+   Bulk Re-registration Flag (B)
+
+      If set to a value of (1), this flag notifies the LMA to consider
+      this as a request to update the binding lifetime of all the mobile
+      node's bindings upon accepting this specific request.  The (B)
+      flag MUST NOT be set to a value of (1) if the value of the
+      Registration Overwrite (O) flag is set to a value of (1).
+
+   Registration Overwrite (O)
+
+      This flag, if set to a value of (1), notifies the LMA that upon
+      accepting this request, it should replace all of the mobile node's
+      existing bindings with this binding.  This flag MUST NOT be set to
+      a value of (1) if the value of the Bulk Re-registration Flag (B)
+      is set to a value of (1).  This flag MUST be set to a value of (0)
+      in De-Registration requests.
+
+   Reserved
+
+      This field is unused in this specification.  The value MUST be set
+      to zero (0) by the sender and MUST be ignored by the receiver.
+
+
+
+
+Seite, et al.                Standards Track                    [Page 9]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+4.2.  MAG Identifier Option
+
+   The MAG Identifier option is a new mobility header option defined for
+   use with PBU and PBA messages exchanged between the LMA and the MAG.
+   This mobility header option is used for conveying the MAG's identity.
+
+   This option does not have any alignment requirements.
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      Type     |   Length      |  Subtype      |  Reserved     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           Identifier ...                      ~
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                      Figure 4: MAG Identifier Option
+
+   Type
+
+      Type: MAG Identifier (64)
+
+   Length
+
+      8-bit unsigned integer indicating the length of the option in
+      octets, excluding the Type and Length fields.
+
+   Subtype
+
+      One-byte unsigned integer used for identifying the type of the
+      Identifier field.  Accepted values for this field are the
+      registered type values from the "Mobile Node Identifier Option
+      Subtypes" registry <https://www.iana.org/assignments/mobility-
+      parameters/>.
+
+   Reserved
+
+      This field is unused in this specification.  The value MUST be set
+      to zero (0) by the sender and MUST be ignored by the receiver.
+
+   Identifier
+
+      A variable-length identifier of the type indicated in the Subtype
+      field.
+
+
+
+
+
+
+
+Seite, et al.                Standards Track                   [Page 10]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+4.3.  New Status Code for Proxy Binding Acknowledgement
+
+   This document defines the following new Status Code value for use in
+   PBA messages.
+
+   The LMA SHOULD use this error code when rejecting a PBU message from
+   a MAG requesting a multipath binding.  The following is the potential
+   reason for rejecting the request:
+
+   o  The LMA does not support multipath binding.
+
+   CANNOT_SUPPORT_MULTIPATH_BINDING (Cannot Support Multipath Binding):
+   180
+
+4.4.  Signaling Considerations
+
+   o  The MAG, when requesting multipath support, MUST include the MAG
+      Multipath Binding option (Section 4.1) in each of the PBU messages
+      that it sends through the different WAN interfaces.  The inclusion
+      of this option serves as a hint that the MAG is requesting
+      multipath support.  Furthermore, the MAG Identifier option MUST
+      also be present in the PBU message.
+
+   o  If the MAG is aware that the LMA supports the multipath binding
+      option defined in this specification and if it chooses to use
+      multiple paths, then it can send the PBU packets for each of the
+      paths, either sequentially or concurrently.  However, if the MAG
+      is not aware of the LMA capability, then it SHOULD first discover
+      the LMA capability by sending PBU packets with multipath on only
+      one path first.  This will ensure that the LMA will not be
+      overwriting the binding of one path with the other path.
+
+   o  If the LMA supports multipath capability as defined in this
+      specification and if it enables the same for a mobile node's
+      session per the MAG's request, then the LMA MUST include the
+      Multipath Binding option (Section 4.1) without the MAG-NAI option
+      (Section 4.2) in the corresponding PBA reply.
+
+   o  If the LMA is a legacy LMA that does not support this
+      specification, the LMA will skip the MAG Multipath Binding option
+      (and MAG-NAI option) and process the rest of the message as
+      specified in the base PMIPv6 specification ([RFC5213]).
+      Furthermore, the LMA will not include the MAG Multipath Binding
+      option (or the MAG-NAI option) in the PBA message.  The MAG, upon
+      receiving the PBA message without the MAG Multipath Binding
+      option, SHOULD disable multipath support for the mobile node.
+
+
+
+
+
+Seite, et al.                Standards Track                   [Page 11]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+   o  If the mobile node is not authorized for multipath support, then
+      the LMA will reject the request by sending a PBA message with the
+      Status field value set to CANNOT_SUPPORT_MULTIPATH_BINDING
+      (Section 4.3).  The LMA MUST echo the MAG Multipath Binding option
+      (without the MAG-NAI option) in the PBA message.  The MAG, upon
+      receiving this message, SHOULD disable multipath support for the
+      mobile node.
+
+5.  IANA Considerations
+
+   This specification defines a new mobility option: the MAG Multipath
+   Binding option.  The format of this option is described in
+   Section 4.1.  The type value 63 has been allocated for this mobility
+   option from the "Mobility Options" registry at
+   <http://www.iana.org/assignments/mobility-parameters>.
+
+   This specification defines a new mobility option: the MAG Identifier
+   option.  The format of this option is described in Section 4.2.  The
+   type value 64 has been allocated for this mobility option from the
+   "Mobility Options" registry at <http://www.iana.org/assignments/
+   mobility-parameters>.
+
+   This document defines a new status value:
+   CANNOT_SUPPORT_MULTIPATH_BINDING (180) for use in PBA messages, as
+   described in Section 4.3.  This value has been assigned from the
+   "Status Codes" registry at <http://www.iana.org/assignments/mobility-
+   parameters>.
+
+6.  Security Considerations
+
+   This specification allows a MAG to establish multiple PMIPv6 tunnels
+   with an LMA by registering a care-of address for each of its
+   connected access networks.  This essentially allows the mobile node's
+   IP traffic to be routed through any of the tunnel paths based on the
+   negotiated flow policy.  This new capability has no impact on the
+   protocol security.  Furthermore, this specification defines two new
+   mobility header options: the MAG Multipath Binding option and the MAG
+   Identifier option.  These options are carried like any other mobility
+   header option as specified in [RFC5213].  Therefore, it inherits
+   security guidelines from [RFC5213].  Thus, this specification does
+   not weaken the security of the PMIPv6 Protocol and does not introduce
+   any new security vulnerabilities.
+
+
+
+
+
+
+
+
+
+Seite, et al.                Standards Track                   [Page 12]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3963]  Devarapalli, V., Wakikawa, R., Petrescu, A., and P.
+              Thubert, "Network Mobility (NEMO) Basic Support Protocol",
+              RFC 3963, DOI 10.17487/RFC3963, January 2005,
+              <https://www.rfc-editor.org/info/rfc3963>.
+
+   [RFC5094]  Devarapalli, V., Patel, A., and K. Leung, "Mobile IPv6
+              Vendor Specific Option", RFC 5094, DOI 10.17487/RFC5094,
+              December 2007, <https://www.rfc-editor.org/info/rfc5094>.
+
+   [RFC5213]  Gundavelli, S., Ed., Leung, K., Devarapalli, V.,
+              Chowdhury, K., and B. Patil, "Proxy Mobile IPv6",
+              RFC 5213, DOI 10.17487/RFC5213, August 2008,
+              <https://www.rfc-editor.org/info/rfc5213>.
+
+   [RFC5844]  Wakikawa, R. and S. Gundavelli, "IPv4 Support for Proxy
+              Mobile IPv6", RFC 5844, DOI 10.17487/RFC5844, May 2010,
+              <https://www.rfc-editor.org/info/rfc5844>.
+
+   [RFC5845]  Muhanna, A., Khalil, M., Gundavelli, S., and K. Leung,
+              "Generic Routing Encapsulation (GRE) Key Option for Proxy
+              Mobile IPv6", RFC 5845, DOI 10.17487/RFC5845, June 2010,
+              <https://www.rfc-editor.org/info/rfc5845>.
+
+   [RFC6088]  Tsirtsis, G., Giarreta, G., Soliman, H., and N. Montavont,
+              "Traffic Selectors for Flow Bindings", RFC 6088,
+              DOI 10.17487/RFC6088, January 2011,
+              <https://www.rfc-editor.org/info/rfc6088>.
+
+   [RFC6089]  Tsirtsis, G., Soliman, H., Montavont, N., Giaretta, G.,
+              and K. Kuladinithi, "Flow Bindings in Mobile IPv6 and
+              Network Mobility (NEMO) Basic Support", RFC 6089,
+              DOI 10.17487/RFC6089, January 2011,
+              <https://www.rfc-editor.org/info/rfc6089>.
+
+   [RFC6275]  Perkins, C., Ed., Johnson, D., and J. Arkko, "Mobility
+              Support in IPv6", RFC 6275, DOI 10.17487/RFC6275, July
+              2011, <https://www.rfc-editor.org/info/rfc6275>.
+
+
+
+
+
+Seite, et al.                Standards Track                   [Page 13]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+   [RFC7148]  Zhou, X., Korhonen, J., Williams, C., Gundavelli, S., and
+              CJ. Bernardos, "Prefix Delegation Support for Proxy Mobile
+              IPv6", RFC 7148, DOI 10.17487/RFC7148, March 2014,
+              <https://www.rfc-editor.org/info/rfc7148>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+7.2.  Informative References
+
+   [RFC2473]  Conta, A. and S. Deering, "Generic Packet Tunneling in
+              IPv6 Specification", RFC 2473, DOI 10.17487/RFC2473,
+              December 1998, <https://www.rfc-editor.org/info/rfc2473>.
+
+   [RFC4213]  Nordmark, E. and R. Gilligan, "Basic Transition Mechanisms
+              for IPv6 Hosts and Routers", RFC 4213,
+              DOI 10.17487/RFC4213, October 2005,
+              <https://www.rfc-editor.org/info/rfc4213>.
+
+   [RFC4908]  Nagami, K., Uda, S., Ogashiwa, N., Esaki, H., Wakikawa,
+              R., and H. Ohnishi, "Multi-homing for small scale fixed
+              network Using Mobile IP and NEMO", RFC 4908,
+              DOI 10.17487/RFC4908, June 2007,
+              <https://www.rfc-editor.org/info/rfc4908>.
+
+Acknowledgements
+
+   The authors of this document would like to acknowledge the
+   discussions and feedback on this topic from the members of the
+   Distributed Mobility Management Working Group.  The authors would
+   also like to thank Jouni Korhonen, Jong Hyouk Lee, Dirk Von-Hugo,
+   Seil Jeon, Carlos Bernardos, Robert Sparks, Adam Roach, Kathleen
+   Moriarty, Hilarie Orman, Ben Campbell, Warren Kumari, and Dhananjay
+   Patki for their review feedback.  Special thanks to Mirja Kuehlewind
+   for a very thorough review and suggesting many text improvements.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Seite, et al.                Standards Track                   [Page 14]
+
+RFC 8278              MAG Multipath Binding Options         January 2018
+
+
+Authors' Addresses
+
+   Pierrick Seite
+   Orange
+   4, rue du Clos Courtel, BP 91226
+   Cesson-Sevigne  35512
+   France
+
+   Email: pierrick.seite@orange.com
+
+
+   Alper Yegin
+   Actility
+   Turkey
+
+   Email: alper.yegin@actility.com
+
+
+   Sri Gundavelli
+   Cisco
+   170 West Tasman Drive
+   San Jose, CA  95134
+   United States of America
+
+   Email: sgundave@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Seite, et al.                Standards Track                   [Page 15]
+

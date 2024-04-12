@@ -1,0 +1,1179 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                       S. Krishnan
+Request for Comments: 7077                                      Ericsson
+Category: Standards Track                                  S. Gundavelli
+ISSN: 2070-1721                                                    Cisco
+                                                              M. Liebsch
+                                                                     NEC
+                                                               H. Yokota
+                                                                    KDDI
+                                                             J. Korhonen
+                                                                Broadcom
+                                                           November 2013
+
+
+               Update Notifications for Proxy Mobile IPv6
+
+Abstract
+
+   This document specifies protocol enhancements for allowing the local
+   mobility anchor in a Proxy Mobile IPv6 domain to asynchronously
+   notify the mobile access gateway about changes related to a mobility
+   session.  These Update Notification messages are exchanged using a
+   new Mobility Header message type specifically designed for this
+   purpose.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7077.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 1]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+Copyright Notice
+
+   Copyright (c) 2013 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. Conventions and Terminology .....................................4
+      2.1. Conventions ................................................4
+      2.2. Terminology ................................................4
+   3. Notification Message - Usage Examples ...........................4
+   4. Message Formats .................................................5
+      4.1. Update Notification (UPN) ..................................5
+      4.2. Update Notification Acknowledgement (UPA) ..................7
+   5. LMA Considerations ..............................................9
+      5.1. Constructing the Update Notification Message ..............10
+      5.2. Receiving the Update Notification Acknowledgement
+           Message ...................................................11
+   6. MAG Considerations .............................................12
+      6.1. Receiving the Update Notification Message .................12
+      6.2. Constructing the Update Notification Acknowledgement
+           Message ...................................................15
+   7. Protocol Configuration Variables ...............................16
+   8. Security Considerations ........................................16
+   9. Acknowledgements ...............................................17
+   10. IANA Considerations ...........................................17
+   11. References ....................................................19
+      11.1. Normative References .....................................19
+      11.2. Informative References ...................................19
+
+
+
+
+
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 2]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+1.  Introduction
+
+   In some situations, there is a need for the local mobility anchor
+   (LMA) to send asynchronous notification messages to the mobile access
+   gateway (MAG) in the course of a mobility session.  These situations
+   include changes to mobility session parameters and policy parameters.
+   In this context, "Asynchronous messages" is used to mean messages
+   that are not synchronous with the Proxy Binding Update and Proxy
+   Binding Acknowledgement messages of the base Proxy Mobile IPv6
+   specification [RFC5213].  The base Proxy Mobile IPv6 specification
+   does not have a provision for sending unsolicited Update Notification
+   messages from the local mobility anchor to the mobile access gateway.
+
+   Proxy Mobile IPv6 [RFC5213] is a network-based mobility management
+   protocol.  It is designed to provide IP mobility management support
+   to a mobile node without requiring the participation of the mobile
+   node in any IP mobility-related signaling.  The protocol defines two
+   mobility management entities: the LMA and the MAG.  These entities
+   are responsible for managing IP mobility management support for a
+   mobile node in a Proxy Mobile IPv6 domain.  The setup of the mobility
+   session is initiated by the mobile access gateway by sending a Proxy
+   Binding Update message and acknowledged by the local mobility anchor
+   in the Proxy Binding Acknowledgement message.  Once the mobility
+   session is set up, currently there is no mechanism for the local
+   mobility anchor to inform the mobile access gateway about changes to
+   the mobility session or any parameters related to the mobility
+   session.  However, there are mechanisms in the Proxy Mobile IPv6
+   protocol that allow a local mobility anchor to send signaling
+   messages to the mobile access gateway asynchronously, as defined in
+   the Proxy Mobile IPv6 Heartbeat message [RFC5847] or in the Binding
+   Revocation message [RFC5846], but these signaling messages are
+   designed for a very specific purpose and are not sufficient for
+   supporting a notification framework.
+
+   One such scenario where such a mechanism is needed is when the local
+   mobility anchor wants to inform the mobile access gateway that it
+   needs to re-register the mobility session for a mobile node.  It is
+   possible to achieve a similar effect by using a short lifetime for
+   the mobility sessions, but in several networks this results in an
+   unacceptable, and mostly unnecessary, increase in the signaling
+   load and overhead.  A more suitable scenario would be to enable
+   demand-based signaling from the local mobility anchor to one or more
+   mobile access gateways.  Another example is when there is a change in
+   a QoS policy [PMIPv6-QoS], an IP flow mobility policy
+   [PMIPv6-FLOW-MOB], or an IPv4 traffic offload policy [RFC6909] for a
+   mobility session.  In this case, the local mobility anchor wants to
+   request that the mobile access gateway perform re-registration of the
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 3]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   mobility session in order to update the policies associated with the
+   mobility session of a mobile node.
+
+   This document defines a new Mobility Header message for allowing the
+   local mobility anchor to send notification messages to the mobile
+   access gateway and a corresponding Mobility Header message for the
+   mobile access gateway to acknowledge the notification message.  The
+   purpose of the notification message is twofold: (1) to enable the
+   local mobility anchor to notify the mobile access gateway about the
+   updated session parameters and (2) to enable the local mobility
+   anchor to request that the mobile access gateway renegotiate the
+   session parameters.
+
+2.  Conventions and Terminology
+
+2.1.  Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+2.2.  Terminology
+
+   All the mobility-related terms used in this document are to be
+   interpreted as defined in the base Proxy Mobile IPv6 specifications
+   [RFC5213] and [RFC5844].
+
+3.  Notification Message - Usage Examples
+
+   Use Case 1: Consider a use case where the local mobility anchor wants
+   the mobile access gateway to re-register a specific mobility session.
+
+   MN     MAG       LMA
+   |------>|        |    1.  Mobile Node Attach
+   |       |------->|    2.  Proxy Binding Update
+   |       |<-------|    3.  Proxy Binding Acknowledgement
+   |       |========|    4.  Tunnel/Route Setup
+   |       |        |
+   |       |<-------|    5.  Update Notification (FORCE-REREGISTRATION)
+   |       |------->|    6.  Update Notification Acknowledgement
+   |       |        |
+   |       |------->|    7.  Proxy Binding Update
+   |       |<-------|    8.  Proxy Binding Acknowledgement
+   |       |        |
+
+            Figure 1: Update Notification: FORCE-REREGISTRATION
+
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 4]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   Use Case 2: Consider a use case where the local mobility anchor wants
+   to notify the mobile access gateway of the updated session
+   parameters, for example, an updated QoS profile or an updated IPv4
+   offload policy.
+
+   MN     MAG     LMA
+   |------>|        |    1.  Mobile Node Attach
+   |       |------->|    2.  Proxy Binding Update
+   |       |<-------|    3.  Proxy Binding Acknowledgement
+   |       |========|    4.  Tunnel/Route Setup
+   |       |        |
+   |       |<-------|    5.  Update Notification
+   |       |        |           (UPDATE-SESSION-PARAMETERS)
+   |       |------->|    6.  Update Notification Acknowledgement
+   |       +        |    7.  MAG applies the new policy option
+   |       |        |
+
+         Figure 2: Update Notification: UPDATE-SESSION-PARAMETERS
+
+4.  Message Formats
+
+4.1.  Update Notification (UPN)
+
+   The Update Notification is a Mobility Header message that has an MH
+   Type value of 19.  It is used by the local mobility anchor to notify
+   the mobile access gateway that some parameters related to the
+   mobility session have changed.
+
+   The format of the Update Notification message is as follows:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+                                   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                                   |           Sequence #          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Notification Reason        |A|D|          Reserved         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   .                                                               .
+   .                        Mobility options                       .
+   .                                                               .
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                   Figure 3: Update Notification Message
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 5]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   Sequence Number
+      This 16-bit unsigned integer is used by the local mobility anchor
+      to match the received Update Notification Acknowledgement message
+      with this Update Notification message.  This Sequence Number could
+      be a random number and can be managed under the same variable used
+      in Proxy Mobile IPv6 signaling messages [RFC5213].
+      Implementations MUST ensure that there is no collision between the
+      Sequence Numbers of all outstanding Update Notification messages
+      at any time.
+
+   Notification Reason
+      This 16-bit unsigned integer indicates the Notification Reason
+      code.  This code corresponds to the reason that the local mobility
+      anchor sent the Update Notification to the mobile access gateway.
+      This field does not contain any structure and MUST be treated as
+      an enumeration.  The reason code can indicate a vendor-specific
+      reason if the semantics of the Update Notification message are to
+      be based on the attached vendor-specific options, not solely from
+      the reason code.  These attached options can be deployment
+      specific and are not specified in this document.  The following
+      Notification Reason values are currently defined:
+
+      (0) -     Reserved
+                This value is currently reserved and cannot be used.
+
+      (1) -     FORCE-REREGISTRATION
+                Request to re-register the session by sending a Proxy
+                Binding Update for the mobility session.
+
+      (2) -     UPDATE-SESSION-PARAMETERS
+                Request to apply the updated session parameters obtained
+                from the message on the mobility session.
+
+      (3) -     VENDOR-SPECIFIC-REASON
+                This Notification Reason is for vendor-specific use.
+                The processing rules are to be based on the
+                Vendor-Specific Mobility option(s) [RFC5094] present in
+                the message.
+
+      (4) -     ANI-PARAMS-REQUESTED
+                Request to send currently known Access Network
+                Identifier (ANI) [RFC6757] parameters for the mobility
+                session.
+
+      (255) -   Reserved
+                This value is currently reserved and cannot be used.
+
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 6]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   Acknowledgement Requested Flag ((A) Flag)
+      When this flag is set to a value of (1), it is an indication that
+      the local mobility anchor is requesting that the mobile access
+      gateway send an Update Notification Acknowledgement message.  When
+      this flag is set to a value of (0), it is an indication that the
+      local mobility anchor is not requesting any Update Notification
+      Acknowledgement messages.
+
+   Retransmit Flag ((D) Flag)
+      When this flag is set to a value of (1), it is an indication that
+      the message is a retransmitted message and has the same Sequence
+      Number and other message contents as in the previously sent
+      message.  The (D) flag is set for retransmitted request messages,
+      to aid the reliable detection of duplicate requests at the
+      receiver of the request message.  It is set when originating
+      requests that have not yet been acknowledged, as an indication of
+      a possible duplicate due to a retransmission.  This flag MUST be
+      cleared when sending a request for the first time for a given
+      Sequence Number; otherwise, the sender MUST set this flag.
+
+   Reserved
+      This field is unused for now.  The value MUST be initialized to 0
+      by the sender and MUST be ignored by the receiver.
+
+   Mobility Options
+      This variable-length field is of such length that the complete
+      Mobility Header is an integer multiple of 8 octets long; the Pad1
+      and PadN options [RFC6275] can be used for padding.  This field
+      contains zero or more TLV-encoded mobility options.  Any of the
+      Mobility Header options, including Vendor-Specific Mobility
+      options [RFC5094], can be included here.  The receiver MUST ignore
+      and skip any options that it does not understand.  These mobility
+      options are used by the mobile access gateway to identify the
+      specific binding for which the Update Notification message is
+      sent.
+
+4.2.  Update Notification Acknowledgement (UPA)
+
+   The Update Notification Acknowledgement is a Mobility Header message
+   that has an MH Type value of 20.  The mobile access gateway sends
+   this message in order to acknowledge that it has received an Update
+   Notification message with the (A) flag set and to indicate the status
+   after processing the message.
+
+
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 7]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   The format of the Update Notification Acknowledgement message is as
+   follows:
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+                                   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                                   |           Sequence #          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Status Code |                   Reserved                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   .                                                               .
+   .                        Mobility options                       .
+   .                                                               .
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+           Figure 4: Update Notification Acknowledgement Message
+
+   Sequence Number
+      This 16-bit unsigned integer is copied from the Update
+      Notification message and is used for matching the Update
+      Notification Acknowledgement message with the Update Notification
+      message.
+
+   Status Code
+      This 8-bit unsigned integer indicates the status code and
+      specifies the result of the processing of the Update Notification
+      message.  Status codes between 0 and 127 signify successful
+      processing of the Update Notification message, and codes between
+      128 and 255 signify that an error occurred during processing of
+      the Update Notification message.  The following status code values
+      are currently defined:
+
+      (0) -     SUCCESS
+                The mobile access gateway successfully processed the
+                received Update Notification message.
+
+      (128) -   FAILED-TO-UPDATE-SESSION-PARAMETERS
+                The mobile access gateway was not able to apply the
+                session parameters sent by the local mobility anchor in
+                the Update Notification message.
+
+      (129) -   MISSING-VENDOR-SPECIFIC-OPTION
+                The received Update Notification message does not have
+                the required Vendor-Specific Mobility option(s) needed
+                for handling the message.
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 8]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   Reserved
+      This field is unused for now.  The value MUST be initialized to 0
+      by the sender and MUST be ignored by the receiver.
+
+   Mobility Options
+      This variable-length field is of such length that the complete
+      Mobility Header is an integer multiple of 8 octets long; the Pad1
+      and PadN options [RFC6275] can be used for padding.  This field
+      contains zero or more TLV-encoded mobility options.  Any of the
+      Mobility Header options, including Vendor-Specific Mobility
+      options [RFC5094], can be included here.  The receiver MUST ignore
+      and skip any options that it does not understand.  These mobility
+      options are used by the mobile access gateway to identify the
+      specific binding for which the Update Notification Acknowledgement
+      message is sent.
+
+5.  LMA Considerations
+
+   o  The local mobility anchor sends the Update Notification message in
+      response to a condition that is specified in the Notification
+      Reason field.  The Notification Reason field in the Update
+      Notification message MUST be set to a specific value that
+      identifies the reason for which the Update Notification message is
+      being sent.  The Notification Reason, based on the chosen value,
+      may require a specific action that the mobile access gateway needs
+      to perform (for example, requiring re-registration of a mobility
+      session).
+
+   o  The Update Notification message MUST include either the Mobile
+      Node Identifier option [RFC4283] or the Mobile Node Group
+      Identifier option [RFC6602].
+
+      *  If the Mobile Node Identifier option is present, it indicates
+         that the Update Notification message is sent for that specific
+         mobility session.
+
+      *  If the Mobile Node Group Identifier option is present, it
+         indicates that the Update Notification message is sent for the
+         set of mobility sessions identified by the Group Identifier.
+         The Group Identifier is negotiated as part of the initial Proxy
+         Mobile IPv6 signaling.  If the Group Identifier is not
+         negotiated in the initial Proxy Mobile IPv6 signaling, a value
+         of (1) for the Group Identifier can always be used.  The Group
+         Identifier value of (1) identifies all the mobility sessions
+         established between that local mobility anchor and the mobile
+         access gateway.
+
+
+
+
+
+Krishnan, et al.             Standards Track                    [Page 9]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   o  The Update Notification message MAY contain a modified session
+      parameter in the form of a mobility option (e.g., an IPv4 traffic
+      offload option or a QoS option), so the mobile access gateway can
+      apply them on the identified mobility session.
+
+5.1.  Constructing the Update Notification Message
+
+   The local mobility anchor, when sending the Update Notification
+   message to the mobile access gateway, has to construct the message as
+   specified below:
+
+   o  For requesting an Acknowledgement message and an indication about
+      the result of processing the message from the mobile access
+      gateway for the Update Notification message, the (A) flag in the
+      Update Notification message MUST be set to a value of (1);
+      otherwise, it MUST be set to a value of (0).  However, if the
+      Notification Reason is set to a value of (1)
+      "FORCE-REREGISTRATION" or (4) "ANI-PARAMS-REQUESTED", then it is
+      RECOMMENDED that the (A) flag be set to a value of (0).  For
+      certain general notifications that are informational in nature,
+      the local mobility anchor may choose not to request
+      acknowledgement for the Update Notification message.
+
+   o  The Sequence Number field of the message MUST be initialized to a
+      random number and increased monotonically for subsequent messages.
+      Once the Sequence Number hits the maximum value, it should be
+      wrapped around to 0.  Furthermore, if the message is a
+      retransmission of a previously sent message, then the Sequence
+      Number value is not changed.
+
+   o  When using IPv4 transport, the source address in the IPv4 header
+      MUST be set to the local mobility anchor's IPv4 address
+      (IPv4-LMAA), and the destination address in the IPv4 header MUST
+      be set to the IPv4-Proxy-CoA (Care-of Address) of the mobile
+      access gateway.  The Mobility Header (without the IPv6 header)
+      containing the Update Notification message is encapsulated in a
+      UDP header with the destination port of 5436 [RFC5844].  If IPsec
+      Encapsulating Security Payload (ESP) [RFC4303] is used to protect
+      signaling, the packet is processed using transport mode ESP.
+
+   o  The format of the Update Notification message sent over IPv4 and
+      protected using ESP is shown below:
+
+         IPv4 header (src=IPv4-LMAA, dst=IPv4-Proxy-CoA)
+           ESP header (in transport mode)
+             UDP header (sport=5436, dport=5436)
+               Mobility Header (Update Notification)
+                 (one or more Mobility Header options)
+
+
+
+Krishnan, et al.             Standards Track                   [Page 10]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   o  When using IPv6 transport, the source address in the IPv6 header
+      MUST be set to the local mobility anchor's IPv6 address (LMAA).
+      The destination address in the IPv6 header MUST be set to the
+      Proxy-CoA of the mobile access gateway.  The Mobility Header is
+      part of the IPv6 headers.
+
+   o  The format of the Update Notification message sent over IPv6 and
+      protected using ESP is shown below:
+
+         IPv6 header (src=LMAA, dst=Proxy-CoA)
+           Mobility Header (Update Notification)
+           ESP header (in transport mode)
+             (one or more Mobility Header options)
+
+5.2.  Receiving the Update Notification Acknowledgement Message
+
+   o  If the local mobility anchor does not receive an Update
+      Notification Acknowledgement message from the mobile access
+      gateway for the Update Notification message with the (A) flag set,
+      then the local mobility anchor MUST retransmit the message.  The
+      related considerations are as follows:
+
+      *  When retransmitting an Update Notification message, the
+         Sequence Number value and other message contents MUST be the
+         same as in the original message.  The (D) flag in the message
+         MUST be set to a value of (1).
+
+      *  There MUST be a minimum delay of
+         MIN_DELAY_BETWEEN_UPDATE_NOTIFICATION_REPLAY (Section 7), with
+         a default value of 1000 milliseconds, between two retransmit
+         messages.
+
+      *  The message MUST be retransmitted up to the number of times
+         defined by the configuration variable
+         MAX_UPDATE_NOTIFICATION_RETRANSMIT_COUNT (Section 7), with a
+         default value of (1).  If there is no Update Notification
+         Acknowledgement message after the retransmission count reaches
+         the value defined by the configuration variable
+         MAX_UPDATE_NOTIFICATION_RETRANSMIT_COUNT, then the message MUST
+         be discarded, and the event SHOULD be logged.
+
+   o  If the local mobility anchor receives a Binding Error message with
+      the Status field set to 2 as described in [RFC6275], this
+      indicates that the mobile access gateway does not support the
+      Update Notification message, and hence the local mobility anchor
+      MUST NOT send any further Update Notification messages to that
+      mobile access gateway unless an administrative action is taken.
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 11]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   o  When receiving an Update Notification Acknowledgement message, the
+      local mobility anchor MUST verify the Mobility Header as described
+      in Section 9.2 of [RFC6275].  If the packet is dropped due to
+      failure of any of the Mobility Header test checks, the local
+      mobility anchor MUST follow the processing rules as described in
+      Section 9.2 of [RFC6275].
+
+   o  Upon receiving the Update Notification Acknowledgement message,
+      the local mobility anchor MUST verify that the received message is
+      protected by the security association that is being used to
+      protect the other signaling messages between those two peers.  For
+      example, if the Proxy Binding Update and Proxy Binding
+      Acknowledgement messages are protected using an IPsec security
+      association [RFC4301], then the Update Notification
+      Acknowledgement message MUST have the IPsec protection with the
+      currently established IPsec security association that is being
+      used for protecting the other Proxy Mobile IPv6 signaling
+      messages.
+
+   o  If the local mobility anchor receives an Update Notification
+      Acknowledgement message with a failure status and a value of 128
+      or greater, then it SHOULD log an error.
+
+   o  If the Sequence Number in the received Update Notification
+      Acknowledgement message does not match any of the Update
+      Notification messages that the local mobility anchor sent, then
+      the message MUST be discarded, and the message should be logged.
+
+   o  If the local mobility anchor receives an Update Notification
+      Acknowledgement message from the mobile access gateway for an
+      Update Notification message that did not have the (A) flag set,
+      the local mobility anchor MUST process the received message in the
+      same way as a response to an Update Notification message with the
+      (A) flag set.
+
+6.  MAG Considerations
+
+6.1.  Receiving the Update Notification Message
+
+   o  When receiving an Update Notification message, the mobile access
+      gateway MUST verify the Mobility Header as described in
+      Section 9.2. of [RFC6275].  If the packet is dropped due to
+      failure of any of the Mobility Header test checks, the mobile
+      access gateway MUST follow the processing rules as described in
+      Section 9.2 of [RFC6275].
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 12]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   o  Upon receiving the Update Notification message, the mobile access
+      gateway MUST verify that the received packet is protected by the
+      security association that is being used to protect the other
+      signaling messages between those two peers.  For example, if the
+      Proxy Binding Update and Proxy Binding Acknowledgement messages
+      are protected using an IPsec security association, then the Update
+      Notification message MUST have the IPsec protection with the
+      currently established IPsec security association that is being
+      used for protecting the other Proxy Mobile IPv6 signaling
+      messages.
+
+   o  If the received Update Notification message is a retransmission of
+      a previously received message, as identified by the Sequence
+      Number, then the mobile access gateway MUST NOT handle the message
+      as a new request.  The (D) flag is used as an indication of a
+      retransmitted request, e.g., due to lost messages or the local
+      mobility anchor not seeing the requested update actions.  If the
+      mobile access gateway has not seen the (potentially lost) initial
+      request message, it MUST treat the received Update Notification
+      message (with the (D) flag set) as an initial request and continue
+      processing based on that.  If the mobile access gateway detects
+      that the request is a retransmission based on the (D) flag and the
+      Sequence Number, then it SHOULD redo the requested update action,
+      e.g., when the Acknowledgement Requested ((A)) flag is not set.
+      The mobile access gateway MUST always respond to the retransmitted
+      request if the (A) flag is set.
+
+   o  Upon accepting the Update Notification message, the mobile access
+      gateway MUST process the message and perform the actions based on
+      the Notification Reason.
+
+      *  If the (A) flag in the message is set to a value of (1), the
+         mobile access gateway MUST send an Update Notification
+         Acknowledgement message with the status code field set based on
+         the result of processing the Update Notification message.
+
+      *  If the Notification Reason is set to a value of (1)
+         "FORCE-REREGISTRATION", then the mobile access gateway MUST
+         send a Proxy Binding Update message to the local mobility
+         anchor and obtain the updated session parameters for that
+         mobility session.
+
+      *  If the Notification Reason is set to a value of (2)
+         "UPDATE-SESSION-PARAMETERS", then the mobile access gateway
+         MUST apply the session parameters that are obtained from the
+         Update Notification message in the form of mobility options.
+
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 13]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+         However, if the mobile access gateway is unable to apply the
+         received session parameters, then the mobile access gateway
+         MUST apply the following considerations:
+
+         +  If the received Update Notification message has the (A) flag
+            in the message set to a value of (0), then the mobile access
+            gateway MUST drop the received Update Notification message
+            and log the error.
+
+         +  If the received Update Notification message has the (A) flag
+            in the message set to a value of (1), then the mobile access
+            gateway MUST send an Update Notification Acknowledgement
+            message with a status code value of 128
+            (FAILED-TO-UPDATE-SESSION-PARAMETERS).
+
+      *  If the Notification Reason is set to a value of (3)
+         "VENDOR-SPECIFIC-REASON", then the mobile access gateway MUST
+         apply the considerations related to handling of the
+         Vendor-Specific Mobility option [RFC5094] that is carried in
+         the Update Notification message.  However, if there is no
+         Vendor-Specific Mobility option present in the message, the
+         mobile access gateway MUST apply the following considerations:
+
+         +  If the received Update Notification message has the (A) flag
+            in the message set to a value of (0), then the mobile access
+            gateway MUST drop the received Update Notification message
+            and log the error.
+
+         +  If the received Update Notification message has the (A) flag
+            in the message set to a value of (1), then the mobile access
+            gateway MUST send an Update Notification Acknowledgement
+            message with a status code value of 129
+            (MISSING-VENDOR-SPECIFIC-OPTION).
+
+      *  If the Notification Reason is set to a value of (4)
+         "ANI-PARAMS-REQUESTED", then the mobile access gateway MUST
+         send a Proxy Binding Update message to the local mobility
+         anchor with the Access Network Identifier option [RFC6757].
+         The Access Network Identifier option MUST reflect the current
+         access network parameters for that mobility session as known to
+         the mobile access gateway at the time of sending the Proxy
+         Binding Update message.
+
+      *  For other Notification Reason values not reserved by this
+         document, the processing required on the mobile access gateway
+         is out of scope for this document and will be specified for
+         each Notification Reason defined by other documents.
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 14]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+6.2.  Constructing the Update Notification Acknowledgement Message
+
+   The mobile access gateway, when sending the Update Notification
+   Acknowledgement message to the local mobility anchor, has to
+   construct the message as specified below:
+
+   o  The Sequence Number MUST be the same as the Sequence Number from
+      the received Update Notification message.
+
+   o  The Status field of the Update Notification message MUST be set to
+      a value that reflects the status of the processing of the Update
+      Notification request.  A value of 0 (SUCCESS) indicates that the
+      handling of the Update Notification message was successful.
+
+   o  The Update Notification Acknowledgement message MUST contain
+      either the Mobile Node Identifier option or the Mobile Node Group
+      Identifier option, copied from the Update Notification message.
+      Furthermore, the mobile access gateway MAY include other Mobility
+      Header options.
+
+   o  The source address in the IP header of the Update Notification
+      Acknowledgement message MUST be set to the destination IP address
+      of the received Update Notification message.
+
+   o  The destination address in the IP header of the Update
+      Notification Acknowledgement message MUST be set to the source
+      address of the received Update Notification message.
+
+   o  If IPsec ESP is used to protect signaling, the packet is processed
+      using transport mode ESP.
+
+   o  The format of the Update Notification Acknowledgement message sent
+      over IPv4 and protected using ESP is shown below:
+
+      IPv4 header (src=IPv4-Proxy-CoA, dst=IPv4-LMAA)
+        ESP header (in transport mode)
+          UDP header (sport=5436, dport=5436)
+            Mobility Header (Update Notification Acknowledgement)
+              (one or more Mobility Header options)
+
+   o  The format of the Update Notification Acknowledgement message sent
+      over IPv6 and protected using ESP is shown below:
+
+      IPv6 header (src=Proxy-CoA, dst=LMAA)
+        Mobility Header (Update Notification Acknowledgement)
+        ESP header (in transport mode)
+          (one or more Mobility Header options)
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 15]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+7.  Protocol Configuration Variables
+
+   This specification defines the following configuration variables that
+   control the Update Notification feature.
+
+   The mobility entities, the local mobility anchor, and the mobile
+   access gateway have to allow these variables to be configured by the
+   system management.  The configured values for these protocol
+   variables have to survive server reboots and service restarts.
+
+   MAX_UPDATE_NOTIFICATION_RETRANSMIT_COUNT
+
+      This variable specifies the maximum number of times a local
+      mobility anchor can retransmit an Update Notification message
+      before it receives an Update Notification Acknowledgement message.
+      The default value for this parameter is 1.  The suggested range of
+      configured values for this variable is between 0 and 5.
+
+   MIN_DELAY_BETWEEN_UPDATE_NOTIFICATION_REPLAY
+
+      This variable specifies the minimum delay in seconds before an
+      Update Notification message is retransmitted.  The default value
+      for this parameter is 1000 milliseconds.  The suggested range of
+      configured values for this variable is between 500 and
+      5000 milliseconds.
+
+8.  Security Considerations
+
+   The Update Notification protocol described in this specification is
+   for use between a local mobility anchor and a mobile access gateway.
+   This specification defines two new Mobility Header messages: Update
+   Notification messages and Update Notification Acknowledgement
+   messages.  These Mobility Header messages are to be protected using
+   the same security mechanism that is used for protecting the Proxy
+   Mobile IPv6 signaling messages exchanged between a given local
+   mobility anchor and mobile access gateway.
+
+   If IPsec is used, the IPsec security association that is used for
+   protecting the Proxy Binding Update and Proxy Binding Acknowledgement
+   also needs to be used for protecting Update Notification and Update
+   Notification Acknowledgement messages.  A Proxy Mobile IPv6
+   implementation and the IPsec layer are typically able to communicate
+   with each other through an implementation-specific interface, for
+   example, to exchange configuration and notification information.
+
+   The traffic selectors associated with the Security Policy Database
+   (SPD) entry for protecting Proxy Binding Update and Proxy Binding
+   Acknowledgement messages (Section 4.2 of [RFC5213]) have to be
+
+
+
+Krishnan, et al.             Standards Track                   [Page 16]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   extended to include the Mobility Header Type values 19 and 20, which
+   have been allocated for Update Notification and Update Notification
+   Acknowledgement messages, respectively.  Furthermore, any time there
+   is rekeying of the IPsec security association between the mobile
+   access gateway and the local mobility anchor, the newly established
+   IPsec security association will be used for protecting the Update
+   Notification and Update Notification Acknowledgement messages.
+
+9.  Acknowledgements
+
+   The authors would like to thank Basavaraj Patil, Rajeev Koodli,
+   Lionel Morand, Itsuma Tanaka, Rajesh Pazhyannur, Carlos Jesus
+   Bernardos Cano, John Kaippallimalil, Brian Haberman, and other
+   members of the NETEXT working group for all the comments and
+   discussions on the document.
+
+   The authors would like to thank Barry Leiba, Robert Sparks, Carlos
+   Pignataro, Benoit Claise, Stephen Farrell, and Jari Arkko for their
+   inputs to the document as part of the IESG review process.
+
+10.  IANA Considerations
+
+   IANA has taken the following actions.
+
+   o  This specification defines a new Mobility Header Type message,
+      Update Notification.  This Mobility Header message is described in
+      Section 4.1.  The type value 19 for this message has been
+      allocated from the "Mobility Header Types - for the MH Type field
+      in the Mobility Header" registry at
+      <http://www.iana.org/assignments/mobility-parameters>.
+
+   o  This specification defines a new Mobility Header Type message,
+      Update Notification Acknowledgement.  This Mobility Header message
+      is described in Section 4.2.  The type value 20 for this message
+      has been allocated from the "Mobility Header Types - for the MH
+      Type field in the Mobility Header" registry at
+      <http://www.iana.org/assignments/mobility-parameters>.
+
+   o  This specification defines a new registry for Notification
+      Reasons.  It is called the "Update Notification Reasons Registry".
+      This registry has been created under the "Mobile IPv6 Parameters"
+      registry at <http://www.iana.org/assignments/mobility-parameters>.
+      The Notification Reason is a field in the Update Notification
+      message (Section 4.1).  The number space for the Notification
+      Reason field needs to be managed by IANA, under the "Update
+      Notification Reason Registry".  This specification reserves the
+      following type values.  The allocation policy for this field is
+      "Specification Required" [RFC5226].
+
+
+
+Krishnan, et al.             Standards Track                   [Page 17]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+         +=====+===========================+====================+
+         |Value|       Description         |     Reference      |
+         +=====+===========================+====================+
+         | 0   | Reserved                  |     [RFC7077]      |
+         +=====+================================================+
+         | 1   | FORCE-REREGISTRATION      |     [RFC7077]      |
+         +=====+================================================+
+         | 2   | UPDATE-SESSION-PARAMETERS |     [RFC7077]      |
+         +=====+================================================+
+         | 3   | VENDOR-SPECIFIC-REASON    |     [RFC7077]      |
+         +=====+================================================+
+         | 4   | ANI-PARAMS-REQUESTED      |     [RFC7077]      |
+         +=====+================================================+
+         |255  | Reserved                  |     [RFC7077]      |
+         +=====+================================================+
+
+   o  This specification defines a new registry for Status.  It is
+      called the "Update Notification Acknowledgement Status Registry".
+      This registry has been created under the "Mobile IPv6 Parameters"
+      registry at <http://www.iana.org/assignments/mobility-parameters>.
+      The status is a field in the Update Notification Acknowledgement
+      message (Section 4.2).  The number space for the Status field
+      needs to be managed by IANA, under the "Update Notification
+      Acknowledgement Status Registry".  This specification reserves the
+      following type values.  The allocation policy for this field is
+      "Specification Required".  Status codes between 0 and 127 signify
+      successful processing of the Update Notification message, and
+      codes between 128 and 255 signify that an error occurred during
+      processing of the Update Notification message.
+
+         +=====+=====================================+=============+
+         |Value|       Description                   |  Reference  |
+         +=====+=====================================+=============+
+         | 0   | SUCCESS                             |  [RFC7077]  |
+         +=====+=====================================+=============+
+         |128  | FAILED-TO-UPDATE-SESSION-PARAMETERS |  [RFC7077]  |
+         +=====+=====================================+=============+
+         |129  | MISSING-VENDOR-SPECIFIC-OPTION      |  [RFC7077]  |
+         +=====+=====================================+=============+
+
+
+
+
+
+
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 18]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+11.  References
+
+11.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4283]  Patel, A., Leung, K., Khalil, M., Akhtar, H., and K.
+              Chowdhury, "Mobile Node Identifier Option for Mobile IPv6
+              (MIPv6)", RFC 4283, November 2005.
+
+   [RFC5094]  Devarapalli, V., Patel, A., and K. Leung, "Mobile IPv6
+              Vendor Specific Option", RFC 5094, December 2007.
+
+   [RFC5213]  Gundavelli, S., Leung, K., Devarapalli, V., Chowdhury, K.,
+              and B. Patil, "Proxy Mobile IPv6", RFC 5213, August 2008.
+
+   [RFC5844]  Wakikawa, R. and S. Gundavelli, "IPv4 Support for Proxy
+              Mobile IPv6", RFC 5844, May 2010.
+
+   [RFC6275]  Perkins, C., Johnson, D., and J. Arkko, "Mobility Support
+              in IPv6", RFC 6275, July 2011.
+
+   [RFC6602]  Abinader, F., Gundavelli, S., Leung, K., Krishnan, S., and
+              D. Premec, "Bulk Binding Update Support for Proxy Mobile
+              IPv6", RFC 6602, May 2012.
+
+11.2.  Informative References
+
+   [PMIPv6-FLOW-MOB]
+              Bernardos, CJ., Ed., "Proxy Mobile IPv6 Extensions to
+              Support Flow Mobility", Work in Progress, October 2013.
+
+   [PMIPv6-QoS]
+              Liebsch, M., Seite, P., Yokota, H., Korhonen, J., and S.
+              Gundavelli, "Quality of Service Option for Proxy Mobile
+              IPv6", Work in Progress, November 2013.
+
+   [RFC4301]  Kent, S. and K. Seo, "Security Architecture for the
+              Internet Protocol", RFC 4301, December 2005.
+
+   [RFC4303]  Kent, S., "IP Encapsulating Security Payload (ESP)", RFC
+              4303, December 2005.
+
+   [RFC5226]  Narten, T. and H. Alvestrand, "Guidelines for Writing an
+              IANA Considerations Section in RFCs", BCP 26, RFC 5226,
+              May 2008.
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 19]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+   [RFC5846]  Muhanna, A., Khalil, M., Gundavelli, S., Chowdhury, K.,
+              and P. Yegani, "Binding Revocation for IPv6 Mobility", RFC
+              5846, June 2010.
+
+   [RFC5847]  Devarapalli, V., Koodli, R., Lim, H., Kant, N., Krishnan,
+              S., and J. Laganier, "Heartbeat Mechanism for Proxy Mobile
+              IPv6", RFC 5847, June 2010.
+
+   [RFC6757]  Gundavelli, S., Korhonen, J., Grayson, M., Leung, K., and
+              R. Pazhyannur, "Access Network Identifier (ANI) Option for
+              Proxy Mobile IPv6", RFC 6757, October 2012.
+
+   [RFC6909]  Gundavelli, S., Zhou, X., Korhonen, J., Feige, G., and R.
+              Koodli, "IPv4 Traffic Offload Selector Option for Proxy
+              Mobile IPv6", RFC 6909, April 2013.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 20]
+
+RFC 7077                  Update Notifications             November 2013
+
+
+Authors' Addresses
+
+   Suresh Krishnan
+   Ericsson
+   8400 Blvd Decarie
+   Town of Mount Royal, Quebec
+   Canada
+
+   Phone: +1 514 345 7900 x42871
+   EMail: suresh.krishnan@ericsson.com
+
+
+   Sri Gundavelli
+   Cisco
+   170 West Tasman Drive
+   San Jose, CA  95134
+   USA
+
+   EMail: sgundave@cisco.com
+
+
+   Marco Liebsch
+   NEC
+   Kurfuersten-Anlage 36
+   D-69115 Heidelberg
+   Germany
+
+   EMail: marco.liebsch@neclab.eu
+
+
+   Hidetoshi Yokota
+   KDDI
+
+   EMail: yokota@kddilabs.jp
+
+
+   Jouni Korhonen
+   Broadcom
+   Porkkalankatu 24
+   Helsinki  FIN-00180
+   Finland
+
+   EMail: jouni.nospam@gmail.com
+
+
+
+
+
+
+
+
+Krishnan, et al.             Standards Track                   [Page 21]
+

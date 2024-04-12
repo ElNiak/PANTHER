@@ -1,0 +1,507 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                      M. Bjorklund
+Request for Comments: 8527                                Tail-f Systems
+Updates: 8040                                           J. Schoenwaelder
+Category: Standards Track                              Jacobs University
+ISSN: 2070-1721                                                P. Shafer
+                                                        Juniper Networks
+                                                               K. Watsen
+                                                         Watsen Networks
+                                                               R. Wilton
+                                                           Cisco Systems
+                                                              March 2019
+
+
+                   RESTCONF Extensions to Support the
+               Network Management Datastore Architecture
+
+Abstract
+
+   This document extends the RESTCONF protocol defined in RFC 8040 in
+   order to support the Network Management Datastore Architecture (NMDA)
+   defined in RFC 8342.
+
+   This document updates RFC 8040 by introducing new datastore
+   resources, adding a new query parameter, and requiring the usage of
+   the YANG library (described in RFC 8525) by RESTCONF servers
+   implementing the NMDA.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8527.
+
+
+
+
+
+
+
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 1]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+Copyright Notice
+
+   Copyright (c) 2019 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+      1.1. Terminology ................................................3
+   2. Datastore and YANG Library Requirements .........................3
+   3. RESTCONF Extensions .............................................4
+      3.1. New Datastore Resources ....................................4
+      3.2. Protocol Operations ........................................5
+           3.2.1. The "with-defaults" Query Parameter on the
+                  Operational State Datastore .........................5
+           3.2.2. New "with-origin" Query Parameter ...................6
+   4. IANA Considerations .............................................7
+   5. Security Considerations .........................................7
+   6. Normative References ............................................7
+   Authors' Addresses .................................................9
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 2]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+1.  Introduction
+
+   This document extends the RESTCONF protocol defined in [RFC8040] in
+   order to support the Network Management Datastore Architecture (NMDA)
+   defined in [RFC8342].
+
+   This document updates [RFC8040] in order to enable RESTCONF clients
+   to discover which datastores are supported by the RESTCONF server,
+   determine which modules are supported in each datastore, and interact
+   with all the datastores supported by the NMDA.  Specifically, the
+   update introduces new datastore resources, adds a new query
+   parameter, and requires the usage of the YANG library [RFC8525] by
+   RESTCONF servers implementing the NMDA.
+
+   The solution presented in this document is backwards compatible with
+   [RFC8040].  This is achieved by only adding new resources and leaving
+   the semantics of the existing resources unchanged.
+
+1.1.  Terminology
+
+   This document uses the terminology defined by the NMDA [RFC8342].
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  Datastore and YANG Library Requirements
+
+   An NMDA-compliant RESTCONF server MUST support the operational state
+   datastore and MUST implement at least revision 2019-01-04 of the
+   "ietf-yang-library" module defined in [RFC8525].
+
+   Such a server identifies that it supports the NMDA both by
+   implementing the {+restconf}/ds/ietf-datastores:operational resource
+   and by implementing at least revision 2019-01-04 of the
+   "ietf-yang-library" module.
+
+   A RESTCONF client can test if a server supports the NMDA by using
+   either the HEAD or GET methods on {+restconf}/ds/ietf-
+   datastores:operational.
+
+   A RESTCONF client can discover which datastores and YANG modules the
+   server supports by reading the YANG library information from the
+   operational state datastore.
+
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 3]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+3.  RESTCONF Extensions
+
+   This section describes the RESTCONF extensions needed to support the
+   NMDA.
+
+3.1.  New Datastore Resources
+
+   This document defines a set of new resources representing datastores
+   as defined in [RFC8342].  These resources are available using the
+   following resource path template:
+
+     {+restconf}/ds/<datastore>
+
+   The <datastore> path component is encoded as an "identityref"
+   according to the JSON encoding rules for identities, defined in
+   Section 6.8 of [RFC7951].  The namespace-qualified form MUST be used.
+   Such an identity MUST be derived from the "datastore" identity
+   defined in the "ietf-datastores" YANG module [RFC8342].
+
+   Specifically:
+
+   o  The resource {+restconf}/ds/ietf-datastores:operational refers to
+      the operational state datastore.
+
+   o  The resource {+restconf}/ds/ietf-datastores:running refers to the
+      running configuration datastore.
+
+   o  The resource {+restconf}/ds/ietf-datastores:intended refers to the
+      intended configuration datastore.
+
+   An NMDA-compliant server MUST implement {+restconf}/ds/ietf-
+   datastores:operational.  Other datastore resources MAY be
+   implemented.
+
+   YANG actions can only be invoked in {+restconf}/ds/ietf-
+   datastores:operational.
+
+   As an example, if a server implements a datastore called
+   "ds-ephemeral", defined in a module called "example-ds-ephemeral",
+   then the server would implement the resource {+restconf}/ds/example-
+   ds-ephemeral:ds-ephemeral.
+
+
+
+
+
+
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 4]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+3.2.  Protocol Operations
+
+   The protocol operations available for the new datastore resources
+   (see Section 3.1) are the same as the protocol operations defined in
+   [RFC8040] for the {+restconf}/data resource with the following
+   exceptions:
+
+   o  Dynamic configuration datastores are excluded, as each dynamic
+      configuration datastore definition needs to be reviewed for what
+      protocol operations it supports.
+
+   o  Some datastores are read-only by nature (e.g., <intended>); hence,
+      any attempt to modify these datastores will fail.  A server MUST
+      return a response with a "405 Method Not Allowed" status-line and
+      an error-tag value of "operation-not-supported".
+
+   o  The semantics of the "with-defaults" query parameter
+      (Section 4.8.9 of [RFC8040]) differ when interacting with the
+      operational state datastore.  The semantics are described in
+      Section 3.2.1.
+
+   o  [RFC8040], Section 3.5.4, paragraph 3 does not apply when
+      interacting with any resource under {+restconf}/ds.
+
+3.2.1.  The "with-defaults" Query Parameter on the Operational State
+        Datastore
+
+   Support for the "with-defaults" query parameter (Section 4.8.9 of
+   [RFC8040]) is OPTIONAL when interacting with {+restconf}/ds/ietf-
+   datastores:operational.  The associated capability to indicate a
+   server's support is identified with the URI:
+
+     urn:ietf:params:restconf:capability:with-operational-defaults:1.0
+
+   For servers that support it, the behavior of the "with-defaults"
+   query parameter on the operational state datastore is defined as
+   follows:
+
+   o  If no "with-defaults" query parameter is specified, or if it is
+      set to "explicit", "report-all", or "report-all-tagged", then the
+      "in use" values, as defined in Section 5.3 of [RFC8342], are
+      returned from the operational state datastore, even if a node
+      happens to have a default statement in the YANG module and this
+      default value is being used by the server.  If the "with-defaults"
+      parameter is set to "report-all-tagged", any values that match the
+      schema default are tagged with additional metadata, as described
+      in Section 4.8.9 of [RFC8040].
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 5]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+   o  If the "with-defaults" query parameter is set to "trim", all "in
+      use" values are returned, except that the output is filtered to
+      exclude any values that match the default defined in the YANG
+      schema.
+
+   Servers are not required to support all values in the "with-defaults"
+   query parameter on the operational state datastore.  If a request is
+   made using a value that is not supported, then the error handling
+   behavior is as described in Section 4.8.9 of [RFC8040].
+
+3.2.2.  New "with-origin" Query Parameter
+
+   A new query parameter named "with-origin" is added to the GET
+   operation.  If present, it requests that the server includes "origin"
+   metadata annotations in its response, as detailed in the NMDA.  This
+   parameter is only valid when querying {+restconf}/ds/ietf-
+   datastores:operational or any datastores with identities derived from
+   the "operational" identity.  Otherwise, if an invalid datastore is
+   specified, then the server MUST return a response with a "400 Bad
+   Request" status-line, using an error-tag value of "invalid-value".
+   "origin" metadata annotations are not included unless a client
+   explicitly requests them.
+
+   Data in the operational state datatstore can come from multiple
+   sources.  The server should return the "origin" metadata annotation
+   value that most accurately indicates the source of the operational
+   value, as specified in Section 5.3.4 of [RFC8342].
+
+   When encoding the "origin" metadata annotation for a hierarchy of
+   returned nodes, the annotation can be omitted for a child node when
+   the value matches that of the parent node, as described in the
+   "ietf-origin" YANG module [RFC8342].
+
+   Support for the "with-origin" query parameter is OPTIONAL.  It is
+   identified with the URI:
+
+     urn:ietf:params:restconf:capability:with-origin:1.0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 6]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+4.  IANA Considerations
+
+   This document defines two capability identifier URNs in the "RESTCONF
+   Capability URNs" registry defined in [RFC8040]:
+
+     Index
+     Capability Identifier
+     ---------------------
+
+     :with-origin
+     urn:ietf:params:restconf:capability:with-origin:1.0
+
+     :with-operational-defaults
+     urn:ietf:params:restconf:capability:with-operational-defaults:1.0
+
+5.  Security Considerations
+
+   This document extends the RESTCONF protocol by introducing new
+   datastore resources.  The lowest RESTCONF layer is HTTPS, and the
+   mandatory-to-implement secure transport is TLS [RFC8446].  The
+   RESTCONF protocol uses the network configuration access control model
+   [RFC8341], which provides the means to restrict access for particular
+   RESTCONF users to a preconfigured subset of all available RESTCONF
+   protocol operations and content.
+
+   The security constraints for the base RESTCONF protocol (see
+   Section 12 of [RFC8040]) apply to the new RESTCONF datastore
+   resources defined in this document.
+
+6.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC7951]  Lhotka, L., "JSON Encoding of Data Modeled with YANG",
+              RFC 7951, DOI 10.17487/RFC7951, August 2016,
+              <https://www.rfc-editor.org/info/rfc7951>.
+
+   [RFC8040]  Bierman, A., Bjorklund, M., and K. Watsen, "RESTCONF
+              Protocol", RFC 8040, DOI 10.17487/RFC8040, January 2017,
+              <https://www.rfc-editor.org/info/rfc8040>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 7]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+   [RFC8341]  Bierman, A. and M. Bjorklund, "Network Configuration
+              Access Control Model", STD 91, RFC 8341,
+              DOI 10.17487/RFC8341, March 2018,
+              <https://www.rfc-editor.org/info/rfc8341>.
+
+   [RFC8342]  Bjorklund, M., Schoenwaelder, J., Shafer, P., Watsen, K.,
+              and R. Wilton, "Network Management Datastore Architecture
+              (NMDA)", RFC 8342, DOI 10.17487/RFC8342, March 2018,
+              <https://www.rfc-editor.org/info/rfc8342>.
+
+   [RFC8446]  Rescorla, E., "The Transport Layer Security (TLS) Protocol
+              Version 1.3", RFC 8446, DOI 10.17487/RFC8446, August 2018,
+              <https://www.rfc-editor.org/info/rfc8446>.
+
+   [RFC8525]  Bierman, A., Bjorklund, M., Schoenwaelder, J., Watsen, K.,
+              and R. Wilton, "YANG Library", RFC 8525,
+              DOI 10.17487/RFC8525, March 2019,
+              <https://www.rfc-editor.org/info/rfc8525>.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 8]
+
+RFC 8527            RESTCONF Extensions for the NMDA          March 2019
+
+
+Authors' Addresses
+
+   Martin Bjorklund
+   Tail-f Systems
+
+   Email: mbj@tail-f.com
+
+
+   Juergen Schoenwaelder
+   Jacobs University
+
+   Email: j.schoenwaelder@jacobs-university.de
+
+
+   Phil Shafer
+   Juniper Networks
+
+   Email: phil@juniper.net
+
+
+   Kent Watsen
+   Watsen Networks
+
+   Email: kent+ietf@watsen.net
+
+
+   Robert Wilton
+   Cisco Systems
+
+   Email: rwilton@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Bjorklund, et al.            Standards Track                    [Page 9]
+

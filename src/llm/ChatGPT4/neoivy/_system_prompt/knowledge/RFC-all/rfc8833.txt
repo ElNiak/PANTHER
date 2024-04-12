@@ -1,0 +1,309 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                        M. Thomson
+Request for Comments: 8833                                       Mozilla
+Category: Standards Track                                   January 2021
+ISSN: 2070-1721
+
+
+        Application-Layer Protocol Negotiation (ALPN) for WebRTC
+
+Abstract
+
+   This document specifies two Application-Layer Protocol Negotiation
+   (ALPN) labels for use with Web Real-Time Communication (WebRTC).  The
+   "webrtc" label identifies regular WebRTC: a DTLS session that is used
+   to establish keys for the Secure Real-time Transport Protocol (SRTP)
+   or to establish data channels using the Stream Control Transmission
+   Protocol (SCTP) over DTLS.  The "c-webrtc" label describes the same
+   protocol, but the peers also agree to maintain the confidentiality of
+   the media by not sharing it with other applications.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8833.
+
+Copyright Notice
+
+   Copyright (c) 2021 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Conventions
+   2.  ALPN Labels for WebRTC
+   3.  Media Confidentiality
+   4.  Security Considerations
+   5.  IANA Considerations
+   6.  References
+     6.1.  Normative References
+     6.2.  Informative References
+   Author's Address
+
+1.  Introduction
+
+   Web Real-Time Communication (WebRTC) [RFC8825] uses Datagram
+   Transport Layer Security (DTLS) [RFC6347] to secure all peer-to-peer
+   communications.
+
+   Identifying WebRTC protocol usage with Application-Layer Protocol
+   Negotiation (ALPN) [RFC7301] enables an endpoint to positively
+   identify WebRTC uses and distinguish them from other DTLS uses.
+
+   Different WebRTC uses can be advertised and behavior can be
+   constrained to what is appropriate to a given use.  In particular,
+   this allows for the identification of sessions that require
+   confidentiality protection from the application that manages the
+   signaling for the session.
+
+1.1.  Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  ALPN Labels for WebRTC
+
+   The following identifiers are defined for use in ALPN:
+
+   webrtc:  The DTLS session is used to establish keys for the Secure
+      Real-time Transport Protocol (SRTP) -- known as DTLS-SRTP -- as
+      described in [RFC5764].  The DTLS record layer is used for WebRTC
+      data channels [RFC8831].
+
+   c-webrtc:  The DTLS session is used for confidential WebRTC, where
+      peers agree to maintain the confidentiality of the media, as
+      described in Section 3.  The confidentiality protections ensure
+      that media is protected from other applications, but the
+      confidentiality protections do not extend to messages on data
+      channels.
+
+   Both identifiers describe the same basic protocol: a DTLS session
+   that is used to provide keys for an SRTP session in combination with
+   WebRTC data channels.  Either SRTP or data channels could be absent.
+   The data channels send the Stream Control Transmission Protocol
+   (SCTP) [RFC4960] over the DTLS record layer, which can be multiplexed
+   with SRTP on the same UDP flow.  WebRTC requires the use of
+   Interactive Connectivity Establishment (ICE) [RFC8445] to establish
+   UDP flow, but this is not covered by the identifier.
+
+   A more thorough definition of what WebRTC entails is included in
+   [RFC8835].
+
+   There is no functional difference between the identifiers except that
+   an endpoint negotiating "c-webrtc" makes a promise to preserve the
+   confidentiality of the media it receives.
+
+   A peer that is not aware of whether it needs to request
+   confidentiality can use either identifier.  A peer in the client role
+   MUST offer both identifiers if it is not aware of a need for
+   confidentiality.  A peer in the server role SHOULD select "webrtc" if
+   it does not prefer either.
+
+   An endpoint that requires media confidentiality might negotiate a
+   session with a peer that does not support this specification.  An
+   endpoint MUST abort a session if it requires confidentiality but does
+   not successfully negotiate "c-webrtc".  A peer that is willing to
+   accept "webrtc" SHOULD assume that a peer that does not support this
+   specification has negotiated "webrtc" unless signaling provides other
+   information; however, a peer MUST NOT assume that "c-webrtc" has been
+   negotiated unless explicitly negotiated.
+
+3.  Media Confidentiality
+
+   Private communications in WebRTC depend on separating control (i.e.,
+   signaling) capabilities and access to media [RFC8827].  In this way,
+   an application can establish a session that is end-to-end
+   confidential, where the ends in question are user agents (or
+   browsers) and not the signaling application.  This allows an
+   application to manage signaling for a session without having access
+   to the media that is exchanged in the session.
+
+   Without some form of indication that is securely bound to the
+   session, a WebRTC endpoint is unable to properly distinguish between
+   a session that requires this confidentiality protection and one that
+   does not.  The ALPN identifier provides that signal.
+
+   A browser is required to enforce this confidentiality protection
+   using isolation controls similar to those used in content cross-
+   origin protections (see the "Origin" section of [HTML5]).  These
+   protections ensure that media is protected from applications, which
+   are not able to read or modify the contents of a protected flow of
+   media.  Media that is produced from a session using the "c-webrtc"
+   identifier MUST only be displayed to users.
+
+   The promise to apply confidentiality protections do not apply to data
+   that is sent using data channels.  Confidential data depends on
+   having both data sources and consumers that are exclusively browser
+   or user based.  No mechanisms currently exist to take advantage of
+   data confidentiality, though some use cases suggest that this could
+   be useful, for example, confidential peer-to-peer file transfer.
+   Alternative labels might be provided in the future to support these
+   use cases.
+
+   This mechanism explicitly does not define a specific authentication
+   method; a WebRTC endpoint that accepts a session with this ALPN
+   identifier MUST respect confidentiality no matter what identity is
+   attributed to a peer.
+
+   RTP middleboxes and entities that forward media or data cannot
+   promise to maintain confidentiality.  Any entity that forwards
+   content, or records content for later access by entities other than
+   the authenticated peer, MUST NOT offer or accept a session with the
+   "c-webrtc" identifier.
+
+4.  Security Considerations
+
+   Confidential communications depend on more than just an agreement
+   from browsers.
+
+   Information is not confidential if it is displayed to others than for
+   whom it is intended.  Peer authentication [RFC8827] is necessary to
+   ensure that data is only sent to the intended peer.
+
+   This is not a digital rights management mechanism.  A user is not
+   prevented from using other mechanisms to record or forward media.
+   This means that (for example) screen-recording devices, tape
+   recorders, portable cameras, or a cunning arrangement of mirrors
+   could variously be used to record or redistribute media once
+   delivered.  Similarly, if media is visible or audible (or otherwise
+   accessible) to others in the vicinity, there are no technical
+   measures that protect the confidentiality of that media.
+
+   The only guarantee provided by this mechanism and the browser that
+   implements it is that the media was delivered to the user that was
+   authenticated.  Individual users will still need to make a judgment
+   about how their peer intends to respect the confidentiality of any
+   information provided.
+
+   On a shared computing platform like a browser, other entities with
+   access to that platform (i.e., web applications) might be able to
+   access information that would compromise the confidentiality of
+   communications.  Implementations MAY choose to limit concurrent
+   access to input devices during confidential communications sessions.
+
+   For instance, another application that is able to access a microphone
+   might be able to sample confidential audio that is playing through
+   speakers.  This is true even if acoustic echo cancellation, which
+   attempts to prevent this from happening, is used.  Similarly, an
+   application with access to a video camera might be able to use
+   reflections to obtain all or part of a confidential video stream.
+
+5.  IANA Considerations
+
+   The following two entries have been added to the "TLS Application-
+   Layer Protocol Negotiation (ALPN) Protocol IDs" registry established
+   by [RFC7301]:
+
+   webrtc:
+      The "webrtc" label identifies mixed media and data communications
+      using SRTP and data channels:
+
+      Protocol:  WebRTC Media and Data
+
+      Identification Sequence:  0x77 0x65 0x62 0x72 0x74 0x63 ("webrtc")
+
+      Specification:  RFC 8833 (this document)
+
+   c-webrtc:
+      The "c-webrtc" label identifies WebRTC with a promise to protect
+      media confidentiality:
+
+      Protocol:  Confidential WebRTC Media and Data
+
+      Identification Sequence:  0x63 0x2d 0x77 0x65 0x62 0x72 0x74 0x63
+         ("c-webrtc")
+
+      Specification:  RFC 8833 (this document)
+
+6.  References
+
+6.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC5764]  McGrew, D. and E. Rescorla, "Datagram Transport Layer
+              Security (DTLS) Extension to Establish Keys for the Secure
+              Real-time Transport Protocol (SRTP)", RFC 5764,
+              DOI 10.17487/RFC5764, May 2010,
+              <https://www.rfc-editor.org/info/rfc5764>.
+
+   [RFC6347]  Rescorla, E. and N. Modadugu, "Datagram Transport Layer
+              Security Version 1.2", RFC 6347, DOI 10.17487/RFC6347,
+              January 2012, <https://www.rfc-editor.org/info/rfc6347>.
+
+   [RFC7301]  Friedl, S., Popov, A., Langley, A., and E. Stephan,
+              "Transport Layer Security (TLS) Application-Layer Protocol
+              Negotiation Extension", RFC 7301, DOI 10.17487/RFC7301,
+              July 2014, <https://www.rfc-editor.org/info/rfc7301>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8827]  Rescorla, E., "WebRTC Security Architecture", RFC 8827,
+              DOI 10.17487/RFC8827, January 2021,
+              <https://www.rfc-editor.org/info/rfc8827>.
+
+   [RFC8831]  Jesup, R., Loreto, S., and M. Tüxen, "WebRTC Data
+              Channels", RFC 8831, DOI 10.17487/RFC8831, January 2021,
+              <https://www.rfc-editor.org/info/rfc8831>.
+
+6.2.  Informative References
+
+   [HTML5]    WHATWG, "HTML - Living Standard", Section 7.5, January
+              2021, <https://html.spec.whatwg.org/#origin>.
+
+   [RFC4960]  Stewart, R., Ed., "Stream Control Transmission Protocol",
+              RFC 4960, DOI 10.17487/RFC4960, September 2007,
+              <https://www.rfc-editor.org/info/rfc4960>.
+
+   [RFC8445]  Keranen, A., Holmberg, C., and J. Rosenberg, "Interactive
+              Connectivity Establishment (ICE): A Protocol for Network
+              Address Translator (NAT) Traversal", RFC 8445,
+              DOI 10.17487/RFC8445, July 2018,
+              <https://www.rfc-editor.org/info/rfc8445>.
+
+   [RFC8825]  Alvestrand, H., "Overview: Real-Time Protocols for
+              Browser-Based Applications", RFC 8825,
+              DOI 10.17487/RFC8825, January 2021,
+              <https://www.rfc-editor.org/info/rfc8825>.
+
+   [RFC8835]  Alvestrand, H., "Transports for WebRTC", RFC 8835,
+              DOI 10.17487/RFC8835, January 2021,
+              <https://www.rfc-editor.org/info/rfc8835>.
+
+Author's Address
+
+   Martin Thomson
+   Mozilla
+
+   Email: martin.thomson@gmail.com

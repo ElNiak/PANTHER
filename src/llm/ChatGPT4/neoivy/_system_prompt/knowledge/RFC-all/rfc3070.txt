@@ -1,0 +1,395 @@
+
+
+
+
+
+
+Network Working Group                                           V. Rawat
+Request for Comments: 3070                             ONI Systems, Inc.
+Category: Standards Track                                         R. Tio
+                                                                S. Nanji
+                                                  Redback Networks, Inc.
+                                                                R. Verma
+                                                     Deloitte Consulting
+                                                           February 2001
+
+
+          Layer Two Tunneling Protocol (L2TP) over Frame Relay
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2001).  All Rights Reserved.
+
+Abstract
+
+   Layer Two Tunneling Protocol (L2TP) describes a mechanism to tunnel
+   Point-to-Point (PPP) sessions.  The protocol has been designed to be
+   independent of the media it runs over.  The base specification
+   describes how it should be implemented to run over the User Datagram
+   Protocol (UDP) and the Internet Protocol (IP).  This document
+   describes how L2TP is implemented over Frame Relay Permanent Virtual
+   Circuits (PVCs) and Switched Virtual Circuits (SVCs).
+
+Applicability
+
+   This specification is intended for those implementations which desire
+   to use facilities which are defined for L2TP and  applies only to the
+   use of Frame Relay pont-to-point circuits.
+
+1.0 Introduction
+
+   L2TP [1] defines a general purpose mechanism for tunneling PPP over
+   various media.  By design, it insulates L2TP operation from the
+   details of the media over which it operates.  The base protocol
+   specification illustrates how L2TP may be used in IP environments.
+   This document specifies the encapsulation of L2TP over native Frame
+   Relay and addresses relevant issues.
+
+
+
+Rawat, et al.               Standards Track                     [Page 1]
+
+RFC 3070                 L2TP over Frame Relay             February 2001
+
+
+2.0 Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [2].
+
+3.0 Problem Space Overview
+
+   In this section we describe in high level terms the scope of the
+   problem being addressed.  Topology:
+
+         +------+           +---------------+          |
+         | PSTN |           |  Frame Relay  |          |
+   User--|      |----LAC ===|               |=== LNS --+ LANs
+         | ISDN |           |     Cloud     |          |
+         +------+           +---------------+          |
+
+   An L2TP Access Concentrator (LAC) is a device attached to the
+   switched network fabric (e.g., PSTN or ISDN) or co-located with a PPP
+   end system capable of handling the L2TP protocol.  The LAC need only
+   implement the media over which L2TP is to operate to pass traffic to
+   one or more LNS's.  It may tunnel any protocol carried within PPP.
+
+   L2TP Network Server (LNS) operates on any platform capable of PPP
+   termination.  The LNS handles the server side of the L2TP protocol.
+   L2TP is connection-oriented.  The LNS and LAC maintain state for each
+   user that is attached to an LAC.  A session is created when an end-
+   to-end PPP connection is attempted between a user and the LNS.  The
+   datagrams related to a session are sent over the tunnel between the
+   LAC and LNS.  A tunnel is defined by an LNS-LAC pair.  The tunnel
+   carries PPP datagrams between the LAC and the LNS.
+
+   L2TP protocol operates at a level above the particular media over
+   which it is carried.  However, some details of its connection to
+   media are required to permit interoperable implementations.  L2TP
+   over IP/UDP is described in the base L2TP specification [1].  Issues
+   related to L2TP over Frame Relay are addressed in later sections of
+   this document.
+
+4.0 Encapsulation and Packet Format
+
+   L2TP MUST be able to share a Frame Relay virtual circuit (VC) with
+   other protocols carried over the same VC.  The Frame Relay header
+   format for data packet needs to be defined to identify the protocol
+   being carried in the packets.  The Frame Relay network may not
+   understand these formats.
+
+
+
+
+
+Rawat, et al.               Standards Track                     [Page 2]
+
+RFC 3070                 L2TP over Frame Relay             February 2001
+
+
+   All protocols over this circuit MUST encapsulate their packets within
+   a Q.922 frame.  Additionally, frames must contain information
+   necessary to identify the protocol carried within the frame relay
+   Protocol Data Unit (PDU), thus allowing the receiver to properly
+   process the incoming packet.
+
+   The frame format for L2TP MUST be SNAP encapsulation as defined in
+   RFC 1490 [6] and FRF3.1 [3].  SNAP format uses NLPID followed by
+   Organizationally Unique Identifier and a PID.
+
+   NLPID
+
+   The single octet identifier provides a mechanism to allow easy
+   protocol identification.  For L2TP NLPID value 0x80 is used which
+   indicates the presence of SNAP header.
+
+   OUI & PID
+
+   The three-octet Organizationally Unique Identifier (OUI) 0x00-00-5E
+   identifies IANA who administers the meaning of the Protocol
+   Identifier (PID) 0x0007.  Together they identify a distinct protocol.
+
+   Format of L2TP frames encapsulated in Frame Relay is given in Figure
+   1.
+
+          Octet                      1
+                 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            1   |         Q.922 Address         |
+                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            3   | Control  0x03 | pad   0       |
+                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            5   | NLPID 0x80    |  OUI  0x00    |
+                +-+-+-+-+-+-+-+-+               +
+            7   | OUI     0x00-5E               |
+                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            9   | PID     0x0007                |
+                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                |                               |
+                |          L2TP packet          |
+                |                               |
+                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                |              FCS              |
+                +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+           Figure 1  Format for L2TP frames encapsulated in
+                     Frame Relay
+
+
+
+
+Rawat, et al.               Standards Track                     [Page 3]
+
+RFC 3070                 L2TP over Frame Relay             February 2001
+
+
+5.0 MTU Considerations
+
+   FRF.12 [5] is the Frame Relay Fragmentation Implementation Agreement.
+   If fragmentation is not supported, the two Frame Relay endpoints MUST
+   support an MTU size of at least 1526 which is based on adding the PPP
+   Max-Receive-Unit size with the PPP header size with the Max L2TP
+   Header Size with the Frame Relay header size (PPP header size is the
+   protocol field size plus HDLC framing bytes, which is required by
+   L2TP).  To avoid packet discards on the Frame Relay interface, the
+   RECOMMENDED default Frame Relay MTU is 1564 based on a PPP default
+   MRU of 1500.  The means to ensure these MTU settings are left to
+   implementation.
+
+6.0 QOS Issues
+
+   In general, QoS mechanisms can be roughly provided for with
+   proprietary mechanisms localized within the LAC or LNS.  QoS
+   considerations are beyond the scope of this document.
+
+7.0 Frame Relay and L2TP Interaction
+
+   In case of Frame Relay SVCs, connection setup will be triggered when
+   L2TP tries to create a tunnel.  Details of triggering mechanism are
+   left to implementation.  There SHALL NOT be any change in Frame Relay
+   SVC signaling due to L2TP.  The endpoints of the L2TP tunnel MUST be
+   identified by X.121/E.164 addresses in case of Frame Relay SVC.
+   These addresses MAY be obtained as tunnel endpoints for a user as
+   defined in [4].  In case of PVCs, the Virtual Circuit to carry L2TP
+   traffic MAY be configured administratively.  The endpoints of the
+   tunnel MUST be identified by DLCI, assigned to the PVC at
+   configuration time.  This DLCI MAY be obtained as tunnel endpoints
+   for a user as defined in [4].
+
+   There SHALL be no framing issues between PPP and Frame Relay.  PPP
+   frames received by LAC from remote user are stripped of CRC, link
+   framing, and transparency bytes, encapsulated in L2TP, and forwarded
+   over Frame Relay tunnel.
+
+8.0 Security Considerations
+
+   Currently there is no standard specification for Frame Relay security
+   although the Frame Relay Forum is working on a Frame Relay Privacy
+   Agreement.  In light of this work, the issue of security will be re-
+   examined at a later date to see if L2TP over Frame Relay specific
+   protection mechanisms are still required.  In the interim, basic
+   security issues are discussed in the base L2TP specification [1].
+
+
+
+
+
+Rawat, et al.               Standards Track                     [Page 4]
+
+RFC 3070                 L2TP over Frame Relay             February 2001
+
+
+9.0 Acknowledgments
+
+   Ken Pierce (3Com Corporation) and (Rick Dynarski 3Com Corporation)
+   contributed to the editing of this document.
+
+10.0 References
+
+   [1]  Townsley, W., Valencia, A., Rubens, A., Pall, G., Zorn, G. and
+        B. Palter "Layer Two Tunneling Protocol 'L2TP'", RFC 2661,
+        August 1999.
+
+   [2]  Bradner, S., "Key words for use in RFCs to Indicate Requirement
+        Levels", BCP 14, RFC 2119, March 1997.
+
+   [3]  Multiprotocol Encapsulation Implementation Agreement, FRF.3.1 ,
+        Frame Relay Forum Technical Committee, June 1995.
+
+   [4]  Zorn, G., Leifer, D., Rubens, A., Shriver, J., Holdrege, M. and
+        I. Goyret, "RADIUS Attributes for Tunnel Protocol Support", RFC
+        2868, June 2000.
+
+   [5]  Frame Relay Fragmentation Implementation Agreement, FRF.12,
+        Frame Relay Forum Technical Committee, December 1997.
+
+   [6]  Bradley, T., Brown, C. and A. Malis, "Multiprotocol Interconnect
+        over Frame Relay", RFC 1490, July 1993.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Rawat, et al.               Standards Track                     [Page 5]
+
+RFC 3070                 L2TP over Frame Relay             February 2001
+
+
+11.0 Authors' Addresses
+
+   Vipin Rawat
+   ONI Systems, Inc.
+   166 Baypointe Parkway
+   San Jose CA 95134
+
+   EMail: vrawat@oni.com
+
+
+   Rene Tio
+   Redback Networks, Inc.
+   300 Holger Way
+   San Jose, CA 95134
+
+   EMail: tor@redback.com
+
+
+   Rohit Verma
+   Deloitte Consulting
+   180 N. Stetson Avenue
+   Chicago Illinois 60601
+
+   EMail: rverma@dc.com
+
+
+   Suhail Nanji
+   Redback Networks, Inc.
+   300 Holger Way
+   San Jose, CA 95134
+
+   EMail: suhail@redback.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Rawat, et al.               Standards Track                     [Page 6]
+
+RFC 3070                 L2TP over Frame Relay             February 2001
+
+
+12.0  Full Copyright Statement
+
+   Copyright (C) The Internet Society (2001).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the Internet Society or other
+   Internet organizations, except as needed for the purpose of
+   developing Internet standards in which case the procedures for
+   copyrights defined in the Internet Standards process must be
+   followed, or as required to translate it into languages other than
+   English.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by the Internet Society or its successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and THE INTERNET SOCIETY AND THE INTERNET ENGINEERING
+   TASK FORCE DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Rawat, et al.               Standards Track                     [Page 7]
+

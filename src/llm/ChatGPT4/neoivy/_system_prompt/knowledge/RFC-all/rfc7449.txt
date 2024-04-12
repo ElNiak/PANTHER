@@ -1,0 +1,675 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                       Y. Lee, Ed.
+Request for Comments: 7449                                        Huawei
+Category: Informational                                G. Bernstein, Ed.
+ISSN: 2070-1721                                        Grotto Networking
+                                                           J. Martensson
+                                                                   Acreo
+                                                               T. Takeda
+                                                                     NTT
+                                                            T. Tsuritani
+                                                                    KDDI
+                                                     O. Gonzalez de Dios
+                                                              Telefonica
+                                                           February 2015
+
+
+  Path Computation Element Communication Protocol (PCEP) Requirements
+             for Wavelength Switched Optical Network (WSON)
+                   Routing and Wavelength Assignment
+
+Abstract
+
+   This memo provides application-specific requirements for the Path
+   Computation Element Communication Protocol (PCEP) for the support of
+   Wavelength Switched Optical Networks (WSONs).  Lightpath provisioning
+   in WSONs requires a Routing and Wavelength Assignment (RWA) process.
+   From a path computation perspective, wavelength assignment is the
+   process of determining which wavelength can be used on each hop of a
+   path and forms an additional routing constraint to optical light path
+   computation.  Requirements for PCEP extensions in support of optical
+   impairments will be addressed in a separate document.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Not all documents
+   approved by the IESG are a candidate for any level of Internet
+   Standard; see Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7449.
+
+
+
+
+
+Lee, et al.                   Informational                     [Page 1]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. WSON RWA Processes and Architecture .............................4
+   3. Requirements ....................................................5
+      3.1. Path Computation Type Option ...............................5
+      3.2. RWA Processing .............................................6
+      3.3. Bulk RWA Path Request/Reply ................................6
+      3.4. RWA Path Reoptimization Request/Reply ......................7
+      3.5. Wavelength Range Constraint ................................7
+      3.6. Wavelength Assignment Preference ...........................7
+      3.7. Signal-Processing Capability Restriction ...................8
+   4. Manageability Considerations ....................................8
+      4.1. Control of Function and Policy .............................8
+      4.2. Information and Data Models (e.g., MIB Module) .............9
+      4.3. Liveness Detection and Monitoring ..........................9
+      4.4. Verifying Correct Operation ................................9
+      4.5. Requirements on Other Protocols and Functional Components ..9
+      4.6. Impact on Network Operation ................................9
+   5. Security Considerations .........................................9
+   6. References .....................................................10
+      6.1. Normative References ......................................10
+      6.2. Informative References ....................................10
+   Acknowledgments....................................................11
+   Authors' Addresses.................................................11
+
+
+
+
+
+
+
+
+
+
+
+Lee, et al.                   Informational                     [Page 2]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+1.  Introduction
+
+   [RFC4655] defines the PCE-based architecture and explains how a Path
+   Computation Element (PCE) may compute Label Switched Paths (LSPs) in
+   networks controlled by Multiprotocol Label Switching Traffic
+   Engineering (MPLS-TE) and Generalized MPLS (GMPLS) at the request of
+   Path Computation Clients (PCCs).  A PCC is shown to be any network
+   component that makes such a request and may be, for instance, an
+   optical switching element within a Wavelength Division Multiplexing
+   (WDM) network.  The PCE itself can be located anywhere within the
+   network; it may be within an optical switching element, a Network
+   Management System (NMS), or an Operational Support System (OSS), or
+   it may be an independent network server.
+
+   The Path Computation Element Communication Protocol (PCEP) is the
+   communication protocol used between a PCC and PCE; it may also be
+   used between cooperating PCEs.  [RFC4657] sets out the common
+   protocol requirements for PCEP.  Additional application-specific
+   requirements for PCEP are deferred to separate documents.
+
+   This document provides a set of application-specific PCEP
+   requirements for support of path computation in Wavelength Switched
+   Optical Networks (WSONs).  WSON refers to WDM-based optical networks
+   in which switching is performed selectively based on the wavelength
+   of an optical signal.
+
+   The path in WSON is referred to as a lightpath.  A lightpath may span
+   multiple fiber links, and the path should be assigned a wavelength
+   for each link.
+
+   A transparent optical network is made up of optical devices that can
+   switch but not convert from one wavelength to another.  In a
+   transparent optical network, a lightpath operates on the same
+   wavelength across all fiber links that it traverses.  In such cases,
+   the lightpath is said to satisfy the wavelength-continuity
+   constraint.  Two lightpaths that share a common fiber link cannot be
+   assigned the same wavelength.  To do otherwise would result in both
+   signals interfering with each other.  Note that advanced additional
+   multiplexing techniques such as polarization-based multiplexing are
+   not addressed in this document since the physical-layer aspects are
+   not currently standardized.  Therefore, assigning the proper
+   wavelength on a lightpath is an essential requirement in the optical
+   path computation process.
+
+   When a switching node has the ability to perform wavelength
+   conversion, the wavelength-continuity constraint can be relaxed, and
+   a lightpath may use different wavelengths on different links along
+   its path from origin to destination.  It is, however, to be noted
+
+
+
+Lee, et al.                   Informational                     [Page 3]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   that wavelength converters may be limited for cost reasons, while the
+   number of WDM channels that can be supported in a fiber is also
+   limited.  As a WSON can be composed of network nodes that cannot
+   perform wavelength conversion, nodes with limited wavelength
+   conversion, and nodes with full wavelength conversion abilities,
+   wavelength assignment is an additional routing constraint to be
+   considered in all lightpath computations.
+
+   In this document, we first review the processes for Routing and
+   Wavelength Assignment (RWA) used when wavelength continuity
+   constraints are present and then specify requirements for PCEP to
+   support RWA.  Requirements for optical impairments will be addressed
+   in a separate document.
+
+   The remainder of this document uses terminology from [RFC4655].
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+2.  WSON RWA Processes and Architecture
+
+   In [RFC6163], three alternative process architectures were given for
+   performing routing and wavelength assignment.  These are shown
+   schematically in Figure 1, where R stands for Routing, WA for
+   Wavelength Assignment, and DWA for Distributed Wavelength Assignment.
+
+     +-------------------+
+     |  +-------+  +--+  |    +-------+    +--+     +-------+    +---+
+     |  |   R   |  |WA|  |    |   R   |--->|WA|     |   R   |--->|DWA|
+     |  +-------+  +--+  |    +-------+    +--+     +-------+    +---+
+     |   Combined        |     Separate Processes   Separate Processes
+     |   Process         |                          WA performed in a
+     +-------------------+                          distributed manner
+           (a)                       (b)                    (b')
+
+                    Figure 1: RWA Process Alternatives
+
+   These alternatives have the following properties and impact on PCEP
+   requirements in this document.
+
+   (a)  Combined Process (R&WA)
+
+        Path selection and wavelength assignment are performed as a
+        single process.  The requirements for PCC-PCE interaction with a
+        PCE implementing such a combined RWA process are addressed in
+        this document.
+
+
+
+
+Lee, et al.                   Informational                     [Page 4]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   (b)  Routing Separate from Wavelength Assignment (R+WA)
+
+        The routing process furnishes one or more potential paths to the
+        wavelength assignment process that then performs final path
+        selection and wavelength assignment.  The requirements for PCE-
+        PCE interaction with one PCE implementing the routing process
+        and another implementing the wavelength assignment process are
+        not addressed in this document.
+
+   (b') Routing and Distributed Wavelength Assignment (R+DWA)
+
+        A standard path computation (unaware of detailed wavelength
+        availability) takes place, and then wavelength assignment is
+        performed along this path in a distributed manner via signaling
+        (RSVP-TE).  This alternative is a particular case of R+WA and
+        should be covered by GMPLS PCEP extensions; it does not present
+        new WSON-specific requirements.
+
+   The various process architectures for implementing RWA have been
+   reviewed above.  Figure 2 shows one typical PCE-based implementation,
+   which is referred to as the Combined Process (R&WA).  With this
+   architecture, the two processes of routing and wavelength assignment
+   are accessed via a single PCE.  This architecture is the base
+   architecture from which the requirements are specified in this
+   document.
+
+                          +----------------------------+
+            +-----+       |     +-------+     +--+     |
+            |     |       |     |Routing|     |WA|     |
+            | PCC |<----->|     +-------+     +--+     |
+            |     |       |                            |
+            +-----+       |             PCE            |
+                          +----------------------------+
+
+              Figure 2: Combined Process (R&WA) Architecture
+
+3.  Requirements
+
+   The requirements for the PCC-to-PCE interface of Figure 2 are
+   specified in this section.
+
+3.1.  Path Computation Type Option
+
+   A PCEP request MAY include the path computation type.  This can be:
+
+   (a)  Both RWA, or
+
+   (b)  Routing only.
+
+
+
+Lee, et al.                   Informational                     [Page 5]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   This requirement is needed to differentiate between the currently
+   supported routing with distributed wavelength assignment option and
+   combined RWA.  For the distributed wavelength assignment option,
+   wavelength assignment will be performed at each node of the route.
+
+3.2.  RWA Processing
+
+   As discussed in Section 2, various RWA processing options should be
+   supported in a PCEP request/reply.
+
+   (a)  When the request is an RWA path computation type, the request
+        MUST further include the wavelength assignment options.  At
+        minimum, the following options should be supported:
+
+        (i)  Explicit Label Control (ELC) [RFC3473]
+
+        (ii) A set of recommended labels for each hop.  The PCC can
+             select the label based on local policy.
+
+        Note that option (ii) may also be used in R+WA or R+DWA.
+
+   (b)  In case of an RWA computation type, the response MUST include
+        the wavelength(s) assigned to the path and an indication of
+        which label assignment option has been applied (ELC or label
+        set).
+
+   (c)  In the case where a valid path is not found, the response MUST
+        include why the path is not found (e.g., network disconnected,
+        wavelength not found, both, etc.).  Note that 'wavelength not
+        found' may include several sub-cases such as wavelength
+        continuity not met, unsupported FEC/Modulation type, etc.
+
+3.3.  Bulk RWA Path Request/Reply
+
+   Sending simultaneous path requests for "routing only" computation is
+   supported by the PCEP specification [RFC5440].  To remain consistent,
+   the following requirements are added.
+
+   (a)  A PCEP request MUST be able to specify an option for bulk RWA
+        path requests.  A bulk path request provides an ability to
+        request a number of simultaneous RWA path requests.
+
+   (b)  The PCEP response MUST include the path and the assigned
+        wavelength for each RWA path request specified in the original
+        bulk request.
+
+
+
+
+
+
+Lee, et al.                   Informational                     [Page 6]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+3.4.  RWA Path Reoptimization Request/Reply
+
+   This section provides a number of requirements concerning RWA path
+   reoptimization processing in PCEP.
+
+   (a)  For a reoptimization request, the request MUST provide both the
+        path and current wavelength to be reoptimized and MAY include
+        the following options:
+
+       (i)   Reoptimize the path keeping the same wavelength(s)
+
+       (ii)  Reoptimize wavelength(s) keeping the same path
+
+       (iii) Reoptimize allowing both the wavelength and the path to
+             change
+
+   (b)  The corresponding response to the reoptimized request MUST
+        provide the reoptimized path and wavelengths even when the
+        request asked for the path or the wavelength to remain
+        unchanged.
+
+   (c)  In the case that the new path is not found, the response MUST
+        include why the path is not found (e.g., network disconnected,
+        wavelength not found, both, etc.).  Note that 'wavelength not
+        found' may include several sub-cases such as wavelength
+        continuity not met, unsupported FEC/Modulation type, etc.
+
+3.5.  Wavelength Range Constraint
+
+   For any RWA computation type request, the requester (PCC) MUST be
+   allowed to specify a restriction on the wavelengths to be used.  The
+   requester MAY use this option to restrict the assigned wavelength for
+   explicit labels or label sets.  This restriction may, for example,
+   come from the tuning ability of a laser transmitter, any optical
+   element, or a policy-based restriction.
+
+   Note that the requester (e.g., PCC) is not required to furnish any
+   range restrictions.
+
+3.6.  Wavelength Assignment Preference
+
+   In a network with wavelength conversion capabilities (e.g., sparse 3R
+   regenerators), a request SHOULD be able to indicate whether a single,
+   continuous wavelength should be allocated or not.  In other words,
+   the requesting PCC SHOULD be able to specify the precedence of
+   wavelength continuity even if wavelength conversion is available.
+
+
+
+
+
+Lee, et al.                   Informational                     [Page 7]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   (a)  An RWA computation type request MAY include the requester
+        preference for random assignment, descending order, ascending
+        order, etc.  A response SHOULD follow the requester preference
+        unless it conflicts with the operator's policy.
+
+   (b)  A request for two or more paths MUST allow the requester to
+        include an option constraining the paths to have the same
+        wavelength(s) assigned.  This is useful in the case of
+        protection with a single transponder (e.g., 1+1 link disjoint
+        paths).
+
+3.7.  Signal-Processing Capability Restriction
+
+   Signal-processing compatibility is an important constraint for
+   optical path computation.  The signal type for an end-to-end optical
+   path must match at the source and at the destination.
+
+   The PCC MUST be allowed to specify the signal type at the endpoints
+   (i.e., at the source and at the destination).  The following signal-
+   processing capabilities should be supported at a minimum:
+
+   o  Modulation Type List
+
+   o  FEC Type List
+
+   The PCC MUST also be allowed to state whether transit modification is
+   acceptable for the above signal-processing capabilities.
+
+4.  Manageability Considerations
+
+   Manageability of WSON RWA with PCE must address the following
+   considerations.
+
+4.1.  Control of Function and Policy
+
+   In addition to the parameters already listed in Section 8.1 of
+   [RFC5440], a PCEP implementation SHOULD allow configuring the
+   following PCEP session parameters on a PCC:
+
+   o  The ability to send a WSON RWA request.
+
+   In addition to the parameters already listed in Section 8.1 of
+   [RFC5440], a PCEP implementation SHOULD allow configuring the
+   following PCEP session parameters on a PCE:
+
+
+
+
+
+
+
+Lee, et al.                   Informational                     [Page 8]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   o  The support for WSON RWA.
+
+   o  The maximum number of bulk path requests associated with WSON RWA
+      per request message.
+
+   These parameters may be configured as default parameters for any PCEP
+   session the PCEP speaker participates in, or may apply to a specific
+   session with a given PCEP peer or a specific group of sessions with a
+   specific group of PCEP peers.
+
+4.2.  Information and Data Models
+
+   As this document only concerns the requirements to support WSON RWA,
+   no additional MIB module is defined in this document.  However, the
+   corresponding solution document will list the information that should
+   be added to the PCE MIB module defined in [RFC7420].
+
+4.3.  Liveness Detection and Monitoring
+
+   This document does not define any new mechanisms that imply any new
+   liveness detection and monitoring requirements in addition to those
+   already listed in Section 8.3 of [RFC5440].
+
+4.4.  Verifying Correct Operation
+
+   This document does not define any new mechanisms that imply any new
+   verification requirements in addition to those already listed in
+   Section 8.4 of [RFC5440]
+
+4.5.  Requirements on Other Protocols and Functional Components
+
+   If PCE discovery mechanisms ([RFC5089] and [RFC5088]) were to be
+   extended for technology-specific capabilities, advertising WSON RWA
+   path computation capability should be considered.
+
+4.6.  Impact on Network Operation
+
+   This document does not define any new mechanisms that imply any new
+   network operation requirements in addition to those already listed in
+   Section 8.6 of [RFC5440].
+
+5.  Security Considerations
+
+   This document has no requirement for a change to the security models
+   within PCEP [RFC5440].  However, the additional information
+   distributed in order to address the RWA problem represents a
+   disclosure of network capabilities that an operator may wish to keep
+   private.  Consideration should be given to securing this information.
+
+
+
+Lee, et al.                   Informational                     [Page 9]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   Solutions that address the requirements in this document need to
+   verify that existing PCEP security mechanisms adequately protect the
+   additional network capabilities and must include new mechanisms as
+   necessary.
+
+6.  References
+
+6.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997,
+              <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC4655]  Farrel, A., Vasseur, J.-P., and J. Ash, "A Path
+              Computation Element (PCE)-Based Architecture", RFC 4655,
+              August 2006, <http://www.rfc-editor.org/info/rfc4655>.
+
+   [RFC5440]  Vasseur, JP., Ed., and JL. Le Roux, Ed., "Path Computation
+              Element (PCE) Communication Protocol (PCEP)", RFC 5440,
+              March 2009, <http://www.rfc-editor.org/info/rfc5440>.
+
+6.2.  Informative References
+
+   [RFC3473]  Berger, L., Ed., "Generalized Multi-Protocol Label
+              Switching (GMPLS) Signaling Resource ReserVation Protocol-
+              Traffic Engineering (RSVP-TE) Extensions", RFC 3473,
+              January 2003, <http://www.rfc-editor.org/info/rfc3473>.
+
+   [RFC4657]  Ash, J., Ed., and J. Le Roux, Ed., "Path Computation
+              Element (PCE) Communication Protocol Generic
+              Requirements", RFC 4657, September 2006,
+              <http://www.rfc-editor.org/info/rfc4657>.
+
+   [RFC5088]  Le Roux, JL., Ed., Vasseur, JP., Ed., Ikejiri, Y., and R.
+              Zhang, "OSPF Protocol Extensions for Path Computation
+              Element (PCE) Discovery", RFC 5088, January 2008,
+              <http://www.rfc-editor.org/info/rfc5088>.
+
+   [RFC5089]  Le Roux, JL., Ed., Vasseur, JP., Ed., Ikejiri, Y., and R.
+              Zhang, "IS-IS Protocol Extensions for Path Computation
+              Element (PCE) Discovery", RFC 5089, January 2008,
+              <http://www.rfc-editor.org/info/rfc5089>.
+
+   [RFC6163]  Lee, Y., Ed., Bernstein, G., Ed., and W. Imajuku,
+              "Framework for GMPLS and Path Computation Element (PCE)
+              Control of Wavelength Switched Optical Networks (WSONs)",
+              RFC 6163, April 2011,
+              <http://www.rfc-editor.org/info/rfc6163>.
+
+
+
+Lee, et al.                   Informational                    [Page 10]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   [RFC7420]  Koushik, A., Stephan, E., Zhao, Q., King, D., and J.
+              Hardwick, "Path Computation Element Communication Protocol
+              (PCEP) Management Information Base (MIB) Module", RFC
+              7420, December 2014,
+              <http://www.rfc-editor.org/info/rfc7420>.
+
+Acknowledgments
+
+   The authors would like to thank Adrian Farrel, Cycil Margaria, and
+   Ramon Casellas for many helpful comments that greatly improved the
+   content of this document.
+
+Authors' Addresses
+
+   Young Lee (editor)
+   Huawei Technologies
+   5340 Legacy Drive, Building 3
+   Plano, TX 75245
+   United States
+
+   Phone: (469) 277-5838
+   EMail: leeyoung@huawei.com
+
+
+   Greg Bernstein (editor)
+   Grotto Networking
+   Fremont, CA
+   United States
+
+   Phone: (510) 573-2237
+   EMail: gregb@grotto-networking.com
+
+
+   Jonas Martensson
+   Acreo
+   Isafjordsgatan 22
+   164 40 Kista
+   Sweden
+
+   EMail: Jonas.Martensson@acreo.se
+
+
+
+
+
+
+
+
+
+
+
+Lee, et al.                   Informational                    [Page 11]
+
+RFC 7449             PCEP Requirements for WSON RWA        February 2015
+
+
+   Tomonori Takeda
+   NTT Corporation
+   3-9-11, Midori-Cho
+   Musashino-Shi, Tokyo 180-8585
+   Japan
+
+   EMail: tomonori.takeda@ntt.com
+
+
+   Takehiro Tsuritani
+   KDDI R&D Laboratories, Inc.
+   2-1-15 Ohara Kamifukuoka Saitama, 356-8502
+   Japan
+
+   Phone: +81-49-278-7806
+   EMail: tsuri@kddilabs.jp
+
+
+   Oscar Gonzalez de Dios
+   Telefonica
+   Distrito Telefonica, ed. Sur 3, Pta 3, Ronda de la Comunicacion
+   Madrid, 28050
+   Spain
+
+   Phone: +34 913129647
+   EMail: oscar.gonzalezdedios@telefonica.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Lee, et al.                   Informational                    [Page 12]
+

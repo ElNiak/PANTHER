@@ -1,0 +1,1123 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                       K. Fujiwara
+Request for Comments: 6857                                          JPRS
+Category: Standards Track                                     March 2013
+ISSN: 2070-1721
+
+
+ Post-Delivery Message Downgrading for Internationalized Email Messages
+
+Abstract
+
+   The Email Address Internationalization (SMTPUTF8) extension to SMTP
+   allows Unicode characters encoded in UTF-8 and outside the ASCII
+   repertoire in mail header fields.  Upgraded POP and IMAP servers
+   support internationalized messages.  If a POP or IMAP client does not
+   support Email Address Internationalization, a POP or IMAP server
+   cannot deliver internationalized messages to the client and cannot
+   remove the message.  To avoid that situation, this document describes
+   a mechanism for converting internationalized messages into the
+   traditional message format.  As part of the conversion process,
+   message elements that require internationalized treatment are recoded
+   or removed, and receivers are able to recognize that they received
+   messages containing such elements, even if they cannot process the
+   internationalized elements.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6857.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                    [Page 1]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+Copyright Notice
+
+   Copyright (c) 2013 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                    [Page 2]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+Table of Contents
+
+   1.  Introduction . . . . . . . . . . . . . . . . . . . . . . . . .  4
+     1.1.  Problem Statement  . . . . . . . . . . . . . . . . . . . .  4
+     1.2.  Possible Solutions . . . . . . . . . . . . . . . . . . . .  4
+     1.3.  Approach Taken in This Specification . . . . . . . . . . .  5
+   2.  Terminology  . . . . . . . . . . . . . . . . . . . . . . . . .  6
+   3.  Email Message Header Field Downgrading . . . . . . . . . . . .  7
+     3.1.  Downgrading Method for Each ABNF Element . . . . . . . . .  7
+       3.1.1.  Unstructured Downgrading . . . . . . . . . . . . . . .  7
+       3.1.2.  Word Downgrading . . . . . . . . . . . . . . . . . . .  7
+       3.1.3.  Comment Downgrading  . . . . . . . . . . . . . . . . .  7
+       3.1.4.  MIME-Value Downgrading . . . . . . . . . . . . . . . .  7
+       3.1.5.  Display-Name Downgrading . . . . . . . . . . . . . . .  7
+       3.1.6.  Domain Downgrading . . . . . . . . . . . . . . . . . .  8
+       3.1.7.  Group Downgrading  . . . . . . . . . . . . . . . . . .  8
+       3.1.8.  Mailbox Downgrading  . . . . . . . . . . . . . . . . .  8
+       3.1.9.  Type-Addr Downgrading  . . . . . . . . . . . . . . . .  9
+       3.1.10. Encapsulation: A Last Resort . . . . . . . . . . . . .  9
+     3.2.  Downgrading Method for Each Header Field . . . . . . . . . 10
+       3.2.1.  Address Header Fields That Contain <address>
+               Elements . . . . . . . . . . . . . . . . . . . . . . . 10
+       3.2.2.  Non-ASCII Strings in <comment> Elements  . . . . . . . 11
+       3.2.3.  Message-ID Header Fields . . . . . . . . . . . . . . . 11
+       3.2.4.  Received Header Field  . . . . . . . . . . . . . . . . 11
+       3.2.5.  MIME Content Header Fields . . . . . . . . . . . . . . 12
+       3.2.6.  Non-ASCII Characters in <unstructured> Elements  . . . 12
+       3.2.7.  Non-ASCII Characters in <phrase> Elements  . . . . . . 12
+       3.2.8.  Other Header Fields  . . . . . . . . . . . . . . . . . 12
+   4.  MIME Body Parts and Delivery Status Notifications  . . . . . . 12
+     4.1.  MIME Body Part Header Field Downgrading  . . . . . . . . . 13
+     4.2.  Delivery Status Notification Downgrading . . . . . . . . . 13
+   5.  Security Considerations  . . . . . . . . . . . . . . . . . . . 13
+   6.  Implementation Note: Encoded-Word Encoding . . . . . . . . . . 14
+   7.  IANA Considerations  . . . . . . . . . . . . . . . . . . . . . 15
+     7.1.  Obsolescence of Existing Downgraded-* Header Fields  . . . 15
+     7.2.  Registration of New Downgraded-* Header Fields . . . . . . 15
+   8.  Acknowledgements . . . . . . . . . . . . . . . . . . . . . . . 16
+   9.  References . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+     9.1.  Normative References . . . . . . . . . . . . . . . . . . . 16
+     9.2.  Informative References . . . . . . . . . . . . . . . . . . 18
+   Appendix A.  Downgrading Example . . . . . . . . . . . . . . . . . 19
+
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                    [Page 3]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+1.  Introduction
+
+1.1.  Problem Statement
+
+   Traditional (legacy) mail systems, which are defined by the Internet
+   Message Format [RFC5322] and other specifications, allow only ASCII
+   characters in mail header field values.  The SMTPUTF8 extension
+   [RFC6530] [RFC6531] [RFC6532] allows Unicode characters encoded in
+   UTF-8 [RFC3629] in these mail header fields.  "Raw non-ASCII strings"
+   refers to strings of those characters in which at least one of them
+   is not part of the ASCII repertoire.
+
+   If a header field contains non-ASCII strings, a POP or IMAP server
+   cannot deliver internationalized messages to legacy clients that do
+   not send UTF8 commands or have UTF8 capability.  Also, because they
+   have no obvious or standardized way to explain what is going on to
+   clients, a POP or IMAP server cannot even safely discard the message.
+
+1.2.  Possible Solutions
+
+   There are four plausible approaches to the problem.  The preferred
+   approach depends on the particular circumstances and relationship
+   among the delivery SMTP server, the mail store, the POP or IMAP
+   server, and the users and their Mail User Agent (MUA) clients.  The
+   four approaches are as follows:
+
+   1.  If the delivery Mail Transport Agent (MTA) has sufficient
+       knowledge about the POP or IMAP server and the clients being
+       used, the message may be rejected as undeliverable.
+
+   2.  A new, surrogate, message may be created by downgrading the
+       original one in the POP or IMAP server in a way that preserves
+       maximum information at the expense of some complexity and that
+       does not create security or operational problems in the mail
+       system.  These surrogate messages are referred to as "downgraded"
+       in this specification and as "surrogate messages" elsewhere.
+
+   3.  Some intermediate downgrading may be applied that balances
+       additional information loss against lower complexity and greater
+       ease of implementation.
+
+   4.  The POP or IMAP server may fabricate a message that is intended
+       to notify the client that an internationalized message is waiting
+       but cannot be delivered until an upgraded client is available.
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                    [Page 4]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+1.3.  Approach Taken in This Specification
+
+   This specification describes the second of these options.  It is
+   worth noting that, at least in the general case, none of these
+   options preserves sufficient information to guarantee that it is
+   possible to reply to an incoming message without loss of information,
+   so the choice may be considered one of the available "least bad"
+   options.  While this document specifies a well-designed mechanism, it
+   is only an interim solution while clients are being upgraded
+   [RFC6855] [RFC6856].
+
+   This message downgrading mechanism converts mail header fields to an
+   all-ASCII representation.  The POP or IMAP server can use the
+   downgrading mechanism and then deliver the internationalized message
+   in a traditional form, which allows receivers to know whether a
+   message is internationalized or unknown or broken.
+
+   The Internationalized Mail Header specification [RFC6532] allows
+   UTF-8 characters (see Section 2) to be used in mail header fields and
+   MIME header fields.  The Internationalized Mail Transport
+   specification [RFC6531] allows UTF-8 characters to be used in some
+   trace header fields.  The message downgrading mechanism specified
+   here describes the method by which internationalized messages
+   [RFC6530] [RFC6532] are converted to traditional email messages
+   [RFC5322].
+
+   This document provides a precise definition of the minimum-
+   information-loss message downgrading process.
+
+   Downgrading consists of the following two parts:
+
+   o  Email header field downgrading
+
+   o  MIME header field downgrading
+
+   Email header field downgrading is described in Section 3.  It
+   generates ASCII-only header fields.
+
+   Header fields starting with Downgraded- are introduced in
+   Section 3.1.10.  They preserve the information that appeared in the
+   original header fields.
+
+   The definition of MIME header fields in internationalized messages is
+   described in RFC 6532.  A delivery status notification may contain
+   non-ASCII addresses.  MIME header field downgrading is described in
+   Section 4.1.  Delivery status notification downgrading is described
+   in Section 4.2.  It generates ASCII-only MIME header fields.
+
+
+
+
+Fujiwara                     Standards Track                    [Page 5]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   Displaying downgraded messages that originally contained
+   internationalized header fields is out of scope of this document.  A
+   POP or IMAP client that does not support UTF8 extensions as defined
+   for POP3 "UTF8 command" and IMAP "ENABLE UTF8=ACCEPT command" does
+   not recognize the internationalized message format [RFC6532].
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+   Many of the specialized terms used in this specification are defined
+   in other documents.  They include "Overview and Framework for
+   Internationalized Email" [RFC6530], the Internet Message Format
+   specification [RFC5322], and some of the basic MIME documents
+   [RFC2045] [RFC2183].  This specification makes extensive use of the
+   MIME Message Header Extensions [RFC2047] and extended MIME parameter
+   encodings [RFC2231].  For convenience, both are described as
+   "encoded-words" or "encoded-word encoding".  All of the encoded-words
+   generated according to this specification use UTF-8 as their charset.
+
+   The terms "U-label", "A-label", and "IDNA" are used as defined in the
+   IDNA Definitions document [RFC5890].  The terms "ASCII address",
+   "non-ASCII address", "SMTPUTF8", "message", and "internationalized
+   message" are used as defined RFC 6530.  The term "non-ASCII string"
+   is used with the definition provided in the Internationalized Email
+   Headers document [RFC6532].  The term "UTF-8 character" is used
+   informally in this document to denote a Unicode character, encoded in
+   UTF-8, outside the ASCII repertoire.  Such characters are more
+   formally described using the ABNF element <UTF8-non-ascii>, defined
+   in RFC 6532.
+
+   This document refers to the Augmented Backus-Naur Form (ABNF)
+   [RFC5234] elements that appear in RFC 5322 and RFC 2045.  RFC 5322
+   describes the ABNF elements <CFWS>, <comment>, <display-name>,
+   <group>, <id-left>, <id-right>, <mailbox>, <quoted-string>,
+   <unstructured>, and <word>.  RFC 2045 describes the ABNF element
+   <value>.  Section 3.3 of the Internationalized Mail Transport
+   specification [RFC6531] and Section 3.2 of the Internationalized
+   Email Headers document [RFC6532] updated <domain> to allow non-ASCII
+   characters.
+
+   Some additional terms are defined locally in-line below.
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                    [Page 6]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+3.  Email Message Header Field Downgrading
+
+   This section defines the method for converting each header field that
+   may contain non-ASCII strings into ASCII.  Section 3.1 describes the
+   methods for rewriting each ABNF element.  Section 3.2 describes the
+   methods for rewriting each header field.
+
+3.1.  Downgrading Method for Each ABNF Element
+
+   Header field downgrading is defined below for each ABNF element.
+   Conversion of the header field terminates when no characters other
+   than those in the ASCII repertoire remain in the header field.
+
+3.1.1.  Unstructured Downgrading
+
+   If the header field has an <unstructured> field that contains
+   non-ASCII strings, apply encoded-word encoding.
+
+3.1.2.  Word Downgrading
+
+   If the header field has any <word> fields that contain non-ASCII
+   strings, apply encoded-word encoding.
+
+3.1.3.  Comment Downgrading
+
+   If the header field has any <comment> fields that contain non-ASCII
+   strings, apply encoded-word encoding.
+
+3.1.4.  MIME-Value Downgrading
+
+   If the header field has any <value> elements [RFC2045] that contain
+   non-ASCII strings, remove any <CFWS> that appear outside DQUOTE
+   [RFC5234] that appear in those elements, then encode the <value>
+   elements as extended MIME parameter encodings [RFC2231] and leave the
+   language information empty.
+
+3.1.5.  Display-Name Downgrading
+
+   If the header field has any <address> (<mailbox> or <group>)
+   elements, and they have <display-name> elements that contain
+   non-ASCII strings, encode the <display-name> elements as encoded-
+   words.  Display-Name downgrading uses the same algorithm as Word
+   downgrading.
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                    [Page 7]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+3.1.6.  Domain Downgrading
+
+   If the header field has any <domain> elements that contain U-labels,
+   rewrite the non-ASCII domain name into an ASCII domain name using
+   A-labels [RFC5891].
+
+3.1.7.  Group Downgrading
+
+   <group> is defined in Section 3.4 of the Internet Message Format
+   specification [RFC5322].  The <group> element may contain <mailbox>
+   elements that contain non-ASCII addresses.
+
+   If a <group> element contains <mailbox> elements and one of those
+   <mailbox> elements contains a non-ASCII <local-part>, rewrite the
+   <group> element as
+
+   display-name " " ENCODED_WORD " :;"
+
+   where the <ENCODED_WORD> is the original <group-list> encoded as
+   encoded-words.
+
+   Otherwise, the <group> element contains an ASCII-only <local-part>.
+   If the <group> element contains non-ASCII <mailbox> elements, they
+   contain non-ASCII domain names.  Rewrite the non-ASCII domain names
+   into ASCII domain names using A-labels [RFC5891].  Generated
+   <mailbox> elements contain ASCII addresses only.
+
+3.1.8.  Mailbox Downgrading
+
+   If the <local-part> of the <mailbox> element contains no characters
+   other than those in the ASCII repertoire, the <domain> element may
+   contain non-ASCII characters.  Rewrite the non-ASCII domain names
+   into ASCII domain names using A-labels [RFC5891].
+
+   Otherwise, the <local-part> may contain non-ASCII characters.  The
+   <local-part> that contains characters outside the ASCII repertoire
+   has no equivalent format for ASCII addresses.  The <addr-spec>
+   element that contains non-ASCII strings may appear in two forms as:
+
+   "<" addr-spec ">"
+
+   or
+
+   addr-spec
+
+   Rewrite both as:
+
+   ENCODED-WORD " :;"
+
+
+
+Fujiwara                     Standards Track                    [Page 8]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   where the <ENCODED-WORD> is the original <addr-spec> encoded as
+   encoded-words.
+
+3.1.9.  Type-Addr Downgrading
+
+   If the header field contains <utf-8-type-addr> and the
+   <utf-8-type-addr> contains raw non-ASCII strings (<UTF8-non-ascii>),
+   it is in utf-8-address form [RFC6533].  Convert it to
+   utf-8-addr-xtext form [RFC6533].  Comment downgrading is also
+   performed in this case.  If the address type is unrecognized and the
+   header field contains non-ASCII strings, then fall back to using
+   Encapsulation on the entire header field as specified in
+   Section 3.1.10.
+
+3.1.10.  Encapsulation: A Last Resort
+
+   As a last resort, when header fields cannot be converted as discussed
+   in the previous subsection, the fields are deleted and replaced by
+   specialized new header fields.  Those fields are defined to preserve,
+   in encoded form, as much information as possible from the header
+   field values of the incoming message.  This mechanism is known as
+   Encapsulation downgrading in this specification because it preserves
+   the original information in a different form.  The syntax of these
+   new header fields is:
+
+   fields                   =/ downgraded
+
+   downgraded =  "Downgraded-Message-Id:"         unstructured CRLF /
+                 "Downgraded-Resent-Message-Id:"  unstructured CRLF /
+                 "Downgraded-In-Reply-To:"        unstructured CRLF /
+                 "Downgraded-References:"         unstructured CRLF /
+                 "Downgraded-Original-Recipient:" unstructured CRLF /
+                 "Downgraded-Final-Recipient:"    unstructured CRLF
+
+   Applying this procedure to the "Received:" header field is
+   prohibited.  Encapsulation downgrading is allowed for "Message-ID:",
+   "In-Reply-To:", "References:", "Original-Recipient:", and
+   "Final-Recipient:" header fields.
+
+   To preserve a header field in a Downgraded- header field:
+
+   1.  Generate a new header field.
+
+       *  The field name is a concatenation of Downgraded- and the
+          original field name.
+
+       *  The initial new field value is the original header field
+          value.
+
+
+
+Fujiwara                     Standards Track                    [Page 9]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   2.  Treat the initial new header field value as if it were
+       unstructured, and then apply the encoded-word encoding as
+       necessary so that the resulting new header field value is
+       completely in ASCII.
+
+   3.  Remove the original header field.
+
+3.2.  Downgrading Method for Each Header Field
+
+   The Mail and MIME Header Fields document [RFC4021] establishes a
+   registry of header fields.  This section describes the downgrading
+   method for each header field listed in that registry as of the date
+   of publication of this specification.
+
+   If the entire mail header field contains no characters other than
+   those in the ASCII repertoire, email header field downgrading is not
+   required.  Each header field's downgrading method is described below.
+
+3.2.1.  Address Header Fields That Contain <address> Elements
+
+   From:
+   Sender:
+   To:
+   Cc:
+   Bcc:
+   Reply-To:
+   Resent-From:
+   Resent-Sender:
+   Resent-To:
+   Resent-Cc:
+   Resent-Bcc:
+   Resent-Reply-To:
+   Return-Path:
+   Disposition-Notification-To:
+
+   If the header field contains non-ASCII characters, first perform
+   Comment downgrading and Display-Name downgrading as described in the
+   corresponding subsections of Section 3.1.  If the header field still
+   contains non-ASCII characters, complete the following two steps:
+
+   1.  If the header field contains <group> elements that contain
+       non-ASCII addresses, perform Group downgrading on those elements.
+
+   2.  If the header field contains <mailbox> elements that contain
+       non-ASCII addresses, perform Mailbox downgrading on those
+       elements.
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 10]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   This procedure may generate empty <group> elements in the "From:" and
+   "Sender:" header fields.  The Group Syntax document [RFC6854] updates
+   the Internet Message Format specification [RFC5322] to allow (empty)
+   <group> elements in the "From:" and "Sender:" header fields.
+
+3.2.2.  Non-ASCII Strings in <comment> Elements
+
+   Date:
+   Resent-Date:
+   MIME-Version:
+   Content-ID:
+   Content-Transfer-Encoding:
+   Content-Language:
+   Accept-Language:
+   Auto-Submitted:
+
+   Except in comments, these header fields do not contain characters
+   other than those in the ASCII repertoire.  If the header field
+   contains UTF-8 characters in comments, perform Comment downgrading.
+
+3.2.3.  Message-ID Header Fields
+
+   Message-ID:
+   Resent-Message-ID:
+   In-Reply-To:
+   References:
+
+   If there are non-ASCII strings in <id-left> or <id-right> elements,
+   perform Encapsulation.  Otherwise, the header field contains UTF-8
+   characters in comments and Comment downgrading should be performed.
+
+3.2.4.  Received Header Field
+
+   Received:
+
+   If <domain> elements or <mailbox> elements contain U-labels, perform
+   Domain downgrading as specified in Section 3.1.6.  Comments may
+   contain non-ASCII strings; if so, perform Comment downgrading.
+
+   After the Domain downgrading and the Comment downgrading, if the
+   "FOR" clause contains a non-ASCII <local-part>, remove the FOR
+   clause.  If the "ID" clause contains a non-ASCII value, remove the ID
+   clause.
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 11]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+3.2.5.  MIME Content Header Fields
+
+   Content-Type:
+   Content-Disposition:
+
+   If there are non-ASCII strings in <value> or <CFWS> elements, perform
+   MIME-Value and Comment downgrading.
+
+3.2.6.  Non-ASCII Characters in <unstructured> Elements
+
+   Subject:
+   Comments:
+   Content-Description:
+
+   If non-ASCII strings are present in <unstructured> elements, perform
+   Unstructured downgrading.
+
+3.2.7.  Non-ASCII Characters in <phrase> Elements
+
+   Keywords:
+
+   If non-ASCII strings are present in <phrase> elements, perform Word
+   downgrading.
+
+3.2.8.  Other Header Fields
+
+   Other header fields that are not covered in this document (such as
+   implementation-specific or user-defined fields) might also contain
+   non-ASCII strings.  Any header field that does not have a conversion
+   method defined above will be in this category and treated as follows.
+
+   If there are non-ASCII strings present in the header fields, perform
+   Unstructured downgrading.
+
+   If the software understands the header field's structure and a
+   downgrading algorithm other than Unstructured is applicable, that
+   software SHOULD use that algorithm; Unstructured downgrading is used
+   when there is no other option.
+
+   Mailing list header fields (those that start in "List-") are part of
+   this category.
+
+4.  MIME Body Parts and Delivery Status Notifications
+
+   Both the MIME body part header fields [RFC2045] [RFC6532] and the
+   contents of a delivery status notification [RFC6533] may contain
+   non-ASCII characters.
+
+
+
+
+Fujiwara                     Standards Track                   [Page 12]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+4.1.  MIME Body Part Header Field Downgrading
+
+   RFC 6532 specifies an extension that permits MIME header fields,
+   including body part header fields, to contain non-ASCII strings.
+   This section defines the conversion method to ASCII-only header
+   fields for each MIME header field that contains non-ASCII strings.
+   Parse the message body's MIME structure at all levels and check each
+   MIME header field to see whether it contains non-ASCII strings.  If
+   the header field contains non-ASCII strings in the header field
+   value, the header field is a target of the MIME body part header
+   field's downgrading.  The downgrading methods used for the MIME body
+   part header fields Content-ID, Content-Type, Content-Disposition, and
+   Content-Description are the same as those used for the header fields
+   of the same name described in Section 3.2
+
+4.2.  Delivery Status Notification Downgrading
+
+   If the message contains a delivery status notification (see Section 6
+   of the SMTP DSN Extension [RFC3461]), perform the following tests and
+   conversions.
+
+   If there are "Original-Recipient:" and "Final-Recipient:" header
+   fields, and the header fields contain non-ASCII strings, perform
+   Type-Addr downgrading.
+
+5.  Security Considerations
+
+   The purpose of post-delivery message downgrading is to allow POP and
+   IMAP servers to deliver internationalized messages to traditional POP
+   and IMAP clients and to permit the clients to display those messages.
+   Users that receive such messages can know that they were
+   internationalized.  It does not permit receivers to read the messages
+   in their original form and, in general, will not permit generating
+   replies, at least without significant user intervention.
+
+   After downgrading as specified in this document, the header fields of
+   a message will contain ASCII characters only, some of them in
+   encoded-word form.  Nothing in this document or other SMTPUTF8
+   specifications [RFC6530] [RFC6531] alters the basic properties of
+   MIME that allow characters outside the ASCII repertoire in encodings
+   as specified for them.  Thus, this document inherits the security
+   considerations associated with MIME-encoded header fields as
+   specified in RFC 2047 [RFC2047] and with UTF-8 itself as specified in
+   RFC 3629 [RFC3629].
+
+   Rewriting header fields increases the opportunities for undetected
+   spoofing by malicious senders.  However, the rewritten header field
+   values are preserved in equivalent MIME form or in newly defined
+
+
+
+Fujiwara                     Standards Track                   [Page 13]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   header fields for which traditional MUAs have no special processing
+   procedures.
+
+   The techniques described here may invalidate methods that depend on
+   digital signatures over any part of the message, which includes the
+   top-level header fields and body part header fields.  Depending on
+   the specific message being downgraded, at least the following
+   techniques are likely to break: DomainKeys Identified Mail (DKIM) and
+   possibly S/MIME and Pretty Good Privacy (PGP).  The downgrade
+   mechanism SHOULD NOT remove signatures even if the signatures will
+   fail validation after downgrading.  As much of the information as
+   possible from the original message SHOULD be preserved.  In addition,
+   MUAs may be able to use the presence of an Authentication-Results
+   header field [RFC5451] to assess whether the digital signatures were
+   valid before the header fields were downgraded.
+
+   While information in any email header field should usually be treated
+   with some suspicion, current email systems commonly employ various
+   mechanisms and protocols to make the information more trustworthy.
+   Information in the new Downgraded-* header fields is not inspected by
+   traditional MUAs and may be even less trustworthy than the
+   traditional header fields.  Note that the Downgraded-* header fields
+   could have been inserted with malicious intent (and with content
+   unrelated to the traditional header fields); however, traditional
+   MUAs do not evaluate Downgraded-* header fields.
+
+   See the Security Considerations sections in the Group Syntax document
+   [RFC6854] and the Internationalized Email Framework [RFC6530] for
+   more discussion.
+
+6.  Implementation Note: Encoded-Word Encoding
+
+   While the specification of encoded-words includes specific rules for
+   dealing with whitespace in adjacent encoded words [RFC2047], there
+   are a number of deployed implementations that fail to implement the
+   algorithm correctly.  As a result, whitespace behavior is somewhat
+   unpredictable, in practice, when multiple encoded words are used.
+
+   While RFC 5322 states that implementations SHOULD limit lines to 78
+   characters or less, implementations MAY choose to allow overly long
+   encoded words to work around faulty implementations of encoded-words.
+   Implementations that choose to do so SHOULD have an optional
+   mechanism to limit line length to 78 characters.
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 14]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+7.  IANA Considerations
+
+   The experimental specification from which this document was partially
+   derived [RFC5504] specifies that no new header fields beginning with
+   Downgraded- are to be registered.  That restriction is now lifted,
+   and this document makes a new set of registrations, replacing the
+   experimental fields with standard ones.
+
+7.1.  Obsolescence of Existing Downgraded-* Header Fields
+
+   The Downgraded-* header fields that were registered as experimental
+   fields in RFC 5504 are no longer in use.  IANA has changed the status
+   from "experimental" to "obsoleted" for every name in the "Permanent
+   Message Header Field Names" registry that began with Downgraded-.
+
+7.2.  Registration of New Downgraded-* Header Fields
+
+   The following header fields have been registered in the "Permanent
+   Message Header Field Names" registry, in accordance with the
+   procedures set out in the Header Field Registration document
+   [RFC3864].
+
+   Header field name:  Downgraded-Message-Id
+   Applicable protocol:  mail
+   Status:  standard
+   Author/change controller:  IETF
+   Specification document(s):  This document (Section 3.1.10)
+
+   Header field name:  Downgraded-In-Reply-To
+   Applicable protocol:  mail
+   Status:  standard
+   Author/change controller:  IETF
+   Specification document(s):  This document (Section 3.1.10)
+
+   Header field name:  Downgraded-References
+   Applicable protocol:  mail
+   Status:  standard
+   Author/change controller:  IETF
+   Specification document(s):  This document (Section 3.1.10)
+
+   Header field name:  Downgraded-Original-Recipient
+   Applicable protocol:  mail
+   Status:  standard
+   Author/change controller:  IETF
+   Specification document(s):  This document (Section 3.1.10)
+
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 15]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   Header field name:  Downgraded-Final-Recipient
+   Applicable protocol:  mail
+   Status:  standard
+   Author/change controller:  IETF
+   Specification document(s):  This document (Section 3.1.10)
+
+8.  Acknowledgements
+
+   This document draws heavily from the experimental in-transit message
+   downgrading procedure described RFC 5504.  The contributions of the
+   coauthor of that earlier document, Y. Yoneya, are gratefully
+   acknowledged.  Significant comments and suggestions were received
+   from John Klensin, Barry Leiba, Randall Gellens, Pete Resnick, Martin
+   J. Durst, and other WG participants.
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC2045]  Freed, N. and N. Borenstein, "Multipurpose Internet Mail
+              Extensions (MIME) Part One: Format of Internet Message
+              Bodies", RFC 2045, November 1996.
+
+   [RFC2047]  Moore, K., "MIME (Multipurpose Internet Mail Extensions)
+              Part Three: Message Header Extensions for Non-ASCII Text",
+              RFC 2047, November 1996.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC2183]  Troost, R., Dorner, S., and K. Moore, "Communicating
+              Presentation Information in Internet Messages: The
+              Content-Disposition Header Field", RFC 2183, August 1997.
+
+   [RFC2231]  Freed, N. and K. Moore, "MIME Parameter Value and Encoded
+              Word Extensions:
+              Character Sets, Languages, and Continuations", RFC 2231,
+              November 1997.
+
+   [RFC3461]  Moore, K., "Simple Mail Transfer Protocol (SMTP) Service
+              Extension for Delivery Status Notifications (DSNs)",
+              RFC 3461, January 2003.
+
+   [RFC3629]  Yergeau, F., "UTF-8, a transformation format of ISO
+              10646", STD 63, RFC 3629, November 2003.
+
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 16]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   [RFC3864]  Klyne, G., Nottingham, M., and J. Mogul, "Registration
+              Procedures for Message Header Fields", BCP 90, RFC 3864,
+              September 2004.
+
+   [RFC4021]  Klyne, G. and J. Palme, "Registration of Mail and MIME
+              Header Fields", RFC 4021, March 2005.
+
+   [RFC5322]  Resnick, P., Ed., "Internet Message Format", RFC 5322,
+              October 2008.
+
+   [RFC5890]  Klensin, J., "Internationalized Domain Names for
+              Applications (IDNA): Definitions and Document Framework",
+              RFC 5890, August 2010.
+
+   [RFC5891]  Klensin, J., "Internationalized Domain Names in
+              Applications (IDNA): Protocol", RFC 5891, August 2010.
+
+   [RFC6530]  Klensin, J. and Y. Ko, "Overview and Framework for
+              Internationalized Email", RFC 6530, February 2012.
+
+   [RFC6531]  Yao, J. and W. Mao, "SMTP Extension for Internationalized
+              Email", RFC 6531, February 2012.
+
+   [RFC6532]  Yang, A., Steele, S., and N. Freed, "Internationalized
+              Email Headers", RFC 6532, February 2012.
+
+   [RFC6533]  Hansen, T., Newman, C., and A. Melnikov,
+              "Internationalized Delivery Status and Disposition
+              Notifications", RFC 6533, February 2012.
+
+   [RFC6854]  Leiba, B., "Update to Internet Message Format to Allow
+              Group Syntax in the "From:" and "Sender:" Header Fields",
+              RFC 6854, March 2013.
+
+   [RFC6855]  Resnick, P., Ed., Newman, C., Ed., and S. Shen, Ed., "IMAP
+              Support for UTF-8", RFC 6855, March 2013.
+
+   [RFC6856]  Gellens, R., Newman, C., Yao, J., and K. Fujiwara, "Post
+              Office Protocol Version 3 (POP3) Support for UTF-8",
+              RFC 6856, March 2013.
+
+
+
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 17]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+9.2.  Informative References
+
+   [RFC5234]  Crocker, D. and P. Overell, "Augmented BNF for Syntax
+              Specifications: ABNF", STD 68, RFC 5234, January 2008.
+
+   [RFC5451]  Kucherawy, M., "Message Header Field for Indicating
+              Message Authentication Status", RFC 5451, April 2009.
+
+   [RFC5504]  Fujiwara, K. and Y. Yoneya, "Downgrading Mechanism for
+              Email Address Internationalization", RFC 5504, March 2009.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 18]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+Appendix A.  Downgrading Example
+
+   This appendix shows a message downgrading example.  Consider a
+   received mail message where:
+
+   o  The sender address is a non-ASCII address,
+      "NON-ASCII-LOCAL@example.com".  Its display-name is
+      "DISPLAY-LOCAL".
+
+   o  The "To:" header field contains two non-ASCII addresses,
+      "NON-ASCII-REMOTE1@example.net" and
+      "NON-ASCII-REMOTE2@example.com".  Their display-names are
+      "DISPLAY-REMOTE1" and "DISPLAY-REMOTE2".
+
+   o  The "Cc:" header field contains a non-ASCII address,
+      "NON-ASCII-REMOTE3@example.org".  Its display-name is
+      "DISPLAY-REMOTE3".
+
+   o  Four display-names contain non-ASCII characters.
+
+   o  The "Subject:" header field is "NON-ASCII-SUBJECT", which contains
+      non-ASCII strings.
+
+   o  The "Message-Id:" header field contains "NON-ASCII-MESSAGE_ID",
+      which contains non-ASCII strings.
+
+   o  There is an unknown header field "X-Unknown-Header:", which
+      contains non-ASCII strings.
+
+   Return-Path: <NON-ASCII-LOCAL@example.com>
+   Received: from ... by ... for <NON-ASCII-REMOTE1@example.net>
+   Received: from ... by ... for <NON-ASCII-REMOTE1@example.net>
+   From: DISPLAY-LOCAL <NON-ASCII-LOCAL@example.com>
+   To: DISPLAY-REMOTE1 <NON-ASCII-REMOTE1@example.net>,
+       DISPLAY-REMOTE2 <NON-ASCII-REMOTE2@example.com>
+   Cc: DISPLAY-REMOTE3 <NON-ASCII-REMOTE3@example.org>
+   Subject: NON-ASCII-SUBJECT
+   Date: Mon, 30 Jul 2012 01:23:45 -0000
+   Message-Id: NON-ASCII-MESSAGE_ID
+   Mime-Version: 1.0
+   Content-Type: text/plain; charset="UTF-8"
+   Content-Transfer-Encoding: 8bit
+   X-Unknown-Header: NON-ASCII-CHARACTERS
+
+   MAIL_BODY
+
+                 Figure 1: Received Message in a Maildrop
+
+
+
+
+Fujiwara                     Standards Track                   [Page 19]
+
+RFC 6857                  POP or IMAP Downgrade               March 2013
+
+
+   The downgraded message is shown in Figure 2.  "Return-Path:",
+   "From:", "To:", and "Cc:" header fields are rewritten.  "Subject:"
+   and "X-Unknown-Header:" header fields are encoded as encoded-words.
+   The "Message-Id:" header field is encapsulated as a
+   "Downgraded-Message-Id:" header field.
+
+   Return-Path: =?UTF-8?Q?NON-ASCII-LOCAL@example.com?= :;
+   Received: from ... by ...
+   Received: from ... by ...
+   From: =?UTF-8?Q?DISPLAY-LOCAL?=
+         =?UTF-8?Q?NON-ASCII-LOCAL@example.com?= :;
+   To:   =?UTF-8?Q?DISPLAY-REMOTE1?=
+         =?UTF-8?Q?NON-ASCII-REMOTE1@example.net?= :;,
+         =?UTF-8?Q?DISPLAY-REMOTE2?=
+         =?UTF-8?Q?NON-ASCII-REMOTE2@example.com?= :;,
+   Cc:   =?UTF-8?Q?DISPLAY-REMOTE3?=
+         =?UTF-8?Q?NON-ASCII-REMOTE3@example.org?= :;
+   Subject: =?UTF-8?Q?NON-ASCII-SUBJECT?=
+   Date: Mon, 30 Jul 2012 01:23:45 -0000
+   Downgraded-Message-Id: =?UTF-8?Q?MESSAGE_ID?=
+   Mime-Version: 1.0
+   Content-Type: text/plain; charset="UTF-8"
+   Content-Transfer-Encoding: 8bit
+   X-Unknown-Header: =?UTF-8?Q?NON-ASCII-CHARACTERS?=
+
+   MAIL_BODY
+
+                       Figure 2: Downgraded Message
+
+Author's Address
+
+   Kazunori Fujiwara
+   Japan Registry Services Co., Ltd.
+   Chiyoda First Bldg. East 13F, 3-8-1 Nishi-Kanda
+   Chiyoda-ku, Tokyo  101-0065
+   Japan
+
+   Phone: +81 3 5215 8451
+   EMail: fujiwara@jprs.co.jp
+
+
+
+
+
+
+
+
+
+
+
+
+Fujiwara                     Standards Track                   [Page 20]
+

@@ -1,0 +1,1572 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                         Z. Sarker
+Request for Comments: 8867                                   Ericsson AB
+Category: Informational                                         V. Singh
+ISSN: 2070-1721                                             callstats.io
+                                                                  X. Zhu
+                                                           Cisco Systems
+                                                              M. Ramalho
+                                                           AcousticComms
+                                                            January 2021
+
+
+ Test Cases for Evaluating Congestion Control for Interactive Real-Time
+                                 Media
+
+Abstract
+
+   The Real-time Transport Protocol (RTP) is used to transmit media in
+   multimedia telephony applications.  These applications are typically
+   required to implement congestion control.  This document describes
+   the test cases to be used in the performance evaluation of such
+   congestion control algorithms in a controlled environment.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Not all documents
+   approved by the IESG are candidates for any level of Internet
+   Standard; see Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8867.
+
+Copyright Notice
+
+   Copyright (c) 2021 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+   3.  Structure of Test Cases
+   4.  Recommended Evaluation Settings
+     4.1.  Evaluation Metrics
+     4.2.  Path Characteristics
+     4.3.  Media Source
+   5.  Basic Test Cases
+     5.1.  Variable Available Capacity with a Single Flow
+     5.2.  Variable Available Capacity with Multiple Flows
+     5.3.  Congested Feedback Link with Bi-directional Media Flows
+     5.4.  Competing Media Flows with the Same Congestion Control
+           Algorithm
+     5.5.  Round Trip Time Fairness
+     5.6.  Media Flow Competing with a Long TCP Flow
+     5.7.  Media Flow Competing with Short TCP Flows
+     5.8.  Media Pause and Resume
+   6.  Other Potential Test Cases
+     6.1.  Media Flows with Priority
+     6.2.  Explicit Congestion Notification Usage
+     6.3.  Multiple Bottlenecks
+   7.  Wireless Access Links
+   8.  Security Considerations
+   9.  IANA Considerations
+   10. References
+     10.1.  Normative References
+     10.2.  Informative References
+   Acknowledgments
+   Authors' Addresses
+
+1.  Introduction
+
+   This memo describes a set of test cases for evaluating congestion
+   control algorithm proposals in controlled environments for real-time
+   interactive media.  It is based on the guidelines enumerated in
+   [RFC8868] and the requirements discussed in [RFC8836].  The test
+   cases cover basic usage scenarios and are described using a common
+   structure, which allows for additional test cases to be added to
+   those described herein to accommodate other topologies and/or the
+   modeling of different path characteristics.  The described test cases
+   in this memo should be used to evaluate any proposed congestion
+   control algorithm for real-time interactive media.
+
+2.  Terminology
+
+   The terminology defined in RTP [RFC3550], RTP Profile for Audio and
+   Video Conferences with Minimal Control [RFC3551], RTCP Extended
+   Report (XR) [RFC3611], Extended RTP Profile for RTCP-based Feedback
+   (RTP/AVPF) [RFC4585], and Support for Reduced-Size RTCP [RFC5506]
+   applies.
+
+3.  Structure of Test Cases
+
+   All the test cases in this document follow a basic structure allowing
+   implementers to describe a new test scenario without repeatedly
+   explaining common attributes.  The structure includes a general
+   description section that describes the test case and its motivation.
+   Additionally the test case defines a set of attributes that
+   characterize the testbed, for example, the network path between
+   communicating peers and the diverse traffic sources.
+
+   Define the test case:
+
+      General description:  describes the motivation and the goals of
+         the test case.
+
+      Expected behavior:  describes the desired rate adaptation
+         behavior.
+
+      List of metrics to evaluate the desired behavior:  this indicates
+         the minimum set of metrics (e.g., link utilization, media
+         sending rate) that a proposed algorithm needs to measure to
+         validate the expected rate adaptation behavior.  It should also
+         indicate the time granularity (e.g., averaged over 10 ms, 100
+         ms, or 1 s) for measuring certain metrics.  Typical measurement
+         interval is 200 ms.
+
+   Define testbed topology:
+
+      Every test case needs to define an evaluation testbed topology.
+      Figure 1 shows such an evaluation topology.  In this evaluation
+      topology, S1..Sn are traffic sources.  These sources generate
+      media traffic and use the congestion control algorithm(s) under
+      investigation.  R1..Rn are the corresponding receivers.  A test
+      case can have one or more such traffic sources (S) and their
+      corresponding receivers (R).  The path from the source to
+      destination is denoted as "forward", and the path from a
+      destination to a source is denoted as "backward".  The following
+      basic structure of the test case has been described from the
+      perspective of media-generating endpoints attached on the left-
+      hand side of Figure 1.  In this setup, the media flows are
+      transported in the forward direction, and the corresponding
+      feedback/control messages are transported in the backward
+      direction.  However, it is also possible to set up the test with
+      media in both forward and backward directions.  In that case,
+      unless otherwise specified by the test case, it is expected that
+      the backward path does not introduce any congestion-related
+      impairments and has enough capacity to accommodate both media and
+      feedback/control messages.  It should be noted that, depending on
+      the test cases, it is possible to have different path
+      characteristics in either of the directions.
+
+      +---+                                                        +---+
+      |S1 |====== \               Forward -->             / =======|R1 |
+      +---+       \\                                     //        +---+
+                   \\                                   //
+      +---+       +-----+                            +-----+       +---+
+      |S2 |=======|  A  |--------------------------->|  B  |=======|R2 |
+      +---+       |     |<---------------------------|     |       +---+
+                  +-----+                            +-----+
+      (...)         //                                  \\         (...)
+                   //          <-- Backward              \\
+      +---+       //                                      \\       +---+
+      |Sn |====== /                                        \ ======|Rn |
+      +---+                                                        +---+
+
+                   Figure 1: Example of a Testbed Topology
+
+      In a testbed environment with real equipment, there may exist a
+      significant amount of unwanted traffic on the portions of the
+      network path between the endpoints.  Some of this traffic may be
+      generated by other processes on the endpoints themselves (e.g.,
+      discovery protocols) or by other endpoints not presently under
+      test.  Such unwanted traffic should be removed or avoided to the
+      greatest extent possible.
+
+   Define testbed attributes:
+
+      Duration:  defines the duration of the test in seconds.
+
+      Path characteristics:  defines the end-to-end transport level path
+         characteristics of the testbed for a particular test case.  Two
+         sets of attributes describe the path characteristics, one for
+         the forward path and the other for the backward path.  The path
+         characteristics for a particular path direction are applicable
+         to all the sources "S" sending traffic on that path.  If only
+         one attribute is specified, it is used for both path
+         directions; however, unless specified the reverse path has no
+         capacity restrictions and no path loss.
+
+         Path direction:  forward or backward.
+
+         Minimum bottleneck-link capacity:  defines the minimum capacity
+            of the end-to-end path.
+
+         Reference bottleneck capacity:  defines a reference value for
+            the bottleneck capacity for test cases with time-varying
+            bottleneck capacities.  All bottleneck capacities will be
+            specified as a ratio with respect to the reference capacity
+            value.
+
+         One-way propagation delay:  describes the end-to-end latency
+            along the path when network queues are empty, i.e., the time
+            it takes for a packet to go from the sender to the receiver
+            without encountering any queuing delay.
+
+         Maximum end-to-end jitter:  defines the maximum jitter that can
+            be observed along the path.
+
+         Bottleneck queue type:  for example, "tail drop" [RFC7567],
+            Flow Queue Controlled Delay (FQ-CoDel) [RFC8290], or
+            Proportional Integral controller Enhanced (PIE) [RFC8033].
+
+         Bottleneck queue size:  defines the size of queue in terms of
+            queuing time when the queue is full (in milliseconds).
+
+         Path loss ratio:  characterizes the non-congested, additive
+            losses to be generated on the end-to-end path.  This must
+            describe the loss pattern or loss model used to generate the
+            losses.
+
+      Application-related:  defines the traffic source behavior for
+         implementing the test case:
+
+         Media traffic source:  defines the characteristics of the media
+            sources.  When using more than one media source, the
+            different attributes are enumerated separately for each
+            different media source.
+
+            Media type:  Video/Voice.
+
+            Media flow direction:  forward, backward, or both.
+
+            Number of media sources:  defines the total number of media
+               sources.
+
+            Media codec:  Constant Bit Rate (CBR) or Variable Bit Rate
+               (VBR).
+
+            Media source behavior:  describes the media encoder
+               behavior.  It defines the main parameters that affect the
+               adaptation behavior.  This may include but is not limited
+               to the following:
+
+               Adaptability:  describes the adaptation options.  For
+                  example, in the case of video, it defines the
+                  following ranges of adaptation: bit rate, frame rate,
+                  and video resolution.  Similarly, in the case of
+                  voice, it defines the range of bit rate adaptation,
+                  the sampling rate variation, and the variation in
+                  packetization interval.
+
+               Output variation:  for a VBR encoder, it defines the
+                  encoder output variation from the average target rate
+                  over a particular measurement interval.  For example,
+                  on average the encoder output may vary between 5% to
+                  15% above or below the average target bit rate when
+                  measured over a 100 ms time window.  The time interval
+                  over which the variation is specified must be
+                  provided.
+
+               Responsiveness to a new bit rate request:  the lag in
+                  time between a new bit rate request from the
+                  congestion control algorithm and actual rate changes
+                  in encoder output.  Depending on the encoder, this
+                  value may be specified in absolute time (e.g., 10 ms
+                  to 1000 ms) or other appropriate metric (e.g., next
+                  frame interval time).
+
+               More detailed discussions on expected media source
+               behavior, including those from synthetic video traffic
+               sources, can be found in [RFC8593].
+
+            Media content:  describes the chosen video scenario.  For
+               example, video test sequences are available at [xiph-seq]
+               and [HEVC-seq].  Different video scenarios give different
+               distributions of video frames produced by the video
+               encoder.  Hence, it is important to specify the media
+               content used in a particular test.  If a synthetic video
+               traffic source [RFC8593] is used, then the synthetic
+               video traffic source needs to be configured according to
+               the characteristics of the media content specified.
+
+            Media timeline:  describes the point when the media source
+               is introduced and removed from the testbed.  For example,
+               the media source may start transmitting immediately when
+               the test case begins, or after a few seconds.
+
+            Startup behavior:  the media starts at a defined bit rate,
+               which may be the minimum, maximum bit rate, or a value in
+               between (in Kbps).
+
+         Competing traffic source:  describes the characteristics of the
+            competing traffic source, the different types of competing
+            flows are enumerated in [RFC8868].
+
+            Traffic direction:  forward, backward, or both.
+
+            Type of sources:  defines the types of competing traffic
+               sources.  Types of competing traffic flows are listed in
+               [RFC8868].  For example, the number of TCP flows
+               connected to a web browser, the mean size and
+               distribution of the content downloaded.
+
+            Number of sources:  defines the total number of competing
+               sources of each media type per traffic direction.
+
+            Congestion control:  enumerates the congestion control used
+               by each type of competing traffic.
+
+            Traffic timeline:  describes when the competing traffic
+               starts and ends in the test case.
+
+      Additional attributes:  describes attributes essential for
+         implementing a test case that are not included in the above
+         structure.  These attributes must be well defined, so that the
+         other implementers of that particular test case are able to
+         implement it easily.
+
+   Any attribute can have a set of values (enclosed within "[]").  Each
+   member value of such a set must be treated as different value for the
+   same attribute.  It is desired to run separate tests for each such
+   attribute value.
+
+   The test cases described in this document follow the above structure.
+
+4.  Recommended Evaluation Settings
+
+   This section describes recommended test case settings and could be
+   overwritten by the respective test cases.
+
+4.1.  Evaluation Metrics
+
+   To evaluate the performance of the candidate algorithms, the
+   implementers must log enough information to visualize the following
+   metrics at a fine enough time granularity:
+
+   1.  Flow level:
+
+       A.  End-to-end delay for the congestion-controlled media flow(s).
+           For example, end-to-end delay observed on the IP packet level
+           and the video frame level.
+
+       B.  Variation in sending bit rate and throughput.  Mainly
+           observing the frequency and magnitude of oscillations.
+
+       C.  Packet losses observed at the receiving endpoint.
+
+       D.  Feedback message overhead.
+
+       E.  Convergence time.  Time to reach steady state for the
+           congestion-controlled media flow(s).  Each occurrence of
+           convergence during the test period needs to be presented.
+
+   2.  Transport level:
+
+       A.  Bandwidth utilization.
+
+       B.  Queue length (milliseconds at specified path capacity).
+
+4.2.  Path Characteristics
+
+   Each path between a sender and receiver as described in Figure 1 has
+   the following characteristics unless otherwise specified in the test
+   case:
+
+   Path direction:  forward and backward.
+
+   Reference bottleneck capacity:  1 Mbps.
+
+   One-way propagation delay:  50 ms.  Implementers are encouraged to
+      run the experiment with additional propagation delays mentioned in
+      [RFC8868].
+
+   Maximum end-to-end jitter:  30 ms.  Jitter models are described in
+      [RFC8868].
+
+   Bottleneck queue type:  "tail drop".  Implementers are encouraged to
+      run the experiment with other Active Queue Management (AQM)
+      schemes, such as FQ-CoDel and PIE.
+
+   Bottleneck queue size:  300 ms.
+
+   Path loss ratio:  0%.
+
+   Examples of additional network parameters are discussed in [RFC8868].
+
+   For test cases involving time-varying bottleneck capacity, all
+   capacity values are specified as a ratio with respect to a reference
+   capacity value, so as to allow flexible scaling of capacity values
+   along with media source rate range.  There exist two different
+   mechanisms for inducing path capacity variation: a) by explicitly
+   modifying the value of physical link capacity, or b) by introducing
+   background non-adaptive UDP traffic with time-varying traffic rate.
+   Implementers are encouraged to run the experiments with both
+   mechanisms for test cases specified in Section 5.1, Section 5.2, and
+   Section 5.3.
+
+4.3.  Media Source
+
+   Unless otherwise specified, each test case will include one or more
+   media sources as described below:
+
+   Media type:  Video
+
+      Media codec:  VBR
+
+      Media source behavior:
+
+         Adaptability:
+
+            Bit rate range:  150 Kbps - 1.5 Mbps.  In real-life
+               applications, the bit rate range can vary a lot depending
+               on the provided service; for example, the maximum bit
+               rate can be up to 4 Mbps.  However, for running tests to
+               evaluate the congestion control algorithms, it is more
+               important to have a look at how they react to a certain
+               amount of bandwidth change.  Also it is possible that the
+               media traffic generator used in a particular simulator or
+               testbed is not capable of generating a higher bit rate.
+               Hence, we have selected a suitable bit rate range typical
+               of consumer-grade video conferencing applications in
+               designing the test case.  If a different bit rate range
+               is used in the test cases, then the end-to-end path
+               capacity values will also need to be scaled accordingly.
+
+            Frame resolution:  144p - 720p (or 1080p).  This resolution
+               range is selected based on the bit rate range.  If a
+               different bit rate range is used in the test cases, then
+               a suitable frame resolution range also needs to be
+               selected.
+
+            Frame rate:  10 fps - 30 fps.  This frame rate range is
+               selected based on the bit rate range.  If a different bit
+               rate range is used in the test cases, then the frame rate
+               range also needs to be suitably adjusted.
+
+         Variation from target bit rate:  +/-5%. Unless otherwise
+            specified in the test case(s), bit rate variation should be
+            calculated over a one (1) second period of time.
+
+         Responsiveness to new bit rate request:  100 ms
+
+      Media content:  The media content should represent a typical video
+         conversational scenario with head and shoulder movement.  We
+         recommend using the Foreman video sequence [xiph-seq].
+
+      Media startup behavior:  150 Kbps.  It should be noted that
+         applications can use smart ways to select an optimal startup
+         bit rate value for a certain network condition.  In such cases,
+         the candidate proposals may show the effectiveness of such a
+         smart approach as additional information for the evaluation
+         process.
+
+   Media type:  Audio
+
+      Media codec:  CBR
+
+      Media bit rate:  20 Kbps
+
+5.  Basic Test Cases
+
+5.1.  Variable Available Capacity with a Single Flow
+
+   In this test case, the minimum bottleneck-link capacity between the
+   two endpoints varies over time.  This test is designed to measure the
+   responsiveness of the candidate algorithm.  This test tries to
+   address the requirements in [RFC8836], which requires the algorithm
+   to adapt the flow(s) and provide lower end-to-end latency when there
+   exists:
+
+   *  an intermediate bottleneck
+
+   *  change in available capacity (e.g., due to interface change,
+      routing change, abrupt arrival/departure of background non-
+      adaptive traffic)
+
+   *  maximum media bit rate is greater than link capacity.  In this
+      case, when the application tries to ramp up to its maximum bit
+      rate, since the link capacity is limited to a lower value, the
+      congestion control scheme is expected to stabilize the sending bit
+      rate close to the available bottleneck capacity.
+
+   It should be noted that the exact variation in available capacity due
+   to any of the above depends on the underlying technologies.  Hence,
+   we describe a set of known factors, which may be extended to devise a
+   more specific test case targeting certain behaviors in a certain
+   network environment.
+
+   Expected behavior:  The candidate algorithm is expected to detect the
+      path capacity constraint, converge to the bottleneck link's
+      capacity, and adapt the flow to avoid unwanted media rate
+      oscillation when the sending bit rate is approaching the
+      bottleneck link's capacity.  Such oscillations might occur when
+      the media flow(s) attempts to reach its maximum bit rate but
+      overshoots the usage of the available bottleneck capacity, then to
+      rectify, it reduces the bit rate and starts to ramp up again.
+
+   Evaluation metrics:  As described in Section 4.1.
+
+   Testbed topology:  One media source S1 is connected to the
+      corresponding R1.  The media traffic is transported over the
+      forward path and corresponding feedback/control traffic is
+      transported over the backward path.
+
+                                Forward -->
+   +---+       +-----+                               +-----+       +---+
+   |S1 |=======|  A  |------------------------------>|  B  |=======|R1 |
+   +---+       |     |<------------------------------|     |       +---+
+               +-----+                               +-----+
+                             <-- Backward
+
+            Figure 2: Testbed Topology for Limited Link Capacity
+
+   Testbed attributes:
+
+      Test duration:  100 s
+
+      Path characteristics:  as described in Section 4.2
+
+      Application-related:
+
+         Media Traffic:
+
+            Media type:  Video
+
+               Media direction:  forward
+
+               Number of media sources:  one (1)
+
+               Media timeline:
+
+                  Start time:  0 s
+
+                  End time:  99 s
+
+            Media type:  Audio
+
+               Media direction:  forward
+
+               Number of media sources:  one (1)
+
+               Media timeline:
+
+                  Start time:  0 s
+
+                  End time:  99 s
+
+         Competing traffic:
+
+            Number of sources:  zero (0)
+
+   Test-specific information:
+
+      One-way propagation delay:  [50 ms, 100 ms].  On the forward path
+         direction.
+
+      This test uses bottleneck path capacity variation as listed in
+      Table 1.
+
+      When using background non-adaptive UDP traffic to induce a time-
+      varying bottleneck, the physical path capacity remains at 4 Mbps,
+      and the UDP traffic source rate changes over time as (4 - (Y x
+      r)), where r is the Reference bottleneck capacity in Mbps, and Y
+      is the path capacity ratio specified in Table 1.
+
+   +=========================+================+=======+===============+
+   | Variation pattern index | Path direction | Start | Path capacity |
+   |                         |                | time  | ratio         |
+   +=========================+================+=======+===============+
+   | One                     | Forward        | 0 s   | 1.0           |
+   +-------------------------+----------------+-------+---------------+
+   | Two                     | Forward        | 40 s  | 2.5           |
+   +-------------------------+----------------+-------+---------------+
+   | Three                   | Forward        | 60 s  | 0.6           |
+   +-------------------------+----------------+-------+---------------+
+   | Four                    | Forward        | 80 s  | 1.0           |
+   +-------------------------+----------------+-------+---------------+
+
+    Table 1: Path Capacity Variation Pattern for the Forward Direction
+
+
+5.2.  Variable Available Capacity with Multiple Flows
+
+   This test case is similar to Section 5.1.  However, this test will
+   also consider persistent network load due to competing traffic.
+
+   Expected behavior:  The candidate algorithm is expected to detect the
+      variation in available capacity and adapt the media stream(s)
+      accordingly.  The flows stabilize around their maximum bit rate as
+      the maximum link capacity is large enough to accommodate the
+      flows.  When the available capacity drops, the flows adapt by
+      decreasing their sending bit rate, and when congestion disappears,
+      the flows are again expected to ramp up.
+
+   Evaluation metrics:  As described in Section 4.1.
+
+   Testbed topology:  Two (2) media sources S1 and S2 are connected to
+      their corresponding destinations R1 and R2.  The media traffic is
+      transported over the forward path and corresponding feedback/
+      control traffic is transported over the backward path.
+
+   +---+                                                         +---+
+   |S1 |===== \                                         / =======|R1 |
+   +---+      \\             Forward -->               //        +---+
+               \\                                     //
+               +-----+                               +-----+
+               |  A  |------------------------------>|  B  |
+               |     |<------------------------------|     |
+               +-----+                               +-----+
+                 //                                    \\
+                //          <-- Backward                \\
+   +---+       //                                        \\       +---+
+   |S2 |====== /                                          \ ======|R2 |
+   +---+                                                          +---+
+
+         Figure 3: Testbed Topology for Variable Available Capacity
+
+   Testbed attributes:  Testbed attributes are similar to those
+      described in Section 5.1, except for the test-specific capacity
+      variation setup.
+
+   Test-specific information:  This test uses path capacity variation as
+      listed in Table 2 with a corresponding end time of 125 seconds.
+      The reference bottleneck capacity is 2 Mbps.  When using
+      background non-adaptive UDP traffic to induce time-varying
+      bottleneck for congestion-controlled media flows, the physical
+      path capacity is 4 Mbps, and the UDP traffic source rate changes
+      over time as (4 - (Y x r)), where r is the Reference bottleneck
+      capacity in Mbps, and Y is the path capacity ratio specified in
+      Table 2.
+
+   +=========================+================+=======+===============+
+   | Variation pattern index | Path direction | Start | Path capacity |
+   |                         |                | time  | ratio         |
+   +=========================+================+=======+===============+
+   | One                     | Forward        | 0 s   | 2.0           |
+   +-------------------------+----------------+-------+---------------+
+   | Two                     | Forward        | 25 s  | 1.0           |
+   +-------------------------+----------------+-------+---------------+
+   | Three                   | Forward        | 50 s  | 1.75          |
+   +-------------------------+----------------+-------+---------------+
+   | Four                    | Forward        | 75 s  | 0.5           |
+   +-------------------------+----------------+-------+---------------+
+   | Five                    | Forward        | 100 s | 1.0           |
+   +-------------------------+----------------+-------+---------------+
+
+    Table 2: Path Capacity Variation Pattern for the Forward Direction
+
+5.3.  Congested Feedback Link with Bi-directional Media Flows
+
+   Real-time interactive media uses RTP; hence it is assumed that RTCP,
+   RTP header extension, or such would be used by the congestion control
+   algorithm in the back channel.  Due to the asymmetric nature of the
+   link between communicating peers, it is possible for a participating
+   peer to not receive such feedback information due to an impaired or
+   congested back channel (even when the forward channel might not be
+   impaired).  This test case is designed to observe the candidate
+   congestion control behavior in such an event.
+
+   Expected behavior:  It is expected that the candidate algorithms are
+      able to cope with the lack of feedback information and to adapt to
+      minimize the performance degradation of media flows in the forward
+      channel.
+
+      It should be noted that for this test case, logs are compared with
+      the reference case, i.e., when the backward channel has no
+      impairments.
+
+   Evaluation metrics:  As described in Section 4.1.
+
+   Testbed topology:  One (1) media source S1 is connected to
+      corresponding R1, but both endpoints are additionally receiving
+      and sending data, respectively.  The media traffic (S1->R1) is
+      transported over the forward path, and the corresponding feedback/
+      control traffic is transported over the backward path.  Likewise,
+      media traffic (S2->R2) is transported over the backward path, and
+      the corresponding feedback/control traffic is transported over the
+      forward path.
+
+   +---+                                                          +---+
+   |S1 |====== \                Forward -->              / =======|R1 |
+   +---+       \\                                       //        +---+
+                \\                                     //
+             +-----+                               +-----+
+             |  A  |------------------------------>|  B  |
+             |     |<------------------------------|     |
+             +-----+                               +-----+
+                //                                     \\
+               //            <-- Backward               \\
+   +---+      //                                         \\       +---+
+   |R2 |===== /                                           \ ======|S2 |
+   +---+                                                          +---+
+
+           Figure 4: Testbed Topology for Congested Feedback Link
+
+   Testbed attributes:
+
+      Test duration:  100 s
+
+      Path characteristics:
+
+         Reference bottleneck capacity:  1 Mbps
+
+      Application-related:
+
+         Media source:
+
+            Media type:  Video
+
+               Media direction:  forward and backward
+
+               Number of media sources:  two (2)
+
+               Media timeline:
+
+                  Start time:  0 s
+
+                  End time:  99 s
+
+            Media type:  Audio
+
+               Media direction:  forward and backward
+
+               Number of media sources:  two (2)
+
+               Media timeline:
+
+                  Start time:  0 s
+
+                  End time:  99 s
+
+         Competing traffic:
+
+            Number of sources:  zero (0)
+
+   Test-specific information:  This test uses path capacity variations
+      to create a congested feedback link.  Table 3 lists the variation
+      patterns applied to the forward path, and Table 4 lists the
+      variation patterns applied to the backward path.  When using
+      background non-adaptive UDP traffic to induce a time-varying
+      bottleneck for congestion-controlled media flows, the physical
+      path capacity is 4 Mbps for both directions, and the UDP traffic
+      source rate changes over time as (4-x) Mbps in each direction,
+      where x is the bottleneck capacity specified in Table 4.
+
+   +=========================+================+=======+===============+
+   | Variation pattern index | Path direction | Start | Path capacity |
+   |                         |                | time  | ratio         |
+   +=========================+================+=======+===============+
+   | One                     | Forward        | 0 s   | 2.0           |
+   +-------------------------+----------------+-------+---------------+
+   | Two                     | Forward        | 20 s  | 1.0           |
+   +-------------------------+----------------+-------+---------------+
+   | Three                   | Forward        | 40 s  | 0.5           |
+   +-------------------------+----------------+-------+---------------+
+   | Four                    | Forward        | 60 s  | 2.0           |
+   +-------------------------+----------------+-------+---------------+
+
+    Table 3: Path Capacity Variation Pattern for the Forward Direction
+
+
+   +=========================+================+=======+===============+
+   | Variation pattern index | Path direction | Start | Path capacity |
+   |                         |                | time  | ratio         |
+   +=========================+================+=======+===============+
+   | One                     | Backward       | 0 s   | 2.0           |
+   +-------------------------+----------------+-------+---------------+
+   | Two                     | Backward       | 35 s  | 0.8           |
+   +-------------------------+----------------+-------+---------------+
+   | Three                   | Backward       | 70 s  | 2.0           |
+   +-------------------------+----------------+-------+---------------+
+
+   Table 4: Path Capacity Variation Pattern for the Backward Direction
+
+5.4.  Competing Media Flows with the Same Congestion Control Algorithm
+
+   In this test case, more than one media flow share the bottleneck
+   link, and each of them uses the same congestion control algorithm.
+   This is a typical scenario where a real-time interactive application
+   sends more than one media flow to the same destination, and these
+   flows are multiplexed over the same port.  In such a scenario, it is
+   likely that the flows will be routed via the same path and need to
+   share the available bandwidth amongst themselves.  For the sake of
+   simplicity, it is assumed that there are no other competing traffic
+   sources in the bottleneck link and that there is sufficient capacity
+   to accommodate all the flows individually.  While this appears to be
+   a variant of the test case defined in Section 5.2, it focuses on the
+   capacity-sharing aspect of the candidate algorithm.  The previous
+   test case, on the other hand, measures adaptability, stability, and
+   responsiveness of the candidate algorithm.
+
+   Expected behavior:  It is expected that the competing flows will
+      converge to an optimum bit rate to accommodate all the flows with
+      minimum possible latency and loss.  Specifically, the test
+      introduces three media flows at different time instances.  When
+      the second flow appears, there should still be room to accommodate
+      another flow on the bottleneck link.  Lastly, when the third flow
+      appears, the bottleneck link should be saturated.
+
+   Evaluation metrics:  As described in Section 4.1.
+
+   Testbed topology:  Three media sources S1, S2, and S3 are connected
+      to R1, R2, and R3, respectively.  The media traffic is transported
+      over the forward path, and the corresponding feedback/control
+      traffic is transported over the backward path.
+
+   +---+                                                         +---+
+   |S1 |===== \                Forward -->              / =======|R1 |
+   +---+      \\                                       //        +---+
+               \\                                     //
+   +---+       +-----+                               +-----+       +---+
+   |S2 |=======|  A  |------------------------------>|  B  |=======|R2 |
+   +---+       |     |<------------------------------|     |       +---+
+               +-----+                               +-----+
+               //          <-- Backward               \\
+   +---+      //                                       \\       +---+
+   |S3 |===== /                                         \ ======|R3 |
+   +---+                                                        +---+
+
+       Figure 5: Testbed Topology for Multiple Congestion-Controlled
+                                Media Flows
+
+   Testbed attributes:
+
+      Test duration:  120 s
+
+      Path characteristics:
+
+         Reference bottleneck capacity:  3.5 Mbps
+
+         Path capacity ratio:  1.0
+
+      Application-related:
+
+         Media Source:
+
+            Media type:  Video
+
+               Media direction:  forward
+
+               Number of media sources:  three (3)
+
+               Media timeline:  New media flows are added sequentially,
+                  at short time intervals.  See the test-specific setup
+                  below.
+
+            Media type:  Audio
+
+               Media direction:  forward
+
+               Number of media sources:  three (3)
+
+               Media timeline:  New media flows are added sequentially,
+                  at short time intervals.  See the test-specific setup
+                  below.
+
+         Competing traffic:
+
+            Number of sources:  zero (0)
+
+   Test-specific information:  Table 5 defines the media timeline for
+      both media types.
+
+             +=========+============+============+==========+
+             | Flow ID | Media type | Start time | End time |
+             +=========+============+============+==========+
+             | 1       | Video      | 0 s        | 119 s    |
+             +---------+------------+------------+----------+
+             | 2       | Video      | 20 s       | 119 s    |
+             +---------+------------+------------+----------+
+             | 3       | Video      | 40 s       | 119 s    |
+             +---------+------------+------------+----------+
+             | 4       | Audio      | 0 s        | 119 s    |
+             +---------+------------+------------+----------+
+             | 5       | Audio      | 20 s       | 119 s    |
+             +---------+------------+------------+----------+
+             | 6       | Audio      | 40 s       | 119 s    |
+             +---------+------------+------------+----------+
+
+               Table 5: Media Timelines for Video and Audio
+                              Media Sources
+
+5.5.  Round Trip Time Fairness
+
+   In this test case, multiple media flows share the bottleneck link,
+   but the one-way propagation delay for each flow is different.  For
+   the sake of simplicity, it is assumed that there are no other
+   competing traffic sources in the bottleneck link and that there is
+   sufficient capacity to accommodate all the flows.  While this appears
+   to be a variant of test case 5.2 (Section 5.2), it focuses on the
+   capacity-sharing aspect of the candidate algorithm under different
+   RTTs.
+
+   Expected behavior:  It is expected that the competing flows will
+      converge to bit rates to accommodate all the flows with minimum
+      possible latency and loss.  The effectiveness of the algorithm
+      depends on how fast and fairly the competing flows converge to
+      their steady states irrespective of the RTT observed.
+
+   Evaluation metrics:  As described in Section 4.1.
+
+   Testbed topology:  Five (5) media sources S1..S5 are connected to
+      their corresponding media sinks R1..R5.  The media traffic is
+      transported over the forward path, and the corresponding feedback/
+      control traffic is transported over the backward path.  The
+      topology is the same as in Section 5.4.
+
+   Testbed attributes:
+
+      Test duration:  300 s
+
+      Path characteristics:
+
+         Reference bottleneck capacity:  4 Mbps
+
+         Path capacity ratio:  1.0
+
+         One-way propagation delay for each flow:  10 ms for S1-R1, 25
+            ms for S2-R2, 50 ms for S3-R3, 100 ms for S4-R4, and 150 ms
+            S5-R5.
+
+      Application-related:
+
+         Media source:
+
+            Media type:  Video
+
+               Media direction:  forward
+
+               Number of media sources:  five (5)
+
+               Media timeline:  New media flows are added sequentially,
+                  at short time intervals.  See the test-specific setup
+                  below.
+
+            Media type:  Audio
+
+               Media direction:  forward
+
+               Number of media sources:  five (5)
+
+               Media timeline:  New media flows are added sequentially,
+                  at short time intervals.  See the test-specific setup
+                  below.
+
+         Competing traffic:
+
+            Number of sources:  zero (0)
+
+   Test-specific information:  Table 6 defines the media timeline for
+      both media types.
+
+             +=========+============+============+==========+
+             | Flow ID | Media type | Start time | End time |
+             +=========+============+============+==========+
+             | 1       | Video      | 0 s        | 299 s    |
+             +---------+------------+------------+----------+
+             | 2       | Video      | 10 s       | 299 s    |
+             +---------+------------+------------+----------+
+             | 3       | Video      | 20 s       | 299 s    |
+             +---------+------------+------------+----------+
+             | 4       | Video      | 30 s       | 299 s    |
+             +---------+------------+------------+----------+
+             | 5       | Video      | 40 s       | 299 s    |
+             +---------+------------+------------+----------+
+             | 6       | Audio      | 0 s        | 299 s    |
+             +---------+------------+------------+----------+
+             | 7       | Audio      | 10 s       | 299 s    |
+             +---------+------------+------------+----------+
+             | 8       | Audio      | 20 s       | 299 s    |
+             +---------+------------+------------+----------+
+             | 9       | Audio      | 30 s       | 299 s    |
+             +---------+------------+------------+----------+
+             | 10      | Audio      | 40 s       | 299 s    |
+             +---------+------------+------------+----------+
+
+               Table 6: Media Timeline for Video and Audio
+                              Media Sources
+
+5.6.  Media Flow Competing with a Long TCP Flow
+
+   In this test case, one or more media flows share the bottleneck link
+   with at least one long-lived TCP flow.  Long-lived TCP flows download
+   data throughout the session and are expected to have infinite amount
+   of data to send and receive.  This is a scenario where a multimedia
+   application coexists with a large file download.  The test case
+   measures the adaptivity of the candidate algorithm to competing
+   traffic.  It addresses requirement 3 in Section 2 of [RFC8836].
+
+   Expected behavior:  Depending on the convergence observed in test
+      cases 5.1 and 5.2, the candidate algorithm may be able to avoid
+      congestion collapse.  In the worst case, the media stream will
+      fall to the minimum media bit rate.
+
+   Evaluation metrics:  Includes the following metrics in addition to
+      those described in Section 4.1:
+
+      1.  Flow level:
+
+          a.  TCP throughput
+
+          b.  Loss for the TCP flow
+
+   Testbed topology:  One (1) media source S1 is connected to the
+      corresponding media sink, R1.  In addition, there is a long-lived
+      TCP flow sharing the same bottleneck link.  The media traffic is
+      transported over the forward path, and the corresponding feedback/
+      control traffic is transported over the backward path.  The TCP
+      traffic goes over the forward path from S_tcp with acknowledgment
+      packets going over the backward path from R_tcp.
+
+    +--+                                                     +--+
+    |S1|===== \              Forward -->              / =====|R1|
+    +--+      \\                                     //      +--+
+               \\                                   //
+               +-----+                             +-----+
+               |  A  |---------------------------->|  B  |
+               |     |<----------------------------|     |
+               +-----+                             +-----+
+               //        <-- Backward               \\
+   +-----+    //                                     \\    +-----+
+   |S_tcp|=== /                                       \ ===|R_tcp|
+   +-----+                                                 +-----+
+
+     Figure 6: Testbed Topology for TCP vs Congestion-Controlled Media
+                                   Flows
+
+   Testbed attributes:
+
+      Test duration:  120 s
+
+      Path characteristics:
+
+         Reference bottleneck capacity:  2 Mbps
+
+         Path capacity ratio:  1.0
+
+         Bottleneck queue size:  [300 ms, 1000 ms]
+
+      Application-related:
+
+         Media source:
+
+            Media type:  Video
+
+               Media direction:  forward
+
+               Number of media sources:  one (1)
+
+               Media timeline:
+
+                  Start time:  5 s
+
+                  End time:  119 s
+
+            Media type:  Audio
+
+               Media direction:  forward
+
+               Number of media sources:  one (1)
+
+               Media timeline:
+
+                  Start time:  5 s
+
+                  End time:  119 s
+
+            Additionally, implementers are encouraged to run the
+            experiment with multiple media sources.
+
+         Competing traffic:
+
+            Number and types of sources:  one (1) and long-lived TCP
+
+            Traffic direction:  forward
+
+            Congestion control:  default TCP congestion control
+               [RFC5681].  Implementers are also encouraged to run the
+               experiment with alternative TCP congestion control
+               algorithms.
+
+            Traffic timeline:
+
+               Start time:  0 s
+
+               End time:  119 s
+
+   Test-specific information:  none
+
+5.7.  Media Flow Competing with Short TCP Flows
+
+   In this test case, one or more congestion-controlled media flows
+   share the bottleneck link with multiple short-lived TCP flows.
+   Short-lived TCP flows resemble the on/off pattern observed in web
+   traffic, wherein clients (for example, browsers) connect to a server
+   and download a resource (typically a web page, few images, text
+   files, etc.) using several TCP connections.  This scenario shows the
+   performance of a multimedia application when several browser windows
+   are active.  The test case measures the adaptivity of the candidate
+   algorithm to competing web traffic, and it addresses requirement 1.E
+   in Section 2 of [RFC8836].
+
+   Depending on the number of short TCP flows, the cross traffic either
+   appears as a short burst flow or resembles a long-lived TCP flow.
+   The intention of this test is to observe the impact of a short-term
+   burst on the behavior of the candidate algorithm.
+
+   Expected behavior:  The candidate algorithm is expected to avoid flow
+      starvation during the presence of short and bursty competing TCP
+      flows, streaming at least at the minimum media bit rate.  After
+      competing TCP flows terminate, the media streams are expected to
+      be robust enough to eventually recover to previous steady state
+      behavior, and at the very least, avoid persistent starvation.
+
+   Evaluation metrics:  Includes the following metrics in addition to
+      those described in Section 4.1:
+
+      1.  Flow level:
+
+          A.  Variation in the sending rate of the TCP flow
+
+          B.  TCP throughput
+
+   Testbed topology:  The topology described here is the same as the one
+      described in Figure 6.
+
+   Testbed attributes:
+
+      Test duration:  300 s
+
+      Path characteristics:
+
+         Reference bottleneck capacity:  2.0 Mbps
+
+         Path capacity ratio:  1.0
+
+      Application-related:
+
+         Media source:
+
+            Media type:  Video
+
+               Media direction:  forward
+
+               Number of media sources:  two (2)
+
+               Media timeline:
+
+                  Start time:  5 s
+
+                  End time:  299 s
+
+            Media type:  Audio
+
+               Media direction:  forward
+
+               Number of media sources:  two (2)
+
+               Media timeline:
+
+                  Start time:  5 s
+
+                  End time:  299 s
+
+         Competing traffic:
+
+            Number and types of sources:  ten (10), short-lived TCP
+               flows.
+
+            Traffic direction:  forward
+
+            Congestion algorithm:  default TCP congestion control
+               [RFC5681].  Implementers are also encouraged to run the
+               experiment with an alternative TCP congestion control
+               algorithm.
+
+            Traffic timeline:  Each short TCP flow is modeled as a
+               sequence of file downloads interleaved with idle periods.
+               Not all short TCP flows start at the same time, two of
+               them start in the ON state, while rest of the eight flows
+               start in an OFF state.  For a description of the short
+               TCP flow model, see test-specific information below.
+
+   Test-specific information:
+
+      Short TCP traffic model:  The short TCP model to be used in this
+         test is described in [RFC8868].
+
+5.8.  Media Pause and Resume
+
+   In this test case, more than one real-time interactive media flow
+   share the link bandwidth, and all flows reach to a steady state by
+   utilizing the link capacity in an optimum way.  At this stage, one of
+   the media flows is paused for a moment.  This event will result in
+   more available bandwidth for the rest of the flows as they are on a
+   shared link.  When the paused media flow resumes, it no longer has
+   the same bandwidth share on the link.  It has to make its way through
+   the other existing flows in the link to achieve a fair share of the
+   link capacity.  This test case is important specially for real-time
+   interactive media, which consists of more than one media flows and
+   can pause/resume media flows at any point of time during the session.
+   This test case directly addresses requirement 5 in Section 2 of
+   [RFC8836].  One can think of it as a variation of the test case
+   defined in Section 5.4.  However, it is different as the candidate
+   algorithms can use different strategies to increase efficiency, for
+   example, in terms of fairness, convergence time, oscillation
+   reduction, etc., by capitalizing on the fact that they have previous
+   information of the link.
+
+   Expected behavior:  During the period where the third stream is
+      paused, the two remaining flows are expected to increase their
+      rates and reach the maximum media bit rate.  When the third stream
+      resumes, all three flows are expected to converge to the same
+      original fair share of rates prior to the media pause/resume
+      event.
+
+   Evaluation metrics:  Includes the following metrics in addition to
+      those described in Section 4.1:
+
+      1.  Flow level:
+
+          A.  Variation in sending bit rate and throughput.  Mainly
+              observing the frequency and magnitude of oscillations.
+
+   Testbed topology:  Same as the test case defined in Section 5.4.
+
+   Testbed attributes:  The general description of the testbed
+      parameters are the same as Section 5.4 with changes in the test-
+      specific setup as below:
+
+      Other test-specific setup:
+
+      Media flow timeline:
+
+         Flow ID:  one (1)
+
+         Start time:  0 s
+
+         Flow duration:  119 s
+
+         Pause time:  not required
+
+         Resume time:  not required
+
+      Media flow timeline:
+
+         Flow ID:  two (2)
+
+         Start time:  0 s
+
+         Flow duration:  119 s
+
+         Pause time:  at 40 s
+
+         Resume time:  at 60 s
+
+      Media flow timeline:
+
+         Flow ID:  three (3)
+
+         Start time:  0 s
+
+         Flow duration:  119 s
+
+         Pause time:  not required
+
+         Resume time:  not required
+
+6.  Other Potential Test Cases
+
+   It has been noticed that there are other interesting test cases
+   besides the basic test cases listed above.  In many aspects, these
+   additional test cases can help further evaluation of the candidate
+   algorithm.  They are listed below.
+
+6.1.  Media Flows with Priority
+
+   In this test case, media flows will have different priority levels.
+   This is an extension of Section 5.4 where the same test is run with
+   different priority levels imposed on each of the media flows.  For
+   example, the first flow (S1) is assigned a priority of 2, whereas the
+   remaining two flows (S2 and S3) are assigned a priority of 1.  The
+   candidate algorithm must reflect the relative priorities assigned to
+   each media flow.  In this case, the first flow (S1) must arrive at a
+   steady-state rate approximately twice that of the other two flows (S2
+   and S3).
+
+   The candidate algorithm can use a coupled congestion control
+   mechanism [RFC8699] or use a weighted priority scheduler for the
+   bandwidth distribution according to the respective media flow
+   priority or use.
+
+6.2.  Explicit Congestion Notification Usage
+
+   This test case requires running all the basic test cases with the
+   availability of Explicit Congestion Notification (ECN) [RFC6679]
+   feature enabled.  The goal of this test is to exhibit that the
+   candidate algorithms do not fail when ECN signals are available.
+   With ECN signals enabled, the algorithms are expected to perform
+   better than their delay-based variants.
+
+6.3.  Multiple Bottlenecks
+
+   In this test case, one congestion-controlled media flow, S1->R1,
+   traverses a path with multiple bottlenecks.  As illustrated in
+   Figure 7, the first flow (S1->R1) competes with the second
+   congestion-controlled media flow (S2->R2) over the link between A and
+   B, which is close to the sender side.  Again, that flow (S1->R1)
+   competes with the third congestion-controlled media flow (S3->R3)
+   over the link between C and D, which is close to the receiver side.
+   The goal of this test is to ensure that the candidate algorithms work
+   properly in the presence of multiple bottleneck links on the end-to-
+   end path.
+
+   Expected behavior:  The candidate algorithm is expected to achieve
+      full utilization at both bottleneck links without starving any of
+      the three congestion-controlled media flows and ensuring fair
+      share of the available bandwidth at each bottleneck.
+
+                                Forward ---->
+
+               +---+          +---+        +---+      +---+
+               |S2 |          |R2 |        |S3 |      |R3 |
+               +---+          +---+        +---+      +---+
+                 |              |            |          |
+                 |              |            |          |
+   +---+      +-----+       +-----+      +-----+     +-----+      +---+
+   |S1 |======|  A  |------>|  B  |----->|  C  |---->|  D  |======|R1 |
+   +---+      |     |<------|     |<-----|     |<----|     |      +---+
+              +-----+       +-----+      +-----+     +-----+
+
+                       1st                       2nd
+                Bottleneck (A->B)          Bottleneck (C->D)
+
+                             <------ Backward
+
+            Figure 7: Testbed Topology for Multiple Bottlenecks
+
+   Testbed topology:  Three media sources S1, S2, and S3 are connected
+      to respective destinations R1, R2, and R3.  For all three flows,
+      the media traffic is transported over the forward path, and the
+      corresponding feedback/control traffic is transported over the
+      backward path.
+
+   Testbed attributes:
+
+      Test duration:  300 s
+
+      Path characteristics:
+
+         Reference bottleneck capacity:  2 Mbps
+
+         Path capacity ratio between A and B:  1.0
+
+         Path capacity ratio between B and C:  4.0
+
+         Path capacity ratio between C and D:  0.75
+
+         One-way propagation delay:
+
+            Between S1 and R1:  100 ms
+
+            Between S2 and R2:  40 ms
+
+            Between S3 and R3:  40 ms
+
+      Application-related:
+
+         Media source:
+
+            Media type:  Video
+
+               Media direction:  Forward
+
+               Number of media sources:  Three (3)
+
+               Media timeline:
+
+                  Start time:  0 s
+
+                  End time:  299 s
+
+            Media type:  Audio
+
+               Media direction:  Forward
+
+               Number of media sources:  Three (3)
+
+               Media timeline:
+
+                  Start time:  0 s
+
+                  End time:  299 s
+
+         Competing traffic:
+
+            Number of sources:  Zero (0)
+
+7.  Wireless Access Links
+
+   Additional wireless network (both cellular network and Wi-Fi network)
+   specific test cases are defined in [RFC8869].
+
+8.  Security Considerations
+
+   The security considerations in Section 6 of [RFC8868] and the
+   relevant congestion control algorithms apply.  The principles for
+   congestion control are described in [RFC2914], and in particular any
+   new method must implement safeguards to avoid congestion collapse of
+   the Internet.
+
+   The evaluation of the test cases are intended to be run in a
+   controlled lab environment.  Hence, the applications, simulators, and
+   network nodes ought to be well-behaved and should not impact the
+   desired results.  Moreover, proper measures must be taken to avoid
+   leaking nonresponsive traffic from unproven congestion avoidance
+   techniques onto the open Internet.
+
+9.  IANA Considerations
+
+   This document has no IANA actions.
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, DOI 10.17487/RFC3550,
+              July 2003, <https://www.rfc-editor.org/info/rfc3550>.
+
+   [RFC3551]  Schulzrinne, H. and S. Casner, "RTP Profile for Audio and
+              Video Conferences with Minimal Control", STD 65, RFC 3551,
+              DOI 10.17487/RFC3551, July 2003,
+              <https://www.rfc-editor.org/info/rfc3551>.
+
+   [RFC3611]  Friedman, T., Ed., Caceres, R., Ed., and A. Clark, Ed.,
+              "RTP Control Protocol Extended Reports (RTCP XR)",
+              RFC 3611, DOI 10.17487/RFC3611, November 2003,
+              <https://www.rfc-editor.org/info/rfc3611>.
+
+   [RFC4585]  Ott, J., Wenger, S., Sato, N., Burmeister, C., and J. Rey,
+              "Extended RTP Profile for Real-time Transport Control
+              Protocol (RTCP)-Based Feedback (RTP/AVPF)", RFC 4585,
+              DOI 10.17487/RFC4585, July 2006,
+              <https://www.rfc-editor.org/info/rfc4585>.
+
+   [RFC5506]  Johansson, I. and M. Westerlund, "Support for Reduced-Size
+              Real-Time Transport Control Protocol (RTCP): Opportunities
+              and Consequences", RFC 5506, DOI 10.17487/RFC5506, April
+              2009, <https://www.rfc-editor.org/info/rfc5506>.
+
+   [RFC5681]  Allman, M., Paxson, V., and E. Blanton, "TCP Congestion
+              Control", RFC 5681, DOI 10.17487/RFC5681, September 2009,
+              <https://www.rfc-editor.org/info/rfc5681>.
+
+   [RFC6679]  Westerlund, M., Johansson, I., Perkins, C., O'Hanlon, P.,
+              and K. Carlberg, "Explicit Congestion Notification (ECN)
+              for RTP over UDP", RFC 6679, DOI 10.17487/RFC6679, August
+              2012, <https://www.rfc-editor.org/info/rfc6679>.
+
+   [RFC8593]  Zhu, X., Mena, S., and Z. Sarker, "Video Traffic Models
+              for RTP Congestion Control Evaluations", RFC 8593,
+              DOI 10.17487/RFC8593, May 2019,
+              <https://www.rfc-editor.org/info/rfc8593>.
+
+   [RFC8836]  Jesup, R. and Z. Sarker, Ed., "Congestion Control
+              Requirements for Interactive Real-Time Media", RFC 8836,
+              DOI 10.17487/RFC8836, January 2021,
+              <https://www.rfc-editor.org/info/rfc8836>.
+
+   [RFC8868]  Singh, V., Ott, J., and S. Holmer, "Evaluating Congestion
+              Control for Interactive Real-Time Media", RFC 8868,
+              DOI 10.17487/RFC8868, January 2021,
+              <https://www.rfc-editor.org/info/rfc8868>.
+
+   [RFC8869]  Sarker, Z., Zhu, X., and J. Fu, "Evaluation Test Cases for
+              Interactive Real-Time Media over Wireless Networks",
+              RFC 8869, DOI 10.17487/RFC8869, January 2021,
+              <https://www.rfc-editor.org/info/rfc8869>.
+
+10.2.  Informative References
+
+   [HEVC-seq] HEVC, "Test Sequences",
+              <http://www.netlab.tkk.fi/~varun/test_sequences/>.
+
+   [RFC2914]  Floyd, S., "Congestion Control Principles", BCP 41,
+              RFC 2914, DOI 10.17487/RFC2914, September 2000,
+              <https://www.rfc-editor.org/info/rfc2914>.
+
+   [RFC7567]  Baker, F., Ed. and G. Fairhurst, Ed., "IETF
+              Recommendations Regarding Active Queue Management",
+              BCP 197, RFC 7567, DOI 10.17487/RFC7567, July 2015,
+              <https://www.rfc-editor.org/info/rfc7567>.
+
+   [RFC8033]  Pan, R., Natarajan, P., Baker, F., and G. White,
+              "Proportional Integral Controller Enhanced (PIE): A
+              Lightweight Control Scheme to Address the Bufferbloat
+              Problem", RFC 8033, DOI 10.17487/RFC8033, February 2017,
+              <https://www.rfc-editor.org/info/rfc8033>.
+
+   [RFC8290]  Hoeiland-Joergensen, T., McKenney, P., Taht, D., Gettys,
+              J., and E. Dumazet, "The Flow Queue CoDel Packet Scheduler
+              and Active Queue Management Algorithm", RFC 8290,
+              DOI 10.17487/RFC8290, January 2018,
+              <https://www.rfc-editor.org/info/rfc8290>.
+
+   [RFC8699]  Islam, S., Welzl, M., and S. Gjessing, "Coupled Congestion
+              Control for RTP Media", RFC 8699, DOI 10.17487/RFC8699,
+              January 2020, <https://www.rfc-editor.org/info/rfc8699>.
+
+   [xiph-seq] Xiph.org, "Video Test Media",
+              <http://media.xiph.org/video/derf/>.
+
+Acknowledgments
+
+   Much of this document is derived from previous work on congestion
+   control at the IETF.
+
+   The content and concepts within this document are a product of the
+   discussion carried out within the Design Team.
+
+Authors' Addresses
+
+   Zaheduzzaman Sarker
+   Ericsson AB
+   Torshamnsgatan 23
+   SE-164 83 Stockholm
+   Sweden
+
+   Phone: +46 10 717 37 43
+   Email: zaheduzzaman.sarker@ericsson.com
+
+
+   Varun Singh
+   CALLSTATS I/O Oy
+   Rauhankatu 11 C
+   FI-00100 Helsinki
+   Finland
+
+   Email: varun.singh@iki.fi
+   URI:   http://www.callstats.io/
+
+
+   Xiaoqing Zhu
+   Cisco Systems
+   12515 Research Blvd
+   Austin, TX 78759
+   United States of America
+
+   Email: xiaoqzhu@cisco.com
+
+
+   Michael A. Ramalho
+   AcousticComms Consulting
+   6310 Watercrest Way Unit 203
+   Lakewood Ranch, FL 34202-5211
+   United States of America
+
+   Phone: +1 732 832 9723
+   Email: mar42@cornell.edu
+   URI:   http://ramalho.webhop.info/

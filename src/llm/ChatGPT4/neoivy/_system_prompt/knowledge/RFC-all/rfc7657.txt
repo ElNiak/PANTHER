@@ -1,0 +1,1459 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                     D. Black, Ed.
+Request for Comments: 7657                                           EMC
+Category: Informational                                         P. Jones
+ISSN: 2070-1721                                                    Cisco
+                                                           November 2015
+
+
+     Differentiated Services (Diffserv) and Real-Time Communication
+
+Abstract
+
+   This memo describes the interaction between Differentiated Services
+   (Diffserv) network quality-of-service (QoS) functionality and real-
+   time network communication, including communication based on the
+   Real-time Transport Protocol (RTP).  Diffserv is based on network
+   nodes applying different forwarding treatments to packets whose IP
+   headers are marked with different Diffserv Codepoints (DSCPs).
+   WebRTC applications, as well as some conferencing applications, have
+   begun using the Session Description Protocol (SDP) bundle negotiation
+   mechanism to send multiple traffic streams with different QoS
+   requirements using the same network 5-tuple.  The results of using
+   multiple DSCPs to obtain different QoS treatments within a single
+   network 5-tuple have transport protocol interactions, particularly
+   with congestion control functionality (e.g., reordering).  In
+   addition, DSCP markings may be changed or removed between the traffic
+   source and destination.  This memo covers the implications of these
+   Diffserv aspects for real-time network communication, including
+   WebRTC.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Not all documents
+   approved by the IESG are a candidate for any level of Internet
+   Standard; see Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7657.
+
+
+
+
+
+
+
+Black & Jones                 Informational                     [Page 1]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+   2.  Real-Time Communications  . . . . . . . . . . . . . . . . . .   3
+     2.1.  RTP Background  . . . . . . . . . . . . . . . . . . . . .   4
+     2.2.  RTP Multiplexing  . . . . . . . . . . . . . . . . . . . .   6
+   3.  Differentiated Services (Diffserv)  . . . . . . . . . . . . .   7
+     3.1.  Diffserv Per-Hop Behaviors (PHBs) . . . . . . . . . . . .  10
+     3.2.  Traffic Classifiers and DSCP Remarking  . . . . . . . . .  10
+   4.  Examples  . . . . . . . . . . . . . . . . . . . . . . . . . .  12
+   5.  Diffserv Interactions . . . . . . . . . . . . . . . . . . . .  13
+     5.1.  Diffserv, Reordering, and Transport Protocols . . . . . .  13
+     5.2.  Diffserv, Reordering, and Real-Time Communication . . . .  15
+     5.3.  Drop Precedence and Transport Protocols . . . . . . . . .  16
+     5.4.  Diffserv and RTCP . . . . . . . . . . . . . . . . . . . .  17
+   6.  Guidelines  . . . . . . . . . . . . . . . . . . . . . . . . .  18
+   7.  Security Considerations . . . . . . . . . . . . . . . . . . .  19
+   8.  References  . . . . . . . . . . . . . . . . . . . . . . . . .  20
+     8.1.  Normative References  . . . . . . . . . . . . . . . . . .  20
+     8.2.  Informative References  . . . . . . . . . . . . . . . . .  22
+   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .  26
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .  26
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Black & Jones                 Informational                     [Page 2]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+1.  Introduction
+
+   This memo describes the interactions between Differentiated Services
+   (Diffserv) network quality-of-service (QoS) functionality [RFC2475]
+   and real-time network communication, including communication based on
+   the Real-time Transport Protocol (RTP) [RFC3550].  Diffserv is based
+   on network nodes applying different forwarding treatments to packets
+   whose IP headers are marked with different Diffserv Codepoints
+   (DSCPs) [RFC2474].  In the past, distinct RTP streams have been sent
+   over different transport-level flows, sometimes multiplexed with the
+   RTP Control Protocol (RTCP).  WebRTC applications, as well as some
+   conferencing applications, are now using the Session Description
+   Protocol (SDP) [RFC4566] bundle negotiation mechanism [SDP-BUNDLE] to
+   send multiple traffic streams with different QoS requirements using
+   the same network 5-tuple.  The results of using multiple DSCPs to
+   obtain different QoS treatments within a single network 5-tuple have
+   transport protocol interactions, particularly with congestion control
+   functionality (e.g., reordering).  In addition, DSCP markings may be
+   changed or removed between the traffic source and destination.  This
+   memo covers the implications of these Diffserv aspects for real-time
+   network communication, including WebRTC traffic [WEBRTC-OVERVIEW].
+
+   The memo is organized as follows.  Background is provided in
+   Section 2 on real-time communications and Section 3 on Differentiated
+   Services.  Section 4 describes some examples of Diffserv usage with
+   real-time communications.  Section 5 explains how use of Diffserv
+   features interacts with both transport and real-time communications
+   protocols and Section 6 provides guidance on Diffserv feature usage
+   to control undesired interactions.  Security considerations are
+   discussed in Section 7.
+
+2.  Real-Time Communications
+
+   Real-time communications enables communication in real time over an
+   IP network using voice, video, text, content sharing, etc.  It is
+   possible to use more than one of these modes concurrently to provide
+   a rich communication experience.
+
+   A simple example of real-time communications is a voice call placed
+   over the Internet where an audio stream is transmitted in each
+   direction between two users.  A more complex example is an immersive
+   videoconferencing system that has multiple video screens, multiple
+   cameras, multiple microphones, and some means of sharing content.
+   For such complex systems, there may be multiple media and non-media
+   streams transmitted via a single IP address and port or via multiple
+   IP addresses and ports.
+
+
+
+
+
+Black & Jones                 Informational                     [Page 3]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+2.1.  RTP Background
+
+   The most common protocol used for real-time media is RTP [RFC3550].
+   RTP defines a common encapsulation format and handling rules for
+   real-time data transmitted over the Internet.  Unfortunately, RTP
+   terminology usage has been inconsistent.  For example, RFC 7656
+   [RFC7656] on RTP terminology observes that:
+
+      RTP [RFC3550] uses media stream, audio stream, video stream, and a
+      stream of (RTP) packets interchangeably, which are all RTP
+      streams.
+
+   Terminology in this memo is based on that RTP terminology document
+   with the following terms being of particular importance (see that
+   terminology document for full definitions):
+
+   Source Stream:  A reference clock synchronized, time progressing,
+      digital media stream.
+
+   RTP Stream:  A stream of RTP packets containing media data, which may
+      be source data or redundant data.  The RTP stream is identified by
+      an RTP synchronization source (SSRC) belonging to a particular RTP
+      session.  An RTP stream may be a secured RTP stream when RTP-based
+      security is used.
+
+   In addition, this memo follows [RFC3550] in using the term "SSRC" to
+   designate both the identifier of an RTP stream and the entity that
+   sends that RTP stream.
+
+   Media encoding and packetization of a source stream results in a
+   source RTP stream plus zero or more redundancy RTP streams that
+   provide resilience against loss of packets from the source RTP stream
+   [RFC7656].  Redundancy information may also be carried in the same
+   RTP stream as the encoded source stream, e.g., see Section 7.2 of
+   [RFC5109].  With most applications, a single media type (e.g., audio)
+   is transmitted within a single RTP session.  However, it is possible
+   to transmit multiple, distinct source streams over the same RTP
+   session as one or more individual RTP streams.  This is referred to
+   as RTP multiplexing.  In addition, an RTP stream may contain multiple
+   source streams, e.g., components or programs in an MPEG Transport
+   Stream [H.221].
+
+   The number of source streams and RTP streams in an overall real-time
+   interaction can be surprisingly large.  In addition to a voice source
+   stream and a video source stream, there could be separate source
+   streams for each of the cameras or microphones on a videoconferencing
+   system.  As noted above, there might also be separate redundancy RTP
+   streams that provide protection to a source RTP stream, using
+
+
+
+Black & Jones                 Informational                     [Page 4]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   techniques such as forward error correction.  Another example is
+   simulcast transmission, where a video source stream can be
+   transmitted as high resolution and low resolution RTP streams at the
+   same time.  In this case, a media processing function might choose to
+   send one or both RTP streams onward to a receiver based on bandwidth
+   availability or who the active speaker is in a multipoint conference.
+   Lastly, a transmitter might send the same media content concurrently
+   as two RTP streams using different encodings (e.g., video encoded as
+   VP8 [RFC6386] in parallel with H.264 [H.264]) to allow a media
+   processing function to select a media encoding that best matches the
+   capabilities of the receiver.
+
+   For the WebRTC protocol suite [WEBRTC-TRANSPORTS], an individual
+   source stream is a MediaStreamTrack, and a MediaStream contains one
+   or more MediaStreamTracks [W3C.WD-mediacapture-streams-20130903].  A
+   MediaStreamTrack is transmitted as a source RTP stream plus zero or
+   more redundant RTP streams, so a MediaStream that consists of one
+   MediaStreamTrack is transmitted as a single source RTP stream plus
+   zero or more redundant RTP streams.  For more information on use of
+   RTP in WebRTC, see [RTP-USAGE].
+
+   RTP is usually carried over a datagram protocol, such as UDP
+   [RFC768], UDP-Lite [RFC3828], or the Datagram Congestion Control
+   Protocol (DCCP) [RFC4340]; UDP is most commonly used, but a non-
+   datagram protocol (e.g., TCP [RFC793]) may also be used.  Transport
+   protocols other than UDP or UDP-Lite may also be used to transmit
+   real-time data or near-real-time data.  For example, the Stream
+   Control Transmission Protocol (SCTP) [RFC4960] can be utilized to
+   carry application-sharing or whiteboarding information as part of an
+   overall interaction that includes real-time media.  These additional
+   transport protocols can be multiplexed with an RTP session via UDP
+   encapsulation, thereby using a single pair of UDP ports.
+
+   The WebRTC protocol suite encompasses a number of forms of
+   multiplexing:
+
+   1.  Individual source streams are carried in one or more individual
+       RTP streams.  These RTP streams can be multiplexed onto a single
+       transport-layer flow or sent as separate transport-layer flows.
+       This memo only considers the case where the RTP streams are to be
+       multiplexed onto a single transport-layer flow, forming a single
+       RTP session as described in [RFC3550];
+
+   2.  RTCP (see [RFC3550]) may be multiplexed onto the same transport-
+       layer flow as the RTP streams with which it is associated, as
+       described in [RFC5761], or it may be sent on a separate
+       transport-layer flow;
+
+
+
+
+Black & Jones                 Informational                     [Page 5]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   3.  An RTP session could be multiplexed with a single SCTP
+       association over Datagram Transport Layer Security (DTLS) and
+       with both Session Traversal Utilities for NAT (STUN) [RFC5389]
+       and TURN [RFC5766] traffic into a single transport-layer flow as
+       described in [RFC5764] with the updates in [SRTP-DTLS].  The STUN
+       [RFC5389] and Traversal Using Relays around NAT (TURN) [RFC5766]
+       protocols provide NAT/FW (Network Address Translator / Firewall)
+       traversal and port mapping.
+
+   The resulting transport-layer flow is identified by a network
+   5-tuple, i.e., a combination of two IP addresses (source and
+   destination), two ports (source and destination), and the transport
+   protocol used (e.g., UDP).  SDP bundle negotiation restrictions
+   [SDP-BUNDLE] limit WebRTC to using at most a single DTLS session per
+   network 5-tuple.  In contrast to WebRTC use of a single SCTP
+   association with DTLS, multiple SCTP associations can be directly
+   multiplexed over a single UDP 5-tuple as specified in [RFC6951].
+
+   The STUN and TURN protocols were originally designed to use UDP as a
+   transport; however, TURN has been extended to use TCP as a transport
+   for situations in which UDP does not work [RFC6062].  When TURN
+   selects use of TCP, the entire real-time communications session is
+   carried over a single TCP connection (i.e., 5-tuple).
+
+   For IPv6, addition of the flow label [RFC6437] to network 5-tuples
+   results in network 6-tuples (or 7-tuples for bidirectional flows),
+   but in practice, use of a flow label is unlikely to result in a
+   finer-grain traffic subset than the corresponding network 5-tuple
+   (e.g., the flow label is likely to represent the combination of two
+   ports with use of the UDP protocol).  For that reason, discussion in
+   this document focuses on UDP 5-tuples.
+
+2.2.  RTP Multiplexing
+
+   Section 2.1 explains how source streams can be multiplexed in a
+   single RTP session, which can in turn be multiplexed over UDP with
+   packets generated by other transport protocols.  This section
+   provides background on why this level of multiplexing is desirable.
+   The rationale in this section applies both to multiplexing of source
+   streams in a single RTP session and multiplexing of an RTP session
+   with traffic from other transport protocols via UDP encapsulation.
+
+   Multiplexing reduces the number of ports utilized for real-time and
+   related communication in an overall interaction.  While a single
+   endpoint might have plenty of ports available for communication, this
+   traffic often traverses points in the network that are constrained on
+   the number of available ports or whose performance degrades as the
+   number of ports in use increases.  A good example is a NAT/FW device
+
+
+
+Black & Jones                 Informational                     [Page 6]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   sitting at the network edge.  As the number of simultaneous protocol
+   sessions increases, so does the burden placed on these devices to
+   provide port mapping.
+
+   Another reason for multiplexing is to help reduce the time required
+   to establish bidirectional communication.  Since any two
+   communicating users might be situated behind different NAT/FW
+   devices, it is necessary to employ techniques like STUN and TURN
+   along with Interactive Connectivity Establishment (ICE) [RFC5245] to
+   get traffic to flow between the two devices [WEBRTC-TRANSPORTS].
+   Performing the tasks required by these protocols takes time,
+   especially when multiple protocol sessions are involved.  While tasks
+   for different sessions can be performed in parallel, it is
+   nonetheless necessary for applications to wait for all sessions to be
+   opened before communication between two users can begin.  Reducing
+   the number of STUN/ICE/TURN steps reduces the likelihood of loss of a
+   packet for one of these protocols; any such loss adds delay to
+   setting up a communication session.  Further, reducing the number of
+   STUN/ICE/TURN tasks places a lower burden on the STUN and TURN
+   servers.
+
+   Multiplexing may reduce the complexity and resulting load on an
+   endpoint.  A single instance of STUN/ICE/TURN is simpler to execute
+   and manage than multiple instances STUN/ICE/TURN operations happening
+   in parallel, as the latter require synchronization and create more
+   complex failure situations that have to be cleaned up by additional
+   code.
+
+3.  Differentiated Services (Diffserv)
+
+   The Diffserv architecture [RFC2475][RFC4594] is intended to enable
+   scalable service discrimination in the Internet without requiring
+   each node in the network to store per-flow state and participate in
+   per-flow signaling.  The services may be end to end or within a
+   network; they include both those that can satisfy quantitative
+   performance requirements (e.g., peak bandwidth) and those based on
+   relative performance (e.g., "class" differentiation).  Services can
+   be constructed by a combination of well-defined building blocks
+   deployed in network nodes that:
+
+   o  classify traffic and set bits in an IP header field at network
+      boundaries or hosts,
+
+   o  use those bits to determine how packets are forwarded by the nodes
+      inside the network, and
+
+   o  condition the marked packets at network boundaries in accordance
+      with the requirements or rules of each service.
+
+
+
+Black & Jones                 Informational                     [Page 7]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   Traffic conditioning may include changing the DSCP in a packet
+   (remarking it), delaying the packet (as a consequence of traffic
+   shaping), or dropping the packet (as a consequence of traffic
+   policing).
+
+   A network node that supports Diffserv includes a classifier that
+   selects packets based on the value of the DS field in IP headers (the
+   Diffserv codepoint or DSCP), along with buffer management and packet
+   scheduling mechanisms capable of delivering the specific packet
+   forwarding treatment indicated by the DS field value.  Setting of the
+   DS field and fine-grain conditioning of marked packets need only be
+   performed at network boundaries; internal network nodes operate on
+   traffic aggregates that share a DS field value, or in some cases, a
+   small set of related values.
+
+   The Diffserv architecture [RFC2475] maintains distinctions among:
+
+   o  the QoS service provided to a traffic aggregate,
+
+   o  the conditioning functions and per-hop behaviors (PHBs) used to
+      realize services,
+
+   o  the DSCP in the IP header used to mark packets to select a per-hop
+      behavior, and
+
+   o  the particular implementation mechanisms that realize a per-hop
+      behavior.
+
+   This memo focuses on PHBs and the usage of DSCPs to obtain those
+   behaviors.  In a network node's forwarding path, the DSCP is used to
+   map a packet to a particular forwarding treatment, or to a per-hop
+   behavior (PHB) that specifies the forwarding treatment.
+
+   The specification of a PHB describes the externally observable
+   forwarding behavior of a network node for network traffic marked with
+   a DSCP that selects that PHB.  In this context, "forwarding behavior"
+   is a general concept - for example, if only one DSCP is used for all
+   traffic on a link, the observable forwarding behavior (e.g., loss,
+   delay, jitter) will often depend only on the loading of the link.  To
+   obtain useful behavioral differentiation, multiple traffic subsets
+   are marked with different DSCPs for different PHBs for which node
+   resources such as buffer space and bandwidth are allocated.  PHBs
+   provide the framework for a Diffserv network node to allocate
+   resources to traffic subsets, with network-scope Differentiated
+   Services constructed on top of this basic hop-by-hop resource
+   allocation mechanism.
+
+
+
+
+
+Black & Jones                 Informational                     [Page 8]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   The codepoints (DSCPs) may be chosen from a small set of fixed values
+   (the class selector codepoints), from a set of recommended values
+   defined in PHB specifications, or from values that have purely local
+   meanings to a specific network that supports Diffserv; in general,
+   packets may be forwarded across multiple such networks between source
+   and destination.
+
+   The mandatory DSCPs are the class selector codepoints as specified in
+   [RFC2474].  The class selector codepoints (CS0-CS7) extend the
+   deprecated concept of IP Precedence in the IPv4 header; three bits
+   are added, so that the class selector DSCPs are of the form 'xxx000'.
+   The all-zero DSCP ('000000' or CS0) is always assigned to a Default
+   PHB that provides best-effort forwarding behavior, and the remaining
+   class selector codepoints are intended to provide relatively better
+   per-hop-forwarding behavior in increasing numerical order, but:
+
+   o  A network endpoint cannot rely upon different class selector
+      codepoints providing Differentiated Services via assignment to
+      different PHBs, as adjacent class selector codepoints may use the
+      same pool of resources on each network node in some networks.
+      This generalizes to ranges of class selector codepoints, but with
+      limits -- for example, CS6 and CS7 are often used for network
+      control (e.g., routing) traffic [RFC4594] and hence are likely to
+      provide better forwarding behavior under network load to
+      prioritize network recovery from disruptions.  There is no
+      effective way for a network endpoint to determine which PHBs are
+      selected by the class selector codepoints on a specific network,
+      let alone end to end.
+
+   o  CS1 ('001000') was subsequently designated as the recommended
+      codepoint for the Lower Effort (LE) PHB [RFC3662].  An LE service
+      forwards traffic with "lower" priority than best effort and can be
+      "starved" by best-effort and other "higher" priority traffic.  Not
+      all networks offer an LE service, hence traffic marked with the
+      CS1 DSCP may not receive lower effort forwarding; such traffic may
+      be forwarded with a different PHB (e.g., the Default PHB),
+      remarked to another DSCP (e.g., CS0) and forwarded accordingly, or
+      dropped.  A network endpoint cannot rely upon the presence of an
+      LE service that is selected by the CS1 DSCP on a specific network,
+      let alone end to end.  Packets marked with the CS1 DSCP may be
+      forwarded with best-effort service or another "higher" priority
+      service; see [RFC2474].  See [RFC3662] for further discussion of
+      the LE PHB and service.
+
+
+
+
+
+
+
+
+Black & Jones                 Informational                     [Page 9]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+3.1.  Diffserv Per-Hop Behaviors (PHBs)
+
+   Although Differentiated Services is a general architecture that may
+   be used to implement a variety of services, three fundamental
+   forwarding behaviors (PHBs) have been defined and characterized for
+   general use.  These are:
+
+   1.  Default Forwarding (DF) for elastic traffic [RFC2474].  The
+       Default PHB is always selected by the all-zero DSCP and provides
+       best-effort forwarding.
+
+   2.  Assured Forwarding (AF) [RFC2597] to provide Differentiated
+       Service to elastic traffic.  Each instance of the AF behavior
+       consists of three PHBs that differ only in drop precedence, e.g.,
+       AF11, AF12, and AF13; such a set of three AF PHBs is referred to
+       as an AF class, e.g., AF1x.  There are four defined AF classes,
+       AF1x through AF4x, with higher numbered classes intended to
+       receive better forwarding treatment than lower numbered classes.
+       Use of multiple PHBs from a single AF class (e.g., AF1x) does not
+       enable network traffic reordering within a single network
+       5-tuple, although such reordering may occur for other transient
+       reasons (e.g., routing changes or ECMP rebalancing).
+
+   3.  Expedited Forwarding (EF) [RFC3246] intended for inelastic
+       traffic.  Beyond the basic EF PHB, the VOICE-ADMIT PHB [RFC5865]
+       is an admission-controlled variant of the EF PHB.  Both of these
+       PHBs are based on preconfigured limited forwarding capacity;
+       traffic in excess of that capacity is expected to be dropped.
+
+3.2.  Traffic Classifiers and DSCP Remarking
+
+   DSCP markings are not end to end in general.  Each network can make
+   its own decisions about what PHBs to use and which DSCP maps to each
+   PHB.  While every PHB specification includes a recommended DSCP, and
+   RFC 4594 [RFC4594] recommends their end-to-end usage, there is no
+   requirement that every network support any PHBs (aside from the
+   Default PHB for best-effort forwarding) or use any specific DSCPs,
+   with the exception of the support requirements for the class selector
+   codepoints (see RFC 2474 [RFC2474]).  When Diffserv is used, the edge
+   or boundary nodes of a network are responsible for ensuring that all
+   traffic entering that network conforms to that network's policies for
+   DSCP and PHB usage, and such nodes may change DSCP markings on
+   traffic to achieve that result.  As a result, DSCP remarking is
+   possible at any network boundary, including the first network node
+   that traffic sent by a host encounters.  Remarking is also possible
+   within a network, e.g., for traffic shaping.
+
+
+
+
+
+Black & Jones                 Informational                    [Page 10]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   DSCP remarking is part of traffic conditioning; the traffic
+   conditioning functionality applied to packets at a network node is
+   determined by a traffic classifier [RFC2475].  Edge nodes of a
+   Diffserv network classify traffic based on selected packet header
+   fields; typical implementations do not look beyond the traffic's
+   network 5-tuple in the IP and transport protocol headers (e.g., for
+   SCTP or RTP encapsulated in UDP, header-based classification is
+   unlikely to look beyond the outer UDP header).  As a result, when
+   multiple DSCPs are used for traffic that shares a network 5-tuple,
+   remarking at a network boundary may result in all of the traffic
+   being forwarded with a single DSCP, thereby removing any
+   differentiation within the network 5-tuple downstream of the
+   remarking location.  Network nodes within a Diffserv network
+   generally classify traffic based solely on DSCPs, but may perform
+   finer-grain traffic conditioning similar to that performed by edge
+   nodes.
+
+   So, for two arbitrary network endpoints, there can be no assurance
+   that the DSCP set at the source endpoint will be preserved and
+   presented at the destination endpoint.  Rather, it is quite likely
+   that the DSCP will be set to zero (e.g., at the boundary of a network
+   operator that distrusts or does not use the DSCP field) or to a value
+   deemed suitable by an ingress classifier for whatever network 5-tuple
+   it carries.
+
+   In addition, remarking may remove application-level distinctions in
+   forwarding behavior - e.g., if multiple PHBs within an AF class are
+   used to distinguish different types of frames within a video RTP
+   stream, token-bucket-based remarkers operating in color-blind mode
+   (see [RFC2697] and [RFC2698] for examples) may remark solely based on
+   flow rate and burst behavior, removing the drop precedence
+   distinctions specified by the source.
+
+   Backbone and other carrier networks may employ a small number of
+   DSCPs (e.g., less than half a dozen) to manage a small number of
+   traffic aggregates; hosts that use a larger number of DSCPs can
+   expect to find that much of their intended differentiation is removed
+   by such networks.  Better results may be achieved when DSCPs are used
+   to spread traffic among a smaller number of Diffserv-based traffic
+   subsets or aggregates; see [DIFFSERV-INTERCON] for one proposal.
+   This is of particular importance for MPLS-based networks due to the
+   limited size of the Traffic Class (TC) field in an MPLS label
+   [RFC5462] that is used to carry Diffserv information and the use of
+   that TC field for other purposes, e.g., Explicit Congestion
+   Notification (ECN) [RFC5129].  For further discussion on use of
+   Diffserv with MPLS, see [RFC3270] and [RFC5127].
+
+
+
+
+
+Black & Jones                 Informational                    [Page 11]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+4.  Examples
+
+   For real-time communications, one might want to mark the audio
+   packets using EF and the video packets as AF41.  However, a video
+   conference receiving the audio packets significantly ahead of the
+   video is not useful because lip sync is necessary between audio and
+   video.  It may still be desirable to send audio with a PHB that
+   provides better service, because more reliable arrival of audio helps
+   assure smooth audio rendering, which is often more important than
+   fully faithful video rendering.  There are also limits, as some
+   devices have difficulties in synchronizing voice and video when
+   packets that need to be rendered together arrive at significantly
+   different times.  It makes more sense to use different PHBs when the
+   audio and video source streams do not share a strict timing
+   relationship.  For example, video content may be shared within a
+   video conference via playback, perhaps of an unedited video clip that
+   is intended to become part of a television advertisement.  Such
+   content sharing video does not need precise synchronization with
+   video conference audio, and could use a different PHB, as content
+   sharing video is more tolerant to jitter, loss, and delay.
+
+   Within a layered video RTP stream, ordering of frame communication is
+   preferred, but importance of frame types varies, making use of PHBs
+   with different drop precedences appropriate.  For example, I-frames
+   that contain an entire image are usually more important than P-frames
+   that contain only changes from the previous image because loss of a
+   P-frame (or part thereof) can be recovered (at the latest) via the
+   next I-frame, whereas loss of an I-frame (or part thereof) may cause
+   rendering problems for all of the P-frames that depend on the missing
+   I-frame.  For this reason, it is appropriate to mark I-frame packets
+   with a PHB that has lower drop precedence than the PHB used for
+   P-frames, as long as the PHBs preserve ordering among frames (e.g.,
+   are in a single AF class) - AF41 for I-frames and AF43 for P-frames
+   is one possibility.  Additional spatial and temporal layers beyond
+   the base video layer could also be marked with higher drop precedence
+   than the base video layer, as their loss reduces video quality, but
+   does not disrupt video rendering.
+
+   Additional RTP streams in a real-time communication interaction could
+   be marked with CS0 and carried as best-effort traffic.  One example
+   is real-time text transmitted as specified in RFC 4103 [RFC4103].
+   Best-effort forwarding suffices because such real-time text has loose
+   timing requirements; RFC 4103 recommends sending text in chunks every
+   300 ms.  Such text is technically real-time, but does not need a PHB
+   promising better service than best effort, in contrast to audio or
+   video.
+
+
+
+
+
+Black & Jones                 Informational                    [Page 12]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   A WebRTC application may use one or more RTP streams, as discussed
+   above.  In addition, it may use an SCTP-based data channel
+   [DATA-CHAN] whose QoS treatment depends on the nature of the
+   application.  For example, best-effort treatment of data channels is
+   likely to suffice for messaging, shared white board, and guided
+   browsing applications, whereas latency-sensitive games might desire
+   better QoS for their data channels.
+
+5.  Diffserv Interactions
+
+5.1.  Diffserv, Reordering, and Transport Protocols
+
+   Transport protocols provide data communication behaviors beyond those
+   possible at the IP layer.  An important example is that TCP [RFC793]
+   provides reliable in-order delivery of data with congestion control.
+   SCTP [RFC4960] provides additional properties such as preservation of
+   message boundaries, and the ability to avoid head-of-line blocking
+   that may occur with TCP.
+
+   In contrast, UDP [RFC768] is a basic unreliable datagram protocol
+   that provides port-based multiplexing and demultiplexing on top of
+   IP.  Two other unreliable datagram protocols are UDP-Lite [RFC3828],
+   a variant of UDP that may deliver partially corrupt payloads when
+   errors occur, and DCCP [RFC4340], which provides a range of
+   congestion control modes for its unreliable datagram service.
+
+   Transport protocols that provide reliable delivery (e.g., TCP, SCTP)
+   are sensitive to network reordering of traffic.  When a protocol that
+   provides reliable delivery receives a packet other than the next
+   expected packet, the protocol usually assumes that the expected
+   packet has been lost and updates the peer, which often causes a
+   retransmission.  In addition, congestion control functionality in
+   transport protocols (including DCCP) usually infers congestion when
+   packets are lost.  This creates additional sensitivity to significant
+   network packet reordering, as such reordering may be (mis)interpreted
+   as loss of the out-of-order packets, causing a congestion control
+   response.
+
+   This sensitivity to reordering remains even when ECN [RFC3168] is in
+   use, as ECN receivers are required to treat missing packets as
+   potential indications of congestion, because:
+
+   o  Severe congestion may cause ECN-capable network nodes to drop
+      packets, and
+
+   o  ECN traffic may be forwarded by network nodes that do not support
+      ECN and hence drop packets to indicate congestion.
+
+
+
+
+Black & Jones                 Informational                    [Page 13]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   Congestion control is an important aspect of the Internet
+   architecture; see [RFC2914] for further discussion.
+
+   In general, marking packets with different DSCPs results in different
+   PHBs being applied at nodes in the network, making reordering very
+   likely due to use of different pools of forwarding resources for each
+   PHB.  This should not be done within a single network 5-tuple for
+   current transport protocols, with the important exceptions of UDP and
+   UDP-Lite.
+
+   When PHBs that enable reordering are mixed within a single network
+   5-tuple, the effect is to mix QoS-based traffic classes within the
+   scope of a single transport protocol connection or association.  As
+   these QoS-based traffic classes receive different network QoS
+   treatments, they use different pools of network resources and hence
+   may exhibit different levels of congestion.  The result for
+   congestion-controlled protocols is that a separate instance of
+   congestion control functionality is needed per QoS-based traffic
+   class.  Current transport protocols support only a single instance of
+   congestion control functionality for an entire connection or
+   association; extending that support to multiple instances would add
+   significant protocol complexity.  Traffic in different QoS-based
+   classes may use different paths through the network; this complicates
+   path integrity checking in connection- or association-based
+   protocols, as those paths may fail independently.
+
+   The primary example where usage of multiple PHBs does not enable
+   reordering within a single network 5-tuple is use of PHBs from a
+   single AF class (e.g., AF1x).  Traffic reordering within the scope of
+   a network 5-tuple that uses a single PHB or AF class may occur for
+   other transient reasons (e.g., routing changes or ECMP rebalancing).
+
+   Reordering also affects other forms of congestion control, such as
+   techniques for RTP congestion control that were under development
+   when this memo was published; see [RMCAT-CC] for requirements.  These
+   techniques prefer use of a common (coupled) congestion controller for
+   RTP streams between the same endpoints to reduce packet loss and
+   delay by reducing competition for resources at any shared bottleneck.
+
+   Shared bottlenecks can be detected via techniques such as correlation
+   of one-way delay measurements across RTP streams.  An alternate
+   approach is to assume that the set of packets on a single network
+   5-tuple marked with DSCPs that do not enable reordering will utilize
+   a common network path and common forwarding resources at each network
+   node.  Under that assumption, any bottleneck encountered by such
+   packets is shared among all of them, making it safe to use a common
+   (coupled) congestion controller (see [COUPLED-CC]).  This is not a
+   safe assumption when the packets involved are marked with DSCP values
+
+
+
+Black & Jones                 Informational                    [Page 14]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   that enable reordering because a bottleneck may not be shared among
+   all such packets (e.g., when the DSCP values result in use of
+   different queues at a network node, but only one queue is a
+   bottleneck).
+
+   UDP and UDP-Lite are not sensitive to reordering in the network,
+   because they do not provide reliable delivery or congestion control.
+   On the other hand, when used to encapsulate other protocols (e.g., as
+   UDP is used by WebRTC; see Section 2.1), the reordering
+   considerations for the encapsulated protocols apply.  For the
+   specific usage of UDP by WebRTC, every encapsulated protocol (i.e.,
+   RTP, SCTP, and TCP) is sensitive to reordering as further discussed
+   in this memo.  In addition, [RFC5405] provides general guidelines for
+   use of UDP (and UDP-Lite); the congestion control guidelines in that
+   document apply to protocols encapsulated in UDP (or UDP-Lite).
+
+5.2.  Diffserv, Reordering, and Real-Time Communication
+
+   Real-time communications are also sensitive to network reordering of
+   packets.  Such reordering may lead to unneeded retransmission and
+   spurious retransmission control signals (such as NACK) in reliable
+   delivery protocols (see Section 5.1).  The degree of sensitivity
+   depends on protocol or stream timers, in contrast to reliable
+   delivery protocols that usually react to all reordering.
+
+   Receiver jitter buffers have important roles in the effect of
+   reordering on real-time communications:
+
+   o  Minor packet reordering that is contained within a jitter buffer
+      usually has no effect on rendering of the received RTP stream
+      because packets that arrive out of order are retrieved in order
+      from the jitter buffer for rendering.
+
+   o  Packet reordering that exceeds the capacity of a jitter buffer can
+      cause user-perceptible quality problems (e.g., glitches, noise)
+      for delay-sensitive communication, such as interactive
+      conversations for which small jitter buffers are necessary to
+      preserve human perceptions of real-time interaction.  Interactive
+      real-time communication implementations often discard data that is
+      sufficiently late so that it cannot be rendered in source stream
+      order, making retransmission counterproductive.  For this reason,
+      implementations of interactive real-time communication often do
+      not use retransmission.
+
+   o  In contrast, replay of recorded media can tolerate significantly
+      longer delays than interactive conversations, so replay is likely
+      to use larger jitter buffers than interactive conversations.
+      These larger jitter buffers increase the tolerance of replay to
+
+
+
+Black & Jones                 Informational                    [Page 15]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+      reordering by comparison to interactive conversations.  The size
+      of the jitter buffer imposes an upper bound on replay tolerance to
+      reordering but does enable retransmission to be used when the
+      jitter buffer is significantly larger than the amount of data that
+      can be expected to arrive during the round-trip latency for
+      retransmission.
+
+   Network packet reordering has no effective upper bound and can exceed
+   the size of any reasonable jitter buffer.  In practice, the size of
+   jitter buffers for replay is limited by external factors such as the
+   amount of time that a human is willing to wait for replay to start.
+
+5.3.  Drop Precedence and Transport Protocols
+
+   Packets within the same network 5-tuple that use PHBs within a single
+   AF class can be expected to draw upon the same forwarding resources
+   on network nodes (e.g., use the same router queue), and hence use of
+   multiple drop precedences within an AF class is not expected to cause
+   latency variation.  When PHBs within a single AF class are mixed
+   within a flow, the resulting overall likelihood that packets will be
+   dropped from that flow is a mix of the drop likelihoods of the PHBs
+   involved.
+
+   There are situations in which drop precedences should not be mixed.
+   A simple example is that there is little value in mixing drop
+   precedences within a TCP connection, because TCP's ordered delivery
+   behavior results in any drop requiring the receiver to wait for the
+   dropped packet to be retransmitted.  Any resulting delay depends on
+   the RTT and not the packet that was dropped.  Hence a single DSCP
+   should be used for all packets in a TCP connection.
+
+   As a consequence, when TCP is selected for NAT/FW traversal (e.g., by
+   TURN), a single DSCP should be used for all traffic on that TCP
+   connection.  An additional reason for this recommendation is that
+   packetization for STUN/ICE/TURN occurs before passing the resulting
+   packets to TCP; TCP resegmentation may result in a different
+   packetization on the wire, breaking any association between DSCPs and
+   specific data to which they are intended to apply.
+
+   SCTP [RFC4960] differs from TCP in a number of ways, including the
+   ability to deliver messages in an order that differs from the order
+   in which they were sent and support for unreliable streams.  However,
+   SCTP performs congestion control and retransmission across the entire
+   association, and not on a per-stream basis.  Although there may be
+   advantages to using multiple drop precedence across SCTP streams or
+   within an SCTP stream that does not use reliable ordered delivery,
+   there is no practical operational experience in doing so (e.g., the
+   SCTP sockets API [RFC6458] does not support use of more than one DSCP
+
+
+
+Black & Jones                 Informational                    [Page 16]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   for an SCTP association).  As a consequence, the impacts on SCTP
+   protocol and implementation behavior are unknown and difficult to
+   predict.  Hence a single DSCP should be used for all packets in an
+   SCTP association, independent of the number or nature of streams in
+   that association.  Similar reasoning applies to a DCCP connection; a
+   single DSCP should be used because the scope of congestion control is
+   the connection and there is no operational experience with using more
+   than one DSCP.  This recommendation may be revised in the future if
+   experiments, analysis, and operational experience provide compelling
+   reasons to change it.
+
+   Guidance on transport protocol design and implementation to provide
+   support for use of multiple PHBs and DSCPs in a transport protocol
+   connection (e.g., DCCP) or transport protocol association (e.g.,
+   SCTP) is out of scope for this memo.
+
+5.4.  Diffserv and RTCP
+
+   RTCP [RFC3550] is used with RTP to monitor quality of service and
+   convey information about RTP session participants.  A sender of RTCP
+   packets that also sends RTP packets (i.e., originates an RTP stream)
+   should use the same DSCP marking for both types of packets.  If an
+   RTCP sender doesn't send any RTP packets, it should mark its RTCP
+   packets with the DSCP that it would use if it did send RTP packets
+   with media similar to the RTP traffic that it receives.  If the RTCP
+   sender uses or would use multiple DSCPs that differ only in drop
+   precedence for RTP, then it should use the DSCP with the least
+   likelihood of drop for RTCP to increase the likelihood of RTCP packet
+   delivery.
+
+   If the SDP bundle extension [SDP-BUNDLE] is used to negotiate sending
+   multiple types of media in a single RTP session, then receivers will
+   send separate RTCP reports for each type of media, using a separate
+   SSRC for each media type; each RTCP report should be marked with the
+   DSCP corresponding to the type of media handled by the reporting
+   SSRC.
+
+   This guidance may result in different DSCP markings for RTP streams
+   and RTCP receiver reports about those RTP streams.  The resulting
+   variation in network QoS treatment by traffic direction is necessary
+   to obtain representative round-trip time (RTT) estimates that
+   correspond to the media path RTT, which may differ from the transport
+   protocol RTT.  RTCP receiver reports may be relatively infrequent,
+   and hence the resulting RTT estimates are of limited utility for
+   transport protocol congestion control (although those RTT estimates
+   have other important uses; see [RFC3550]).  For this reason, it is
+   important that RTCP receiver reports sent by an SSRC receive the same
+   network QoS treatment as the RTP stream being sent by that SSRC.
+
+
+
+Black & Jones                 Informational                    [Page 17]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+6.  Guidelines
+
+   The only use of multiple standardized PHBs and DSCPs that does not
+   enable network reordering among packets marked with different DSCPs
+   is use of PHBs within a single AF class.  All other uses of multiple
+   PHBs and/or the class selector DSCPs enable network reordering of
+   packets that are marked with different DSCPs.  Based on this and the
+   foregoing discussion, the guidelines in this section apply to use of
+   Diffserv with real-time communications.
+
+   Applications and other traffic sources (including RTP SSRCs):
+
+   o  Should limit use of DSCPs within a single RTP stream to those
+      whose corresponding PHBs do not enable packet reordering.  If this
+      is not done, significant network reordering may overwhelm
+      implementation assumptions about reordering limits, e.g., jitter
+      buffer size, causing poor user experiences (see Section 5.2).
+      This guideline applies to all of the RTP streams that are within
+      the scope of a common (coupled) congestion controller when that
+      controller does not use per-RTP-stream measurements for bottleneck
+      detection.
+
+   o  Should use a single DSCP for RTCP packets, which should be a DSCP
+      used for RTP packets that are or would be sent by that SSRC (see
+      Section 5.4).
+
+   o  Should use a single DSCP for all packets within a reliable
+      transport protocol session (e.g., TCP connection, SCTP
+      association) or DCCP connection (see Sections 5.1 and 5.3).  For
+      SCTP, this requirement applies across the entire SCTP association,
+      and not just to individual streams within an association.  When
+      TURN selects TCP for NAT/FW traversal, this guideline applies to
+      all traffic multiplexed onto that TCP connection, in contrast to
+      use of UDP for NAT/FW traversal.
+
+   o  May use different DSCPs whose corresponding PHBs enable reordering
+      within a single UDP or UDP-Lite 5-tuple, subject to the above
+      constraints.  The service differentiation provided by such usage
+      is unreliable, as it may be removed or changed by DSCP remarking
+      at network boundaries as described in Section 3.2 above.
+
+   o  Cannot rely on end-to-end preservation of DSCPs as network node
+      remarking can change DSCPs and remove drop precedence distinctions
+      (see Section 3.2).  For example, if a source uses drop precedence
+      distinctions within an AF class to identify different types of
+      video frames, using those DSCP values at the receiver to identify
+      frame type is inherently unreliable.
+
+
+
+
+Black & Jones                 Informational                    [Page 18]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   o  Should limit use of the CS1 codepoint to traffic for which best
+      effort forwarding is acceptable, as network support for use of CS1
+      to select a "less than best-effort" PHB is inconsistent.  Further,
+      some networks may treat CS1 as providing "better than best-effort"
+      forwarding behavior.
+
+   There is no guidance in this memo on how network operators should
+   differentiate traffic.  Networks may support all of the PHBs
+   discussed herein, classify EF and AFxx traffic identically, or even
+   remark all traffic to best effort at some ingress points.
+   Nonetheless, it is useful for applications and other traffic sources
+   to provide finer granularity DSCP marking on packets for the benefit
+   of networks that offer QoS service differentiation.  A specific
+   example is that traffic originating from a browser may benefit from
+   QoS service differentiation in within-building and residential access
+   networks, even if the DSCP marking is subsequently removed or
+   simplified.  This is because such networks and the boundaries between
+   them are likely traffic bottleneck locations (e.g., due to customer
+   aggregation onto common links and/or speed differences among links
+   used by the same traffic).
+
+7.  Security Considerations
+
+   The security considerations for all of the technologies discussed in
+   this memo apply; in particular, see the security considerations for
+   RTP in [RFC3550] and Diffserv in [RFC2474] and [RFC2475].
+
+   Multiplexing of multiple protocols onto a single UDP 5-tuple via
+   encapsulation has implications for network functionality that
+   monitors or inspects individual protocol flows, e.g., firewalls and
+   traffic monitoring systems.  When implementations of such
+   functionality lack visibility into encapsulated traffic (likely for
+   many current implementations), it may be difficult or impossible to
+   apply network security policy and associated controls at a finer
+   granularity than the overall UDP 5-tuple.
+
+   Use of multiple DSCPs that enable reordering within an overall real-
+   time communication interaction enlarges the set of network forwarding
+   resources used by that interaction, thereby increasing exposure to
+   resource depletion or failure, independent of whether the underlying
+   cause is benign or malicious.  This represents an increase in the
+   effective attack surface of the interaction and is a consideration in
+   selecting an appropriate degree of QoS differentiation among the
+   components of the real-time communication interaction.  See
+   Section 3.3.2.1 of [RFC6274] for related discussion of DSCP security
+   considerations.
+
+
+
+
+
+Black & Jones                 Informational                    [Page 19]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   Use of multiple DSCPs to provide differentiated QoS service may
+   reveal information about the encrypted traffic to which different
+   service levels are provided.  For example, DSCP-based identification
+   of RTP streams combined with packet frequency and packet size could
+   reveal the type or nature of the encrypted source streams.  The IP
+   header used for forwarding has to be unencrypted for obvious reasons,
+   and the DSCP likewise has to be unencrypted to enable different IP
+   forwarding behaviors to be applied to different packets.  The nature
+   of encrypted traffic components can be disguised via encrypted dummy
+   data padding and encrypted dummy packets, e.g., see the discussion of
+   traffic flow confidentiality in [RFC4303].  Encrypted dummy packets
+   could even be added in a fashion that an observer of the overall
+   encrypted traffic might mistake for another encrypted RTP stream.
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC768]   Postel, J., "User Datagram Protocol", STD 6, RFC 768,
+              DOI 10.17487/RFC0768, August 1980,
+              <http://www.rfc-editor.org/info/rfc768>.
+
+   [RFC793]   Postel, J., "Transmission Control Protocol", STD 7,
+              RFC 793, DOI 10.17487/RFC0793, September 1981,
+              <http://www.rfc-editor.org/info/rfc793>.
+
+   [RFC2474]  Nichols, K., Blake, S., Baker, F., and D. Black,
+              "Definition of the Differentiated Services Field (DS
+              Field) in the IPv4 and IPv6 Headers", RFC 2474,
+              DOI 10.17487/RFC2474, December 1998,
+              <http://www.rfc-editor.org/info/rfc2474>.
+
+   [RFC2475]  Blake, S., Black, D., Carlson, M., Davies, E., Wang, Z.,
+              and W. Weiss, "An Architecture for Differentiated
+              Services", RFC 2475, DOI 10.17487/RFC2475, December 1998,
+              <http://www.rfc-editor.org/info/rfc2475>.
+
+   [RFC2597]  Heinanen, J., Baker, F., Weiss, W., and J. Wroclawski,
+              "Assured Forwarding PHB Group", RFC 2597,
+              DOI 10.17487/RFC2597, June 1999,
+              <http://www.rfc-editor.org/info/rfc2597>.
+
+   [RFC3246]  Davie, B., Charny, A., Bennet, J., Benson, K., Le Boudec,
+              J., Courtney, W., Davari, S., Firoiu, V., and D.
+              Stiliadis, "An Expedited Forwarding PHB (Per-Hop
+              Behavior)", RFC 3246, DOI 10.17487/RFC3246, March 2002,
+              <http://www.rfc-editor.org/info/rfc3246>.
+
+
+
+
+Black & Jones                 Informational                    [Page 20]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, DOI 10.17487/RFC3550,
+              July 2003, <http://www.rfc-editor.org/info/rfc3550>.
+
+   [RFC3662]  Bless, R., Nichols, K., and K. Wehrle, "A Lower Effort
+              Per-Domain Behavior (PDB) for Differentiated Services",
+              RFC 3662, DOI 10.17487/RFC3662, December 2003,
+              <http://www.rfc-editor.org/info/rfc3662>.
+
+   [RFC3828]  Larzon, L-A., Degermark, M., Pink, S., Jonsson, L-E., Ed.,
+              and G. Fairhurst, Ed., "The Lightweight User Datagram
+              Protocol (UDP-Lite)", RFC 3828, DOI 10.17487/RFC3828, July
+              2004, <http://www.rfc-editor.org/info/rfc3828>.
+
+   [RFC4340]  Kohler, E., Handley, M., and S. Floyd, "Datagram
+              Congestion Control Protocol (DCCP)", RFC 4340,
+              DOI 10.17487/RFC4340, March 2006,
+              <http://www.rfc-editor.org/info/rfc4340>.
+
+   [RFC4960]  Stewart, R., Ed., "Stream Control Transmission Protocol",
+              RFC 4960, DOI 10.17487/RFC4960, September 2007,
+              <http://www.rfc-editor.org/info/rfc4960>.
+
+   [RFC5405]  Eggert, L. and G. Fairhurst, "Unicast UDP Usage Guidelines
+              for Application Designers", BCP 145, RFC 5405,
+              DOI 10.17487/RFC5405, November 2008,
+              <http://www.rfc-editor.org/info/rfc5405>.
+
+   [RFC5865]  Baker, F., Polk, J., and M. Dolly, "A Differentiated
+              Services Code Point (DSCP) for Capacity-Admitted Traffic",
+              RFC 5865, DOI 10.17487/RFC5865, May 2010,
+              <http://www.rfc-editor.org/info/rfc5865>.
+
+   [RFC6951]  Tuexen, M. and R. Stewart, "UDP Encapsulation of Stream
+              Control Transmission Protocol (SCTP) Packets for End-Host
+              to End-Host Communication", RFC 6951,
+              DOI 10.17487/RFC6951, May 2013,
+              <http://www.rfc-editor.org/info/rfc6951>.
+
+   [RFC7656]  Lennox, J., Gross, K., Nandakumar, S., Salgueiro, G., and
+              B. Burman, Ed., "A Taxonomy of Semantics and Mechanisms
+              for the Real-Time Transport Protocol (RTP) Sources",
+              RFC 7656, DOI 10.17487/RFC7656, November 2015,
+              <http://www.rfc-editor.org/info/rfc7656>.
+
+
+
+
+
+
+Black & Jones                 Informational                    [Page 21]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+8.2.  Informative References
+
+   [COUPLED-CC]
+              Welzl, M., Islam, S., and S. Gjessing, "Coupled congestion
+              control for RTP media", Work in Progress,
+              draft-welzl-rmcat-coupled-cc-05, June 2015.
+
+   [DATA-CHAN]
+              Jesup, R., Loreto, S., and M. Tuexen, "WebRTC Data
+              Channels", Work in Progress, draft-ietf-rtcweb-data-
+              channel-13, January 2015.
+
+   [DIFFSERV-INTERCON]
+              Geib, R., Ed. and D. Black, "Diffserv interconnection
+              classes and practice", Work in Progress, draft-ietf-tsvwg-
+              diffserv-intercon-03, October 2015.
+
+   [H.221]    ITU-T, "Frame structure for a 64 to 1920 kbit/s channel in
+              audiovisual teleservices", Recommendation H.221, March
+              2009.
+
+   [H.264]    ITU-T, "Advanced video coding for generic audiovisual
+              services", Recommendation H.264, February 2014.
+
+   [RFC2697]  Heinanen, J. and R. Guerin, "A Single Rate Three Color
+              Marker", RFC 2697, DOI 10.17487/RFC2697, September 1999,
+              <http://www.rfc-editor.org/info/rfc2697>.
+
+   [RFC2698]  Heinanen, J. and R. Guerin, "A Two Rate Three Color
+              Marker", RFC 2698, DOI 10.17487/RFC2698, September 1999,
+              <http://www.rfc-editor.org/info/rfc2698>.
+
+   [RFC2914]  Floyd, S., "Congestion Control Principles", BCP 41,
+              RFC 2914, DOI 10.17487/RFC2914, September 2000,
+              <http://www.rfc-editor.org/info/rfc2914>.
+
+   [RFC3168]  Ramakrishnan, K., Floyd, S., and D. Black, "The Addition
+              of Explicit Congestion Notification (ECN) to IP",
+              RFC 3168, DOI 10.17487/RFC3168, September 2001,
+              <http://www.rfc-editor.org/info/rfc3168>.
+
+   [RFC3270]  Le Faucheur, F., Wu, L., Davie, B., Davari, S., Vaananen,
+              P., Krishnan, R., Cheval, P., and J. Heinanen, "Multi-
+              Protocol Label Switching (MPLS) Support of Differentiated
+              Services", RFC 3270, DOI 10.17487/RFC3270, May 2002,
+              <http://www.rfc-editor.org/info/rfc3270>.
+
+
+
+
+
+Black & Jones                 Informational                    [Page 22]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   [RFC4103]  Hellstrom, G. and P. Jones, "RTP Payload for Text
+              Conversation", RFC 4103, DOI 10.17487/RFC4103, June 2005,
+              <http://www.rfc-editor.org/info/rfc4103>.
+
+   [RFC4303]  Kent, S., "IP Encapsulating Security Payload (ESP)",
+              RFC 4303, DOI 10.17487/RFC4303, December 2005,
+              <http://www.rfc-editor.org/info/rfc4303>.
+
+   [RFC4566]  Handley, M., Jacobson, V., and C. Perkins, "SDP: Session
+              Description Protocol", RFC 4566, DOI 10.17487/RFC4566,
+              July 2006, <http://www.rfc-editor.org/info/rfc4566>.
+
+   [RFC4594]  Babiarz, J., Chan, K., and F. Baker, "Configuration
+              Guidelines for DiffServ Service Classes", RFC 4594,
+              DOI 10.17487/RFC4594, August 2006,
+              <http://www.rfc-editor.org/info/rfc4594>.
+
+   [RFC5109]  Li, A., Ed., "RTP Payload Format for Generic Forward Error
+              Correction", RFC 5109, DOI 10.17487/RFC5109, December
+              2007, <http://www.rfc-editor.org/info/rfc5109>.
+
+   [RFC5127]  Chan, K., Babiarz, J., and F. Baker, "Aggregation of
+              Diffserv Service Classes", RFC 5127, DOI 10.17487/RFC5127,
+              February 2008, <http://www.rfc-editor.org/info/rfc5127>.
+
+   [RFC5129]  Davie, B., Briscoe, B., and J. Tay, "Explicit Congestion
+              Marking in MPLS", RFC 5129, DOI 10.17487/RFC5129, January
+              2008, <http://www.rfc-editor.org/info/rfc5129>.
+
+   [RFC5245]  Rosenberg, J., "Interactive Connectivity Establishment
+              (ICE): A Protocol for Network Address Translator (NAT)
+              Traversal for Offer/Answer Protocols", RFC 5245,
+              DOI 10.17487/RFC5245, April 2010,
+              <http://www.rfc-editor.org/info/rfc5245>.
+
+   [RFC5389]  Rosenberg, J., Mahy, R., Matthews, P., and D. Wing,
+              "Session Traversal Utilities for NAT (STUN)", RFC 5389,
+              DOI 10.17487/RFC5389, October 2008,
+              <http://www.rfc-editor.org/info/rfc5389>.
+
+   [RFC5462]  Andersson, L. and R. Asati, "Multiprotocol Label Switching
+              (MPLS) Label Stack Entry: "EXP" Field Renamed to "Traffic
+              Class" Field", RFC 5462, DOI 10.17487/RFC5462, February
+              2009, <http://www.rfc-editor.org/info/rfc5462>.
+
+
+
+
+
+
+
+Black & Jones                 Informational                    [Page 23]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   [RFC5761]  Perkins, C. and M. Westerlund, "Multiplexing RTP Data and
+              Control Packets on a Single Port", RFC 5761,
+              DOI 10.17487/RFC5761, April 2010,
+              <http://www.rfc-editor.org/info/rfc5761>.
+
+   [RFC5764]  McGrew, D. and E. Rescorla, "Datagram Transport Layer
+              Security (DTLS) Extension to Establish Keys for the Secure
+              Real-time Transport Protocol (SRTP)", RFC 5764,
+              DOI 10.17487/RFC5764, May 2010,
+              <http://www.rfc-editor.org/info/rfc5764>.
+
+   [RFC5766]  Mahy, R., Matthews, P., and J. Rosenberg, "Traversal Using
+              Relays around NAT (TURN): Relay Extensions to Session
+              Traversal Utilities for NAT (STUN)", RFC 5766,
+              DOI 10.17487/RFC5766, April 2010,
+              <http://www.rfc-editor.org/info/rfc5766>.
+
+   [RFC6062]  Perreault, S., Ed. and J. Rosenberg, "Traversal Using
+              Relays around NAT (TURN) Extensions for TCP Allocations",
+              RFC 6062, DOI 10.17487/RFC6062, November 2010,
+              <http://www.rfc-editor.org/info/rfc6062>.
+
+   [RFC6274]  Gont, F., "Security Assessment of the Internet Protocol
+              Version 4", RFC 6274, DOI 10.17487/RFC6274, July 2011,
+              <http://www.rfc-editor.org/info/rfc6274>.
+
+   [RFC6386]  Bankoski, J., Koleszar, J., Quillio, L., Salonen, J.,
+              Wilkins, P., and Y. Xu, "VP8 Data Format and Decoding
+              Guide", RFC 6386, DOI 10.17487/RFC6386, November 2011,
+              <http://www.rfc-editor.org/info/rfc6386>.
+
+   [RFC6437]  Amante, S., Carpenter, B., Jiang, S., and J. Rajahalme,
+              "IPv6 Flow Label Specification", RFC 6437,
+              DOI 10.17487/RFC6437, November 2011,
+              <http://www.rfc-editor.org/info/rfc6437>.
+
+   [RFC6458]  Stewart, R., Tuexen, M., Poon, K., Lei, P., and V.
+              Yasevich, "Sockets API Extensions for the Stream Control
+              Transmission Protocol (SCTP)", RFC 6458,
+              DOI 10.17487/RFC6458, December 2011,
+              <http://www.rfc-editor.org/info/rfc6458>.
+
+   [RMCAT-CC] Jesup, R. and Z. Sarker, "Congestion Control Requirements
+              for Interactive Real-Time Media", Work in Progress,
+              draft-ietf-rmcat-cc-requirements-09, December 2014.
+
+
+
+
+
+
+Black & Jones                 Informational                    [Page 24]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+   [RTP-USAGE]
+              Perkins, C., Westerlund, M., and J. Ott, "Web Real-Time
+              Communication (WebRTC): Media Transport and Use of RTP",
+              Work in Progress, draft-ietf-rtcweb-rtp-usage-25, June
+              2015.
+
+   [SDP-BUNDLE]
+              Holmberg, C., Alvestrand, H., and C. Jennings,
+              "Negotiating Media Multiplexing Using the Session
+              Description Protocol (SDP)", Work in Progress, draft-ietf-
+              mmusic-sdp-bundle-negotiation-23, July 2015.
+
+   [SRTP-DTLS]
+              Petit-Huguenin, M. and G. Salgueiro, "Multiplexing Scheme
+              Updates for Secure Real-time Transport Protocol (SRTP)
+              Extension for Datagram Transport Layer Security (DTLS)",
+              Work in Progress, draft-petithuguenin-avtcore-rfc5764-mux-
+              fixes-02, March 2015.
+
+   [W3C.WD-mediacapture-streams-20130903]
+              Burnett, D., Bergkvist, A., Jennings, C., and A.
+              Narayanan, "Media Capture and Streams", World Wide Web
+              Consortium Recommendation WD-mediacapture-streams-
+              20130903, September 2013, <http://www.w3.org/TR/2013/
+              WD-mediacapture-streams-20130903>.
+
+   [WEBRTC-OVERVIEW]
+              Alvestrand, H., "Overview: Real Time Protocols for
+              Browser-based Applications", Work in Progress,
+              draft-ietf-rtcweb-overview-14, June 2015.
+
+   [WEBRTC-TRANSPORTS]
+              Alvestrand, H., "Transports for WebRTC", Work in
+              Progress, draft-ietf-rtcweb-transports-10, October 2015.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Black & Jones                 Informational                    [Page 25]
+
+RFC 7657              Diffserv and RT Communication        November 2015
+
+
+Acknowledgements
+
+   This memo is the result of many conversations that have occurred
+   within the DART working group and other working groups in the RAI and
+   Transport areas.  Many thanks to Aamer Akhter, Harald Alvestrand,
+   Fred Baker, Richard Barnes, Erin Bournival, Ben Campbell, Brian
+   Carpenter, Spencer Dawkins, Keith Drage, Gorry Fairhurst, Ruediger
+   Geib, Cullen Jennings, Jonathan Lennox, Karen Nielsen, Colin Perkins,
+   James Polk, Robert Sparks, Tina Tsou, Michael Welzl, Dan York, and
+   the DART WG participants for their reviews and comments.
+
+Authors' Addresses
+
+   David Black (editor)
+   EMC
+   176 South Street
+   Hopkinton, MA  01748
+   United States
+
+   Phone: +1 508 293-7953
+   Email: david.black@emc.com
+
+
+   Paul Jones
+   Cisco
+   7025 Kit Creek Road
+   Research Triangle Park, NC  27502
+   United States
+
+   Phone: +1 919 476 2048
+   Email: paulej@packetizer.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Black & Jones                 Informational                    [Page 26]
+

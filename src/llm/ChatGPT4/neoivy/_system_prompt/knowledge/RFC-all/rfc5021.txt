@@ -1,0 +1,395 @@
+
+
+
+
+
+
+Network Working Group                                       S. Josefsson
+Request for Comments: 5021                                           SJD
+Updates: 4120                                                August 2007
+Category: Standards Track
+
+
+       Extended Kerberos Version 5 Key Distribution Center (KDC)
+                           Exchanges over TCP
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The IETF Trust (2007).
+
+Abstract
+
+   This document describes an extensibility mechanism for the Kerberos
+   V5 protocol when used over TCP transports.  The mechanism uses the
+   reserved high-bit in the length field.  It can be used to negotiate
+   TCP-specific Kerberos extensions.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . . . 2
+   2.  Conventions Used in This Document . . . . . . . . . . . . . . . 2
+   3.  Extension Mechanism for TCP Transport . . . . . . . . . . . . . 2
+   4.  Interoperability Consideration  . . . . . . . . . . . . . . . . 3
+   5.  Security Considerations . . . . . . . . . . . . . . . . . . . . 4
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . . . 4
+   7.  Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . 5
+   8.  Normative References  . . . . . . . . . . . . . . . . . . . . . 5
+   Appendix A.  Copying Conditions . . . . . . . . . . . . . . . . . . 6
+
+
+
+
+
+
+
+
+
+
+
+
+Josefsson                   Standards Track                     [Page 1]
+
+RFC 5021               Kerberos V5 TCP Extension             August 2007
+
+
+1.  Introduction
+
+   The Kerberos V5 [3] specification, in section 7.2.2, reserves the
+   high order bit in the initial length field for TCP transport for
+   future expansion.  This document updates [3] to describe the
+   behaviour when that bit is set.  This mechanism is intended for
+   extensions that are specific for the TCP transport.
+
+2.  Conventions Used in This Document
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [1].
+
+3.  Extension Mechanism for TCP Transport
+
+   The reserved high bit of the request length field is used to signal
+   the use of this extension mechanism.  When the reserved high bit is
+   set in the length field, the remaining 31 bits of the initial 4
+   octets are interpreted as a bitmap.  Each bit in the bitmask can be
+   used to request a particular extension.  The 31 bits form the
+   "extension bitmask".  It is expected that other documents will
+   describe the details associated with particular bits.
+
+   A 4-octet value with only the high bit set, and thus the extension
+   bitmask all zeros, is called a PROBE.  A client may send a probe to
+   find out which extensions a KDC supports.  A client may also set
+   particular bits in the extension bitmask directly, if it does not
+   need to query the KDC for available extensions before deciding which
+   extension to request.
+
+   Note that clients are not forced to use this extension mechanism, and
+   further, clients are expected to only use it when they wish to
+   negotiate a particular extension.
+
+   The protocol is as follows.  The client MUST begin by sending a
+   4-octet value with the high bit set.  The packet is thus either a
+   PROBE or a specific request for some extension(s).  The client MUST
+   NOT send additional data before the server has responded.
+
+   If a KDC receives a request for a set of extensions that it supports,
+   it MUST respond by sending a 4-octet zero value, i.e., 0x00000000.
+   The KDC MAY directly send additional data after the zero value,
+   without waiting for the client to respond, as specified by the
+   particular negotiated extension.  (Note: A 4-octet zero value can
+   never be sent by an implementation that conforms to RFC 4120 and that
+   does not support this extension mechanism, because a KRB-ERROR is
+   always of non-zero size.)
+
+
+
+Josefsson                   Standards Track                     [Page 2]
+
+RFC 5021               Kerberos V5 TCP Extension             August 2007
+
+
+   If a KDC receives a PROBE, or if a KDC does not support all
+   extensions corresponding to set bits in the extension bitmask, the
+   KDC MUST return 4 octets with the high bit set, and with the
+   remaining bitmask indicating which extensions it supports.  The KDC
+   then MUST wait, and the client MUST send a second 4-octet value with
+   the high bit set.  If the second 4-octet value is a PROBE or an
+   unsupported extension, the KDC MUST close the connection.  This can
+   be used by the client to shut down a session when the KDC did not
+   support an extension that is required by the client.  If the second
+   4-octet value is a supported extension, the KDC MUST respond by
+   sending a 4-octet zero value, i.e., 0x00000000.  The KDC MAY directly
+   send additional data after the zero value, as specified by the
+   particular negotiated extension.
+
+   The client and KDC SHOULD wait for the other side to respond
+   according to this protocol, and the client and KDC SHOULD NOT close
+   the connection prematurely.  Resource availability considerations may
+   influence whether, and for how long, the client and KDC will wait for
+   the other side to respond to a request.
+
+   The KDC MUST NOT support the extension mechanism if it does not
+   support any extensions.  If no extensions are supported, the KDC MUST
+   return a KRB-ERROR message with the error KRB_ERR_FIELD_TOOLONG and
+   MUST close the TCP stream, similar to what an implementation that
+   does not understand this extension mechanism would do.
+
+   The behaviour when more than one non-high bit is set depends on the
+   particular extension mechanisms.  If a requested extension (bit X)
+   does not specify how it interacts with another requested extension
+   (bit Y), the KDC MUST treat the request as a PROBE or unsupported
+   extension, and proceed as above.
+
+   Each extension MUST describe the structure of protocol data beyond
+   the length field, and the behaviour of the client and KDC.  In
+   particular, the structure may be a protocol with its own message
+   framing.  If an extension mechanism reserves multiple bits, it MUST
+   describe how they interact.
+
+4.  Interoperability Consideration
+
+   Implementations with support for TCP that do not claim to conform to
+   RFC 4120 may not handle the high bit correctly.  The KDC behaviour
+   may include closing the TCP connection without any response, and
+   logging an error message in the KDC log.  When this was written, this
+   problem existed in modern versions of popular KDC implementations.
+   Implementations experiencing trouble getting the expected responses
+   from a KDC might assume that the KDC does not support this extension
+   mechanism.  A client might remember this semi-permanently, to avoid
+
+
+
+Josefsson                   Standards Track                     [Page 3]
+
+RFC 5021               Kerberos V5 TCP Extension             August 2007
+
+
+   triggering the same problematic behaviour on the KDC every time.
+   Care should be taken to avoid unexpected behaviour for the user when
+   the KDC is eventually upgraded.  Implementations might also provide a
+   way to enable and disable this extension on a per-realm basis.  How
+   to handle these backwards compatibility quirks are in general left
+   unspecified.
+
+5.  Security Considerations
+
+   Because the initial length field is not protected, it is possible for
+   an active attacker (i.e., one that is able to modify traffic between
+   the client and the KDC) to make it appear to the client that the
+   server does not support this extension mechanism (a downgrade
+   attack).  Further, active attackers can also interfere with the
+   negotiation of which extensions are supported, which may also result
+   in a downgrade attack.  This problem can be solved by having a policy
+   in the clients and in the KDC to reject connections that do not have
+   the desired properties.  The problem can also be mitigated by having
+   the negotiated extension send a cryptographic checksum of the offered
+   extensions.
+
+6.  IANA Considerations
+
+   IANA has created a new registry for "Kerberos TCP Extensions".  The
+   initial contents of this registry are:
+
+   Bit #                                             Reference
+   -----                                             ---------
+   0..29         AVAILABLE for registration.
+   30            RESERVED.                           RFC 5021
+
+   IANA will register values 0 to 29 after IESG Approval, as defined in
+   BCP 64 [2].  Assigning value 30 requires a Standards Action that
+   updates or obsoletes this document.
+
+   Registration policy: The IESG will act as a steward for the
+   namespace, considering whether the registration is justified given
+   the limited size of the namespace.  The IESG will also confirm that
+   proposed registrations are not harmful to the Internet.
+
+
+
+
+
+
+
+
+
+
+
+
+Josefsson                   Standards Track                     [Page 4]
+
+RFC 5021               Kerberos V5 TCP Extension             August 2007
+
+
+7.  Acknowledgements
+
+   Nicolas Williams, Jeffrey Hutzelman, Sam Hartman, and Chris Newman
+   provided comments that improved the protocol and document.
+
+   Thanks to Andrew Bartlett who pointed out that some implementations
+   (MIT Kerberos and Heimdal) did not follow RFC 4120 properly with
+   regards to the high bit, which resulted in an Interoperability
+   Consideration.
+
+8.  Normative References
+
+   [1]  Bradner, S., "Key words for use in RFCs to Indicate Requirement
+        Levels", BCP 14, RFC 2119, March 1997.
+
+   [2]  Narten, T. and H. Alvestrand, "Guidelines for Writing an IANA
+        Considerations Section in RFCs", BCP 26, RFC 2434, October 1998.
+
+   [3]  Neuman, C., Yu, T., Hartman, S., and K. Raeburn, "The Kerberos
+        Network Authentication Service (V5)", RFC 4120, July 2005.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Josefsson                   Standards Track                     [Page 5]
+
+RFC 5021               Kerberos V5 TCP Extension             August 2007
+
+
+Appendix A.  Copying Conditions
+
+   Regarding this entire document or any portion of it, the author makes
+   no guarantees and is not responsible for any damage resulting from
+   its use.  The author grants irrevocable permission to anyone to use,
+   modify, and distribute it in any way that does not diminish the
+   rights of anyone else to use, modify, and distribute it, provided
+   that redistributed derivative works do not contain misleading author
+   or version information.  Derivative works need not be licensed under
+   similar terms.
+
+Author's Address
+
+   Simon Josefsson
+   SJD
+
+   EMail: simon@josefsson.org
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Josefsson                   Standards Track                     [Page 6]
+
+RFC 5021               Kerberos V5 TCP Extension             August 2007
+
+
+Full Copyright Statement
+
+   Copyright (C) The IETF Trust (2007).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+Josefsson                   Standards Track                     [Page 7]
+

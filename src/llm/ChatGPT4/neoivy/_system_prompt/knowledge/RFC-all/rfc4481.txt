@@ -1,0 +1,507 @@
+
+
+
+
+
+
+Network Working Group                                     H. Schulzrinne
+Request for Comments: 4481                                   Columbia U.
+Category: Standards Track                                      July 2006
+
+
+                    Timed Presence Extensions to the
+               Presence Information Data Format (PIDF) to
+     Indicate Status Information for Past and Future Time Intervals
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2006).
+
+Abstract
+
+   The Presence Information Data Format (PIDF) defines a basic XML
+   format for presenting presence information for a presentity.  This
+   document extends PIDF, adding a timed status extension
+   (<timed-status> element) that allows a presentity to declare its
+   status for a time interval fully in the future or the past.
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Terminology and Conventions .....................................2
+   3. Timed-Status Element ............................................3
+   4. Example .........................................................4
+   5. The XML Schema Definition .......................................5
+   6. IANA Considerations .............................................6
+      6.1. URN Sub-Namespace Registration for
+           'urn:ietf:params:xml:ns:pidf:timed-status' .................6
+      6.2. Schema Registration for Schema
+           'urn:ietf:params:xml:ns:pidf:timed-status' .................7
+   7. Security Considerations .........................................7
+   8. References ......................................................7
+      8.1. Normative References .......................................7
+      8.2. Informative References .....................................7
+   Contributor's Address ..............................................8
+   Acknowledgements ...................................................8
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 1]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+1.  Introduction
+
+   Traditionally, presence information, e.g., represented as Presence
+   Information Data Format [3] (PIDF) and augmented by Rich Presence
+   Information Data format [9] (RPID), describes the current state of
+   the presentity.  However, a watcher can better plan communications if
+   it knows about the presentity's future plans.  For example, if a
+   watcher knows that the presentity is about to travel, it might place
+   a phone call earlier.
+
+   In this document, we use terms defined in RFC 2778 [7].  In
+   particular, a "presentity", abbreviating presence entity, provides
+   presence information to a presence service.  It is typically a
+   uniquely-identified person.
+
+   RPID already allows a presentity to indicate the period when a
+   particular aspect of its presence is valid.  However, the <status>
+   element in the PIDF <tuple> does not have this facility, so that it
+   is not possible to indicate that a presentity will be OPEN or CLOSED
+   in the future, for example.
+
+   It is also occasionally useful to represent past information since it
+   may be the only known presence information; it may give watchers an
+   indication of the current status.  For example, indicating that the
+   presentity was at an off-site meeting that ended an hour ago
+   indicates that the presentity is likely in transit at the current
+   time.
+
+   It is unfortunately not possible to simply add time range attributes
+   to the PIDF <status> element, as PIDF parsers without this capability
+   would ignore these attributes and thus not be able to distinguish
+   current from future presence status information.
+
+   This document defines the <timed-status> element that describes the
+   status of a presentity that is either no longer valid or covers some
+   future time period.
+
+2.  Terminology and Conventions
+
+   The key words MUST, MUST NOT, REQUIRED, SHOULD, SHOULD NOT,
+   RECOMMENDED, MAY, and OPTIONAL in this document are to be interpreted
+   as described in BCP 14, RFC 2119 [1].
+
+
+
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 2]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+3.  Timed-Status Element
+
+   The <timed-status> element is a child of the <tuple> element and MUST
+   NOT appear as a child of a PIDF <status> element or another
+   <timed-status> element.  More than one such element MAY appear within
+   a PIDF <tuple> element.
+
+   Sources of <timed-status> information should avoid elements that
+   overlap in time, but since overlapping appointments are common in
+   calendars, for example, receivers MUST be able to render such
+   overlapping <timed-status> indications.
+
+
+   The <timed-status> element MUST be qualified with the 'from'
+   attribute and MAY be qualified with an 'until' attribute to describe
+   the time when the status assumed this value and the time until which
+   this element is expected to be valid.  If the 'until' attribute is
+   missing, the information is assumed valid until the tuple is
+   explicitly overridden or expires as defined by the publication
+   mechanism used.  The time range MUST NOT encompass the present time,
+   i.e., the PIDF <timestamp> value, as that would provide an
+   unnecessary and confusing alternate mechanism to describe presence.
+   Thus, the 'from' attribute for tuples without an 'until' attribute
+   MUST refer to the future.
+
+   During composition, a presence agent (PA) may encounter a stored
+   <timed-status> element that covers the present time.  The PA MAY
+   either discard that element or MAY convert it to a regular <status>
+   element if it considers that information more credible.
+
+   The <timed-status> element may contain the <basic> and <note>
+   elements, as well as any other element that is appropriate as a PIDF
+   <status> extension and that has a limited validity period.  Examples
+   include the PIDF-LO [8] extensions for location objects.
+
+   This extension chose absolute rather than relative times, since
+   relative times would be too hard to keep properly updated when
+   spacing notifications, for example.  Originators of presence
+   information MUST generate time values in the <timed-status> elements
+   that are fully in the past or future relative to local real
+   (wallclock) time and the time information contained in the optional
+   PIDF <timestamp> element.
+
+
+
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 3]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+4.  Example
+
+   An example combining PIDF and timed-status is shown below:
+
+   <presence xmlns="urn:ietf:params:xml:ns:pidf"
+     xmlns:ts="urn:ietf:params:xml:ns:pidf:timed-status"
+       entity="pres:someone@example.com">
+
+     <tuple id="c8dqui">
+       <status>
+         <basic>open</basic>
+       </status>
+       <ts:timed-status from="2005-08-15T10:20:00.000-05:00"
+          until="2005-08-22T19:30:00.000-05:00">
+          <ts:basic>closed</ts:basic>
+       </ts:timed-status>
+       <contact>sip:someone@example.com</contact>
+     </tuple>
+     <note>I'll be in Tokyo next week</note>
+   </presence>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 4]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+5.  The XML Schema Definition
+
+   The XML [4] schema [5][6] is shown below.
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <xs:schema xmlns:ts="urn:ietf:params:xml:ns:pidf:timed-status"
+   xmlns:pidf="urn:ietf:params:xml:ns:pidf"
+   xmlns:xs="http://www.w3.org/2001/XMLSchema"
+   targetNamespace="urn:ietf:params:xml:ns:pidf:timed-status"
+   elementFormDefault="qualified" attributeFormDefault="unqualified">
+
+     <xs:import namespace="urn:ietf:params:xml:ns:pidf"/>
+
+     <xs:annotation>
+        <xs:documentation>
+          Describes timed-status tuple extensions for PIDF.
+        </xs:documentation>
+     </xs:annotation>
+     <xs:element name="timed-status" type="ts:timed-status"/>
+     <xs:complexType name="timed-status">
+       <xs:sequence>
+         <xs:element name="basic" type="pidf:basic" minOccurs="0"/>
+         <xs:element name="note" type="pidf:note" minOccurs="0"/>
+         <xs:any namespace="##other" processContents="lax" minOccurs="0"
+           maxOccurs="unbounded"/>
+       </xs:sequence>
+       <xs:attribute name="from" type="xs:dateTime" use="required"/>
+       <xs:attribute name="until" type="xs:dateTime"/>
+     </xs:complexType>
+   </xs:schema>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 5]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+6.  IANA Considerations
+
+   This document calls for IANA to register a new XML namespace URN and
+   schema per [2].
+
+6.1.  URN Sub-Namespace Registration for
+      'urn:ietf:params:xml:ns:pidf:timed-status'
+
+   URI:  urn:ietf:params:xml:ns:pidf:timed-status
+
+   Description:  This is the XML namespace for XML elements defined by
+      RFC 4481 to describe timed-status presence information extensions
+      for the status element in the PIDF presence document format in the
+      application/pidf+xml content type.
+
+   Registrant Contact:  IETF, SIMPLE working group, simple@ietf.org;
+      Henning Schulzrinne, hgs@cs.columbia.edu
+
+   XML:
+
+    BEGIN
+      <?xml version="1.0"?>
+     <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.0//EN"
+      "http://www.w3.org/TR/xhtml-basic/xhtml-basic10.dtd">
+      <html xmlns="http://www.w3.org/1999/xhtml
+      <head>
+           <meta http-equiv="content-type"
+           content="text/html;charset=iso-8859-1"/>
+           <title>Timed Presence Extensions to the Presence
+           Information Data Format (PIDF) to Indicate Status
+           Information for Past and Future Time Intervals</title>
+      </head>
+      <body>
+          <h1>Namespace for timed-status presence extension</h1>
+          <h2>urn:ietf:params:xml:ns:pidf:timed-status</h2>
+          <p>See <a href="http://www.rfc-editor.org/rfc/rfc4481.txt">
+              RFC4481</a>.</p>
+       </body>
+       </html>
+      END
+
+
+
+
+
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 6]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+6.2.  Schema Registration for Schema
+      'urn:ietf:params:xml:ns:pidf:timed-status'
+
+   URI:  urn:ietf:params:xml:ns:pidf:timed-status
+
+   Registrant Contact:  IESG
+
+   XML:  See Section 5
+
+7.  Security Considerations
+
+   The security issues are similar to those for RPID [9].
+
+8.  References
+
+8.1.  Normative References
+
+   [1]  Bradner, S., "Key words for use in RFCs to Indicate Requirement
+        Levels", BCP 14, RFC 2119, March 1997.
+
+   [2]  Mealling, M., "The IETF XML Registry", BCP 81, RFC 3688, January
+        2004.
+
+   [3]  Sugano, H., Fujimoto, S., Klyne, G., Bateman, A., Carr, W., and
+        J. Peterson, "Presence Information Data Format (PIDF)", RFC
+        3863, August 2004.
+
+   [4]  Yergeau, F., Paoli, J., Sperberg-McQueen, C., Bray, T., and E.
+        Maler, "Extensible Markup Language (XML) 1.0 (Third Edition)",
+        W3C REC REC-xml-20040204, February 2004.
+
+   [5]  Maloney, M., Beech, D., Thompson, H., and N. Mendelsohn, "XML
+        Schema Part 1: Structures Second Edition", W3C REC REC-
+        xmlschema-1-20041028, October 2004.
+
+   [6]  Malhotra, A. and P. Biron, "XML Schema Part 2: Datatypes Second
+        Edition", W3C REC REC-xmlschema-2-20041028, October 2004.
+
+8.2.  Informative References
+
+   [7]  Day, M., Rosenberg, J., and H. Sugano, "A Model for Presence and
+        Instant Messaging", RFC 2778, February 2000.
+
+   [8]  Peterson, J., "A Presence-based GEOPRIV Location Object Format",
+        RFC 4119, December 2005.
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 7]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+   [9]  Schulzrinne, H., Gurbani, V., Kyzivat, P., and J. Rosenberg,
+        "RPID: Rich Presence Extensions to the Presence Information Data
+        Format (PIDF)", RFC 4480, July 2006.
+
+Contributor's Address
+
+   Jonathan Rosenberg
+   dynamicsoft
+   600 Lanidex Plaza
+   Parsippany, NJ 07054-2711
+   USA
+   EMail: jdrosen@dynamicsoft.com
+
+Acknowledgements
+
+   This document is based on the discussions within the IETF SIMPLE
+   working group.  Mary Barnes, Avri Doria, Miguel Garcia, Vijay
+   Gurbani, Hisham Khartabil, Paul Kyzivat, Mikko Lonnfors, Yannis
+   Pavlidis and Jon Peterson provided helpful comments.
+
+Author's Address
+
+   Henning Schulzrinne
+   Columbia University
+   Department of Computer Science
+   450 Computer Science Building
+   New York, NY  10027
+   US
+
+   Phone: +1 212 939 7004
+   EMail: hgs+simple@cs.columbia.edu
+   URI:   http://www.cs.columbia.edu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 8]
+
+RFC 4481                     Timed Presence                    July 2006
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2006).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE INTERNET
+   ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
+   INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is provided by the IETF
+   Administrative Support Activity (IASA).
+
+
+
+
+
+
+
+Schulzrinne                 Standards Track                     [Page 9]
+

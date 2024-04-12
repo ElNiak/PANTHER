@@ -1,0 +1,563 @@
+
+
+
+
+
+
+Network Working Group                                           J. Welch
+Request for Comments: 4445                        IneoQuest Technologies
+Category: Informational                                         J. Clark
+                                                           Cisco Systems
+                                                              April 2006
+
+
+                 A Proposed Media Delivery Index (MDI)
+
+Status of This Memo
+
+   This memo provides information for the Internet community.  It does
+   not specify an Internet standard of any kind.  Distribution of this
+   memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2006).
+
+IESG Note
+
+   This RFC is not a candidate for any level of Internet Standard.
+   There are IETF standards which are highly applicable to the space
+   defined by this document as its applicability, in particular, RFCs
+   3393 and 3611, and there is ongoing IETF work in these areas as well.
+   The IETF also notes that the decision to publish this RFC is not
+   based on IETF review for such things as security, congestion control,
+   MIB fitness, or inappropriate interaction with deployed protocols.
+   The RFC Editor has chosen to publish this document at its discretion.
+   Readers of this document should exercise caution in evaluating its
+   value for implementation and deployment.  See RFC 3932 for more
+   information.
+
+Abstract
+
+   This memo defines a Media Delivery Index (MDI) measurement that can
+   be used as a diagnostic tool or a quality indicator for monitoring a
+   network intended to deliver applications such as streaming media,
+   MPEG video, Voice over IP, or other information sensitive to arrival
+   time and packet loss.  It provides an indication of traffic jitter, a
+   measure of deviation from nominal flow rates, and a data loss
+   at-a-glance measure for a particular flow.  For instance, the MDI may
+   be used as a reference in characterizing and comparing networks
+   carrying UDP streaming media.
+
+   The MDI measurement defined in this memo is intended for Information
+   only.
+
+
+
+
+Welch & Clark                Informational                      [Page 1]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+1.  Introduction
+
+   There has been considerable progress over the last several years in
+   the development of methods to provide for Quality of Service (QoS)
+   over packet-switched networks to improve the delivery of streaming
+   media and other time-sensitive and packet-loss-sensitive applications
+   such as [i1], [i5], [i6], [i7].  QoS is required for many practical
+   networks involving applications such as video transport to assure the
+   availability of network bandwidth by providing upper limits on the
+   number of flows admitted to a network, as well as to bound the packet
+   jitter introduced by the network.  These bounds are required to
+   dimension a receiver`s buffer to display the video properly in real
+   time without buffer overflow or underflow.
+
+   Now that large-scale implementations of such networks based on RSVP
+   and Diffserv are undergoing trials [i3] and being specified by major
+   service providers for the transport of streaming media such as MPEG
+   video [i4], there is a need to diagnose issues easily and to monitor
+   the real-time effectiveness of networks employing these QoS methods
+   or to assess whether they are required.  Furthermore, due to the
+   significant installed base of legacy networks without QoS methods, a
+   delivery system`s transitional solution may be composed of networks
+   with and without these methods, thus increasing the difficulty in
+   characterizing the dynamic behavior of these networks.
+
+   The purpose of this memo is to describe a set of measurements that
+   can be used to derive a Media Delivery Index (MDI) that indicates the
+   instantaneous and longer-term behavior of networks carrying streaming
+   media such as MPEG video.
+
+   While this memo addresses monitoring MPEG Transport Stream (TS)
+   packets [i8] over UDP, the general approach is expected to be
+   applicable to other streaming media and protocols.  The approach is
+   applicable to both constant and variable bit rate streams though the
+   variable bit rate case may be somewhat more difficult to calculate.
+   This document focuses on the constant bit rate case as the example to
+   describe the measurement, but as long as the dynamic bit rate of the
+   encoded stream can be determined (the "drain rate" as described below
+   in Section 3), then the MDI provides the measurement of network-
+   induced cumulative jitter.  Suggestions and direction for calculation
+   of MDI for a variable bit rate encoded stream may be the subject of a
+   future document.
+
+   Network packet delivery time variation and various statistics to
+   characterize the same are described in a generic approach in [i10].
+   The approach is capable of being parameterized for various purposes
+   with the intent of defining a flexible, customizable definition that
+   can be applied to a wide range of applications and further
+
+
+
+Welch & Clark                Informational                      [Page 2]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+   experimentation.  Other approaches to characterizing jitter behavior
+   are also captured such as in [i12].  A wide-ranging report format
+   [i11] has been described to convey information including jitter for
+   use with the RTP Control Protocol (RTCP) [i12].  The MDI is instead
+   intended to specifically address the need for a scalable,
+   economical-to-compute metric that characterizes network impairments
+   that may be imposed on streaming media, independent of control plane
+   or measurement transport protocol or stream encapsulation protocol.
+   It is a targeted metric for use in production networks carrying large
+   numbers of streams for the purpose of monitoring the network quality
+   of the flows or for other applications intended to analyze large
+   numbers of streams susceptible to IP network device impairments.  An
+   example application is the burgeoning deployments of Internet
+   Protocol Television (IPTV) by cable and telecommunication service
+   providers.  As described below, MDI provides for a readily scalable
+   per-stream measure focused on loss and the cumulative effects of
+   jitter.
+
+2.  Media Delivery Index Overview
+
+   The MDI provides a relative indicator of needed buffer depths at the
+   consumer node due to packet jitter as well as an indication of lost
+   packets.  By probing a streaming media service network at various
+   nodes and under varying load conditions, it is possible to quickly
+   identify devices or locales that introduce significant jitter or
+   packet loss to the packet stream.  By monitoring a network
+   continuously, deviations from nominal jitter or loss behavior can be
+   used to indicate an impending or ongoing fault condition such as
+   excessive load.  It is believed that the MDI provides the necessary
+   information to detect all network-induced impairments for streaming
+   video or voice-over-IP applications.  Other parameters may be
+   required to troubleshoot and correct the impairments.
+
+   The MDI is updated at the termination of selected time intervals
+   spanning multiple packets that contain the streaming media (such as
+   transport stream packets in the MPEG-2 case).  The Maximums and
+   Minimums of the MDI component values are captured over a measurement
+   time.  The measurement time may range from just long enough to
+   capture an anticipated network anomaly during a troubleshooting
+   exercise to indefinitely long for a long-term monitoring or logging
+   application.  The Maximums and Minimums may be obtained by sampling
+   the measurement with adequate frequency.
+
+
+
+
+
+
+
+
+
+Welch & Clark                Informational                      [Page 3]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+3.  Media Delivery Index Components
+
+   The MDI consists of two components:  the Delay Factor (DF) and the
+   Media Loss Rate (MLR).
+
+3.1.  Delay Factor
+
+   The Delay Factor is the maximum difference, observed at the end of
+   each media stream packet, between the arrival of media data and the
+   drain of media data.  This assumes the drain rate is the nominal
+   constant traffic rate for constant bit rate streams or the piece-wise
+   computed traffic rate of variable rate media stream packet data.  The
+   "drain rate" here refers to the payload media rate; e.g., for a
+   typical 3.75 Mb/s MPEG video Transport Stream (TS), the drain rate is
+   3.75 Mb/s -- the rate at which the payload is consumed (displayed) at
+   a decoding node.  If, at the sample time, the number of bytes
+   received equals the number transmitted, the instantaneous flow rate
+   balance will be zero; however, the minimum DF will be a line packet's
+   worth of media data, as that is the minimum amount of data that must
+   be buffered.
+
+   The DF is the maximum observed value of the flow rate imbalance over
+   a calculation interval.  This buffered media data in bytes is
+   expressed in terms of how long, in milliseconds, it would take to
+   drain (or fill) this data at the nominal traffic rate to obtain the
+   DF.  Display of DF with a resolution of tenths of milliseconds is
+   recommended to provide adequate indication of stream variations for
+   monitoring and diagnostic applications for typical stream rates from
+   1 to 40 Mb/s.  The DF value must be updated and displayed at the end
+   of a selected time interval.  The selected time interval is chosen to
+   be long enough to sample a number of TS packets and will, therefore,
+   vary based on the nominal traffic rate.  For typical stream rates of
+   1 Mb/s and up, an interval of 1 second provides a long enough sample
+   time and should be included for all implementations.  The Delay
+   Factor indicates how long a data stream must be buffered (i.e.,
+   delayed) at its nominal bit rate to prevent packet loss.  This time
+   may also be seen as a measure of the network latency that must be
+   induced from buffering, which is required to accommodate stream
+   jitter and prevent loss.  The DF`s max and min over the measurement
+   period (multiple intervals) may also be displayed to show the worst
+   case arrival time deviation, or jitter, relative to the nominal
+   traffic rate in a measurement period.  It provides a dynamic flow
+   rate balance indication with its max and min showing the worst
+   excursions from balance.
+
+   The Delay Factor gives a hint of the minimum size of the buffer
+   required at the next downstream node.  As a stream progresses, the
+   variation of the Delay Factor indicates packet bunching or packet
+
+
+
+Welch & Clark                Informational                      [Page 4]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+   gaps (jitter).  Greater DF values also indicate that more network
+   latency is necessary to deliver a stream due to the need to pre-fill
+   a receive buffer before beginning the drain to guarantee no
+   underflow.  The DF comprises a fixed part based on packet size and a
+   variable part based on the buffer utilization of the various network
+   component switch elements that comprise the switched network
+   infrastructure [i2].
+
+   To further detail the calculation of DF, consider a virtual buffer VB
+   used to buffer received packets of a stream.  When a packet P(i)
+   arrives during a calculation interval, compute two VB values,
+   VB(i,pre) and VB(i,post), defined as:
+
+   VB(i,pre) = sum (Sj) - MR * Ti; where j=1..i-1
+   VB(i,post) = VB(i,pre) + Si
+
+   where Sj is the media payload size of the jth packet, Ti is the
+   relative time at which packet i arrives in the interval, and MR is
+   the nominal media rate.
+
+   VB(i,pre) is the Virtual Buffer size just before the arrival of P(i).
+   VB(i,post) is the Virtual Buffer size just after the arrival of P(i).
+
+   The initial condition of VB(0) = 0 is used at the beginning of each
+   measurement interval.  A measurement interval is defined from just
+   after the time of arrival of the last packet during a nominal period
+   (typically 1 second) as mentioned above to the time just after the
+   arrival of the last packet of the next nominal period.
+
+   During a measurement interval, if k packets are received, then there
+   are 2*k+1 VB values used in deriving VB(max) and VB(min).  After
+   determining VB(max) and VB(min) from the 2k+1 VB samples, DF for the
+   measurement interval is computed and displayed as:
+
+   DF = [VB(max) - VB(min)]/ MR
+
+   As noted above, a measurement interval of 1 second is typically used.
+   If no packets are received during an interval, the last DF calculated
+   during an interval in which packets did arrive is displayed.  The
+   time of arrival of the last previous packet is always retained for
+   use in calculating VB when the next packet arrives (even if the time
+   of the last received packet spans measurement intervals).  For the
+   first received measurement interval of a measurement period, no DF is
+   calculated; however, packet arrival times are recorded for use in
+   calculating VB during the following interval.
+
+
+
+
+
+
+Welch & Clark                Informational                      [Page 5]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+3.2.  Media Loss Rate
+
+   The Media Loss Rate is the count of lost or out-of-order flow packets
+   over a selected time interval, where the flow packets are packets
+   carrying streaming application information.  There may be zero or
+   more streaming packets in a single IP packet.  For example, it is
+   common to carry seven 188 Byte MPEG Transport Stream packets in an IP
+   packet.  In such a case, a single IP packet loss would result in 7
+   lost packets counted (if those 7 lost packets did not include null
+   packets).  Including out-of-order packets is important, as many
+   stream consumer-type devices do not attempt to reorder packets that
+   are received out of order.
+
+3.3.  Media Delivery Index
+
+   Combining the Delay Factor and Media Loss Rate quantities for
+   presentation results in the following MDI:
+
+                                  DF:MLR
+    Where:
+                          DF is the Delay Factor
+                        MLR is the Media Loss Rate
+
+   At a receiving node, knowing its nominal drain bit rate, the DF`s max
+   indicates the size of buffer required to accommodate packet jitter.
+   Or, in terms of Leaky Bucket [i9] parameters, DF indicates bucket
+   size b, expressed in time to transmit bucket traffic b, at the given
+   nominal traffic rate, r.
+
+3.4.  MDI Application Examples
+
+   If a known, well-characterized receive node is separated from the
+   data source by unknown or less well-characterized nodes such as
+   intermediate switch nodes, the MDI measured at intermediate data
+   links provides a relative indication of the behavior of upstream
+   traffic flows.  DF difference indications between one node and
+   another in a data stream for a given constant interval of calculation
+   can indicate local areas of traffic congestion or possibly
+   misconfigured QoS flow specification(s) leading to greater filling of
+   measurement point local device buffers, resultant flow rate
+   deviations, and possible data loss.
+
+
+
+
+
+
+
+
+
+
+Welch & Clark                Informational                      [Page 6]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+   For a given MDI, if DF is high and/or the DF Max-Min captured over a
+   significant measurement period of multiple intervals is high, jitter
+   has been detected but the longer-term, average flow rate may be
+   nominal.  This could be the result of a transient flow upset due to a
+   coincident traffic stream unrelated to the flow of interest causing
+   packet bunching.  A high DF may cause downstream buffer overflow or
+   underflow or unacceptable latency even in the absence of lost data.
+
+   Due to transient network failures or DF excursions, packets may be
+   lost within the network.  The MLR component of the MDI shows this
+   condition.
+
+   Through automated or manual flow detection and identification and
+   subsequent MDI calculations for real-time statistics on a flow, the
+   DF can indicate the dynamic deterioration or increasing burstiness of
+   a flow, which can be used to anticipate a developing network
+   operation problem such as transient oversubscription.  Such
+   statistics can be obtained for flows within network switches using
+   available switch cpu resources due to the minimal computational
+   requirements needed for small numbers of flows.  Statistics for all
+   flows present on, say, a gigabit Ethernet network, will likely
+   require dedicated hardware facilities, though these can be modest, as
+   buffer requirements and the required calculations per flow are
+   minimal.  By equipping network switches with MDI measurements, flow
+   impairment issues can quickly be identified, localized, and
+   corrected.  Until switches are so equipped with appropriate hardware
+   resources, dedicated hardware tools can provide supplemental switch
+   statistics by gaining access to switch flows via mirror ports, link
+   taps, or the like as a transition strategy.
+
+   The MDI figure can also be used to characterize a flow decoder's
+   acceptable performance.  For example, an MPEG decoder could be
+   characterized as tolerating a flow with a given maximum DF and MLR
+   for acceptable display performance (acceptable on-screen artifacts).
+   Network conditions such as Interior Gateway Protocol (IGP)
+   reconvergence time then might also be included in the flow tolerance
+   DF resulting in a higher-quality user experience.
+
+4.  Summary
+
+   The MDI combines the Delay Factor, which indicates potential for
+   impending data loss, and Media Loss Rate as the indicator of lost
+   data.  By monitoring the DF and MLR and their min and max excursions
+   over a measurement period and at multiple strategic locations in a
+   network, traffic congestion or device impairments may be detected and
+   isolated for a network carrying streaming media content.
+
+
+
+
+
+Welch & Clark                Informational                      [Page 7]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+5.  Security Considerations
+
+   The measurements identified in this document do not directly affect
+   the security of a network or user.  Actions taken in response to
+   these measurements that may affect the available bandwidth of the
+   network or the availability of a service is out of scope for this
+   document.
+
+   Performing the measurements described in this document only requires
+   examination of payload header information (such as MPEG transport
+   stream headers or RTP headers) to determine nominal stream bit rate
+   and sequence number information.  Content may be encrypted without
+   affecting these measurements.  Therefore, content privacy is not
+   expected to be a concern.
+
+6.  Informative References
+
+   [i1]  Braden, R., Zhang, L., Berson, S., Herzog, S., and S. Jamin,
+         "Resource ReSerVation Protocol (RSVP) -- Version 1 Functional
+         Specification", RFC 2205, September 1997.
+
+   [i2]  Partridge, C., "A Proposed Flow Specification", RFC 1363,
+         September 1992.
+
+   [i3]  R. Fellman, `Hurdles to Overcome for Broadcast Quality Video
+         Delivery over IP` VidTranS 2002.
+
+   [i4]  CableLabs `PacketCable Dynamic Quality-of-Service
+         Specification`, PKT-SP-DQOS-I06-030415, 2003.
+
+   [i5]  Shenker, S., Partridge, C., and R. Guerin, "Specification of
+         Guaranteed Quality of Service", RFC 2212, September 1997.
+
+   [i6]  Wroclawski, J., "Specification of the Controlled-Load Network
+         Element Service", RFC 2211, September 1997.
+
+   [i7]  Braden, R., Clark, D., and S. Shenker, "Integrated Services in
+         the Internet Architecture: an Overview", RFC 1633, June 1994.
+
+   [i8]  ISO/IEC 13818-1 (MPEG-2 Systems)
+
+   [i9]  V. Raisanen, "Implementing Service Quality in IP Networks",
+         John Wiley & Sons Ltd., 2003.
+
+   [i10] Demichelis, C. and P. Chimento, "IP Packet Delay Variation
+         Metric for IP Performance Metrics (IPPM)", RFC 3393, November
+         2002.
+
+
+
+
+Welch & Clark                Informational                      [Page 8]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+   [i11] Friedman, T., Caceres, R., and A. Clark, "RTP Control Protocol
+         Extended Reports (RTCP XR)", RFC 3611, November 2003.
+
+   [i12] Schulzrinne, H.,  Casner, S., Frederick, R., and V. Jacobson,
+         "RTP: A Transport Protocol for Real-Time Applications", STD 64,
+         RFC 3550, July 2003.
+
+7.  Acknowledgements
+
+   The authors gratefully acknowledge the contributions of Marc Todd and
+   Jesse Beeson of IneoQuest Technologies, Inc., Bill Trubey and John
+   Carlucci of Time Warner Cable, Nishith Sinha of Cox Communications,
+   Ken Chiquoine of SeaChange International, Phil Proulx of Bell Canada,
+   Dr Paul Stallard of TANDBERG Television, Gary Hughes of Broadbus
+   Technologies, Brad Medford of SBC Laboratories, John Roy of Adelphia
+   Communications, Cliff Mercer, PhD of Kasenna, Mathew Ho of Rogers
+   Cable, and Irl Duling of Optinel Systems for reviewing and evaluating
+   early versions of this document and implementations for MDI.
+
+Authors' Addresses
+
+   James Welch
+   IneoQuest Technologies, Inc
+   170 Forbes Blvd
+   Mansfield, Massachusetts 02048
+
+   Phone: 508 618 0312
+   EMail: Jim.Welch@ineoquest.com
+
+
+   James Clark
+   Cisco Systems, Inc
+   500 Northridge Road
+   Suite 800
+   Atlanta, Georgia 30350
+
+   Phone: 678 352 2726
+   EMail: jiclark@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+Welch & Clark                Informational                      [Page 9]
+
+RFC 4445         A Proposed Media Delivery Index (MDI)        April 2006
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2006).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78 and at www.rfc-editor.org/copyright.html, and
+   except as set forth therein, the authors retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE INTERNET
+   ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
+   INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is provided by the IETF
+   Administrative Support Activity (IASA).
+
+
+
+
+
+
+
+Welch & Clark                Informational                     [Page 10]
+

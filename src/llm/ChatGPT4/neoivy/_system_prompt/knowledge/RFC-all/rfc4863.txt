@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Network Working Group                                         L. Martini
+Request for Comments: 4863                                    G. Swallow
+Category: Standards Track                            Cisco Systems, Inc.
+                                                                May 2007
+
+
+                        Wildcard Pseudowire Type
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The IETF Trust (2007).
+
+Abstract
+
+   Pseudowire signaling requires that the Pseudowire Type (PW Type) be
+   identical in both directions.  For certain applications the
+   configuration of the PW Type is most easily accomplished by
+   configuring this information at just one PW endpoint.  In any form of
+   LDP-based signaling, each PW endpoint must initiate the creation of a
+   unidirectional LSP.  In order to allow the initiation of these two
+   LSPs to remain independent, a means is needed for allowing the PW
+   endpoint (lacking a priori knowledge of the PW Type) to initiate the
+   creation of an LSP.  This document defines a Wildcard PW Type to
+   satisfy this need.
+
+Table of Contents
+
+   1. Introduction ....................................................2
+      1.1. Conventions and Terminology ................................2
+   2. Wildcard PW Type ................................................3
+   3. Procedures ......................................................3
+      3.1. Procedures When Sending the Wildcard FEC ...................3
+      3.2. Procedures When Receiving the Wildcard FEC .................3
+   4. Security Considerations .........................................4
+   5. IANA Considerations .............................................4
+   6. References ......................................................4
+      6.1. Normative References .......................................4
+      6.2. Informative References .....................................4
+
+
+
+
+
+Martini & Swallow           Standards Track                     [Page 1]
+
+RFC 4863                Wildcard Pseudowire Type                May 2007
+
+
+1.  Introduction
+
+   Pseudowire signaling requires that the Pseudowire Type (PW Type) be
+   identical in both directions.  For certain applications the
+   configuration of the PW Type is most easily accomplished by
+   configuring this information at just one PW endpoint.  In any form of
+   LDP-based signaling, each PW endpoint must initiate the creation of a
+   unidirectional LSP.
+
+   By the procedures of [CONTROL], both Label Mapping messages must
+   carry the PW type, and the two unidirectional mapping messages must
+   be in agreement.  Thus within the current procedures, the PW endpoint
+   that lacks configuration must wait to receive a Label Mapping message
+   in order to learn the PW Type, prior to signaling its unidirectional
+   LSP.
+
+   For certain applications this can become particularly onerous.  For
+   example, suppose that an ingress Provider Edge (PE) is serving as
+   part of a gateway function between a layer 2 network and layer 2
+   attachment circuits on remote PEs.  Suppose further that the initial
+   setup needs to be initiated from the layer 2 network, but the layer 2
+   signaling does not contain sufficient information to determine the PW
+   Type.  However, this information is known at the PE supporting the
+   targeted attachment circuit.
+
+   In this situation, it is often desirable to allow the initiation of
+   the two LSPs that compose a pseudowire to remain independent.  A
+   means is needed for allowing a PW endpoint (lacking a priori
+   knowledge of the PW Type) to initiate the creation of an LSP.  This
+   document defines a wildcard PW Type to satisfy this need.
+
+1.1.  Conventions and Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [KEYWORDS].
+
+   This document introduces no new terminology.  However, it assumes
+   that the reader is familiar with the terminology contained in
+   [CONTROL] and RFC 3985, "Pseudo Wire Emulation Edge-to-Edge (PWE3)
+   Architecture" [ARCH].
+
+
+
+
+
+
+
+
+
+
+Martini & Swallow           Standards Track                     [Page 2]
+
+RFC 4863                Wildcard Pseudowire Type                May 2007
+
+
+2.  Wildcard PW Type
+
+   In order to allow a PE to initiate the signaling exchange for a
+   pseudowire without knowing the pseudowire type, a new PW Type is
+   defined.  The codepoint is 0x7FFF.  The semantics are the following:
+
+   1.  To the targeted PE, this value indicates that it is to determine
+       the PW Type (for both directions) and signal that in a Label
+       Mapping message back to the initiating PE.
+
+   2.  For the procedures of [CONTROL], this PW Type is interpreted to
+       match any PW Type other than itself.  That is, the targeted PE
+       may respond with any valid PW Type other than the wildcard PW
+       Type.
+
+3.  Procedures
+
+3.1.  Procedures When Sending the Wildcard FEC
+
+   When a PE that is not configured to use a specific PW Type for a
+   particular pseudowire wishes to signal an LSP for that pseudowire, it
+   sets the PW Type to "wildcard".  This indicates that the target PE
+   should determine the PW Type for this pseudowire.
+
+   When a Label Mapping message is received for the pseudowire, the PE
+   checks the PW Type.
+
+   If the PW Type can be supported, the PE uses this as the PW Type for
+   both directions.
+
+   If the PW Type cannot be supported or is "wildcard", it MUST respond
+   to this message with a Label Release message with an LDP Status Code
+   of "Generic Misconfiguration Error".  Further actions are beyond the
+   scope of this document, but could include notifying the associated
+   application (if any) or notifying network management.
+
+3.2.  Procedures When Receiving the Wildcard FEC
+
+   When a targeted PE receives a Label Mapping message indicating the
+   wildcard PW Type, it follows the normal procedures for checking the
+   Attachment Group Identifier (AGI) and Target Attachment Individual
+   Identifier (TAII) values.  If the targeted PE is not configured to
+   use a specific, non-wildcard PW Type, it MUST respond to this message
+   with a Label Release message with an LDP Status Code of "Generic
+   Misconfiguration Error".
+
+   Otherwise, it treats the Label Mapping message as if it had indicated
+   the PW Type it is configured to use.
+
+
+
+Martini & Swallow           Standards Track                     [Page 3]
+
+RFC 4863                Wildcard Pseudowire Type                May 2007
+
+
+4.  Security Considerations
+
+   This document has little impact on the security aspects of [CONTROL].
+   The message exchanges remain the same.  However, a malicious agent
+   attempting to connect to an access circuit would require one less
+   piece of information.  To mitigate against this, a pseudowire control
+   entity receiving a request containing the wildcard FEC type SHOULD
+   only proceed with setup if explicitly configured to do so for the
+   particular AI in the TAI.  Further, the reader should note the
+   security considerations of [CONTROL], in general, and those
+   pertaining to the Generalized PWid FEC Element, in particular.
+
+5.  IANA Considerations
+
+   IANA has made the following allocation from the IETF consensus range
+   of the "Pseudowire Type" registry as defined in [IANA].
+
+         PW Type        Description
+
+         0x7FFF         Wildcard
+
+6.  References
+
+6.1.  Normative References
+
+   [KEYWORDS]   Bradner, S., "Key words for use in RFCs to Indicate
+                Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [CONTROL]    Martini, L., Ed., Rosen, E., El-Aawar, N., Smith, T.,
+                and G. Heron, "Pseudowire Setup and Maintenance Using
+                the Label Distribution Protocol (LDP)", RFC 4447, April
+                2006.
+
+   [IANA]       Martini, L., "IANA Allocations for Pseudowire Edge to
+                Edge Emulation (PWE3)", BCP 116, RFC 4446, April 2006.
+
+6.2.  Informative References
+
+   [ARCH]       Bryant, S., Ed., and P. Pate, Ed., "Pseudo Wire
+                Emulation Edge-to-Edge (PWE3) Architecture", RFC 3985,
+                March 2005.
+
+
+
+
+
+
+
+
+
+
+Martini & Swallow           Standards Track                     [Page 4]
+
+RFC 4863                Wildcard Pseudowire Type                May 2007
+
+
+Authors' Addresses
+
+   Luca Martini
+   Cisco Systems
+   9155 East Nichols Avenue, Suite 400
+   Englewood, CO, 80112
+
+   EMail: lmartini@cisco.com
+
+
+   George Swallow
+   Cisco Systems
+   1414 Massachusetts Ave,
+   Boxborough, MA 01719
+
+   EMail: swallow@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Martini & Swallow           Standards Track                     [Page 5]
+
+RFC 4863                Wildcard Pseudowire Type                May 2007
+
+
+Full Copyright Statement
+
+   Copyright (C) The IETF Trust (2007).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+Martini & Swallow           Standards Track                     [Page 6]
+

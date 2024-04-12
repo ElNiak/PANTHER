@@ -1,0 +1,818 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                           E. Chen
+Request for Comments: 9468                            Palo Alto Networks
+Category: Standards Track                                        N. Shen
+ISSN: 2070-1721                                                   Zededa
+                                                               R. Raszuk
+                                                                  Arrcus
+                                                               R. Rahman
+                                                                 Equinix
+                                                             August 2023
+
+
+  Unsolicited Bidirectional Forwarding Detection (BFD) for Sessionless
+                              Applications
+
+Abstract
+
+   For operational simplification of "sessionless" applications using
+   Bidirectional Forwarding Detection (BFD), in this document, we
+   present procedures for "unsolicited BFD" that allow a BFD session to
+   be initiated by only one side and established without explicit per-
+   session configuration or registration by the other side (subject to
+   certain per-interface or global policies).
+
+   We also introduce a new YANG module to configure and manage
+   "unsolicited BFD".  The YANG module in this document is based on YANG
+   1.1, as defined in RFC 7950, and conforms to the Network Management
+   Datastore Architecture (NMDA), as described in RFC 8342.  This
+   document augments RFC 9314.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9468.
+
+Copyright Notice
+
+   Copyright (c) 2023 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Revised BSD License text as described in Section 4.e of the
+   Trust Legal Provisions and are provided without warranty as described
+   in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Requirements Language
+   2.  Procedures for Unsolicited BFD
+   3.  State Variables
+   4.  YANG Data Model
+     4.1.  Unsolicited BFD Hierarchy
+     4.2.  Unsolicited BFD Module
+     4.3.  Data Model Example
+   5.  IANA Considerations
+   6.  Security Considerations
+     6.1.  BFD Protocol Security Considerations
+     6.2.  BFD Protocol Authentication Considerations
+     6.3.  YANG Module Security Considerations
+   7.  References
+     7.1.  Normative References
+     7.2.  Informative References
+   Acknowledgments
+   Authors' Addresses
+
+1.  Introduction
+
+   The current implementation and deployment practice for BFD ([RFC5880]
+   and [RFC5881]) usually requires that BFD sessions be explicitly
+   configured or registered on both sides.  This requirement is not an
+   issue when an application like BGP [RFC4271] has the concept of a
+   "session" that involves both sides for its establishment.  However,
+   this requirement can be operationally challenging when the
+   prerequisite "session" does not naturally exist between two endpoints
+   in an application.  Simultaneous configuration and coordination may
+   be required on both sides for BFD to take effect.  For example:
+
+   *  When BFD is used to keep track of the "liveness" of the next hop
+      of static routes.  Although only one side may need the BFD
+      functionality, currently, both sides need to be involved in
+      specific configuration and coordination, and in some cases, static
+      routes are created unnecessarily just for BFD.
+
+   *  When BFD is used to keep track of the "liveness" of the third-
+      party next hop of BGP routes received from the Route Server
+      [RFC7947] at an Internet Exchange Point (IXP).  As the third-party
+      next hop is different from the peering address of the Route
+      Server, for BFD to work, currently, two routers peering with the
+      Route Server need to have routes and next hops from each other
+      (although indirectly via the Route Server).
+
+   Clearly, it is beneficial and desirable to reduce or eliminate
+   unnecessary configurations and coordination in these "sessionless"
+   applications using BFD.
+
+   In this document, we present procedures for "unsolicited BFD" that
+   allow a BFD session to be initiated by only one side and established
+   without explicit per-session configuration or registration by the
+   other side (subject to certain per-interface or global policies).
+
+   Unsolicited BFD impacts only the initiation of BFD sessions.  There
+   is no change to all the other procedures specified in [RFC5880], such
+   as, but not limited to, the Echo function and Demand mode.
+
+   With "unsolicited BFD", there is potential risk for excessive
+   resource usage by BFD from "unexpected" remote systems.  To mitigate
+   such risks, several mechanisms are recommended in the Security
+   Considerations section.
+
+   The procedure described in this document could be applied to BFD for
+   multihop paths [RFC5883].  However, because of security risks, this
+   document applies only to BFD for single IP hops [RFC5881].
+
+   Compared to the "Seamless BFD" [RFC7880], this proposal involves only
+   minor procedural enhancements to the widely deployed BFD itself.
+   Thus, we believe that this proposal is inherently simpler in the
+   protocol itself and deployment.  As an example, it does not require
+   the exchange of BFD discriminators over an out-of-band channel before
+   BFD session bring-up.
+
+   When BGP ADD-PATH [RFC7911] is deployed at an IXP using a Route
+   Server, multiple BGP paths (when they exist) can be made available to
+   the clients of the Route Server, as described in [RFC7947].
+   Unsolicited BFD can be used by BGP route selection's route
+   resolvability condition (Section 9.1.2.1 of [RFC4271]) to exclude
+   routes where the NEXT_HOP is not reachable using the procedures
+   specified in this document.
+
+1.1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  Procedures for Unsolicited BFD
+
+   With "unsolicited BFD", one side takes the "Active role" and the
+   other side takes the "Passive role", as described in [RFC5880],
+   Section 6.1.
+
+   Passive unsolicited BFD support MUST be disabled by default and MUST
+   require explicit configuration to be enabled.  On the passive side,
+   the following BFD parameters, from [RFC5880], Section 6.8.1, SHOULD
+   be configurable:
+
+   *  bfd.DesiredMinTxInterval
+
+   *  bfd.RequiredMinRxInterval
+
+   *  bfd.DetectMult
+
+   The passive side MAY also choose to use the values of the parameters
+   listed above that the active side uses in its BFD Control packets.
+   However, the bfd.LocalDiscr value MUST be selected by the passive
+   side to allow multiple unsolicited BFD sessions.
+
+   The active side starts sending the BFD Control packets, as specified
+   in [RFC5880].  The passive side does not send BFD Control packets
+   initially; it sends BFD Control packets only after it has received
+   BFD Control packets from the active side.
+
+   When the passive side receives a BFD Control packet from the active
+   side with 0 as "Your Discriminator" and does not find an existing BFD
+   session, the passive side SHOULD create a matching BFD session toward
+   the active side, unless not permitted by local configuration or
+   policy.
+
+   When the passive side receives an incoming BFD Control packet on a
+   numbered interface, the source address of that packet MUST belong to
+   the subnet of the interface on which the BFD packet is received, else
+   the BFD Control packet MUST NOT be processed.
+
+   The passive side MUST then start sending BFD Control packets and
+   perform the necessary procedure for bringing up, maintaining, and
+   tearing down the BFD session.  If the BFD session fails to get
+   established within a certain amount of time (which is implementation
+   specific but has to be at least equal to the local failure detection
+   time) or if an established BFD session goes down, the passive side
+   MUST stop sending BFD Control packets and SHOULD delete the BFD
+   session created until BFD Control packets are initiated by the active
+   side again.
+
+   When an unsolicited BFD session goes down, an implementation may
+   retain the session state for a period of time.  Retaining this state
+   can be useful for operational purposes.
+
+3.  State Variables
+
+   This document defines a new state variable called Role:
+
+   bfd.Role
+
+   This is the role of the local system during BFD session
+   initialization, as per [RFC5880], Section 6.1.  Possible values are
+   Active or Passive.
+
+4.  YANG Data Model
+
+   This section extends the YANG data model for BFD [RFC9314] to cover
+   unsolicited BFD.  The new module imports the YANG modules described
+   in [RFC8349] since the "bfd" container in [RFC9314] is under
+   "control-plane-protocol".  The YANG module in this document conforms
+   to the Network Management Datastore Architecture (NMDA) [RFC8342].
+
+4.1.  Unsolicited BFD Hierarchy
+
+   Configuration for unsolicited BFD parameters for IP single-hop
+   sessions can be done at 2 levels:
+
+   *  globally, i.e., for all interfaces
+
+   *  for specific interfaces (this requires support for the
+      "unsolicited-params-per-interface" feature)
+
+   If configuration exists at both levels, per-interface configuration
+   takes precedence over global configuration.
+
+   For operational data, a new "role" leaf node has been added for BFD
+   IP single-hop sessions.
+
+   The tree diagram below uses the graphical representation of data
+   models, as defined in [RFC8340].
+
+
+   module: ietf-bfd-unsolicited
+
+     augment /rt:routing/rt:control-plane-protocols
+             /rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh:
+       +--rw unsolicited?
+          +--rw local-multiplier?                 multiplier
+          +--rw (interval-config-type)?
+             +--:(tx-rx-intervals)
+             |  +--rw desired-min-tx-interval?    uint32
+             |  +--rw required-min-rx-interval?   uint32
+             +--:(single-interval) {single-minimum-interval}?
+                +--rw min-interval?               uint32
+     augment /rt:routing/rt:control-plane-protocols
+             /rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh
+             /bfd-ip-sh:interfaces:
+       +--rw unsolicited
+          +--rw enabled?                          boolean
+          +--rw local-multiplier?
+               bfd-types:multiplier
+                {bfd-unsol:unsolicited-params-per-interface}?
+          +--rw (interval-config-type)?
+                  {bfd-unsol:unsolicited-params-per-interface}?
+             +--:(tx-rx-intervals)
+             |  +--rw desired-min-tx-interval?    uint32
+             |  +--rw required-min-rx-interval?   uint32
+             +--:(single-interval) {bfd-types:single-minimum-interval}?
+                +--rw min-interval?               uint32
+     augment /rt:routing/rt:control-plane-protocols
+             /rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh
+             /bfd-ip-sh:sessions/bfd-ip-sh:session:
+       +--ro role?   bfd-unsol:role
+
+4.2.  Unsolicited BFD Module
+
+
+   <CODE BEGINS> file "ietf-bfd-unsolicited@2023-08-31.yang"
+   module ietf-bfd-unsolicited {
+
+     yang-version 1.1;
+
+     namespace "urn:ietf:params:xml:ns:yang:ietf-bfd-unsolicited";
+
+     prefix bfd-unsol;
+
+     import ietf-bfd-types {
+       prefix bfd-types;
+       reference
+         "RFC 9314: YANG Data Model for Bidirectional Forwarding
+          Detection (BFD)";
+     }
+
+     import ietf-bfd {
+       prefix bfd;
+       reference
+         "RFC 9314: YANG Data Model for Bidirectional Forwarding
+          Detection (BFD)";
+     }
+
+     import ietf-bfd-ip-sh {
+       prefix bfd-ip-sh;
+       reference
+         "RFC 9314: YANG Data Model for Bidirectional Forwarding
+          Detection (BFD)";
+     }
+
+     import ietf-routing {
+       prefix rt;
+       reference
+         "RFC 8349: A YANG Data Model for Routing Management
+          (NMDA Version)";
+     }
+
+     organization
+       "IETF BFD Working Group";
+
+     contact
+       "WG Web:   <https://datatracker.ietf.org/wg/bfd/>
+        WG List:  <rtg-bfd@ietf.org>
+
+        Editors:  Enke Chen (enchen@paloaltonetworks.com),
+                  Naiming Shen (naiming@zededa.com),
+                  Robert Raszuk (robert@raszuk.net),
+                  Reshad Rahman (reshad@yahoo.com)";
+
+     description
+       "This module contains the YANG definition for unsolicited BFD,
+        as per RFC 9468.
+
+        Copyright (c) 2023 IETF Trust and the persons
+        identified as authors of the code.  All rights reserved.
+
+        Redistribution and use in source and binary forms, with or
+        without modification, is permitted pursuant to, and subject
+        to the license terms contained in, the Revised BSD License
+        set forth in Section 4.c of the IETF Trust's Legal Provisions
+        Relating to IETF Documents
+        (http://trustee.ietf.org/license-info).
+
+        This version of this YANG module is part of RFC 9468; see
+        the RFC itself for full legal notices.";
+
+     reference
+       "RFC 9468: Unsolicited Bidirectional Forwarding Detection
+        (BFD) for Sessionless Applications";
+
+     revision 2023-08-31 {
+       description
+         "Initial revision.";
+       reference
+         "RFC 9468: Unsolicited Bidirectional Forwarding Detection (BFD)
+          for Sessionless Applications";
+     }
+
+     /*
+      * Feature definitions
+      */
+     feature unsolicited-params-per-interface {
+       description
+         "This feature indicates that the server supports per-interface
+          parameters for unsolicited sessions.";
+       reference
+         "RFC 9468: Unsolicited Bidirectional Forwarding Detection (BFD)
+          for Sessionless Applications";
+     }
+
+     /*
+      * Type Definitions
+      */
+
+     identity role {
+       description
+         "Base identity from which all roles are derived.
+          Role of local system during BFD session initialization.";
+     }
+
+     identity active {
+       base bfd-unsol:role;
+       description
+         "Active role.";
+       reference
+         "RFC 5880: Bidirectional Forwarding Detection (BFD),
+          Section 6.1";
+     }
+
+     identity passive {
+       base bfd-unsol:role;
+       description
+         "Passive role.";
+       reference
+         "RFC 5880: Bidirectional Forwarding Detection (BFD),
+          Section 6.1";
+     }
+
+     /*
+      * Augments
+      */
+
+     augment "/rt:routing/rt:control-plane-protocols/"
+           + "rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh" {
+       description
+         "Augmentation for unsolicited BFD parameters.";
+       container unsolicited {
+         description
+           "BFD IP single-hop unsolicited top-level container.";
+         uses bfd-types:base-cfg-parms;
+       }
+     }
+
+     augment "/rt:routing/rt:control-plane-protocols/"
+           + "rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh/"
+           + "bfd-ip-sh:interfaces" {
+       description
+         "Augmentation for unsolicited BFD on IP single-hop
+          interface.";
+       container unsolicited {
+         description
+           "BFD IP single-hop interface unsolicited top-level
+            container.";
+         leaf enabled {
+           type boolean;
+           default "false";
+           description
+             "Unsolicited BFD is enabled on this interface.";
+         }
+         /*
+          * The following is the same as bfd-types:base-cfg-parms, but
+          * without default values (for inheritance)
+          */
+         leaf local-multiplier {
+           if-feature "bfd-unsol:unsolicited-params-per-interface";
+           type bfd-types:multiplier;
+           description
+             "Multiplier transmitted by the local system.  Defaults to
+              ../../unsolicited/local-multiplier.
+              A multiplier configured under an interface takes
+              precedence over the multiplier configured at the global
+              level.";
+         }
+         choice interval-config-type {
+           if-feature "bfd-unsol:unsolicited-params-per-interface";
+           description
+             "Two interval values or one value used for both transmit
+              and receive.  Defaults to
+              ../../unsolicited/interval-config-type.  An interval
+              configured under an interface takes precedence over any
+              interval configured at the global level.";
+           case tx-rx-intervals {
+             leaf desired-min-tx-interval {
+               type uint32;
+               units "microseconds";
+               description
+                 "Desired minimum transmit interval of control
+                  packets.";
+             }
+             leaf required-min-rx-interval {
+               type uint32;
+               units "microseconds";
+               description
+                 "Required minimum receive interval of control
+                  packets.";
+             }
+           }
+           case single-interval {
+             if-feature "bfd-types:single-minimum-interval";
+             leaf min-interval {
+               type uint32;
+               units "microseconds";
+               description
+                 "Desired minimum transmit interval and required
+                  minimum receive interval of control packets.";
+             }
+           }
+         }
+       }
+     }
+
+     augment "/rt:routing/rt:control-plane-protocols/"
+           + "rt:control-plane-protocol/bfd:bfd/bfd-ip-sh:ip-sh/"
+           + "bfd-ip-sh:sessions/bfd-ip-sh:session" {
+       description
+         "Augmentation for unsolicited BFD on IP single-hop session.";
+       leaf role {
+         type identityref {
+           base bfd-unsol:role;
+         }
+         config false;
+         description
+           "Role.";
+       }
+     }
+   }
+   <CODE ENDS>
+
+4.3.  Data Model Example
+
+   This section shows an example on how to configure the passive end of
+   unsolicited BFD:
+
+   *  We have global BFD IP single-hop unsolicited configuration with a
+      local-multiplier of 2 and min-interval at 50 ms.
+
+   *  BFD IP single-hop unsolicited is enabled on interface eth0 with a
+      local-multiplier of 3 and min-interval at 250 ms.
+
+   *  BFD IP single-hop unsolicited is enabled on interface eth1.  Since
+      there is no parameter configuration for eth1, it inherits from the
+      global configuration.
+
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+   <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+     <interface>
+       <name>eth0</name>
+       <type
+           xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">
+            ianaift:ethernetCsmacd</type>
+     </interface>
+     <interface>
+       <name>eth1</name>
+       <type
+           xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">
+            ianaift:ethernetCsmacd</type>
+     </interface>
+   </interfaces>
+   <routing xmlns="urn:ietf:params:xml:ns:yang:ietf-routing">
+     <control-plane-protocols>
+       <control-plane-protocol>
+         <type xmlns:bfd-types=
+           "urn:ietf:params:xml:ns:yang:ietf-bfd-types">
+            bfd-types:bfdv1</type>
+         <name>name:BFD</name>
+         <bfd xmlns="urn:ietf:params:xml:ns:yang:ietf-bfd">
+           <ip-sh xmlns="urn:ietf:params:xml:ns:yang:ietf-bfd-ip-sh">
+             <unsolicited>
+               <local-multiplier>2</local-multiplier>
+               <min-interval>50000</min-interval>
+             </unsolicited>
+             <interfaces>
+                 <interface>eth0</interface>
+                 <unsolicited>
+                   <enabled>true</enabled>
+                   <local-multiplier>3</local-multiplier>
+                   <min-interval>250000</min-interval>
+                 </unsolicited>
+             </interfaces>
+             <interfaces>
+                 <interface>eth1</interface>
+                 <unsolicited>
+                   <enabled>true</enabled>
+                 </unsolicited>
+             </interfaces>
+           </ip-sh>
+         </bfd>
+       </control-plane-protocol>
+     </control-plane-protocols>
+   </routing>
+   </config>
+
+5.  IANA Considerations
+
+   IANA has registered the following namespace URI in the "ns"
+   subregistry within the "IETF XML Registry" [RFC3688]:
+
+   URI:  urn:ietf:params:xml:ns:yang:ietf-bfd-unsolicited
+   Registrant Contact:  The IESG.
+   XML:  N/A; the requested URI is an XML namespace.
+
+   IANA has registered the following YANG module in the "YANG Module
+   Names" registry [RFC6020]:
+
+   Name:  ietf-bfd-unsolicited
+   Maintained by IANA:  N
+   Namespace:  urn:ietf:params:xml:ns:yang:ietf-bfd-unsolicited
+   Prefix:  bfd-unsol
+   Reference:  RFC 9468
+
+6.  Security Considerations
+
+6.1.  BFD Protocol Security Considerations
+
+   The same security considerations and protection measures as those
+   described in [RFC5880] and [RFC5881] apply to this document.  In
+   addition, with "unsolicited BFD", there is potential risk for
+   excessive resource usage by BFD from "unexpected" remote systems.  To
+   mitigate such risks, implementations of unsolicited BFD MUST:
+
+   *  Limit the feature to specific interfaces and to single-hop BFD
+      sessions using the procedures from [RFC5082].  See Section 5 of
+      [RFC5881] for the details of these procedures.
+
+   *  Apply policy to process BFD packets only from certain subnets or
+      hosts.
+
+   *  Deploy the feature only in an environment that does not offer
+      anonymous participation.  Examples include an IXP, where the IXP
+      operator will have a business relationship with all IXP
+      participants, or between a provider and its customers.
+
+6.2.  BFD Protocol Authentication Considerations
+
+   Implementations of unsolicited BFD are RECOMMENDED to use BFD
+   authentication; see [RFC5880].  If BFD authentication is used, the
+   strongest BFD authentication mechanism that is supported MUST be
+   used.
+
+   In some environments, such as IXPs, BFD authentication cannot be used
+   because of the lack of coordination for the operation of the two
+   endpoints of the BFD session.
+
+   In other environments, such as when BFD is used to track the next hop
+   of static routes, it is possible to use BFD authentication.  This
+   comes with the extra cost of configuring matching key chains between
+   the two endpoints.
+
+6.3.  YANG Module Security Considerations
+
+   The YANG module specified in this document defines a schema for data
+   that is designed to be accessed via network management protocols such
+   as NETCONF [RFC6241] or RESTCONF [RFC8040].  The lowest NETCONF layer
+   is the secure transport layer, and the mandatory-to-implement secure
+   transport is Secure Shell (SSH) [RFC6242].  The lowest RESTCONF layer
+   is HTTPS, and the mandatory-to-implement secure transport is TLS
+   [RFC8446].
+
+   The Network Configuration Access Control Mode (NACM) [RFC8341]
+   provides the means to restrict access for particular NETCONF or
+   RESTCONF users to a preconfigured subset of all available NETCONF or
+   RESTCONF protocol operations and content.
+
+   There are a number of data nodes defined in this YANG module that are
+   writable/creatable/deletable (i.e., config true, which is the
+   default).  These data nodes may be considered sensitive or vulnerable
+   in some network environments.  Write operations (e.g., edit-config)
+   to these data nodes without proper protection can have a negative
+   effect on network operations.  These are the subtrees and data nodes
+   and their sensitivity/vulnerability:
+
+   /routing/control-plane-protocols/control-plane-protocol/bfd/ip-sh
+   /unsolicited:
+      *  Data node "enabled" enables creation of unsolicited BFD IP
+         single-hop sessions globally, i.e., on all interfaces.  See
+         Section 6.1.
+
+      *  Data nodes "local-multiplier", "desired-min-tx-interval",
+         "required-min-rx-interval", and "min-interval" all impact the
+         parameters of the unsolicited BFD IP single-hop sessions.
+         Write operations to these nodes change the rates of BFD packet
+         generation and detection time of the failures of a BFD session.
+
+   /routing/control-plane-protocols/control-plane-protocol/bfd/ip-sh
+   /interfaces/interface/unsolicited:
+      *  Data node "enabled" enables the creation of unsolicited BFD IP
+         single-hop sessions on a specific interface.  See Section 6.1.
+
+      *  Data nodes "local-multiplier", "desired-min-tx-interval",
+         "required-min-rx-interval", and "min-interval" all impact the
+         parameters of the unsolicited BFD IP single-hop sessions on the
+         interface.
+
+   Some of the readable data nodes in this YANG module may be considered
+   sensitive or vulnerable in some network environments.  It is thus
+   important to control read access (e.g., via get, get-config, or
+   notification) to these data nodes.  These are the subtrees and data
+   nodes and their sensitivity/vulnerability:
+
+   /routing/control-plane-protocols/control-plane-protocol/bfd/ip-sh
+   /sessions/session/role:
+      Access to this information discloses the role of the local system
+      in the creation of the unsolicited BFD session.
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3688]  Mealling, M., "The IETF XML Registry", BCP 81, RFC 3688,
+              DOI 10.17487/RFC3688, January 2004,
+              <https://www.rfc-editor.org/info/rfc3688>.
+
+   [RFC5082]  Gill, V., Heasley, J., Meyer, D., Savola, P., Ed., and C.
+              Pignataro, "The Generalized TTL Security Mechanism
+              (GTSM)", RFC 5082, DOI 10.17487/RFC5082, October 2007,
+              <https://www.rfc-editor.org/info/rfc5082>.
+
+   [RFC5880]  Katz, D. and D. Ward, "Bidirectional Forwarding Detection
+              (BFD)", RFC 5880, DOI 10.17487/RFC5880, June 2010,
+              <https://www.rfc-editor.org/info/rfc5880>.
+
+   [RFC5881]  Katz, D. and D. Ward, "Bidirectional Forwarding Detection
+              (BFD) for IPv4 and IPv6 (Single Hop)", RFC 5881,
+              DOI 10.17487/RFC5881, June 2010,
+              <https://www.rfc-editor.org/info/rfc5881>.
+
+   [RFC6020]  Bjorklund, M., Ed., "YANG - A Data Modeling Language for
+              the Network Configuration Protocol (NETCONF)", RFC 6020,
+              DOI 10.17487/RFC6020, October 2010,
+              <https://www.rfc-editor.org/info/rfc6020>.
+
+   [RFC6241]  Enns, R., Ed., Bjorklund, M., Ed., Schoenwaelder, J., Ed.,
+              and A. Bierman, Ed., "Network Configuration Protocol
+              (NETCONF)", RFC 6241, DOI 10.17487/RFC6241, June 2011,
+              <https://www.rfc-editor.org/info/rfc6241>.
+
+   [RFC6242]  Wasserman, M., "Using the NETCONF Protocol over Secure
+              Shell (SSH)", RFC 6242, DOI 10.17487/RFC6242, June 2011,
+              <https://www.rfc-editor.org/info/rfc6242>.
+
+   [RFC8040]  Bierman, A., Bjorklund, M., and K. Watsen, "RESTCONF
+              Protocol", RFC 8040, DOI 10.17487/RFC8040, January 2017,
+              <https://www.rfc-editor.org/info/rfc8040>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8340]  Bjorklund, M. and L. Berger, Ed., "YANG Tree Diagrams",
+              BCP 215, RFC 8340, DOI 10.17487/RFC8340, March 2018,
+              <https://www.rfc-editor.org/info/rfc8340>.
+
+   [RFC8341]  Bierman, A. and M. Bjorklund, "Network Configuration
+              Access Control Model", STD 91, RFC 8341,
+              DOI 10.17487/RFC8341, March 2018,
+              <https://www.rfc-editor.org/info/rfc8341>.
+
+   [RFC8349]  Lhotka, L., Lindem, A., and Y. Qu, "A YANG Data Model for
+              Routing Management (NMDA Version)", RFC 8349,
+              DOI 10.17487/RFC8349, March 2018,
+              <https://www.rfc-editor.org/info/rfc8349>.
+
+   [RFC8446]  Rescorla, E., "The Transport Layer Security (TLS) Protocol
+              Version 1.3", RFC 8446, DOI 10.17487/RFC8446, August 2018,
+              <https://www.rfc-editor.org/info/rfc8446>.
+
+   [RFC9314]  Jethanandani, M., Ed., Rahman, R., Ed., Zheng, L., Ed.,
+              Pallagatti, S., and G. Mirsky, "YANG Data Model for
+              Bidirectional Forwarding Detection (BFD)", RFC 9314,
+              DOI 10.17487/RFC9314, September 2022,
+              <https://www.rfc-editor.org/info/rfc9314>.
+
+7.2.  Informative References
+
+   [RFC4271]  Rekhter, Y., Ed., Li, T., Ed., and S. Hares, Ed., "A
+              Border Gateway Protocol 4 (BGP-4)", RFC 4271,
+              DOI 10.17487/RFC4271, January 2006,
+              <https://www.rfc-editor.org/info/rfc4271>.
+
+   [RFC5883]  Katz, D. and D. Ward, "Bidirectional Forwarding Detection
+              (BFD) for Multihop Paths", RFC 5883, DOI 10.17487/RFC5883,
+              June 2010, <https://www.rfc-editor.org/info/rfc5883>.
+
+   [RFC7880]  Pignataro, C., Ward, D., Akiya, N., Bhatia, M., and S.
+              Pallagatti, "Seamless Bidirectional Forwarding Detection
+              (S-BFD)", RFC 7880, DOI 10.17487/RFC7880, July 2016,
+              <https://www.rfc-editor.org/info/rfc7880>.
+
+   [RFC7911]  Walton, D., Retana, A., Chen, E., and J. Scudder,
+              "Advertisement of Multiple Paths in BGP", RFC 7911,
+              DOI 10.17487/RFC7911, July 2016,
+              <https://www.rfc-editor.org/info/rfc7911>.
+
+   [RFC7947]  Jasinska, E., Hilliard, N., Raszuk, R., and N. Bakker,
+              "Internet Exchange BGP Route Server", RFC 7947,
+              DOI 10.17487/RFC7947, September 2016,
+              <https://www.rfc-editor.org/info/rfc7947>.
+
+   [RFC8342]  Bjorklund, M., Schoenwaelder, J., Shafer, P., Watsen, K.,
+              and R. Wilton, "Network Management Datastore Architecture
+              (NMDA)", RFC 8342, DOI 10.17487/RFC8342, March 2018,
+              <https://www.rfc-editor.org/info/rfc8342>.
+
+Acknowledgments
+
+   The authors would like to thank Acee Lindem, Alvaro Retana, Dan
+   Romascanu, Derek Atkins, Greg Mirsky, Gyan Mishra, Henning Rogge,
+   Jeffrey Haas, John Scudder, Lars Eggert, Magnus Westerlund, Mahesh
+   Jethanandani, Murray Kucherawy, Raj Chetan, Robert Wilton, Roman
+   Danyliw, Tom Petch, and Zaheduzzaman Sarker for their reviews and
+   valuable input.
+
+Authors' Addresses
+
+   Enke Chen
+   Palo Alto Networks
+   3000 Tannery Way
+   Santa Clara, CA 95054
+   United States of America
+   Email: enchen@paloaltonetworks.com
+
+
+   Naiming Shen
+   Zededa
+   160 W Santa Clara Street
+   San Jose, CA 95113
+   United States of America
+   Email: naiming@zededa.com
+
+
+   Robert Raszuk
+   Arrcus
+   2077 Gateway Place
+   San Jose, CA 95110
+   United States of America
+   Email: robert@raszuk.net
+
+
+   Reshad Rahman
+   Equinix
+   Canada
+   Email: reshad@yahoo.com

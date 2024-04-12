@@ -1,0 +1,507 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                       C. Dearlove
+Request for Comments: 7466                               BAE Systems ATC
+Updates: 6130, 7181                                           T. Clausen
+Category: Standards Track                       LIX, Ecole Polytechnique
+ISSN: 2070-1721                                               March 2015
+
+
+         An Optimization for the Mobile Ad Hoc Network (MANET)
+                 Neighborhood Discovery Protocol (NHDP)
+
+Abstract
+
+   The link quality mechanism of the Mobile Ad Hoc Network (MANET)
+   Neighborhood Discovery Protocol (NHDP) enables "ignoring" some 1-hop
+   neighbors if the measured link quality from that 1-hop neighbor is
+   below an acceptable threshold while still retaining the corresponding
+   link information as acquired from the HELLO message exchange.  This
+   allows immediate reinstatement of the 1-hop neighbor if the link
+   quality later improves sufficiently.
+
+   NHDP also collects information about symmetric 2-hop neighbors.
+   However, it specifies that if a link from a symmetric 1-hop neighbor
+   ceases being symmetric, including while "ignored" (as described
+   above), then corresponding symmetric 2-hop neighbors are removed.
+   This may lead to symmetric 2-hop neighborhood information being
+   permanently removed (until further HELLO messages are received) if
+   the link quality of a symmetric 1-hop neighbor drops below the
+   acceptable threshold, even if only for a moment.
+
+   This specification updates RFC 6130 "Mobile Ad Hoc Network (MANET)
+   Neighborhood Discovery Protocol (NHDP)" and RFC 7181 "The Optimized
+   Link State Routing Protocol Version 2 (OLSRv2)" to permit, as an
+   option, retaining, but ignoring, symmetric 2-hop information when the
+   link quality from the corresponding 1-hop neighbor drops below the
+   acceptable threshold.  This allows immediate reinstatement of the
+   symmetric 2-hop neighbor if the link quality later improves
+   sufficiently, thus making the symmetric 2-hop neighborhood more
+   "robust".
+
+
+
+
+
+
+
+
+
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 1]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7466.
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. Terminology .....................................................4
+   3. Applicability Statement .........................................4
+   4. Changes to NHDP .................................................4
+      4.1. Interface Information Bases ................................5
+      4.2. HELLO Message Processing ...................................5
+      4.3. Information Base Changes ...................................5
+      4.4. Constraints ................................................6
+   5. Changes to OLSRv2 ...............................................6
+   6. Security Considerations .........................................8
+   7. References ......................................................8
+      7.1. Normative References .......................................8
+      7.2. Informative References .....................................8
+   Acknowledgements ...................................................9
+   Authors' Addresses .................................................9
+
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 2]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+1.  Introduction
+
+   Section 14 of the MANET Neighborhood Discovery Protocol (NHDP)
+   [RFC6130] contains a link admission mechanism known as "link quality"
+   that allows a router using that protocol to "take considerations
+   other than message exchange into account for determining when a link
+   is and is not a candidate for being considered as HEARD or
+   SYMMETRIC."  Specifically, [RFC6130] permits a router to disallow
+   consideration of some of its 1-hop neighbors for as long as the
+   quality of the link from that 1-hop neighbor is below an acceptable
+   link quality threshold.
+
+   A feature of this mechanism is that while the link quality remains
+   too low, the link information, established by the exchange of HELLO
+   messages, is retained.  Thus, if the link quality later goes above
+   the required threshold (note that a hysteresis mechanism means that
+   two thresholds are used), then the link is immediately established
+   and will be immediately available for use.
+
+   [RFC6130] collects not only 1-hop neighbor information, but also
+   information about symmetric 2-hop neighbors.  However, [RFC6130]
+   specifies that if a 1-hop neighbor was, but no longer is, considered
+   symmetric, then the corresponding 2-Hop Tuples that may have been
+   recorded for that 2-hop neighbor are to be removed without a
+   retention mechanism for a (possibly temporary) loss due to link
+   quality.
+
+   This means that if there is a short period in which link quality is
+   too low, then when the link quality is re-established all 1-hop
+   neighbor information is immediately available for use again.
+   However, the corresponding symmetric 2-hop neighbor information has
+   been removed and is not available for use until restored by receipt
+   of the next corresponding HELLO message.
+
+   This specification describes how [RFC6130] can be modified to avoid
+   this situation by retaining (but not using) 2-hop information,
+   similar to what is done with 1-hop information.  This modification is
+   strictly optional, and routers that do and do not implement it can
+   interwork entirely successfully (as they also can with different link
+   quality specifications).  In addition, by a suitable interpretation
+   (that ignored 2-Hop Tuples are not externally advertised), this
+   change can be invisible to any other protocols using [RFC6130], in
+   particular [RFC7181].  However, the impact on [RFC7181] when 2-Hop
+   Tuples are not so handled is also described (owing to the existence
+   of implementations of that protocol that are not modularly separated
+   from [RFC6130]).
+
+   This specification therefore updates [RFC6130] and [RFC7181].
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 3]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+   This update to [RFC6130] does not change the definition of a
+   symmetric 2-hop neighbor but adds new state information to each 2-Hop
+   Tuple of [RFC6130].  This is to retain some 2-hop neighbor
+   information while recording it as currently not to be used.  The new
+   state information and retained 2-Hop Tuples are reflected in the
+   corresponding tables of the updated NHDP-MIB module [NHDP-MIB].
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   [RFC2119].
+
+   Additionally, this document uses the terminology of [RFC6130] and
+   [RFC7181].
+
+3.  Applicability Statement
+
+   This specification updates [RFC6130].  The optimization presented in
+   this specification is simply permissive, as it allows retaining
+   information that otherwise would have been removed but does not use
+   that information except when it could have been used by [RFC6130].
+
+   This can, in some cases, ensure that the symmetric 2-hop neighborhood
+   is more robust against temporary link quality changes and
+   consequently yields a more stable network.  The only other
+   consequence of this optimization is that state for some otherwise
+   expired 2-Hop Tuples may be maintained for longer.
+
+   This specification also updates [RFC7181].  This could have been
+   avoided had instead [RFC6130] been updated so as to make the changes
+   to it invisible to any other protocol using it.  However, as it is
+   known that some implementations of [RFC7181] are not independent of
+   the implementation of [RFC6130] that they use, it is useful to
+   indicate the direct impact on [RFC7181].
+
+   A router that implements the optimization described in this
+   specification will interoperate successfully with routers that
+   implement [RFC6130] but do not implement this optimization.
+
+4.  Changes to NHDP
+
+   The following changes are made to [RFC6130] if using this
+   specification.  Note that while this specification is OPTIONAL, if
+   any of these changes are made, then all of these changes MUST be
+   made.
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 4]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+4.1.  Interface Information Bases
+
+   The 2-Hop Set is modified by adding this additional element to each
+   2-Hop Tuple:
+
+      N2_lost is a boolean flag, which indicates the state of the
+      corresponding Link Tuple.  If L_status = SYMMETRIC (and thus
+      L_lost = false), then N2_lost = false.  If L_SYM_time has not
+      expired, and L_lost = true (and hence L_status = LOST), then
+      N2_lost = true.
+
+   In all other cases, including other cases with L_status = LOST, there
+   will be no such 2-Hop Tuples.
+
+4.2.  HELLO Message Processing
+
+   In Section 12.6 of [RFC6130], make the following changes:
+
+   o  In point 2, change "L_status = SYMMETRIC" to "L_SYM_time not
+      expired".
+
+   o  In point 2, point 1, point 1, under "then create a 2-Hop Tuple
+      with:", add a second bullet point "N2_lost: = L_lost".  (Note that
+      "2-Hop Neighbor Tuple" has been corrected here to "2-Hop Tuple"
+      per [Err4276].)
+
+4.3.  Information Base Changes
+
+   In Section 13, replace the second bullet point with:
+
+   o  A Link Tuple's L_status changes from SYMMETRIC, L_SYM_time
+      expires, or the Link Tuple is removed.  In this case, the actions
+      specified in Section 13.2 are performed.
+
+   Replace the paragraph after the bullet points with:
+
+   If a Link Tuple is removed, or if L_HEARD_time expires and either
+   L_status changes from SYMMETRIC or L_SYM_time expires, then the
+   actions specified in Section 13.2 MUST be performed before the
+   actions specified in Section 13.3 are performed for that Link Tuple.
+
+
+
+
+
+
+
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 5]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+   In Section 13.2 of [RFC6130], add the following before all other
+   text:
+
+   For each Link Tuple that has L_SYM_time not expired:
+
+   1.  If L_SYM_time then expires, or if the Link Tuple is removed:
+
+       1.  Remove each 2-Hop Tuple for the same MANET interface with:
+
+           +  N2_neighbor_iface_addr_list contains one or more network
+              addresses in L_neighbor_iface_addr_list.
+
+   2.  If L_status then changes from SYMMETRIC to LOST because L_lost is
+       set to true:
+
+       1.  For each 2-Hop Tuple for the same MANET interface with:
+
+           +  N2_neighbor_iface_addr_list contains one or more network
+              addresses in L_neighbor_iface_addr_list;
+
+           set N2_lost := true.
+
+   Also, in Section 13.2 of [RFC6130], remove point 1 and renumber point
+   2 as point 1.
+
+4.4.  Constraints
+
+   In Appendix B of [RFC6130], under "In each 2-Hop Tuple:", change the
+   first bullet point to:
+
+   o  There MUST be a Link Tuple associated with the same MANET
+      interface with:
+
+      *  L_neighbor_iface_addr_list = N2_neighbor_iface_addr_list; AND
+
+      *  L_SYM_time not expired; AND
+
+      *  L_lost = N2_lost.
+
+5.  Changes to OLSRv2
+
+   If the implementation of [RFC6130] conceals from any protocol using
+   it the existence of all 2-Hop Tuples with N2_lost = true, then no
+   changes are required to any protocol using [RFC6130]; in particular,
+   no changes are required to [RFC7181].
+
+
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 6]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+   However, if instead the implementation of [RFC6130] makes all 2-Hop
+   Tuples visible, including those with N2_lost = true, then protocols
+   using [RFC6130] MUST ignore such 2-Hop Tuples.
+
+   For [RFC7181], given that this protocol uses 2-hop information for
+   Multipoint Relay (MPR) Set and Routing Set calculation but does not
+   include that information in control traffic, this means that an
+   implementation must be behaving (i) as if a 2-Hop Tuple only exists
+   if N2_lost=false and (ii) as if a change of N2_lost (from false to
+   true, or true to false) corresponds to a 2-Hop Tuple appearing or
+   being removed.  Specifically, this means behaving as if all of the
+   following changes were to be made to [RFC7181]:
+
+   o  In Section 17.6 of [RFC7181], point 1, replace the final two
+      bullet points with:
+
+      *  A 2-Hop Tuple with N2_out_metric != UNKNOWN_METRIC and N2_lost
+         = false is added or removed; OR
+
+      *  A 2-Hop Tuple with N2_out_metric != UNKNOWN_METRIC has N2_lost
+         changed; OR
+
+      *  The N2_out_metric of any 2-Hop Tuple with N2_lost = false
+         changes, and either the flooding MPR selection process uses
+         metric values (see Section 18.4), or the change is to or from
+         UNKNOWN_METRIC.
+
+   o  In Section 17.6 of [RFC7181], point 3, replace the final two
+      bullet points with:
+
+      *  A 2-Hop Tuple with N2_in_metric != UNKNOWN_METRIC and N2_lost =
+         false is added or removed; OR
+
+      *  A 2-Hop Tuple with N2_in_metric != UNKNOWN_METRIC has N2_lost
+         changed; OR
+
+      *  The N2_in_metric of any 2-Hop Tuple with N2_lost = false
+         changes.
+
+   o  In Section 17.7 of [RFC7181], in the fifth bullet point, add "and
+      N2_lost = false" after "N2_out_metric != UNKNOWN_METRIC".
+
+   o  In Section 18.4 of [RFC7181], in the third bullet point, add ",
+      N2_lost = false" after "N2_out_metric != UNKNOWN_METRIC".
+
+   o  In Section 18.5 of [RFC7181], in the third bullet point, add ",
+      N2_lost = false" after "N2_in_metric != UNKNOWN_METRIC".
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 7]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+   o  In Section 19.1 of [RFC7181], in the final main bullet point
+      (marked as "(OPTIONAL)"), add "and N2_lost = false" after
+      "N2_out_metric != UNKNOWN_METRIC".
+
+   o  In Appendix C.7 of [RFC7181], in point 1, add "and N2_lost =
+      false" after "N2_out_metric != UNKNOWN_METRIC".
+
+6.  Security Considerations
+
+   The update to [RFC6130] enables the retention and reuse of some
+   information collected by that protocol, for only the duration that it
+   could have been used in any case.  As such, this protocol introduces
+   no new security considerations to an implementation of [RFC6130]  or
+   of any other protocol that uses it, such as [RFC7181].
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997,
+              <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC6130]  Clausen, T., Dean, J., and C. Dearlove, "Mobile Ad Hoc
+              Network (MANET) Neighborhood Discovery Protocol (NHDP)",
+              RFC 6130, April 2011,
+              <http://www.rfc-editor.org/info/rfc6130>.
+
+   [RFC7181]  Clausen, T., Dearlove, C., Jacquet, P., and U. Herberg,
+              "The Optimized Link State Routing Protocol Version 2", RFC
+              7181, April 2014,
+              <http://www.rfc-editor.org/info/rfc7181>.
+
+7.2.  Informative References
+
+   [Err4276]  RFC Errata, Errata ID 4276, RFC 6130.
+
+   [NHDP-MIB]
+              Herberg, U., Cole, R., Chakeres, I., and T. Clausen,
+              "Definition of Managed Objects for the Neighborhood
+              Discovery Protocol", Work in Progress, draft-ietf-manet-
+              rfc6779bis, August 2014.
+
+
+
+
+
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 8]
+
+RFC 7466                    NHDP Optimization                 March 2015
+
+
+Acknowledgements
+
+   The authors would like to thank Liz Cullen (BAE Systems) for first
+   illustrating the issue addressed in this specification.
+
+Authors' Addresses
+
+   Christopher Dearlove
+   BAE Systems Advanced Technology Centre
+   West Hanningfield Road
+   Great Baddow, Chelmsford
+   United Kingdom
+
+   Phone: +44 1245 242194
+   EMail: chris.dearlove@baesystems.com
+   URI:   http://www.baesystems.com/
+
+
+   Thomas Heide Clausen
+   LIX, Ecole Polytechnique
+
+   Phone: +33 6 6058 9349
+   EMail: T.Clausen@computer.org
+   URI:   http://www.ThomasClausen.org/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Dearlove & Clausen           Standards Track                    [Page 9]
+

@@ -1,0 +1,382 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                        A.B. Roach
+Request for Comments: 8852                                       Mozilla
+Category: Standards Track                                  S. Nandakumar
+ISSN: 2070-1721                                            Cisco Systems
+                                                             P. Thatcher
+                                                                  Google
+                                                            January 2021
+
+
+            RTP Stream Identifier Source Description (SDES)
+
+Abstract
+
+   This document defines and registers two new Real-time Transport
+   Control Protocol (RTCP) Stream Identifier Source Description (SDES)
+   items.  One, named RtpStreamId, is used for unique identification of
+   RTP streams.  The other, RepairedRtpStreamId, can be used to identify
+   which stream is to be repaired using a redundancy RTP stream.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8852.
+
+Copyright Notice
+
+   Copyright (c) 2021 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+   3.  Usage of RtpStreamId and RepairedRtpStreamId in RTP and RTCP
+     3.1.  RTCP "RtpStreamId" SDES Extension
+     3.2.  RTCP "RepairedRtpStreamId" SDES Extension
+     3.3.  RTP "RtpStreamId" and "RepairedRtpStreamId" Header
+           Extensions
+   4.  IANA Considerations
+     4.1.  New RtpStreamId SDES Item
+     4.2.  New RepairRtpStreamId SDES Item
+     4.3.  New RtpStreamId Header Extension URI
+     4.4.  New RepairRtpStreamId Header Extension URI
+   5.  Security Considerations
+   6.  References
+     6.1.  Normative References
+     6.2.  Informative References
+   Acknowledgements
+   Authors' Addresses
+
+1.  Introduction
+
+   RTP sessions frequently consist of multiple streams, each of which is
+   identified at any given time by its synchronization source (SSRC);
+   however, the SSRC associated with a stream is not guaranteed to be
+   stable over its lifetime.  Within a session, these streams can be
+   tagged with a number of identifiers, including CNAMEs and MediaStream
+   Identification (MSID) [RFC8830].  Unfortunately, none of these have
+   the proper ordinality to refer to an individual stream; all such
+   identifiers can appear in more than one stream at a time.  While
+   approaches that use unique payload types (PTs) per stream have been
+   used in some applications, this is a semantic overloading of that
+   field, and one for which its size is inadequate: in moderately
+   complex systems that use PT to uniquely identify every potential
+   combination of codec configuration and unique stream, it is possible
+   to simply run out of values.
+
+   To address this situation, we define a new RTCP Stream Identifier
+   Source Description (SDES) identifier, RtpStreamId, that uniquely
+   identifies a single RTP stream.  A key motivator for defining this
+   identifier is the ability to differentiate among different encodings
+   of a single source stream that are sent simultaneously (i.e.,
+   simulcast).  This need for unique identification extends to dependent
+   streams (e.g., where layers used by a layered codec are transmitted
+   on separate streams).
+
+   At the same time, when redundancy RTP streams are in use, we also
+   need an identifier that connects such streams to the RTP stream for
+   which they are providing redundancy.  For this purpose, we define an
+   additional SDES identifier, RepairedRtpStreamId.  This identifier can
+   appear only in packets associated with a redundancy RTP stream.  They
+   carry the same value as the RtpStreamId of the RTP stream that the
+   redundant RTP stream is correcting.
+
+2.  Terminology
+
+   In this document, the terms "source stream", "RTP stream", "source
+   RTP stream", "dependent stream", "received RTP stream", and
+   "redundancy RTP stream" are used as defined in [RFC7656].
+
+   The following acronyms are also used:
+
+   *  CNAME: Canonical Endpoint Identifier, defined in [RFC3550]
+
+   *  MID: Media Identification, defined in [RFC8843]
+
+   *  MSID: MediaStream Identification, defined in [RFC8830]
+
+   *  RTCP: Real-time Transport Control Protocol, defined in [RFC3550]
+
+   *  RTP: Real-time Transport Protocol, defined in [RFC3550]
+
+   *  SDES: Source Description, defined in [RFC3550]
+
+   *  SSRC: Synchronization Source, defined in [RFC3550]
+
+3.  Usage of RtpStreamId and RepairedRtpStreamId in RTP and RTCP
+
+   The RTP fixed header includes the payload type number and the SSRC
+   values of the RTP stream.  RTP defines how to demultiplex streams
+   within an RTP session; however, in some use cases, applications need
+   further identifiers in order to effectively map the individual RTP
+   streams to their equivalent payload configurations in the SDP.
+
+   This specification defines two new RTCP SDES items [RFC3550].  The
+   first item is "RtpStreamId", which is used to carry RTP stream
+   identifiers within RTCP SDES packets.  This makes it possible for a
+   receiver to associate received RTP packets (identifying the RTP
+   stream) with a media description having the format constraint
+   specified.  The second is "RepairedRtpStreamId", which can be used in
+   redundancy RTP streams to indicate the RTP stream repaired by a
+   redundancy RTP stream.
+
+   To be clear: the value carried in a RepairedRtpStreamId will always
+   match the RtpStreamId value from another RTP stream in the same
+   session.  For example, if a source RTP stream is identified by
+   RtpStreamId "A", then any redundancy RTP stream that repairs that
+   source RTP stream will contain a RepairedRtpStreamId of "A" (if this
+   mechanism is being used to perform such correlation).  These
+   redundant RTP streams may also contain their own unique RtpStreamId.
+
+   This specification also uses the RTP header extension for RTCP SDES
+   items [RFC7941] to allow carrying RtpStreamId and RepairedRtpStreamId
+   values in RTP packets.  This allows correlation at stream startup, or
+   after stream changes where the use of RTCP may not be sufficiently
+   responsive.  This speed of response is necessary since, in many
+   cases, the stream cannot be properly processed until it can be
+   identified.
+
+   RtpStreamId and RepairedRtpStreamId values are scoped by source
+   identifier (e.g., CNAME) and by media session.  When the media is
+   multiplexed using the BUNDLE extension [RFC8843], these values are
+   further scoped by their associated MID values.  For example: an
+   RtpStreamId of "1" may be present in the stream identified with a
+   CNAME of "1234@example.com" and may also be present in a stream with
+   a CNAME of "5678@example.org", and these would refer to different
+   streams.  Similarly, an RtpStreamId of "1" may be present with an MID
+   of "A", and again with a MID of "B", and also refer to two different
+   streams.
+
+   Note that the RepairedRtpStreamId mechanism is limited to indicating
+   one repaired stream per redundancy stream.  If systems require
+   correlation for schemes in which a redundancy stream contains
+   information used to repair more than one stream, they will have to
+   use a more complex mechanism than the one defined in this
+   specification.
+
+   As with all SDES items, RtpStreamId and RepairedRtpStreamId are
+   limited to a total of 255 octets in length.  RtpStreamId and
+   RepairedRtpStreamId are constrained to contain only alphanumeric
+   characters.  For avoidance of doubt, the only allowed byte values for
+   these IDs are decimal 48 through 57, 65 through 90, and 97 through
+   122.
+
+3.1.  RTCP "RtpStreamId" SDES Extension
+
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |RtpStreamId=12 |     length    | RtpStreamId                 ...
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The RtpStreamId payload is ASCII encoded and is not null terminated.
+
+3.2.  RTCP "RepairedRtpStreamId" SDES Extension
+
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |Repaired...=13 |     length    | RepairRtpStreamId           ...
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The RepairedRtpStreamId payload is ASCII encoded and is not null
+   terminated.
+
+3.3.  RTP "RtpStreamId" and "RepairedRtpStreamId" Header Extensions
+
+   Because recipients of RTP packets will typically need to know which
+   streams they correspond to immediately upon receipt, this
+   specification also defines a means of carrying RtpStreamId and
+   RepairedRtpStreamId identifiers in RTP extension headers, using the
+   technique described in [RFC7941].
+
+   As described in that document, the header extension element can be
+   encoded using either the one-byte or two-byte header, and the
+   identification-tag payload is ASCII encoded.
+
+   As the identifier is included in an RTP header extension, there
+   should be some consideration given to the packet expansion caused by
+   the identifier.  To avoid Maximum Transmission Unit (MTU) issues for
+   the RTP packets, the header extension's size needs to be taken into
+   account when encoding media.  Note that the set of header extensions
+   included in the packet needs to be padded to the next 32-bit boundary
+   [RFC8285].
+
+   In many cases, a one-byte identifier will be sufficient to
+   distinguish streams in a session; implementations are strongly
+   encouraged to use the shortest identifier that fits their purposes.
+   Implementors are warned, in particular, not to include any
+   information in the identifier that is derived from potentially user-
+   identifying information, such as user ID or IP address.  To avoid
+   identification of specific implementations based on their pattern of
+   tag generation, implementations are encouraged to use a simple scheme
+   that starts with the ASCII digit "1", and increments by one for each
+   subsequent identifier.
+
+4.  IANA Considerations
+
+4.1.  New RtpStreamId SDES Item
+
+   This document adds the RtpStreamId SDES item to the IANA "RTP SDES
+   Item Types" registry as follows:
+
+   Value:      12
+   Abbrev.:    RtpStreamId
+   Name:       RTP Stream Identifier
+   Reference:  RFC 8852
+
+4.2.  New RepairRtpStreamId SDES Item
+
+   This document adds the RepairedRtpStreamId SDES item to the IANA "RTP
+   SDES Item Types" registry as follows:
+
+   Value:      13
+   Abbrev.:    RepairedRtpStreamId
+   Name:       Repaired RTP Stream Identifier
+   Reference:  RFC 8852
+
+4.3.  New RtpStreamId Header Extension URI
+
+   This document defines a new extension URI in the "RTP SDES Compact
+   Header Extensions" subregistry of the "RTP Compact Header Extensions"
+   subregistry, as follows:
+
+   Extension URI:  urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id
+   Description:  RTP Stream Identifier
+   Contact:  Adam Roach <adam@nostrum.com>
+   Reference:  RFC 8852
+
+4.4.  New RepairRtpStreamId Header Extension URI
+
+   This document defines a new extension URI in the "RTP SDES Compact
+   Header Extensions" subregistry of the "RTP Compact Header Extensions"
+   subregistry, as follows:
+
+   Extension URI:  urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-
+      id
+   Description:  RTP Repaired Stream Identifier
+   Contact:  Adam Roach <adam@nostrum.com>
+   Reference:  RFC 8852
+
+5.  Security Considerations
+
+   Although the identifiers defined in this document are limited to be
+   strictly alphanumeric, SDES items have the potential to carry any
+   string.  As a consequence, there exists a risk that they might carry
+   privacy-sensitive information.  Implementations need to take care
+   when generating identifiers so that they do not contain information
+   that can identify the user or allow for long-term tracking of the
+   device.  Following the generation recommendations in Section 3.3 will
+   result in non-instance-specific labels, with only minor
+   fingerprinting possibilities in the total number of used RtpStreamIds
+   and RepairedRtpStreamIds.
+
+   Even if the SDES items are generated to convey as little information
+   as possible, implementors are strongly encouraged to encrypt SDES
+   items -- both in RTCP and RTP header extensions -- so as to preserve
+   privacy against third parties.
+
+   As the SDES items are used for identification of the RTP streams for
+   different application purposes, it is important that the intended
+   values are received.  An attacker, either a third party or malicious
+   RTP middlebox, that removes or changes the values for these SDES
+   items can severely impact the application.  The impact can include
+   failure to decode or display the media content of the RTP stream.  It
+   can also result in incorrectly attributing media content to
+   identifiers of the media source, such as incorrectly identifying the
+   speaker.  To prevent this from occurring due to third-party attacks,
+   integrity and source authentication is needed.
+
+   "Options for Securing RTP Sessions" [RFC7201] discusses options for
+   how encryption, integrity, and source authentication can be
+   accomplished.
+
+6.  References
+
+6.1.  Normative References
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, DOI 10.17487/RFC3550,
+              July 2003, <https://www.rfc-editor.org/info/rfc3550>.
+
+   [RFC7656]  Lennox, J., Gross, K., Nandakumar, S., Salgueiro, G., and
+              B. Burman, Ed., "A Taxonomy of Semantics and Mechanisms
+              for Real-Time Transport Protocol (RTP) Sources", RFC 7656,
+              DOI 10.17487/RFC7656, November 2015,
+              <https://www.rfc-editor.org/info/rfc7656>.
+
+   [RFC7941]  Westerlund, M., Burman, B., Even, R., and M. Zanaty, "RTP
+              Header Extension for the RTP Control Protocol (RTCP)
+              Source Description Items", RFC 7941, DOI 10.17487/RFC7941,
+              August 2016, <https://www.rfc-editor.org/info/rfc7941>.
+
+   [RFC8285]  Singer, D., Desineni, H., and R. Even, Ed., "A General
+              Mechanism for RTP Header Extensions", RFC 8285,
+              DOI 10.17487/RFC8285, October 2017,
+              <https://www.rfc-editor.org/info/rfc8285>.
+
+   [RFC8843]  Holmberg, C., Alvestrand, H., and C. Jennings,
+              "Negotiating Media Multiplexing Using the Session
+              Description Protocol (SDP)", RFC 8843,
+              DOI 10.17487/RFC8843, January 2021,
+              <https://www.rfc-editor.org/info/rfc8843>.
+
+6.2.  Informative References
+
+   [RFC7201]  Westerlund, M. and C. Perkins, "Options for Securing RTP
+              Sessions", RFC 7201, DOI 10.17487/RFC7201, April 2014,
+              <https://www.rfc-editor.org/info/rfc7201>.
+
+   [RFC8830]  Alvestrand, H., "WebRTC MediaStream Identification in the
+              Session Description Protocol", RFC 8830,
+              DOI 10.17487/RFC8830, January 2021,
+              <https://www.rfc-editor.org/info/rfc8830>.
+
+Acknowledgements
+
+   Many thanks to Cullen Jennings, Magnus Westerlund, Colin Perkins,
+   Jonathan Lennox, and Paul Kyzivat for review and input.  Magnus
+   Westerlund provided nearly all of the Security Considerations
+   section.
+
+Authors' Addresses
+
+   Adam Roach
+   Mozilla
+
+   Email: adam@nostrum.com
+
+
+   Suhas Nandakumar
+   Cisco Systems
+
+   Email: snandaku@cisco.com
+
+
+   Peter Thatcher
+   Google
+
+   Email: pthatcher@google.com

@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Network Working Group                                        K. Murakami
+Request for Comments: 2173                                   M. Maruyama
+Category: Informational                                 NTT Laboratories
+                                                               June 1997
+
+
+           A MAPOS version 1 Extension - Node Switch Protocol
+
+Status of this Memo
+
+   This memo provides information for the Internet community.  This memo
+   does not specify an Internet standard of any kind.  Distribution of
+   this memo is unlimited.
+
+Abstract
+
+   This document describes a MAPOS extension, Node Switch Protocol, for
+   automatic node address assignment. MAPOS is a multiple access
+   protocol for transmission of network-protocol datagrams, encapsulated
+   in High-Level Data Link Control (HDLC) frames, over SONET/SDH. NSP
+   automates the HDLC address configuration of each node. Using NSP, a
+   node retrieves its HDLC address from the switch to which it is
+   connected.
+
+1. Introduction
+
+   MAPOS[1], Multiple Access Protocol over SONET(Synchronous Optical
+   Network)/SDH(Synchronous Digital Hierarchy)[2][3][4][5], is a
+   protocol for transmission of HDLC frames over SONET/SDH. A SONET
+   switch provides multiple access capability to each node. In MAPOS,
+   each node has a unique HDLC address within a switch. The address is
+   equivalent to the port number of the switch to which the node is
+   connected.  This document describes an extension to MAPOS, Node
+   Switch Protocol, which enable automatic HDLC address assignment.
+   First, it explains the addressing of MAPOS. Then, it describes the
+   NSP protocol for automatic HDLC node address assignment.
+
+2. Node Address Format
+
+   This section describes MAPOS Version 1 address format in single and
+   multiple switch environment.
+
+
+
+
+
+
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 1]
+
+RFC 2173                         MAPOS                         June 1997
+
+
+2.1 Address Format
+
+   In MAPOS network, each end node has a unique HDLC address. As shown
+   in Figure 1, the address length is 8 bits. The LSB is always 1 which
+   indicates the end of the field.  When a SONET switch receives an HDLC
+   frame, it forwards the frame based on the address in the frame
+   header.
+
+   In unicast, MSB is 0 and the rest of the bits are the port number to
+   which a node is connected. Since the LSB is always 1, the minimum and
+   maximum addresses are 0x01 and 0x7F, respectively.  Address 0x01 is
+   reserved and is assigned to the control processor in a SONET switch.
+
+   In broadcast, MSB is 1 and the rest of the bits are all 1s. In
+   multicast, MSB is 1 and the rest of the bits, except for the LSB,
+   indicate the group address.
+
+           +-------------+-+
+           | | | | | | | | |
+           | |port number|1|
+           +-+-----------+-+
+            ^             ^
+            |             |
+            |             +------- EA bit (always 1)
+            |
+            1 : broadcast, multicast
+            0 : unicast
+
+                              Figure 1 Address format
+
+2.2 Address in multi-switch environment
+
+   In a multi-switch environment, variable-length subnet addressing is
+   used. Each switch has a switch number that is unique within the
+   system. Subnetted node addresses consist of the switch number and the
+   port number to which a node is connected. The address format is "0
+   <switch number> <node number> 1" for a unicast address, "all 1" for
+   the broadcast address, and "1 <group address> 1" for a multicast
+   address.
+
+   The address 0x01 is reserved and is assigned to the control processor
+   in the "local" switch. That is, it indicates the switch itself to
+   which the node is connected. The addresses of the form "0 <switch
+   number> <all 0> 1" are reserved, and indicates the control processor
+   of the switch designated by the switch number.
+
+   In Figure 2, the switch numbers are two bits long. Node N1 is
+   connected to port 0x3 of switch S1 numbered 0x1 (01 in binary). Thus,
+
+
+
+Murakami & Maruyama          Informational                      [Page 2]
+
+RFC 2173                         MAPOS                         June 1997
+
+
+   the node address is 0 + 01 + 00011, that is, 00100011(0x23). Node N3
+   has an address 01001001(0x49), since the switch number of S2 is 0x2
+   (10 in binary) and the port number is 0x09. Note that all the port
+   numbers are odd because the LSBs are always 1.
+
+                           +------+
+                           | node |
+                           |  N1  |
+                           +------+
+                               | 00100011(0x23)
+                               |
+                               |0x3             |0x3
+               +------+    +---+----+       +---+----+     +------+
+               | node +----+ SONET  +-------+ SONET  +-----+ node |
+               |  N2  | 0x5| Switch |0x9 0x5| Switch |0x9  |  N3  |
+               +------+    |   S1   |       |   S2   |     +------+
+           00100101(0x25)  |  0x1   |       |  0x2   |   01001001(0x49)
+                           +---+----+       +---+----+
+                               |0x7             |0x7
+
+
+          Figure 2  Addressing in Multiple Switch Environment
+
+4 NSP(Node-Switch Protocol)
+
+   This section describes the NSP protocol used for automatic node
+   address assignment.
+
+4.1 NSP protocol
+
+   NSP is introduced to provide an automatic node address assignment
+   function in MAPOS version 1. It reduces the administrative overhead
+   of node address configuration for each node and prevents troubles
+   such as address inconsistency and collision. When a node is connected
+   to a switch and receives SONET signal correctly, the node sends an
+   address request packet to the control processor in the local switch.
+   The destination address of this packet is 00000001(0x01). When the
+   control processor receives the packet, it replies with an address
+   assignment packet. The destination is the assigned node address. If
+   the node does not receive the address assignment packet within 5
+   seconds, it retransmits the address request packet. The
+   retransmission continues until the node successfully receives the
+   address assignment packet.
+
+   Whenever a node detects a transmission error such as carrier loss or
+   out-of-synchronization, it SHOULD send an address request packet to
+   the control processor and verify its current address. In addition, a
+   node MUST verify its address by sending address request packets every
+
+
+
+Murakami & Maruyama          Informational                      [Page 3]
+
+RFC 2173                         MAPOS                         June 1997
+
+
+   30 seconds. The switch regards them as keep-alive packets and
+   utilizes them to detect the node's status. If it has not received a
+   request packet for more than 90 seconds, it assumes that the node
+   went down.  In addition, it also assumes the node went down when a
+   switch detects a SONET signal failure.
+
+4.2 Packet Format
+
+   The HDLC protocol field of a NSP frame contains 0xFE03 (hexadecimal)
+   as defined by the "MAPOS Version 1 Assigned Numbers" [6]. The
+   information field contains the NSP packet as shown in Figure 3.
+
+
+           +-----------+------------+
+           I  command  I  address   I
+           +-----------+------------+
+           I<- 32bit ->I<- 32 bit ->I
+
+                      Figure 3  NSP packet format
+
+   The command field is 32 bits long and has the following values (in
+   decimal);
+
+           1       address request
+           2       address assignment
+           3       reject(error)
+
+   The length of the address field is 32bits. In address request
+   packets, the NSP address field SHOULD be filled with zeroes, although
+   the switch ignores it. In address assignment packets, the assigned
+   address is placed in the least significant byte of the field. The
+   rest of the field is padded with zeroes. When the switch can not
+   assign the address for some reason, the switch replies with a reject
+   command (the values is 3). The value of the address field is
+   undefined.
+
+4.3 Consideration for special cases
+
+   There are two special cases to consider. One is a point-to-point
+   connection without a switch. The other is loop-back, that is, direct
+   connection between the input and the output of the same port.
+
+4.3.1 point-to-point
+
+   In the case of a point-to-point connection shown in Figure 4, a node
+   sends an address request packet to the other node. The destination
+   address is 00000001(0x01), that is usually a control processor in a
+   switch. When a node receives the address request, it detects the
+
+
+
+Murakami & Maruyama          Informational                      [Page 4]
+
+RFC 2173                         MAPOS                         June 1997
+
+
+   point-to-point connection by examining both the destination address
+   and the command contained.  Then, it MUST reply with an address
+   assignment packet. The assigned address MUST be 00000011(0x03). Since
+   both nodes send an address request to each other, both of them get
+   address 00000011(0x03). Since any address can be used in point-to-
+   point environment, there is no problem even if both of the nodes have
+   the same address.
+
+                   ---- address request ----> 0x01
+                      0x03 <---- address assignment ----
+           +------+                                +------+
+           | node +--------------------------------+ node |
+           +------+                                +------+
+                      0x01 <---- address request ----
+                   ---- address assignment ----> 0x03
+
+                   Figure 4 Point-to-point connection
+
+4.3.2 loop-back
+
+   Another special case is loop-back where the output port of a node is
+   simply connected to its input port as shown in Figure 5. In this
+   case, the same mechanism as that for point-to-point can be applied
+   without modification.  A node sends an address request packet
+   destined to 00000001(0x01). The node then receives the same packet.
+   Since the destination is 00000001(0x01), it replies with an address
+   assignment packet, containing the assigned address 00000011(0x03), to
+   the address 0000 0011(0x03).  Thus, the node obtains the address
+   00000011(0x03).
+
+                     ---- address request ----> 0x01
+           +------+  --- address assignment --> 0x03
+           |      +-------------->-----------------+
+           | node +                                |
+           |      +--------------<-----------------+
+           +------+
+
+                    Figure 5 Loop-back Configuration
+
+
+
+
+
+
+
+
+
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 5]
+
+RFC 2173                         MAPOS                         June 1997
+
+
+5. Security Considerations
+
+   Security issues are not discussed in this memo.
+
+References
+
+   [1]   Murakami, K. and M. Maruyama, "MAPOS - Multiple Access Protocol
+         over SONET/SDH, Version 1," RFC-2171, June 1997.
+
+   [2]   CCITT Recommendation G.707: Synchronous Digital Hierarchy Bit
+         Rates (1990).
+
+   [3]   CCITT Recommendation G.708: Network Node Interface for
+         Synchronous Digital Hierarchy (1990).
+
+   [4]   CCITT Recommendation G.709: Synchronous Multiplexing Structure
+         (1990).
+
+   [5]   American National Standard for Telecommunications - Digital
+         Hierarchy - Optical Interface Rates and Formats Specification,
+         ANSI T1.105-1991.
+
+   [6]   Maruyama, M. and K. Murakami, "MAPOS Version 1 Assigned
+         Numbers," RFC-2172, June, 1997.
+
+Acknowledgements
+
+   The authors would like to acknowledge the contributions and
+   thoughtful suggestions of John P. Mullaney, Clark Bremer, Masayuki
+   Kobayashi, Paul Francis, Toshiaki Yoshida, and Takahiro Sajima.
+
+Authors' Address
+
+     Ken Murakami
+     NTT Software Laboratories
+     3-9-11, Midori-cho
+     Musashino-shi
+     Tokyo 180, Japan
+     E-mail: murakami@ntt-20.ecl.net
+
+     Mitsuru Maruyama
+     NTT Software Laboratories
+     3-9-11, Midori-cho
+     Musashino-shi
+     Tokyo 180, Japan
+     E-mail: mitsuru@ntt-20.ecl.net
+
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 6]
+

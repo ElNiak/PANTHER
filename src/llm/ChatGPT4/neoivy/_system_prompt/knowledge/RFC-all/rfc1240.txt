@@ -1,0 +1,451 @@
+
+
+
+
+
+
+Network Working Group                                            C. Shue
+Request for Comments: 1240                      Open Software Foundation
+                                                             W. Haggerty
+                                                 Wang Laboratories, Inc.
+                                                              K. Dobbins
+                                                 Cabletron Systems, Inc.
+                                                               June 1991
+
+
+          OSI Connectionless Transport Services on top of UDP
+                               Version: 1
+
+Status of this Memo
+
+   This document describes a protocol for running OSI Connectionless
+   service on UDP.  This RFC specifies an IAB standards track protocol
+   for the Internet community, and requests discussion and suggestions
+   for improvements.  Please refer to the current edition of the "IAB
+   Official Protocol Standards" for the standardization state and status
+   of this protocol.  Distribution of this memo is unlimited.
+
+1.  Introduction and Philosophy
+
+   The Internet community has a well-developed, mature set of layered
+   transport and network protocols, which are quite successful in
+   offering both connection-oriented (TCP) and connectionless (UDP)
+   transport services over connectionless network services (IP) to end-
+   users.  Many popular network applications have been built directly on
+   top of the TCP and UDP over the past decade.  These have helped the
+   Internet services and protocols to become widely-spread de facto
+   standards.  In the past few years, the ISO and CCITT have defined a
+   well-architected set of upper layer standards which include
+   connection-oriented and connectionless session, presentation, and
+   application layer services and protocols.  These OSI upper layer
+   standards offer valuable services to application developers (e.g.,
+   dialogue control, transfer syntax, peer authentication, directory
+   services, etc.) which are not currently offered by the TCP/IP
+   standards.
+
+   As indicated in RFC 1006, it is desirable to offer the OSI upper
+   layer services directly in the Internet without disrupting existing
+   facilities.  This permits a more graceful convergence and transition
+   strategy from IP-based networks to OSI-based networks in the future.
+   Using the approach of RFC 1006, this memo specifies how to offer OSI
+   connectionless transport service using the User Datagram Protocol
+   (UDP) [RFC768] of the TCP/IP suite.
+
+   We will define a Transport Service Access Point (TSAP) which appears
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 1]
+
+RFC 1240                   OSI on top of UDP                   June 1991
+
+
+   to be identical to the services and interfaces defined in ISO 8072
+   and its Addendum 1, but we will in fact implement the ISO T-UNIT-DATA
+   protocol on top of UDP.  By this means, OSI TPDU's can be delivered
+   across the Internet network, and OSI connectionless upper layers can
+   operate fully without knowledge of the fact that they are running on
+   top of UDP/IP.  In essence, the OSI T-UNIT-DATA service will use UDP
+   as its connectionless network service provider.
+
+2.  Motivation
+
+   The primary motivation for the standard described in this memo is to
+   facilitate the process of gaining experience with OSI connectionless
+   upper layers protocols, i.e., S-UNIT-DATA [ISO9548], P-UNIT-DATA
+   [ISO9576] and A-UNIT-DATA [ISO10035], and connectionless transport
+   protocol T-UNIT-DATA [ISO8602].
+
+   Though many OSI standard applications such as X.400 and FTAM are
+   connection-oriented, it is recognized in the OSI reference model
+   [ISO7498/AD1] as well as in practice that the connectionless-mode
+   operations are appropriate for certain distributed application
+   classes and environments.  The following connectionless application
+   classes were identified by ISO SC21/WG6 [ISOSC21/WG6 N184]:
+
+         -    Request-Response Applications
+         -    Broadcast/Multicast
+         -    Inward Data Collection
+         -    Migratory/Unreliable Processes
+
+   Among them, the "request/response" client-server application class is
+   the most prominent one, which is gaining popularity and importance.
+   It is observed that the connection setup and tear-down protocol
+   exchanges and complex connection-oriented protocol machines become
+   unnecessary overheads for a simple request/response exchange between
+   a client application and a server application, especially in reliable
+   communications environments such as LAN and ISDN.  The OSI
+   connectionless upper layers are thought to be highly effective and
+   efficient, both in time and space, for the distributed application
+   classes mentioned above.
+
+   The stability, maturity and wide availability of UDP/IP are ideal for
+   providing solid connectionless transport services independent of
+   actual implementations.
+
+3.  The Model
+
+   The [ISO 8072/AD1] standard describes the OSI connectionless
+   transport services definition. The [ISO 8602] standard describes the
+   OSI connectionless transport protocols.  A defining characteristic of
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 2]
+
+RFC 1240                   OSI on top of UDP                   June 1991
+
+
+   transport connectionless-mode transmission is the independent nature
+   of each invocation of the connectionless transport service.
+
+   The OSI transport service definition describes the services offered
+   by the TS-provider and the interfaces used to access those services.
+   It also describes the services required.  This memo focuses on how
+   UDP [RFC 768] can be used to offer the required services and provide
+   the interfaces.
+
+
+   The following is the model:
+
+
+        +-----------+                               +-----------+
+        |  TS-user  |                               |  TS-user  |
+        +-----------+                               +-----------+
+              |                                           |
+              |CLTS interface                             |
+              |[ISO 8072/AD1]                             |
+              |                                           |
+     _________________________________________________________________
+    |         |                                           |           |
+    |         |                                           |           |
+    |   +-----------+            UD TPDU            +-----------+     |
+    |   |  TS-peer  |   <----------------------->   |  TS-peer  |     |
+    |   +-----------+                               +-----------+     |
+    |         |                                           |           |
+    |         |                                           |           |
+    |         |                                           |           |
+    |         |UDP interface [RFC 768]                    |           |
+    |         |                                           |           |
+    |   +-----------+          UDP datagram         +-----------+     |
+    |   |    UDP    |   <----------------------->   |    UDP    |     |
+    |   +-----------+     (UD TPDU encapsulated)    +-----------+     |
+    |         |                                           |           |
+    |         |                                           |           |
+    |         |                                           |           |
+    |         |                                           |           |
+    |                                                                 |
+    |                                                                 |
+    |                           TS-provider                           |
+    |_________________________________________________________________|
+
+
+The following abbreviations are used:
+
+
+    CLTS          Connectionless Transport
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 3]
+
+RFC 1240                   OSI on top of UDP                   June 1991
+
+
+    TS            Transport Services (implies connectionless transport
+                  service in this memo)
+
+    TSAP          Transport Service Access Point
+
+    TS-peer       a process which implements the mapping of CLTS
+                  protocols onto the UDP interface as described by
+                  this memo
+
+    TS-user       a process using the services of a TS-provider
+
+    TS-provider   the abstraction of the totality of those entities
+                  which provide the overall service between the two
+                  TS-users
+
+    UD TPDU       Unit Data TPDU (Transport Protocol Data Unit)
+
+   Each TS-user gains access to the TS-provider at a TSAP.  The two TS-
+   users can communicate with each other using a connectionless
+   transport provided that there is pre-arranged knowledge about each
+   other (e.g., protocol version, formats, options, ... etc.), since
+   there is no negotiation before data transfer.  In the above diagram
+   one TS-user passes a message to the TS-provider, and the peer TS-user
+   receives the message from the TS-provider.  The interactions between
+   TS-user and TS-provider are described by connectionless TS
+   primitives.
+
+   All aspects of [ISO 8072/AD1] are supported in this memo with one
+   exception: QOS (Quality of Service) parameter, which is left for
+   future study.
+
+   The OSI standards do not specify the format of a TSAP selector.
+   Neither does this memo.  However, implementors should consult the
+   GOSIP 1.0 specification [GOSIP88/FIPS146] for an interpretation of
+   this parameter, wherein the TSAP selector consists of two octets and
+   a value of (binary) 1 identifies the service interface between OSI
+   transport layer and session layer.
+
+4.  The Primitives
+
+   This RFC assumes that UDP [RFC768] offers the following service
+   primitives:
+
+    send datagram  -  datagram is sent to the IP address/destination
+                      port
+
+    read datagram  -  datagram is read from UDP
+
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 4]
+
+RFC 1240                   OSI on top of UDP                   June 1991
+
+
+   Data can only be read from a receive port after the port has been
+   created.  This is a local matter.
+
+   This memo reserves the use of UDP port 102 for the use of
+   applications which realize the CLTS over UDP.  However as with RFC
+   1006, other port values may be used by prior agreement (e.g., through
+   use of the OSI Directory).
+
+   This RFC describes how to use these services to emulate the following
+   connectionless-mode network service primitives, which are required by
+   [ISO8602]:
+
+    N-UNIT-DATA.REQUEST     -  A NS-user requests unit data to be sent
+
+    N-UNIT-DATA.INDICATION  -  A NS-user is notified that unit data
+                               can be read from the NSAP
+
+   The mapping between the UDP service primitives and the service
+   primitives expected by the connectionless transport peer entity are
+   quite straightforward:
+
+    connectionless network service  UDP
+    ------------------------------  ---
+
+    N-UNIT-DATA.REQUEST             send datagram
+
+    N-UNIT-DATA.INDICATION          read datagram
+
+
+The parameter mapping is:
+
+    connectionless network service  UDP
+    ------------------------------  ---
+
+    Source address                  source IP address from
+                                    calling TS-address
+
+    Destination address             destination IP address from
+                                    called TS-address
+
+    Quality of service              (ignored)
+
+    NS-user data                    UD TPDU constructed from T-UNIT-DATA
+
+   When the T-UNIT-DATA.REQUEST primitive is issued, the TS-peer
+   constructs a UD TPDU and sends it as a single datagram to the desired
+   IP address using UDP.
+
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 5]
+
+RFC 1240                   OSI on top of UDP                   June 1991
+
+
+   When UDP indicates that a datagram has been received, a UD TPDU is
+   read from UDP, and a T-UNIT-DATA.INDICATION primitive is generated.
+
+5.  Packet Format
+
+   The following is the UD TPDU structure which is encapsulated in UDP
+   data field:
+
+          1       2         3                m m+1          n
+          +--------------------------------------------------+
+          |  LI  |  UD      |  Variable Part  |  User Data   |
+          |      | 01000000 |                 |              |
+          +--------------------------------------------------+
+
+    LI (octet 1) -  the length of the header including parameters, but
+                    excluding the LI and user data, with a maximum
+                    value of 254
+
+    UD (octet 2) -  the type of TPDU
+
+    Variable Part (octets 3 to m) - the source and destination TSAP id's
+          Parameter code:   source TSAP       11000001
+                            destination TSAP  11000010
+          Parameter length: the length of the parameter, not including
+                            the parameter code or length fields, with a
+                            maximum value of 254
+          Parameter value:  source or destination T-selector
+
+          The optional checksum parameter is not required in the
+          variable part since the UDP checksum field in the UDP header
+          already performs the checking.
+
+    User Data (octets m+1 to n) -  all the data of the TSDU.
+
+   The maximum NS-user data allowed in the OSI connectionless network
+   service is 64,512 octets.  This limit is further constrained by the
+   lesser maximum datagram size supported by the two communicating UDP
+   peers, which should be known by a priori agreement.
+
+6.  Conclusion
+
+   There is a general trend towards support of the OSI protocol suite in
+   the Internet.  This direction is being fostered by the Internet
+   Activities Board (IAB) and its Internet Engineering Task Force, and
+   by the Federal Networking Council.  By offering an OSI connectionless
+   transport service on top of the Internet, this RFC will allow future
+   applications to use the OSI connectionless upper-layer services,
+   which are required to be conformant to the OSI upper layer
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 6]
+
+RFC 1240                   OSI on top of UDP                   June 1991
+
+
+   architecture.  Currently, T-UNIT-DATA, S-UNIT-DATA, P-UNIT-DATA, and
+   A-UNIT-DATA have reached International Standard (IS).  As
+   applications based on OSI connectionless services become widely
+   available and OSI lower-layer service is widely implemented in the
+   Internet, the underlying UDP/IP services can be simply replaced with
+   the OSI lower layers.
+
+7.  Acknowledgements
+
+   Marshall T. Rose of PSI, Inc., provided many valuable comments and
+   corrections.
+
+8.  References
+
+   [GOSIP88]  U.S. Department of Commerce/National Bureau of Standards,
+   [FIPS146]  "Government Open Systems Interconnection Profile (GOSIP)",
+              August 1988.
+
+   [ISO7498/AD1]  ISO, "International Standard 7498 - Information
+              Processing Systems - OSI:  Basic Reference Model
+              Addendum 1: Connectionless-mode Transmission",
+              May 1986.
+
+   [ISO8072]  ISO, "International Standard 8072 - Information Processing
+              Systems - OSI:  Transport Service Definition", June 1984.
+
+   [ISO8072/AD1]  ISO, "International Standard 8072 - Information
+              Processing Systems - OSI:  Transport Service Definition
+              Addendum 1: Connectionless-mode Transmission",
+              December 1986.
+
+   [ISO8602]  ISO, "International Standard 8602 - Information Processing
+              Systems - OSI:  Connectionless Transport Protocol
+              Specification", December 1986.
+
+   [ISO9548]  ISO, "International Standard 9548 - Information Processing
+              Systems - OSI:  Connectionless Session Protocol
+              Specification", April 1989.
+
+   [ISO9576]  ISO, "Draft International Standard 9576 - Information
+              Processing Systems - OSI:  Connectionless Presentation
+              Protocol Specification", April 1989.
+
+   [ISO10035]  ISO, "Draft International Standard 10035 - Information
+              Processing Systems - OSI:  Connectionless ACSE Protocol
+              Specification", April 1989.
+
+   [ISOSC21/WG6 N184]  ISO SC21 WG6, "Justification for Connectionless
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 7]
+
+RFC 1240                   OSI on top of UDP                   June 1991
+
+
+              Services in the Upper Layers", June 1986.
+
+   [RFC768]   Postel, J., "User Datagram Protocol", RFC 768,
+              USC/Information Sciences Institute, September 1981.
+
+   [RFC791]   Postel, J., "Internet Protocol", RFC 791,
+              USC/Information Sciences Institute, September 1981.
+
+   [RFC1006]  Rose, M., and D. Cass, "ISO Transport Service on top of
+              the TCP - Version 3", RFC 1006, Northrop Research and
+              Technology Center, May 1987.
+
+Security Considerations
+
+   Security issues are not discussed in this memo.
+
+Authors' Addresses
+
+
+   Chikong Shue
+   Open Software Foundation, Inc.
+   11 Cambridge Center
+   Cambridge, MA 02142
+
+   Phone: (617) 621-8972
+   EMail: chi@osf.org
+
+
+   William Haggerty
+   Wang Laboratories, Inc.
+   1 Industrial Ave
+   Lowell, MA 01851
+
+   Phone: (508) 967-3403
+   EMail: bill@comm.wang.com
+
+
+   Kurt Dobbins
+   Cabletron, Inc.
+   35 Industrial Way
+   Rochester, NH 03867
+
+   Phone: (603) 332-9400
+
+
+
+
+
+
+
+
+Shue, Haggerty & Dobbins                                        [Page 8]
+

@@ -1,0 +1,787 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                          M. Jones
+Request for Comments: 6408                           Bridgewater Systems
+Updates: 3588                                                J. Korhonen
+Category: Standards Track                         Nokia Siemens Networks
+ISSN: 2070-1721                                                L. Morand
+                                                             Orange Labs
+                                                           November 2011
+
+
+   Diameter Straightforward-Naming Authority Pointer (S-NAPTR) Usage
+
+Abstract
+
+   The Diameter base protocol specifies mechanisms whereby a given realm
+   may advertise Diameter nodes and the supported transport protocol.
+   However, these mechanisms do not reveal the Diameter applications
+   that each node supports.  A peer outside the realm would have to
+   perform a Diameter capability exchange with every node until it
+   discovers one that supports the required application.  This document
+   updates RFC 3588, "Diameter Base Protocol", and describes an
+   improvement using an extended format for the Straightforward-Naming
+   Authority Pointer (S-NAPTR) application service tag that allows for
+   discovery of the supported applications without doing Diameter
+   capability exchange beforehand.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6408.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Jones, et al.                Standards Track                    [Page 1]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+Copyright Notice
+
+   Copyright (c) 2011 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Terminology .....................................................3
+      2.1. Requirements Language ......................................3
+   3. Extended NAPTR Service Field Format .............................3
+      3.1. IETF Standards Track Diameter Applications .................5
+      3.2. Vendor-Specific Diameter Applications ......................5
+   4. Backwards Compatibility .........................................5
+   5. Extended NAPTR-Based Diameter Peer Discovery ....................6
+      5.1. Examples ...................................................7
+   6. Usage Guidelines ................................................8
+   7. IANA Considerations .............................................9
+      7.1. IETF Diameter Application Service Tags .....................9
+      7.2. 3GPP Diameter Application Service Tags .....................9
+      7.3. WiMAX Forum Diameter Application Service Tags .............10
+      7.4. Vendor-Specific Diameter Application Service Tags .........10
+      7.5. Diameter Application Protocol Tags ........................11
+   8. Security Considerations ........................................11
+   9. Acknowledgments ................................................11
+   10. References ....................................................12
+      10.1. Normative References .....................................12
+      10.2. Informative References ...................................14
+
+1.  Introduction
+
+   The Diameter base protocol [RFC3588] specifies three mechanisms for
+   Diameter peer discovery.  One of these involves the Diameter
+   implementation performing a Naming Authority Pointer (NAPTR) query
+   [RFC3403] for a server in a particular realm.  These NAPTR records
+
+
+
+
+
+
+Jones, et al.                Standards Track                    [Page 2]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+   provide a mapping from a domain to the DNS Service Locator (SRV)
+   record [RFC2782] or A/AAAA record [RFC1035] [RFC3596] for contacting
+   a server with the specific transport protocol in the NAPTR services
+   field.
+
+   The extended NAPTR usage for Diameter peer discovery defined by this
+   document is based on the Straightforward-NAPTR (S-NAPTR) Dynamic
+   Delegation Discovery System (DDDS) application defined in [RFC3958].
+   This document updates the Diameter peer discovery procedure described
+   in Section 5.2 of [RFC3588] and defines S-NAPTR application service
+   and application protocol tag values that permit the discovery of
+   Diameter peers that support a specific Diameter application and
+   transport protocol.
+
+2.  Terminology
+
+   The Diameter base protocol specification (Section 1.3 of [RFC3588])
+   and the Straightforward-NAPTR (S-NAPTR) DDDS application (Section 2.1
+   of [RFC3958]) define the terminology used in this document.
+
+2.1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+3.  Extended NAPTR Service Field Format
+
+   The NAPTR service field format defined by the S-NAPTR DDDS
+   application in [RFC3958] follows this Augmented Backus-Naur Form
+   (ABNF) [RFC5234]:
+
+       service-parms = [ [app-service] *(":" app-protocol)]
+       app-service   = experimental-service  / iana-registered-service
+       app-protocol  = experimental-protocol / iana-registered-protocol
+       experimental-service      = "x-" 1*30ALPHANUMSYM
+       experimental-protocol     = "x-" 1*30ALPHANUMSYM
+       iana-registered-service   = ALPHA *31ALPHANUMSYM
+       iana-registered-protocol  = ALPHA *31ALPHANUMSYM
+       ALPHA         =  %x41-5A / %x61-7A   ; A-Z / a-z
+       DIGIT         =  %x30-39 ; 0-9
+       SYM           =  %x2B / %x2D / %x2E  ; "+" / "-" / "."
+       ALPHANUMSYM   =  ALPHA / DIGIT / SYM
+       ; The app-service and app-protocol tags are limited to 32
+       ; characters and must start with an alphabetic character.
+       ; The service-parms are considered case-insensitive.
+
+
+
+
+
+Jones, et al.                Standards Track                    [Page 3]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+   This specification refines the "iana-registered-service" tag
+   definition for the discovery of Diameter agents supporting a specific
+   Diameter application as defined below.
+
+       iana-registered-service =/ aaa-service
+       aaa-service             = "aaa+ap" appln-id
+       appln-id                = 1*10DIGIT
+                                 ; Application Identifier expressed as
+                                 ; a decimal integer without leading
+                                 ; zeros.
+
+   The appln-id element is the Application Identifier used to identify a
+   specific Diameter application.  The Diameter Application Identifier
+   is a 32-bit unsigned integer, and values are allocated by IANA as
+   defined in [RFC3588].
+
+   This specification also refines the "iana-registered-protocol" tag
+   definition for the discovery of Diameter agents supporting a specific
+   Diameter transport protocol as defined below.
+
+       iana-registered-protocol =/ aaa-protocol
+       aaa-protocol             = "diameter." aaa-transport
+       aaa-transport            = "tcp" / "sctp" / "tls.tcp"
+
+   The S-NAPTR application protocol tags defined by this specification
+   MUST NOT be parsed in any way by the querying application or
+   resolver.  The delimiter (".") is present in the tag to improve
+   readability and does not imply a structure or namespace of any kind.
+   The choice of delimiter (".") for the application protocol tag
+   follows the format of existing S-NAPTR application protocol tag
+   registry entries, but this does not imply that it shares semantics
+   with any other specifications that create registry entries with the
+   same format.
+
+   The S-NAPTR application service and application protocol tags defined
+   by this specification are unrelated to the IANA "Service Name and
+   Transport Protocol Port Number Registry" (see [RFC6335]).
+
+   The maximum length of the NAPTR service field is 256 octets,
+   including a one-octet length field (see Section 4.1 of [RFC3403] and
+   Section 3.3 of [RFC1035]).
+
+
+
+
+
+
+
+
+
+
+Jones, et al.                Standards Track                    [Page 4]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+3.1.  IETF Standards Track Diameter Applications
+
+   A Diameter agent MUST be capable of using the extended S-NAPTR
+   application service tag for dynamic discovery of a Diameter agent
+   supporting Standards Track applications.  Therefore, every IETF
+   Standards Track Diameter application MUST be associated with a
+   "aaa-service" tag formatted as defined in this specification and
+   allocated in accordance with IANA policy (see Section 7).
+
+   For example, a NAPTR service field value of:
+
+      'aaa+ap6:diameter.sctp'
+
+   means that the Diameter node in the SRV or A/AAAA record supports the
+   Diameter Session Initiation Protocol (SIP) application ('6') and the
+   Stream Control Transmission Protocol (SCTP) as the transport
+   protocol.
+
+3.2.  Vendor-Specific Diameter Applications
+
+   S-NAPTR application service and application protocol tag values can
+   also be used to discover Diameter peers that support a vendor-
+   specific Diameter application.  In this case, the vendor-specific
+   Diameter application MUST be associated with a "aaa-service" tag
+   formatted as defined in this specification and allocated in
+   accordance with IANA policy (see Section 7).
+
+   For example, a NAPTR service field value of:
+
+      'aaa+ap16777251:diameter.sctp'
+
+   means that the Diameter node in the SRV or A/AAAA record supports the
+   Diameter Third Generation Partnership Project (3GPP) S6a application
+   ('16777251') and SCTP as the transport protocol.
+
+4.  Backwards Compatibility
+
+   Domain Name System (DNS) administrators SHOULD also provision legacy
+   NAPTR records [RFC3403] in the RFC 3588 style in order to guarantee
+   backwards compatibility with legacy Diameter peers that are RFC 3588
+   compliant.  If the DNS administrator provisions both extended S-NAPTR
+   records as defined in this specification and legacy RFC 3588 NAPTR
+   records, then the extended S-NAPTR records MUST have higher priority
+   (e.g., lower order and/or preference values) than legacy NAPTR
+   records.
+
+
+
+
+
+
+Jones, et al.                Standards Track                    [Page 5]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+5.  Extended NAPTR-Based Diameter Peer Discovery
+
+   The Diameter Peer Discovery principles are described in Section 5.2
+   of [RFC3588].  This specification updates the NAPTR query procedure
+   in the Diameter peer discovery mechanism by allowing the querying
+   node to determine which applications are supported by resolved
+   Diameter peers.
+
+   The extended-format NAPTR records provide a mapping from a domain to
+   the SRV record or A/AAAA record for contacting a server supporting a
+   specific transport protocol and Diameter application.  The resource
+   record will contain an empty regular expression and a replacement
+   value, which is the SRV record or the A/AAAA record for that
+   particular transport protocol.
+
+   The assumption for this mechanism to work is that the DNS
+   administrator of the queried domain has first provisioned the DNS
+   with extended-format NAPTR entries.  The steps below replace the
+   NAPTR query procedure steps in Section 5.2 of [RFC3588].
+
+   a. The Diameter implementation performs a NAPTR query for a server in
+      a particular realm.  The Diameter implementation has to know in
+      advance in which realm to look for a Diameter agent, and in which
+      Application Identifier it is interested.  For example, the realm
+      could be deduced from the Network Access Identifier (NAI) in the
+      User-Name attribute-value pair (AVP) or extracted from the
+      Destination-Realm AVP.
+
+   b. If the returned NAPTR service fields contain entries formatted as
+      "aaa+apX:Y" where "X" indicates the Application Identifier and "Y"
+      indicates the supported transport protocol(s), the target realm
+      supports the extended format for NAPTR-based Diameter peer
+      discovery defined in this document.
+
+         If "X" contains the required Application Identifier and "Y"
+         matches a supported transport protocol, the Diameter
+         implementation resolves the "replacement" field entry to a
+         target host using the lookup method appropriate for the "flags"
+         field.
+
+         If "X" does not contain the required Application Identifier or
+         "Y" does not match a supported transport protocol, the Diameter
+         implementation abandons the peer discovery.
+
+
+
+
+
+
+
+
+Jones, et al.                Standards Track                    [Page 6]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+   c. If the returned NAPTR service fields contain entries formatted as
+      "aaa+apX" where "X" indicates the Application Identifier, the
+      target realm supports the extended format for NAPTR-based Diameter
+      peer discovery defined in this document.
+
+         If "X" contains the required Application Identifier, the
+         Diameter implementation resolves the "replacement" field entry
+         to a target host using the lookup method appropriate for the
+         "flags" field and attempts to connect using all supported
+         transport protocols following the order specified in
+         Section 2.1 of [RFC3588].
+
+         If "X" does not contain the required Application Identifier,
+         the Diameter implementation abandons the peer discovery.
+
+   d. If the returned NAPTR service fields contain entries formatted as
+      "aaa:X" where "X" indicates the supported transport protocol(s),
+      the target realm supports Diameter but does not support the
+      extended format for NAPTR-based Diameter peer discovery defined in
+      this document.
+
+         If "X" matches a supported transport protocol, the Diameter
+         implementation resolves the "replacement" field entry to a
+         target host using the lookup method appropriate for the "flags"
+         field.
+
+   e. If the returned NAPTR service fields contain entries formatted as
+      "aaa", the target realm supports Diameter but does not support the
+      extended format for NAPTR-based Diameter peer discovery defined in
+      this document.  The Diameter implementation resolves the
+      "replacement" field entry to a target host using the lookup method
+      appropriate for the "flags" field and attempts to connect using
+      all supported transport protocols following the order specified in
+      Section 2.1 of [RFC3588].
+
+   f. If the target realm does not support NAPTR-based Diameter peer
+      discovery, the client proceeds with the next peer discovery
+      mechanism described in Section 5.2 of [RFC3588].
+
+5.1.  Examples
+
+   As an example, consider a client that wishes to discover a Diameter
+   server in the ex1.example.com realm that supports the Credit Control
+   application.  The client performs a NAPTR query for that domain, and
+   the following NAPTR records are returned:
+
+
+
+
+
+
+Jones, et al.                Standards Track                    [Page 7]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+       ;;        order pref flags service   regexp replacement
+       IN NAPTR  50    50   "s"   "aaa:diameter.sctp" ""
+                    _diameter._sctp.ex1.example.com
+       IN NAPTR  50    50   "s"   "aaa+ap1:diameter.sctp" ""
+                    _diameter._sctp.ex1.example.com
+       IN NAPTR  50    50   "s"   "aaa+ap4:diameter.sctp" ""
+                    _diameter._sctp.ex1.example.com
+
+   This indicates that the server supports NASREQ (ID=1) and Credit
+   Control (ID=4) applications over SCTP.  If the client supports SCTP,
+   it will be used, targeted to a host determined by an SRV lookup of
+   _diameter._sctp.ex1.example.com.
+
+   That SRV lookup would return:
+
+       ;;       Priority  Weight  Port    Target
+       IN SRV   0         1       3868    server1.ex1.example.com
+       IN SRV   0         2       3868    server2.ex1.example.com
+
+   As an alternative example, a client wishes to discover a Diameter
+   server in the ex2.example.com realm that supports the NASREQ
+   application over SCTP.  The client performs a NAPTR query for that
+   domain, and the following NAPTR records are returned:
+
+       ;;        order pref flags service   regexp replacement
+       IN NAPTR  150   50   "a"   "aaa:diameter.sctp"  ""
+                    server1.ex2.example.com
+       IN NAPTR  150   50   "a"   "aaa:diameter.tls.tcp"  ""
+                    server2.ex2.example.com
+       IN NAPTR  150   50   "a"   "aaa+ap1:diameter.sctp"  ""
+                    server1.ex2.example.com
+       IN NAPTR  150   50   "a"   "aaa+ap1:diameter.tls.tcp"  ""
+                    server2.ex2.example.com
+
+   This indicates that the server supports NASREQ (ID=1) over SCTP and
+   Transport Layer Security (TLS)/TCP via hosts server1.ex2.example.com
+   and server2.ex2.example.com, respectively.
+
+6.  Usage Guidelines
+
+   Diameter is a peer-to-peer protocol, whereas most of the applications
+   that extend the base protocol behave like client/server applications.
+   The role of the peer is not advertised in the NAPTR tags and not even
+   communicated during Diameter capability negotiation
+   (Capabilities-Exchange-Request and Capabilities-Exchange-Answer
+   message exchange).  For this reason, NAPTR-based Diameter peer
+   discovery for an application defining client/server roles should only
+   be used by a client to discover servers.
+
+
+
+Jones, et al.                Standards Track                    [Page 8]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+7.  IANA Considerations
+
+7.1.  IETF Diameter Application Service Tags
+
+   IANA has reserved a value of "aaa" for Diameter in the "(S-NAPTR)
+   Application Service Tag" registry created by [RFC3958].  IANA has
+   also reserved the following S-NAPTR application service tags for
+   existing IETF Diameter applications in the same registry.
+
+             +------------------+----------------------------+
+             | Tag              | Diameter Application       |
+             +------------------+----------------------------+
+             | aaa+ap1          | NASREQ [RFC3588]           |
+             | aaa+ap2          | Mobile IPv4 [RFC4004]      |
+             | aaa+ap3          | Base Accounting [RFC3588]  |
+             | aaa+ap4          | Credit Control [RFC4006]   |
+             | aaa+ap5          | EAP [RFC4072]              |
+             | aaa+ap6          | SIP [RFC4740]              |
+             | aaa+ap7          | Mobile IPv6 IKE [RFC5778]  |
+             | aaa+ap8          | Mobile IPv6 Auth [RFC5778] |
+             | aaa+ap9          | QoS [RFC5866]              |
+             | aaa+ap4294967295 | Relay [RFC3588]            |
+             +------------------+----------------------------+
+
+   Future IETF Diameter applications MUST reserve the S-NAPTR
+   application service tag corresponding to the allocated Diameter
+   Application ID as defined in Section 3.
+
+7.2.  3GPP Diameter Application Service Tags
+
+   IANA has reserved the following S-NAPTR application service tags for
+   existing 3GPP Diameter applications in the "S-NAPTR Application
+   Service Tag" registry created by [RFC3958].
+
+                 +----------------+----------------------+
+                 | Tag            | Diameter Application |
+                 +----------------+----------------------+
+                 | aaa+ap16777250 | 3GPP STa [TS29.273]  |
+                 | aaa+ap16777251 | 3GPP S6a [TS29.272]  |
+                 | aaa+ap16777264 | 3GPP SWm [TS29.273]  |
+                 | aaa+ap16777267 | 3GPP S9 [TS29.215]   |
+                 +----------------+----------------------+
+
+   Future 3GPP Diameter applications can reserve entries in the "S-NAPTR
+   Application Service Tag" registry created by [RFC3958] that
+   correspond to the allocated Diameter Application IDs as defined in
+   Section 3.
+
+
+
+
+Jones, et al.                Standards Track                    [Page 9]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+7.3.  WiMAX Forum Diameter Application Service Tags
+
+   IANA has reserved the following S-NAPTR application service tags for
+   existing Worldwide Interoperability for Microwave Access (WiMAX)
+   Forum Diameter applications in the "S-NAPTR Application Service Tag"
+   registry created by [RFC3958].
+
+   +----------------+--------------------------------------------------+
+   | Tag            | Diameter Application                             |
+   +----------------+--------------------------------------------------+
+   | aaa+ap16777281 | WiMAX Network Access Authentication and          |
+   |                | Authorization Diameter Application (WNAAADA)     |
+   |                | [WiMAX-BASE]                                     |
+   | aaa+ap16777282 | WiMAX Network Accounting Diameter Application    |
+   |                | (WNADA) [WiMAX-BASE]                             |
+   | aaa+ap16777283 | WiMAX MIP4 Diameter Application (WM4DA)          |
+   |                | [WiMAX-BASE]                                     |
+   | aaa+ap16777284 | WiMAX MIP6 Diameter Application (WM6DA)          |
+   |                | [WiMAX-BASE]                                     |
+   | aaa+ap16777285 | WiMAX DHCP Diameter Application (WDDA)           |
+   |                | [WiMAX-BASE]                                     |
+   | aaa+ap16777286 | WiMAX Location Authentication Authorization      |
+   |                | Diameter Application (WLAADA) [WiMAX-LBS]        |
+   | aaa+ap16777287 | WiMAX Policy and Charging Control R3 Policies    |
+   |                | Diameter Application (WiMAX PCC-R3-P)            |
+   |                | [WiMAX-PCC]                                      |
+   | aaa+ap16777288 | WiMAX Policy and Charging Control R3 Offline     |
+   |                | Charging Diameter Application (WiMAX PCC-R3-OFC) |
+   |                | [WiMAX-PCC]                                      |
+   | aaa+ap16777289 | WiMAX Policy and Charging Control R3 Offline     |
+   |                | Charging Prime Diameter Application (WiMAX       |
+   |                | PCC-R3-OFC-PRIME) [WiMAX-PCC]                    |
+   | aaa+ap16777290 | WiMAX Policy and Charging Control R3 Online      |
+   |                | Charging Diameter Application (WiMAX PCC-R3-OC)  |
+   |                | [WiMAX-PCC]                                      |
+   +----------------+--------------------------------------------------+
+
+   Future WiMAX Forum Diameter applications can reserve entries in the
+   "S-NAPTR Application Service Tag" registry created by [RFC3958] that
+   correspond to the allocated Diameter Application IDs as defined in
+   Section 3.
+
+7.4.  Vendor-Specific Diameter Application Service Tags
+
+   Vendor-Specific Diameter Application IDs are allocated by IANA
+   according to the "First Come First Served" policy and do not require
+   an IETF specification.  However, the S-NAPTR application service tag
+   registry created by [RFC3958] defines a registration policy of
+
+
+
+Jones, et al.                Standards Track                   [Page 10]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+   "Specification Required" with a further stipulation that the
+   "specification" is an RFC (of any category).  If a vendor-specific
+   Diameter application requires the functionality defined in this
+   document, an RFC of any category MUST be published that reserves the
+   S-NAPTR Application Service Tag corresponding to the Vendor-Specific
+   Diameter Application ID as defined in Section 3.
+
+7.5.  Diameter Application Protocol Tags
+
+   IANA has reserved the following S-NAPTR Application Protocol Tags for
+   the Diameter transport protocols in the "S-NAPTR Application Protocol
+   Tag" registry created by [RFC3958].
+
+                      +------------------+----------+
+                      | Tag              | Protocol |
+                      +------------------+----------+
+                      | diameter.tcp     | TCP      |
+                      | diameter.sctp    | SCTP     |
+                      | diameter.tls.tcp | TLS/TCP  |
+                      +------------------+----------+
+
+   Future Diameter versions that introduce new transport protocols MUST
+   reserve an appropriate S-NAPTR Application Protocol Tag in the
+   "S-NAPTR Application Protocol Tag" registry created by [RFC3958].
+
+8.  Security Considerations
+
+   This document specifies an enhancement to the NAPTR service field
+   format defined in RFC 3588 and also modifications to the NAPTR
+   processing logic defined in RFC 3588.  The enhancement and
+   modifications are based on the S-NAPTR, which is actually a
+   simplification of the NAPTR, and therefore the same security
+   considerations described in RFC 3588 [RFC3588] are applicable to this
+   document.  No further extensions are required beyond the security
+   mechanisms offered by RFC 3588.  However, a malicious host doing
+   S-NAPTR queries learns applications supported by Diameter agents in a
+   certain realm faster, which might help the malicious host to scan
+   potential targets for an attack more efficiently when some
+   applications have known vulnerabilities.
+
+9.  Acknowledgments
+
+   We would like to thank Glen Zorn, Avi Lior, Itsuma Tanaka, Sebastien
+   Decugis, Dan Romascanu, Adrian Farrel, David Harrington, Pete
+   Resnick, Robert Sparks, Stephen Farrell, Wesley Eddy, Ralph Droms,
+   and Joe Touch for their comprehensive review comments.
+
+
+
+
+
+Jones, et al.                Standards Track                   [Page 11]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC1035]    Mockapetris, P., "Domain names - implementation and
+                specification", STD 13, RFC 1035, November 1987.
+
+   [RFC2119]    Bradner, S., "Key words for use in RFCs to Indicate
+                Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC2782]    Gulbrandsen, A., Vixie, P., and L. Esibov, "A DNS RR for
+                specifying the location of services (DNS SRV)",
+                RFC 2782, February 2000.
+
+   [RFC3403]    Mealling, M., "Dynamic Delegation Discovery System
+                (DDDS) Part Three: The Domain Name System (DNS)
+                Database", RFC 3403, October 2002.
+
+   [RFC3588]    Calhoun, P., Loughney, J., Guttman, E., Zorn, G., and J.
+                Arkko, "Diameter Base Protocol", RFC 3588,
+                September 2003.
+
+   [RFC3596]    Thomson, S., Huitema, C., Ksinant, V., and M. Souissi,
+                "DNS Extensions to Support IP Version 6", RFC 3596,
+                October 2003.
+
+   [RFC3958]    Daigle, L. and A. Newton, "Domain-Based Application
+                Service Location Using SRV RRs and the Dynamic
+                Delegation Discovery Service (DDDS)", RFC 3958,
+                January 2005.
+
+   [RFC4004]    Calhoun, P., Johansson, T., Perkins, C., Hiller, T.,
+                Ed., and P. McCann, "Diameter Mobile IPv4 Application",
+                RFC 4004, August 2005.
+
+   [RFC4006]    Hakala, H., Mattila, L., Koskinen, J-P., Stura, M., and
+                J.  Loughney, "Diameter Credit-Control Application",
+                RFC 4006, August 2005.
+
+   [RFC4072]    Eronen, P., Ed., Hiller, T., and G. Zorn, "Diameter
+                Extensible Authentication Protocol (EAP) Application",
+                RFC 4072, August 2005.
+
+   [RFC4740]    Garcia-Martin, M., Ed., Belinchon, M., Pallares-Lopez,
+                M., Canales-Valenzuela, C., and K. Tammi, "Diameter
+                Session Initiation Protocol (SIP) Application",
+                RFC 4740, November 2006.
+
+
+
+
+Jones, et al.                Standards Track                   [Page 12]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+   [RFC5234]    Crocker, D., Ed., and P. Overell, "Augmented BNF for
+                Syntax Specifications: ABNF", STD 68, RFC 5234,
+                January 2008.
+
+   [RFC5778]    Korhonen, J., Ed., Tschofenig, H., Bournelle, J.,
+                Giaretta, G., and M. Nakhjiri, "Diameter Mobile IPv6:
+                Support for Home Agent to Diameter Server Interaction",
+                RFC 5778, February 2010.
+
+   [RFC5866]    Sun, D., Ed., McCann, P., Tschofenig, H., Tsou, T.,
+                Doria, A., and G. Zorn, Ed., "Diameter
+                Quality-of-Service Application", RFC 5866, May 2010.
+
+   [TS29.215]   3rd Generation Partnership Project, "3GPP TS 29.215;
+                Technical Specification Group Core Network and
+                Terminals; Policy and Charging Control (PCC) over S9
+                reference point; Stage 3 (Release 8)",
+                <http://www.3gpp.org/ftp/Specs/html-info/29215.htm>.
+
+   [TS29.272]   3rd Generation Partnership Project, "3GPP TS 29.272;
+                Technical Specification Group Core Network and
+                Terminals; Evolved Packet System (EPS); Mobility
+                Management Entity (MME) and Serving GPRS Support Node
+                (SGSN) Related Interfaces Based on Diameter Protocol
+                (Release 8)",
+                <http://www.3gpp.org/ftp/Specs/html-info/29272.htm>.
+
+   [TS29.273]   3rd Generation Partnership Project, "3GPP TS 29.273;
+                Technical Specification Group Core Network and
+                Terminals; Evolved Packet System (EPS); 3GPP EPS AAA
+                interfaces (Release 8)",
+                <http://www.3gpp.org/ftp/Specs/html-info/29273.htm>.
+
+   [WiMAX-BASE] WiMAX Forum, "WMF-T33-001-R015v02 - WiMAX Forum(R)
+                Network Architecture - Detailed Protocols and
+                Procedures, Base Specification - Release 1.5",
+                <http://www.wimaxforum.org/resources/
+                documents/technical/T33>.
+
+   [WiMAX-LBS]  WiMAX Forum, "WMF-T33-110-R015v01 - WiMAX Forum(R)
+                Network Architecture - Protocols and Procedures for
+                Location Based Services - Release 1.5",
+                <http://www.wimaxforum.org/resources/
+                documents/technical/T33>.
+
+
+
+
+
+
+
+Jones, et al.                Standards Track                   [Page 13]
+
+RFC 6408                 Diameter S-NAPTR Usage            November 2011
+
+
+   [WiMAX-PCC]  WiMAX Forum, "WMF-T33-109-R015v02 - WiMAX Forum(R)
+                Network Architecture - Detailed Protocols and
+                Procedures, Policy and Charging Control - Release 1.5",
+                <http://www.wimaxforum.org/resources/
+                documents/technical/T33>.
+
+10.2.  Informative References
+
+   [RFC6335]    Cotton, M., Eggert, L., Touch, J., Westerlund, M., and
+                S. Cheshire, "Internet Assigned Numbers Authority (IANA)
+                Procedures for the Management of the Service Name and
+                Transport Protocol Port Number Registry", BCP 165,
+                RFC 6335, August 2011.
+
+Authors' Addresses
+
+   Mark Jones
+   Bridgewater Systems
+
+   EMail: mark@azu.ca
+
+
+   Jouni Korhonen
+   Nokia Siemens Networks
+
+   EMail: jouni.nospam@gmail.com
+
+
+   Lionel Morand
+   Orange Labs
+
+   EMail: lionel.morand@orange.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Jones, et al.                Standards Track                   [Page 14]
+

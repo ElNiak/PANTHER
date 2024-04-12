@@ -1,0 +1,2690 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                   E. Birrane, III
+Request for Comments: 9173                                      A. White
+Category: Standards Track                                      S. Heiner
+ISSN: 2070-1721                                                  JHU/APL
+                                                            January 2022
+
+
+     Default Security Contexts for Bundle Protocol Security (BPSec)
+
+Abstract
+
+   This document defines default integrity and confidentiality security
+   contexts that can be used with Bundle Protocol Security (BPSec)
+   implementations.  These security contexts are intended to be used
+   both for testing the interoperability of BPSec implementations and
+   for providing basic security operations when no other security
+   contexts are defined or otherwise required for a network.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9173.
+
+Copyright Notice
+
+   Copyright (c) 2022 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Revised BSD License text as described in Section 4.e of the
+   Trust Legal Provisions and are provided without warranty as described
+   in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Requirements Language
+   3.  Integrity Security Context BIB-HMAC-SHA2
+     3.1.  Overview
+     3.2.  Scope
+     3.3.  Parameters
+       3.3.1.  SHA Variant
+       3.3.2.  Wrapped Key
+       3.3.3.  Integrity Scope Flags
+       3.3.4.  Enumerations
+     3.4.  Results
+     3.5.  Key Considerations
+     3.6.  Security Processing Considerations
+     3.7.  Canonicalization Algorithms
+     3.8.  Processing
+       3.8.1.  Keyed Hash Generation
+       3.8.2.  Keyed Hash Verification
+   4.  Security Context BCB-AES-GCM
+     4.1.  Overview
+     4.2.  Scope
+     4.3.  Parameters
+       4.3.1.  Initialization Vector (IV)
+       4.3.2.  AES Variant
+       4.3.3.  Wrapped Key
+       4.3.4.  AAD Scope Flags
+       4.3.5.  Enumerations
+     4.4.  Results
+       4.4.1.  Authentication Tag
+       4.4.2.  Enumerations
+     4.5.  Key Considerations
+     4.6.  GCM Considerations
+     4.7.  Canonicalization Algorithms
+       4.7.1.  Calculations Related to Ciphertext
+       4.7.2.  Additional Authenticated Data
+     4.8.  Processing
+       4.8.1.  Encryption
+       4.8.2.  Decryption
+   5.  IANA Considerations
+     5.1.  Security Context Identifiers
+     5.2.  Integrity Scope Flags
+     5.3.  AAD Scope Flags
+     5.4.  Guidance for Designated Experts
+   6.  Security Considerations
+     6.1.  Key Management
+     6.2.  Key Handling
+     6.3.  AES GCM
+     6.4.  AES Key Wrap
+     6.5.  Bundle Fragmentation
+   7.  Normative References
+   Appendix A.  Examples
+     A.1.  Example 1 - Simple Integrity
+       A.1.1.  Original Bundle
+       A.1.2.  Security Operation Overview
+       A.1.3.  Block Integrity Block
+       A.1.4.  Final Bundle
+     A.2.  Example 2 - Simple Confidentiality with Key Wrap
+       A.2.1.  Original Bundle
+       A.2.2.  Security Operation Overview
+       A.2.3.  Block Confidentiality Block
+       A.2.4.  Final Bundle
+     A.3.  Example 3 - Security Blocks from Multiple Sources
+       A.3.1.  Original Bundle
+       A.3.2.  Security Operation Overview
+       A.3.3.  Block Integrity Block
+       A.3.4.  Block Confidentiality Block
+       A.3.5.  Final Bundle
+     A.4.  Example 4 - Security Blocks with Full Scope
+       A.4.1.  Original Bundle
+       A.4.2.  Security Operation Overview
+       A.4.3.  Block Integrity Block
+       A.4.4.  Block Confidentiality Block
+       A.4.5.  Final Bundle
+   Appendix B.  CDDL Expression
+   Acknowledgments
+   Authors' Addresses
+
+1.  Introduction
+
+   The Bundle Protocol Security (BPSec) specification [RFC9172] provides
+   inter-bundle integrity and confidentiality operations for networks
+   deploying the Bundle Protocol (BP) [RFC9171].  BPSec defines BP
+   extension blocks to carry security information produced under the
+   auspices of some security context.
+
+   This document defines two security contexts (one for an integrity
+   service and one for a confidentiality service) for populating BPSec
+   Block Integrity Blocks (BIBs) and Block Confidentiality Blocks
+   (BCBs).  This document assumes familiarity with the concepts and
+   terminology associated with BP and BPSec, as these security contexts
+   are used with BPSec security blocks and other BP blocks carried
+   within BP bundles.
+
+   These contexts generate information that MUST be encoded using the
+   Concise Binary Object Representation (CBOR) specification documented
+   in [RFC8949].
+
+2.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  Integrity Security Context BIB-HMAC-SHA2
+
+3.1.  Overview
+
+   The BIB-HMAC-SHA2 security context provides a keyed-hash Message
+   Authentication Code (MAC) over a set of plaintext information.  This
+   context uses the Secure Hash Algorithm 2 (SHA-2) discussed in [SHS]
+   combined with the Hashed Message Authentication Code (HMAC) keyed
+   hash discussed in [RFC2104].  The combination of HMAC and SHA-2 as
+   the integrity mechanism for this security context was selected for
+   two reasons:
+
+   1.  The use of symmetric keys allows this security context to be used
+       in places where an asymmetric-key infrastructure (such as a
+       public key infrastructure) might be impractical.
+
+   2.  The combination HMAC-SHA2 represents a well-supported and well-
+       understood integrity mechanism with multiple implementations
+       available.
+
+   BIB-HMAC-SHA2 supports three variants of HMAC-SHA, based on the
+   supported length of the SHA-2 hash value.  These variants correspond
+   to HMAC 256/256, HMAC 384/384, and HMAC 512/512 as defined in Table 7
+   ("HMAC Algorithm Values") of [RFC8152].  The selection of which
+   variant is used by this context is provided as a security context
+   parameter.
+
+   The output of the HMAC MUST be equal to the size of the SHA2 hashing
+   function: 256 bits for SHA-256, 384 bits for SHA-384, and 512 bits
+   for SHA-512.
+
+   The BIB-HMAC-SHA2 security context MUST have the security context
+   identifier specified in Section 5.1.
+
+3.2.  Scope
+
+   The scope of BIB-HMAC-SHA2 is the set of information used to produce
+   the plaintext over which a keyed hash is calculated.  This plaintext
+   is termed the "Integrity-Protected Plaintext (IPPT)".  The content of
+   the IPPT is constructed as the concatenation of information whose
+   integrity is being preserved from the BIB-HMAC-SHA2 security source
+   to its security acceptor.  There are five types of information that
+   can be used in the generation of the IPPT, based on how broadly the
+   concept of integrity is being applied.  These five types of
+   information, whether they are required, and why they are important
+   for integrity are discussed as follows.
+
+   Security target contents
+      The contents of the block-type-specific data field of the security
+      target MUST be included in the IPPT.  Including this information
+      protects the security target data and is considered the minimal,
+      required set of information for an integrity service on the
+      security target.
+
+   IPPT scope
+      The determination of which optional types of information were used
+      when constructing the IPPT MUST always be included in the IPPT.
+      Including this information ensures that the scope of the IPPT
+      construction at a security source matches the scope of the IPPT
+      construction at security verifiers and security acceptors.
+
+   Primary block
+      The primary block identifies a bundle, and once created, the
+      contents of this block are immutable.  Changes to the primary
+      block associated with the security target indicate that the
+      security target (and BIB) might no longer be in the correct
+      bundle.
+
+      For example, if a security target and associated BIB are copied
+      from one bundle to another bundle, the BIB might still contain a
+      verifiable signature for the security target unless information
+      associated with the bundle primary block is included in the keyed
+      hash carried by the BIB.
+
+      Including this information in the IPPT protects the integrity of
+      the association of the security target with a specific bundle.
+
+   Other fields of the security target
+      The other fields of the security target include block
+      identification and processing information.  Changing this
+      information changes how the security target is treated by nodes in
+      the network even when the "user data" of the security target are
+      otherwise unchanged.
+
+      For example, if the block processing control flags of a security
+      target are different at a security verifier than they were
+      originally set at the security source, then the policy for
+      handling the security target has been modified.
+
+      Including this information in the IPPT protects the integrity of
+      the policy and identification of the security target data.
+
+   Other fields of the BIB
+      The other fields of the BIB include block identification and
+      processing information.  Changing this information changes how the
+      BIB is treated by nodes in the network, even when other aspects of
+      the BIB are unchanged.
+
+      For example, if the block processing control flags of the BIB are
+      different at a security verifier than they were originally set at
+      the security source, then the policy for handling the BIB has been
+      modified.
+
+      Including this information in the IPPT protects the integrity of
+      the policy and identification of the security service in the
+      bundle.
+
+         |  NOTE: The security context identifier and security context
+         |  parameters of the security block are not included in the
+         |  IPPT because these parameters, by definition, are required
+         |  to verify or accept the security service.  Successful
+         |  verification at security verifiers and security acceptors
+         |  implies that these parameters were unchanged since being
+         |  specified at the security source.  This is the case because
+         |  keys cannot be reused across security contexts and because
+         |  the integrity scope flags used to define the IPPT are
+         |  included in the IPPT itself.
+
+   The scope of the BIB-HMAC-SHA2 security context is configured using
+   an optional security context parameter.
+
+3.3.  Parameters
+
+   BIB-HMAC-SHA2 can be parameterized to select SHA-2 variants,
+   communicate key information, and define the scope of the IPPT.
+
+3.3.1.  SHA Variant
+
+   This optional parameter identifies which variant of the SHA-2
+   algorithm is to be used in the generation of the authentication code.
+
+   This value MUST be encoded as a CBOR unsigned integer.
+
+   Valid values for this parameter are as follows.
+
+            +=======+========================================+
+            | Value |              Description               |
+            +=======+========================================+
+            |   5   | HMAC 256/256 as defined in Table 7     |
+            |       | ("HMAC Algorithm Values") of [RFC8152] |
+            +-------+----------------------------------------+
+            |   6   | HMAC 384/384 as defined in Table 7     |
+            |       | ("HMAC Algorithm Values") of [RFC8152] |
+            +-------+----------------------------------------+
+            |   7   | HMAC 512/512 as defined in Table 7     |
+            |       | ("HMAC Algorithm Values") of [RFC8152] |
+            +-------+----------------------------------------+
+
+                  Table 1: SHA Variant Parameter Values
+
+   When not provided, implementations SHOULD assume a value of 6
+   (indicating use of HMAC 384/384), unless an alternate default is
+   established by local security policy at the security source,
+   verifiers, or acceptor of this integrity service.
+
+3.3.2.  Wrapped Key
+
+   This optional parameter contains the output of the AES key wrap
+   function as defined in [RFC3394].  Specifically, this parameter holds
+   the ciphertext produced when running this key wrap algorithm with the
+   input string being the symmetric HMAC key used to generate the
+   security results present in the security block.  The value of this
+   parameter is used as input to the AES key wrap authenticated
+   decryption function at security verifiers and security acceptors to
+   determine the symmetric HMAC key needed for the proper validation of
+   the security results in the security block.
+
+   This value MUST be encoded as a CBOR byte string.
+
+   If this parameter is not present, then security verifiers and
+   acceptors MUST determine the proper key as a function of their local
+   BPSec policy and configuration.
+
+3.3.3.  Integrity Scope Flags
+
+   This optional parameter contains a series of flags that describe what
+   information is to be included with the block-type-specific data when
+   constructing the IPPT value.
+
+   This value MUST be represented as a CBOR unsigned integer, the value
+   of which MUST be processed as a 16-bit field.  The maximum value of
+   this field, as a CBOR unsigned integer, MUST be 65535.
+
+   When not provided, implementations SHOULD assume a value of 7
+   (indicating all assigned fields), unless an alternate default is
+   established by local security policy at the security source,
+   verifier, or acceptor of this integrity service.
+
+   Implementations MUST set reserved and unassigned bits in this field
+   to 0 when constructing these flags at a security source.  Once set,
+   the value of this field MUST NOT be altered until the security
+   service is completed at the security acceptor in the network and
+   removed from the bundle.
+
+   Bits in this field represent additional information to be included
+   when generating an integrity signature over the security target.
+   These bits are defined as follows.
+
+   Bit 0 (the low-order bit, 0x0001):  Include primary block flag
+
+   Bit 1 (0x0002):  Include target header flag
+
+   Bit 2 (0x0004):  Include security header flag
+
+   Bits 3-7:  Reserved
+
+   Bits 8-15:  Unassigned
+
+3.3.4.  Enumerations
+
+   The BIB-HMAC-SHA2 security context parameters are listed in Table 2.
+   In this table, the "Parm Id" column refers to the expected parameter
+   identifier described in Section 3.10 ("Parameter and Result
+   Identification") of [RFC9172].
+
+   An empty "Default Value" column indicates that the security context
+   parameter does not have a default value.
+
+      +=========+=============+====================+===============+
+      | Parm Id | Parm Name   | CBOR Encoding Type | Default Value |
+      +=========+=============+====================+===============+
+      |    1    | SHA Variant | unsigned integer   |       6       |
+      +---------+-------------+--------------------+---------------+
+      |    2    | Wrapped Key | byte string        |               |
+      +---------+-------------+--------------------+---------------+
+      |    3    | Integrity   | unsigned integer   |       7       |
+      |         | Scope Flags |                    |               |
+      +---------+-------------+--------------------+---------------+
+
+            Table 2: BIB-HMAC-SHA2 Security Context Parameters
+
+3.4.  Results
+
+   The BIB-HMAC-SHA2 security context results are listed in Table 3.  In
+   this table, the "Result Id" column refers to the expected result
+   identifier described in Section 3.10 ("Parameter and Result
+   Identification") of [RFC9172].
+
+       +========+==========+===============+======================+
+       | Result |  Result  | CBOR Encoding |     Description      |
+       |   Id   |   Name   |      Type     |                      |
+       +========+==========+===============+======================+
+       |   1    | Expected |  byte string  | The output of the    |
+       |        |   HMAC   |               | HMAC calculation at  |
+       |        |          |               | the security source. |
+       +--------+----------+---------------+----------------------+
+
+                 Table 3: BIB-HMAC-SHA2 Security Results
+
+3.5.  Key Considerations
+
+   HMAC keys used with this context MUST be symmetric and MUST have a
+   key length equal to the output of the HMAC.  For this reason, HMAC
+   key lengths will be integers divisible by 8 bytes, and special
+   padding-aware AES key wrap algorithms are not needed.
+
+   It is assumed that any security verifier or security acceptor
+   performing an integrity verification can determine the proper HMAC
+   key to be used.  Potential sources of the HMAC key include (but are
+   not limited to) the following:
+
+   *  Pre-placed keys selected based on local policy.
+
+   *  Keys extracted from material carried in the BIB.
+
+   *  Session keys negotiated via a mechanism external to the BIB.
+
+   When an AES Key Wrap (AES-KW) [RFC3394] wrapped key is present in a
+   security block, it is assumed that security verifiers and security
+   acceptors can independently determine the key encryption key (KEK)
+   used in the wrapping of the symmetric HMAC key.
+
+   As discussed in Section 6 and emphasized here, it is strongly
+   recommended that keys be protected once generated, both when they are
+   stored and when they are transmitted.
+
+3.6.  Security Processing Considerations
+
+   An HMAC calculated over the same IPPT with the same key will always
+   have the same value.  This regularity can lead to practical side-
+   channel attacks whereby an attacker could produce known plaintext,
+   guess at an HMAC tag, and observe the behavior of a verifier.  With a
+   modest number of trials, a side-channel attack could produce an HMAC
+   tag for attacker-provided plaintext without the attacker ever knowing
+   the HMAC key.
+
+   A common method of observing the behavior of a verifier is precise
+   analysis of the timing associated with comparisons.  Therefore, one
+   way to prevent behavior analysis of this type is to ensure that any
+   comparisons of the supplied and expected authentication tag occur in
+   constant time.
+
+   A constant-time comparison function SHOULD be used for the comparison
+   of authentication tags by any implementation of this security
+   context.  In cases where such a function is difficult or impossible
+   to use, the impact of side-channel attacks (in general) and timing
+   attacks (specifically) need to be considered as part of the
+   implementation.
+
+3.7.  Canonicalization Algorithms
+
+   This section defines the canonicalization algorithm used to prepare
+   the IPPT input to the BIB-HMAC-SHA2 integrity mechanism.  The
+   construction of the IPPT depends on the settings of the integrity
+   scope flags that can be provided as part of customizing the behavior
+   of this security context.
+
+   In all cases, the canonical form of any portion of an extension block
+   MUST be created as described in [RFC9172].  The canonicalization
+   algorithms defined in [RFC9172] adhere to the canonical forms for
+   extension blocks defined in [RFC9171] but resolve ambiguities related
+   to how values are represented in CBOR.
+
+   The IPPT is constructed using the following process.  While integrity
+   scope flags might not be included in the BIB representing the
+   security operation, they MUST be included in the IPPT value itself.
+
+   1.  The canonical form of the IPPT starts as the CBOR encoding of the
+       integrity scope flags in which all unset flags, reserved bits,
+       and unassigned bits have been set to 0.  For example, if the
+       primary block flag, target header flag, and security header flag
+       are each set, then the initial value of the canonical form of the
+       IPPT will be 0x07.
+
+   2.  If the primary block flag of the integrity scope flags is set to
+       1 and the security target is not the bundle's primary block, then
+       a canonical form of the bundle's primary block MUST be calculated
+       and the result appended to the IPPT.
+
+   3.  If the target header flag of the integrity scope flags is set to
+       1 and the security target is not the bundle's primary block, then
+       the canonical form of the block type code, block number, and
+       block processing control flags associated with the security
+       target MUST be calculated and, in that order, appended to the
+       IPPT.
+
+   4.  If the security header flag of the integrity scope flags is set
+       to 1, then the canonical form of the block type code, block
+       number, and block processing control flags associated with the
+       BIB MUST be calculated and, in that order, appended to the IPPT.
+
+   5.  The canonical form of the security target MUST be calculated and
+       appended to the IPPT.  If the security target is the primary
+       block, this is the canonical form of the primary block.
+       Otherwise, this is the canonical form of the block-type-specific
+       data of the security target.
+
+      |  NOTE: When the security target is the bundle's primary block,
+      |  the canonicalization steps associated with the primary block
+      |  flag and the target header flag are skipped.  Skipping primary
+      |  block flag processing, in this case, avoids adding the bundle's
+      |  primary block twice in the IPPT calculation.  Skipping target
+      |  header flag processing, in this case, is necessary because the
+      |  primary block of a bundle does not have the expected elements
+      |  of a block header such as block number and block processing
+      |  control flags.
+
+3.8.  Processing
+
+3.8.1.  Keyed Hash Generation
+
+   During keyed hash generation, two inputs are prepared for the
+   appropriate HMAC/SHA2 algorithm: the HMAC key and the IPPT.  These
+   data items MUST be generated as follows.
+
+   *  The HMAC key MUST have the appropriate length as required by local
+      security policy.  The key can be generated specifically for this
+      integrity service, given as part of local security policy, or
+      obtained through some other key management mechanism as discussed
+      in Section 3.5.
+
+   *  Prior to the generation of the IPPT, if a Cyclic Redundancy Check
+      (CRC) value is present for the target block of the BIB, then that
+      CRC value MUST be removed from the target block.  This involves
+      both removing the CRC value from the target block and setting the
+      CRC type field of the target block to "no CRC is present."
+
+   *  Once CRC information is removed, the IPPT MUST be generated as
+      discussed in Section 3.7.
+
+   Upon successful hash generation, the following action MUST occur.
+
+   *  The keyed hash produced by the HMAC/SHA2 variant MUST be added as
+      a security result for the BIB representing the security operation
+      on this security target, as discussed in Section 3.4.
+
+   Finally, the BIB containing information about this security operation
+   MUST be updated as follows.  These operations can occur in any order.
+
+   *  The security context identifier for the BIB MUST be set to the
+      context identifier for BIB-HMAC-SHA2.
+
+   *  Any local flags used to generate the IPPT MUST be placed in the
+      integrity scope flags security context parameter for the BIB
+      unless these flags are expected to be correctly configured at
+      security verifiers and acceptors in the network.
+
+   *  The HMAC key MAY be included as a security context parameter, in
+      which case it MUST be wrapped using the AES key wrap function as
+      defined in [RFC3394] and the results of the wrapping added as the
+      wrapped key security context parameter for the BIB.
+
+   *  The SHA variant used by this security context SHOULD be added as
+      the SHA variant security context parameter for the BIB if it
+      differs from the default key length.  Otherwise, this parameter
+      MAY be omitted if doing so provides a useful reduction in message
+      sizes.
+
+   Problems encountered in the keyed hash generation MUST be processed
+   in accordance with local BPSec security policy.
+
+3.8.2.  Keyed Hash Verification
+
+   During keyed hash verification, the input of the security target and
+   an HMAC key are provided to the appropriate HMAC/SHA2 algorithm.
+
+   During keyed hash verification, two inputs are prepared for the
+   appropriate HMAC/SHA2 algorithm: the HMAC key and the IPPT.  These
+   data items MUST be generated as follows.
+
+   *  The HMAC key MUST be derived using the wrapped key security
+      context parameter if such a parameter is included in the security
+      context parameters of the BIB.  Otherwise, this key MUST be
+      derived in accordance with security policy at the verifying node
+      as discussed in Section 3.5.
+
+   *  The IPPT MUST be generated as discussed in Section 3.7 with the
+      value of integrity scope flags being taken from the integrity
+      scope flags security context parameter.  If the integrity scope
+      flags parameter is not included in the security context
+      parameters, then these flags MAY be derived from local security
+      policy.
+
+   The calculated HMAC output MUST be compared to the expected HMAC
+   output encoded in the security results of the BIB for the security
+   target.  If the calculated HMAC and expected HMAC are identical, the
+   verification MUST be considered a success.  Otherwise, the
+   verification MUST be considered a failure.
+
+   If the verification fails or otherwise experiences an error or if any
+   needed parameters are missing, then the verification MUST be treated
+   as failed and processed in accordance with local security policy.
+
+   This security service is removed from the bundle at the security
+   acceptor as required by the BPSec specification [RFC9172].  If the
+   security acceptor is not the bundle destination and if no other
+   integrity service is being applied to the target block, then a CRC
+   MUST be included for the target block.  The CRC type, as determined
+   by policy, is set in the target block's CRC type field, and the
+   corresponding CRC value is added as the CRC field for that block.
+
+4.  Security Context BCB-AES-GCM
+
+4.1.  Overview
+
+   The BCB-AES-GCM security context replaces the block-type-specific
+   data field of its security target with ciphertext generated using the
+   Advanced Encryption Standard (AES) cipher operating in Galois/Counter
+   Mode (GCM) [AES-GCM].  The use of AES-GCM was selected as the cipher
+   suite for this confidentiality mechanism for several reasons:
+
+   1.  The selection of a symmetric-key cipher suite allows for
+       relatively smaller keys than asymmetric-key cipher suites.
+
+   2.  The selection of a symmetric-key cipher suite allows this
+       security context to be used in places where an asymmetric-key
+       infrastructure (such as a public key infrastructure) might be
+       impractical.
+
+   3.  The use of the Galois/Counter Mode produces ciphertext with the
+       same size as the plaintext making the replacement of target block
+       information easier as length fields do not need to be changed.
+
+   4.  The AES-GCM cipher suite provides authenticated encryption, as
+       required by the BPSec protocol.
+
+   Additionally, the BCB-AES-GCM security context generates an
+   authentication tag based on the plaintext value of the block-type-
+   specific data and other additional authenticated data (AAD) that
+   might be specified via parameters to this security context.
+
+   This security context supports two variants of AES-GCM, based on the
+   supported length of the symmetric key.  These variants correspond to
+   A128GCM and A256GCM as defined in Table 9 ("Algorithm Value for AES-
+   GCM") of [RFC8152].
+
+   The BCB-AES-GCM security context MUST have the security context
+   identifier specified in Section 5.1.
+
+4.2.  Scope
+
+   There are two scopes associated with BCB-AES-GCM: the scope of the
+   confidentiality service and the scope of the authentication service.
+   The first defines the set of information provided to the AES-GCM
+   cipher for the purpose of producing ciphertext.  The second defines
+   the set of information used to generate an authentication tag.
+
+   The scope of the confidentiality service defines the set of
+   information provided to the AES-GCM cipher for the purpose of
+   producing ciphertext.  This MUST be the full set of plaintext
+   contained in the block-type-specific data field of the security
+   target.
+
+   The scope of the authentication service defines the set of
+   information used to generate an authentication tag carried with the
+   security block.  This information contains all data protected by the
+   confidentiality service and the scope flags used to identify other
+   optional information; it MAY include other information (additional
+   authenticated data), as follows.
+
+   Primary block
+      The primary block identifies a bundle, and once created, the
+      contents of this block are immutable.  Changes to the primary
+      block associated with the security target indicate that the
+      security target (and BCB) might no longer be in the correct
+      bundle.
+
+      For example, if a security target and associated BCB are copied
+      from one bundle to another bundle, the BCB might still be able to
+      decrypt the security target even though these blocks were never
+      intended to exist in the copied-to bundle.
+
+      Including this information as part of additional authenticated
+      data ensures that the security target (and security block) appear
+      in the same bundle at the time of decryption as at the time of
+      encryption.
+
+   Other fields of the security target
+      The other fields of the security target include block
+      identification and processing information.  Changing this
+      information changes how the security target is treated by nodes in
+      the network even when the "user data" of the security target are
+      otherwise unchanged.
+
+      For example, if the block processing control flags of a security
+      target are different at a security verifier than they were
+      originally set at the security source, then the policy for
+      handling the security target has been modified.
+
+      Including this information as part of additional authenticated
+      data ensures that the ciphertext in the security target will not
+      be used with a different set of block policy than originally set
+      at the time of encryption.
+
+   Other fields of the BCB
+      The other fields of the BCB include block identification and
+      processing information.  Changing this information changes how the
+      BCB is treated by nodes in the network, even when other aspects of
+      the BCB are unchanged.
+
+      For example, if the block processing control flags of the BCB are
+      different at a security acceptor than they were originally set at
+      the security source, then the policy for handling the BCB has been
+      modified.
+
+      Including this information as part of additional authenticated
+      data ensures that the policy and identification of the security
+      service in the bundle has not changed.
+
+         |  NOTE: The security context identifier and security context
+         |  parameters of the security block are not included as
+         |  additional authenticated data because these parameters, by
+         |  definition, are those needed to verify or accept the
+         |  security service.  Therefore, it is expected that changes to
+         |  these values would result in failures at security verifiers
+         |  and security acceptors.  This is the case because keys
+         |  cannot be reused across security contexts and because the
+         |  AAD scope flags used to identify the AAD are included in the
+         |  AAD.
+
+   The scope of the BCB-AES-GCM security context is configured using an
+   optional security context parameter.
+
+4.3.  Parameters
+
+   BCB-AES-GCM can be parameterized to specify the AES variant,
+   initialization vector, key information, and identify additional
+   authenticated data.
+
+4.3.1.  Initialization Vector (IV)
+
+   This optional parameter identifies the initialization vector (IV)
+   used to initialize the AES-GCM cipher.
+
+   The length of the initialization vector, prior to any CBOR encoding,
+   MUST be between 8-16 bytes.  A value of 12 bytes SHOULD be used
+   unless local security policy requires a different length.
+
+   This value MUST be encoded as a CBOR byte string.
+
+   The initialization vector can have any value, with the caveat that a
+   value MUST NOT be reused for multiple encryptions using the same
+   encryption key.  This value MAY be reused when encrypting with
+   different keys.  For example, if each encryption operation using BCB-
+   AES-GCM uses a newly generated key, then the same IV can be reused.
+
+4.3.2.  AES Variant
+
+   This optional parameter identifies the AES variant being used for the
+   AES-GCM encryption, where the variant is identified by the length of
+   key used.
+
+   This value MUST be encoded as a CBOR unsigned integer.
+
+   Valid values for this parameter are as follows.
+
+           +=======+===========================================+
+           | Value |                Description                |
+           +=======+===========================================+
+           |   1   | A128GCM as defined in Table 9 ("Algorithm |
+           |       | Value for AES-GCM") of [RFC8152]          |
+           +-------+-------------------------------------------+
+           |   3   | A256GCM as defined in Table 9 ("Algorithm |
+           |       | Value for AES-GCM") of [RFC8152]          |
+           +-------+-------------------------------------------+
+
+                   Table 4: AES Variant Parameter Values
+
+   When not provided, implementations SHOULD assume a value of 3
+   (indicating use of A256GCM), unless an alternate default is
+   established by local security policy at the security source,
+   verifier, or acceptor of this integrity service.
+
+   Regardless of the variant, the generated authentication tag MUST
+   always be 128 bits.
+
+4.3.3.  Wrapped Key
+
+   This optional parameter contains the output of the AES key wrap
+   function as defined in [RFC3394].  Specifically, this parameter holds
+   the ciphertext produced when running this key wrap algorithm with the
+   input string being the symmetric AES key used to generate the
+   security results present in the security block.  The value of this
+   parameter is used as input to the AES key wrap authenticated
+   decryption function at security verifiers and security acceptors to
+   determine the symmetric AES key needed for the proper decryption of
+   the security results in the security block.
+
+   This value MUST be encoded as a CBOR byte string.
+
+   If this parameter is not present, then security verifiers and
+   acceptors MUST determine the proper key as a function of their local
+   BPSec policy and configuration.
+
+4.3.4.  AAD Scope Flags
+
+   This optional parameter contains a series of flags that describe what
+   information is to be included with the block-type-specific data of
+   the security target as part of additional authenticated data (AAD).
+
+   This value MUST be represented as a CBOR unsigned integer, the value
+   of which MUST be processed as a 16-bit field.  The maximum value of
+   this field, as a CBOR unsigned integer, MUST be 65535.
+
+   When not provided, implementations SHOULD assume a value of 7
+   (indicating all assigned fields), unless an alternate default is
+   established by local security policy at the security source,
+   verifier, or acceptor of this integrity service.
+
+   Implementations MUST set reserved and unassigned bits in this field
+   to 0 when constructing these flags at a security source.  Once set,
+   the value of this field MUST NOT be altered until the security
+   service is completed at the security acceptor in the network and
+   removed from the bundle.
+
+   Bits in this field represent additional information to be included
+   when generating an integrity signature over the security target.
+   These bits are defined as follows.
+
+   Bit 0 (the low-order bit, 0x0001):  Include primary block flag
+
+   Bit 1 (0x0002):  Include target header flag
+
+   Bit 2 (0x0004):  Include security header flag
+
+   Bits 3-7:  Reserved
+
+   Bits 8-15:  Unassigned
+
+4.3.5.  Enumerations
+
+   The BCB-AES-GCM security context parameters are listed in Table 5.
+   In this table, the "Parm Id" column refers to the expected parameter
+   identifier described in Section 3.10 ("Parameter and Result
+   Identification") of [RFC9172].
+
+   An empty "Default Value" column indicates that the security context
+   parameter does not have a default value.
+
+     +=========+================+====================+===============+
+     | Parm Id |   Parm Name    | CBOR Encoding Type | Default Value |
+     +=========+================+====================+===============+
+     |    1    | Initialization |    byte string     |               |
+     |         |     Vector     |                    |               |
+     +---------+----------------+--------------------+---------------+
+     |    2    |  AES Variant   |  unsigned integer  |       3       |
+     +---------+----------------+--------------------+---------------+
+     |    3    |  Wrapped Key   |    byte string     |               |
+     +---------+----------------+--------------------+---------------+
+     |    4    |   AAD Scope    |  unsigned integer  |       7       |
+     |         |     Flags      |                    |               |
+     +---------+----------------+--------------------+---------------+
+
+              Table 5: BCB-AES-GCM Security Context Parameters
+
+4.4.  Results
+
+   The BCB-AES-GCM security context produces a single security result
+   carried in the security block: the authentication tag.
+
+   NOTES:
+
+   *  The ciphertext generated by the cipher suite is not considered a
+      security result as it is stored in the block-type-specific data
+      field of the security target block.  When operating in GCM mode,
+      AES produces ciphertext of the same size as its plaintext;
+      therefore, no additional logic is required to handle padding or
+      overflow caused by the encryption in most cases.
+
+   *  If the authentication tag can be separated from the ciphertext,
+      then the tag MAY be separated and stored in the authentication tag
+      security result field.  Otherwise, the security target block MUST
+      be resized to accommodate the additional 128 bits of
+      authentication tag included with the generated ciphertext
+      replacing the block-type-specific data field of the security
+      target block.
+
+4.4.1.  Authentication Tag
+
+   The authentication tag is generated by the cipher suite over the
+   security target plaintext input to the cipher suite as combined with
+   any optional additional authenticated data.  This tag is used to
+   ensure that the plaintext (and important information associated with
+   the plaintext) is authenticated prior to decryption.
+
+   If the authentication tag is included in the ciphertext placed in the
+   security target block-type-specific data field, then this security
+   result MUST NOT be included in the BCB for that security target.
+
+   The length of the authentication tag, prior to any CBOR encoding,
+   MUST be 128 bits.
+
+   This value MUST be encoded as a CBOR byte string.
+
+4.4.2.  Enumerations
+
+   The BCB-AES-GCM security context results are listed in Table 6.  In
+   this table, the "Result Id" column refers to the expected result
+   identifier described in Section 3.10 ("Parameter and Result
+   Identification") of [RFC9172].
+
+          +===========+====================+====================+
+          | Result Id |    Result Name     | CBOR Encoding Type |
+          +===========+====================+====================+
+          |     1     | Authentication Tag |    byte string     |
+          +-----------+--------------------+--------------------+
+
+                   Table 6: BCB-AES-GCM Security Results
+
+4.5.  Key Considerations
+
+   Keys used with this context MUST be symmetric and MUST have a key
+   length equal to the key length defined in the security context
+   parameters or as defined by local security policy at security
+   verifiers and acceptors.  For this reason, content-encrypting key
+   lengths will be integers divisible by 8 bytes, and special padding-
+   aware AES key wrap algorithms are not needed.
+
+   It is assumed that any security verifier or security acceptor can
+   determine the proper key to be used.  Potential sources of the key
+   include (but are not limited to) the following.
+
+   *  Pre-placed keys selected based on local policy.
+
+   *  Keys extracted from material carried in the BCB.
+
+   *  Session keys negotiated via a mechanism external to the BCB.
+
+   When an AES-KW wrapped key is present in a security block, it is
+   assumed that security verifiers and security acceptors can
+   independently determine the KEK used in the wrapping of the symmetric
+   AES content-encrypting key.
+
+   The security provided by block ciphers is reduced as more data is
+   processed with the same key.  The total number of AES blocks
+   processed with a single key for AES-GCM is recommended to be less
+   than 2^64, as described in Appendix B of [AES-GCM].
+
+   Additionally, there exist limits on the number of encryptions that
+   can be performed with the same key.  The total number of invocations
+   of the authenticated encryption function with a single key for AES-
+   GCM is required to not exceed 2^32, as described in Section 8.3 of
+   [AES-GCM].
+
+   As discussed in Section 6 and emphasized here, it is strongly
+   recommended that keys be protected once generated, both when they are
+   stored and when they are transmitted.
+
+4.6.  GCM Considerations
+
+   The GCM cryptographic mode of AES has specific requirements that MUST
+   be followed by implementers for the secure function of the BCB-AES-
+   GCM security context.  While these requirements are well documented
+   in [AES-GCM], some of them are repeated here for emphasis.
+
+   *  With the exception of the AES-KW function, the IVs used by the
+      BCB-AES-GCM security context are considered to be per-invocation
+      IVs.  The pairing of a per-invocation IV and a security key MUST
+      be unique.  A per-invocation IV MUST NOT be used with a security
+      key more than one time.  If a per-invocation IV and key pair are
+      repeated, then the GCM implementation is vulnerable to forgery
+      attacks.  Because the loss of integrity protection occurs with
+      even a single reuse, this situation is often considered to have
+      catastrophic security consequences.  More information regarding
+      the importance of the uniqueness of the IV value can be found in
+      Appendix A of [AES-GCM].
+
+      Methods of generating unique IV values are provided in Section 8
+      of [AES-GCM].  For example, one method decomposes the IV value
+      into a fixed field and an invocation field.  The fixed field is a
+      constant value associated with a device, and the invocation field
+      changes on each invocation (such as by incrementing an integer
+      counter).  Implementers SHOULD carefully read all relevant
+      sections of [AES-GCM] when generating any mechanism to create
+      unique IVs.
+
+   *  The AES-KW function used to wrap keys for the security contexts in
+      this document uses a single, globally constant IV input to the AES
+      cipher operation and thus is distinct from the aforementioned
+      requirement related to per-invocation IVs.
+
+   *  While any tag-based authentication mechanism has some likelihood
+      of being forged, this probability is increased when using AES-GCM.
+      In particular, short tag lengths combined with very long messages
+      SHOULD be avoided when using this mode.  The BCB-AES-GCM security
+      context requires the use of 128-bit authentication tags at all
+      times.  Concerns relating to the size of authentication tags is
+      discussed in Appendices B and C of [AES-GCM].
+
+   *  As discussed in Appendix B of [AES-GCM], implementations SHOULD
+      limit the number of unsuccessful verification attempts for each
+      key to reduce the likelihood of guessing tag values.  This type of
+      check has potential state-keeping issues when AES-KW is used,
+      since an attacker could cause a large number of keys to be used at
+      least once.
+
+   *  As discussed in Section 8 ("Security Considerations") of
+      [RFC9172], delay-tolerant networks have a higher occurrence of
+      replay attacks due to the store-and-forward nature of the network.
+      Because GCM has no inherent replay attack protection, implementors
+      SHOULD attempt to detect replay attacks by using mechanisms such
+      as those described in Appendix D of [AES-GCM].
+
+4.7.  Canonicalization Algorithms
+
+   This section defines the canonicalization algorithms used to prepare
+   the inputs used to generate both the ciphertext and the
+   authentication tag.
+
+   In all cases, the canonical form of any portion of an extension block
+   MUST be created as described in [RFC9172].  The canonicalization
+   algorithms defined in [RFC9172] adhere to the canonical forms for
+   extension blocks defined in [RFC9171] but resolve ambiguities related
+   to how values are represented in CBOR.
+
+4.7.1.  Calculations Related to Ciphertext
+
+   The BCB operates over the block-type-specific data of a block, but
+   the BP always encodes these data within a single, definite-length
+   CBOR byte string.  Therefore, the plaintext used during encryption
+   MUST be calculated as the value of the block-type-specific data field
+   of the security target excluding the BP CBOR encoding.
+
+   Table 7 shows two CBOR-encoded examples and the plaintext that would
+   be extracted from them.  The first example is an unsigned integer,
+   while the second is a byte string.
+
+    +==============================+=======+==========================+
+    |     CBOR Encoding (Hex)      |  CBOR |   Plaintext Part (Hex)   |
+    |                              |  Part |                          |
+    |                              | (Hex) |                          |
+    +==============================+=======+==========================+
+    |             18ED             |   18  |            ED            |
+    +------------------------------+-------+--------------------------+
+    | C24CDEADBEEFDEADBEEFDEADBEEF |  C24C | DEADBEEFDEADBEEFDEADBEEF |
+    +------------------------------+-------+--------------------------+
+
+                Table 7: CBOR Plaintext Extraction Examples
+
+   The ciphertext used during decryption MUST be calculated as the
+   single, definite-length CBOR byte string representing the block-type-
+   specific data field excluding the CBOR byte string identifying byte
+   and optional CBOR byte string length field.
+
+   All other fields of the security target (such as the block type code,
+   block number, block processing control flags, or any CRC information)
+   MUST NOT be considered as part of encryption or decryption.
+
+4.7.2.  Additional Authenticated Data
+
+   The construction of additional authenticated data depends on the AAD
+   scope flags that can be provided as part of customizing the behavior
+   of this security context.
+
+   The canonical form of the AAD input to the BCB-AES-GCM mechanism is
+   constructed using the following process.  While the AAD scope flags
+   might not be included in the BCB representing the security operation,
+   they MUST be included in the AAD value itself.  This process MUST be
+   followed when generating AAD for either encryption or decryption.
+
+   1.  The canonical form of the AAD starts as the CBOR encoding of the
+       AAD scope flags in which all unset flags, reserved bits, and
+       unassigned bits have been set to 0.  For example, if the primary
+       block flag, target header flag, and security header flag are each
+       set, then the initial value of the canonical form of the AAD will
+       be 0x07.
+
+   2.  If the primary block flag of the AAD scope flags is set to 1,
+       then a canonical form of the bundle's primary block MUST be
+       calculated and the result appended to the AAD.
+
+   3.  If the target header flag of the AAD scope flags is set to 1,
+       then the canonical form of the block type code, block number, and
+       block processing control flags associated with the security
+       target MUST be calculated and, in that order, appended to the
+       AAD.
+
+   4.  If the security header flag of the AAD scope flags is set to 1,
+       then the canonical form of the block type code, block number, and
+       block processing control flags associated with the BIB MUST be
+       calculated and, in that order, appended to the AAD.
+
+4.8.  Processing
+
+4.8.1.  Encryption
+
+   During encryption, four data elements are prepared for input to the
+   AES-GCM cipher: the encryption key, the IV, the security target
+   plaintext to be encrypted, and any additional authenticated data.
+   These data items MUST be generated as follows.
+
+   Prior to encryption, if a CRC value is present for the target block,
+   then that CRC value MUST be removed.  This requires removing the CRC
+   field from the target block and setting the CRC type field of the
+   target block to "no CRC is present."
+
+   *  The encryption key MUST have the appropriate length as required by
+      local security policy.  The key might be generated specifically
+      for this encryption, given as part of local security policy, or
+      obtained through some other key management mechanism as discussed
+      in Section 4.5.
+
+   *  The IV selected MUST be of the appropriate length.  Because
+      replaying an IV in counter mode voids the confidentiality of all
+      messages encrypted with said IV, this context also requires a
+      unique IV for every encryption performed with the same key.  This
+      means the same key and IV combination MUST NOT be used more than
+      once.
+
+   *  The security target plaintext for encryption MUST be generated as
+      discussed in Section 4.7.1.
+
+   *  Additional authenticated data MUST be generated as discussed in
+      Section 4.7.2, with the value of AAD scope flags being taken from
+      local security policy.
+
+   Upon successful encryption, the following actions MUST occur.
+
+   *  The ciphertext produced by AES-GCM MUST replace the bytes used to
+      define the plaintext in the security target block's block-type-
+      specific data field.  The block length of the security target MUST
+      be updated if the generated ciphertext is larger than the
+      plaintext (which can occur when the authentication tag is included
+      in the ciphertext calculation, as discussed in Section 4.4).
+
+   *  The authentication tag calculated by the AES-GCM cipher MAY be
+      added as a security result for the security target in the BCB
+      holding results for this security operation, in which case it MUST
+      be processed as described in Section 4.4.
+
+   *  The authentication tag MUST be included either as a security
+      result in the BCB representing the security operation or (with the
+      ciphertext) in the security target block-type-specific data field.
+
+   Finally, the BCB containing information about this security operation
+   MUST be updated as follows.  These operations can occur in any order.
+
+   *  The security context identifier for the BCB MUST be set to the
+      context identifier for BCB-AES-GCM.
+
+   *  The IV input to the cipher MUST be added as the IV security
+      context parameter for the BCB.
+
+   *  Any local flags used to generate AAD for this cipher MUST be
+      placed in the AAD scope flags security context parameter for the
+      BCB unless these flags are expected to be correctly configured at
+      security verifiers and security acceptors in the network.
+
+   *  The encryption key MAY be included as a security context
+      parameter, in which case it MUST be wrapped using the AES key wrap
+      function as defined in [RFC3394] and the results of the wrapping
+      added as the wrapped key security context parameter for the BCB.
+
+   *  The AES variant used by this security context SHOULD be added as
+      the AES variant security context parameter for the BCB if it
+      differs from the default key length.  Otherwise, this parameter
+      MAY be omitted if doing so provides a useful reduction in message
+      sizes.
+
+   Problems encountered in the encryption MUST be processed in
+   accordance with local security policy.  This MAY include restoring a
+   CRC value removed from the target block prior to encryption, if the
+   target block is allowed to be transmitted after an encryption error.
+
+4.8.2.  Decryption
+
+   During decryption, five data elements are prepared for input to the
+   AES-GCM cipher: the decryption key, the IV, the security target
+   ciphertext to be decrypted, any additional authenticated data, and
+   the authentication tag generated from the original encryption.  These
+   data items MUST be generated as follows.
+
+   *  The decryption key MUST be derived using the wrapped key security
+      context parameter if such a parameter is included in the security
+      context parameters of the BCB.  Otherwise, this key MUST be
+      derived in accordance with local security policy at the decrypting
+      node as discussed in Section 4.5.
+
+   *  The IV MUST be set to the value of the IV security context
+      parameter included in the BCB.  If the IV parameter is not
+      included as a security context parameter, an IV MAY be derived as
+      a function of local security policy and other BCB contents, or a
+      lack of an IV security context parameter in the BCB MAY be treated
+      as an error by the decrypting node.
+
+   *  The security target ciphertext for decryption MUST be generated as
+      discussed in Section 4.7.1.
+
+   *  Additional authenticated data MUST be generated as discussed in
+      Section 4.7.2 with the value of AAD scope flags being taken from
+      the AAD scope flags security context parameter.  If the AAD scope
+      flags parameter is not included in the security context
+      parameters, then these flags MAY be derived from local security
+      policy in cases where the set of such flags is determinable in the
+      network.
+
+   *  The authentication tag MUST be present either as a security result
+      in the BCB representing the security operation or (with the
+      ciphertext) in the security target block-type-specific data field.
+
+   Upon successful decryption, the following action MUST occur.
+
+   *  The plaintext produced by AES-GCM MUST replace the bytes used to
+      define the ciphertext in the security target block's block-type-
+      specific data field.  Any changes to the security target block
+      length field MUST be corrected in cases where the plaintext has a
+      different length than the replaced ciphertext.
+
+   If the security acceptor is not the bundle destination and if no
+   other integrity or confidentiality service is being applied to the
+   target block, then a CRC MUST be included for the target block.  The
+   CRC type, as determined by policy, is set in the target block's CRC
+   type field and the corresponding CRC value is added as the CRC field
+   for that block.
+
+   If the ciphertext fails to authenticate, if any needed parameters are
+   missing, or if there are other problems in the decryption, then the
+   decryption MUST be treated as failed and processed in accordance with
+   local security policy.
+
+5.  IANA Considerations
+
+5.1.  Security Context Identifiers
+
+   This specification allocates two security context identifiers from
+   the "BPSec Security Context Identifiers" registry defined in
+   [RFC9172].
+
+                   +=======+===============+===========+
+                   | Value | Description   | Reference |
+                   +=======+===============+===========+
+                   |   1   | BIB-HMAC-SHA2 | RFC 9173  |
+                   +-------+---------------+-----------+
+                   |   2   | BCB-AES-GCM   | RFC 9173  |
+                   +-------+---------------+-----------+
+
+                      Table 8: Additional Entries for
+                         the BPSec Security Context
+                            Identifiers Registry
+
+5.2.  Integrity Scope Flags
+
+   The BIB-HMAC-SHA2 security context has an Integrity Scope Flags field
+   for which IANA has created and now maintains a new registry named
+   "BPSec BIB-HMAC-SHA2 Integrity Scope Flags" on the "Bundle Protocol"
+   registry page.  Table 9 shows the initial values for this registry.
+
+   The registration policy for this registry is Specification Required
+   [RFC8126].
+
+   The value range is unsigned 16-bit integer.
+
+      +==============================+==================+===========+
+      | Bit Position (right to left) | Description      | Reference |
+      +==============================+==================+===========+
+      |              0               | Include primary  | RFC 9173  |
+      |                              | block flag       |           |
+      +------------------------------+------------------+-----------+
+      |              1               | Include target   | RFC 9173  |
+      |                              | header flag      |           |
+      +------------------------------+------------------+-----------+
+      |              2               | Include security | RFC 9173  |
+      |                              | header flag      |           |
+      +------------------------------+------------------+-----------+
+      |             3-7              | Reserved         | RFC 9173  |
+      +------------------------------+------------------+-----------+
+      |             8-15             | Unassigned       |           |
+      +------------------------------+------------------+-----------+
+
+        Table 9: BPSec BIB-HMAC-SHA2 Integrity Scope Flags Registry
+
+5.3.  AAD Scope Flags
+
+   The BCB-AES-GCM security context has an AAD Scope Flags field for
+   which IANA has created and now maintains a new registry named "BPSec
+   BCB-AES-GCM AAD Scope Flags" on the "Bundle Protocol" registry page.
+   Table 10 shows the initial values for this registry.
+
+   The registration policy for this registry is Specification Required.
+
+   The value range is unsigned 16-bit integer.
+
+      +==============================+==================+===========+
+      | Bit Position (right to left) | Description      | Reference |
+      +==============================+==================+===========+
+      |              0               | Include primary  | RFC 9173  |
+      |                              | block flag       |           |
+      +------------------------------+------------------+-----------+
+      |              1               | Include target   | RFC 9173  |
+      |                              | header flag      |           |
+      +------------------------------+------------------+-----------+
+      |              2               | Include security | RFC 9173  |
+      |                              | header flag      |           |
+      +------------------------------+------------------+-----------+
+      |             3-7              | Reserved         | RFC 9173  |
+      +------------------------------+------------------+-----------+
+      |             8-15             | Unassigned       |           |
+      +------------------------------+------------------+-----------+
+
+            Table 10: BPSec BCB-AES-GCM AAD Scope Flags Registry
+
+5.4.  Guidance for Designated Experts
+
+   New assignments within the "BPSec BIB-HMAC-SHA2 Integrity Scope
+   Flags" and "BPSec BCB-AES-GCM AAD Scope Flags" registries require
+   review by a Designated Expert (DE).  This section provides guidance
+   to the DE when performing their reviews.  Specifically, a DE is
+   expected to perform the following activities.
+
+   *  Ascertain the existence of suitable documentation (a
+      specification) as described in [RFC8126] and verify that the
+      document is permanently and publicly available.
+
+   *  Ensure that any changes to the "BPSec BIB-HMAC-SHA2 Integrity
+      Scope Flags" registry clearly state how new assignments interact
+      with existing flags and how the inclusion of new assignments
+      affects the construction of the IPPT value.
+
+   *  Ensure that any changes to the "BPSec BCB-AES-GCM AAD Scope Flags"
+      registry clearly state how new assignments interact with existing
+      flags and how the inclusion of new assignments affects the
+      construction of the AAD input to the BCB-AES-GCM mechanism.
+
+   *  Ensure that any processing changes proposed with new assignments
+      do not alter any required behavior in this specification.
+
+6.  Security Considerations
+
+   Security considerations specific to a single security context are
+   provided in the description of that context (see Sections 3 and 4).
+   This section discusses security considerations that should be
+   evaluated by implementers of any security context described in this
+   document.  Considerations can also be found in documents listed as
+   normative references and should also be reviewed by security context
+   implementors.
+
+6.1.  Key Management
+
+   The delayed and disrupted nature of Delay-Tolerant Networking (DTN)
+   complicates the process of key management because there might not be
+   reliable, timely, round-trip exchange between security sources,
+   security verifiers, and security acceptors in the network.  This is
+   true when there is a substantial signal propagation delay between
+   nodes, when nodes are in a highly challenged communications
+   environment, and when nodes do not support bidirectional
+   communication.
+
+   In these environments, key establishment protocols that rely on
+   round-trip information exchange might not converge on a shared secret
+   in a timely manner (or at all).  Also, key revocation or key
+   verification mechanisms that rely on access to a centralized
+   authority (such as a certificate authority) might similarly fail in
+   the stressing conditions of DTN.
+
+   For these reasons, the default security contexts described in this
+   document rely on symmetric-key cryptographic mechanisms because
+   asymmetric-key infrastructure (such as a public key infrastructure)
+   might be impractical in this environment.
+
+   BPSec assumes that "key management is handled as a separate part of
+   network management" [RFC9172].  This assumption is also made by the
+   security contexts defined in this document, which do not define new
+   protocols for key derivation, exchange of KEKs, revocation of
+   existing keys, or the security configuration or policy used to select
+   certain keys for certain security operations.
+
+   Nodes using these security contexts need to perform the following
+   kinds of activities, independent of the construction, transmission,
+   and processing of BPSec security blocks.
+
+   *  Establish shared KEKs with other nodes in the network using an
+      out-of-band mechanism.  This might include pre-sharing of KEKs or
+      the use of older key establishment mechanisms prior to the
+      exchange of BPSec security blocks.
+
+   *  Determine when a key is considered exhausted and no longer to be
+      used in the generation, verification, or acceptance of a security
+      block.
+
+   *  Determine when a key is considered invalid and no longer to be
+      used in the generation, verification, or acceptance of a security
+      block.  Such revocations can be based on a variety of mechanisms,
+      including local security policy, time relative to the generation
+      or use of the key, or other mechanisms specified through network
+      management.
+
+   *  Determine, through an out-of-band mechanism such as local security
+      policy, what keys are to be used for what security blocks.  This
+      includes the selection of which key should be used in the
+      evaluation of a security block received by a security verifier or
+      a security acceptor.
+
+   The failure to provide effective key management techniques
+   appropriate for the operational networking environment can result in
+   the compromise of those unmanaged keys and the loss of security
+   services in the network.
+
+6.2.  Key Handling
+
+   Once generated, keys should be handled as follows.
+
+   *  It is strongly RECOMMENDED that implementations protect keys both
+      when they are stored and when they are transmitted.
+
+   *  In the event that a key is compromised, any security operations
+      using a security context associated with that key SHOULD also be
+      considered compromised.  This means that the BIB-HMAC-SHA2
+      security context SHOULD NOT be treated as providing integrity when
+      used with a compromised key, and BCB-AES-GCM SHOULD NOT be treated
+      as providing confidentiality when used with a compromised key.
+
+   *  The same key, whether a KEK or a wrapped key, MUST NOT be used for
+      different algorithms as doing so might leak information about the
+      key.
+
+   *  A KEK MUST NOT be used to encrypt keys for different security
+      contexts.  Any KEK used by a security context defined in this
+      document MUST only be used to wrap keys associated with security
+      operations using that security context.  This means that a
+      compliant security source would not use the same KEK to wrap keys
+      for both the BIB-HMAC-SHA2 and BCB-AES-GCM security contexts.
+      Similarly, any compliant security verifier or security acceptor
+      would not use the same KEK to unwrap keys for different security
+      contexts.
+
+6.3.  AES GCM
+
+   There are a significant number of considerations related to the use
+   of the GCM mode of AES to provide a confidentiality service.  These
+   considerations are provided in Section 4.6 as part of the
+   documentation of the BCB-AES-GCM security context.
+
+   The length of the ciphertext produced by the GCM mode of AES will be
+   equal to the length of the plaintext input to the cipher suite.  The
+   authentication tag also produced by this cipher suite is separate
+   from the ciphertext.  However, it should be noted that
+   implementations of the AES-GCM cipher suite might not separate the
+   concept of ciphertext and authentication tag in their Application
+   Programming Interface (API).
+
+   Implementations of the BCB-AES-GCM security context can either keep
+   the length of the target block unchanged by holding the
+   authentication tag in a BCB security result or alter the length of
+   the target block by including the authentication tag with the
+   ciphertext replacing the block-type-specific data field of the target
+   block.  Implementations MAY use the authentication tag security
+   result in cases where keeping target block length unchanged is an
+   important processing concern.  In all cases, the ciphertext and
+   authentication tag MUST be processed in accordance with the API of
+   the AES-GCM cipher suites at the security source and security
+   acceptor.
+
+6.4.  AES Key Wrap
+
+   The AES-KW algorithm used by the security contexts in this document
+   does not use a per-invocation initialization vector and does not
+   require any key padding.  Key padding is not needed because wrapped
+   keys used by these security contexts will always be multiples of 8
+   bytes.  The length of the wrapped key can be determined by inspecting
+   the security context parameters.  Therefore, a key can be unwrapped
+   using only the information present in the security block and the KEK
+   provided by local security policy at the security verifier or
+   security acceptor.
+
+6.5.  Bundle Fragmentation
+
+   Bundle fragmentation might prevent security services in a bundle from
+   being verified after a bundle is fragmented and before the bundle is
+   re-assembled.  Examples of potential issues include the following.
+
+   *  If a security block and its security target do not exist in the
+      same fragment, then the security block cannot be processed until
+      the bundle is re-assembled.  If a fragment includes an encrypted
+      target block, but not its BCB, then a receiving Bundle Protocol
+      Agent (BPA) will not know that the target block has been
+      encrypted.
+
+   *  A security block can be cryptographically bound to a bundle by
+      setting the integrity scope flags (for BIB-HMAC-SHA2) or the AAD
+      scope flags (for BCB-AES-GCM) to include the bundle primary block.
+      When a security block is cryptographically bound to a bundle, it
+      cannot be processed even if the security block and target both
+      coexist in the fragment.  This is because fragments have different
+      primary blocks than the original bundle.
+
+   *  If security blocks and their target blocks are repeated in
+      multiple fragments, policy needs to determine how to deal with
+      issues where a security operation verifies in one fragment but
+      fails in another fragment.  This might happen, for example, if a
+      BIB block becomes corrupted in one fragment but not in another
+      fragment.
+
+   Implementors should consider how security blocks are processed when a
+   BPA fragments a received bundle.  For example, security blocks and
+   their targets could be placed in the same fragment if the security
+   block is not otherwise cryptographically bound to the bundle being
+   fragmented.  Alternatively, if security blocks are cryptographically
+   bound to a bundle, then a fragmenting BPA should consider
+   encapsulating the bundle first and then fragmenting the encapsulating
+   bundle.
+
+7.  Normative References
+
+   [AES-GCM]  Dworkin, M., "Recommendation for Block Cipher Modes of
+              Operation: Galois/Counter Mode (GCM) and GMAC", NIST
+              Special Publication 800-38D, DOI 10.6028/NIST.SP.800-38D,
+              November 2007, <https://doi.org/10.6028/NIST.SP.800-38D>.
+
+   [RFC2104]  Krawczyk, H., Bellare, M., and R. Canetti, "HMAC: Keyed-
+              Hashing for Message Authentication", RFC 2104,
+              DOI 10.17487/RFC2104, February 1997,
+              <https://www.rfc-editor.org/info/rfc2104>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3394]  Schaad, J. and R. Housley, "Advanced Encryption Standard
+              (AES) Key Wrap Algorithm", RFC 3394, DOI 10.17487/RFC3394,
+              September 2002, <https://www.rfc-editor.org/info/rfc3394>.
+
+   [RFC8126]  Cotton, M., Leiba, B., and T. Narten, "Guidelines for
+              Writing an IANA Considerations Section in RFCs", BCP 26,
+              RFC 8126, DOI 10.17487/RFC8126, June 2017,
+              <https://www.rfc-editor.org/info/rfc8126>.
+
+   [RFC8152]  Schaad, J., "CBOR Object Signing and Encryption (COSE)",
+              RFC 8152, DOI 10.17487/RFC8152, July 2017,
+              <https://www.rfc-editor.org/info/rfc8152>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8742]  Bormann, C., "Concise Binary Object Representation (CBOR)
+              Sequences", RFC 8742, DOI 10.17487/RFC8742, February 2020,
+              <https://www.rfc-editor.org/info/rfc8742>.
+
+   [RFC8949]  Bormann, C. and P. Hoffman, "Concise Binary Object
+              Representation (CBOR)", STD 94, RFC 8949,
+              DOI 10.17487/RFC8949, December 2020,
+              <https://www.rfc-editor.org/info/rfc8949>.
+
+   [RFC9171]  Burleigh, S., Fall, K., and E. Birrane, III, "Bundle
+              Protocol Version 7", RFC 9171, DOI 10.17487/RFC9171,
+              January 2022, <https://www.rfc-editor.org/rfc/rfc9171>.
+
+   [RFC9172]  Birrane, III, E. and K. McKeever, "Bundle Protocol
+              Security (BPSec)", RFC 9172, DOI 10.17487/RFC9172, January
+              2022, <https://www.rfc-editor.org/rfc/rfc9172>.
+
+   [SHS]      National Institute of Standards and Technology, "Secure
+              Hash Standard (SHS)", FIPS PUB 180-4,
+              DOI 10.6028/NIST.FIPS.180-4, August 2015,
+              <https://csrc.nist.gov/publications/detail/fips/180/4/
+              final>.
+
+Appendix A.  Examples
+
+   This appendix is informative.
+
+   This appendix presents a series of examples of constructing BPSec
+   security blocks (using the security contexts defined in this
+   document) and adding those blocks to a sample bundle.
+
+   The examples presented in this appendix represent valid constructions
+   of bundles, security blocks, and the encoding of security context
+   parameters and results.  For this reason, they can inform unit test
+   suites for individual implementations as well as interoperability
+   test suites amongst implementations.  However, these examples do not
+   cover every permutation of security context parameters, security
+   results, or use of security blocks in a bundle.
+
+   NOTES:
+
+   *  The bundle diagrams in this appendix are patterned after the
+      bundle diagrams used in Section 3.11 ("BPSec Block Examples") of
+      [RFC9172].
+
+   *  Figures in this appendix identified as "(CBOR Diagnostic
+      Notation)" are represented using the CBOR diagnostic notation
+      defined in [RFC8949].  This notation is used to express CBOR data
+      structures in a manner that enables visual inspection.  The
+      bundles, security blocks, and security context contents in these
+      figures are represented using CBOR structures.  In cases where BP
+      blocks (to include BPSec security blocks) are comprised of a
+      sequence of CBOR objects, these objects are represented as a CBOR
+      sequence as defined in [RFC8742].
+
+   *  Examples in this appendix use the "ipn" URI scheme for endpoint ID
+      naming, as defined in [RFC9171].
+
+   *  The bundle source is presumed to be the security source for all
+      security blocks in this appendix, unless otherwise noted.
+
+A.1.  Example 1 - Simple Integrity
+
+   This example shows the addition of a BIB to a sample bundle to
+   provide integrity for the payload block.
+
+A.1.1.  Original Bundle
+
+   The following diagram shows the original bundle before the BIB has
+   been added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Payload Block                         |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                   Figure 1: Example 1 - Original Bundle
+
+A.1.1.1.  Primary Block
+
+   The Bundle Protocol version 7 (BPv7) bundle has no special block and
+   bundle processing control flags, and no CRC is provided because the
+   primary block is expected to be protected by an integrity service BIB
+   using the BIB-HMAC-SHA2 security context.
+
+   The bundle is sourced at the source node ipn:2.1 and destined for the
+   destination node ipn:1.2.  The bundle creation time is set to 0,
+   indicating lack of an accurate clock, with a sequence number of 40.
+   The lifetime of the bundle is given as 1,000,000 milliseconds since
+   the bundle creation time.
+
+   The primary block is provided as follows.
+
+   [
+     7,           / BP version            /
+     0,           / flags                 /
+     0,           / CRC type              /
+     [2, [1,2]],  / destination (ipn:1.2) /
+     [2, [2,1]],  / source      (ipn:2.1) /
+     [2, [2,1]],  / report-to   (ipn:2.1) /
+     [0, 40],     / timestamp             /
+     1000000      / lifetime              /
+   ]
+
+             Figure 2: Primary Block (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the primary block is:
+
+   0x88070000820282010282028202018202820201820018281a000f4240
+
+A.1.1.2.  Payload Block
+
+   Other than its use as a source of plaintext for security blocks, the
+   payload has no required distinguishing characteristic for the purpose
+   of this example.  The sample payload is a 35-byte string.
+
+   The payload is represented in the payload block as a byte string of
+   the raw payload string.  It is NOT represented as a CBOR text string
+   wrapped within a CBOR binary string.  The hex value of the payload
+   is:
+
+   0x526561647920746f2067656e657261746520612033322d62797465207061796c6f
+   6164
+
+   The payload block is provided as follows.
+
+   [
+     1,                       / type code: Payload block       /
+     1,                       / block number                   /
+     0,                       / block processing control flags /
+     0,                       / CRC type                       /
+     h'526561647920746f206765 / type-specific-data: payload    /
+     6e657261746520612033322d
+     62797465207061796c6f6164'
+   ]
+
+             Figure 3: Payload Block (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the payload block is:
+
+   0x85010100005823526561647920746f2067656e657261746520612033322d627974
+   65207061796c6f6164
+
+A.1.1.3.  Bundle CBOR Representation
+
+   A BPv7 bundle is represented as an indefinite-length array consisting
+   of the blocks comprising the bundle, with a terminator character at
+   the end.
+
+   The CBOR encoding of the original bundle is:
+
+   0x9f88070000820282010282028202018202820201820018281a000f424085010100
+   005823526561647920746f2067656e657261746520612033322d6279746520706179
+   6c6f6164ff
+
+A.1.2.  Security Operation Overview
+
+   This example adds a BIB to the bundle using the BIB-HMAC-SHA2
+   security context to provide an integrity mechanism over the payload
+   block.
+
+   The following diagram shows the resulting bundle after the BIB is
+   added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Block Integrity Block                 |   11  |    2   |
+        |  OP(bib-integrity, target=1)           |       |        |
+        +----------------------------------------+-------+--------+
+        |  Payload Block                         |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                   Figure 4: Example 1 - Resulting Bundle
+
+A.1.3.  Block Integrity Block
+
+   In this example, a BIB is used to carry an integrity signature over
+   the payload block.
+
+A.1.3.1.  Configuration, Parameters, and Results
+
+   For this example, the following configuration and security context
+   parameters are used to generate the security results indicated.
+
+   This BIB has a single target and includes a single security result:
+   the calculated signature over the payload block.
+
+             Key         : h'1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b'
+             SHA Variant : HMAC 512/512
+             Scope Flags : 0x00
+             Payload Data: h'526561647920746f2067656e65726174
+                             6520612033322d62797465207061796c
+                             6f6164'
+             IPPT        : h'005823526561647920746f2067656e65
+                             7261746520612033322d627974652070
+                             61796c6f6164'
+             Signature   : h'3bdc69b3a34a2b5d3a8554368bd1e808
+                             f606219d2a10a846eae3886ae4ecc83c
+                             4ee550fdfb1cc636b904e2f1a73e303d
+                             cd4b6ccece003e95e8164dcc89a156e1'
+
+        Figure 5: Example 1 - Configuration, Parameters, and Results
+
+A.1.3.2.  Abstract Security Block
+
+   The abstract security block structure of the BIB's block-type-
+   specific data field for this application is as follows.
+
+   [1],           / Security Target        - Payload block       /
+   1,             / Security Context ID    - BIB-HMAC-SHA2       /
+   1,             / Security Context Flags - Parameters Present  /
+   [2,[2, 1]],    / Security Source        - ipn:2.1             /
+   [              / Security Parameters    - 2 Parameters        /
+      [1, 7],     / SHA Variant            - HMAC 512/512        /
+      [3, 0x00]   / Scope Flags            - No Additional Scope /
+   ],
+   [              / Security Results: 1 Result                   /
+     [            / Target 1 Results                             /
+       [1, h'3bdc69b3a34a2b5d3a8554368bd1e808         / MAC      /
+             f606219d2a10a846eae3886ae4ecc83c
+             4ee550fdfb1cc636b904e2f1a73e303d
+             cd4b6ccece003e95e8164dcc89a156e1']
+     ]
+   ]
+
+          Figure 6: Example 1 - BIB Abstract Security Block (CBOR
+                            Diagnostic Notation)
+
+   The CBOR encoding of the BIB block-type-specific data field (the
+   abstract security block) is:
+
+   0x810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a8554
+   368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2f1a7
+   3e303dcd4b6ccece003e95e8164dcc89a156e1
+
+A.1.3.3.  Representations
+
+   The complete BIB is as follows.
+
+   [
+     11, / type code    /
+     2,  / block number /
+     0,  / flags        /
+     0,  / CRC type     /
+     h'810101018202820201828201078203008181820158403bdc69b3a34a
+     2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550
+     fdfb1cc636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e1'
+   ]
+
+            Figure 7: Example 1 - BIB (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the BIB block is:
+
+   0x850b0200005856810101018202820201828201078203008181820158403bdc69b3
+   a34a2b5d3a8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1c
+   c636b904e2f1a73e303dcd4b6ccece003e95e8164dcc89a156e1
+
+A.1.4.  Final Bundle
+
+   The CBOR encoding of the full output bundle, with the BIB:
+
+   0x9f88070000820282010282028202018202820201820018281a000f4240850b0200
+   005856810101018202820201828201078203008181820158403bdc69b3a34a2b5d3a
+   8554368bd1e808f606219d2a10a846eae3886ae4ecc83c4ee550fdfb1cc636b904e2
+   f1a73e303dcd4b6ccece003e95e8164dcc89a156e185010100005823526561647920
+   746f2067656e657261746520612033322d62797465207061796c6f6164ff
+
+A.2.  Example 2 - Simple Confidentiality with Key Wrap
+
+   This example shows the addition of a BCB to a sample bundle to
+   provide confidentiality for the payload block.  AES key wrap is used
+   to transmit the symmetric key used to generate the security results
+   for this service.
+
+A.2.1.  Original Bundle
+
+   The following diagram shows the original bundle before the BCB has
+   been added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Payload Block                         |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                   Figure 8: Example 2 - Original Bundle
+
+A.2.1.1.  Primary Block
+
+   The primary block used in this example is identical to the primary
+   block presented for Example 1 in Appendix A.1.1.1.
+
+   In summary, the CBOR encoding of the primary block is:
+
+   0x88070000820282010282028202018202820201820018281a000f4240
+
+A.2.1.2.  Payload Block
+
+   The payload block used in this example is identical to the payload
+   block presented for Example 1 in Appendix A.1.1.2.
+
+   In summary, the CBOR encoding of the payload block is:
+
+   0x85010100005823526561647920746f2067656e657261746520612033322d627974
+   65207061796c6f6164
+
+A.2.1.3.  Bundle CBOR Representation
+
+   A BPv7 bundle is represented as an indefinite-length array consisting
+   of the blocks comprising the bundle, with a terminator character at
+   the end.
+
+   The CBOR encoding of the original bundle is:
+
+   0x9f88070000820282010282028202018202820201820018281a000f424085010100
+   005823526561647920746f2067656e657261746520612033322d6279746520706179
+   6c6f6164ff
+
+A.2.2.  Security Operation Overview
+
+   This example adds a BCB using the BCB-AES-GCM security context using
+   AES key wrap to provide a confidentiality mechanism over the payload
+   block and transmit the symmetric key.
+
+   The following diagram shows the resulting bundle after the BCB is
+   added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Block Confidentiality Block           |   12  |    2   |
+        |  OP(bcb-confidentiality, target=1)     |       |        |
+        +----------------------------------------+-------+--------+
+        |  Payload Block (Encrypted)             |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                   Figure 9: Example 2 - Resulting Bundle
+
+A.2.3.  Block Confidentiality Block
+
+   In this example, a BCB is used to encrypt the payload block, and AES
+   key wrap is used to encode the symmetric key prior to its inclusion
+   in the BCB.
+
+A.2.3.1.  Configuration, Parameters, and Results
+
+   For this example, the following configuration and security context
+   parameters are used to generate the security results indicated.
+
+   This BCB has a single target -- the payload block.  Three security
+   results are generated: ciphertext that replaces the plaintext block-
+   type-specific data to encrypt the payload block, an authentication
+   tag, and the AES wrapped key.
+
+          Content Encryption
+                         Key: h'71776572747975696f70617364666768'
+          Key Encryption Key: h'6162636465666768696a6b6c6d6e6f70'
+                          IV: h'5477656c7665313231323132'
+                 AES Variant: A128GCM
+             AES Wrapped Key: h'69c411276fecddc4780df42c8a2af892
+                                96fabf34d7fae700'
+                 Scope Flags: 0x00
+                Payload Data: h'526561647920746f2067656e65726174
+                                6520612033322d62797465207061796c
+                                6f6164'
+                         AAD: h'00'
+          Authentication Tag: h'efa4b5ac0108e3816c5606479801bc04'
+          Payload Ciphertext: h'3a09c1e63fe23a7f66a59c7303837241
+                                e070b02619fc59c5214a22f08cd70795
+                                e73e9a'
+
+       Figure 10: Example 2 - Configuration, Parameters, and Results
+
+A.2.3.2.  Abstract Security Block
+
+   The abstract security block structure of the BCB's block-type-
+   specific data field for this application is as follows.
+
+   [1],               / Security Target        - Payload block       /
+   2,                 / Security Context ID    - BCB-AES-GCM         /
+   1,                 / Security Context Flags - Parameters Present  /
+   [2,[2, 1]],        / Security Source        - ipn:2.1             /
+   [                  / Security Parameters    - 4 Parameters        /
+     [1, h'5477656c7665313231323132'], / Initialization Vector       /
+     [2, 1],                           / AES Variant - A128GCM       /
+     [3, h'69c411276fecddc4780df42c8a  / AES wrapped key             /
+           2af89296fabf34d7fae700'],
+     [4, 0x00]                         / Scope Flags - No extra scope/
+   ],
+   [                                   /  Security Results: 1 Result /
+     [                                 /  Target 1 Results           /
+       [1, h'efa4b5ac0108e3816c5606479801bc04']  / Payload Auth. Tag /
+     ]
+   ]
+
+          Figure 11: Example 2 - BCB Abstract Security Block (CBOR
+                            Diagnostic Notation)
+
+   The CBOR encoding of the BCB block-type-specific data field (the
+   abstract security block) is:
+
+   0x8101020182028202018482014c5477656c76653132313231328202018203581869
+   c411276fecddc4780df42c8a2af89296fabf34d7fae7008204008181820150efa4b5
+   ac0108e3816c5606479801bc04
+
+A.2.3.3.  Representations
+
+   The complete BCB is as follows.
+
+   [
+     12, / type code                                          /
+     2,  / block number                                       /
+     1,  / flags - block must be replicated in every fragment /
+     0,  / CRC type                                           /
+     h'8101020182028202018482014c5477656c766531323132313282020182035818
+       69c411276fecddc4780df42c8a2af89296fabf34d7fae7008204008181820150
+       efa4b5ac0108e3816c5606479801bc04'
+   ]
+
+           Figure 12: Example 2 - BCB (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the BCB block is:
+
+   0x850c02010058508101020182028202018482014c5477656c766531323132313282
+   02018203581869c411276fecddc4780df42c8a2af89296fabf34d7fae70082040081
+   81820150efa4b5ac0108e3816c5606479801bc04
+
+A.2.4.  Final Bundle
+
+   The CBOR encoding of the full output bundle, with the BCB:
+
+   0x9f88070000820282010282028202018202820201820018281a000f4240850c0201
+   0058508101020182028202018482014c5477656c7665313231323132820201820358
+   1869c411276fecddc4780df42c8a2af89296fabf34d7fae7008204008181820150ef
+   a4b5ac0108e3816c5606479801bc04850101000058233a09c1e63fe23a7f66a59c73
+   03837241e070b02619fc59c5214a22f08cd70795e73e9aff
+
+A.3.  Example 3 - Security Blocks from Multiple Sources
+
+   This example shows the addition of a BIB and BCB to a sample bundle.
+   These two security blocks are added by two different nodes.  The BCB
+   is added by the source endpoint, and the BIB is added by a forwarding
+   node.
+
+   The resulting bundle contains a BCB to encrypt the Payload Block and
+   a BIB to provide integrity to the primary block and Bundle Age Block.
+
+A.3.1.  Original Bundle
+
+   The following diagram shows the original bundle before the security
+   blocks have been added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Extension Block: Bundle Age Block     |   7   |    2   |
+        +----------------------------------------+-------+--------+
+        |  Payload Block                         |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                   Figure 13: Example 3 - Original Bundle
+
+A.3.1.1.  Primary Block
+
+   The primary block used in this example is identical to the primary
+   block presented for Example 1 in Appendix A.1.1.1.
+
+   In summary, the CBOR encoding of the primary block is:
+
+   0x88070000820282010282028202018202820201820018281a000f4240
+
+A.3.1.2.  Bundle Age Block
+
+   A Bundle Age Block is added to the bundle to help other nodes in the
+   network determine the age of the bundle.  The use of this block is
+   recommended because the bundle source does not have an accurate clock
+   (as indicated by the DTN time of 0).
+
+   Because this block is specified at the time the bundle is being
+   forwarded, the bundle age represents the time that has elapsed from
+   the time the bundle was created to the time it is being prepared for
+   forwarding.  In this case, the value is given as 300 milliseconds.
+
+   The Bundle Age extension block is provided as follows.
+
+   [
+     7,      / type code: Bundle Age Block    /
+     2,      / block number                   /
+     0,      / block processing control flags /
+     0,      / CRC type                       /
+     <<300>> / type-specific-data: age        /
+   ]
+
+           Figure 14: Bundle Age Block (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the Bundle Age Block is:
+
+   0x85070200004319012c
+
+A.3.1.3.  Payload Block
+
+   The payload block used in this example is identical to the payload
+   block presented for Example 1 in Appendix A.1.1.2.
+
+   In summary, the CBOR encoding of the payload block is:
+
+   0x85010100005823526561647920746f2067656e657261746520612033322d627974
+   65207061796c6f6164
+
+A.3.1.4.  Bundle CBOR Representation
+
+   A BPv7 bundle is represented as an indefinite-length array consisting
+   of the blocks comprising the bundle, with a terminator character at
+   the end.
+
+   The CBOR encoding of the original bundle is:
+
+   0x9f88070000820282010282028202018202820201820018281a000f424085070200
+   004319012c85010100005823526561647920746f2067656e65726174652061203332
+   2d62797465207061796c6f6164ff
+
+A.3.2.  Security Operation Overview
+
+   This example provides:
+
+   *  a BIB with the BIB-HMAC-SHA2 security context to provide an
+      integrity mechanism over the primary block and Bundle Age Block.
+
+   *  a BCB with the BCB-AES-GCM security context to provide a
+      confidentiality mechanism over the payload block.
+
+   The following diagram shows the resulting bundle after the security
+   blocks are added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Block Integrity Block                 |   11  |    3   |
+        |  OP(bib-integrity, targets=0, 2)       |       |        |
+        +----------------------------------------+-------+--------+
+        |  Block Confidentiality Block           |   12  |    4   |
+        |  OP(bcb-confidentiality, target=1)     |       |        |
+        +----------------------------------------+-------+--------+
+        |  Extension Block: Bundle Age Block     |   7   |    2   |
+        +----------------------------------------+-------+--------+
+        |  Payload Block (Encrypted)             |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                  Figure 15: Example 3 - Resulting Bundle
+
+A.3.3.  Block Integrity Block
+
+   In this example, a BIB is used to carry an integrity signature over
+   the Bundle Age Block and an additional signature over the payload
+   block.  The BIB is added by a waypoint node -- ipn:3.0.
+
+A.3.3.1.  Configuration, Parameters, and Results
+
+   For this example, the following configuration and security context
+   parameters are used to generate the security results indicated.
+
+   This BIB has two security targets and includes two security results,
+   holding the calculated signatures over the Bundle Age Block and
+   primary block.
+
+                         Key: h'1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b'
+                 SHA Variant: HMAC 256/256
+                 Scope Flags: 0x00
+          Primary Block Data: h'88070000820282010282028202018202
+                                820201820018281a000f4240'
+          Bundle Age Block
+                        Data: h'4319012c'
+          Primary Block IPPT: h'00581c88070000820282010282028202
+                                018202820201820018281a000f4240'
+         Bundle Age Block
+                        IPPT: h'004319012c'
+          Primary Block
+                   Signature: h'cac6ce8e4c5dae57988b757e49a6dd14
+                                31dc04763541b2845098265bc817241b'
+          Bundle Age Block
+                   Signature: h'3ed614c0d97f49b3633627779aa18a33
+                                8d212bf3c92b97759d9739cd50725596'
+
+     Figure 16: Example 3 - Configuration, Parameters, and Results for
+                                  the BIB
+
+A.3.3.2.  Abstract Security Block
+
+   The abstract security block structure of the BIB's block-type-
+   specific data field for this application is as follows.
+
+   [0, 2],         / Security Targets                             /
+   1,              / Security Context ID    - BIB-HMAC-SHA2       /
+   1,              / Security Context Flags - Parameters Present  /
+   [2,[3, 0]],     / Security Source        - ipn:3.0             /
+   [               / Security Parameters    - 2 Parameters        /
+      [1, 5],      / SHA Variant            - HMAC 256            /
+      [3, 0]       / Scope Flags            - No Additional Scope /
+   ],
+   [               / Security Results: 2 Results                  /
+      [            / Primary Block Results                        /
+          [1, h'cac6ce8e4c5dae57988b757e49a6dd14
+                31dc04763541b2845098265bc817241b']       / MAC    /
+       ],
+       [           / Bundle Age Block Results                     /
+          [1, h'3ed614c0d97f49b3633627779aa18a33
+                8d212bf3c92b97759d9739cd50725596']       / MAC    /
+       ]
+   ]
+
+          Figure 17: Example 3 - BIB Abstract Security Block (CBOR
+                            Diagnostic Notation)
+
+   The CBOR encoding of the BIB block-type-specific data field (the
+   abstract security block) is:
+
+   0x8200020101820282030082820105820300828182015820cac6ce8e4c5dae57988b
+   757e49a6dd1431dc04763541b2845098265bc817241b81820158203ed614c0d97f49
+   b3633627779aa18a338d212bf3c92b97759d9739cd50725596
+
+A.3.3.3.  Representations
+
+   The complete BIB is as follows.
+
+   [
+     11, / type code    /
+     3,  / block number /
+     0,  / flags        /
+     0,  / CRC type     /
+     h'8200020101820282030082820105820300828182015820cac6ce8e4c5dae5798
+     8b757e49a6dd1431dc04763541b2845098265bc817241b81820158203ed614c0d9
+     7f49b3633627779aa18a338d212bf3c92b97759d9739cd50725596'
+   ]
+
+           Figure 18: Example 3 - BIB (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the BIB block is:
+
+   0x850b030000585c8200020101820282030082820105820300828182015820cac6ce
+   8e4c5dae57988b757e49a6dd1431dc04763541b2845098265bc817241b8182015820
+   3ed614c0d97f49b3633627779aa18a338d212bf3c92b97759d9739cd50725596
+
+A.3.4.  Block Confidentiality Block
+
+   In this example, a BCB is used encrypt the payload block.  The BCB is
+   added by the bundle source node, ipn:2.1.
+
+A.3.4.1.  Configuration, Parameters, and Results
+
+   For this example, the following configuration and security context
+   parameters are used to generate the security results indicated.
+
+   This BCB has a single target, the payload block.  Two security
+   results are generated: ciphertext that replaces the plaintext block-
+   type-specific data to encrypt the payload block and an authentication
+   tag.
+
+          Content Encryption
+                         Key: h'71776572747975696f70617364666768'
+                          IV: h'5477656c7665313231323132'
+                 AES Variant: A128GCM
+                 Scope Flags: 0x00
+                Payload Data: h'526561647920746f2067656e65726174
+                                6520612033322d62797465207061796c
+                                6f6164'
+                         AAD: h'00'
+          Authentication Tag: h'efa4b5ac0108e3816c5606479801bc04'
+          Payload Ciphertext: h'3a09c1e63fe23a7f66a59c7303837241
+                                e070b02619fc59c5214a22f08cd70795
+                                e73e9a'
+
+     Figure 19: Example 3 - Configuration, Parameters, and Results for
+                                  the BCB
+
+A.3.4.2.  Abstract Security Block
+
+   The abstract security block structure of the BCB's block-type-
+   specific data field for this application is as follows.
+
+   [1],             / Security Target        - Payload block      /
+   2,               / Security Context ID    - BCB-AES-GCM        /
+   1,               / Security Context Flags - Parameters Present /
+   [2,[2, 1]],      / Security Source        - ipn:2.1            /
+   [                / Security Parameters    - 3 Parameters       /
+     [1, h'5477656c7665313231323132'],    / Initialization Vector /
+     [2, 1],                              / AES Variant - AES 128 /
+     [4, 0]                   / Scope Flags - No Additional Scope /
+   ],
+   [                                 / Security Results: 1 Result /
+     [
+        [1, h'efa4b5ac0108e3816c5606479801bc04'] / Payload Auth. Tag /
+     ]
+   ]
+
+          Figure 20: Example 3 - BCB Abstract Security Block (CBOR
+                            Diagnostic Notation)
+
+   The CBOR encoding of the BCB block-type-specific data field (the
+   abstract security block) is:
+
+   0x8101020182028202018382014c5477656c76653132313231328202018204008181
+   820150efa4b5ac0108e3816c5606479801bc04
+
+A.3.4.3.  Representations
+
+   The complete BCB is as follows.
+
+   [
+     12, / type code                                          /
+     4,  / block number                                       /
+     1,  / flags - block must be replicated in every fragment /
+     0,  / CRC type                                           /
+     h'8101020182028202018382014c5477656c766531323132313282020182040081
+       81820150efa4b5ac0108e3816c5606479801bc04'
+   ]
+
+           Figure 21: Example 3 - BCB (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the BCB block is:
+
+   0x850c04010058348101020182028202018382014c5477656c766531323132313282
+   02018204008181820150efa4b5ac0108e3816c5606479801bc04
+
+A.3.5.  Final Bundle
+
+   The CBOR encoding of the full output bundle, with the BIB and BCB
+   added is:
+
+   0x9f88070000820282010282028202018202820201820018281a000f4240850b0300
+   00585c8200020101820282030082820105820300828182015820cac6ce8e4c5dae57
+   988b757e49a6dd1431dc04763541b2845098265bc817241b81820158203ed614c0d9
+   7f49b3633627779aa18a338d212bf3c92b97759d9739cd50725596850c0401005834
+   8101020182028202018382014c5477656c7665313231323132820201820400818182
+   0150efa4b5ac0108e3816c5606479801bc0485070200004319012c85010100005823
+   3a09c1e63fe23a7f66a59c7303837241e070b02619fc59c5214a22f08cd70795e73e
+   9aff
+
+A.4.  Example 4 - Security Blocks with Full Scope
+
+   This example shows the addition of a BIB and BCB to a sample bundle.
+   A BIB is added to provide integrity over the payload block, and a BCB
+   is added for confidentiality over the payload and BIB.
+
+   The integrity scope and additional authentication data will bind the
+   primary block, target header, and the security header.
+
+A.4.1.  Original Bundle
+
+   The following diagram shows the original bundle before the security
+   blocks have been added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Payload Block                         |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                   Figure 22: Example 4 - Original Bundle
+
+A.4.1.1.  Primary Block
+
+   The primary block used in this example is identical to the primary
+   block presented for Example 1 in Appendix A.1.1.1.
+
+   In summary, the CBOR encoding of the primary block is:
+
+   0x88070000820282010282028202018202820201820018281a000f4240
+
+A.4.1.2.  Payload Block
+
+   The payload block used in this example is identical to the payload
+   block presented for Example 1 in Appendix A.1.1.2.
+
+   In summary, the CBOR encoding of the payload block is:
+
+   0x85010100005823526561647920746f2067656e657261746520612033322d627974
+   65207061796c6f6164
+
+A.4.1.3.  Bundle CBOR Representation
+
+   A BPv7 bundle is represented as an indefinite-length array consisting
+   of the blocks comprising the bundle, with a terminator character at
+   the end.
+
+   The CBOR encoding of the original bundle is:
+
+   0x9f88070000820282010282028202018202820201820018281a000f424085010100
+   005823526561647920746f2067656e657261746520612033322d6279746520706179
+   6c6f6164ff
+
+A.4.2.  Security Operation Overview
+
+   This example provides:
+
+   *  a BIB with the BIB-HMAC-SHA2 security context to provide an
+      integrity mechanism over the payload block.
+
+   *  a BCB with the BCB-AES-GCM security context to provide a
+      confidentiality mechanism over the payload block and BIB.
+
+   The following diagram shows the resulting bundle after the security
+   blocks are added.
+
+                          Block                    Block   Block
+                        in Bundle                  Type    Number
+        +========================================+=======+========+
+        |  Primary Block                         |  N/A  |    0   |
+        +----------------------------------------+-------+--------+
+        |  Block Integrity Block (Encrypted)     |   11  |    3   |
+        |  OP(bib-integrity, target=1)           |       |        |
+        +----------------------------------------+-------+--------+
+        |  Block Confidentiality Block           |   12  |    2   |
+        |  OP(bcb-confidentiality, targets=1, 3) |       |        |
+        +----------------------------------------+-------+--------+
+        |  Payload Block (Encrypted)             |   1   |    1   |
+        +----------------------------------------+-------+--------+
+
+                  Figure 23: Example 4 - Resulting Bundle
+
+A.4.3.  Block Integrity Block
+
+   In this example, a BIB is used to carry an integrity signature over
+   the payload block.  The IPPT contains the block-type-specific data of
+   the payload block, the primary block data, the payload block header,
+   and the BIB header.  That is, all additional headers are included in
+   the IPPT.
+
+A.4.3.1.  Configuration, Parameters, and Results
+
+   For this example, the following configuration and security context
+   parameters are used to generate the security results indicated.
+
+   This BIB has a single target and includes a single security result:
+   the calculated signature over the Payload block.
+
+                         Key: h'1a2b1a2b1a2b1a2b1a2b1a2b1a2b1a2b'
+                 SHA Variant: HMAC 384/384
+                 Scope Flags: 0x07  (all additional headers)
+          Primary Block Data: h'88070000820282010282028202018202
+                                820201820018281a000f4240'
+                Payload Data: h'526561647920746f2067656e65726174
+                                6520612033322d62797465207061796c
+                                6f6164'
+              Payload Header: h'010100'
+                  BIB Header: h'0b0300'
+                        IPPT: h'07880700008202820102820282020182
+                                02820201820018281a000f4240010100
+                                0b03005823526561647920746f206765
+                                6e657261746520612033322d62797465
+                                207061796c6f6164'
+           Payload Signature: h'f75fe4c37f76f046165855bd5ff72fbf
+                                d4e3a64b4695c40e2b787da005ae819f
+                                0a2e30a2e8b325527de8aefb52e73d71,
+
+     Figure 24: Example 4 - Configuration, Parameters, and Results for
+                                  the BIB
+
+A.4.3.2.  Abstract Security Block
+
+   The abstract security block structure of the BIB's block-type-
+   specific data field for this application is as follows.
+
+   [1],           / Security Target          - Payload block          /
+   1,             / Security Context ID      - BIB-HMAC-SHA2          /
+   1,             / Security Context Flags   - Parameters Present     /
+   [2,[2, 1]],    / Security Source          - ipn:2.1                /
+   [              / Security Parameters      - 2 Parameters           /
+      [1, 6],     / SHA Variant              - HMAC 384/384           /
+      [3, 0x07]   / Scope Flags              - All additional headers /
+   ],
+   [              / Security Results: 1 Result                        /
+     [            / Target 1 Results                                  /
+       [1, h'f75fe4c37f76f046165855bd5ff72fbf         / MAC           /
+             d4e3a64b4695c40e2b787da005ae819f
+             0a2e30a2e8b325527de8aefb52e73d71']
+     ]
+   ]
+
+          Figure 25: Example 4 - BIB Abstract Security Block (CBOR
+                            Diagnostic Notation)
+
+   The CBOR encoding of the BIB block-type-specific data field (the
+   abstract security block) is:
+
+   0x81010101820282020182820106820307818182015830f75fe4c37f76f046165855
+   bd5ff72fbfd4e3a64b4695c40e2b787da005ae819f0a2e30a2e8b325527de8aefb52
+   e73d71
+
+A.4.3.3.  Representations
+
+   The complete BIB is as follows.
+
+   [
+     11, / type code    /
+     3,  / block number /
+     0,  / flags        /
+     0,  / CRC type     /
+     h'81010101820282020182820106820307818182015830f75fe4c37f76f0461658
+       55bd5ff72fbfd4e3a64b4695c40e2b787da005ae819f0a2e30a2e8b325527de8
+       aefb52e73d71'
+   ]
+
+           Figure 26: Example 4 - BIB (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the BIB block is:
+
+   0x850b030000584681010101820282020182820106820307818182015830f75fe4c3
+   7f76f046165855bd5ff72fbfd4e3a64b4695c40e2b787da005ae819f0a2e30a2e8b3
+   25527de8aefb52e73d71
+
+A.4.4.  Block Confidentiality Block
+
+   In this example, a BCB is used encrypt the payload block and the BIB
+   that provides integrity over the payload.
+
+A.4.4.1.  Configuration, Parameters, and Results
+
+   For this example, the following configuration and security context
+   parameters are used to generate the security results indicated.
+
+   This BCB has two targets: the payload block and BIB.  Four security
+   results are generated: ciphertext that replaces the plaintext block-
+   type-specific data of the payload block, ciphertext to encrypt the
+   BIB, and authentication tags for both the payload block and BIB.
+
+                         Key: h'71776572747975696f70617364666768
+                                71776572747975696f70617364666768'
+                          IV: h'5477656c7665313231323132'
+                 AES Variant: A256GCM
+                 Scope Flags: 0x07  (All additional headers)
+                Payload Data: h'526561647920746f2067656e65726174
+                                6520612033322d62797465207061796c
+                                6f6164'
+                    BIB Data: h'81010101820282020182820106820307
+                                818182015830f75fe4c37f76f0461658
+                                55bd5ff72fbfd4e3a64b4695c40e2b78
+                                7da005ae819f0a2e30a2e8b325527de8
+                                aefb52e73d71'
+           Primary Block Data: h'88070000820282010282028202018202
+                                 820201820018281a000f4240'
+               Payload Header: h'010100'
+                   BIB Header: h'0b0300'
+                   BCB Header: h'0c0201'
+                  Payload AAD: h'07880700008202820102820282020182
+                                 02820201820018281a000f4240010100
+                                 0c0201'
+                      BIB AAD: h'07880700008202820102820282020182
+                                 02820201820018281a000f42400b0300
+                                 0c0201'
+               Payload Block
+          Authentication Tag: h'd2c51cb2481792dae8b21d848cede99b'
+                         BIB
+          Authentication Tag: h'220ffc45c8a901999ecc60991dd78b29'
+          Payload Ciphertext: h'90eab6457593379298a8724e16e61f83
+                                7488e127212b59ac91f8a86287b7d076
+                                30a122'
+              BIB Ciphertext: h'438ed6208eb1c1ffb94d952175167df0
+                                902902064a2983910c4fb2340790bf42
+                                0a7d1921d5bf7c4721e02ab87a93ab1e
+                                0b75cf62e4948727c8b5dae46ed2af05
+                                439b88029191'
+
+     Figure 27: Example 4 - Configuration, Parameters, and Results for
+                                  the BCB
+
+A.4.4.2.  Abstract Security Block
+
+   The abstract security block structure of the BCB's block-type-
+   specific data field for this application is as follows.
+
+   [3, 1],          / Security Targets                            /
+   2,               / Security Context ID    - BCB-AES-GCM        /
+   1,               / Security Context Flags - Parameters Present /
+   [2,[2, 1]],      / Security Source        - ipn:2.1            /
+   [                / Security Parameters    - 3 Parameters       /
+     [1, h'5477656c7665313231323132'],    / Initialization Vector /
+     [2, 3],                              / AES Variant - AES 256 /
+     [4, 0x07]            / Scope Flags - All headers in SHA hash /
+   ],
+   [                                / Security Results: 2 Results /
+     [
+        [1, h'220ffc45c8a901999ecc60991dd78b29']  / BIB Auth. Tag /
+     ],
+     [
+        [1, h'd2c51cb2481792dae8b21d848cede99b'] / Payload Auth. Tag /
+     ]
+   ]
+
+          Figure 28: Example 4 - BCB Abstract Security Block (CBOR
+                            Diagnostic Notation)
+
+   The CBOR encoding of the BCB block-type-specific data field (the
+   abstract security block) is:
+
+   0x820301020182028202018382014c5477656c766531323132313282020382040782
+   81820150220ffc45c8a901999ecc60991dd78b2981820150d2c51cb2481792dae8b2
+   1d848cede99b
+
+A.4.4.3.  Representations
+
+   The complete BCB is as follows.
+
+   [
+     12, / type code                                          /
+     2,  / block number                                       /
+     1,  / flags - block must be replicated in every fragment /
+     0,  / CRC type                                           /
+     h'820301020182028202018382014c5477656c7665313231323132820203820407
+       8281820150220ffc45c8a901999ecc60991dd78b2981820150d2c51cb2481792
+       dae8b21d848cede99b'
+   ]
+
+           Figure 29: Example 4 - BCB (CBOR Diagnostic Notation)
+
+   The CBOR encoding of the BCB block is:
+
+   0x850c0201005849820301020182028202018382014c5477656c7665313231323132
+   8202038204078281820150220ffc45c8a901999ecc60991dd78b2981820150d2c51c
+   b2481792dae8b21d848cede99b
+
+A.4.5.  Final Bundle
+
+   The CBOR encoding of the full output bundle, with the security blocks
+   added and payload block and BIB encrypted is:
+
+   0x9f88070000820282010282028202018202820201820018281a000f4240850b0300
+   005846438ed6208eb1c1ffb94d952175167df0902902064a2983910c4fb2340790bf
+   420a7d1921d5bf7c4721e02ab87a93ab1e0b75cf62e4948727c8b5dae46ed2af0543
+   9b88029191850c0201005849820301020182028202018382014c5477656c76653132
+   313231328202038204078281820150220ffc45c8a901999ecc60991dd78b29818201
+   50d2c51cb2481792dae8b21d848cede99b8501010000582390eab6457593379298a8
+   724e16e61f837488e127212b59ac91f8a86287b7d07630a122ff
+
+Appendix B.  CDDL Expression
+
+   For informational purposes, this section contains an expression of
+   the IPPT and AAD structures using the Concise Data Definition
+   Language (CDDL).
+
+   NOTES:
+
+   *  Wherever the CDDL expression is in disagreement with the textual
+      representation of the security block specification presented in
+      earlier sections of this document, the textual representation
+      rules.
+
+   *  The structure of BP bundles and BPSec security blocks are provided
+      by other specifications; this appendix only provides the CDDL
+      expression for structures uniquely defined in this specification.
+      Items related to elements of a bundle, such as "primary-block",
+      are defined in Appendix B of the Bundle Protocol version 7
+      [RFC9171].
+
+   *  The CDDL itself does not have the concept of unadorned CBOR
+      sequences as a top-level subject of a specification.  The current
+      best practice, as documented in Section 4.1 of [RFC8742], requires
+      representing the sequence as an array with a comment in the CDDL
+      noting that the array represents a CBOR sequence.
+
+   start = scope / AAD-list / IPPT-list ; satisfy CDDL decoders
+
+   scope = uint .bits scope-flags
+   scope-flags = &(
+       has-primary-ctx: 0,
+       has-target-ctx: 1,
+       has-security-ctx: 2,
+   )
+
+   ; Encoded as a CBOR sequence
+   AAD-list = [
+       AAD-structure
+   ]
+
+   ; Encoded as a CBOR sequence
+   IPPT-list = [
+       AAD-structure,
+       target-btsd: bstr ; block-type-specific data of the target block.
+   ]
+
+   AAD-structure = (
+       scope,
+       ? primary-block,  ; present if has-primary-ctx flag set
+       ? block-metadata, ; present if has-target-ctx flag set
+       ? block-metadata, ; present if has-security-ctx flag set
+   )
+
+   ; Selected fields of a canonical block
+   block-metadata = (
+       block-type-code: uint,
+       block-number: uint,
+       block-control-flags,
+   )
+
+                    Figure 30: IPPT and AAD Expressions
+
+Acknowledgments
+
+   Amy Alford of the Johns Hopkins University Applied Physics Laboratory
+   contributed useful review and analysis of these security contexts.
+
+   Brian Sipos kindly provided the CDDL expression in Appendix B.
+
+Authors' Addresses
+
+   Edward J. Birrane, III
+   The Johns Hopkins University Applied Physics Laboratory
+   11100 Johns Hopkins Rd.
+   Laurel, MD 20723
+   United States of America
+
+   Phone: +1 443 778 7423
+   Email: Edward.Birrane@jhuapl.edu
+
+
+   Alex White
+   The Johns Hopkins University Applied Physics Laboratory
+   11100 Johns Hopkins Rd.
+   Laurel, MD 20723
+   United States of America
+
+   Phone: +1 443 778 0845
+   Email: Alex.White@jhuapl.edu
+
+
+   Sarah Heiner
+   The Johns Hopkins University Applied Physics Laboratory
+   11100 Johns Hopkins Rd.
+   Laurel, MD 20723
+   United States of America
+
+   Phone: +1 240 592 3704
+   Email: Sarah.Heiner@jhuapl.edu

@@ -1,0 +1,227 @@
+
+
+
+
+
+
+Network Working Group                                          A. Durand
+Request For Comments: 1846                                          IMAG
+Category: Experimental                                         F. Dupont
+                                                      INRIA Rocquencourt
+                                                          September 1995
+
+
+                          SMTP 521 Reply Code
+
+
+Status of this Memo
+
+   This memo defines an Experimental Protocol for the Internet
+   community.  This memo does not specify an Internet standard of any
+   kind.  Discussion and suggestions for improvement are requested.
+   Distribution of this memo is unlimited.
+
+Abstract
+
+   This memo defines a new Simple Mail Transfer Protocol (SMTP) [1]
+   reply code, 521, which one may use to indicate that an Internet host
+   does not accept incoming mail.
+
+1. Motivations
+
+   Hosts on the Internet have shifted from large, general-purpose hosts
+   to smaller, more specialized hosts.  There is an increasing number of
+   hosts which are dedicated to specific tasks, such as serving NTP or
+   DNS.  These dedicated hosts frequently do not provide mail service.
+
+   Usually, these mailless hosts do not run an SMTP server.
+   Unfortunately, users will occasionally misaddress mail to these
+   hosts.  Regular SMTP clients attempting to deliver this misaddressed
+   mail must treat the lack of an SMTP server on the host as a temporary
+   error.  They must queue the mail for later delivery, should an SMTP
+   server be started at a later time.
+
+   This causes the mail to remain queued for days, until it is returned
+   with what is usually a confusing error message.
+
+2. Two  complementary solutions
+
+   Two complementary solutions MAY be implemented to deal with this
+   issue.  The first one is to use MX relays to bounce misaddressed
+   mails.  The second one is to implement a  minimal smtp server on the
+   mailless host to bounce all mails.
+
+   The choice between the two solutions is site dependent.
+
+
+
+Durand & Dupont               Experimental                      [Page 1]
+
+RFC 1846                  SMTP 521 Reply Code             September 1995
+
+
+3. The MX relays solution
+
+   MX relays may be used to indicate SMTP clients that an Internet host
+   does not accept mail.
+
+   During the SMTP dialog, these MX relays MAY bounce any message
+   destinated to this particular host with an SMTP 521 reply code.
+
+
+   SMTP dialog example:
+
+   ---> 220 relay.imag.fr ready
+   <--- HELO client.inria.fr
+   ---> 250 relay.imag.fr Hello client.inria.fr
+   <--- MAIL FROM: <user1@client.inria.fr>
+   ---> 250 <user1@client.inria.fr>... Sender Ok
+   <--- RCPT TO: <user2@nomail.imag.fr>
+   ---> 521 nomail.imag.fr does not accept mail
+   <--- QUIT
+   ---> 221 relay.imag.fr closing connection
+
+   If an MX relay of precedence n for a mailless host bounces mails on
+   its behalf, then any other MX relay of precedence lower than n for
+   this mailless host SHOULD do the same.
+
+4. The SMTP server solution
+
+4.1 521 greeting
+
+   A host may indicate that it does not accept mail by sending an
+   initial 521 "Host does not accept mail" reply to an incoming SMTP
+   connection.  The official name of the server host or its IP address
+   MUST be sent as the first word following the reply code.
+
+   For example: 521 canon.inria.fr does not accept mail
+
+4.2 SMTP dialog
+
+   After issuing the initial 521 reply, the server host MUST do one of
+   the following two options:
+
+   a) Close the SMTP connection.
+   b) Read commands, issuing 521 replies to all commands except QUIT.
+      If the SMTP client does not issue the QUIT command after a
+      reasonable time, the SMTP server MUST time out and close the
+      connection.  A suggested time-out value is 5 minutes.
+
+
+
+
+
+Durand & Dupont               Experimental                      [Page 2]
+
+RFC 1846                  SMTP 521 Reply Code             September 1995
+
+
+   DISCUSSION:
+
+   When an SMTP server closes the connection immediatly after issuing
+   the initial 521 reply, some existing SMTP clients treat the
+   condition as a transient error and requeue the mail for later
+   delivery.  If the SMTP server leaves the connection open, those
+   clients immediately send the QUIT command and return the mail.
+
+4.3 MX
+
+   A host which sends a 521 greeting message MUST NOT be listed as an MX
+   record for any domain.
+
+4.4 Postmaster
+
+   An SMTP server which sends a 521 greeting message IS NOT subject to
+   the postmaster requirement of STD 3, RFC 1123 ([2]).
+
+   DISCUSSION:
+
+   Postmaster exists so you can report mail errors.  A host that doesn't
+   support mail doesn't need a Postmaster.
+
+5. SMTP client behavior
+
+   If an SMTP client encounters a host in an MX record that issues a 521
+   greeting message, it must do one of the following two options:
+
+   a) Attempt to deliver it to a different MX host for that domain.
+   b) Return the mail with an appropriate non-delivery report.
+
+   If an SMTP client encounters a 521 reply code in any other part of
+   the SMTP dialog, it MUST return the mail with an appropriate non-
+   delivery report.
+
+6. Security Considerations
+
+   Not running any SMTP server, or running an SMTP server which simply
+   emits fixed strings in response to incoming connection should provide
+   significantly fewer opportunities for security problems than running
+   a complete SMTP implementation.
+
+
+
+
+
+
+
+
+
+
+Durand & Dupont               Experimental                      [Page 3]
+
+RFC 1846                  SMTP 521 Reply Code             September 1995
+
+
+7. Authors' Addresses
+
+   Alain Durand
+   Institut de Mathematiques Appliquees de Grenoble (IMAG)
+   BP 53 38041 Grenoble CEDEX 9 France
+
+   Phone : +33 76 63 57 03
+   Fax   : +33 76 44 66 75
+   EMail: Alain.Durand@imag.fr
+
+
+   Francis Dupont
+   Institut National de Recherche en Informatique et en Automatique
+   B.P. 105 / 78153 Le Chesnay CEDEX France
+
+   Phone : +33 1 39 63 52 13
+   Fax   : +33 1 39 63 53 30
+   EMail: Francis.Dupont@inria.fr
+
+8. Expericences
+
+   People implementing this reply code are suggested to send a message
+   to mailext@list.cren.net to report their experience.
+
+9. References
+
+   [1] Postel, J., "Simple Mail Transfer Protocol", STD 10, RFC 821,
+       USC/Information Sciences Institute, August 1982.
+
+   [2] Braden, R., Editor, "Requirements for Internet Hosts -
+       Application and Support", STD 3, RFC 1123, USC/Information
+       Sciences Institute, October 1989.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Durand & Dupont               Experimental                      [Page 4]
+

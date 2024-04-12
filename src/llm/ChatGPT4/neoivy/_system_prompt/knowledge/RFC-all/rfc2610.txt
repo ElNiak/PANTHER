@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Network Working Group                                         C. Perkins
+Request for Comments: 2610                                    E. Guttman
+Category: Standards Track                               Sun Microsystems
+                                                               June 1999
+
+
+               DHCP Options for Service Location Protocol
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (1999).  All Rights Reserved.
+
+Abstract
+
+   The Dynamic Host Configuration Protocol provides a framework for
+   passing configuration information to hosts on a TCP/IP network.
+   Entities using the Service Location Protocol need to find out the
+   address of Directory Agents in order to transact messages.  Another
+   option provides an assignment of scope for configuration of SLP User
+   and Service Agents.
+
+1. Introduction
+
+   The Dynamic Host Configuration Protocol [2] provides a framework for
+   passing configuration information to hosts on a TCP/IP network.
+   Entities using the Service Location Protocol, Version 2 [3] and
+   Service Location Protocol, Version 1 [4] need to obtain the address
+   of Directory Agents and Scope configuration.  The Service Location
+   Protocol (SLP) provides a default configuration for Scopes and
+   Directory Agents may be discovered using multicast or broadcast.  It
+   is useful in a larger deployment to be able to configure SLP Agents
+   using DHCP, so as to centralize the administration and to deploy SLP
+   in networks where multicast routing is not available.
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [1].
+
+
+
+
+
+
+Perkins & Guttman           Standards Track                     [Page 1]
+
+RFC 2610       DHCP Options for Service Location Protocol      June 1999
+
+
+2. Introduction
+
+   The DHCP options described below are used to configure Agents using
+   the Service Location Protocol, Version 2 [3] and Version 1 [4].
+
+   The SLP Directory Agent option is used to configure User Agents and
+   Service Agents with the location of Directory Agents in the network.
+
+   The SLP Scope Option takes precedence over both default and static
+   scope configuration of SLP agents.
+
+3. SLP Directory Agent Option
+
+   This option specifies the location of one or more SLP Directory
+   Agents.
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Code = 78   |    Length     |   Mandatory   |      a1       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      a2       |       a3      |       a4      |      ...
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The SLP Directory Agent Option specifies a list of IP addresses for
+   Directory Agents.  Directory Agents MUST be listed in order of
+   preference, if there is an order of preference.
+
+   The Length value must include one for the 'Mandatory' byte and
+   include four for each Directory Agent address which follows.  Thus,
+   the Length minus one of the option MUST always be divisible by 4 and
+   has a minimum value of 5.
+
+   The address of the Directory Agent is given in network byte order.
+
+   The 'Mandatory' byte in the Directory Agent option may be set to
+   either 0 or 1.  If it is set to 1, the SLP User Agent or Service
+   Agent so configured MUST NOT employ either active or passive
+   multicast discovery of Directory Agents.
+
+   Note that for backward compatibility with some deployed software the
+   Mandatory byte MUST NOT be set to any byte value for which the high
+   order bit (0x80) is set.
+
+   The Directory Agents listed in this option MUST be configured with
+   the a non-empty subset of the scope list that the Agent receiving the
+   Directory Agent Option is configured with.  See the notes below.
+
+
+
+
+Perkins & Guttman           Standards Track                     [Page 2]
+
+RFC 2610       DHCP Options for Service Location Protocol      June 1999
+
+
+   The SLPv2 specification [3] defines how to use this option.
+
+4. SLP Service Scope Option
+
+   The scope list is a comma delimited list which indicates the scopes
+   that a SLP Agent is configured to use.
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Code = 79   |     Length    |   Mandatory   | <Scope List>...
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The Length indicates the number of bytes which follow.  Since the
+   Scope-List String is encoded using UTF-8 [5] characters, it may be
+   the cast that the Length is not the same as the number of characters
+   in the Scope-List String.  The Length value must include one for the
+   'Mandatory' byte.
+
+   The 'Mandatory' byte determines whether SLP Agents override their
+   static configuration for scopes with the <Scope List> string provided
+   by the option.  This allows DHCP administrators to implement a policy
+   of assigning a set of scopes to Agents for service provision.  If the
+   Mandatory byte is 0, static configuration takes precedence over the
+   DHCP provided scope list.  If the Mandatory byte is 1, the <Scope
+   List> provided in this option MUST be used by the SLP Agent.
+
+   The Scope List String syntax and usage are defined in the SLPv2
+   specification [3].
+
+4.1. Zero Length Scope-List String Configuration
+
+   A SLP Service Scope Option which indicates a Length of 1 (in other
+   words, omitting the <Scope List> string entirely) validly configures
+   the SLP User Agent to use "User Selectable Scopes."
+
+   The SLP Agent will use the aggregated list of scopes of all known
+   DAs.  If no DAs are known, the UA will use SA discovery to determine
+   the list of scopes on the network, as defined in  [3].
+
+   Note that this configuration is tantamount to removing all
+   centralized control of the scope configuration of hosts on the
+   network.  This makes it possible for every User Agent to see every
+   service.  This may not be desirable as users may not be able to or
+   desire to decide which services are appropriate for them.
+
+
+
+
+
+
+Perkins & Guttman           Standards Track                     [Page 3]
+
+RFC 2610       DHCP Options for Service Location Protocol      June 1999
+
+
+5. Security Considerations
+
+   If a malicious host is able to insert fraudulent information in
+   DHCPOFFER packets sent to a prospective SLP Agent then the SLP Agent
+   will be unable to obtain service, or may unwittingly be directed to
+   use the incorrect services.
+
+   Many opportunities for denial of service exist.  A service agent
+   could find that it might rely on fraudulent or otherwise malicious
+   directory agents to advertise its services.  DHCPOFFERs could prevent
+   the regular SLP framework from functioning by directing clients to
+   not use multicast, to use nonexistent directory agents and so on.
+
+   These difficulties are inherited from the much larger and more
+   serious problem, viz.  securing or authenticating any information
+   whatsoever from a DHCP server (or client!)  is not possible in common
+   DHCP deployments.
+
+References
+
+   [1] Bradner, S., "Key words for use in RFCs to Indicate Requirement
+       Levels", BCP 14, RFC 2119, March 1997.
+
+   [2] Droms, R., "Dynamic Host Configuration Protocol", RFC 2131, March
+       1997.
+
+   [3] E. Guttman, C. Perkins, J. Veizades, and M. Day, "Service
+       Location Protocol version 2", Work in Progress.
+
+   [4] Veizades, J., Guttman, E., Perkins, C. and S. Kaplan, "Service
+       Location Protocol", RFC 2165, July 1997.
+
+   [5] Yergeau, F., "UTF-8, a transformation format of unicode and ISO
+       10646", RFC 2279, October 1998.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Perkins & Guttman           Standards Track                     [Page 4]
+
+RFC 2610       DHCP Options for Service Location Protocol      June 1999
+
+
+Authors' Addresses
+
+   Charles E. Perkins
+   Technology Development Group
+   Mail Stop MPK15-214
+   Sun Microsystems, Inc.
+   15 Network Circle
+   Menlo Park, CA  94025
+
+   Phone: +1 650-786-6464
+   Fax:   +1 650-786-6445
+   EMail: Charles.Perkins@Sun.Com
+   Web: http://www.svrloc.org/~charliep
+
+
+   Erik Guttman
+   Technology Development Group
+   Mail Stop UFRA02
+   Sun Microsystems, Inc.
+   Bahnstr. 2
+   74915 Waibstadt, Germany
+
+   Phone: +49 7263 911 701
+     or:  +1 650 786 5992
+   EMail: Erik.Guttman@Sun.Com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Perkins & Guttman           Standards Track                     [Page 5]
+
+RFC 2610       DHCP Options for Service Location Protocol      June 1999
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (1999).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the Internet Society or other
+   Internet organizations, except as needed for the purpose of
+   developing Internet standards in which case the procedures for
+   copyrights defined in the Internet Standards process must be
+   followed, or as required to translate it into languages other than
+   English.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by the Internet Society or its successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and THE INTERNET SOCIETY AND THE INTERNET ENGINEERING
+   TASK FORCE DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Perkins & Guttman           Standards Track                     [Page 6]
+

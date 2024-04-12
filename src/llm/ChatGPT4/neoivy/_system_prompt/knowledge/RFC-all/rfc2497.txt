@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Network Working Group                                       I. Souvatzis
+Request for Comments: 2497                            The NetBSD Project
+See Also: 1201                                              January 1999
+Category: Standards Track
+
+
+           Transmission of IPv6 Packets over ARCnet Networks
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (1999).  All Rights Reserved.
+
+1. Introduction
+
+   This memo specifies a frame format for transmission of IPv6 [IPV6]
+   packets and the method of forming IPv6 link-local and statelessly
+   autoconfigured addresses on ARCnet networks. It also specifies the
+   content of the Source/Target Link-layer Address option used by the
+   Router Solicitation, Router Advertisement, Neighbor Solicitation,
+   Neighbor Advertisement and Redirect messages described in [DISC],
+   when those messages are transmitted on an ARCnet.
+
+      The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+      NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL"
+      in this document are to be interpreted as described in RFC 2119
+      [KWORD].
+
+2. Frame Format
+
+   IPv6 packets are link layer fragmented and reassembled according to
+   [PHDS]. A brief but sufficient discussion of this fragmentation
+   method can be found in [ARCIPV4].
+
+   The protocol ID (System Code in ARCnet terminology) assigned to IPv6
+   is C4 hexadecimal.
+
+
+
+
+
+
+
+
+Souvatzis                   Standards Track                     [Page 1]
+
+RFC 2497                IPv6 Datagrams on ARCnet            January 1999
+
+
+3. Maximum Transmission Unit
+
+   The maximum IPv6 packet length possible using this encapsulation
+   method is 60480 octets. Since this length is impractical because of
+   its worst case transmission time of several seconds, all ARCnet
+   implementations on a given ARCnet network should agree on a smaller
+   value.
+
+   The default MTU for IPv6 [IPV6] packets on an ARCnet is 9072 octets.
+
+   In the presence of a router, this size MAY be changed by a Router
+   Advertisement [DISC] containing an MTU option. If a Router
+   Advertisement is received with an MTU option specifying an MTU larger
+   than 60480, or larger than a manually configured value less than
+   60480, that MTU option may be logged to system management but MUST be
+   otherwise ignored.
+
+   If no router is available, the local MTU MUST be left at 9072 or MUST
+   be manually configured to the same different value on all connected
+   stations.
+
+   Implementations MAY accept arriving IPv6 datagrams which are larger
+   than their configured maximum transmission unit.  They are not
+   required to discard such datagrams. If they can not handle larger
+   datagrams, they MAY log the event to the system administration, but
+   MUST otherwise silently discard them.
+
+4. Stateless Auto-configuration
+
+   If a node has an EUI-64 which is not used to form the Interface
+   Identifier for any other interface, it SHOULD use that EUI-64 to form
+   the Interface Identifier for its ARCnet interface.  If that EUI-64 is
+   in use for another interface attached to a different link, it MAY be
+   used for the ARCnet interface as well.
+
+   The Interface Identifier is then formed from the EUI-64 by
+   complementing the "Universal/Local" (U/L) bit, which is the next-
+   to-lowest order bit of the first octet of the EUI-64.
+
+   When a node has no EUI-64 available for forming its ARCnet Interface
+   Identifer, it MUST form that identifier as specified in [AARCH],
+   Appendix A, section "Links with Non-Global Identifier".  That is, the
+   8 bit manually configured ARCnet address is appended to the 56 zero
+   bits.
+
+   For example, for an ARCnet interface with the configured address of
+   49 hexadecimal this results in the following identifier:
+
+
+
+
+Souvatzis                   Standards Track                     [Page 2]
+
+RFC 2497                IPv6 Datagrams on ARCnet            January 1999
+
+
+   |0              1|1              3|3              4|4              6|
+   |0              5|6              1|2              7|8              3|
+   +----------------+----------------+----------------+----------------+
+   |0000000000000000|0000000000000000|0000000000000000|0000000001001001|
+   +----------------+----------------+----------------+----------------+
+
+   Note that this results in the universal/local bit set to "0" to
+   indicate local scope.
+
+   An IPv6 address prefix used for stateless auto-configuration [ACONF]
+   of an ARCnet interface MUST have a length of 64 bits.
+
+5. Link-Local Addresses
+
+   The IPv6 link-local address [AARCH] for an ARCnet interface is formed
+   by appending the Interface Identifier, as defined above, to the
+   prefix FE80::/64.
+
+    10 bits            54 bits                  64 bits
+   +----------+-----------------------+----------------------------+
+   |1111111010|         (zeros)       |    Interface Identifier    |
+   +----------+-----------------------+----------------------------+
+
+6. Address Mapping -- Unicast
+
+   The procedure for mapping IPv6 addresses into ARCnet link-layer
+   addresses is described in [DISC]. The Source/Target link layer
+   Address option has the following form when the link layer is ARCnet.
+
+             0                   1
+             0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |     Type      |    Length     |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            |ARCnet address |               |
+            +---------------+              -+
+            |                               |
+            +-    5 octets of padding      -+
+            |                               |
+            +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+      Option fields:
+
+      Type      1 for Source Link-layer address.
+                2 for Target Link-layer address.
+      Length         1 (in units of 8 octets).
+
+      ARCnet address The 8 bit ARCnet address, in canonical bit order.
+
+
+
+Souvatzis                   Standards Track                     [Page 3]
+
+RFC 2497                IPv6 Datagrams on ARCnet            January 1999
+
+
+7. Address Mapping -- Multicast
+
+   As ARCnet only provides 1 multicast address (00 hexadecimal), all
+   IPv6 multicast addresses MUST be mapped to this address.
+
+8. Security Considerations
+
+   The method of derivation of Interface Identifiers from ARCnet
+   addresses is intended to preserve local uniqueness when possible.
+   However, there is no protection from duplication through accident or
+   forgery.
+
+9. Acknowledgements
+
+   Big parts of the new version of this memo are either based on
+   [ETHIPV6] or on Matt Crawford's review of an earlier version.
+
+10. References
+
+   [AARCH]   Hinden, R. and S. Deering, "IP Version 6 Addressing
+             Architecture", RFC 2373, July 1998.
+
+   [ACONF]   Thomson, S. and T. Narten, "IPv6 Stateless Address
+             Autoconfiguration", RFC 2462, December 1998.
+
+   [ARCIPV4] Provan, D., "Transmitting IP Traffic over ARCNET Networks",
+             RFC1201, Novell, Inc., February 1991.
+
+   [DISC]    Narten, T., Nordmark, E. and W. Simpson, "Neighbor
+             Discovery for IP Version 6 (IPv6)", RFC 2461, December
+             1998.
+
+   [ETHIPV6] Crawford, M., "Transmission of IPv6 Packets over Ethernet
+             Networks", RFC 2464, December 1998.
+
+   [EUI64]   "64-Bit Global Identifier Format Tutorial", http://stan­
+             dards.ieee.org/db/oui/tutorials/EUI64.html.
+
+   [IPV6]    Deering, S. and R. Hinden, "Internet Protocol, Version 6
+             (IPv6) Specification", RFC 2460, December 1998.
+
+   [KWORD]   Bradner, S., "Key words for use in RFCs to Indicate
+             Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [PHDS]    Novell, Inc., "ARCNET Packet Header Definition Standard",
+             Novell Part Number 100-00721-001, November 1989.
+
+
+
+
+
+Souvatzis                   Standards Track                     [Page 4]
+
+RFC 2497                IPv6 Datagrams on ARCnet            January 1999
+
+
+11. Author's Address
+
+   Ignatios Souvatzis
+   The NetBSD Project
+   Stationenweg 29
+   D-53332 Bornheim
+   Germany
+
+   Phone (work): +49 (228) 734316
+   EMail: is@netbsd.org
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Souvatzis                   Standards Track                     [Page 5]
+
+RFC 2497                IPv6 Datagrams on ARCnet            January 1999
+
+
+12.  Full Copyright Statement
+
+   Copyright (C) The Internet Society (1999).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the Internet Society or other
+   Internet organizations, except as needed for the purpose of
+   developing Internet standards in which case the procedures for
+   copyrights defined in the Internet Standards process must be
+   followed, or as required to translate it into languages other than
+   English.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by the Internet Society or its successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and THE INTERNET SOCIETY AND THE INTERNET ENGINEERING
+   TASK FORCE DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Souvatzis                   Standards Track                     [Page 6]
+

@@ -1,0 +1,395 @@
+
+
+
+
+
+
+Network Working Group                                           A. Fuqua
+Request for Comments: 2043                                           IBM
+Category: Standards Track                                   October 1996
+
+
+                  The PPP SNA Control Protocol (SNACP)
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Abstract
+
+   The Point-to-Point Protocol (PPP) [1] provides a standard method for
+   transporting multi-protocol datagrams over point-to-point links.  PPP
+   defines an extensible Link Control Protocol, and proposes a family of
+   Network Control Protocols for establishing and configuring different
+   network-layer protocols.
+
+   This document defines the Network Control Protocols for establishing
+   and configuring Systems Network Architecture (SNA) over PPP and SNA
+   over LLC 802.2 over PPP.
+
+Table of Contents
+
+   1.     Introduction ..........................................    2
+      1.1       Specification of Requirements ...................    2
+      1.2       Terminology .....................................    3
+   2.     A PPP Network Control Protocol for SNA ................    4
+   3.     Sending SNA PIUs and NLPs. ............................    5
+      3.1       Sending SNA XID or FID2 PIUs over LLC ...........    5
+      3.2       Sending HPR Network Layer Packets (NLPs) ........    5
+      3.3       Other Considerations ............................    6
+   SECURITY CONSIDERATIONS ......................................    6
+   REFERENCES ...................................................    6
+   ACKNOWLEDGEMENTS... ..........................................    7
+   CHAIR'S ADDRESS ..............................................    7
+   AUTHOR'S ADDRESS .............................................    7
+
+
+
+
+
+
+
+
+
+Fuqua                       Standards Track                     [Page 1]
+
+RFC 2043                       PPP SNACP                    October 1996
+
+
+1.  Introduction
+
+   PPP has three main components:
+
+   1. A method for encapsulating multi-protocol datagrams.
+
+   2. A Link Control Protocol (LCP) for establishing, configuring,
+      and testing the data-link connection.
+
+   3. A family of Network Control Protocols for establishing and
+      configuring different network-layer protocols.
+
+   In order to establish communications over a point-to-point link, each
+   end of the PPP link must first send LCP packets to configure and test
+   the data link.  After the link has been established and optional
+   facilities have been negotiated as needed by the LCP, PPP must send
+   SNACP packets to choose and configure the SNA network-layer protocol.
+   Once SNACP has reached the Opened state, SNA datagrams can be sent
+   over the link.
+
+   The link will remain configured for communications until explicit LCP
+   or SNACP packets close the link down, or until some external event
+   occurs (an inactivity timer expires or network administrator
+   intervention).
+
+1.1.  Specification of Requirements
+
+   In this document, several words are used to signify the requirements
+   of the specification.  These words are often capitalized.
+
+   MUST      This word, or the adjective "required", means that the
+             definition is an absolute requirement of the specification.
+
+   MUST NOT  This phrase means that the definition is an absolute
+             prohibition of the specification.
+
+   SHOULD    This word, or the adjective "recommended", means that there
+             may exist valid reasons in particular circumstances to
+             ignore this item, but the full implications must be
+             understood and carefully weighed before choosing a
+             different course.
+
+   MAY       This word, or the adjective "optional", means that this
+             item is one of an allowed set of alternatives.  An
+             implementation which does not include this option MUST be
+             prepared to interoperate with another implementation which
+             does include the option.
+
+
+
+
+Fuqua                       Standards Track                     [Page 2]
+
+RFC 2043                       PPP SNACP                    October 1996
+
+
+1.2.  Terminology
+
+   This document frequently uses the following terms:
+
+   datagram  The unit of transmission in the network layer (such as IP).
+             A datagram may be encapsulated in one or more packets
+             passed to the data link layer.
+
+   frame     The unit of transmission at the data link layer.  A frame
+             may include a header and/or a trailer, along with some
+             number of units of data.
+
+   packet    The basic unit of encapsulation, which is passed across the
+             interface between the network layer and the data link
+             layer.  A packet is usually mapped to a frame; the
+             exceptions are when data link layer fragmentation is being
+             performed, or when multiple packets are incorporated into a
+             single frame.
+
+   peer      The other end of the point-to-point link.
+
+   silently discard
+             This means the implementation discards the packet without
+             further processing.  The implementation SHOULD provide the
+             capability of logging the error, including the contents of
+             the silently discarded packet, and SHOULD record the event
+             in a statistics counter.
+
+   PIU       Path information unit.  A message unit consisting of a
+             transmission header (TH) alone, or a TH followed by a basic
+             information unit (BIU) or a BIU segment.  PIU is analogous
+             to datagram.
+
+   TH        Transmission header.  Control information, optionally
+             followed by a basic information unit (BIU) or a BIU
+             segment, that is created and used by path control to route
+             message units and to control their flow within the network.
+
+   BIU       Basic information unit.  In SNA, the unit of data and
+             control information passed between half-sessions.  It
+             consists of a request/response header (RH) followed by a
+             request/response unit (RU).
+
+   message unit
+             In SNA, the unit of data processed by any layer; for
+             example, a basic information unit (BIU), a path information
+             unit (PIU), or a request/response unit (RU).
+
+
+
+
+Fuqua                       Standards Track                     [Page 3]
+
+RFC 2043                       PPP SNACP                    October 1996
+
+
+   NLP       Network Layer Packet.  In High Performance Routing (HPR),
+             the message unit used to carry data over the route.
+             Network Layer Packet is analogous to datagram.
+
+2.  A PPP Network Control Protocol for SNA
+
+   The SNA Control Protocol (SNACP) is responsible for configuring,
+   enabling, and disabling SNA on both ends of the point-to-point link.
+   SNACP uses the same packet exchange mechanism as the Link Control
+   Protocol (LCP). SNACP packets may not be exchanged until PPP has
+   reached the Network-Layer Protocol phase.  SNACP packets received
+   before this phase is reached should be silently discarded.
+
+   Note that there are actually two SNA Network Control Protocols; one
+   for SNA over LLC 802.2 and another for SNA without LLC 802.2.  These
+   SNA NCPs are negotiated separately and independently of each other.
+
+   The SNA Control Protocol is exactly the same as the Link Control
+   Protocol [1] with the following exceptions:
+
+   Frame Modifications
+
+      The packet may utilize any modifications to the basic frame format
+      which have been negotiated during the Link Establishment phase.
+
+   Data Link Layer Protocol Field
+
+      Exactly one SNACP packet is encapsulated in the PPP Information
+      field, where the PPP Protocol field indicates type hex 804B (SNA
+      over LLC 802.2) or hex 804D (SNA).
+
+   Code field
+
+      Only Codes 1 through 7 (Configure-Request, Configure-Ack,
+      Configure-Nak, Configure-Reject, Terminate-Request, Terminate-Ack
+      and Code-Reject) are used.  Other Codes should be treated as
+      unrecognized and should result in Code-Rejects.
+
+   Timeouts
+
+      SNACP packets may not be exchanged until PPP has reached the
+      Network-Layer Protocol phase. An implementation should be prepared
+      to wait for Authentication and Link Quality Determination to
+      finish before timing out waiting for a Configure-Ack or other
+      response.  It is suggested that an implementation give up only
+      after user intervention or a configurable amount of time.
+
+
+
+
+
+Fuqua                       Standards Track                     [Page 4]
+
+RFC 2043                       PPP SNACP                    October 1996
+
+
+   Configuration Option Types
+
+      There are no Configuration Options for SNA or for SNA over LLC
+      802.2.
+
+3.  Sending SNA PIUs and NLPs.
+
+   Before any SNA packets may be communicated, PPP must reach the
+   Network-Layer Protocol phase, and the appropriate SNA Control
+   Protocol must reach the Opened state.
+
+   The maximum length of a SNA packet transmitted over a PPP link is the
+   same as the maximum length of the Information field of a PPP
+   encapsulated packet.
+
+   The format of the PPP Information field itself is the same as that
+   defined in [1].  Detailed information on SNA and APPN can be found in
+   [3], [4], [5], [6], and [7].
+
+3.1.  Sending SNA XID or FID2 PIUs over LLC
+
+   Exactly one SNA XID or FID2 PIU over LLC 802.2 is encapsulated in the
+   PPP Information field, where the PPP Protocol field indicates type
+   hex 004B (SNA over LLC 802.2).
+
+   A summary of this frame structure, beginning with the PPP Protocol
+   field, is shown below. The fields are transmitted from left to right.
+
+                -- LLC portion (PPP Information Field) -------------
+               |                                                    |
+   -+----------+----------+----------+----------+-------------------+-
+    | Protocol | DSAP     | SSAP     | Control  | LLC Information   |
+    | 0x004B   | Address  | Address  | Field    | Field             |
+   -+----------+----------+----------+----------+-------------------+-
+
+   The LLC information field contains the XID or FID2 PIU. LLC(2) is
+   included in this format for link-level error recovery.  Error
+   recovery is done by the routers at each end of the PPP link.
+
+3.2.  Sending HPR Network Layer Packets (NLPs)
+
+   Exactly one HPR Network Layer Packet (NLP) is encapsulated in the PPP
+   Information field, where the PPP Protocol field indicates type hex
+   004D (SNA).
+
+
+
+
+
+
+
+Fuqua                       Standards Track                     [Page 5]
+
+RFC 2043                       PPP SNACP                    October 1996
+
+
+   A summary of this frame structure, beginning with the PPP Protocol
+   field, is shown below. The fields are transmitted from left to right.
+
+                -- HPR Network Layer Packet (NLP) --
+                  |   (PPP Information Field)          |
+      -+----------+--------+--------+------------------+-
+       | Protocol | NHDR   | THDR   | data             |
+       | 0x004D   |        |        |                  |
+      -+----------+--------+--------+------------------+-
+
+3.3.  Other Considerations
+
+   It is architecturally possible to transport HPR NLPs over LLC over
+   PPP using PPP Protocol field type hex 004B (SNA over LLC 802.2) if
+   the optional HPR link-level error recover tower is included in the
+   implementation.
+
+Security Considerations
+
+   Security issues are not discussed in this memo.
+
+References
+
+   [1]   Simpson, W., "The Point-to-Point Protocol (PPP)", STD 51,
+         RFC 1661, Daydreamer, July 1994.
+
+   [2]   Reynolds, J., and J. Postel, "Assigned Numbers", STD 2, RFC
+         1700, USC/Information Sciences Institute, October 1994.
+
+   [3]   "SNA Formats", GA27-3136, IBM.
+
+   [4]   "SNA APPN Architecture Reference", SC30-3422, IBM.
+
+   [5]   "APPN Architecture and Product Implementations Tutorial",
+          GG24-3669-02, IBM.
+
+   [6]   APPN Implementers Workshop homepage,
+         http://www.raleigh.ibm.com/app/aiwhome.htm
+
+   [7]   "APPN High Performance Routing (HPR) Architecture",
+         ftp://networking.raleigh.ibm.com/pub/standards/aiw/appn/hpr
+
+
+   IBM documents are orderable through 1-800-879-2755.
+
+
+
+
+
+
+
+Fuqua                       Standards Track                     [Page 6]
+
+RFC 2043                       PPP SNACP                    October 1996
+
+
+Acknowledgements
+
+   Some of the text in this document is taken from previous documents
+   produced by the Point-to-Point Protocol Working Group of the Internet
+   Engineering Task Force (IETF).
+
+   Some of the text in this document is taken from miscellaneous IBM
+   documents.
+
+   Many people provided suggestions and portions of text for this
+   document.  Special thanks to Allen Carriker, Marcia Peters, and Scott
+   G. Wasson.
+
+Chair's Address
+
+   The working group can be contacted via the current chair:
+
+   Karl F. Fox
+   Ascend Communications
+   3518 Riverside Dr., Suite 101
+   Columbus, Ohio  4322
+
+   EMail: karl@ascend.com
+
+Author's Address
+
+   Questions about this memo can also be directed to:
+
+   Andrew M. Fuqua
+   International Business Machines Corporation
+   P. O. Box 12195
+   Research Triangle Park, NC  27709
+
+   EMail: fuqua@vnet.ibm.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Fuqua                       Standards Track                     [Page 7]
+

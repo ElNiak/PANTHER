@@ -1,0 +1,731 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                     J. Downs, Ed.
+Request for Comments: 6597                  PAR Government Systems Corp.
+Category: Standards Track                               J. Arbeiter, Ed.
+ISSN: 2070-1721                                               April 2012
+
+
+                         RTP Payload Format for
+       Society of Motion Picture and Television Engineers (SMPTE)
+                          ST 336 Encoded Data
+
+Abstract
+
+   This document specifies the payload format for packetization of KLV
+   (Key-Length-Value) Encoded Data, as defined by the Society of Motion
+   Picture and Television Engineers (SMPTE) in SMPTE ST 336, into the
+   Real-time Transport Protocol (RTP).
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6597.
+
+Copyright Notice
+
+   Copyright (c) 2012 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 1]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Conventions, Definitions, and Acronyms ..........................3
+   3. Media Format Background .........................................3
+   4. Payload Format ..................................................4
+      4.1. RTP Header Usage ...........................................5
+      4.2. Payload Data ...............................................5
+           4.2.1. The KLVunit .........................................5
+           4.2.2. KLVunit Mapping to RTP Packet Payload ...............6
+      4.3. Implementation Considerations ..............................6
+           4.3.1. Loss of Data ........................................6
+                  4.3.1.1. Damaged KLVunits ...........................7
+                  4.3.1.2. Treatment of Damaged KLVunits ..............9
+   5. Congestion Control ..............................................9
+   6. Payload Format Parameters .......................................9
+      6.1. Media Type Definition ......................................9
+      6.2. Mapping to SDP ............................................10
+           6.2.1. Offer/Answer Model and Declarative Considerations ..10
+   7. IANA Considerations ............................................11
+   8. Security Considerations ........................................11
+   9. References .....................................................12
+      9.1. Normative References ......................................12
+      9.2. Informative References ....................................12
+
+1.  Introduction
+
+   This document specifies the payload format for packetization of KLV
+   (Key-Length-Value) Encoded Data, as defined by the Society of Motion
+   Picture and Television Engineers (SMPTE) in [SMPTE-ST336], into the
+   Real-time Transport Protocol (RTP) [RFC3550].
+
+   The payload format is defined in such a way that arbitrary KLV data
+   can be carried.  No restrictions are placed on which KLV data keys
+   can be used.
+
+   A brief description of SMPTE ST 336, "Data Encoding Protocol Using
+   Key-Length-Value", is given.  The payload format itself, including
+   use of the RTP header fields, is specified in Section 4.  The media
+   type and IANA considerations are also described.  This document
+   concludes with security considerations relevant to this payload
+   format.
+
+
+
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 2]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+2.  Conventions, Definitions, and Acronyms
+
+   The term "Universal Label Key" is used in this document to refer to a
+   fixed-length, 16-byte SMPTE-administered Universal Label (see
+   [SMPTE-ST298]) that is used as an identifying key in a KLV item.
+
+   The term "KLV item" is used in this document to refer to one single
+   Universal Label Key, length, and value triplet encoded as described
+   in [SMPTE-ST336].
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+3.  Media Format Background
+
+   [SMPTE-ST336], "Data Encoding Protocol Using Key-Length-Value",
+   defines a byte-level data encoding protocol for representing data
+   items and data groups.  This encoding protocol definition is
+   independent of the application or transportation method used.
+
+   SMPTE ST 336 data encoding can be applied to a wide variety of binary
+   data.  This encoding has been used to provide diverse and rich
+   metadata sets that describe or enhance associated video
+   presentations.  Use of SMPTE ST 336 encoded metadata in conjunction
+   with video has enabled improvements in multimedia presentations,
+   content management and distribution, archival and retrieval, and
+   production workflow.
+
+   The SMPTE ST 336 standard defines a KLV triplet as a data interchange
+   protocol for data items or data groups where the Key identifies the
+   data, the Length specifies the length of the data, and the Value is
+   the data itself.  The KLV protocol provides a common interchange
+   point for all compliant applications irrespective of the method of
+   implementation or transport.
+
+   The Key of a KLV triplet (a Universal Label Key) is coded using a
+   fixed-length 16-byte SMPTE-administered Universal Label.
+   [SMPTE-ST298] further details the structure of 16-byte SMPTE-
+   administered Universal Labels.  Universal Label Keys are maintained
+   in registries published by SMPTE (see, for example, [SMPTE-ST335] and
+   [SMPTE-RP210]).
+
+
+
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 3]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+   The standard also provides methods for combining associated KLV
+   triplets in data sets where the set of KLV triplets is itself coded
+   with the KLV data coding protocol.  Such sets can be coded in either
+   full form (Universal Sets) or one of four increasingly bit-efficient
+   forms (Global Sets, Local Sets, Variable Length Packs, and Defined
+   Length Packs).  The standard provides a definition of each of these
+   data constructs.
+
+   Additionally, the standard defines the use of KLV coding to provide a
+   means to carry information that is registered with a non-SMPTE
+   external agency.
+
+4.  Payload Format
+
+   The main goal of the payload format design for SMPTE ST 336 data is
+   to provide carriage of SMPTE ST 336 data over RTP in a simple, yet
+   robust manner.  All forms of SMPTE ST 336 data can be carried by the
+   payload format.  The payload format maintains simplicity by using
+   only the standard RTP headers and not defining any payload headers.
+
+   SMPTE ST 336 KLV data is broken into KLVunits.  A KLVunit is simply a
+   logical grouping of otherwise unframed KLV data, grouped based on
+   source data timing (see Section 4.2.1).  Each KLVunit is then placed
+   into one or more RTP packet payloads.  The RTP header marker bit is
+   used to assist receivers in locating the boundaries of KLVunits.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 4]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+4.1.  RTP Header Usage
+
+   This payload format uses the RTP packet header fields as described in
+   the table below:
+
+   +-----------+-------------------------------------------------------+
+   | Field     | Usage                                                 |
+   +-----------+-------------------------------------------------------+
+   | Timestamp | The RTP Timestamp encodes the instant along a         |
+   |           | presentation timeline that the entire KLVunit encoded |
+   |           | in the packet payload is to be presented.  When one   |
+   |           | KLVunit is placed in multiple RTP packets, the RTP    |
+   |           | timestamp of all packets comprising that KLVunit MUST |
+   |           | be the same.  The timestamp clock frequency is        |
+   |           | defined as a parameter to the payload format          |
+   |           | (Section 6).                                          |
+   |           |                                                       |
+   | M-bit     | The RTP header marker bit (M) is used to demarcate    |
+   |           | KLVunits.  Senders MUST set the marker bit to '1' for |
+   |           | any RTP packet that contains the final byte of a      |
+   |           | KLVunit.  For all other packets, senders MUST set the |
+   |           | RTP header marker bit to '0'.  This allows receivers  |
+   |           | to pass a KLVunit for parsing/decoding immediately    |
+   |           | upon receipt of the last RTP packet comprising the    |
+   |           | KLVunit.  Without this, a receiver would need to wait |
+   |           | for the next RTP packet with a different timestamp to |
+   |           | arrive, thus signaling the end of one KLVunit and the |
+   |           | start of another.                                     |
+   +-----------+-------------------------------------------------------+
+
+   The remaining RTP header fields are used as specified in [RFC3550].
+
+4.2.  Payload Data
+
+4.2.1.  The KLVunit
+
+   A KLVunit is a logical collection of all KLV items that are to be
+   presented at a specific time.  A KLVunit is comprised of one or more
+   KLV items.  Compound items (sets, packs) are allowed as per
+   [SMPTE-ST336], but the contents of a compound item MUST NOT be split
+   across two KLVunits.  Multiple KLV items in a KLVunit occur one after
+   another with no padding or stuffing between items.
+
+
+
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 5]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+4.2.2.  KLVunit Mapping to RTP Packet Payload
+
+   An RTP packet payload SHALL contain one, and only one, KLVunit or a
+   fragment thereof.  KLVunits small enough to fit into a single RTP
+   packet (RTP packet size is up to the implementation but should
+   consider underlying transport/network factors such as MTU
+   limitations) are placed directly into the payload of the RTP packet,
+   with the first byte of the KLVunit (which is the first byte of a KLV
+   Universal Label Key) being the first byte of the RTP packet payload.
+
+   KLVunits too large to fit into a single RTP packet payload MAY span
+   multiple RTP packet payloads.  When this is done, the KLVunit data
+   MUST be sent in sequential byte order, such that when all RTP packets
+   comprising the KLVunit are arranged in sequence number order,
+   concatenating the payload data together exactly reproduces the
+   original KLVunit.
+
+   Additionally, when a KLVunit is fragmented across multiple RTP
+   packets, all RTP packets transporting the fragments of a KLVunit MUST
+   have the same timestamp.
+
+   KLVunits are bounded with changes in RTP packet timestamps.  The
+   marker (M) bit in the RTP packet headers marks the last RTP packet
+   comprising a KLVunit (see Section 4.1).
+
+4.3.  Implementation Considerations
+
+4.3.1.  Loss of Data
+
+   RTP is generally deployed in network environments where packet loss
+   might occur.  RTP header fields enable detection of lost packets, as
+   described in [RFC3550].  When transmitting payload data described by
+   this payload format, packet loss can cause the loss of whole KLVunits
+   or portions thereof.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 6]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+4.3.1.1.  Damaged KLVunits
+
+   A damaged KLVunit is any KLVunit that was carried in one or more RTP
+   packets that have been lost.  When a lost packet is detected (through
+   use of the sequence number header field), the receiver
+
+   o  MUST consider the KLVunit partially received before a lost packet
+      as damaged.  This damaged KLVunit includes all packets prior to
+      the lost one (in sequence number order) back to, but not
+      including, the most recent packet in which the M-bit in the RTP
+      header was set to '1'.
+
+   o  MUST consider the first KLVunit received after a lost packet as
+      damaged.  This damaged KLVunit includes the first packet after the
+      lost one (in sequence number order) and, if the first packet has
+      its M-bit in the RTP header set to '0', all subsequent packets up
+      to and including the next one with the M-bit in the RTP header set
+      to '1'.
+
+   The above applies, regardless of the M-bit value in the RTP header of
+   the lost packet itself.  This enables very basic receivers to look
+   solely at the M-bit to determine the outer boundaries of damaged
+   KLVunits.  For example, when a packet with the M-bit set to '1' is
+   lost, the KLVunit that the lost packet would have terminated is
+   considered damaged, as is the KLVunit comprised of packets received
+   subsequent to the lost packet (up to and including the next received
+   packet with the M-bit set to '1').
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 7]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+   The example below illustrates how a receiver would handle a lost
+   packet in another possible packet sequence:
+
+          +---------+-------------+    +--------------+
+          | RTP Hdr | Data        |    |              |
+          +---------+-------------+    +--------------+
+     .... | ts = 30 | KLV KLV ... |    |              |  >---+
+          | M = 1   |             |    |              |      |
+          | seq = 5 | ... KLV KLV |    |              |      |
+          +---------+-------------+    +--------------+      |
+           Last RTP pkt for time 30      Lost RTP Pkt        |
+                                           (seq = 6)         |
+                                                             |
+    +--------------------------------------------------------+
+    |
+    |     +---------+-------------+    +---------+-------------+
+    |     | RTP Hdr |     Data    |    | RTP Hdr |     Data    |
+    |     +---------+-------------+    +---------+-------------+
+    +-->  | ts = 45 | KLV KLV ... |    | ts = 45 | ... KLV ... | >---+
+          | M = 0   |             |    | M = 1   |             |     |
+          | seq = 7 | ... KLV ... |    | seq = 8 | ... KLV KLV |     |
+          +---------+-------------+    +---------+-------------+     |
+             RTP pkt for time 45        Last RTP pkt for time 45     |
+              KLVunit carried in these two packets is "damaged"      |
+                                                                     |
+    +----------------------------------------------------------------+
+    |
+    |     +---------+-------------+
+    |     | RTP Hdr |     Data    |
+    |     +---------+-------------+
+    +-->  | ts = 55 | KLV KLV ... |   ....
+          | M = 1   |             |
+          | seq = 9 | ... KLV ... |
+          +---------+-------------+
+           Last and only RTP pkt
+               for time 55
+
+   In this example, the packets with sequence numbers 7 and 8 contain
+   portions of a KLVunit with a timestamp of 45.  This KLVunit is
+   considered "damaged" due to the missing RTP packet with sequence
+   number 6, which might have been part of this KLVunit.  The KLVunit
+   for timestamp 30 (ended in packet with sequence number 5) is
+   unaffected by the missing packet.  The KLVunit for timestamp 55,
+   carried in the packet with sequence number 9, is also unaffected by
+   the missing packet and is considered complete and intact.
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 8]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+4.3.1.2.  Treatment of Damaged KLVunits
+
+   SMPTE ST 336 KLV data streams are built in such a way that it is
+   possible to partially recover from errors or missing data in a
+   stream.  Exact specifics of how damaged KLVunits are handled are left
+   to each implementation, as different implementations can have
+   differing capabilities and robustness in their downstream KLV payload
+   processing.  Because some implementations can be particularly limited
+   in their capacity to handle damaged KLVunits, receivers MAY drop
+   damaged KLVunits entirely.
+
+5.  Congestion Control
+
+   The general congestion control considerations for transporting RTP
+   data apply; see RTP [RFC3550] and any applicable RTP profile, like
+   AVP [RFC3551].
+
+   Further, SMPTE ST 336 data can be encoded in different schemes that
+   reduce the overhead associated with individual data items within the
+   overall stream.  SMPTE ST 336 grouping constructs, such as local sets
+   and data packs, provide a mechanism to reduce bandwidth requirements.
+
+6.  Payload Format Parameters
+
+   This RTP payload format is identified using the application/smpte336m
+   media type, which is registered in accordance with [RFC4855], and
+   using the template of [RFC4288].
+
+6.1.  Media Type Definition
+
+   Type name: application
+
+   Subtype name: smpte336m
+
+   Required parameters:
+
+      rate: RTP timestamp clock rate.  Typically chosen based on
+         sampling rate of metadata being transmitted, but other rates
+         can be specified.
+
+   Optional parameters: None
+
+   Encoding considerations: This media type is framed and binary; see
+      Section 4.8 of [RFC4288].
+
+   Security considerations: See Section 8 of RFC 6597.
+
+
+
+
+
+Downs & Arbeiter             Standards Track                    [Page 9]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+   Interoperability considerations: Data items in smpte336m can be very
+      diverse.  Receivers might only be capable of interpreting a subset
+      of the possible data items; unrecognized items are skipped.
+      Agreement on data items to be used out of band, via application
+      profile or similar, is typical.
+
+   Published specification: RFC 6597
+
+   Applications that use this media type: Streaming of metadata
+      associated with simultaneously streamed video and transmission of
+      [SMPTE-ST336]-based media formats (e.g., Material Exchange Format
+      (MXF) [SMPTE-ST377]).
+
+   Additional Information: none
+
+   Person & email address to contact for further information: J. Downs
+      <jeff_downs@partech.com>; IETF Payload Working Group
+      <payload@ietf.org>
+
+   Intended usage: COMMON
+
+   Restrictions on usage: This media type depends on RTP framing, and
+      hence is only defined for transfer via RTP ([RFC3550]).  Transport
+      within other framing protocols is not defined at this time.
+
+   Author:
+
+      J. Downs <jeff_downs@partech.com>
+
+      J. Arbeiter <jimsgti@gmail.com>
+
+   Change controller: IETF Payload working group delegated from the
+      IESG.
+
+6.2.  Mapping to SDP
+
+   The mapping of the above defined payload format media type and its
+   parameters SHALL be done according to Section 3 of [RFC4855].
+
+6.2.1.  Offer/Answer Model and Declarative Considerations
+
+   This payload format has no configuration or optional format
+   parameters.  Thus, when offering SMPTE ST 336 Encoded Data over RTP
+   using the Session Description Protocol (SDP) in an Offer/Answer model
+   [RFC3264] or in a declarative manner (e.g., SDP in the Real-Time
+   Streaming Protocol (RTSP) [RFC2326] or the Session Announcement
+   Protocol (SAP) [RFC2974]), there are no specific considerations.
+
+
+
+
+Downs & Arbeiter             Standards Track                   [Page 10]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+7.  IANA Considerations
+
+   IANA has registered application/smpte336m as specified in
+   Section 6.1.  The media type has been added to the IANA registry for
+   "RTP Payload Format media types"
+   (http://www.iana.org/assignments/rtp-parameters).
+
+8.  Security Considerations
+
+   RTP packets using the payload format defined in this specification
+   are subject to the security considerations discussed in the RTP
+   specification [RFC3550], and in any applicable RTP profile.  The main
+   security considerations for the RTP packet carrying the RTP payload
+   format defined within this memo are confidentiality, integrity, and
+   source authenticity.  Confidentiality is achieved by encryption of
+   the RTP payload.  Integrity of the RTP packets is achieved through a
+   suitable cryptographic integrity protection mechanism.  Cryptographic
+   systems may also allow the authentication of the source of the
+   payload.  A suitable security mechanism for this RTP payload format
+   should provide confidentiality, integrity protection, and at least
+   source authentication capable of determining whether or not an RTP
+   packet is from a member of the RTP session.
+
+   Note that the appropriate mechanism to provide security to RTP and
+   payloads following this memo may vary.  It is dependent on the
+   application, the transport, and the signaling protocol employed.
+   Therefore, a single mechanism is not sufficient, although if suitable
+   the usage of the Secure Real-time Transport Protocol (SRTP) [RFC3711]
+   is recommended.  Other mechanisms that may be used are IPsec
+   [RFC4301] and Transport Layer Security (TLS) [RFC5246] (RTP over
+   TCP), but other alternatives may exist as well.
+
+   This RTP payload format presents the possibility for significant
+   non-uniformity in the receiver-side computational complexity during
+   processing of SMPTE ST 336 payload data.  Because the length of SMPTE
+   ST 336 encoded data items is essentially unbounded, receivers must
+   take care when allocating resources used in processing.  It is easy
+   to construct pathological data that would cause a naive decoder to
+   allocate large amounts of resources, resulting in denial-of-service
+   threats.  Receivers SHOULD place limits on resource allocation that
+   are within the bounds set forth by any application profile in use.
+
+   This RTP payload format does not contain any inherently active
+   content.  However, individual SMPTE ST 336 KLV items could be defined
+   to convey active content in a particular application.  Therefore,
+   receivers capable of decoding and interpreting such data items should
+   use appropriate caution and security practices.  In particular,
+   accepting active content from streams that lack authenticity or
+
+
+
+Downs & Arbeiter             Standards Track                   [Page 11]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+   integrity protection mechanisms places a receiver at risk of attacks
+   using spoofed packets.  Receivers not capable of decoding such data
+   items are not at risk; unknown data items are skipped over and
+   discarded according to SMPTE ST 336 processing rules.
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC2119]      Bradner, S., "Key words for use in RFCs to Indicate
+                  Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3550]      Schulzrinne, H., Casner, S., Frederick, R., and V.
+                  Jacobson, "RTP: A Transport Protocol for Real-Time
+                  Applications", STD 64, RFC 3550, July 2003.
+
+   [RFC3551]      Schulzrinne, H. and S. Casner, "RTP Profile for Audio
+                  and Video Conferences with Minimal Control", STD 65,
+                  RFC 3551, July 2003.
+
+   [RFC4288]      Freed, N. and J. Klensin, "Media Type Specifications
+                  and Registration Procedures", BCP 13, RFC 4288,
+                  December 2005.
+
+   [RFC4855]      Casner, S., "Media Type Registration of RTP Payload
+                  Formats", RFC 4855, February 2007.
+
+9.2.  Informative References
+
+   [RFC2326]      Schulzrinne, H., Rao, A., and R. Lanphier, "Real Time
+                  Streaming Protocol (RTSP)", RFC 2326, April 1998.
+
+   [RFC2974]      Handley, M., Perkins, C., and E. Whelan, "Session
+                  Announcement Protocol", RFC 2974, October 2000.
+
+   [RFC3264]      Rosenberg, J. and H. Schulzrinne, "An Offer/Answer
+                  Model with Session Description Protocol (SDP)",
+                  RFC 3264, June 2002.
+
+   [RFC3711]      Baugher, M., McGrew, D., Naslund, M., Carrara, E., and
+                  K. Norrman, "The Secure Real-time Transport Protocol
+                  (SRTP)", RFC 3711, March 2004.
+
+   [RFC4301]      Kent, S. and K. Seo, "Security Architecture for the
+                  Internet Protocol", RFC 4301, December 2005.
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                   [Page 12]
+
+RFC 6597            RTP Format for SMPTE ST 336 Data          April 2012
+
+
+   [RFC5246]      Dierks, T. and E. Rescorla, "The Transport Layer
+                  Security (TLS) Protocol Version 1.2", RFC 5246,
+                  August 2008.
+
+   [SMPTE-RP210]  Society of Motion Picture and Television Engineers,
+                  "SMPTE RP 210v12:2010 Data Element Dictionary", 2010,
+                  <http://www.smpte-ra.org/mdd/>.
+
+   [SMPTE-ST298]  Society of Motion Picture and Television Engineers,
+                  "SMPTE ST 298:2009 Universal Labels for Unique
+                  Identification of Digital Data", 2009,
+                  <http://www.smpte.org>.
+
+   [SMPTE-ST335]  Society of Motion Picture and Television Engineers,
+                  "SMPTE ST 335:2012 Metadata Element Dictionary
+                  Structure", 2012, <http://www.smpte.org>.
+
+   [SMPTE-ST336]  Society of Motion Picture and Television Engineers,
+                  "SMPTE ST 336:2007 Data Encoding Protocol Using Key-
+                  Length-Value", 2007, <http://www.smpte.org>.
+
+   [SMPTE-ST377]  Society of Motion Picture and Television Engineers,
+                  "SMPTE ST 377-1:2011 Material Exchange Format (MXF) -
+                  File Format Specification", 2011,
+                  <http://www.smpte.org>.
+
+Authors' Addresses
+
+   J. Downs (editor)
+   PAR Government Systems Corp.
+   US
+
+   EMail: jeff_downs@partech.com
+
+
+   J. Arbeiter (editor)
+   US
+
+   EMail: jimsgti@gmail.com
+
+
+
+
+
+
+
+
+
+
+
+
+Downs & Arbeiter             Standards Track                   [Page 13]
+

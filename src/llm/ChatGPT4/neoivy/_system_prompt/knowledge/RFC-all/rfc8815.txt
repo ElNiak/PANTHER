@@ -1,0 +1,721 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                    M. Abrahamsson
+Request for Comments: 8815                                              
+BCP: 229                                                        T. Chown
+Category: Best Current Practice                                     Jisc
+ISSN: 2070-1721                                              L. Giuliano
+                                                  Juniper Networks, Inc.
+                                                               T. Eckert
+                                             Futurewei Technologies Inc.
+                                                             August 2020
+
+
+    Deprecating Any-Source Multicast (ASM) for Interdomain Multicast
+
+Abstract
+
+   This document recommends deprecation of the use of Any-Source
+   Multicast (ASM) for interdomain multicast.  It recommends the use of
+   Source-Specific Multicast (SSM) for interdomain multicast
+   applications and recommends that hosts and routers in these
+   deployments fully support SSM.  The recommendations in this document
+   do not preclude the continued use of ASM within a single organization
+   or domain and are especially easy to adopt in existing deployments of
+   intradomain ASM using PIM Sparse Mode (PIM-SM).
+
+Status of This Memo
+
+   This memo documents an Internet Best Current Practice.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   BCPs is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8815.
+
+Copyright Notice
+
+   Copyright (c) 2020 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Background
+     2.1.  Multicast Service Models
+     2.2.  ASM Routing Protocols
+       2.2.1.  PIM Sparse Mode (PIM-SM)
+       2.2.2.  Embedded-RP
+       2.2.3.  BIDIR-RP
+     2.3.  SSM Routing Protocols
+   3.  Discussion
+     3.1.  Observations on ASM and SSM Deployments
+     3.2.  Advantages of SSM for Interdomain Multicast
+       3.2.1.  Reduced Network Operations Complexity
+       3.2.2.  No Network-Wide IP Multicast Group-Address Management
+       3.2.3.  Intrinsic Source-Control Security
+   4.  Recommendations
+     4.1.  Deprecating Use of ASM for Interdomain Multicast
+     4.2.  Including Network Support for IGMPv3/MLDv2
+     4.3.  Building Application Support for SSM
+     4.4.  Developing Application Guidance: SSM, ASM, Service
+           Discovery
+     4.5.  Preferring SSM Applications Intradomain
+     4.6.  Documenting an ASM/SSM Protocol Mapping Mechanism
+     4.7.  Not Filtering ASM Addressing between Domains
+     4.8.  Not Precluding Intradomain ASM
+     4.9.  Evolving PIM Deployments for SSM
+   5.  Future Interdomain ASM Work
+   6.  Security Considerations
+   7.  IANA Considerations
+   8.  References
+     8.1.  Normative References
+     8.2.  Informative References
+   Acknowledgments
+   Authors' Addresses
+
+1.  Introduction
+
+   IP Multicast has been deployed in various forms, within private
+   networks, the wider Internet, and federated networks such as national
+   or regional research networks.  While a number of service models have
+   been published, and in many cases revised over time, there has been
+   no strong recommendation made by the IETF on the appropriateness of
+   those models to certain scenarios, even though vendors and
+   federations have often made such recommendations.
+
+   This document addresses this gap by making a BCP-level recommendation
+   to deprecate the use of Any-Source Multicast (ASM) for interdomain
+   multicast, leaving Source-Specific Multicast (SSM) as the recommended
+   interdomain mode of multicast.  Therefore, this document recommends
+   that all hosts and routers that support interdomain multicast
+   applications fully support SSM.
+
+   This document does not make any statement on the use of ASM within a
+   single domain or organization and, therefore, does not preclude its
+   use.  Indeed, there are application contexts for which ASM is
+   currently still widely considered well suited within a single domain.
+
+   The main issue in most cases with moving to SSM is application
+   support.  Many applications are initially deployed for intradomain
+   use and are later deployed interdomain.  Therefore, this document
+   recommends that applications support SSM, even when they are
+   initially intended for intradomain use.  As explained below, SSM
+   applications are readily compatible with existing intradomain ASM
+   deployments using PIM-SM, as PIM-SSM is merely a subset of PIM-SM.
+
+2.  Background
+
+2.1.  Multicast Service Models
+
+   Any-Source Multicast (ASM) and Source-Specific Multicast (SSM) are
+   the two multicast service models in use today.  In ASM, as originally
+   described in [RFC1112], receivers express interest in joining a
+   multicast group address, and routers use multicast routing protocols
+   to deliver traffic from the sender(s) to the receivers.  If there are
+   multiple senders for a given group, traffic from all senders will be
+   delivered to the receivers.  Since receivers specify only the group
+   address, the network -- and therefore the multicast routing protocols
+   -- are responsible for source discovery.
+
+   In SSM, by contrast, receivers specify both group and source when
+   expressing interest in joining a multicast stream.  Source discovery
+   in SSM is handled by some out-of-band mechanism (typically in the
+   application layer), which drastically simplifies the network and how
+   the multicast routing protocols operate.
+
+   IANA has reserved specific ranges of IPv4 and IPv6 address space for
+   multicast addressing.  Guidelines for IPv4 multicast address
+   assignments can be found in [RFC5771], while guidelines for IPv6
+   multicast address assignments can be found in [RFC2375] and
+   [RFC3307].  The IPv6 multicast address format is described in
+   [RFC4291].
+
+2.2.  ASM Routing Protocols
+
+2.2.1.  PIM Sparse Mode (PIM-SM)
+
+   The most commonly deployed ASM routing protocol is Protocol
+   Independent Multicast - Sparse Mode (PIM-SM), as detailed in
+   [RFC7761].  PIM-SM, as the name suggests, was designed to be used in
+   scenarios where the subnets with receivers are sparsely distributed
+   throughout the network.  Because receivers do not indicate sender
+   addresses in ASM (but only group addresses), PIM-SM uses the concept
+   of a Rendezvous Point (RP) as a "meeting point" for sources and
+   receivers, and all routers in a PIM-SM domain are configured to use a
+   specific RP(s), either explicitly or through dynamic RP-discovery
+   protocols.
+
+   To enable PIM-SM to work between multiple domains, an interdomain,
+   inter-RP signaling protocol known as Multicast Source Discovery
+   Protocol (MSDP) [RFC3618] is used to allow an RP in one domain to
+   learn of the existence of a source in another domain.  Deployment
+   scenarios for MSDP are given in [RFC4611].  MSDP floods information
+   about all active sources for all multicast streams to all RPs in all
+   the domains -- even if there is no receiver for a given application
+   in a domain.  As a result of this key scalability and security issue,
+   along with other deployment challenges with the protocol, MSDP was
+   never extended to support IPv6 and remains an Experimental protocol.
+
+   At the time of writing, there is no IETF interdomain solution at the
+   level of Proposed Standard for IPv4 ASM multicast, because MSDP was
+   the de facto mechanism for the interdomain source discovery problem,
+   and it is Experimental.  Other protocol options were investigated at
+   the same time but were never implemented or deployed and are now
+   historic (e.g., [RFC3913]).
+
+2.2.2.  Embedded-RP
+
+   Due to the availability of more bits in an IPv6 address than in IPv4,
+   an IPv6-specific mechanism was designed in support of interdomain
+   ASM, with PIM-SM leveraging those bits.  Embedded-RP [RFC3956] allows
+   routers supporting the protocol to determine the RP for the group
+   without any prior configuration or discovery protocols, simply by
+   observing the unicast RP address that is embedded (included) in the
+   IPv6 multicast group address.  Embedded-RP allows PIM-SM operation
+   across any IPv6 network in which there is an end-to-end path of
+   routers supporting this mechanism, including interdomain deployment.
+
+2.2.3.  BIDIR-RP
+
+   BIDIR-PIM [RFC5015] is another protocol to support ASM.  There is no
+   standardized option to operate BIDIR-PIM interdomain.  It is deployed
+   intradomain for applications where many sources send traffic to the
+   same IP multicast groups because, unlike PIM-SM, it does not create
+   per-source state.  BIDIR-PIM is one of the important reasons for this
+   document to not deprecate intradomain ASM.
+
+2.3.  SSM Routing Protocols
+
+   SSM is detailed in [RFC4607].  It mandates the use of PIM-SSM for
+   routing of SSM.  PIM-SSM is merely a subset of PIM-SM [RFC7761].
+
+   PIM-SSM expects the sender's source address(es) to be known in
+   advance by receivers through some out-of-band mechanism (typically in
+   the application layer); thus, the receiver's designated router can
+   send a PIM Join message directly towards the source without needing
+   to use an RP.
+
+   IPv4 addresses in the 232/8 (232.0.0.0 to 232.255.255.255) range are
+   designated as Source-Specific Multicast (SSM) destination addresses
+   and are reserved for use by source-specific applications and
+   protocols.  For IPv6, the address prefix ff3x::/32 is reserved for
+   source-specific multicast use.  See [RFC4607].
+
+3.  Discussion
+
+3.1.  Observations on ASM and SSM Deployments
+
+   In enterprise and campus scenarios, ASM in the form of PIM-SM is
+   likely the most commonly deployed multicast protocol.  The
+   configuration and management of an RP (including RP redundancy)
+   within a single domain is a well-understood operational practice.
+   However, if interworking with external PIM domains is needed in IPv4
+   multicast deployments, interdomain MSDP is required to exchange
+   information about sources between domain RPs.  Deployment experience
+   has shown MSDP to be a complex and fragile protocol to manage and
+   troubleshoot.  Some of these issues include complex Reverse Path
+   Forwarding (RPF) rules, state attack protection, and filtering of
+   undesired sources.
+
+   PIM-SM is a general-purpose protocol that can handle all use cases.
+   In particular, it was designed for cases such as videoconferencing
+   where multiple sources may come and go during a multicast session.
+   But for cases where a single, persistent source for a group is used,
+   and receivers can be configured to know of that source, PIM-SM has
+   unnecessary complexity.  Therefore, SSM removes the need for many of
+   the most complex components of PIM-SM.
+
+   As explained above, MSDP was not extended to support IPv6.  Instead,
+   the proposed interdomain ASM solution for PIM-SM with IPv6 is
+   Embedded-RP, which allows the RP address for a multicast group to be
+   embedded in the group address, making RP discovery automatic for all
+   routers on the path between a receiver and a sender.  Embedded-RP can
+   support lightweight ad hoc deployments.  However, it relies on a
+   single RP for an entire group that could only be made resilient
+   within one domain.  While this approach solves the MSDP issues, it
+   does not solve the problem of unauthorized sources sending traffic to
+   ASM multicast groups; this security issue is one of biggest problems
+   of interdomain multicast.
+
+   As stated in RFC 4607, SSM is particularly well suited to either
+   dissemination-style applications with one or more senders whose
+   identities are known (by some out-of-band mechanism) before the
+   application starts running or applications that utilize some
+   signaling to indicate the source address of the multicast stream
+   (e.g., an electronic programming guide in IPTV applications).
+   Therefore, SSM through PIM-SSM is very well suited to applications
+   such as classic linear-broadcast TV over IP.
+
+   SSM requires applications, host operating systems, and the designated
+   routers connected to receiving hosts to support Internet Group
+   Management Protocol, Version 3 (IGMPv3) [RFC3376] and Multicast
+   Listener Discovery, Version 2 (MLDv2) [RFC3810].  While support for
+   IGMPv3 and MLDv2 has been commonplace in routing platforms for a long
+   time, it has also now become widespread in common operating systems
+   for several years (Windows, Mac OS, Linux/Android) and is no longer
+   an impediment to SSM deployment.
+
+3.2.  Advantages of SSM for Interdomain Multicast
+
+   This section describes the three key benefits that SSM with PIM-SSM
+   has over ASM.  These benefits also apply to intradomain deployment
+   but are even more important in interdomain deployments.  See
+   [RFC4607] for more details.
+
+3.2.1.  Reduced Network Operations Complexity
+
+   A significant benefit of SSM is the reduced complexity that comes
+   through eliminating the network-based source discovery required in
+   ASM with PIM-SM.  Specifically, SSM eliminates the need for RPs,
+   shared trees, Shortest Path Tree (SPT) switchovers, PIM registers,
+   MSDP, dynamic RP-discovery mechanisms (Bootstrap Router (BSR) /
+   AutoRP), and data-driven state creation.  SSM simply utilizes a small
+   subset of PIM-SM, alongside the integration with IGMPv3/MLDv2, where
+   the source address signaled from the receiver is immediately used to
+   create (S,G) state.  Eliminating network-based source discovery for
+   interdomain multicast means the vast majority of the complexity of
+   multicast goes away.
+
+   This reduced complexity makes SSM radically simpler to manage,
+   troubleshoot, and operate, particularly for backbone network
+   operators.  This is the main operator motivation for the
+   recommendation to deprecate the use of ASM in interdomain scenarios.
+
+   Note that this discussion does not apply to BIDIR-PIM, and there is
+   (as mentioned above) no standardized interdomain solution for BIDIR-
+   PIM.  In BIDIR-PIM, traffic is forwarded to the RP instead of
+   building state as in PIM-SM.  This occurs even in the absence of
+   receivers.  Therefore, BIDIR-PIM offers a trade-off of state
+   complexity at the cost of creating unnecessary traffic (potentially a
+   large amount).
+
+3.2.2.  No Network-Wide IP Multicast Group-Address Management
+
+   In ASM, IP multicast group addresses need to be assigned to
+   applications and instances thereof, so that two simultaneously active
+   application instances will not share the same group address and
+   receive IP multicast traffic from each other.
+
+   In SSM, no such IP multicast group management is necessary.  Instead,
+   the IP multicast group address simply needs to be assigned locally on
+   a source like a unicast transport protocol port number: the only
+   coordination required is to ensure that different applications
+   running on the same host don't send to the same group address.  This
+   does not require any network-operator involvement.
+
+3.2.3.  Intrinsic Source-Control Security
+
+   SSM is implicitly secure against off-path unauthorized/undesired
+   sources.  Receivers only receive packets from the sources they
+   explicitly specify in their IGMPv3/MLDv2 membership messages, as
+   opposed to ASM, where any host can send traffic to a group address
+   and have it transmitted to all receivers.  With PIM-SSM, traffic from
+   sources not requested by any receiver will be discarded by the First-
+   Hop Router (FHR) of that source, minimizing source attacks against
+   shared network bandwidth and receivers.
+
+   This benefit is particularly important in interdomain deployments
+   because there are no standardized solutions for ASM control of
+   sources and the most common intradomain operational practices such as
+   Access Control Lists (ACLs) on the sender's FHR are not feasible for
+   interdomain deployments.
+
+   This topic is expanded upon in [RFC4609].
+
+4.  Recommendations
+
+   This section provides recommendations for a variety of stakeholders
+   in SSM deployment, including vendors, operators, and application
+   developers.  It also suggests further work that could be undertaken
+   within the IETF.
+
+4.1.  Deprecating Use of ASM for Interdomain Multicast
+
+   This document recommends that the use of ASM be deprecated for
+   interdomain multicast; thus, implicitly, it recommends that hosts and
+   routers that support such interdomain applications fully support SSM
+   and its associated protocols.  Best current practices for deploying
+   interdomain multicast using SSM are documented in [RFC8313].
+
+   The recommendation applies to the use of ASM between domains where
+   either MSDP (IPv4) or Embedded-RP (IPv6) is used.
+
+   An interdomain use of ASM multicast in the context of this document
+   is one where PIM-SM with RPs/MSDP/Embedded-RP is run on routers
+   operated by two or more separate administrative entities.
+
+   The focus of this document is deprecation of interdomain ASM
+   multicast, and while encouraging the use of SSM within domains, it
+   leaves operators free to choose to use ASM within their own domains.
+   A more inclusive interpretation of this recommendation is that it
+   also extends to deprecating use of ASM in the case where PIM is
+   operated in a single operator domain, but where user hosts or non-PIM
+   network edge devices are under different operator control.  A typical
+   example of this case is a service provider offering IPTV (single
+   operator domain for PIM) to subscribers operating an IGMP proxy home
+   gateway and IGMPv3/MLDv2 hosts (computer, tablets, set-top boxes).
+
+4.2.  Including Network Support for IGMPv3/MLDv2
+
+   This document recommends that all hosts, router platforms, and
+   security appliances used for deploying multicast support the
+   components of IGMPv3 [RFC3376] and MLDv2 [RFC3810] necessary to
+   support SSM (i.e., explicitly sending source-specific reports).
+   "IPv6 Node Requirements" [RFC8504] states that MLDv2 must be
+   supported in all implementations.  Such support is already widespread
+   in common host and router platforms.
+
+   Further guidance on IGMPv3 and MLDv2 is given in [RFC4604].
+
+   Multicast snooping is often used to limit the flooding of multicast
+   traffic in a Layer 2 network.  With snooping, an L2 switch will
+   monitor IGMP/MLD messages and only forward multicast traffic out on
+   host ports that have interested receivers connected.  Such snooping
+   capability should therefore support IGMPv3 and MLDv2.  There is
+   further discussion in [RFC4541].
+
+4.3.  Building Application Support for SSM
+
+   The recommendation to use SSM for interdomain multicast means that
+   applications should properly trigger the sending of IGMPv3/MLDv2
+   source-specific report messages.  It should be noted, however, that
+   there is a wide range of applications today that only support ASM.
+   In many cases, this is due to application developers being unaware of
+   the operational concerns of networks and the implications of using
+   ASM versus SSM.  This document serves to provide clear direction for
+   application developers who might currently only consider using ASM to
+   instead support SSM, which only requires relatively minor changes for
+   many applications, particularly those with single sources.
+
+   It is often thought that ASM is required for multicast applications
+   where there are multiple sources.  However, RFC 4607 also describes
+   how SSM can be used instead of PIM-SM for multi-party applications:
+
+   |  SSM can be used to build multi-source applications where all
+   |  participants' identities are not known in advance, but the multi-
+   |  source "rendezvous" functionality does not occur in the network
+   |  layer in this case.  Just like in an application that uses unicast
+   |  as the underlying transport, this functionality can be implemented
+   |  by the application or by an application-layer library.
+
+   Some useful considerations for multicast applications can be found in
+   [RFC3170].
+
+4.4.  Developing Application Guidance: SSM, ASM, Service Discovery
+
+   Applications with many-to-many communication patterns can create more
+   (S,G) state than is feasible for networks to manage, whether the
+   source discovery is done by ASM with PIM-SM or at the application
+   level and SSM/PIM-SSM.  These applications are not best supported by
+   either SSM/PIM-SSM or ASM/PIM-SM.
+
+   Instead, these applications are better served by routing protocols
+   that do not create (S,G), such as BIDIR-PIM.  Unfortunately, many
+   applications today use ASM solely for service discovery.  One example
+   is where clients send IP multicast packets to elicit unicast replies
+   from server(s).  Deploying any form of IP multicast solely in support
+   of such service discovery is, in general, not recommended.  Dedicated
+   service discovery via DNS-based Service Discovery (DNS-SD) [RFC6763]
+   should be used for this instead.
+
+   This document describes best practices to explain when to use SSM in
+   applications -- e.g., when ASM without (S,G) state in the network is
+   better, or when dedicated service-discovery mechanisms should be
+   used.  However, specifying how applications can support these
+   practices is outside the scope of this document.  Further work on
+   this subject may be expected within the IETF.
+
+4.5.  Preferring SSM Applications Intradomain
+
+   If feasible, it is recommended for applications to use SSM even if
+   they are initially only meant to be used in intradomain environments
+   supporting ASM.  Because PIM-SSM is a subset of PIM-SM, existing
+   intradomain PIM-SM networks are automatically compatible with SSM
+   applications.  Thus, SSM applications can operate alongside existing
+   ASM applications.  SSM's benefits of simplified address management
+   and significantly reduced operational complexity apply equally to
+   intradomain use.
+
+   However, for some applications, it may be prohibitively difficult to
+   add support for source discovery, so intradomain ASM may still be
+   appropriate.
+
+4.6.  Documenting an ASM/SSM Protocol Mapping Mechanism
+
+   In the case of existing ASM applications that cannot readily be
+   ported to SSM, it may be possible to use some form of protocol
+   mapping -- i.e., to have a mechanism to translate a (*,G) join or
+   leave to a (S,G) join or leave for a specific source S.  The general
+   challenge in performing such mapping is determining where the
+   configured source address, S, comes from.
+
+   There are existing vendor-specific mechanisms deployed that achieve
+   this function, but none are documented in IETF documents.  This may
+   be a useful area for the IETF to work on as an interim transition
+   mechanism.  However, these mechanisms would introduce additional
+   administrative burdens, along with the need for some form of address
+   management, neither of which are required in SSM.  Hence, this should
+   not be considered a long-term solution.
+
+4.7.  Not Filtering ASM Addressing between Domains
+
+   A key benefit of SSM is that the receiver specifies the source-group
+   tuple when signaling interest in a multicast stream.  Hence, the
+   group address need not be globally unique, so there is no need for
+   multicast address allocation as long the reserved SSM range is used.
+
+   Despite the deprecation of interdomain ASM, it is recommended that
+   operators not filter ASM group ranges at domain boundaries, as some
+   form of ASM-SSM mappings may continue to be used for some time.
+
+4.8.  Not Precluding Intradomain ASM
+
+   The use of ASM within a single multicast domain such as a campus or
+   enterprise is still relatively common today.  There are even global
+   enterprise networks that have successfully been using PIM-SM for many
+   years.  The operators of such networks most often use Anycast-RP
+   [RFC4610] or MSDP (with IPv4) for RP resilience, at the expense of
+   the extra operational complexity.  These existing practices are
+   unaffected by this document.
+
+   In the past decade, some BIDIR-PIM deployments have scaled
+   interdomain ASM deployments beyond the capabilities of PIM-SM.  This,
+   too, is unaffected by this document; instead, it is encouraged where
+   necessary due to application requirements (see Section 4.4).
+
+   This document also does not preclude continued use of ASM with
+   multiple PIM-SM domains inside organizations, such as with IPv4 MSDP
+   or IPv6 Embedded-RP.  This includes organizations that are
+   federations and have appropriate, nonstandardized mechanisms to deal
+   with the interdomain ASM issues explained in Section 3.2.
+
+4.9.  Evolving PIM Deployments for SSM
+
+   Existing PIM-SM deployments can usually be used to run SSM
+   applications with few-to-no changes.  In some widely available router
+   implementations of PIM-SM, PIM-SSM is simply enabled by default in
+   the designated SSM address spaces whenever PIM-SM is enabled.  In
+   other implementations, simple configuration options exist to enable
+   it.  This allows migration of ASM applications to SSM/PIM-SSM solely
+   through application-side development to handle source-signaling via
+   IGMPv3/MLDv2 and using SSM addresses.  No network actions are
+   required for this transition; unchanged ASM applications can continue
+   to coexist without issues.
+
+   When running PIM-SM, IGMPv3/MLDv2 (S,G) membership reports may also
+   result in the desired PIM-SSM (S,G) operations and bypass any RP
+   procedures.  This is not standardized but depends on implementation
+   and may require additional configuration in available products.  In
+   general, it is recommended to always use SSM address space for SSM
+   applications.  For example, the interaction of IGMPv3/MLDv2 (S,G)
+   membership reports and BIDIR-PIM is undefined and may not result in
+   forwarding of any traffic.
+
+   Note that these migration recommendations do not include
+   considerations on when or how to evolve those intradomain
+   applications best served by ASM/BIDIR-PIM from PIM-SM to BIDIR-PIM.
+   This may also be important but is outside the scope of this document.
+
+5.  Future Interdomain ASM Work
+
+   Future work may attempt to overcome current limitations of ASM
+   solutions, such as interdomain deployment solutions for BIDIR-PIM or
+   source-access-control mechanisms for IPv6 PIM-SM with embedded-RP.
+   Such work could modify or amend the recommendations of this document
+   (like any future IETF Standards Track / BCP work).
+
+   Nevertheless, it is very unlikely that any ASM solution, even with
+   such future work, can ever provide the same intrinsic security and
+   network- and address-management simplicity as SSM (see Section 3.2).
+   Accordingly, this document recommends that future work for general-
+   purpose interdomain IP multicast focus on SSM items listed in
+   Section 4.
+
+6.  Security Considerations
+
+   This document adds no new security considerations.  It instead
+   removes security issues incurred by interdomain ASM with PIM-SM/MSDP,
+   such as infrastructure control-plane attacks and application and
+   bandwidth/congestion attacks from unauthorized sources sending to ASM
+   multicast groups.  RFC 4609 describes the additional security
+   benefits of using SSM instead of ASM.
+
+7.  IANA Considerations
+
+   This document has no IANA actions.
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC1112]  Deering, S., "Host extensions for IP multicasting", STD 5,
+              RFC 1112, DOI 10.17487/RFC1112, August 1989,
+              <https://www.rfc-editor.org/info/rfc1112>.
+
+   [RFC3307]  Haberman, B., "Allocation Guidelines for IPv6 Multicast
+              Addresses", RFC 3307, DOI 10.17487/RFC3307, August 2002,
+              <https://www.rfc-editor.org/info/rfc3307>.
+
+   [RFC3376]  Cain, B., Deering, S., Kouvelas, I., Fenner, B., and A.
+              Thyagarajan, "Internet Group Management Protocol, Version
+              3", RFC 3376, DOI 10.17487/RFC3376, October 2002,
+              <https://www.rfc-editor.org/info/rfc3376>.
+
+   [RFC3810]  Vida, R., Ed. and L. Costa, Ed., "Multicast Listener
+              Discovery Version 2 (MLDv2) for IPv6", RFC 3810,
+              DOI 10.17487/RFC3810, June 2004,
+              <https://www.rfc-editor.org/info/rfc3810>.
+
+   [RFC3956]  Savola, P. and B. Haberman, "Embedding the Rendezvous
+              Point (RP) Address in an IPv6 Multicast Address",
+              RFC 3956, DOI 10.17487/RFC3956, November 2004,
+              <https://www.rfc-editor.org/info/rfc3956>.
+
+   [RFC4291]  Hinden, R. and S. Deering, "IP Version 6 Addressing
+              Architecture", RFC 4291, DOI 10.17487/RFC4291, February
+              2006, <https://www.rfc-editor.org/info/rfc4291>.
+
+   [RFC4607]  Holbrook, H. and B. Cain, "Source-Specific Multicast for
+              IP", RFC 4607, DOI 10.17487/RFC4607, August 2006,
+              <https://www.rfc-editor.org/info/rfc4607>.
+
+   [RFC5771]  Cotton, M., Vegoda, L., and D. Meyer, "IANA Guidelines for
+              IPv4 Multicast Address Assignments", BCP 51, RFC 5771,
+              DOI 10.17487/RFC5771, March 2010,
+              <https://www.rfc-editor.org/info/rfc5771>.
+
+   [RFC7761]  Fenner, B., Handley, M., Holbrook, H., Kouvelas, I.,
+              Parekh, R., Zhang, Z., and L. Zheng, "Protocol Independent
+              Multicast - Sparse Mode (PIM-SM): Protocol Specification
+              (Revised)", STD 83, RFC 7761, DOI 10.17487/RFC7761, March
+              2016, <https://www.rfc-editor.org/info/rfc7761>.
+
+   [RFC8313]  Tarapore, P., Ed., Sayko, R., Shepherd, G., Eckert, T.,
+              Ed., and R. Krishnan, "Use of Multicast across Inter-
+              domain Peering Points", BCP 213, RFC 8313,
+              DOI 10.17487/RFC8313, January 2018,
+              <https://www.rfc-editor.org/info/rfc8313>.
+
+8.2.  Informative References
+
+   [RFC2375]  Hinden, R. and S. Deering, "IPv6 Multicast Address
+              Assignments", RFC 2375, DOI 10.17487/RFC2375, July 1998,
+              <https://www.rfc-editor.org/info/rfc2375>.
+
+   [RFC3170]  Quinn, B. and K. Almeroth, "IP Multicast Applications:
+              Challenges and Solutions", RFC 3170, DOI 10.17487/RFC3170,
+              September 2001, <https://www.rfc-editor.org/info/rfc3170>.
+
+   [RFC3618]  Fenner, B., Ed. and D. Meyer, Ed., "Multicast Source
+              Discovery Protocol (MSDP)", RFC 3618,
+              DOI 10.17487/RFC3618, October 2003,
+              <https://www.rfc-editor.org/info/rfc3618>.
+
+   [RFC3913]  Thaler, D., "Border Gateway Multicast Protocol (BGMP):
+              Protocol Specification", RFC 3913, DOI 10.17487/RFC3913,
+              September 2004, <https://www.rfc-editor.org/info/rfc3913>.
+
+   [RFC4541]  Christensen, M., Kimball, K., and F. Solensky,
+              "Considerations for Internet Group Management Protocol
+              (IGMP) and Multicast Listener Discovery (MLD) Snooping
+              Switches", RFC 4541, DOI 10.17487/RFC4541, May 2006,
+              <https://www.rfc-editor.org/info/rfc4541>.
+
+   [RFC4604]  Holbrook, H., Cain, B., and B. Haberman, "Using Internet
+              Group Management Protocol Version 3 (IGMPv3) and Multicast
+              Listener Discovery Protocol Version 2 (MLDv2) for Source-
+              Specific Multicast", RFC 4604, DOI 10.17487/RFC4604,
+              August 2006, <https://www.rfc-editor.org/info/rfc4604>.
+
+   [RFC4609]  Savola, P., Lehtonen, R., and D. Meyer, "Protocol
+              Independent Multicast - Sparse Mode (PIM-SM) Multicast
+              Routing Security Issues and Enhancements", RFC 4609,
+              DOI 10.17487/RFC4609, October 2006,
+              <https://www.rfc-editor.org/info/rfc4609>.
+
+   [RFC4610]  Farinacci, D. and Y. Cai, "Anycast-RP Using Protocol
+              Independent Multicast (PIM)", RFC 4610,
+              DOI 10.17487/RFC4610, August 2006,
+              <https://www.rfc-editor.org/info/rfc4610>.
+
+   [RFC4611]  McBride, M., Meylor, J., and D. Meyer, "Multicast Source
+              Discovery Protocol (MSDP) Deployment Scenarios", BCP 121,
+              RFC 4611, DOI 10.17487/RFC4611, August 2006,
+              <https://www.rfc-editor.org/info/rfc4611>.
+
+   [RFC5015]  Handley, M., Kouvelas, I., Speakman, T., and L. Vicisano,
+              "Bidirectional Protocol Independent Multicast (BIDIR-
+              PIM)", RFC 5015, DOI 10.17487/RFC5015, October 2007,
+              <https://www.rfc-editor.org/info/rfc5015>.
+
+   [RFC6763]  Cheshire, S. and M. Krochmal, "DNS-Based Service
+              Discovery", RFC 6763, DOI 10.17487/RFC6763, February 2013,
+              <https://www.rfc-editor.org/info/rfc6763>.
+
+   [RFC8504]  Chown, T., Loughney, J., and T. Winters, "IPv6 Node
+              Requirements", BCP 220, RFC 8504, DOI 10.17487/RFC8504,
+              January 2019, <https://www.rfc-editor.org/info/rfc8504>.
+
+Acknowledgments
+
+   The authors would like to thank members of the IETF MBONE Deployment
+   Working Group for discussions on the content of this document, with
+   specific thanks to the following people for their contributions to
+   the document: Hitoshi Asaeda, Dale Carder, Jake Holland, Albert
+   Manfredi, Mike McBride, Per Nihlen, Greg Shepherd, James Stevens,
+   Stig Venaas, Nils Warnke, and Sandy Zhang.
+
+Authors' Addresses
+
+   Mikael Abrahamsson
+   Stockholm
+   Sweden
+
+   Email: swmike@swm.pp.se
+
+
+   Tim Chown
+   Jisc
+   Harwell Oxford
+   Lumen House, Library Avenue
+   Didcot
+   OX11 0SG
+   United Kingdom
+
+   Email: tim.chown@jisc.ac.uk
+
+
+   Lenny Giuliano
+   Juniper Networks, Inc.
+   2251 Corporate Park Drive
+   Herndon, Virginia 20171
+   United States of America
+
+   Email: lenny@juniper.net
+
+
+   Toerless Eckert
+   Futurewei Technologies Inc.
+   2330 Central Expy
+   Santa Clara, California 95050
+   United States of America
+
+   Email: tte@cs.fau.de

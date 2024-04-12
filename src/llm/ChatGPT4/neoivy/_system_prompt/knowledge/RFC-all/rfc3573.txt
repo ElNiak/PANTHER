@@ -1,0 +1,731 @@
+
+
+
+
+
+
+Network Working Group                                          I. Goyret
+Request for Comments: 3573                           Lucent Technologies
+Category: Standards Track                                      July 2003
+
+
+                   Signaling of Modem-On-Hold status
+                  in Layer 2 Tunneling Protocol (L2TP)
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2003).  All Rights Reserved.
+
+Abstract
+
+   The Layer 2 Tunneling Protocol (L2TP) defines a mechanism for
+   tunneling Point-to-Point Protocol (PPP) sessions.  It is common for
+   these PPP sessions to be established using modems connected over the
+   public switched telephone network.
+
+   One of the standards governing modem operation defines procedures
+   that enable a client modem to put the call on hold and later, re-
+   establish the modem link with minimal delay and without having to
+   redial.  While the modem call is on hold, the client phone line can
+   be used to place or receive other calls.
+
+   The L2TP base protocol does not provide any means to signal these
+   events from the L2TP Access Controller (LAC), where the modem is
+   physically connected, to the L2TP Network Server (LNS), where the PPP
+   session is handled.
+
+   This document describes a method to let the LNS know when a client
+   modem connected to a LAC has placed the call on hold.
+
+
+
+
+
+
+
+
+
+
+
+Goyret                      Standards Track                     [Page 1]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+Table of Contents
+
+   1.  Introduction . . . . . . . . . . . . . . . . . . . . . . . . .  2
+       1.1.  Specification of Requirements. . . . . . . . . . . . . .  3
+       1.2.  Terminology. . . . . . . . . . . . . . . . . . . . . . .  3
+   2.  Protocol Operation . . . . . . . . . . . . . . . . . . . . . .  3
+       2.1.  Typical Modem on Hold Usage Scenario . . . . . . . . . .  4
+       2.2.  Capability Negotiation . . . . . . . . . . . . . . . . .  4
+       2.3.  Modem On-Hold. . . . . . . . . . . . . . . . . . . . . .  5
+       2.4.  Modem Online . . . . . . . . . . . . . . . . . . . . . .  5
+   3.  New Control Messages . . . . . . . . . . . . . . . . . . . . .  5
+       3.1.  Modem-Status (MDMST) . . . . . . . . . . . . . . . . . .  5
+   4.  New Attribute Value Pairs. . . . . . . . . . . . . . . . . . .  6
+       4.1.  Modem On-Hold Capable AVP. . . . . . . . . . . . . . . .  6
+       4.2.  Modem On-Hold Status AVP . . . . . . . . . . . . . . . .  6
+   5.  Sample LNS Actions . . . . . . . . . . . . . . . . . . . . . .  7
+   6.  IANA Considerations. . . . . . . . . . . . . . . . . . . . . .  8
+   7.  Security Considerations. . . . . . . . . . . . . . . . . . . .  9
+   8.  References . . . . . . . . . . . . . . . . . . . . . . . . . .  9
+       8.1.  Normative References . . . . . . . . . . . . . . . . . .  9
+       8.2.  Informative References . . . . . . . . . . . . . . . . .  9
+   9.  Acknowledgments. . . . . . . . . . . . . . . . . . . . . . . . 10
+   Appendix A: Vendor Specific Assignments. . . . . . . . . . . . . . 11
+   Author's Address . . . . . . . . . . . . . . . . . . . . . . . . . 12
+   Full Copyright Statement . . . . . . . . . . . . . . . . . . . . . 13
+
+1.  Introduction
+
+   The Layer 2 Tunneling Protocol (L2TP) [RFC2661] defines a general
+   purpose mechanism for tunneling Point-to-Point Protocol (PPP) [STD51]
+   sessions over various media.  By design, the operation of L2TP is
+   insulated from the details of the media from which the PPP session
+   originated.
+
+   It is common for PPP sessions to be established using modems
+   connected over the public switched telephone network.  The ITU-T
+   Recommendation V.92 [V92] is one of the standards governing modem
+   operation and it defines procedures that enable a client modem to put
+   the call on hold and later, re-establish the modem link without
+   having to redial.  While the modem call is on hold, the client phone
+   line can be used for another phone call.
+
+   The L2TP base protocol does not provide any means to signal these
+   events from the L2TP Access Controller (LAC), where the modem is
+   physically connected, to the L2TP Network Server (LNS), where the PPP
+   session is handled.  It may be desirable for this information (which
+   is available only on the LAC) to be provided to the LNS.
+
+
+
+
+Goyret                      Standards Track                     [Page 2]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+   This document provides additional L2TP AVPs and control messages that
+   may be used to communicate some modem information from the LAC to the
+   LNS.  However, it does not define what, if anything, the LNS should
+   do with this information.  A sample of the possible actions that an
+   LNS may consider are listed in section 5.
+
+1.1.  Specification of Requirements
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in BCP 14, RFC 2119
+   [BCP14].
+
+1.2.  Terminology
+
+   Definition of terms used in this document may be found in the L2TP
+   Protocol document [L2TP].
+
+2.  Protocol Operation
+
+   The typical dial in topology looks like this:
+
+   +-----+         {      }     +----------+     [   IP    ]
+   |     |-[M]-----{ PSTN }-----[SM]       |.....[ network ]
+   +-----+         {      }     +----------+     [         ]
+   Remote                           NAS
+   System
+
+   M is the client modem and may be an integral part of the Remote
+   System.  If this modem implements V.92, it can ask the server modem
+   SM (a part of the NAS) whether the call can be placed on-hold for
+   some period of time.
+
+   If the server modem agrees, the client modem can signal the PSTN to
+   place the call on-hold (usually, a flash hook).  The user at the
+   remote system can then use the same POTS line where the client modem
+   is connected to make or receive another call.
+
+   In the above scenario, the server modem module can notify the rest of
+   the NAS of these events via its usual signaling mechanism.  The NAS
+   layers can then act on this information as desired.  See section 5.
+   for a sample list of possible actions.
+
+
+
+
+
+
+
+
+
+Goyret                      Standards Track                     [Page 3]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+   In the case of L2TP, this document looks at this particular topology:
+
+  +-----+       {      }   +-----+   [ packet  ]   +-----+   [  home   ]
+  |     |-[M]---{ PSTN }---[SM]  |...[ network ]...|     |...[ network ]
+  +-----+       {      }   +-----+   [         ]   +-----+   [         ]
+  Remote                     LAC                     LNS
+  System
+
+   If the LAC implements the functionality described here, it can signal
+   to the LNS when the client modem has gone on-hold and when it comes
+   back online.
+
+   This document does not define what, if anything, the LNS should do
+   with this information.  A sample of the possible actions that an LNS
+   MAY consider are listed in section 5.  However, the LNS MUST NOT stop
+   processing otherwise valid data packets arriving from the LAC,
+   regardless of the current state of the modem on-hold indications.
+
+2.1.  Typical Modem on Hold Usage Scenario
+
+   A user connects to his Internet service provider with a V.92-capable
+   modem.  He then starts downloading a big file which will take several
+   minutes to complete.
+
+   While the file is being downloaded, a friend calls him.  If the user
+   has call waiting enabled, his modem can let him know of the incoming
+   call and he can choose to either pick up the incoming call or reject
+   it.  Let's say he chooses to pick up the phone to talk to his friend,
+   for example because he recognized the caller's phone number.
+
+   Before the user picks up his phone, he tells his modem to go on hold
+   and switch to the incoming call (usually signaled with a "flash-
+   hook").  His modem will then notify the server modem (attached to the
+   LAC) that it is about to go on hold.  If the server modem agrees, the
+   client performs a flash hook so the user can talk to his friend.
+
+   After talking to his friend, the user let's his modem know that it
+   can return to the original call (where the server modem has been
+   patiently waiting).  After another flash hook, the modems are
+   connected again and the download can continue.
+
+2.2.  Capability Negotiation
+
+   A LAC MUST NOT send a Modem Status (MDMST) control message to an LNS
+   that has not indicated the capability of processing such control
+   messages.  This capability is indicated by adding a "Modem On-Hold
+   Capable" AVP on the SCCRQ or SCCRP sent to the LAC when the tunnel is
+   brought up.
+
+
+
+Goyret                      Standards Track                     [Page 4]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+2.3.  Modem On-Hold
+
+   When the client modem requests the LAC to go on-hold, the LAC SHOULD
+   send a MDMST control message to the LNS with the H (Hold) field set
+   to 1 and the negotiated maximum on-hold time.
+
+2.4.  Modem Online
+
+   When the client modem returns back online after having gone on-hold,
+   the LAC SHOULD send a MDMST control message to the LNS with the H
+   (Hold) field set to 0.  The LAC MUST send this message if it has
+   previously sent a MDMST message with the H (Hold) field set to 1.
+
+3.  New Control Messages
+
+   The following control messages MUST be sent with the M-bit in the
+   Message Type AVP set to 0 to prevent interoperability issues.
+
+   Messages with unknown values in the Message Type AVP with the M-bit
+   set to 0 should be ignored by compliant L2TP peers [RFC2661].
+
+3.1.  Modem-Status (MDMST)
+
+   The Modem-Status (MDMST) control message is used by the LAC to notify
+   the LNS when the client modem on-hold status changes.
+
+   The MDMST control message MUST NOT be sent to peers that have not
+   included the "Modem On-Hold Capable" AVP in their Start-Control-
+   Connection-Request (SCCRQ) or Start-Control-Connection-Reply (SCCRP)
+   control messages.
+
+   Furthermore, the MDMST control message can only be sent after session
+   establishment is successful (i.e., after the LAC has sent either an
+   Incoming-Call-Connected (ICCN) or an Outgoing-Call-Connected (OCCN)
+   control message), and before the session ends from the LAC's point of
+   view (i.e., before the LAC has sent or received a Call-Disconnect-
+   Notify (CDN) control message).
+
+   Note that due to protocol race conditions, it is possible for a LAC
+   to send a MDMST control message about the same time that the LNS is
+   sending a CDN.  An LNS MUST ignore MDMST control messages received
+   after sending a CDN.
+
+   An LNS MUST ignore redundant modem status reports.
+
+
+
+
+
+
+
+Goyret                      Standards Track                     [Page 5]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+   This control message is encoded as follows:
+
+      Vendor ID = 0 (IETF)
+      Attribute Type = 17
+
+   The following AVPs MUST be present in the MDMST control message:
+
+      Message Type
+      Modem On-Hold Status
+
+   The M-bit on the Message Type AVP for this control message MUST be
+   set to 0.
+
+4.  New Attribute Value Pairs
+
+   The following sections contain a list of the new L2TP AVPs defined in
+   this document.
+
+4.1.  Modem On-Hold Capable AVP
+
+   The Modem On-Hold Capable AVP, Attribute Type 53, indicates that the
+   sender (an LNS) is capable of receiving MDMST control messages. This
+   AVP MUST be included on the SCCRQ or SCCRP control messages to
+   indicate that the sender implements this specification.
+
+   This AVP has no Attribute Value field.
+
+   This AVP MAY be hidden (the H-bit on the AVP header MAY be 0 or 1).
+   The M-bit for this AVP MUST be set to 0.  The Length is 6.
+
+4.2.  Modem On-Hold Status AVP
+
+   The Modem On-Hold Status AVP, Attribute Type 54, indicates the
+   current on-hold status of the client modem.  This AVP MUST be present
+   on the MDMST control message.
+
+   The Attribute Value field for this AVP has the following format:
+
+       0                   1
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |H|      reserved       |Timeout|
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The Modem On-Hold Status AVP is a 16-bit quantity, containing two
+   fields that indicate whether the client modem has placed the call
+   on-hold and the maximum amount of time that the call is allowed to
+   remain on-hold.
+
+
+
+Goyret                      Standards Track                     [Page 6]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+   The H (Hold) field is a single bit that indicates whether the client
+   modem has placed the call on-hold.  If the H (Hold) field is 1, the
+   client modem is on-hold.  If the H (Hold) field is 0, the client
+   modem is back online.
+
+   The Timeout field is a 4 bits quantity that indicates the negotiated
+   maximum amount of time that the call can remain on-hold.  It is valid
+   only if the H (Hold) field is 1 and MUST be ignored if the H (Hold)
+   field is 0.  The values for the Timeout field are defined in [V92]
+   and they are reproduced here for easy reference:
+
+      Bits   Decimal     Meaning
+      ----   -------     -------
+      0000      0        Reserved
+      0001      1        10 seconds
+      0010      2        20 seconds
+      0011      3        30 seconds
+      0100      4        40 seconds
+      0101      5        1 minute
+      0110      6        2 minutes
+      0111      7        3 minutes
+      1000      8        4 minutes
+      1001      9        6 minutes
+      1010     10        8 minutes
+      1011     11        12 minutes
+      1100     12        16 minutes
+      1101     13        No limit
+      1110     14        Reserved
+      1111     15        Reserved
+
+   Bits 1 through 11 are reserved.  These bits MUST be set to 0 when
+   sending this AVP and MUST be ignored on reception.
+
+   This AVP MAY be hidden (the H-bit on the AVP header MAY be 0 or 1).
+   The M-bit for this AVP MUST be set to 0.  The Length is 8.
+
+5.  Sample LNS Actions
+
+   The specific actions taken by an LNS upon receipt of a Modem On-Hold
+   Status AVP are implementation dependent.  This document does not
+   mandate what, if anything, the LNS should do with this information.
+
+   The choice of actions taken by the LNS may have an impact on higher
+   layer protocols.  For example, TCP connections and other connection-
+   oriented applications may timeout or disconnect during the on-hold
+   time.  The impact that those choices may have on these or other
+   protocols is not addressed by this document.
+
+
+
+
+Goyret                      Standards Track                     [Page 7]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+   The following list is a sample of possible actions that an LNS
+   implementation might consider.  Note that some of these actions are
+   not really alternatives, as some of the possibilities preclude
+   others.
+
+   *  Temporarily stop polling protocols such as LCP Echo Requests, Link
+      Quality Monitoring (LQM), Multilink PPP (MP), etc.
+   *  Drop data packets directed to the now on-hold remote client.
+   *  Start a new accounting session, to account for the on-hold time.
+   *  Stop or hold accounting until the modem returns online again.
+   *  Start a separate time accounting for the time that the modem is on
+      hold.
+
+   Here are a few things that an LNS should probably NOT do:
+
+   *  Buffer data packets directed to the now on-hold remote client.
+      Reason: How many data packets should be buffered? What would be
+              the impact on higher layer protocols such as TCP?  What
+              would be the impact caused by the delay introduced when
+              the client returns online again?
+
+   *  Answer TCP keepalives in lieu of the client.
+      Reason: It may interfere with TCP's recovery once the client
+              returns online.
+
+   *  Stop processing otherwise valid data packets from the client.
+      Reason: There is a race condition between the notification of
+              the modem returning online and the first packet from the
+              client because they are delivered on independent channels.
+              Dropping valid client packets may lead to a slower
+              recovery after returning online due to the forced retries.
+
+6.  IANA Considerations
+
+   This document requires one new L2TP "Message Type" number to be
+   assigned by IANA:
+
+      17, Section 3.1., Modem Status
+
+   It also requires two new "AVP Attributes" to be assigned by IANA:
+
+      53, Section 4.1., Modem On-Hold Capable AVP
+      54, Section 4.2., Modem On-Hold Status AVP
+
+   The Modem On-Hold Status AVP contains a set of reserved bits (bits 1
+   through 11) that are assigned by IANA through IETF Consensus [BCP26].
+
+
+
+
+
+Goyret                      Standards Track                     [Page 8]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+7.  Security Considerations
+
+   The integrity and confidentiality of the method described in this
+   document relies on the underlying L2TP security mechanisms.  The new
+   control message and AVPs are intended to indicate when a client modem
+   has gone on-hold and cannot receive data.  It does not define what,
+   if anything, the LNS should do with this information.  A sample of
+   possible actions that an LNS may consider are listed in section 5.
+
+   It is believed that the defined extension does not provide
+   information that would be useful to an attacker, and as such, it
+   should not pose a threat to system security.
+
+   If desired, the new AVPs MAY be hidden as described in section 4.3 of
+   [RFC2661].
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC2661] Townsley, W., Valencia, A., Rubens, A., Pall, G., Zorn, G.
+             and B. Peter, "Layer Two Tunneling Protocol (L2TP)", RFC
+             2661, August 1999.
+
+   [BCP14]   Bradner, S., "Key words for use in RFCs to Indicate
+             Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [BCP26]   Narten, T. and H. Alvestrand, "Guidelines for Writing an
+             IANA Considerations Section in RFCs", BCP 26, RFC 2434,
+             October 1998.
+
+   [V92]     ITU-T Recommendation V.92, "Enhancements to Recommendation
+             V.90", November 2000
+
+8.2.  Informative References
+
+   [BCP9]    Bradner, S., "The Internet Standards Process -- Revision
+             3", BCP 9, RFC 2026, October 1996.
+
+   [STD51]   Simpson, W., "The Point-to-Point Protocol (PPP)", STD 51,
+             RFC 1661, July 1994.
+
+
+
+
+
+
+
+
+
+
+Goyret                      Standards Track                     [Page 9]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+9.  Acknowledgments
+
+   Josh Bailey, Emmanuel Hislen and Marc Bongartz of Lucent Technologies
+   provided invaluable help in reviewing this document and its
+   implementation.
+
+   Mark Townsley of Cisco Systems provided helpful guidance.
+
+   Thomas Narten of IBM Corporation provided invaluable insights and
+   suggestions.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Goyret                      Standards Track                    [Page 10]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+Appendix A:  Vendor Specific Assignments
+
+   THIS SECTION IS NOT NORMATIVE
+
+   Early implementations of this specification used vendor-specific
+   values for the new control message and AVPs.  This appendix describes
+   those initial vendor-specific assignments for historical reference
+   only.
+
+   The following table shows the vendor-specific assignments:
+
+                               Vendor  Attr  Attr
+                                 ID    Type  Value     Equivalent to
+                               ------  ----  -----     -------------
+   Control message:
+      Modem-Status              529      0     2       Section 3.1.
+
+   AVP:
+      Modem On-Hold Capable     529      2    none     Section 4.1.
+      Modem On-Hold Status      529      3    [..]     Section 4.2.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Goyret                      Standards Track                    [Page 11]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+Author's Address
+
+   Ignacio Goyret
+   Lucent Technologies
+   1801 Harbor Bay Parkway
+   Alameda, CA 94502
+
+   EMail: igoyret@lucent.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Goyret                      Standards Track                    [Page 12]
+
+RFC 3573       Signaling of Modem-On-Hold status in L2TP       July 2003
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2003).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the Internet Society or other
+   Internet organizations, except as needed for the purpose of
+   developing Internet standards in which case the procedures for
+   copyrights defined in the Internet Standards process must be
+   followed, or as required to translate it into languages other than
+   English.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by the Internet Society or its successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and THE INTERNET SOCIETY AND THE INTERNET ENGINEERING
+   TASK FORCE DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Goyret                      Standards Track                    [Page 13]
+

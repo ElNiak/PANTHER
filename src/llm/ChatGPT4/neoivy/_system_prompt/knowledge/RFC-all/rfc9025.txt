@@ -1,0 +1,382 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                     B. Varga, Ed.
+Request for Comments: 9025                                     J. Farkas
+Category: Standards Track                                       Ericsson
+ISSN: 2070-1721                                                L. Berger
+                                                 LabN Consulting, L.L.C.
+                                                                A. Malis
+                                                        Malis Consulting
+                                                               S. Bryant
+                                                  Futurewei Technologies
+                                                              April 2021
+
+
+     Deterministic Networking (DetNet) Data Plane: MPLS over UDP/IP
+
+Abstract
+
+   This document specifies the MPLS Deterministic Networking (DetNet)
+   data plane operation and encapsulation over an IP network.  The
+   approach is based on the operation of MPLS-over-UDP technology.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9025.
+
+Copyright Notice
+
+   Copyright (c) 2021 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+     2.1.  Terms Used in This Document
+     2.2.  Abbreviations
+     2.3.  Requirements Language
+   3.  DetNet MPLS Operation over DetNet IP PSNs
+   4.  DetNet Data Plane Procedures
+   5.  Management and Control Information Summary
+   6.  Security Considerations
+   7.  IANA Considerations
+   8.  References
+     8.1.  Normative References
+     8.2.  Informative References
+   Acknowledgements
+   Contributors
+   Authors' Addresses
+
+1.  Introduction
+
+   Deterministic Networking (DetNet) is a service that can be offered by
+   a network to DetNet flows.  DetNet provides these flows extremely low
+   packet loss rates and assured maximum end-to-end delivery latency.
+   General background and concepts of DetNet can be found in [RFC8655].
+
+   To carry DetNet MPLS flows with full functionality at the DetNet
+   layer over an IP network, the following components are required
+   (these are a subset of the requirements for MPLS encapsulation listed
+   in [RFC8964]):
+
+   1.  A method for identifying DetNet flows to the processing element.
+
+   2.  A method for carrying the DetNet sequence number.
+
+   3.  A method for distinguishing DetNet Operations, Administration,
+       and Maintenance (OAM) packets from DetNet data packets.
+
+   4.  A method for carrying queuing and forwarding indication.
+
+   These requirements are satisfied by the DetNet over MPLS
+   Encapsulation described in [RFC8964] and they are partly satisfied
+   (i.e., IP flows can be identified; however, no DetNet sequence number
+   is carried) by the DetNet IP data plane defined in [RFC8939].
+
+   This document specifies use of the MPLS DetNet encapsulation over an
+   IP network.  The approach is modeled on the operation of MPLS over an
+   IP Packet Switched Network (PSN) using UDP encapsulation [RFC7510].
+   It maps the MPLS data plane encapsulation described in [RFC8964] to
+   the DetNet IP data plane defined in [RFC8939].
+
+   [RFC7510] specifies that "MPLS-in-UDP MUST NOT be used over the
+   general Internet, or over non-cooperating network operators, to carry
+   traffic that is not congestion controlled."  This constraint does
+   apply to the use of RFC 7510 in a DetNet network because DetNet is
+   constrained to operate within a single administrative control or
+   within a closed group of administrative control.
+
+2.  Terminology
+
+2.1.  Terms Used in This Document
+
+   This document uses the terminology established in the DetNet
+   architecture [RFC8655]; the reader is assumed to be familiar with
+   that document and its terminology.
+
+2.2.  Abbreviations
+
+   The following abbreviations are used in this document:
+
+   d-CW          A DetNet Control Word (d-CW) is used for sequencing and
+                 identifying duplicate packets of a DetNet flow at the
+                 DetNet service sub-layer.
+
+   DetNet        Deterministic Networking
+
+   DSCP          Differentiated Services Code Point
+
+   A-Label       A special case of an S-Label, whose properties are
+                 known only at the aggregation and deaggregation
+                 endpoints.
+
+   F-Label       A DetNet "forwarding" label that identifies the LSP
+                 used to forward a DetNet flow across an MPLS PSN, e.g.,
+                 a hop-by-hop label used between label-switching
+                 routers.
+
+   MPLS          Multiprotocol Label Switching
+
+   OAM           Operations, Administration, and Maintenance
+
+   PEF           Packet Elimination Function
+
+   POF           Packet Ordering Function
+
+   PREOF         Packet Replication, Elimination, and Ordering Functions
+
+   PRF           Packet Replication Function
+
+   PSN           Packet Switched Network
+
+   S-Label       A DetNet "service" label that is used between DetNet
+                 nodes that also implement the DetNet service sub-layer
+                 functions.  An S-Label is also used to identify a
+                 DetNet flow at the DetNet service sub-layer.
+
+2.3.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  DetNet MPLS Operation over DetNet IP PSNs
+
+   This document builds on the specification of MPLS over UDP defined in
+   [RFC7510].  It may partly or entirely replace the F-Label(s) used in
+   [RFC8964] with UDP and IP headers.  The UDP and IP header information
+   is used to identify DetNet flows, including member flows, per
+   [RFC8939].  The resulting encapsulation is shown in Figure 1.  There
+   may be zero or more F-Labels between the S-Label and the UDP header.
+
+   Note that this encapsulation works equally well with IPv4, IPv6, and
+   IPv6-based Segment Routing [RFC8754].
+
+      +---------------------------------+
+      |                                 |
+      |         DetNet App-Flow         |
+      |         Payload  Packet         |
+      |                                 |
+      +---------------------------------+ <--\
+      |       DetNet Control Word       |    |
+      +---------------------------------+    +--> DetNet data plane
+      |             S-Label             |    |    MPLS encapsulation
+      +---------------------------------+    |
+      |          [ F-Label(s) ]         |    |
+      +---------------------------------+ <--+
+      |           UDP Header            |    |
+      +---------------------------------+    +--> DetNet data plane
+      |           IP Header             |    |    IP encapsulation
+      +---------------------------------+ <--/
+      |           Data-Link             |
+      +---------------------------------+
+      |           Physical              |
+      +---------------------------------+
+
+
+               Figure 1: UDP/IP Encapsulation of DetNet MPLS
+
+   S-Labels, A-Labels (when present), d-CW, and zero or more F-Labels
+   are used as defined in [RFC8964] and are not modified by this
+   document.
+
+4.  DetNet Data Plane Procedures
+
+   To support outgoing DetNet MPLS over UDP encapsulation, an
+   implementation MUST support the provisioning of UDP and IP header
+   information in addition to or in place of F-Label(s).  Note, when the
+   PRF is performed at the MPLS service sub-layer, there will be
+   multiple member flows, and each member flow will require the
+   provisioning of their own UDP and IP header information.  The headers
+   for each outgoing packet MUST be formatted according to the
+   configuration information and as defined in [RFC7510], and the UDP
+   Source Port value MUST be set to uniquely identify the DetNet flow.
+   The packet MUST then be handled as a DetNet IP packet, per [RFC8939].
+   This includes QoS-related traffic treatment.
+
+   To support the receive processing defined in this document, an
+   implementation MUST also support the provisioning of received UDP and
+   IP header information.  The provisioned information MUST be used to
+   identify incoming app flows based on the combination of S-Label and
+   incoming encapsulation header information.  Normal receive processing
+   as defined in [RFC8964], including PEF and POF, can then take place.
+
+5.  Management and Control Information Summary
+
+   The following summarizes the minimum set of information that is
+   needed to configure DetNet MPLS over UDP/IP:
+
+   *  Label information (A-Labels, S-Labels, and F-Labels) to be mapped
+      to UDP/IP flows.  Note that, for example, a single S-Label can map
+      to multiple sets of UDP/IP information when PREOF is used.
+
+   *  IPv4 or IPv6 source address field
+
+   *  IPv4 or IPv6 destination address field
+
+   *  DSCP Field in either IPv4 Type of Service or IPv6 Traffic Class
+      Fields
+
+   *  UDP Source Port
+
+   *  UDP Destination Port
+
+   *  Use/non-use of UDP checksum
+
+   This information MUST be provisioned per DetNet flow via
+   configuration, e.g., via the controller [RFC8655] or management
+   plane.  Not using the UDP checksum has to be evaluated on a case-by-
+   case basis for a given network scenario based on the exception
+   criteria defined in [RFC7510], particularly when IPv6 is used.
+
+   It is the responsibility of the DetNet Controller Plane to properly
+   provision both flow identification information and the flow-specific
+   resources needed to provide the traffic treatment needed to meet each
+   flow's service requirements.  This applies for both aggregated and
+   individual flows.
+
+      |  Note: In the presence of network (and port) address translation
+      |  devices/functions, it would be up to the Controller Plane to
+      |  determine the appropriate information to ensure proper mapping
+      |  at the sender/receiver.
+
+6.  Security Considerations
+
+   The solution defined in this document reuses mechanisms specified in
+   other documents, and the security considerations in those documents
+   apply equally to this document.  Of particular note is [RFC7510], as
+   this document is primarily an application of MPLS-over-UDP.
+   Additionally, the security considerations of DetNet in general are
+   discussed in [RFC8655] and [DETNET-SECURITY].  Finally, MPLS- and IP-
+   specific security considerations are described in [RFC8964] and
+   [RFC8939].  This document does not have additional security
+   considerations.
+
+7.  IANA Considerations
+
+   This document has no IANA actions.
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC7510]  Xu, X., Sheth, N., Yong, L., Callon, R., and D. Black,
+              "Encapsulating MPLS in UDP", RFC 7510,
+              DOI 10.17487/RFC7510, April 2015,
+              <https://www.rfc-editor.org/info/rfc7510>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8939]  Varga, B., Ed., Farkas, J., Berger, L., Fedyk, D., and S.
+              Bryant, "Deterministic Networking (DetNet) Data Plane:
+              IP", RFC 8939, DOI 10.17487/RFC8939, November 2020,
+              <https://www.rfc-editor.org/info/rfc8939>.
+
+   [RFC8964]  Varga, B., Ed., Farkas, J., Berger, L., Malis, A., Bryant,
+              S., and J. Korhonen, "Deterministic Networking (DetNet)
+              Data Plane: MPLS", RFC 8964, DOI 10.17487/RFC8964, January
+              2021, <https://www.rfc-editor.org/info/rfc8964>.
+
+8.2.  Informative References
+
+   [DETNET-SECURITY]
+              Grossman, E., Ed., Mizrahi, T., and A. J. Hacker,
+              "Deterministic Networking (DetNet) Security
+              Considerations", Work in Progress, Internet-Draft, draft-
+              ietf-detnet-security-16, 22 February 2021,
+              <https://tools.ietf.org/html/draft-ietf-detnet-security-
+              16>.
+
+   [RFC8655]  Finn, N., Thubert, P., Varga, B., and J. Farkas,
+              "Deterministic Networking Architecture", RFC 8655,
+              DOI 10.17487/RFC8655, October 2019,
+              <https://www.rfc-editor.org/info/rfc8655>.
+
+   [RFC8754]  Filsfils, C., Ed., Dukes, D., Ed., Previdi, S., Leddy, J.,
+              Matsushima, S., and D. Voyer, "IPv6 Segment Routing Header
+              (SRH)", RFC 8754, DOI 10.17487/RFC8754, March 2020,
+              <https://www.rfc-editor.org/info/rfc8754>.
+
+Acknowledgements
+
+   The authors wish to thank Pat Thaler, Norman Finn, Loa Anderson,
+   David Black, Rodney Cummings, Ethan Grossman, Tal Mizrahi, David
+   Mozes, Craig Gunther, George Swallow, Yuanlong Jiang, and Carlos
+   J. Bernardos for their various contributions to this work.
+
+Contributors
+
+   This document is derived from an earlier draft that was edited by
+   Jouni Korhonen (jouni.nospam@gmail.com), and as such, he contributed
+   to and authored text in this document.
+
+Authors' Addresses
+
+   Balázs Varga (editor)
+   Ericsson
+   Budapest
+   Magyar Tudosok krt. 11.
+   1117
+   Hungary
+
+   Email: balazs.a.varga@ericsson.com
+
+
+   János Farkas
+   Ericsson
+   Budapest
+   Magyar Tudosok krt. 11.
+   1117
+   Hungary
+
+   Email: janos.farkas@ericsson.com
+
+
+   Lou Berger
+   LabN Consulting, L.L.C.
+
+   Email: lberger@labn.net
+
+
+   Andrew G. Malis
+   Malis Consulting
+
+   Email: agmalis@gmail.com
+
+
+   Stewart Bryant
+   Futurewei Technologies
+
+   Email: sb@stewartbryant.com

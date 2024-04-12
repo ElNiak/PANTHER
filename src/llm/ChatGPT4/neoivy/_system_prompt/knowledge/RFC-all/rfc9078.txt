@@ -1,0 +1,461 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                        D. Crocker
+Request for Comments: 9078                   Brandenburg InternetWorking
+Category: Experimental                                         R. Signes
+ISSN: 2070-1721                                                 Fastmail
+                                                                N. Freed
+                                                                  Oracle
+                                                             August 2021
+
+
+           Reaction: Indicating Summary Reaction to a Message
+
+Abstract
+
+   The popularity of social media has led to user comfort with easily
+   signaling basic reactions to an author's posting, such as with a
+   'thumbs up' or 'smiley' graphic.  This specification permits a
+   similar facility for Internet Mail.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for examination, experimental implementation, and
+   evaluation.
+
+   This document defines an Experimental Protocol for the Internet
+   community.  This document is a product of the Internet Engineering
+   Task Force (IETF).  It represents the consensus of the IETF
+   community.  It has received public review and has been approved for
+   publication by the Internet Engineering Steering Group (IESG).  Not
+   all documents approved by the IESG are candidates for any level of
+   Internet Standard; see Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9078.
+
+Copyright Notice
+
+   Copyright (c) 2021 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+   3.  Reaction Content-Disposition
+   4.  Reaction Message Processing
+   5.  Usability Considerations
+     5.1.  Example Message
+     5.2.  Example Display
+   6.  Security Considerations
+   7.  IANA Considerations
+   8.  Experimental Goals
+   9.  Normative References
+   Acknowledgements
+   Authors' Addresses
+
+1.  Introduction
+
+   The popularity of social media has led to user comfort with easily
+   signaling summary reactions to an author's posting, by using emoji
+   graphics, such as with a 'thumbs up', 'heart', or 'smiley'
+   indication.  Sometimes the permitted repertoire is constrained to a
+   small set, and sometimes a more extensive range of indicators is
+   supported.
+
+   This specification extends this existing practice in social media and
+   instant messaging into Internet Mail.
+
+   While it is already possible to include symbols and graphics as part
+   of an email reply's content, there has not been an established means
+   of signaling the semantic substance that such data are to be taken as
+   a summary 'reaction' to the original message -- that is, a mechanism
+   to identify symbols as specifically providing a summary reaction to
+   the cited message rather than merely being part of the free text in
+   the body of a response.  Such a structured use of the symbol(s)
+   allows recipient Mail User Agents (MUAs) to correlate this reaction
+   to the original message and possibly to display the information
+   distinctively.
+
+   This facility defines a new MIME Content-Disposition, to be used in
+   conjunction with the In-Reply-To header field, to specify that a part
+   of a message containing one or more emojis can be treated as a
+   summary reaction to a previous message.
+
+2.  Terminology
+
+   Unless provided here, terminology, architecture, and specification
+   notation used in this document are incorporated from:
+
+   *  [Mail-Arch]
+
+   *  [Mail-Fmt]
+
+   *  [MIME]
+
+   Syntax is specified with
+
+   *  [ABNF]
+
+   The ABNF rule emoji-sequence is inherited from [Emoji-Seq]; details
+   are in Section 3.
+
+   Normative language, per [RFC2119] and [RFC8174]:
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  Reaction Content-Disposition
+
+   A message sent as a reply MAY include a part containing:
+
+   Content-Disposition: reaction
+
+   If such a field is specified, the Content-Type of the part MUST be:
+
+   Content-Type: text/plain; charset=utf-8
+
+   The content of this part is restricted to a single line of emoji.
+   The [ABNF] is:
+
+   part-content    = emoji *(WSP emoji) CRLF
+
+   emoji           = emoji-sequence
+   emoji-sequence  = { defined in [Emoji-Seq] }
+
+   base-emojis     = thumbs-up / thumbs-down / grinning-face /
+                     frowning-face / crying-face
+                     ; Basic set of emojis, drawn from [Emoji-Seq]
+
+   ; thumbs-up       = {U+1F44D}
+   ; thumbs-down     = {U+1F44E}
+   ; grinning-face   = {U+1F600}
+   ; frowning-face   = {U+2639}
+   ; crying-face     = {U+1F622}
+
+   The part-content is either the message's single MIME body or the
+   content portion of the first MIME multipart body part.
+
+   The ABNF rule emoji-sequence is inherited from [Emoji-Seq].  It
+   defines a set of Unicode code point sequences, which must then be
+   encoded as UTF-8.  Each sequence forms a single pictograph.  The BNF
+   syntax used in [Emoji-Seq] differs from [ABNF] and MUST be
+   interpreted as used in Unicode documentation.  The referenced
+   document describes these as sequences of code points.
+
+      |  Note: The part-content can first be parsed into candidate
+      |  reactions, separated by WSP.  Each candidate reaction that does
+      |  not constitute a single emoji-sequence (as per [Emoji-Seq]) is
+      |  invalid.  Invalid candidates can be treated individually,
+      |  rather than affecting the remainder of the part-content's
+      |  processing.  The remaining candidates form the set of reactions
+      |  to be processed.  This approach assumes use of a mechanism for
+      |  emoji sequence validation that is not specified here.
+
+   The rule base-emojis is provided as a simple, common list, or
+   'vocabulary' of emojis.  It was developed from some existing practice
+   in social networking and is intended for similar use.  However,
+   support for it as a base vocabulary is not required.  Having
+   providers and consumers employ a common set will facilitate user
+   interoperability, but different sets of users might want to have
+   different, common (shared) sets.
+
+   The reaction emoji or emojis are linked to the current message's In-
+   Reply-To field, which references an earlier message and provides a
+   summary reaction to that earlier message [Mail-Fmt].  For processing
+   details, see Section 4.
+
+   Reference to unallocated code points SHOULD NOT be treated as an
+   error; the corresponding UTF-8-encoded code points SHOULD be
+   processed using the system default method for denoting an unallocated
+   or undisplayable code point.
+
+      |  Note: The "emoji" token looks simple.  It isn't.  Implementers
+      |  are well advised not to assume that emoji sequences are trivial
+      |  to parse or validate.  Among other concerns, an implementation
+      |  of the Unicode Character Database is required.  An emoji is
+      |  more than a stand-in for a simple alternation of characters.
+      |  Similarly, one emoji sequence is not interchangeable with, or
+      |  equivalent to, another one, and comparisons require detailed
+      |  understanding of the relevant Unicode mechanisms.  Use of an
+      |  existing Unicode implementation will typically prove extremely
+      |  helpful, as will an understanding of the error modes that may
+      |  arise with a chosen implementation.
+
+4.  Reaction Message Processing
+
+   The presentation aspects of reaction processing are necessarily MUA
+   specific and beyond the scope of this specification.  In terms of the
+   message itself, a recipient MUA that supports this mechanism operates
+   as follows:
+
+   1.  If a received message R's header contains an In-Reply-To field,
+       check to see if it references a previous message that the MUA has
+       sent or received.
+
+   2.  If R's In-Reply-To: does reference one, then check R's message
+       content for a part with a "reaction" Content-Disposition header
+       field, at either the outermost level or as part of a multipart at
+       the outermost level.
+
+   3.  If such a part is found and the content of the part conforms to
+       the restrictions outlined above, remove the part from the message
+       and process the part as a reaction.
+
+      |  Note: A message's content might include other, nested messages.
+      |  These can be analyzed for reactions, independently of the
+      |  containing message, applying the above algorithm for each
+      |  contained message, separately.
+
+   Again, the handling of a message that has been successfully processed
+   is MUA specific and beyond the scope of this specification.
+
+5.  Usability Considerations
+
+   This specification defines a mechanism for the structuring and
+   carriage of information.  It does not define any user-level details
+   of use.  However, the design of the user-level mechanisms associated
+   with this facility is paramount.  This section discusses some issues
+   to consider.
+
+   Creation:  Because an email environment is different from a typical
+      social media platform, there are significant -- and potentially
+      challenging -- choices in the design of the user interface, to
+      support indication of a reaction.  Is the reaction to be sent only
+      to the original author, or should it be sent to all recipients?
+      Should the reaction always be sent in a discrete message
+      containing only the reaction, or should the user also be able to
+      include other message content?  (Note that carriage of the
+      reaction in a normal email message enables inclusion of this other
+      content.)
+
+   Display:  Reaction indications might be more useful when displayed in
+      close visual proximity to the original message, rather than merely
+      as part of an email response thread.  The handling of multiple
+      reactions, from the same person, is also an opportunity for making
+      a user experience design choice that could be interesting.
+
+   Culture:  The use of an image, intended to serve as a semantic
+      signal, is determined and affected by cultural factors, which
+      differ in complexity and nuance.  It is important to remain aware
+      that an author's intent when sending a particular emoji might not
+      match how the recipient interprets it.  Even simple, commonly used
+      emojis can be subject to these cultural differences.
+
+5.1.  Example Message
+
+   A simple message exchange might be:
+
+   To: recipient@example.org
+   From: author@example.com
+   Date: Today, 29 February 2021 00:00:00 -800
+   Message-ID: 12345@example.com
+   Subject: Meeting
+
+   Can we chat at 1pm pacific, today?
+
+   with a thumbs-up, affirmative response of:
+
+   To: author@example.com
+   From: recipient@example.org
+   Date: Today, 29 February 2021 00:00:10 -800
+   Message-ID: 56789@example.org
+   In-Reply-To: 12345@example.com
+   Subject: Meeting
+   Mime-Version: 1.0 (1.0)
+   Content-Type: text/plain; charset=utf-8
+   Content-Disposition: reaction
+
+   {U+1F44D}
+
+   The Unicode character, represented here as "{U+1F44D}" for
+   readability, would actually be sent as the UTF-8-encoded character.
+
+   The example could, of course, be more elaborate, such as the first of
+   a MIME multipart sequence.
+
+5.2.  Example Display
+
+   Repeating the caution that actual use of this capability requires
+   careful usability design and testing, this section describes simple
+   examples -- which have not been tested -- of how the reaction
+   response might be displayed in a summary list of messages:
+
+   Summary:  Summary listings of messages in a folder include columns
+      such as Subject, From, and Date.  Another might be added to show
+      common reactions and a count of how many of them have been
+      received.
+
+   Message:  A complete message is often displayed with a tailored
+      section for header fields, enhancing the format and showing only
+      selected header fields.  A pseudo-field might be added for
+      reactions, again showing the symbol and a count.
+
+6.  Security Considerations
+
+   This specification employs message content that is a strict subset of
+   existing possible content and thus introduces no new content-specific
+   security considerations.  The fact that this content is structured
+   might seem to make it a new threat surface, but there is no analysis
+   demonstrating that it does.
+
+   This specification defines a distinct Content-Disposition value for
+   specialized message content.  Processing that handles the content
+   differently from other content in the message body might introduce
+   vulnerabilities.  Since this capability is likely to produce new user
+   interaction features, that might also produce new social engineering
+   vulnerabilities.
+
+7.  IANA Considerations
+
+   IANA has registered the Reaction MIME Content-Disposition parameter,
+   per [RFC2183].
+
+   Content-Disposition parameter name:  reaction
+
+   Allowable values for this parameter:  (none)
+
+   Description:  Permit a recipient to respond by signaling basic
+      reactions to an author's posting, such as with a 'thumbs up' or
+      'smiley' graphic
+
+8.  Experimental Goals
+
+   The basic, email-specific mechanics for this capability are well
+   established and well understood.  Points of concern, therefore, are:
+
+   *  Technical issues in using emojis within a message body
+
+   *  Market interest
+
+   *  Usability
+
+   So the questions to answer for this Experimental specification are:
+
+   *  Is there demonstrated interest by MUA developers?
+
+   *  If MUA developers add this capability, is it used by authors?
+
+   *  Does the presence of the Reaction capability create any
+      operational problems for recipients?
+
+   *  Does the presence of the Reaction capability demonstrate
+      additional security issues?
+
+   *  What specific changes to the specification are needed?
+
+   *  What other comments will aid in use of this mechanism?
+
+   Please send comments to ietf-822@ietf.org.
+
+9.  Normative References
+
+   [ABNF]     Crocker, D., Ed. and P. Overell, "Augmented BNF for Syntax
+              Specifications: ABNF", STD 68, RFC 5234,
+              DOI 10.17487/RFC5234, January 2008,
+              <https://www.rfc-editor.org/info/rfc5234>.
+
+   [Emoji-Seq]
+              Davis, M., Ed. and P. Edberg, Ed., "Unicode Technical
+              Standard #51: Unicode Emoji", September 2020,
+              <https://www.unicode.org/reports/
+              tr51/#def_emoji_sequence>.
+
+   [Mail-Arch]
+              Crocker, D., "Internet Mail Architecture", RFC 5598,
+              DOI 10.17487/RFC5598, July 2009,
+              <https://www.rfc-editor.org/info/rfc5598>.
+
+   [Mail-Fmt] Resnick, P., Ed., "Internet Message Format", RFC 5322,
+              DOI 10.17487/RFC5322, October 2008,
+              <https://www.rfc-editor.org/info/rfc5322>.
+
+   [MIME]     Freed, N. and N. Borenstein, "Multipurpose Internet Mail
+              Extensions (MIME) Part One: Format of Internet Message
+              Bodies", RFC 2045, DOI 10.17487/RFC2045, November 1996,
+              <https://www.rfc-editor.org/info/rfc2045>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC2183]  Troost, R., Dorner, S., and K. Moore, Ed., "Communicating
+              Presentation Information in Internet Messages: The
+              Content-Disposition Header Field", RFC 2183,
+              DOI 10.17487/RFC2183, August 1997,
+              <https://www.rfc-editor.org/info/rfc2183>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+Acknowledgements
+
+   This specification had substantive commentary on three IETF mailing
+   lists.
+
+   This work began as a private exercise, in July 2020, with private
+   discussion, for draft-crocker-reply-emoji.  It morphed into draft-
+   crocker-inreply-react, with significant discussion on the ietf-822
+   mailing list <https://www.ietf.org/mailman/listinfo/ietf-822>,
+   September through November 2020.  The discussion produced a
+   fundamental change from proposing a new header field to instead
+   defining a new Content-Disposition type, as well as significantly
+   enhancing its text concerning Unicode.  It also produced two
+   additional coauthors.
+
+   In November 2020, the Dispatch mailing list
+   <https://www.ietf.org/mailman/listinfo/dispatch> was queried about
+   the draft, but it produced no discussion, though it did garner one
+   statement of interest.
+
+   A 4-week Last Call was issued on this document, January 2021,
+   resulting in quite a bit of fresh discussion on the last-call mailing
+   list <https://www.ietf.org/mailman/listinfo/last-call> and producing
+   further changes to this document.  After Last Call completed,
+   additional concerns regarding the Unicode-related details surfaced,
+   producing yet more changes to the document.  It also produced a
+   challenge that prompted the current version of this Acknowledgements
+   section.
+
+   Readers who are interested in the details of the document's history
+   are encouraged to peruse the archives for the three lists, searching
+   Subject fields for "react".
+
+Authors' Addresses
+
+   Dave Crocker
+   Brandenburg InternetWorking
+
+   Email: dcrocker@bbiw.net
+
+
+   Ricardo Signes
+   Fastmail
+
+   Email: rjbs@semiotic.systems
+
+
+   Ned Freed
+   Oracle
+
+   Email: ned.freed@mrochek.com

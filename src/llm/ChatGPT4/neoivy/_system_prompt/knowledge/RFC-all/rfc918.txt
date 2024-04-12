@@ -1,0 +1,290 @@
+
+
+Network Working Group                                     J. K. Reynolds
+Request for Comments: 918                                            ISI
+                                                            October 1984
+
+
+                          POST OFFICE PROTOCOL
+
+
+Status of this Memo
+
+   This RFC suggests a simple method for workstations to dynamically
+   access mail from a mailbox server.  This RFC specifies a proposed
+   protocol for the ARPA-Internet community, and requests discussion and
+   suggestions for improvement.
+
+Introduction
+
+   The intent of the Post Office Protocol (POP) is to allow a user's
+   workstation to access mail from a mailbox server.  It is expected
+   that mail will be posted from the workstation to the mailbox server
+   via the Simple Mail Transfer Protocol (SMTP).  For further
+   information see RFC-821 [1] and RFC-822 [2].
+
+   The status of this protocol is experimental, and this protocol is
+   dependent upon TCP.
+
+The Protocol
+
+   The protocol is for the server to be listening for a connection.
+   When a connection is opened the server sends a greeting message and
+   waits for commands.  When commands are received the server acts on
+   them and responds with replies.
+
+   The client opens a connection, waits for the greeting, then sends the
+   USER and then the PASS commands to establish authorization to access
+   mailboxes.  The client begins a mail reading transaction with either
+   an RDEL (to read and delete all messages from a mailbox) or a RETR
+   (to simply read all messages from a mailbox).  The server opens and
+   locks the mailbox, and responds with the number of characters in the
+   mailbox.  Then the client asks for the data to be sent by issuing the
+   RCEV command.  The server responds by sending the mail data.  When
+   all the data has been received the client sends the RCVD command.  If
+   the transaction started with the RDEL command the server now deletes
+   the mail data from the mailbox. In any case, the server closes and
+   unlocks the mailbox.  The client terminates the session with the QUIT
+   command.
+
+
+
+
+
+
+
+
+Reynolds                                                        [Page 1]
+
+
+
+Post Office Protocol                                             RFC 918
+
+
+   The Normal Scenario
+
+           Client                    Server
+           ------                    ------
+                                Wait for Connection
+      Open Connection  -->
+                           <--  +OK
+                                Wait for Command
+      USER Fred        -->
+                           <--  +OK
+                                Wait for Command
+      PASS password    -->
+                           <--  +OK
+                                Wait for Command
+      RDEL mailbox     -->      (open and lock mailbox)
+                           <--  #xxx
+                                Wait for Command
+      RCEV             -->   
+                           <--  (send a copy of mail)
+                                Wait for Command
+      RCVD             -->      (deletes mail from mailbox, unlock
+                                and close mailbox)
+                           <--  +OK
+                                Wait for Command
+      QUIT             -->
+                           <--  +OK
+      Close connection --> <--  Close connection
+                                Wait for Connection (go back to start)
+
+Definitions of Commands and Replies
+
+   Summary of Commands and Replies
+
+      Commands                          Replies
+      --------                          -------
+      USER name                         +OK
+      PASS password                     -Error
+      RETR mailbox                      #xxx
+      RDEL mailbox
+      RCEV
+      RCVD
+      QUIT
+      NOOP
+      RSET
+
+
+
+
+
+
+
+Reynolds                                                        [Page 2]
+
+
+
+Post Office Protocol                                             RFC 918
+
+
+   Commands
+
+      USER name
+
+         This command identifies the user to the server.  It must be
+         followed by the PASS command.
+
+            Possible responses:  "+OK" or "-ERR"
+
+      PASS password
+
+         The PASS command carries the password authenticating this user.
+         Together the USER name and PASS password are used by the server
+         to control access to the mailboxes.
+
+            Possible responses:  "+OK" or "-ERR"
+
+      RETR mailbox
+
+         This command begins a mail reading transaction.  The RETR
+         command is used to read all the messages in a mailbox without
+         deleting them.  It must be followed by the RCEV command.
+
+            Possible responses:  "#xxx" or "-ERR"
+
+      RDEL mailbox
+
+         This command begins a mail reading transaction.  The RDEL
+         command is used to read all the messages in a mailbox and
+         delete them.  It must be followed by the RCEV command.
+
+            Possible responses:  "#xxx" or "-ERR"
+
+      RCEV
+
+         This command confirms that the client is ready to receive the
+         mail data.  It must be followed by the RCVD command.
+
+            Possible responses:  "+OK" or (connection aborted)
+
+      RCVD
+
+         This command confirms that the client has received and accepted
+         the mail.  The RCVD command ends the mail reading transaction.
+         In the case of the RDEL transaction, it is possible that the
+         mail is not necessarily deleted.  This is indicated by an error
+         reply.
+
+            Possible responses:  "+OK" or "-ERR"
+
+
+Reynolds                                                        [Page 3]
+
+
+
+Post Office Protocol                                             RFC 918
+
+
+      QUIT
+
+         This command indicates the client is done with the session.
+         The server sends an OK response and then closes the connection.
+
+            Possible responses:  "+OK" then Close
+
+      NOOP
+
+         This is the no operation command.  It causes no action on the
+         part of the server except an OK response.
+
+            Possible response:  "+OK"
+
+      RSET
+
+         This command causes the server to abort the current transaction
+         and return to waiting for a command (one of RDEL, RETR, QUIT,
+         NOOP, or RSET).  When aborting a transaction the server must
+         take care to properly close and unlock the mailbox.
+
+            Possible response:  "+OK"
+
+Acknowledgment
+
+   I would like to acknowledge the contributions of Jon Postel, Joel
+   Goldberger, Dale Chase, and Michael Butler in the development of the
+   Post Office Protocol.
+
+References
+
+   [1]  Postel, J., "Simple Mail Transfer Protocol", RFC-821,
+   USC/Information Sciences Institute, August 1982.
+
+   [2]  Crocker, D., "Standard for the Format of ARPA-Internet Text
+   Messages", RFC-822, University of Delaware, August 1982.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reynolds                                                        [Page 4]
+
+
+
+Post Office Protocol                                             RFC 918
+
+
+Diagram
+         +---+      +---+       +---+       +---+       +---+      
+   Open  |   | +OK  |   |       |   | +OK   |   |       |   | +OK  
+   ----->| S |--+-->| C |------>| S |------>| C |------>| S |---->+
+         |   |  ^   |   | USER  |   |       |   | PASS  |   |     |
+         +---+  |   +---+       +---+       +---+       +---+     |
+                |                 | -ERR                  | -ERR  |
+                |                 V                       V       |
+   +<-----------+<----------------+<----------------------+       |
+   |                                                              |
+   V      +---+       +---+                                       |
+   +----->|   | QUIT  |   | +OK                                   |
+          | C |------>| S |----->Close                            |
+   +----->|   |       |   |                                       |
+   ^      +---+       +---+                                       |
+   |                                                              V
+   +<-------------------------------------------------------------+
+   |                                                              ^
+   |  +---+     +---+      +---+     +---+     +---+     +---+    |
+   |  |   |RETR |   | #xxx |   |RECV |   |DATA |   |RCVD |   |+OK |
+   +->| C |---->| S |----->| C |---->| S |---->| C |---->| S |--->+
+   |  |   | or  |   |      |   |     |   |     |   |     |   |    ^
+   |  +---+ RDEL+---+      +---+     +---+     +---+     +---+    |
+   |              | -ERR     |         |         |         | -ERR |
+   |              V          |         V         |         |      |
+   +<-------------+          |       Abort       |         |      |
+   |                         V                   V         V      |
+   |        +<---------------+-------------------+         +----->+
+   |        V                                                      
+   |      +---+       +---+                                        
+   |      |   | RSET  |   | +OK                                    
+   +----->| C |------>| S |----->+                                 
+   |      |   |       |   |      |                                 
+   |      +---+       +---+      |                                 
+   |                             V                                 
+   +<----------------------------+                                 
+   |                             ^                                 
+   |      +---+       +---+      |                                 
+   |      |   | NOOP  |   | +OK  |                                 
+   +----->| C |------>| S |----->+                                 
+          |   |       |   |                                        
+          +---+       +---+                                        
+
+
+
+
+
+
+
+
+
+Reynolds                                                        [Page 5]
+

@@ -1,0 +1,7084 @@
+%!PS-Adobe-1.0
+%  Copyright 1987 Interleaf, Inc.
+%  Ten Canal Park, Cambridge, MA  02141
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	PS macros
+%%%%%%%%%%%%%%%%%%%%%%%%%
+/bdf {bind def} bind def
+/xdf {exch def} bdf
+/ldd {load def} bdf
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%	global constants and variables
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%	Version
+%
+/PSPRO-VERSION_MAJOR	3 def	%Feb 28, 1987
+/PSPRO-VERSION_MINOR	2 def	%Oct 9, 1987
+/PSPRO-VERSION_SUB	1 def	%Oct 28, 1987
+
+%
+%	Drawing modes
+%
+/PL_SET 	0 def		%ink black
+/PL_CLEAR	1 def		%ink white
+/PL_XOR		2 def		%ink by xor'ing source onto page - can PS do it?
+/PL_REPLACE	3 def		%ink by replacing, e.g. overlayed bitmaps
+
+%
+%	 Default global PS state 
+%
+/drawmode	PL_SET def	%default is ink black
+/useNativeFonts	false def	
+/numtextures	21 def		%creator should initialize this
+/whitefill	13 def		%FOR NOW, white always position 13 in pat font
+/docutmark	false def	%should cropping marks be printed
+/invertmatrix [1 0 0 -1 0 0] def
+
+%
+%	Font limits
+%
+/MAXFONT 1024 def
+/MAXFONT1 MAXFONT 1 sub def
+/MAXCHARS 128 def	%per font
+/MAXCHARS1 MAXCHARS 1 sub def
+/VMHEADROOM 1000 def
+/BOGUSWIDTH -1 def
+
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	Memory Defs
+%%%%%%%%%%%%%%%%%%%%%%%%%
+/mesg 64 string def
+/charname 12 string def
+/istr 3 string def
+/ILEncoding 256 array def	% New global Encoding vector.
+/ILSymEncoding 256 array def	% SymbolB Encoding vector.
+/trashheap 1024 string def
+/emsg1 256 string def
+/emsg2 256 string def
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	Job Utilities
+%%%%%%%%%%%%%%%%%%%%%%%%%
+/inch {72 mul} bdf
+
+/headerpage {
+  %assumes standard PS state
+  /y 9 def
+  /nl {/y y 1 sub def 1 inch y inch moveto } bdf
+  /#copies 1 def
+  /Helvetica-Bold findfont 18 scalefont setfont
+  1 inch 1 inch moveto 
+  nl nl
+  0 1 hline length 1 sub { 
+   hline exch get show nl
+  } for
+  /Helvetica findfont 8 scalefont setfont
+  1 inch 1 inch moveto 
+  (pl2ps )show PSPRO-VERSION_SUB PSPRO-VERSION_MINOR PSPRO-VERSION_MAJOR vershow
+  (   Copyright 1987 Interleaf, Inc. ) show 
+  emsg1 0 get 0 ne { 1 inch .75 inch moveto emsg1 show } if
+  emsg2 0 get 0 ne { 1 inch .5 inch moveto emsg2 show } if
+} bdf
+
+/logme {
+  (\tInterleaf::pl2ps ) print
+  PSPRO-VERSION_SUB PSPRO-VERSION_MINOR PSPRO-VERSION_MAJOR verprint
+  hline length 1 sub  -1  0 { 
+    (\tInterleaf::) print hline exch get print (\n) print
+  } for
+  flush 
+} bdf
+
+/verprint {
+  10 mesg cvrs print (.) print 
+  10 mesg cvrs print (.) print 
+  10 mesg cvrs print (\n) print
+} bdf
+/vershow {
+  10 mesg cvrs show (.) show 
+  10 mesg cvrs show (.) show
+  10 mesg cvrs show 
+} bdf
+    
+/versioncheck {
+  /PL2PS-VERSION_MAJOR xdf
+  /PL2PS-VERSION_MINOR xdf
+  /PL2PS-VERSION_SUB xdf
+  /doheader userdict /hline known def
+  PL2PS-VERSION_MAJOR PSPRO-VERSION_MAJOR ne 
+  PL2PS-VERSION_MINOR PSPRO-VERSION_MINOR ne or
+  PL2PS-VERSION_SUB PSPRO-VERSION_SUB ne or {
+    doheader {logme } if
+    (\tInterleaf:: FATAL ERROR: pspro.ps and pl2ps versions do not agree.) print
+    (\n\tInterleaf:: pspro.ps version: \t) print
+    PSPRO-VERSION_SUB PSPRO-VERSION_MINOR PSPRO-VERSION_MAJOR verprint
+    (\tInterleaf:: pl2ps version: \t) print
+    PL2PS-VERSION_SUB PL2PS-VERSION_MINOR PL2PS-VERSION_MAJOR verprint
+    flush 
+    doheader {headerpage } if
+    ( FATAL ERROR. pspro version ) show
+    PSPRO-VERSION_SUB PSPRO-VERSION_MINOR PSPRO-VERSION_MAJOR vershow
+    ( does not agree with pl2ps version ) show 
+    PL2PS-VERSION_SUB PL2PS-VERSION_MINOR PL2PS-VERSION_MAJOR vershow
+    showpage
+    quit 
+  } if
+} bdf
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	Graphics
+%%%%%%%%%%%%%%%%%%%%%%%%%
+/sw /setlinewidth ldd
+/m { /vpos xdf /hpos xdf } bdf %record pl current point, in rsu
+/v { /vpos xdf } bdf
+/h { /hpos xdf } bdf
+/pm /moveto ldd
+/as /lineto ldd % add segment 
+/av /moveto ldd % add vertex 
+% 
+%	Add an arc to the current path ala cookbook
+%	but note clockwise is opposite sense for us.
+% 
+/el { 0 begin	
+  /endangle xdf /startangle xdf 
+  /rotation xdf
+  /yrad xdf /xrad xdf
+  /yc xdf /xc xdf
+  /savematrix matrix currentmatrix def
+  xc yc translate
+  rotation rotate
+  xrad yrad  scale
+  0 0 1 startangle  endangle  arc
+  savematrix setmatrix
+  end
+} bdf
+/el load 0 8 dict put
+
+/addconic { 0 begin
+  %similar to el, but rotation is around local origin
+  % after imaging an unrotated ellipse at (xc,yc)
+  /clockwise xdf
+  /endangle xdf /startangle xdf 
+  /rotation xdf
+  /yrad xdf /xrad xdf
+  /yc xdf /xc xdf	%center in rotated x0-y0 space
+	
+  /savematrix matrix currentmatrix def
+  xc yc translate
+  rotation rotate	%rotate the imaged ellipse
+  xrad yrad scale
+  0 0 1 startangle  endangle  
+  clockwise 1 eq {arc} {arcn} ifelse
+
+  savematrix setmatrix
+  end
+} bdf
+/addconic load 0 9 dict put
+
+%
+%	Draw current path
+%
+/dp {
+  gsave  
+  1 setlinejoin 		% round line ends  
+  1 setlinecap 			% round line ends
+  drawmode PL_CLEAR eq {1} {0} ifelse setgray %only support two modes 
+  stroke 
+  grestore  
+} bdf 
+
+%
+%	Pen pattern routines
+%
+/ALIGN_NONE 0 def
+/ALIGN_OPEN 1 def
+/ALIGN_CLOSE 2 def
+/PENPATWIDTHADJ [0 0 4 8 12 16 20] def	% WARNING these values are derived 
+					% by scaling widthadj[], defined
+					% in /usr/xops/lib/crt/scr/pens.c,
+					% by the same factor (.4) that the
+					% pen patterns were scaled when
+					% sent to printerleaf.
+/MINSCALE .1 def			% Do not scale pen pattern below 10%
+					% of original size.
+% 
+% Calulates length of current path. Ala cookbook.
+%
+/pathlength { 0 begin
+    flattenpath				% changes all curveto's to lineto's
+    /dist 0 def
+
+    { /yfirst xdf /xfirst xdf
+      /ymoveto yfirst def /xmoveto xfirst def}
+    { /ynext xdf /xnext xdf
+      /dist dist ynext yfirst sub dup mul
+	xnext xfirst sub dup mul add sqrt add def
+      /yfirst ynext def /xfirst xnext def}
+    {}
+
+    { /ynext ymoveto def /xnext xmoveto def
+      /dist dist ynext yfirst sub dup mul
+	xnext xfirst sub dup mul add sqrt add def
+      /yfirst ynext def /xfirst xnext def}
+    pathforall
+    dist
+    end
+} bdf
+/pathlength load 0 7 dict put
+
+/setpenpat { 0 begin		% define penpattern dictionary
+    /style xdf			% alignment style 
+    /width xdf
+    /pattern xdf
+
+    % 
+    % Adjust pattern for various pen widths.
+    %
+    /scaleup DPIx 300 div def		% Seybold hack!!!!
+    /indx width 1 add scaleup div 4 div cvi def	% Change width into an index
+    indx 1 gt indx 7 lt and {
+	/adj PENPATWIDTHADJ indx get def% Get ajustment for specified pen width
+	/adj adj scaleup mul def	% from predefined array PENPATWIDTHADJ
+					% and scale up to the resolution.
+	/indx 0 def
+	pattern {
+	    /iszero indx 2 mod def	% Add ajustment for pen width
+	    iszero 0 ne			% to just "off" phases of pattern.
+		{adj add /val xdf}
+		{/val xdf}
+	    ifelse
+	    pattern indx val put
+	    /indx indx 1 add def
+	} forall
+    } if
+
+    %
+    % Align pattern to pathlength.
+    %
+    /offset 0 def
+    /patternlen 0 def
+    /pathlen pathlength def		% Computes path length.
+    pattern				% Compute total len of repeating pattern
+	{patternlen add /patternlen xdf
+	} forall
+
+    style ALIGN_NONE eq {
+    } if
+    style ALIGN_CLOSE eq {		% from /usr/xops/lib/crt/scr/pens.c
+	/n pathlen patternlen div cvi def
+	/extralen pathlen cvi patternlen cvi mod def
+	/halfpatlen patternlen 2 div def
+	extralen halfpatlen gt {/n n 1 add def} if
+	n 0 eq {/n 1 def} if
+	/scale1 pathlen n patternlen mul div def
+	scale1 MINSCALE gt {
+	    /indx 0 def
+	    pattern {
+		scale1 mul /val xdf
+		val 0 eq {/val 1 def} if
+		pattern indx val round put
+		/indx indx 1 add def
+	    } forall
+	} if
+	/offset pattern 0 get 2 div round def
+    } if
+    style ALIGN_OPEN eq {		% from /usr/xops/lib/crt/scr/pens.c
+	/firstdash pattern 0 get def
+	/dashpct firstdash patternlen div def
+	/n pathlen patternlen div dashpct sub cvi def
+	/scale1 pathlen n dashpct add patternlen mul div def
+	/scale2 pathlen n dashpct add 1 add patternlen mul div def
+	/x scale2 1 sub abs def
+	/y scale1 1 sub abs def
+	x y lt {/scale1 scale2 def} if
+	scale1 MINSCALE gt {
+	    /indx 0 def
+	    pattern {
+		scale1 mul /val xdf
+		val 0 eq {/val 1 def} if
+		pattern indx val round put
+		/indx indx 1 add def
+	    } forall
+	    /offset 0 def
+	} if 
+    } if
+
+    pattern offset setdash
+    end
+} bdf
+/setpenpat load 0 50 dict put
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	Text handling
+%%%%%%%%%%%%%%%%%%%%%%%%%
+/s {
+  /mappedsp xdf
+  /spAdj xdf
+  /stEnd xdf
+  /fstring xdf
+
+  hpos vpos moveto
+  drawmode PL_CLEAR eq {1} {0} ifelse setgray %only support two modes for text
+  spAdj 0 ne mappedsp -1 ne and {
+    spAdj 0 mappedsp fstring widthshow	% justify it
+  } {
+    fstring show
+  } ifelse
+  /hpos stEnd def	%adjust idea of current point
+} bdf
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	Images
+%%%%%%%%%%%%%%%%%%%%%%%%%
+/PL_bitmap { 0 begin
+  gsave
+  /vpix xdf
+  /hpix xdf
+
+  /nbytes hpix 15 add 16 idiv 2 mul def
+  /picstr nbytes string def
+  hpos vpos translate
+  nbytes 8 mul vpix false [1 0 0 1 0 0 ] 
+  {currentfile picstr 0 nbytes getinterval readhexstring pop}
+    imagemask
+  grestore
+  end
+} bdf
+/PL_bitmap load 0 4 dict put
+
+/PL_contone { 0 begin
+   gsave
+  /nbits xdf
+  /vpix xdf
+  /hpix xdf
+
+  /nbytes hpix nbits mul 15 add 16 idiv 2 mul def
+  /picstr nbytes string def
+  hpos vpos translate
+  hpix vpix nbits [1 0 0 1 0 0] 
+  {currentfile picstr 0 nbytes getinterval readhexstring pop }
+    image
+  grestore
+  end
+} bdf
+/PL_contone load 0 5 dict put
+
+/PL_image { 0 begin
+  gsave
+  /ho xdf	% upper left corner of image.
+  /vo xdf	%
+  /hh xdf	% Transformed upper right corner relative
+  /vh xdf	% to upper left corner.
+  /hv xdf	% Transformed lower left corner relative
+  /vv xdf	% to upper left corner.
+  /nbits xdf	% depth
+  /vpix xdf	% height
+  /hpix xdf	% width
+  /mapsz xdf	% PL_MAP data size
+  /map xdf	% PL_MAP data
+
+  mapsz 0 ne
+  {
+    /mapsz mapsz 1 sub def
+    {map exch mapsz mul round cvi get mapsz div} settransfer
+  } if 
+  /picstr hpix nbits mul 7 add 8 idiv string def
+  ho vo translate
+  [hh vh hv vv 0 0] concat
+  nbits 1 eq mapsz 0 eq and{
+    hpix vpix false [hpix 0 0 vpix 0 0]
+    {currentfile picstr readhexstring pop }
+      imagemask
+  } {
+    hpix vpix nbits [hpix 0 0 vpix 0 0]
+    {currentfile picstr readhexstring pop }
+      image
+  } ifelse
+  grestore
+  end
+} bdf
+/PL_image load 0 12 dict put
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	FONT GOODIES
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%	ReEncodeSubset -map character set a'la Interleaf
+%	
+%	snarfed from PS manual, example 22
+%	At the moment, it seems like all overlays will start at char 0,
+%		but we might as well be general
+/reencodesubdict 12 dict def
+/ReEncode {
+%
+%	Copy basefontdict into newfont except for the FID entry.
+%	First create a new font dictionary the size of basefontdict
+%	plus 2 for a FID entry which definefont will provide.
+%
+  reencodesubdict begin
+  /newencoding xdf
+  /newfontname xdf
+  /basefontname xdf
+	
+  /basefontdict basefontname findfont def
+  /newfont basefontdict maxlength 2 add dict def
+  basefontdict { 		% Copy basefontdict to newfont 
+    exch dup /FID ne {		% except for the FID entry.
+      exch newfont 3 1 roll put	% Copy entry into newfont.
+    } {
+      pop pop			% Remove entry from stack if equal FID.
+    } ifelse
+  } forall
+  newfont /FontName newfontname put
+  newencoding -1 ne {
+    newfont /Encoding newencoding put
+  } if
+  newfontname newfont definefont pop
+  end
+} bdf
+
+%
+%	Now make a global Encoding vector
+%
+/insertcharnum { 0 begin	% Put /char# into entry i
+  /encoding xdf			% of new encoding vector as
+  /i xdf			% character names.
+
+  (char) charname copy pop
+  i istr cvs pop
+  charname 4 istr  putinterval
+  encoding i charname cvn  put
+  end
+} bdf
+/insertcharnum load 0 2 dict put
+
+StandardEncoding   ILEncoding copy
+  dup 5	/florin put
+  dup 7	/fraction put
+  dup 12 /sterling put
+  dup 27 /section put
+  dup 28 /periodcentered put
+  dup 29 /cent put
+  dup 30 /hyphen put
+  dup 31 /emdash put
+  dup 34 /quotedblright put
+  dup 45 /endash put
+      127 /quotedblleft put
+
+  0 1 4 { ILEncoding insertcharnum } for 
+  6 1 6 { ILEncoding insertcharnum } for 
+  8 1 11 { ILEncoding insertcharnum } for 
+  13 1 26 { ILEncoding insertcharnum } for 
+
+%
+%	Create a dictionary entry in "fontmap" indexed by
+%	PL fontnames with PS names and sizes as entries
+%	a call is of the form:    /timsps10 /ILtims 10 map
+%
+/map { 0 begin
+  
+  /PSsize xdf
+  /PSname xdf
+  /PLname xdf
+
+  /psd 2 dict def
+  psd /pssize PSsize put
+  psd /psname PSname put 
+  fontmap PLname psd put	% install it
+  end
+} bdf
+/map load 0 4 dict put
+
+%
+%	Symbol_B character encoding vector. Encodes IL char num to PS
+%	symbol names.
+%
+ILSymEncoding 32
+[
+/space /logicalor /arrowright /arrowdblleft /arrowdblup 
+/arrowdblright /lozenge /arrowhorizex /angleleft /registersans
+/Upsilon1 /plusminus /second /angle /greaterequal
+/radical /ellipsis /Ifraktur /spade /lessequal
+/minute /degree /fraction /florin /infinity
+/approxequal /integral /propersuperset /parenrightbt /arrowup
+/bracketrighttp /aleph /arrowdblboth /bracerightbt /integralbt
+/notsubset /bracketleftbt /trademarksans /bracelefttp /braceleftmid
+/braceleftbt /bracketlefttp /braceex /apple /angleright
+/parenrightex /parenrighttp /arrowdown /divide /element
+/summation /bracketleftex /parenlefttp /parenleftbt /dotmath
+/copyrightsans /integralex /parenleftex /integraltp /registerserif 
+/intersection /trademarkserif /arrowdbldown /gradient /logicalnot
+/reflexsubset /equivalence /propersubset /partialdiff /arrowboth
+/circlemultiply /heart /bracketrightex /bracerightmid /emptyset
+/bracketrightbt /Rfraktur /proportional /reflexsuperset /carriagereturn
+/notequal /notelement /diamond /club /bracerighttp
+/arrowleft /weierstrass /bullet /circleplus /multiply
+/arrowvertex /copyrightserif /union /product /logicaland
+] putinterval
+0 1 32 {ILSymEncoding insertcharnum } for
+127 1 255 {ILSymEncoding insertcharnum } for
+
+/declareFont {
+    /PLnum xdf
+    /PLname xdf 
+    useNativeFonts  {
+    	PSfontobj PLnum
+           fontmap PLname get dup 
+	    /psname get findfont 
+	    invertmatrix makefont exch
+	    /pssize get DPIx 72 div mul scalefont 
+	put
+    } {
+	PSfontobj PLnum % into the Plnum'th object make a dictionary:
+	10 dict dup begin
+	    /FontType 3 def
+	    % scale 300 dpi downloaded fonts to target resolution (1270/300).
+	    /FontMatrix [DPIx 300 div 0 0 DPIy 300 div 0 0] def
+	    /FontBBox [0 0 0 0] def	%updated by LoadGlyph
+	    /Encoding ILEncoding def
+	    /BuildChar { 0 begin
+		/char xdf
+		/fontdict xdf
+		/charname fontdict /Encoding get char get def
+		/charinfo fontdict /CharData get charname get def
+		/wx charinfo 0 get def
+		charinfo 0 get BOGUSWIDTH eq 
+		{puterrchar} 
+		{ /charbbox charinfo 1 4 getinterval def
+		  wx 0 charbbox aload pop setcachedevice	
+		  charinfo 5 get charinfo 6 get true
+		  fontdict /imagemaskmatrix get
+		    dup 5 charinfo 8 get put
+		    dup 4 charinfo 7 get  put
+		  charinfo 9  get
+		  imagemask
+		}ifelse
+	    end %BuildChar dict
+	    }def %BuildChar
+	    /BuildChar load 0 7 dict put
+	    /imagemaskmatrix [1 0 0 1 0 0] def %scale factors irrelevant
+	    /CharData MAXCHARS dict def	% CharData is built by LoadGlyph.
+	end %font dictionary defn
+	PLname exch definefont  put
+
+	%load a bogus space character in case no one does
+	PSfontobj PLnum get /CharData get 
+		/space [16 0 0 1 1 16 1 0 0 [<00>] cvx ] put
+    } ifelse
+} def
+
+/numLoadEmptyGlyph { 0 begin
+	% by number, load font data for char with width but no bits
+	/charno xdf
+	/fontno xdf
+	/w xdf
+	w fontno PSfontobj fontno get /Encoding get charno get
+	LoadEmptyGlyph
+	end
+} bdf
+/numLoadEmptyGlyph load 0 3 dict put
+
+/LoadEmptyGlyph { 0 begin
+	% by name, load font data for char with width but no bits
+	
+	/charname xdf
+	/fontno xdf
+	/w xdf
+	PSfontobj fontno get  /CharData get
+	    charname [w 0 0 1 1 w 1 0 0 [<00>] cvx ] put
+	end
+} bdf
+/LoadEmptyGlyph load 0 3 dict put
+
+/puterrchar {
+	PSfontobj errfontno  get dup 
+	/BuildChar get  errcharno exch exec 
+	(\tInterleaf::out of VM loading bitmap (?). Try breaking up document\n) 
+		dup print flush
+	emsg1 copy pop
+} bdf
+
+/timeToQuit {
+%	initialstate restore
+	(\tInterleaf::completely out of memory. \n\tTry breaking up the document \n) 
+		dup print flush
+	emsg2 copy pop
+%	headerpage showpage
+	stop
+} bdf
+
+/LoadGlyph { 0 begin
+	% load a glyph into the CharData entry of PSFontobj[fontno]
+	% the entry is in the position implied by charno
+	% and with the metrics height, width, lsb
+
+	/charno xdf
+	/fontno xdf
+	/height xdf
+	/vadj xdf
+	/width xdf
+	/hsize xdf
+	/lsb xdf
+
+	/noVMHEADROOM vmstatus exch sub exch pop dup
+		VMHEADROOM 2 idiv lt {timeToQuit} if
+		VMHEADROOM lt 
+		{true } {false} ifelse def
+	/nbytes hsize 15 add 16 idiv 2 mul height mul def	
+	noVMHEADROOM not  {/glyph nbytes string def } if
+	currentfile noVMHEADROOM 
+		{trashheap 0 nbytes getinterval } {glyph} ifelse 
+		readhexstring pop pop
+	
+	   %actually, we pass bitmap rounded to 16 bits wide:
+	/hsize hsize 15 add 16 idiv 16 mul def
+	
+	/thefont PSfontobj fontno get	def %the font dict
+		% if we are loading glyphs, PSfontobj is an array of
+		% dictionaries each of which already has the form
+		% of Program 21, PS T&C
+	/charname thefont /Encoding get charno get def %access by name !
+
+	%now make the parameters for the CharData
+	% 1 unit = 1 pixel
+	
+		
+	/tx lsb  neg def
+	/ty vadj neg def
+	/lly  height vadj add def	%lower left of bbox
+	/llx  lsb def
+	/urx hsize lsb add def %upper right
+	/ury vadj def
+	thefont /CharData get charname 
+	    noVMHEADROOM
+	    { [BOGUSWIDTH] }
+	    {[width llx lly urx ury hsize height tx ty [glyph] cvx ]} ifelse
+	put
+	end
+} bdf
+/LoadGlyph load 0 20 dict put
+
+/sf { PSfontobj exch get setfont } bdf
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	FILL PATTERNS
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%	Fill patterns by clipping a rectangle filled with characters
+%
+%	IL patterns are presently on 32x32 tiles, even if there is a subtile
+%	which would define the whole pattern. However, we attempt generality
+%	here grayArray determines whether to use grayscale for some patterns
+%	even if not using native patterns
+%
+/stdsizex	32 def
+/stdsizey	32 def
+/patternstring	1 string def
+/grayArray [	%indexed by position in IL pattern font, -1 means not grayscale 
+		% others are fraction of  WHITE
+	-1	-1	-1	-1	-1	-1	-1	-1
+	-1	-1	-1	-1	-1	1	.92	.8	
+	.65	0	.5	.35	.2	] def
+/patgrayArray [ %when using grayscale as complete simulation
+	0	.12	.22	.32	.42	.52	.62	.72
+	.82	.92	.17	.27	.37	1	.92	.8	
+	.65	0	.5	.35	.2	] def
+
+%
+%	THE APPLICATION CALLS:
+%
+/fillpatset {			% fnum patchar fillpatset
+    /patchar xdf		% selects pattern ch in font fnum
+    /pfindex xdf
+    patgraylevel dup 0 ge {	% The extra call to patgraylevel
+	/patIsGray true def	% is needed because PS computes
+	/patgray xdf		% both operands of an "and" operator
+    } {				% even if the first is false.
+	pop /patIsGray false def
+    } ifelse
+} bdf
+
+/fp {
+    gsave
+    pfindex 0 eq patchar 0 eq and {		% special case 
+	/patIsGray true def
+	/patgray 0 def
+    } if
+
+    patIsGray {
+	/oldgray currentgray def
+	patgray setgray
+	eofill
+	oldgray setgray
+    } {
+	useNativeFonts {			% native non gray fill patterns
+	    patchar 0 showpattern
+	} {
+	    currentfont 
+	    PSfontobj pfindex get setfont
+	    pfill
+	    dup null ne {setfont} {pop} ifelse
+	} ifelse
+    } ifelse
+    grestore
+} bdf
+
+%
+%	Private implementation procedures
+%
+
+%	Before invoking pfill, you must have set the pattern
+%	font as the current font.
+%	pfill will cause a newpath, just as do fill and stroke.
+%
+/pfill {
+  gsave 1 setgray eofill grestore % must fill on white
+  gsave setupfactors setupregion blastchars grestore
+  newpath
+} bdf
+
+/setupfactors {
+  0 setgray
+  [] 0 setdash
+  patternstring 0 patchar put
+  /patx stdsizex def /paty stdsizey def
+} bdf
+
+/setupregion {
+  eoclip	
+  pathbbox
+    /ry exch ceiling  def
+    /rx exch ceiling  def
+    /ly exch floor cvi
+      dup 0 lt{paty sub}if	%We need (lx,ly) modulo (patx,paty)
+      dup paty mod  sub  def	%in device space coords.
+    /lx exch floor cvi
+      dup 0 lt{patx sub}if
+      dup patx mod  sub  def
+
+    /ry ry paty add def		%we are painting downwards as positive
+    /ly ly paty sub def
+
+  newpath
+} bdf
+
+/blastchars {
+  /#chars  rx lx sub  patx div ceiling cvi  def
+  ly paty ry  {
+    lx exch moveto
+    #chars{ patternstring show} repeat
+  }for
+} bdf
+
+/patgraylevel {
+  patchar grayArray length ge {
+    -1
+  } {
+    grayArray patchar get
+  } ifelse
+} bdf
+
+% 
+%	Non gray Native fill pattern. Right out of the PS cook book page 192.
+%
+/setuserscreendict 22 dict def
+setuserscreendict begin
+ /tempctm matrix def
+ /temprot matrix def
+ /tempscale matrix def
+
+ /concatprocs
+  {/proc2 exch cvlit def
+   /proc1 exch cvlit def
+   /newproc proc1 length proc2 length add
+    array def
+   newproc 0 proc1 putinterval
+   newproc proc1 length proc2 putinterval
+   newproc cvx
+  } bdf
+
+  /resmatrix matrix def
+  /findresolution
+   {72 0 resmatrix defaultmatrix dtransform
+    /yres xdf /xres xdf
+    xres dup mul yres dup mul add sqrt
+   } bdf
+end
+
+/setuserscreen
+{setuserscreendict begin
+   /spotfunction xdf
+   /screenangle xdf
+   /cellsize xdf
+
+   /m tempctm currentmatrix def
+   /rm screenangle temprot rotate def
+   /sm cellsize dup tempscale scale def
+
+   sm rm m m concatmatrix m concatmatrix pop
+   1 0 m dtransform /y1 xdf /x1 xdf
+   /veclength x1 dup mul y1 dup mul add sqrt def
+   /veclength veclength DPIx 72 div mul def
+   /frequency findresolution veclength div def
+   /newscreenangle y1 x1 atan def
+   m 2 get m 1 get mul m 0 get m 3 get mul sub 0 gt
+   {{neg}
+    /spotfunction load concatprocs
+    /spotfunction xdf
+   } if
+
+   frequency newscreenangle /spotfunction load setscreen
+  end % setuserscreendict begin
+} bdf
+
+/setpatterndict 18 dict def
+setpatterndict begin
+ /bitison
+ {/ybit xdf /xbit xdf
+  /bytevalue bstring ybit bwidth mul xbit 8 idiv add get def
+  /mask 1 7 xbit 8 mod sub bitshift def
+  bytevalue mask and 0 ne
+ } bdf
+end % setpatterndict begin
+
+/bitpatternspotfunction
+{setpatterndict begin
+  /y xdf /x xdf
+  /xindex x 1 add 2 div bpside mul cvi def
+  /yindex y 1 add 2 div bpside mul cvi def
+  xindex yindex bitison
+  {/onbits onbits 1 add def 1 }
+  {/offbits offbits 1 add def 0 }
+  ifelse
+  end % setpatterndict begin
+} bdf
+ 
+/setpattern
+ {setpatterndict begin
+  /cellsz xdf
+  /angle  xdf
+  /bwidth xdf
+  /bpside xdf
+  /bstring xdf
+
+  /onbits 0 def /offbits 0 def
+  cellsz angle /bitpatternspotfunction load setuserscreen
+  {} settransfer
+  offbits offbits onbits add div setgray
+  end % setpatterndict begin
+ } bdf
+   
+/showpattern
+{/ang xdf
+ /patnum xdf
+
+ patternarray patnum get 32 4 ang 72 300 32 div div setpattern
+ eofill
+} bdf
+
+/patternarray [
+<>
+<
+00000000 60c00030 60c00030 00000000 00000000 060c0003 060c0003 00000000
+00000000 3060c000 3060c000 00000000 00000000 03060c00 03060c00 00000000
+00000000 003060c0 003060c0 00000000 00000000 0003060c 0003060c 00000000
+00000000 c0003060 c0003060 00000000 00000000 0c000306 0c000306 00000000
+>
+<
+00000000 0c000306 0c000306 00000000 00000000 c0003060 c0003060 00000000
+00000000 0003060c 0003060c 00000000 00000000 003060c0 003060c0 00000000
+00000000 03060c00 03060c00 00000000 00000000 3060c000 3060c000 00000000
+00000000 060c0003 060c0003 00000000 00000000 60c00030 60c00030 00000000
+>
+<
+00030c00 00030c00 00000000 00000000 000030c0 000030c0 00000000 00000000
+0000030c 0000030c 00000000 00000000 c0000030 c0000030 00000000 00000000
+0c000003 0c000003 00000000 00000000 30c00000 30c00000 00000000 00000000
+030c0000 030c0000 00000000 00000000 0030c000 0030c000 00000000 00000000
+>
+<
+0030c000 0030c000 00000000 00000000 030c0000 030c0000 00000000 00000000
+30c00000 30c00000 00000000 00000000 0c000003 0c000003 00000000 00000000
+c0000030 c0000030 00000000 00000000 0000030c 0000030c 00000000 00000000
+000030c0 000030c0 00000000 00000000 00030c00 00030c00 00000000 00000000
+>
+<
+00000000 00000707 00000707 00000707 00000000 00007070 00007070 00007070
+00000000 00000707 00000707 00000707 00000000 00007070 00007070 00007070
+00000000 00000707 00000707 00000707 00000000 00007070 00007070 00007070
+00000000 00000707 00000707 00000707 00000000 00007070 00007070 00007070
+>
+<
+00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+00000000 0e0e0e0e 0e0e0e0e 0e0e0e0e 00000000 e0e0e0e0 e0e0e0e0 e0e0e0e0
+00000000 0e0e0e0e 0e0e0e0e 0e0e0e0e 00000000 e0e0e0e0 e0e0e0e0 e0e0e0e0
+>
+<
+cccc0ccc cccc0ccc 00000000 00000000 cccc0ccc cccc0ccc 00000000 00000000
+cccc0ccc cccc0ccc 00000000 00000000 00000000 00000000 00000000 00000000
+0ccccccc 0ccccccc 00000000 00000000 0ccccccc 0ccccccc 00000000 00000000
+0ccccccc 0ccccccc 00000000 00000000 00000000 00000000 00000000 00000000
+>
+<
+88880888 88880888 00000000 00000000 88880888 88880888 00000000 00000000
+88880888 88880888 00000000 00000000 00000000 00000000 00000000 00000000
+08888888 08888888 00000000 00000000 08888888 08888888 00000000 00000000
+08888888 08888888 00000000 00000000 00000000 00000000 00000000 00000000
+>
+<
+00000308 00000308 00040308 00040398 000c01d0 007e01f8 01cb80fc 0309803e
+0618802f 06108027 06108063 07100843 03b01843 03e01046 01f018c6 00781c9c
+007c07f0 005e0080 004e0180 00c60100 10860100 30860000 208c0000 318c0000
+39380002 0fe00002 01000006 0300003f c20000e5 c2000184 40000304 4000030c
+>
+<
+00007618 00003c70 00003fe0 00000f80 00000800 00040800 00041800 000c1000
+00081000 007e0000 01db0000 03138000 06138000 06310000 0c200000 0c200010
+18600010 18400030 18400020 18c001f8 1880076c 1c810c4e 1d86184e 0f1c18c4
+0ff83080 03e03080 02006180 02006100 06006100 04006300 04006200 00007204
+>
+<
+00000180 00000180 00000000 00000000 00000198 00000198 00000000 00000000
+00000198 00000198 00000000 00000000 00000198 00000198 00000000 00000000
+00000198 00000198 00000000 00000000 19999998 19999998 00000000 00000000
+01999998 01999998 00000000 00000000 00000000 00000000 00000000 00000000
+>
+<
+00000400 00000000 00000100 00000180 00000000 00000000 00000190 00000198
+00000000 00000000 00000198 00000198 00000000 00000000 00000998 00000998
+00000000 00000000 00001998 00019990 40000000 00000000 19999980 09999980
+00000000 00000000 01999800 00999000 00000000 00000000 00000000 00000000
+>
+] def
+
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%
+%	Page
+%%%%%%%%%%%%%%%%%%%%%%%%%
+/bop  {/pagestate save def  } bdf
+/eop  {docutmark {cutmark} if showpage pagestate restore } bdf %prints N copies
+
+%
+% 	Define clipping path
+%
+/clp {initclip newpath av as as as closepath clip } bdf
+
+%
+%	Cutting marks for typsetter paper
+%
+/cutmark { 0 begin
+  /pw DPIx 40 div def		% pen width
+  /pw2 pw 2 div def
+  /lnx DPIx 4 div def
+  /lny DPIy 4 div def
+
+  initclip
+  pw sw
+  [] 0 setdash
+  newpath
+  pw2 neg pw2 neg translate
+  lnx neg 0 av lnx 0 as
+  0 lny neg av 0 lny as
+  PSpagewidth pw add 0 translate
+  lnx neg 0 av lnx 0 as
+  0 lny neg av 0 lny as
+  0 PSpagelength pw add translate
+  lnx neg 0 av lnx 0 as
+  0 lny neg av 0 lny as
+  PSpagewidth pw add neg 0 translate
+  lnx neg 0 av lnx 0 as
+  0 lny neg av 0 lny as
+  dp
+  end
+} bdf
+/cutmark load 0 4 dict put
+%!
+%	InterLeaf to Postscript fontname mapping
+%
+/fontmap 14 dict def
+	/Ops6 /ILtims 6 map
+	/Ops7 /ILtims 7 map
+	/Ops8 /ILtims 8 map
+	/timsps10 /ILtims 10 map
+	/timsps12 /ILtims 12 map
+	/timsps12b /ILtimsb 12 map
+	/timsps12i /ILtimsi 12 map
+	/timsps14b /ILtimsb 14 map
+	/helvps8 /ILhelv 8 map
+	/helvps8b /ILhelvb 8 map
+	/helvps10 /ILhelv 10 map
+	/helvps10b /ILhelvb 10 map
+	/helvps12b /ILhelvb 12 map
+	/helvps14b /ILhelvb 14 map
+%
+%	Create and ReEncode the following fonts.
+%
+/Times-Roman /ILtims ILEncoding ReEncode
+/Times-Italic /ILtimsi ILEncoding ReEncode
+/Times-Bold /ILtimsb ILEncoding ReEncode
+/Helvetica /ILhelv ILEncoding ReEncode
+/Helvetica-Bold /ILhelvb ILEncoding ReEncode
+%!
+% >> pl2ps version 3.2.1
+1 2 3 versioncheck
+/hline 4 array def
+hline 3 (For: westine ) put
+hline 2 (Document: cmr90-ps ) put
+hline 1 (Last saved on: Mon Jul 16 15:51:09 1990 ) put
+hline 0 (Printed on: Mon Jul 16 15:49:36 1990 ) put
+logme
+letter
+/initialstate save def
+/PSpagelength 3300 def
+/PSpagewidth 2550 def
+/DPIx 300 def /DPIy 300 def
+72 DPIx div 72 DPIy div neg scale
+0 3300 neg translate
+/PSfontobj 85 array def
+/useNativeFonts true def
+/drawmode PL_SET def
+4.0 sw
+/Ops6 0 declareFont
+0 0 fillpatset
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+1275.0 120.0 m
+2237.0 283.0 m
+( ) 2250  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 1]) 2246  0.00 32 s
+297.0 413.0 m
+2023.0 411.0 m
+(A. Westine) 2248  0.00 32 s
+297.0 h
+(Network Working Group) 804  0.00 32 s
+297.0 459.0 m
+(Request for Comments:) 772  0.00 32 s
+2001.0 h
+(A. DeSchon) 2246  0.00 32 s
+2079.0 507.0 m
+(J. Postel) 2246  0.00 32 s
+2021.0 555.0 m
+(C. E. Ward) 2248  0.00 32 s
+2065.0 600.0 m
+(USC/ISI) 2238  0.00 -1 s
+2036.0 639.0 m
+(July 1990) 2233  1.00 32 s
+837.0 455.0 m
+( 1168) 951  1.00 32 s
+2253.0 413.0 m
+/timsps14b 2 declareFont
+2 sf
+1275.0 765.0 m
+459.0 841.0 m
+(INTERMAIL) 803  0.00 -1 s
+( AND COMMERCIAL MAIL RELAY SERVICES) 2093  2.20 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 953.0 m
+(STATUS) 494  0.00 -1 s
+( OF THIS MEMO) 894  2.00 32 s
+1 sf
+300.0 1061.0 m
+(This RFC discusses the history and evolution of the Intermail and Commercial mail systems.) 2196  2.62 32 s
+300.0 1127.0 m
+(The problems encountered in operating a store-and-forward mail relay between commercial) 2184  2.70 32 s
+300.0 1192.0 m
+(systems such as Telemail, MCI Mail and Dialcom are also discussed. This RFC provides) 2114  2.62 32 s
+300.0 1258.0 m
+(information for the Internet community, and does not specify any standard.  Distribution of this) 2248  2.21 32 s
+300.0 1324.0 m
+(memo is unlimited.) 693  2.00 32 s
+3 sf
+300.0 1431.0 m
+(INTRODUCTION) 698  0.00 -1 s
+1 sf
+300.0 1539.0 m
+(The evolution of large electronic mail systems testifies to the increasing importance of) 2061  2.17 32 s
+300.0 1604.0 m
+(electronic mail as a means of communication and coordination throughout the scientific) 2093  2.91 32 s
+300.0 1670.0 m
+(research community. ) 739  3.00 32 s
+300.0 1778.0 m
+(This paper is a summary of the development of, and a status report on, an experiment in) 2104  2.38 32 s
+300.0 1843.0 m
+(protocol interoperation between mail systems of different design.  USC/Information Sciences) 2200  2.70 32 s
+300.0 1909.0 m
+(Institute \(ISI\) began work on this experiment in 1981 and over the years has provided an) 2113  2.13 32 s
+300.0 1975.0 m
+(evolving demonstration service for users to exchange mail between the Internet and a few) 2133  2.54 32 s
+300.0 2040.0 m
+(commercial mail systems.) 825  2.00 32 s
+300.0 2148.0 m
+(Recently other organizations have begun to provide similar services, demonstrating the ongoing) 2248  2.27 32 s
+300.0 2214.0 m
+(need for interoperation of the Internet and the commercial mail systems.  We believe that ISI's) 2242  2.67 32 s
+300.0 2280.0 m
+(pioneering work in this area has promoted this expansion of service.) 1692  2.30 32 s
+300.0 2387.0 m
+(These systems include the Internet mail system, the US Sprint Telemail system, the MCI Mail) 2228  2.86 32 s
+300.0 2453.0 m
+(system, and the Dialcom systems. All of the systems were designed to operate autonomously,) 2208  2.54 32 s
+300.0 2518.0 m
+(with no convenient mechanism to allow users of one system to send electronic mail to users on) 2243  2.44 32 s
+300.0 2584.0 m
+(another system.) 616  2.00 32 s
+300.0 2692.0 m
+(The Intermail and Commercial Mail Relay \(CMR\) services described in this paper were) 2088  2.25 32 s
+300.0 2757.0 m
+(developed to provide a means for sending mail between the Internet and these commercial mail) 2251  2.71 32 s
+300.0 2823.0 m
+(systems.) 470  0.00 -1 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 2]) 2246  0.00 32 s
+300.0 413.0 m
+(The Internet is an interconnected system of networks using the SMTP mail protocol, which) 2163  2.46 32 s
+300.0 478.0 m
+(includes the ARPANET, MILNET, NSFNET, and about 700 other networks; mail relays allow) 2236  2.17 32 s
+300.0 544.0 m
+(the exchange of mail with BITNET, CSNET, and the UUCP networks as well.  To the users,) 2199  2.31 32 s
+300.0 610.0 m
+(this Internet looks like one large mail system with at least 100,000 computers and at least) 2131  2.67 32 s
+300.0 675.0 m
+(400,000 users.  Figure 1 illustrates the path of a message sent by a user on one Internet host to) 2233  2.32 32 s
+300.0 741.0 m
+(a user on another Internet host.  For more details on the Internet and connected networks \(see) 2210  2.38 32 s
+300.0 807.0 m
+(Appendix) 497  0.00 -1 s
+( A\).) 577  1.00 32 s
+300.0 914.0 m
+(As) 355  0.00 -1 s
+( commercial mail systems came into popular use, it became clear that a mail link between) 2184  2.00 32 s
+300.0 980.0 m
+(the Internet and the commercial mail systems was necessary \(see Appendix B\).  More and) 2137  2.36 32 s
+300.0 1046.0 m
+(more commercial and research entities needed to communicate with the Internet research) 2116  2.82 32 s
+300.0 1111.0 m
+(community, and many of these organizations \(for one reason or another\) were inappropriate) 2171  2.25 32 s
+300.0 1177.0 m
+(candidates for Internet sites.  The Intermail and CMR services allow these groups to) 2019  2.46 32 s
+300.0 1243.0 m
+(communicate with Internet users by purchasing electronic mail services from commercial) 2123  2.80 32 s
+300.0 1308.0 m
+(companies.) 526  0.00 -1 s
+/timsps12b 3 declareFont
+3 sf
+300.0 1416.0 m
+(INTERMAIL) 592  0.00 -1 s
+1 sf
+300.0 1524.0 m
+(Intermail is an experimental mail forwarding system that allows users to send electronic mail) 2202  2.69 32 s
+300.0 1590.0 m
+(across mail system boundaries. The use of Intermail is nearly transparent, in that users on each) 2236  2.53 32 s
+300.0 1655.0 m
+(system are able to use their usual mail programs to prepare, send, and receive messages.  No) 2195  2.63 32 s
+300.0 1721.0 m
+(modifications to any of the mail programs on any of the systems are required.  However, users) 2232  2.25 32 s
+300.0 1787.0 m
+(must put some extra addressing information at the beginning of the body of their messages.) 2165  2.36 32 s
+/timsps10 4 declareFont
+4 sf
+0.0 2739.0 m
+8.0 sw
+0.0 v
+newpath
+240 1917 av
+2241 1917 as
+2241 2638 as
+240 2638 as
+closepath
+[] 0 setdash
+dp
+newpath
+1761 2338 av
+1961 2338 as
+1961 2458 as
+1761 2458 as
+closepath
+[] 0 setdash
+dp
+/helvps8b 5 declareFont
+5 sf
+1782.0 2387.0 m
+(User) 1855  0.00 -1 s
+( ) 1865  1.00 32 s
+( Mail) 1938  0.00 32 s
+1783.0 2423.0 m
+(Program) 1919  0.00 -1 s
+(  ) 1939  1.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+1861 2338 av
+1862 2218 as
+[] 0 setdash
+dp
+/Ops6 0 declareFont
+0 0 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1849 2317 av
+1861 2338 as
+1873 2317 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1861 2338 av
+4.0 sw
+newpath
+2139 2458 av
+2058 2458 as
+2058 2378 as
+2139 2378 as
+closepath
+[] 0 setdash
+dp
+newpath
+2141 2410 av
+2181 2458 as
+[] 0 setdash
+dp
+newpath
+2181 2458 av
+2133 2458 as
+[] 0 setdash
+dp
+newpath
+1621 2358 av
+1734 2245 as
+[] 0 setdash
+dp
+newpath
+340 2117 av
+420 2117 as
+420 2197 as
+340 2197 as
+closepath
+[] 0 setdash
+dp
+newpath
+292 2197 av
+340 2157 as
+[] 0 setdash
+dp
+newpath
+292 2197 av
+340 2197 as
+[] 0 setdash
+dp
+newpath
+1758 2221 av
+1734 2245 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1752 2244 av
+1758 2221 as
+1735 2227 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1758 2221 av
+4.0 sw
+newpath
+620 2338 av
+620 2257 as
+[] 0 setdash
+dp
+newpath
+620 2227 av
+620 2257 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+632 2247 av
+620 2227 as
+608 2247 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+620 2227 av
+4.0 sw
+newpath
+480 2057 av
+1201 2057 as
+1201 2498 as
+480 2498 as
+closepath
+[] 0 setdash
+dp
+8.0 sw
+newpath
+520 2098 av
+720 2098 as
+720 2218 as
+520 2218 as
+closepath
+[] 0 setdash
+dp
+541.0 2147.0 m
+(User ) 624  1.00 32 s
+( Mail) 697  0.00 32 s
+542.0 2183.0 m
+(Program) 678  0.00 -1 s
+(  ) 698  1.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+520 2338 av
+720 2338 as
+720 2458 as
+520 2458 as
+closepath
+[] 0 setdash
+dp
+/helvps8 6 declareFont
+6 sf
+580.0 2387.0 m
+(User) 650  0.00 -1 s
+( ) 659  0.00 32 s
+534.0 2423.0 m
+(   Mailbox   ) 706  0.83 32 s
+0.0 0.0 m
+newpath
+720 2137 av
+898 2316 as
+[] 0 setdash
+dp
+newpath
+937 2354 av
+898 2316 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+913 2348 av
+937 2354 as
+930 2331 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+937 2354 av
+4.0 sw
+newpath
+941 2378 av
+757 2377 as
+[] 0 setdash
+dp
+newpath
+717 2377 av
+757 2377 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+738 2365 av
+717 2377 as
+738 2389 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+717 2377 av
+8.0 sw
+newpath
+1421 2298 av
+1621 2298 as
+1621 2418 as
+1421 2418 as
+closepath
+[] 0 setdash
+dp
+5 sf
+1521.0 2339.0 m
+1428.0 2375.0 m
+(   MAILER   ) 1615  1.00 32 s
+0.0 0.0 m
+newpath
+941 2298 av
+1141 2298 as
+1141 2418 as
+941 2418 as
+closepath
+[] 0 setdash
+dp
+1041.0 2339.0 m
+947.0 2375.0 m
+(   MAILER   ) 1134  1.00 32 s
+/helvps10 7 declareFont
+7 sf
+840.0 2138.0 m
+(Internet) 982  0.00 -1 s
+( Host) 1080  0.00 32 s
+1361.0 h
+(Internet Host) 1601  0.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+1301 2057 av
+2021 2057 as
+2021 2498 as
+1301 2498 as
+closepath
+[] 0 setdash
+dp
+newpath
+1141 2378 av
+1421 2379 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1161 2366 av
+1141 2378 as
+1161 2390 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1141 2378 av
+4.0 sw
+newpath
+1421 2338 av
+1141 2337 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1400 2350 av
+1421 2338 as
+1400 2326 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1421 2338 av
+4.0 sw
+newpath
+1761 2098 av
+1961 2098 as
+1961 2218 as
+1761 2218 as
+closepath
+[] 0 setdash
+dp
+6 sf
+1821.0 2147.0 m
+(User) 1891  0.00 -1 s
+( ) 1900  0.00 32 s
+1775.0 2183.0 m
+(   Mailbox   ) 1947  0.83 32 s
+0.0 0.0 m
+newpath
+1621 2378 av
+1761 2379 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1642 2366 av
+1621 2378 as
+1642 2390 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1621 2378 av
+4.0 sw
+newpath
+520 2138 av
+420 2138 as
+[] 0 setdash
+dp
+/helvps12b 8 declareFont
+8 sf
+861.0 2697.0 m
+(Figure) 1015  0.00 -1 s
+( 1 - Internet to Internet Mail) 1678  1.17 32 s
+0.0 0.0 m
+newpath
+2061 2418 av
+1961 2418 as
+[] 0 setdash
+dp
+2550.0 2739.0 m
+4 sf
+1 sf
+300.0 2820.0 m
+(The earliest version of Intermail was developed in 1981, by Jon Postel, Danny Cohen, Lee) 2150  2.43 32 s
+300.0 2885.0 m
+(Richardson, and Joel Goldberg [1]. It ran on the TOPS-20 operating system and was used to) 2190  2.13 32 s
+300.0 2951.0 m
+(forward VLSI chip specifications for the MOSIS project between the ARPANET and the) 2116  2.17 32 s
+eop
+0.0 0.0 m
+/Ops6 0 declareFont
+0 0 fillpatset
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 3]) 2246  0.00 32 s
+300.0 413.0 m
+(Telemail system.  The original addressing model used in this system was called \177Source Route) 2230  2.21 32 s
+300.0 478.0 m
+(Forwarding".  It was developed to handle situations in which a message might travel multiple) 2213  2.64 32 s
+300.0 544.0 m
+(hops before reaching its destination.) 1036  2.75 32 s
+300.0 652.0 m
+(Later, in 1983, Annette DeSchon converted Intermail into a more general-purpose) 1982  2.60 32 s
+300.0 717.0 m
+(mail-forwarding system, supporting forwarding between the Internet mail system and three) 2160  2.30 32 s
+300.0 783.0 m
+(commercial mail systems: Telemail, MCI Mail, and Dialcom [3,4].) 1667  2.63 32 s
+300.0 891.0 m
+(As it became apparent that the level of generality of Source Route Forwarding was not needed,) 2240  2.27 32 s
+300.0 956.0 m
+(and as Intermail gained acceptance among users, an easier approach to addressing was) 2064  2.83 32 s
+300.0 1022.0 m
+(developed.  The new addressing model is called \177Simple Forwarding".  This form of) 2032  2.46 32 s
+300.0 1088.0 m
+(addressing, like Source Route Forwarding, appears at the beginning of the text of each) 2069  2.62 32 s
+300.0 1153.0 m
+(message.  It can be used to include various Internet mail header fields in addition to the) 2094  2.63 32 s
+300.0 1219.0 m
+(standard \177To" and \177Cc" address fields.  This format also allows the use of special address) 2135  2.53 32 s
+300.0 1285.0 m
+(formats, such as U.S. postal addresses and TELEX addresses, which are supported by the MCI) 2231  2.29 32 s
+300.0 1350.0 m
+(Mail system.  The Intermail system performed partially automated error handling.  Error) 2107  2.42 32 s
+300.0 1416.0 m
+(messages were created by the Intermail program and were then either approved or corrected by) 2243  2.50 32 s
+300.0 1482.0 m
+(a human postmaster.) 719  3.00 32 s
+300.0 1590.0 m
+(Figure 2 illustrates the pathways between the user mailboxes in the commercial mail systems) 2202  2.85 32 s
+300.0 1655.0 m
+(and the user mailboxes in the Internet via the Intermail accounts and program modules.  Figure) 2246  2.60 32 s
+300.0 1721.0 m
+(3 shows the Intermail processing in more detail.) 1281  2.43 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 1828.0 m
+(COMMERCIAL) 662  0.00 -1 s
+( MAIL RELAY) 999  1.00 32 s
+1 sf
+300.0 1936.0 m
+(In) 342  0.00 -1 s
+( 1988, the Commercial Mail Relay \(CMR\) was developed to run on a dedicated UNIX) 2108  2.36 32 s
+300.0 2002.0 m
+(system, replacing the TOPS-20-based Intermail system. The CMR is a store-and-forward mail) 2250  2.55 32 s
+300.0 2067.0 m
+(link between the Internet and two commercial systems, Telemail and Dialcom. The only) 2106  2.83 32 s
+300.0 2133.0 m
+(remaining forwarding performed by the TOPS-20 Intermail system is in support of the MCI) 2180  2.00 32 s
+300.0 2199.0 m
+(Mail system.  \(This is planned for conversion to  the CMR.\)  The CMR supports relay-style) 2179  2.19 32 s
+300.0 2264.0 m
+(addressing in the \177Internet to commercial system" direction, as well as Simple Forwarding in) 2205  2.77 32 s
+300.0 2330.0 m
+(both directions.  One advantage of relay-style addressing is that users from different) 2023  2.33 32 s
+300.0 2396.0 m
+(commercial systems can appear on Internet mailing lists.  Another advantage is that the reply) 2206  2.79 32 s
+300.0 2461.0 m
+(features of most Internet user applications can be used by Internet users to respond to mail that) 2238  2.38 32 s
+300.0 2527.0 m
+(originated on a commercial system. Unfortunately, since we do not have access to the) 2055  2.77 32 s
+300.0 2593.0 m
+(address-parsing software on the commercial systems, it is not possible for users of the) 2060  2.23 32 s
+300.0 2658.0 m
+(commercial systems to enter addresses directly into the message header, and they must) 2073  2.83 32 s
+300.0 2724.0 m
+(continue to use Simple Forwarding.) 1029  2.75 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 4]) 2246  0.00 32 s
+0.0 2970.0 m
+0.0 v
+newpath
+1260 1131 1000 704 0.0000 89.9593 449.9592 el
+[] 0 setdash
+dp
+8.0 sw
+newpath
+240 395 av
+2281 395 as
+2281 2897 as
+240 2897 as
+closepath
+[] 0 setdash
+dp
+4.0 sw
+newpath
+1161 555 av
+1361 555 as
+1361 676 as
+1161 676 as
+closepath
+[] 0 setdash
+dp
+/helvps8 6 declareFont
+6 sf
+1179.0 604.0 m
+(USER Mail) 1341  1.00 32 s
+1187.0 641.0 m
+(Program) 1313  0.00 -1 s
+(  ) 1331  0.00 32 s
+/helvps10b 9 declareFont
+9 sf
+1061.0 519.0 m
+(Internet) 1215  0.00 -1 s
+( Host) 1320  0.00 32 s
+0.0 0.0 m
+newpath
+941 476 av
+1601 476 as
+1601 1076 as
+941 1076 as
+closepath
+[] 0 setdash
+dp
+newpath
+1161 916 av
+1361 916 as
+1361 1036 as
+1161 1036 as
+closepath
+[] 0 setdash
+dp
+6 sf
+1205.0 973.0 m
+(Internet) 1315  0.00 -1 s
+(  ) 1335  1.00 32 s
+( ) 1344  0.00 32 s
+1217.0 1009.0 m
+(Mailer    ) 1344  0.50 32 s
+0.0 0.0 m
+newpath
+1261 1036 av
+1261 1136 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/Ops6 0 declareFont
+0 0 fillpatset
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 1055 av
+1261 1055 as
+1255 1059 as
+1261 1036 as
+1267 1059 as
+closepath
+fp
+newpath
+1261 1055 av
+newpath
+4.0 sw
+1261 1055 av
+1255 1059 as
+1261 1036 as
+1267 1059 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 1036 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 1116 av
+1261 1116 as
+1267 1113 as
+1261 1136 as
+1255 1113 as
+closepath
+fp
+newpath
+1261 1116 av
+newpath
+4.0 sw
+1261 1116 av
+1267 1113 as
+1261 1136 as
+1255 1113 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 1136 av
+4.0 sw
+newpath
+1161 1616 av
+1361 1616 as
+1361 1736 as
+1161 1736 as
+closepath
+[] 0 setdash
+dp
+1185.0 1673.0 m
+(DIALCOM   ) 1366  1.00 32 s
+1199.0 1710.0 m
+(MAILER  ) 1342  1.00 32 s
+(  ) 1362  1.00 32 s
+0.0 0.0 m
+newpath
+1161 1176 av
+1361 1176 as
+1361 1296 as
+1161 1296 as
+closepath
+[] 0 setdash
+dp
+1204.0 1225.0 m
+(Internet) 1314  0.00 -1 s
+1172.0 1261.0 m
+(     Mailer ) 1321  1.00 32 s
+(   ) 1349  0.33 32 s
+0.0 0.0 m
+newpath
+1441 1392 av
+1641 1392 as
+1641 1512 as
+1441 1512 as
+closepath
+[] 0 setdash
+dp
+1510.0 1441.0 m
+(MCI) 1571  0.00 -1 s
+1450.0 1478.0 m
+(   MAILER   ) 1633  1.00 32 s
+0.0 0.0 m
+newpath
+900 1392 av
+1101 1392 as
+1101 1512 as
+900 1512 as
+closepath
+[] 0 setdash
+dp
+959.0 1441.0 m
+(TELE) 1041  0.00 -1 s
+909.0 1478.0 m
+(   MAILER   ) 1092  1.00 32 s
+0.0 0.0 m
+newpath
+1201 1396 av
+1341 1396 as
+1341 1516 as
+1201 1516 as
+closepath
+[] 0 setdash
+dp
+1249.0 1471.0 m
+(IM) 1286  0.00 -1 s
+0.0 0.0 m
+newpath
+1261 1296 av
+1261 1396 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 1316 av
+1261 1316 as
+1255 1319 as
+1261 1296 as
+1267 1319 as
+closepath
+fp
+newpath
+1261 1316 av
+newpath
+4.0 sw
+1261 1316 av
+1255 1319 as
+1261 1296 as
+1267 1319 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 1296 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 1376 av
+1261 1376 as
+1267 1373 as
+1261 1396 as
+1255 1373 as
+closepath
+fp
+newpath
+1261 1376 av
+newpath
+4.0 sw
+1261 1376 av
+1267 1373 as
+1261 1396 as
+1255 1373 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 1396 av
+4.0 sw
+newpath
+1265 1520 av
+1265 1616 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1265 1540 av
+1265 1540 as
+1259 1543 as
+1265 1520 as
+1271 1543 as
+closepath
+fp
+newpath
+1265 1540 av
+newpath
+4.0 sw
+1265 1540 av
+1259 1543 as
+1265 1520 as
+1271 1543 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1265 1520 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1265 1596 av
+1265 1596 as
+1271 1593 as
+1265 1616 as
+1259 1593 as
+closepath
+fp
+newpath
+1265 1596 av
+newpath
+4.0 sw
+1265 1596 av
+1271 1593 as
+1265 1616 as
+1259 1593 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1265 1616 av
+4.0 sw
+newpath
+880 1136 av
+1661 1136 as
+1661 1756 as
+880 1756 as
+closepath
+[] 0 setdash
+dp
+newpath
+1101 1456 av
+1201 1456 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1120 1456 av
+1120 1456 as
+1124 1462 as
+1101 1456 as
+1124 1450 as
+closepath
+fp
+newpath
+1120 1456 av
+newpath
+4.0 sw
+1120 1456 av
+1124 1462 as
+1101 1456 as
+1124 1450 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1101 1456 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1181 1456 av
+1181 1456 as
+1178 1450 as
+1201 1456 as
+1178 1462 as
+closepath
+fp
+newpath
+1181 1456 av
+newpath
+4.0 sw
+1181 1456 av
+1178 1450 as
+1201 1456 as
+1178 1462 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1201 1456 av
+4.0 sw
+newpath
+1341 1456 av
+1441 1456 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1360 1456 av
+1360 1456 as
+1364 1462 as
+1341 1456 as
+1364 1450 as
+closepath
+fp
+newpath
+1360 1456 av
+newpath
+4.0 sw
+1360 1456 av
+1364 1462 as
+1341 1456 as
+1364 1450 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1341 1456 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1421 1456 av
+1421 1456 as
+1418 1450 as
+1441 1456 as
+1418 1462 as
+closepath
+fp
+newpath
+1421 1456 av
+newpath
+4.0 sw
+1421 1456 av
+1418 1450 as
+1441 1456 as
+1418 1462 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1441 1456 av
+/helvps14b 10 declareFont
+10 sf
+440.0 976.0 m
+(Internet) 653  0.00 -1 s
+440.0 1040.0 m
+(Mail) 553  0.00 -1 s
+440.0 1104.0 m
+(System) 646  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+892 635 av
+1161 635 as
+[] 0 setdash
+dp
+newpath
+968 1520 av
+577 2196 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+958 1537 av
+958 1537 as
+951 1537 as
+968 1520 as
+961 1543 as
+closepath
+fp
+newpath
+958 1537 av
+newpath
+4.0 sw
+958 1537 av
+951 1537 as
+968 1520 as
+961 1543 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+968 1520 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+587 2179 av
+587 2179 as
+594 2179 as
+577 2196 as
+583 2173 as
+closepath
+fp
+newpath
+587 2179 av
+newpath
+4.0 sw
+587 2179 av
+594 2179 as
+577 2196 as
+583 2173 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+577 2196 av
+4.0 sw
+newpath
+1538 1512 av
+1933 2196 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1547 1529 av
+1547 1529 as
+1544 1535 as
+1538 1512 as
+1555 1529 as
+closepath
+fp
+newpath
+1547 1529 av
+newpath
+4.0 sw
+1547 1529 av
+1544 1535 as
+1538 1512 as
+1555 1529 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1538 1512 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1923 2179 av
+1923 2179 as
+1926 2173 as
+1933 2196 as
+1916 2179 as
+closepath
+fp
+newpath
+1923 2179 av
+newpath
+4.0 sw
+1923 2179 av
+1926 2173 as
+1933 2196 as
+1916 2179 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1933 2196 av
+4.0 sw
+newpath
+1269 1736 av
+1269 2196 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1269 1756 av
+1269 1756 as
+1263 1759 as
+1269 1736 as
+1275 1759 as
+closepath
+fp
+newpath
+1269 1756 av
+newpath
+4.0 sw
+1269 1756 av
+1263 1759 as
+1269 1736 as
+1275 1759 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1269 1736 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1269 2177 av
+1269 2177 as
+1275 2173 as
+1269 2196 as
+1263 2173 as
+closepath
+fp
+newpath
+1269 2177 av
+newpath
+4.0 sw
+1269 2177 av
+1275 2173 as
+1269 2196 as
+1263 2173 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1269 2196 av
+4.0 sw
+newpath
+580 2436 300 300 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+newpath
+460 2196 av
+700 2196 as
+700 2336 as
+460 2336 as
+closepath
+[] 0 setdash
+dp
+6 sf
+501.0 2258.0 m
+(INTERMAIL) 677  0.00 -1 s
+537.0 2294.0 m
+(Mailbox) 650  0.00 -1 s
+480.0 2457.0 m
+(Mail Program ) 684  0.00 32 s
+0.0 0.0 m
+newpath
+440 2396 av
+740 2396 as
+740 2497 as
+440 2497 as
+closepath
+[] 0 setdash
+dp
+newpath
+480 2557 av
+680 2557 as
+680 2677 as
+480 2677 as
+closepath
+[] 0 setdash
+dp
+529.0 2606.0 m
+(USER ) 631  1.00 32 s
+489.0 2642.0 m
+(   Mailbox    ) 671  0.86 32 s
+0.0 0.0 m
+newpath
+580 2336 av
+580 2396 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+580 2356 av
+580 2356 as
+574 2360 as
+580 2336 as
+587 2360 as
+closepath
+fp
+newpath
+580 2356 av
+newpath
+4.0 sw
+580 2356 av
+574 2360 as
+580 2336 as
+587 2360 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+580 2336 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+580 2377 av
+580 2377 as
+587 2373 as
+580 2396 as
+574 2373 as
+closepath
+fp
+newpath
+580 2377 av
+newpath
+4.0 sw
+580 2377 av
+587 2373 as
+580 2396 as
+574 2373 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+580 2396 av
+4.0 sw
+newpath
+580 2497 av
+580 2557 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+580 2516 av
+580 2516 as
+574 2520 as
+580 2497 as
+587 2520 as
+closepath
+fp
+newpath
+580 2516 av
+newpath
+4.0 sw
+580 2516 av
+574 2520 as
+580 2497 as
+587 2520 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+580 2497 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+580 2537 av
+580 2537 as
+587 2533 as
+580 2557 as
+574 2533 as
+closepath
+fp
+newpath
+580 2537 av
+newpath
+4.0 sw
+580 2537 av
+587 2533 as
+580 2557 as
+574 2533 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+580 2557 av
+4.0 sw
+newpath
+1260 2436 300 300 0.0000 -89.9047 270.0952 el
+[] 0 setdash
+dp
+newpath
+1141 2196 av
+1381 2196 as
+1381 2336 as
+1141 2336 as
+closepath
+[] 0 setdash
+dp
+newpath
+1121 2396 av
+1421 2396 as
+1421 2497 as
+1121 2497 as
+closepath
+[] 0 setdash
+dp
+newpath
+1161 2557 av
+1361 2557 as
+1361 2677 as
+1161 2677 as
+closepath
+[] 0 setdash
+dp
+newpath
+1253 2336 av
+1253 2396 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1253 2356 av
+1253 2356 as
+1247 2360 as
+1253 2336 as
+1259 2360 as
+closepath
+fp
+newpath
+1253 2356 av
+newpath
+4.0 sw
+1253 2356 av
+1247 2360 as
+1253 2336 as
+1259 2360 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1253 2336 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1253 2377 av
+1253 2377 as
+1259 2373 as
+1253 2396 as
+1247 2373 as
+closepath
+fp
+newpath
+1253 2377 av
+newpath
+4.0 sw
+1253 2377 av
+1259 2373 as
+1253 2396 as
+1247 2373 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1253 2396 av
+4.0 sw
+newpath
+1253 2497 av
+1253 2557 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1253 2516 av
+1253 2516 as
+1247 2520 as
+1253 2497 as
+1259 2520 as
+closepath
+fp
+newpath
+1253 2516 av
+newpath
+4.0 sw
+1253 2516 av
+1247 2520 as
+1253 2497 as
+1259 2520 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1253 2497 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1253 2537 av
+1253 2537 as
+1259 2533 as
+1253 2557 as
+1247 2533 as
+closepath
+fp
+newpath
+1253 2537 av
+newpath
+4.0 sw
+1253 2537 av
+1259 2533 as
+1253 2557 as
+1247 2533 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1253 2557 av
+1161.0 2457.0 m
+(Mail Program ) 1365  0.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+1141 2196 av
+1381 2196 as
+1381 2336 as
+1141 2336 as
+closepath
+[] 0 setdash
+dp
+newpath
+1121 2396 av
+1421 2396 as
+1421 2497 as
+1121 2497 as
+closepath
+[] 0 setdash
+dp
+newpath
+1161 2557 av
+1361 2557 as
+1361 2677 as
+1161 2677 as
+closepath
+[] 0 setdash
+dp
+1181.0 2262.0 m
+(INTERMAIL) 1357  0.00 -1 s
+1218.0 2298.0 m
+(Mailbox) 1331  0.00 -1 s
+1161.0 2457.0 m
+(Mail Program ) 1365  0.00 32 s
+1209.0 2606.0 m
+(USER ) 1311  1.00 32 s
+1204.0 2642.0 m
+(Mailbox) 1317  0.00 -1 s
+0.0 0.0 m
+newpath
+1941 2436 300 300 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+newpath
+1821 2196 av
+2061 2196 as
+2061 2336 as
+1821 2336 as
+closepath
+[] 0 setdash
+dp
+newpath
+1801 2396 av
+2101 2396 as
+2101 2497 as
+1801 2497 as
+closepath
+[] 0 setdash
+dp
+newpath
+1841 2557 av
+2041 2557 as
+2041 2677 as
+1841 2677 as
+closepath
+[] 0 setdash
+dp
+newpath
+1941 2336 av
+1941 2396 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1941 2356 av
+1941 2356 as
+1935 2360 as
+1941 2336 as
+1947 2360 as
+closepath
+fp
+newpath
+1941 2356 av
+newpath
+4.0 sw
+1941 2356 av
+1935 2360 as
+1941 2336 as
+1947 2360 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1941 2336 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1941 2377 av
+1941 2377 as
+1947 2373 as
+1941 2396 as
+1935 2373 as
+closepath
+fp
+newpath
+1941 2377 av
+newpath
+4.0 sw
+1941 2377 av
+1947 2373 as
+1941 2396 as
+1935 2373 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1941 2396 av
+4.0 sw
+newpath
+1941 2497 av
+1941 2557 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1941 2516 av
+1941 2516 as
+1935 2520 as
+1941 2497 as
+1947 2520 as
+closepath
+fp
+newpath
+1941 2516 av
+newpath
+4.0 sw
+1941 2516 av
+1935 2520 as
+1941 2497 as
+1947 2520 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1941 2497 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1941 2537 av
+1941 2537 as
+1947 2533 as
+1941 2557 as
+1935 2533 as
+closepath
+fp
+newpath
+1941 2537 av
+newpath
+4.0 sw
+1941 2537 av
+1947 2533 as
+1941 2557 as
+1935 2533 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1941 2557 av
+1861.0 2258.0 m
+(INTERMAIL) 2037  0.00 -1 s
+1893.0 2294.0 m
+(Mailbox ) 2016  1.00 32 s
+1841.0 2457.0 m
+(Mail Program ) 2045  0.00 32 s
+1890.0 2606.0 m
+(USER ) 1992  1.00 32 s
+1850.0 2642.0 m
+(   Mailbox    ) 2032  0.86 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+440 2836 av
+580 2837 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+461 2824 av
+440 2836 as
+461 2848 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+440 2836 av
+4.0 sw
+newpath
+580 2837 av
+580 2696 as
+[] 0 setdash
+dp
+newpath
+580 2686 av
+580 2716 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+592 2706 av
+580 2686 as
+568 2706 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+580 2686 av
+10 sf
+320.0 1960.0 m
+(Telemail) 552  0.00 -1 s
+320.0 2025.0 m
+(System) 526  0.00 -1 s
+960.0 1960.0 m
+(Dialcom) 1186  0.00 -1 s
+(   ) 1237  1.00 32 s
+960.0 2025.0 m
+(System) 1166  0.00 -1 s
+1961.0 1960.0 m
+(MCI  Mail) 2215  1.00 32 s
+1961.0 2025.0 m
+(System) 2167  0.00 -1 s
+/helvps12b 8 declareFont
+8 sf
+801.0 2954.0 m
+(Figure) 955  0.00 -1 s
+( 2 - Commercial Mail to Intermail ) 1760  1.43 32 s
+9 sf
+900.0 1200.0 m
+(A.ISI.EDU) 1094  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+812 600 av
+892 600 as
+892 680 as
+812 680 as
+closepath
+[] 0 setdash
+dp
+newpath
+764 680 av
+812 639 as
+[] 0 setdash
+dp
+newpath
+764 680 av
+812 680 as
+[] 0 setdash
+dp
+newpath
+360 2796 av
+440 2796 as
+440 2876 as
+360 2876 as
+closepath
+[] 0 setdash
+dp
+newpath
+312 2876 av
+360 2836 as
+[] 0 setdash
+dp
+newpath
+312 2876 av
+360 2876 as
+[] 0 setdash
+dp
+newpath
+1121 2836 av
+1261 2837 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1141 2824 av
+1121 2836 as
+1141 2848 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1121 2836 av
+4.0 sw
+newpath
+1261 2837 av
+1261 2696 as
+[] 0 setdash
+dp
+newpath
+1261 2686 av
+1261 2716 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1273 2706 av
+1261 2686 as
+1249 2706 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 2686 av
+4.0 sw
+newpath
+1041 2796 av
+1121 2796 as
+1121 2876 as
+1041 2876 as
+closepath
+[] 0 setdash
+dp
+newpath
+993 2876 av
+1041 2836 as
+[] 0 setdash
+dp
+newpath
+993 2876 av
+1041 2876 as
+[] 0 setdash
+dp
+newpath
+1801 2836 av
+1941 2837 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1822 2824 av
+1801 2836 as
+1822 2848 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1801 2836 av
+4.0 sw
+newpath
+1941 2837 av
+1941 2696 as
+[] 0 setdash
+dp
+newpath
+1941 2686 av
+1941 2716 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1953 2706 av
+1941 2686 as
+1929 2706 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1941 2686 av
+4.0 sw
+newpath
+1721 2796 av
+1801 2796 as
+1801 2876 as
+1721 2876 as
+closepath
+[] 0 setdash
+dp
+newpath
+1673 2876 av
+1721 2836 as
+[] 0 setdash
+dp
+newpath
+1673 2876 av
+1721 2876 as
+[] 0 setdash
+dp
+newpath
+1161 736 av
+1361 736 as
+1361 856 as
+1161 856 as
+closepath
+[] 0 setdash
+dp
+6 sf
+1209.0 793.0 m
+(USER) 1301  0.00 -1 s
+( ) 1311  1.00 32 s
+1170.0 829.0 m
+(   Mailbox   ) 1343  1.00 32 s
+( ) 1352  0.00 32 s
+0.0 0.0 m
+newpath
+1261 856 av
+1261 916 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 875 av
+1261 875 as
+1255 879 as
+1261 856 as
+1267 879 as
+closepath
+fp
+newpath
+1261 875 av
+newpath
+4.0 sw
+1261 875 av
+1255 879 as
+1261 856 as
+1267 879 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 856 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 896 av
+1261 896 as
+1267 892 as
+1261 916 as
+1255 892 as
+closepath
+fp
+newpath
+1261 896 av
+newpath
+4.0 sw
+1261 896 av
+1267 892 as
+1261 916 as
+1255 892 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 916 av
+4.0 sw
+newpath
+1261 676 av
+1261 736 as
+[] 0 setdash
+dp
+0.0 sw
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 695 av
+1261 695 as
+1255 699 as
+1261 676 as
+1267 699 as
+closepath
+fp
+newpath
+1261 695 av
+newpath
+4.0 sw
+1261 695 av
+1255 699 as
+1261 676 as
+1267 699 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 676 av
+4.0 sw
+/drawmode PL_REPLACE def
+newpath
+0.0 sw
+/drawmode PL_SET def
+1261 716 av
+1261 716 as
+1267 712 as
+1261 736 as
+1255 712 as
+closepath
+fp
+newpath
+1261 716 av
+newpath
+4.0 sw
+1261 716 av
+1267 712 as
+1261 736 as
+1255 712 as
+closepath
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1261 736 av
+2550.0 2970.0 m
+1 sf
+eop
+0.0 0.0 m
+4.0 sw
+/Ops6 0 declareFont
+0 0 fillpatset
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 5]) 2246  0.00 32 s
+0.0 2970.0 m
+0.0 v
+newpath
+720 1176 av
+1121 1176 as
+[8 20 ] 4 1 setpenpat
+dp
+8.0 sw
+newpath
+240 455 av
+2161 455 as
+2161 2857 as
+240 2857 as
+closepath
+[] 0 setdash
+dp
+/helvps14b 10 declareFont
+10 sf
+1088.0 539.0 m
+( Internet) 1318  1.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+620 676 av
+1781 676 as
+1781 2156 as
+620 2156 as
+closepath
+[] 0 setdash
+dp
+newpath
+640 2576 260 240 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+newpath
+1201 2576 260 240 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+newpath
+1761 2576 260 240 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+newpath
+700 776 av
+981 776 as
+981 916 as
+700 916 as
+closepath
+[] 0 setdash
+dp
+/helvps8 6 declareFont
+6 sf
+753.0 841.0 m
+(INTERMAIL) 929  0.00 -1 s
+789.0 877.0 m
+(Mailbox) 902  0.00 -1 s
+8.0 sw
+0.0 0.0 m
+newpath
+1061 776 av
+1341 776 as
+1341 916 as
+1061 916 as
+closepath
+[] 0 setdash
+dp
+/helvps8b 5 declareFont
+5 sf
+1136.0 841.0 m
+(Internet) 1256  0.00 -1 s
+1149.0 877.0 m
+(Mailer) 1244  0.00 -1 s
+0.0 0.0 m
+newpath
+1421 776 av
+1701 776 as
+1701 916 as
+1421 916 as
+closepath
+[] 0 setdash
+dp
+1489.0 841.0 m
+(SEND-) 1599  0.00 -1 s
+1486.0 877.0 m
+(  MSGS) 1604  1.00 32 s
+0.0 0.0 m
+newpath
+740 996 av
+921 996 as
+921 1136 as
+740 1136 as
+closepath
+[] 0 setdash
+dp
+4.0 sw
+0 13 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1409 988 av
+1481 988 as
+1481 1093 as
+1409 1093 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1424 971 av
+1495 971 as
+1495 1076 as
+1424 1076 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1438 953 av
+1509 953 as
+1509 1058 as
+1438 1058 as
+closepath
+fp
+[] 0 setdash
+dp
+6 sf
+1173.0 1061.0 m
+(\(--UNSENT-) 1374  0.00 -1 s
+1166.0 1097.0 m
+(ARPAMAIL--\)) 1380  0.00 -1 s
+/helvps10b 9 declareFont
+9 sf
+673.0 742.0 m
+(A.ISI.EDU) 867  0.00 -1 s
+5 sf
+793.0 1037.0 m
+(Mail) 857  0.00 -1 s
+757.0 1073.0 m
+(Program) 893  0.00 -1 s
+787.0 1110.0 m
+(\(MM\)) 865  0.00 -1 s
+6 sf
+760.0 1701.0 m
+(\(--UNSENT-) 961  0.00 -1 s
+757.0 1738.0 m
+(TELEMAIL--\)) 963  0.00 -1 s
+1126.0 1701.0 m
+(\(--UNSENT-) 1327  0.00 -1 s
+1114.0 1738.0 m
+(COMPMAIL--\)) 1338  0.00 -1 s
+1409.0 1701.0 m
+(\(--UNSENT-) 1610  0.00 -1 s
+1413.0 1738.0 m
+(MCI MAIL--\)) 1608  1.00 32 s
+8.0 sw
+0.0 0.0 m
+newpath
+660 1976 av
+861 1976 as
+861 2096 as
+660 2096 as
+closepath
+[] 0 setdash
+dp
+5 sf
+718.0 2025.0 m
+(TELE) 802  0.00 -1 s
+667.0 2062.0 m
+(   MAILER   ) 854  1.00 32 s
+1053.0 2025.0 m
+(DIALCOM ) 1218  1.00 32 s
+1062.0 2062.0 m
+(MAILER   ) 1220  1.33 32 s
+1610.0 2025.0 m
+(MCI) 1671  0.00 -1 s
+1548.0 2062.0 m
+(   MAILER   ) 1735  1.00 32 s
+6 sf
+561.0 2481.0 m
+(INTERMAIL) 737  0.00 -1 s
+597.0 2518.0 m
+(Mailbox) 710  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+1061 2421 av
+1341 2421 as
+1341 2561 as
+1061 2561 as
+closepath
+[] 0 setdash
+dp
+1121.0 2481.0 m
+(INTERMAIL) 1297  0.00 -1 s
+1157.0 2518.0 m
+(Mailbox) 1270  0.00 -1 s
+0.0 0.0 m
+newpath
+1629 2421 av
+1909 2421 as
+1909 2561 as
+1629 2561 as
+closepath
+[] 0 setdash
+dp
+1681.0 2481.0 m
+(INTERMAIL) 1857  0.00 -1 s
+1718.0 2518.0 m
+(Mailbox) 1831  0.00 -1 s
+/helvps12b 8 declareFont
+8 sf
+532.0 2654.0 m
+(Telemail) 733  0.00 -1 s
+543.0 2709.0 m
+(System) 721  0.00 -1 s
+1113.0 2654.0 m
+(Dialcom) 1308  0.00 -1 s
+1114.0 2709.0 m
+( System) 1307  1.00 32 s
+1634.0 2654.0 m
+(  MCI Mail) 1869  1.00 32 s
+1662.0 2709.0 m
+(System) 1840  0.00 -1 s
+0.0 0.0 m
+newpath
+752 2096 av
+741 2137 as
+[] 0 setdash
+dp
+0 0 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+759 2120 av
+752 2096 as
+735 2113 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+752 2096 av
+4.0 sw
+newpath
+741 2137 av
+660 2421 as
+[] 0 setdash
+dp
+newpath
+701 2405 av
+711 2367 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+695 2382 av
+701 2405 as
+701 2405 as
+718 2388 as
+718 2388 as
+closepath
+fp
+newpath
+695 2382 av
+701 2405 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+701 2405 av
+718 2388 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+718 2388 av
+695 2382 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+701 2405 av
+4.0 sw
+newpath
+711 2367 av
+789 2096 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1121 2421 av
+1121 2382 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1109 2400 av
+1121 2421 as
+1121 2421 as
+1133 2400 as
+1133 2400 as
+closepath
+fp
+newpath
+1109 2400 av
+1121 2421 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1121 2421 av
+1133 2400 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1133 2400 av
+1109 2400 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+1121 2421 av
+4.0 sw
+newpath
+1121 2382 av
+1124 2110 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1164 2096 av
+1164 2137 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1176 2117 av
+1164 2096 as
+1152 2117 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1164 2096 av
+4.0 sw
+newpath
+1164 2137 av
+1161 2421 as
+[] 0 setdash
+dp
+newpath
+1674 2421 av
+1662 2380 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1657 2404 av
+1674 2421 as
+1674 2421 as
+1680 2397 as
+1680 2397 as
+closepath
+fp
+newpath
+1657 2404 av
+1674 2421 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1674 2421 av
+1680 2397 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1680 2397 av
+1657 2404 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+1674 2421 av
+4.0 sw
+newpath
+1662 2380 av
+1588 2096 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1633 2106 av
+1644 2145 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1650 2123 av
+1633 2106 as
+1627 2129 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1633 2106 av
+4.0 sw
+newpath
+1644 2145 av
+1714 2421 as
+[] 0 setdash
+dp
+0 13 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1267 1386 av
+1338 1386 as
+1338 1491 as
+1267 1491 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1281 1368 av
+1353 1368 as
+1353 1474 as
+1281 1474 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1296 1351 av
+1367 1351 as
+1367 1456 as
+1296 1456 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+795 1831 av
+866 1831 as
+866 1936 as
+795 1936 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+809 1814 av
+880 1814 as
+880 1919 as
+809 1919 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+823 1796 av
+895 1796 as
+895 1901 as
+823 1901 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1141 1826 av
+1212 1826 as
+1212 1931 as
+1141 1931 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1155 1809 av
+1226 1809 as
+1226 1914 as
+1155 1914 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1169 1791 av
+1241 1791 as
+1241 1896 as
+1169 1896 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1521 1831 av
+1592 1831 as
+1592 1936 as
+1521 1936 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1535 1814 av
+1607 1814 as
+1607 1919 as
+1535 1919 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1549 1796 av
+1621 1796 as
+1621 1901 as
+1549 1901 as
+closepath
+fp
+[] 0 setdash
+dp
+8.0 sw
+newpath
+1020 1976 av
+1221 1976 as
+1221 2096 as
+1020 2096 as
+closepath
+[] 0 setdash
+dp
+newpath
+1541 1976 av
+1741 1976 as
+1741 2096 as
+1541 2096 as
+closepath
+[] 0 setdash
+dp
+newpath
+1130 1156 av
+1381 1156 as
+1381 1276 as
+1130 1276 as
+closepath
+[] 0 setdash
+dp
+5 sf
+1142.0 1201.0 m
+(Intermail) 1279  0.00 -1 s
+( For\036) 1353  1.00 32 s
+1194.0 1238.0 m
+(warder) 1302  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+1681 1236 av
+1681 1956 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1241 1456 av
+1211 1456 as
+[] 0 setdash
+dp
+0 0 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1220 1468 av
+1241 1456 as
+1220 1444 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1241 1456 av
+4.0 sw
+newpath
+1681 1976 av
+1681 1946 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1669 1955 av
+1681 1976 as
+1693 1955 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1681 1976 av
+4.0 sw
+newpath
+1396 1436 av
+1432 1436 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1417 1424 av
+1396 1436 as
+1417 1448 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1396 1436 av
+4.0 sw
+newpath
+1432 1436 av
+1721 1437 as
+[] 0 setdash
+dp
+newpath
+1721 1437 av
+1721 1976 as
+[] 0 setdash
+dp
+newpath
+1061 1976 av
+1061 1946 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1049 1955 av
+1061 1976 as
+1073 1955 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1061 1976 av
+4.0 sw
+newpath
+720 1976 av
+720 1946 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+708 1955 av
+720 1976 as
+733 1955 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+720 1976 av
+6 sf
+1420.0 1361.0 m
+(Mail) 1480  0.00 -1 s
+( Queue) 1587  0.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+1061 1236 av
+1061 1946 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1061 1236 av
+1130 1236 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1381 1564 av
+1381 2036 as
+[] 0 setdash
+dp
+newpath
+1380 1536 av
+1381 1564 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1392 1557 av
+1380 1536 as
+1368 1557 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1380 1536 av
+4.0 sw
+newpath
+801 996 av
+801 966 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+789 975 av
+801 996 as
+812 975 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+801 996 av
+4.0 sw
+newpath
+680 1456 av
+680 1976 as
+[] 0 setdash
+dp
+newpath
+720 1176 av
+720 1946 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+680 1456 av
+1221 1456 as
+[] 0 setdash
+dp
+newpath
+1601 1176 av
+1601 936 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1601 926 av
+1601 956 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1613 947 av
+1601 926 as
+1589 947 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1601 926 av
+4.0 sw
+newpath
+801 966 av
+801 916 as
+[] 0 setdash
+dp
+newpath
+1350 855 av
+1358 855 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1371 843 av
+1350 855 as
+1350 855 as
+1371 867 as
+1371 867 as
+closepath
+fp
+newpath
+1371 843 av
+1350 855 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1350 855 av
+1371 867 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1371 867 av
+1371 843 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+1350 855 av
+4.0 sw
+newpath
+1361 856 av
+1422 856 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1241 575 av
+1241 596 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1253 596 av
+1241 575 as
+1241 575 as
+1229 596 as
+1229 596 as
+closepath
+fp
+newpath
+1253 596 av
+1241 575 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1241 575 av
+1229 596 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1229 596 av
+1253 596 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+1241 575 av
+4.0 sw
+newpath
+1241 596 av
+1240 756 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1161 759 av
+1161 736 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1149 738 av
+1161 759 as
+1173 738 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1161 759 av
+4.0 sw
+newpath
+1161 579 av
+1160 736 as
+[] 0 setdash
+dp
+newpath
+801 1136 av
+801 1416 as
+[] 0 setdash
+dp
+newpath
+801 1416 av
+1221 1416 as
+[] 0 setdash
+dp
+newpath
+1241 1416 av
+1211 1416 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1220 1428 av
+1241 1416 as
+1220 1404 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1241 1416 av
+4.0 sw
+newpath
+1401 1176 av
+1601 1176 as
+[8 20 ] 4 1 setpenpat
+dp
+8 sf
+824.0 2916.0 m
+(Figure) 978  0.00 -1 s
+( 3 - Intermail Processing) 1574  1.00 32 s
+0.0 0.0 m
+newpath
+500 2421 av
+780 2421 as
+780 2561 as
+500 2561 as
+closepath
+[] 0 setdash
+dp
+newpath
+1390 1236 av
+1681 1236 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1239 1282 av
+1244 1290 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1260 1294 av
+1240 1282 as
+1240 1306 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1240 1282 av
+4.0 sw
+newpath
+1245 1293 av
+1281 1356 as
+[] 0 setdash
+dp
+newpath
+990 855 av
+998 855 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1011 843 av
+990 855 as
+990 855 as
+1011 867 as
+1011 867 as
+closepath
+fp
+newpath
+1011 843 av
+990 855 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+990 855 av
+1011 867 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1011 867 av
+1011 843 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+990 855 av
+4.0 sw
+newpath
+1001 856 av
+1062 856 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1221 2036 av
+1381 2036 as
+[] 0 setdash
+dp
+2550.0 2970.0 m
+1 sf
+eop
+0.0 0.0 m
+/Ops6 0 declareFont
+0 0 fillpatset
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 6]) 2246  0.00 32 s
+300.0 413.0 m
+(The CMR supports automated error handling, which enables the system to provide faster) 2108  2.33 32 s
+300.0 478.0 m
+(turnaround on messages containing addressing errors, and requires much less intervention from) 2236  2.18 32 s
+300.0 544.0 m
+(a human postmaster.) 719  3.00 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 652.0 m
+(DESCRIPTION OF THE CMR) 985  2.00 32 s
+( SYSTEM) 1204  1.00 32 s
+1 sf
+300.0 759.0 m
+(The) 378  0.00 -1 s
+( Multi-channel Memo Distribution Facility \(MMDF\) is used as the system mail software) 2190  2.42 32 s
+300.0 825.0 m
+(because of its notion of separating the mail queue into separate channels [5].  This makes it) 2170  2.56 32 s
+300.0 891.0 m
+(easy to dedicate a channel/queue combination to each commercial system.  Internet mail comes) 2246  2.69 32 s
+300.0 956.0 m
+(in over the standard SMTP port, and the system parses the destination address, queuing the) 2158  2.43 32 s
+300.0 1022.0 m
+(message in the proper outgoing queue.  A tag can be added to outgoing traffic so that replies) 2195  2.41 32 s
+300.0 1088.0 m
+(can be made without any special processing at the destination site.) 1657  2.90 32 s
+300.0 1196.0 m
+(The CMR uses a relay mailbox on each commercial system.  Commercial users send mail to) 2191  2.73 32 s
+300.0 1261.0 m
+(this mailbox with a Simple Forwarding Header \(SFH\) at the head of their message text.  Each) 2223  2.56 32 s
+300.0 1327.0 m
+(channel, in addition to sending outgoing mail into the commercial system, reads all messages) 2206  2.85 32 s
+300.0 1393.0 m
+(in the relay mailbox and places them in a spool file in the CMR host computer.) 1924  2.53 32 s
+300.0 1500.0 m
+(The processing of the spool file is performed by a single daemon. It parses each commercial) 2187  2.47 32 s
+300.0 1566.0 m
+(system message header to find the sender and subject, then it searches for and processes the) 2174  2.60 32 s
+300.0 1631.0 m
+(SFH.  The SFH contains the destination Internet addresses.  Figure 4a illustrates the path of) 2176  2.67 32 s
+300.0 1697.0 m
+(mail from the Internet to the commercial sytems. Figure 4b illustrates the path from the) 2091  2.64 32 s
+300.0 1763.0 m
+(commercial systrems to the Internet. Note:  MCI Mail is not yet implemented.) 1899  2.75 32 s
+300.0 1870.0 m
+(The CMR employs a simple accounting mechanism:  a shell script counts the number of times) 2227  2.60 32 s
+300.0 1936.0 m
+(a string marker occurs in the MMDF logs.  At the end of the month, another script uses an) 2151  2.28 32 s
+300.0 2002.0 m
+(\177awk" program to total the number of messages sent and received with each commercial) 2109  2.69 32 s
+300.0 2067.0 m
+(system. The Commercial Mail Relay is being developed by Craig E. Ward.  Ann Westine) 2133  2.71 32 s
+300.0 2133.0 m
+(served as the Postmaster for both Intermail and the CMR until March 1989.  Currently, our) 2162  2.27 32 s
+300.0 2199.0 m
+(Action Office serves as Postmaster.  Questions may be sent to \177Intermail-Request@ISI.EDU".) 2234  2.64 32 s
+3 sf
+300.0 2306.0 m
+(COMMERCIAL SYSTEMS) 910  2.00 32 s
+( SERVED) 1126  1.00 32 s
+1 sf
+300.0 2414.0 m
+(The) 378  0.00 -1 s
+( CMR provides mail relay service between the Internet and two commercial electronic mail) 2238  2.08 32 s
+300.0 2480.0 m
+(systems:  the US Sprint Telemail system and the Dialcom system.  A CMR connection to MCI) 2238  2.56 32 s
+300.0 2546.0 m
+(Mail is under development.  MCI Mail is currently served by the TOPS-20 Intermail system.) 2204  2.43 32 s
+300.0 2611.0 m
+(See Appendix C for recent traffic data.) 1096  2.67 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 7]) 2246  0.00 32 s
+0.0 2841.0 m
+0.0 sw
+0.0 v
+newpath
+1270 1055 av
+1681 1055 as
+8.0 sw
+newpath
+240 595 av
+2161 595 as
+2161 2676 as
+240 2676 as
+closepath
+[] 0 setdash
+dp
+/helvps14b 10 declareFont
+10 sf
+333.0 559.0 m
+(The Internet to Commercial Systems:) 1363  1.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+620 755 av
+1841 755 as
+1841 1976 as
+620 1976 as
+closepath
+[] 0 setdash
+dp
+newpath
+640 2396 260 240 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+newpath
+1201 2396 260 240 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+newpath
+1761 2396 260 240 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+/helvps12b 8 declareFont
+8 sf
+1087.0 677.0 m
+(The) 1177  0.00 -1 s
+( Internet) 1377  1.00 32 s
+8.0 sw
+0.0 0.0 m
+newpath
+733 1376 av
+993 1376 as
+993 1556 as
+733 1556 as
+closepath
+[] 0 setdash
+dp
+/helvps8b 5 declareFont
+5 sf
+823.0 1441.0 m
+(SFH) 889  0.00 -1 s
+787.0 1477.0 m
+(Intermail) 924  0.00 -1 s
+791.0 1514.0 m
+(Daemon) 921  0.00 -1 s
+0.0 0.0 m
+newpath
+921 1136 av
+1501 1136 as
+1501 1276 as
+921 1276 as
+closepath
+[] 0 setdash
+dp
+1097.0 1221.0 m
+(MMDF) 1197  0.00 -1 s
+( ) 1207  1.00 32 s
+( Process) 1343  0.00 32 s
+0.0 0.0 m
+newpath
+720 1736 av
+960 1736 as
+960 1916 as
+720 1916 as
+closepath
+[] 0 setdash
+dp
+790.0 1801.0 m
+(MMDF) 890  0.00 -1 s
+757.0 1838.0 m
+(TELEMAIL) 922  0.00 -1 s
+770.0 1874.0 m
+( Channel) 909  1.00 32 s
+/helvps8 6 declareFont
+6 sf
+561.0 2301.0 m
+(INTERMAIL) 737  0.00 -1 s
+597.0 2338.0 m
+(Mailbox) 710  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+1061 2240 av
+1341 2240 as
+1341 2380 as
+1061 2380 as
+closepath
+[] 0 setdash
+dp
+1121.0 2301.0 m
+(INTERMAIL) 1297  0.00 -1 s
+1157.0 2338.0 m
+(Mailbox) 1270  0.00 -1 s
+0.0 0.0 m
+newpath
+1629 2240 av
+1909 2240 as
+1909 2380 as
+1629 2380 as
+closepath
+[] 0 setdash
+dp
+1681.0 2301.0 m
+(INTERMAIL) 1857  0.00 -1 s
+1718.0 2338.0 m
+(Mailbox) 1831  0.00 -1 s
+8 sf
+537.0 2486.0 m
+( Telemail) 753  1.00 32 s
+563.0 2541.0 m
+(System) 741  0.00 -1 s
+1634.0 2486.0 m
+(  MCI Mail) 1869  1.00 32 s
+1662.0 2541.0 m
+(System) 1840  0.00 -1 s
+1062.0 2486.0 m
+(  Dialcom ) 1303  1.33 32 s
+1085.0 2541.0 m
+(Systems) 1291  0.00 -1 s
+0.0 0.0 m
+newpath
+1201 879 av
+1201 855 as
+[] 0 setdash
+dp
+/Ops6 0 declareFont
+0 0 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1189 858 av
+1201 879 as
+1213 858 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1201 879 av
+4.0 sw
+newpath
+1201 703 av
+1200 855 as
+[] 0 setdash
+dp
+1086.0 2756.0 m
+(Figure 4a) 1312  2.00 32 s
+0.0 0.0 m
+newpath
+500 2240 av
+780 2240 as
+780 2380 as
+500 2380 as
+closepath
+[] 0 setdash
+dp
+8.0 sw
+newpath
+1081 1736 av
+1321 1736 as
+1321 1916 as
+1081 1916 as
+closepath
+[] 0 setdash
+dp
+5 sf
+1151.0 1801.0 m
+(MMDF) 1251  0.00 -1 s
+1123.0 1838.0 m
+(DIALCOM) 1278  0.00 -1 s
+1125.0 1874.0 m
+( Channel ) 1274  1.00 32 s
+0.0 0.0 m
+newpath
+1521 1736 av
+1761 1736 as
+1761 1916 as
+1521 1916 as
+closepath
+[] 0 setdash
+dp
+1591.0 1801.0 m
+(MMDF) 1691  0.00 -1 s
+1565.0 1838.0 m
+(MCI MAIL) 1718  2.00 32 s
+1570.0 1874.0 m
+( Channel) 1709  1.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+1154 1276 av
+934 1702 as
+[] 0 setdash
+dp
+newpath
+921 1721 av
+946 1696 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+921 1697 av
+921 1721 as
+942 1709 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+921 1721 av
+4.0 sw
+newpath
+1201 1276 av
+1200 1709 as
+[] 0 setdash
+dp
+newpath
+1200 1730 av
+1200 1699 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1188 1709 av
+1200 1730 as
+1212 1709 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1200 1730 av
+4.0 sw
+newpath
+1303 1276 av
+1554 1710 as
+[] 0 setdash
+dp
+newpath
+1566 1731 av
+1549 1699 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1545 1719 av
+1566 1731 as
+1566 1707 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1566 1731 av
+4.0 sw
+newpath
+1201 1134 av
+1201 1121 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1189 1113 av
+1201 1134 as
+1213 1113 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1201 1134 av
+4.0 sw
+newpath
+1201 1036 av
+1200 1121 as
+[] 0 setdash
+dp
+newpath
+1201 2235 av
+1201 2195 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1189 2214 av
+1201 2235 as
+1213 2214 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1201 2235 av
+4.0 sw
+newpath
+1201 2195 av
+1202 1916 as
+[] 0 setdash
+dp
+/helvps10b 9 declareFont
+9 sf
+1579.0 1115.0 m
+(CMR) 1674  0.00 -1 s
+( Host) 1779  0.00 32 s
+0.0 0.0 m
+newpath
+960 1276 av
+960 1347 as
+[] 0 setdash
+dp
+newpath
+960 1376 av
+960 1346 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+949 1355 av
+960 1376 as
+973 1355 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+960 1376 av
+8.0 sw
+newpath
+1081 879 av
+1321 879 as
+1321 1043 as
+1081 1043 as
+closepath
+[] 0 setdash
+dp
+5 sf
+1154.0 944.0 m
+(SMTP) 1246  0.00 -1 s
+1144.0 980.0 m
+(Server) 1246  0.00 -1 s
+( ) 1255  0.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+660 1436 av
+660 1076 as
+[] 0 setdash
+dp
+newpath
+660 1076 av
+1024 1076 as
+[] 0 setdash
+dp
+newpath
+1024 1136 av
+1024 1076 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1013 1115 av
+1024 1136 as
+1037 1115 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1024 1136 av
+4.0 sw
+newpath
+660 1436 av
+733 1436 as
+[] 0 setdash
+dp
+newpath
+720 2216 av
+861 1916 as
+[] 0 setdash
+dp
+newpath
+706 2239 av
+726 2203 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+706 2215 av
+706 2239 as
+727 2227 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+706 2239 av
+4.0 sw
+newpath
+1633 1916 av
+1753 2216 as
+[] 0 setdash
+dp
+newpath
+1757 2240 av
+1746 2200 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1740 2223 av
+1757 2240 as
+1763 2217 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1757 2240 av
+2550.0 2841.0 m
+1 sf
+eop
+0.0 0.0 m
+4.0 sw
+/Ops6 0 declareFont
+0 0 fillpatset
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 8]) 2246  0.00 32 s
+0.0 2841.0 m
+0.0 sw
+0.0 v
+newpath
+1350 1055 av
+1761 1055 as
+8.0 sw
+newpath
+320 555 av
+2241 555 as
+2241 2717 as
+320 2717 as
+closepath
+[] 0 setdash
+dp
+/helvps14b 10 declareFont
+10 sf
+372.0 519.0 m
+(Commercial Systems to the Internet:) 1386  1.25 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+700 715 av
+1861 715 as
+1861 1976 as
+700 1976 as
+closepath
+[] 0 setdash
+dp
+newpath
+720 2396 260 240 0.0000 -90.1194 269.8806 el
+[] 0 setdash
+dp
+newpath
+1280 2396 260 240 0.0000 -89.8806 270.1192 el
+[] 0 setdash
+dp
+newpath
+1841 2396 260 240 0.0000 -90.0000 270.0000 el
+[] 0 setdash
+dp
+/helvps12b 8 declareFont
+8 sf
+1127.0 657.0 m
+(The) 1217  0.00 -1 s
+( Internet) 1417  1.00 32 s
+8.0 sw
+0.0 0.0 m
+newpath
+1173 1236 av
+1433 1236 as
+1433 1416 as
+1173 1416 as
+closepath
+[] 0 setdash
+dp
+/helvps8b 5 declareFont
+5 sf
+1263.0 1301.0 m
+(SFH) 1329  0.00 -1 s
+1227.0 1337.0 m
+(Intermail) 1364  0.00 -1 s
+1231.0 1374.0 m
+(Daemon) 1361  0.00 -1 s
+0.0 0.0 m
+newpath
+1129 795 av
+1461 795 as
+1461 935 as
+1129 935 as
+closepath
+[] 0 setdash
+dp
+1235.0 840.0 m
+(MMDF) 1335  0.00 -1 s
+1238.0 877.0 m
+(SMTP) 1330  0.00 -1 s
+1219.0 914.0 m
+(Channel) 1348  0.00 -1 s
+/helvps8 6 declareFont
+6 sf
+1166.0 1101.0 m
+(MMDF) 1266  0.00 -1 s
+( Process) 1396  1.00 32 s
+0.0 0.0 m
+newpath
+740 1736 av
+981 1736 as
+981 1916 as
+740 1916 as
+closepath
+[] 0 setdash
+dp
+5 sf
+810.0 1801.0 m
+(MMDF) 910  0.00 -1 s
+777.0 1838.0 m
+(TELEMAIL) 942  0.00 -1 s
+785.0 1874.0 m
+( Channel ) 934  1.00 32 s
+6 sf
+641.0 2301.0 m
+(INTERMAIL) 817  0.00 -1 s
+677.0 2338.0 m
+(Mailbox) 790  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+1141 2240 av
+1421 2240 as
+1421 2380 as
+1141 2380 as
+closepath
+[] 0 setdash
+dp
+1201.0 2301.0 m
+(INTERMAIL) 1377  0.00 -1 s
+1238.0 2338.0 m
+(Mailbox) 1351  0.00 -1 s
+0.0 0.0 m
+newpath
+1709 2240 av
+1989 2240 as
+1989 2380 as
+1709 2380 as
+closepath
+[] 0 setdash
+dp
+1761.0 2301.0 m
+(INTERMAIL) 1937  0.00 -1 s
+1798.0 2338.0 m
+(Mailbox) 1911  0.00 -1 s
+8 sf
+617.0 2486.0 m
+( Telemail) 833  1.00 32 s
+643.0 2541.0 m
+(System) 821  0.00 -1 s
+1142.0 2486.0 m
+(  Dialcom ) 1383  1.33 32 s
+1165.0 2541.0 m
+(Systems) 1371  0.00 -1 s
+1714.0 2486.0 m
+(  MCI Mail) 1949  1.00 32 s
+1742.0 2541.0 m
+(System) 1920  0.00 -1 s
+0.0 0.0 m
+newpath
+1703 1916 av
+1714 1956 as
+[] 0 setdash
+dp
+0 0 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1720 1933 av
+1703 1916 as
+1697 1939 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1703 1916 av
+4.0 sw
+newpath
+1714 1956 av
+1789 2240 as
+[] 0 setdash
+dp
+newpath
+1281 675 av
+1281 691 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1293 696 av
+1281 675 as
+1269 696 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1281 675 av
+4.0 sw
+newpath
+1281 795 av
+1282 691 as
+[] 0 setdash
+dp
+1165.0 2776.0 m
+(Figure 4b) 1394  2.00 32 s
+0.0 0.0 m
+newpath
+580 2240 av
+861 2240 as
+861 2380 as
+580 2380 as
+closepath
+[] 0 setdash
+dp
+8.0 sw
+newpath
+1161 1736 av
+1401 1736 as
+1401 1916 as
+1161 1916 as
+closepath
+[] 0 setdash
+dp
+5 sf
+1231.0 1801.0 m
+(MMDF) 1331  0.00 -1 s
+1203.0 1838.0 m
+(DIALCOM) 1358  0.00 -1 s
+1210.0 1874.0 m
+( Channel) 1349  1.00 32 s
+0.0 0.0 m
+newpath
+1581 1736 av
+1821 1736 as
+1821 1916 as
+1581 1916 as
+closepath
+[] 0 setdash
+dp
+1651.0 1801.0 m
+(MMDF) 1751  0.00 -1 s
+1625.0 1838.0 m
+(MCI MAIL) 1778  2.00 32 s
+1631.0 1874.0 m
+( Channel) 1770  1.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+861 1596 av
+862 1706 as
+[] 0 setdash
+dp
+newpath
+1421 1596 av
+1710 1596 as
+[] 0 setdash
+dp
+newpath
+1280 1736 av
+1280 1640 as
+[] 0 setdash
+dp
+newpath
+1280 1636 av
+1281 1643 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1292 1657 av
+1280 1636 as
+1268 1657 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1280 1636 av
+4.0 sw
+newpath
+861 1596 av
+1164 1596 as
+[] 0 setdash
+dp
+newpath
+1710 1596 av
+1710 1721 as
+[] 0 setdash
+dp
+newpath
+1710 1727 av
+1711 1718 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1698 1706 av
+1710 1727 as
+1722 1706 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1710 1727 av
+4.0 sw
+newpath
+1281 1136 av
+1281 1149 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1293 1156 av
+1281 1136 as
+1269 1156 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1281 1136 av
+4.0 sw
+newpath
+1281 1236 av
+1282 1149 as
+[] 0 setdash
+dp
+newpath
+820 1916 av
+810 1957 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+827 1939 av
+820 1916 as
+803 1933 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+820 1916 av
+4.0 sw
+newpath
+810 1957 av
+734 2240 as
+[] 0 setdash
+dp
+/helvps10b 9 declareFont
+9 sf
+738.0 775.0 m
+(CMR) 833  0.00 -1 s
+( Host) 938  0.00 32 s
+0.0 0.0 m
+newpath
+1282 1917 av
+1282 1958 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1294 1938 av
+1282 1917 as
+1270 1938 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1282 1917 av
+4.0 sw
+newpath
+1282 1958 av
+1281 2240 as
+[] 0 setdash
+dp
+newpath
+1403 1596 av
+1421 1596 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1423 1584 av
+1403 1596 as
+1403 1596 as
+1423 1608 as
+1423 1608 as
+closepath
+fp
+newpath
+1423 1584 av
+1403 1596 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1403 1596 av
+1423 1608 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1423 1608 av
+1423 1584 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+1403 1596 av
+4.0 sw
+newpath
+1181 1596 av
+1164 1596 as
+[8 20 ] 4 1 setpenpat
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1160 1608 av
+1181 1596 as
+1181 1596 as
+1160 1584 as
+1160 1584 as
+closepath
+fp
+newpath
+1160 1608 av
+1181 1596 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1181 1596 av
+1160 1584 as
+[8 20 ] 4 2 setpenpat
+dp
+newpath
+1160 1584 av
+1160 1608 as
+[8 20 ] 4 2 setpenpat
+dp
+0.0 sw
+newpath
+1181 1596 av
+4.0 sw
+0 13 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1241 1493 av
+1339 1493 as
+1339 1636 as
+1241 1636 as
+closepath
+fp
+[] 0 setdash
+dp
+6 sf
+1392.0 1521.0 m
+(Spool) 1475  0.00 -1 s
+( ) 1485  1.00 32 s
+( File) 1546  0.00 32 s
+0.0 0.0 m
+newpath
+1281 1493 av
+1281 1419 as
+[] 0 setdash
+dp
+newpath
+1281 1416 av
+1282 1421 as
+[] 0 setdash
+dp
+0 0 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1293 1436 av
+1281 1416 as
+1269 1436 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1281 1416 av
+4.0 sw
+newpath
+1281 942 av
+1281 955 as
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1293 963 av
+1281 942 as
+1269 963 as
+closepath
+fp
+[] 0 setdash
+dp
+0.0 sw
+newpath
+1281 942 av
+4.0 sw
+newpath
+1281 1036 av
+1282 955 as
+[] 0 setdash
+dp
+8.0 sw
+newpath
+1041 1036 av
+1521 1036 as
+1521 1136 as
+1041 1136 as
+closepath
+[] 0 setdash
+dp
+2550.0 2841.0 m
+1 sf
+eop
+0.0 0.0 m
+4.0 sw
+/Ops6 0 declareFont
+0 0 fillpatset
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2077.0 3110.0 m
+([Page 9]) 2246  0.00 32 s
+300.0 413.0 m
+(Telemail is an international commercial service.  Some of the Telemail systems served by the) 2204  2.00 32 s
+300.0 478.0 m
+(CMR include MAIL/USA, NASAMAIL/USA, and GSFC/USA.  Some government agencies,) 2202  2.33 32 s
+300.0 544.0 m
+(such as NASA and the Environmental Protection Agency, have dedicated Telemail systems.) 2181  2.91 32 s
+300.0 610.0 m
+(Companies also exist that purchase bulk services from Telemail and resell the service to) 2101  2.77 32 s
+300.0 675.0 m
+(individuals.  Omnet's Sciencenet is a very popular example of this type of service.) 1988  2.62 32 s
+300.0 783.0 m
+(Dialcom is a commercial service similar to Telemail in that it has facilities for allowing groups) 2247  2.80 32 s
+300.0 849.0 m
+(to purchase tailored services, and some government agencies \(such as the National Science) 2157  2.92 32 s
+300.0 914.0 m
+(Foundation and the U.S. Department of Agriculture\) have special group-access plans.  The) 2161  2.67 32 s
+300.0 980.0 m
+(IEEE Computer Society also has a dedicated group service, called IEEE Compmail, which is) 2202  2.69 32 s
+300.0 1046.0 m
+(open to members of the IEEE Computer Society.) 1303  2.43 32 s
+300.0 1153.0 m
+(MCI Mail is operated by MCI and is marketed to large companies as well as individual users.  ) 2244  2.44 32 s
+300.0 1261.0 m
+(Specific examples of the users of Intermail and the CMR are as follows:) 1778  2.50 32 s
+300.0 1369.0 m
+(1\)  Scientists in Oceanography, Astronomy, Geology, and Agriculture use Intermail and the) 2170  2.42 32 s
+300.0 1435.0 m
+(CMR to communicate with colleagues.  Many of these scientists have accounts on) 1979  2.75 32 s
+300.0 1500.0 m
+(\177Sciencenet",  which is actually part of a Telemail system administered by Omnet.) 1991  2.83 32 s
+300.0 1608.0 m
+(\(2\) The IEEE Computer Society's publication editors use the Dialcom system \177Compmail" to) 2209  2.33 32 s
+300.0 1673.0 m
+(manage the papers being prepared for their numerous publications.  Many of the authors are in) 2233  2.33 32 s
+300.0 1739.0 m
+(university departments with access to the Internet.  Intermail and the CMR support a significant) 2256  2.57 32 s
+300.0 1805.0 m
+(exchange of large messages containing manuscripts.) 1362  3.00 32 s
+300.0 1912.0 m
+(\(3\)  NASA uses Telemail systems for its own work and has extensive exchanges through its) 2172  2.07 32 s
+300.0 1978.0 m
+(own relay service, as well as Intermail and the CMR, for communicating with university) 2109  2.54 32 s
+300.0 2044.0 m
+(scientists on the Internet.) 810  3.00 32 s
+300.0 2151.0 m
+(Other developments to interoperate between the Internet and Commercial mail systems are:) 2167  2.91 32 s
+300.0 2217.0 m
+2283.0 v
+525.0 h
+(\(1\)  The Merit gateway to Sprintmail and IEEE Compmail) 1721  2.33 32 s
+300.0 2349.0 m
+2414.0 v
+525.0 h
+(\(2\)  The CNRI gateway to MCI Mail) 1279  2.00 32 s
+300.0 2480.0 m
+2546.0 v
+525.0 h
+(\(3\)  The Ohio State University gateway to Compuserve, and,) 1766  2.33 32 s
+300.0 2611.0 m
+2677.0 v
+525.0 h
+(\(4\)  NASA-Ames gateway to Telemail) 1320  2.20 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 2785.0 m
+(ACCEPTABLE) 640  0.00 -1 s
+( USE POLICY FOR INTERMAIL AND THE CMR) 1759  1.00 32 s
+1 sf
+300.0 2892.0 m
+(The Internet is composed of many networks sponsored by many) 1603  2.00 32 s
+( organizations.  However, all) 2192  2.25 32 s
+300.0 2958.0 m
+(the Internet's long-haul networks are provided by U.S. government agencies.  Each of these) 2183  2.46 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 10]) 2259  0.00 32 s
+300.0 413.0 m
+(agencies limits the use of the facilities it provides in some way.  In general, the statement by an) 2252  2.22 32 s
+300.0 478.0 m
+(agency about how its facilities may be used is called an \177Acceptable Use Policy".) 1974  3.00 32 s
+300.0 586.0 m
+(The various agencies involved in the Internet are currently preparing their Acceptable Use) 2142  2.67 32 s
+300.0 652.0 m
+(Policy statements.  Most of these are in draft form and have not been released as official) 2113  2.63 32 s
+300.0 717.0 m
+(agency statements as yet.  None of these policies are currently available as online documents.) 2213  2.93 32 s
+300.0 825.0 m
+(In the least restrictive case, all bona fide researchers and scholars, public and private, from the) 2234  2.80 32 s
+300.0 891.0 m
+(United States and foreign countries \(unless denied access by national policy\) are allowed) 2115  2.67 32 s
+300.0 956.0 m
+(access.) 439  0.00 -1 s
+300.0 1064.0 m
+(The Intermail and Commercial Mail Relay \(CMR\) systems at ISI are resources provided by the) 2245  2.50 32 s
+300.0 1130.0 m
+(Defense Advanced Research Projects Agency \(DARPA\) for computing and communication.) 2174  2.44 32 s
+300.0 1196.0 m
+(Use of these resources must be limited to DARPA-sponsored work or other) 1843  2.00 32 s
+( approved) 2043  1.00 32 s
+300.0 1261.0 m
+(government business \(or) 796  2.00 32 s
+( must otherwise meet the acceptable use policy of DARPA\), only.) 2143  2.40 32 s
+300.0 1369.0 m
+(However, DARPA, as a member of the Federal Research Internet Coordinating Committee) 2155  2.73 32 s
+300.0 1435.0 m
+(\(FRICC\), has agreed to the FRICC draft policy for communication networks, which provides in) 2252  2.31 32 s
+300.0 1500.0 m
+(part that:  \177The member agencies of the FRICC agree to carry all traffic that meets the) 2076  2.75 32 s
+300.0 1566.0 m
+(Acceptable Use Policy of the originating member agency".) 1504  3.00 32 s
+300.0 1673.0 m
+(Thus, e-mail messages \(i.e., \177traffic"\) that meet the Acceptable Use Policy of an agency and) 2198  2.86 32 s
+300.0 1739.0 m
+(pass through some facility of that agency \(i.e., \177the originating member"\) on the way to) 2092  2.36 32 s
+300.0 1805.0 m
+(Intermail or CMR are allowed.) 931  2.75 32 s
+300.0 1912.0 m
+(The current member agencies of the FRICC are DARPA, NSF, DOE, NASA, and NIH.) 2088  2.31 32 s
+300.0 2020.0 m
+(BITNET and UUCP \(and other\) networks are interconnected to the Internet via mail relays.  It) 2230  2.33 32 s
+300.0 2086.0 m
+(is the responsibility of the managers of these mail relays to ensure that the e-mail messages) 2175  2.67 32 s
+300.0 2151.0 m
+(\(\177traffic"\) that enter the Internet via their mail relays meet the Acceptable Use Policy of the) 2182  2.87 32 s
+300.0 2217.0 m
+(member agency providing the Internet access.) 1236  3.00 32 s
+300.0 2325.0 m
+(In addition, we cannot allow CMR or Intermail to be used simply as a bridge between two) 2147  2.31 32 s
+300.0 2391.0 m
+(commercial systems, even though CMR has this technical capability.  At least one end of the) 2202  2.80 32 s
+300.0 2456.0 m
+(communication must be related to FRICC acceptable use.) 1472  2.57 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 2564.0 m
+(DETAILS OF CMR SYSTEM USE) 1069  2.00 32 s
+1 sf
+300.0 2671.0 m
+(The CMR host computer is Internet host INTERMAIL.ISI.EDU \(128.9.2.203\).  ) 1935  2.00 32 s
+( ) 1949  1.00 32 s
+300.0 2737.0 m
+(The users of) 552  2.00 32 s
+( the commercials system are required to know the proper gateways between the) 2173  2.42 32 s
+300.0 2803.0 m
+(Internet and other networks such as BITNET, CSNET, or UUCP. ) 1648  2.00 32 s
+( Users on networks) 2037  1.33 32 s
+300.0 2868.0 m
+(interconnected) 594  0.00 -1 s
+( to the Internet likewise need to know how to reach the Internet to send mail) 2160  2.40 32 s
+300.0 2934.0 m
+(through INTERMAIL.ISI.EDU to a commercial system.) 1446  2.00 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 11]) 2259  0.00 32 s
+300.0 413.0 m
+(The relay connection to Telemail is through their host TELEMAIL/USA.  The general syntax) 2212  2.38 32 s
+300.0 478.0 m
+(for) 359  0.00 -1 s
+( Telemail addresses is \177[USER/ORGANIZATION]HOST/COUNTRY", making the full) 2142  1.43 32 s
+300.0 544.0 m
+(address) 449  0.00 -1 s
+( for the relay mailbox:) 908  2.25 32 s
+300.0 652.0 m
+(     ) 375  2.00 32 s
+(         [INTERMAIL/USCISI]TELEMAIL/USA) 1354  1.44 32 s
+300.0 759.0 m
+(Users) 413  0.00 -1 s
+( across the entire Telemail service can send mail to this address.  Users on the) 2008  2.40 32 s
+300.0 825.0 m
+(TELEMAIL host) 650  2.00 32 s
+( need only send to INTERMAIL.) 1324  1.40 32 s
+300.0 933.0 m
+(Internet) 456  0.00 -1 s
+( users can use the basic Telemail format, append a \177%TELEMAIL" to it, and mail to) 2195  2.33 32 s
+300.0 999.0 m
+(the resulting address as if it really existed on INTERMAIL.ISI.EDU, e.g.:) 1811  2.40 32 s
+300.0 1106.0 m
+(            [CWARD/USCISI]TELEMAIL/USA%TELEMAIL@INTERMAIL.ISI.EDU) 2035  1.17 32 s
+300.0 1214.0 m
+(Note) 397  0.00 -1 s
+( that the CMR system will accept anything before the \177%TELEMAIL", that is, the CMR) 2209  2.43 32 s
+300.0 1279.0 m
+(does not validate Telemail addresses before transmitting them to Telemail.) 1823  2.78 32 s
+300.0 1387.0 m
+(The CMR handles Dialcom mail delivery in a similar way, but this system has what might be) 2209  2.44 32 s
+300.0 1453.0 m
+(called \177virtual hosts".  Groups can be set up with an alias system to allow easier intra-group) 2190  2.50 32 s
+300.0 1518.0 m
+(access.  For example, both NSF and USDA share the same Dialcom host \(157\); but, while both) 2251  2.50 32 s
+300.0 1584.0 m
+(groups send relay messages to Intermail, their actual fully qualified Dialcom mailboxes are) 2161  2.75 32 s
+300.0 1650.0 m
+(different. For example, NSF's mailbox is NSF153, and USDA's mailbox is AGS9999. ) 2081  2.33 32 s
+300.0 1757.0 m
+(Mail going in either direction may use an embedded Simple Forwarding Header.  An SFH ) 2161  2.47 32 s
+/timsps12i 11 declareFont
+11 sf
+(must) 2255  0.00 -1 s
+300.0 1823.0 m
+1 sf
+(be the first part of the message text.  It starts with a \177Forward:" field followed by a \177To:" field.) 2256  2.47 32 s
+300.0 1889.0 m
+(\177Cc:", \177Subject:", and other fields may follow the \177To:" fields. The SFH is terminated by a) 2176  2.87 32 s
+300.0 1954.0 m
+(blank line.) 514  2.00 32 s
+300.0 2062.0 m
+(This is a template of an SFH:) 902  2.17 32 s
+390.0 2170.0 m
+(Forward:) 574  0.00 -1 s
+( Destination-Network) 1018  1.00 32 s
+390.0 2235.0 m
+(To: User@host1, User@host2,) 1011  1.50 32 s
+390.0 2301.0 m
+(     User2@host2) 737  1.80 32 s
+390.0 2367.0 m
+(Cc: User@host1) 722  2.00 32 s
+390.0 2432.0 m
+(Subject:) 554  0.00 -1 s
+( This subject supercedes the subject in the host net header ) 1747  2.09 32 s
+390.0 2498.0 m
+(<Blank-Line>) 682  0.00 -1 s
+300.0 2606.0 m
+(Dialcom syntax is \177Host-ID:User-ID", for example, 134:ABC1234.  This format will) 2046  2.00 32 s
+( work) 2163  1.00 32 s
+300.0 2671.0 m
+(from any Dialcom host; but users in the same group as) 1415  2.00 32 s
+( ABC would be able to use the user) 2144  2.38 32 s
+300.0 2737.0 m
+(name, for example, JSMITH.) 898  3.00 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 12]) 2259  0.00 32 s
+300.0 413.0 m
+(Using the SFH format, mail to a Dialcom system could be sent as follows:) 1823  2.46 32 s
+390.0 520.0 m
+(To: Intermail@ISI.EDU) 883  2.00 32 s
+390.0 586.0 m
+(Subject:  Test Message) 859  2.33 32 s
+390.0 652.0 m
+717.0 v
+(Forward: Compmail) 800  2.00 32 s
+390.0 783.0 m
+(To:) 460  0.00 -1 s
+( 134:ABC1234) 765  1.00 32 s
+390.0 849.0 m
+914.0 v
+(Here) 487  0.00 -1 s
+( is the text of the message.) 1031  2.17 32 s
+300.0 1022.0 m
+(Proper destination network names include ARPA, Telemail, Compmail, NSF-Mail, and) 2090  2.78 32 s
+300.0 1088.0 m
+(USDA-Mail.) 568  0.00 -1 s
+300.0 1196.0 m
+(It is possible for a user to make mistakes at many points in the process.  Errors are handled as) 2220  2.32 32 s
+300.0 1261.0 m
+(automatically as possible by the CMR.  Many errors are caught in the standard Internet mail) 2185  2.60 32 s
+300.0 1327.0 m
+(traffic, and users receive the usual error messages from the system.  Messages with incorrect) 2191  2.50 32 s
+300.0 1393.0 m
+(commercial system addresses or faulty SFHs are also automatically returned to sender.) 2070  2.82 32 s
+300.0 1458.0 m
+(Messages that the software cannot handle are sent to the CMR's user-service mailbox,) 2067  2.67 32 s
+300.0 1524.0 m
+(Intermail-Request@ISI.EDU.  This mailbox has been set up to take care of user problems and) 2228  2.43 32 s
+300.0 1590.0 m
+(to be a central distribution point for user instructions.) 1389  2.38 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 1697.0 m
+(PROBLEMS) 580  0.00 -1 s
+1 sf
+300.0 1805.0 m
+(Several problems arise from the store-and-forward nature of the CMR.  One of the biggest is) 2209  2.20 32 s
+300.0 1870.0 m
+(that almost all of the commercial systems lack a machine-to-machine interface -- the CMR) 2190  3.00 32 s
+300.0 1936.0 m
+(software must mimic a human user of the commercial system.  Another problem is that the) 2160  2.47 32 s
+300.0 2002.0 m
+(Internet and a commercial system have different forms \(or syntax\) for electronic mail) 2045  2.50 32 s
+300.0 2067.0 m
+(addresses.  A major goal of the CMR project is to make the link between networks as) 2049  2.38 32 s
+300.0 2133.0 m
+(transparent as possible, allowing Internet users to use off-the-shelf mail programs.  Making) 2174  2.33 32 s
+300.0 2199.0 m
+(commercial address formats fit the Internet standard is a major task [2].) 1763  2.45 32 s
+300.0 2306.0 m
+(Compatibility with Internet addressing standards is also a concern.  The commercial accounts) 2207  2.75 32 s
+300.0 2372.0 m
+(are not able to take advantage of the transparency features of the Domain Name System \(DNS\)) 2245  2.53 32 s
+300.0 2438.0 m
+(\(see Appendix D\); and some commercial addresses are incompatible with the Internet) 2047  2.64 32 s
+300.0 2503.0 m
+(syntax--this requires Internet users to continue using the older methods.) 1774  2.33 32 s
+300.0 2611.0 m
+(Another general problem to be solved is to reduce the amount of time needed to maintain the) 2206  2.56 32 s
+300.0 2677.0 m
+(system.  Because most commercial systems force our software to mimic a human user,) 2072  2.62 32 s
+300.0 2743.0 m
+(automatic error detection and handling are quite complex. The Intermail system requires human) 2257  2.75 32 s
+300.0 2808.0 m
+(intervention in processing failed mail.  A goal of the CMR is to fully automate these processes.) 2249  2.56 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 13]) 2259  0.00 32 s
+300.0 413.0 m
+(A related problem facing the CMR, as well as its predecessor Intermail, is the frequency with) 2209  2.40 32 s
+300.0 478.0 m
+(which commercial systems change their software.  The changes are usually minor and do not) 2199  2.50 32 s
+300.0 544.0 m
+(bother most human users; however, the CMR depends on being able to recognize certain) 2110  2.46 32 s
+300.0 610.0 m
+(strings.  To avoid the necessity of rebuilding the whole CMR when these strings change, most) 2221  2.33 32 s
+300.0 675.0 m
+(of the string markers are stored in ASCII files that are read at run time.) 1759  2.36 32 s
+300.0 783.0 m
+(The translation of commercial system addresses has created a new set of problems,  most of) 2177  2.47 32 s
+300.0 849.0 m
+(which are caused by the use of \177special" characters by the commercial systems.) 1929  2.92 32 s
+300.0 956.0 m
+(Telemail uses square brackets \(\177[" and \177]"\) around user names. While these characters are not) 2221  2.79 32 s
+300.0 1022.0 m
+(special by Internet standards when found in the local part of an address, many \(perhaps most\)) 2209  2.27 32 s
+300.0 1088.0 m
+(Internet mailers refuse to accept these characters unless they are quoted.  MMDF was modified) 2244  2.64 32 s
+300.0 1153.0 m
+(locally to correct this.) 745  2.33 32 s
+300.0 1261.0 m
+(The square bracket problem is even worse for users of IBM mainframe machines,  many of) 2164  2.20 32 s
+300.0 1327.0 m
+(which are used on BITNET.  The square bracket is not a printable character on many BITNET) 2235  2.25 32 s
+300.0 1393.0 m
+(IBM hosts, and all kinds of strange addresses can result from its use.) 1702  2.25 32 s
+300.0 1500.0 m
+(The colon is another example.  Dialcom uses it as the delimiter between host and mailbox.) 2156  2.73 32 s
+300.0 1566.0 m
+(However, the colon is a special character in the Internet mail standard [2].  Users can avoid) 2172  2.56 32 s
+300.0 1631.0 m
+(this problem by using the SFH and placing the Dialcom address at the beginning of the) 2082  2.40 32 s
+300.0 1697.0 m
+(message text.  Although the CMR can accept addresses with colons, many Internet hosts and) 2193  2.57 32 s
+300.0 1763.0 m
+(relays are unable to accept addresses that contain colons.  Mail with colons in the address) 2131  2.67 32 s
+300.0 1828.0 m
+(fields is often rejected by Internet hosts and is returned to the Intermail-Request mailbox for) 2193  2.43 32 s
+300.0 1894.0 m
+(error processing.  This can cause significant delays.) 1353  2.71 32 s
+300.0 2002.0 m
+(Problems have also been caused by confusion about which hosts are mail relays between the) 2188  2.57 32 s
+300.0 2067.0 m
+(Internet and other systems compatible with the Internet mail standard [2]. \(e.g., BITNET,) 2128  2.58 32 s
+300.0 2133.0 m
+(UUCP, and CSNET\).  When the CMR was implemented, a decision was made that the CMR) 2201  2.60 32 s
+300.0 2199.0 m
+(would not keep track of these mail relays.  When a relay is changed, as the BITNET mail) 2135  2.53 32 s
+300.0 2264.0 m
+(relays were in 1988, mail may be rejected because the host either no longer exists or refuses) 2186  2.56 32 s
+300.0 2330.0 m
+(the mail.) 478  2.00 32 s
+300.0 2438.0 m
+(The mail relay problem is a subset of the larger problem of communicating information about) 2217  2.43 32 s
+300.0 2503.0 m
+(new features and changes to the user community. Virtually none of the users of the CMR are) 2199  2.31 32 s
+300.0 2569.0 m
+(local.  Many are hidden behind the veil of the commercial system.  \(Dealing with commercial) 2221  2.73 32 s
+300.0 2635.0 m
+(system customer support people has proven to be frustrating -- few of them seem to) 2024  2.14 32 s
+300.0 2700.0 m
+(understand the concept of machine-to-machine exchanges.\) Enhancements to commercial) 2131  2.50 32 s
+300.0 2766.0 m
+(software that necessitate minor changes can disrupt some CMR users for days.) 1900  2.45 32 s
+300.0 2874.0 m
+(Another problem that has not been adequately solved is validation of commercial system) 2113  2.67 32 s
+300.0 2940.0 m
+(addresses and processing of failed commercial system mail.  The Telemail system will not) 2148  2.77 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 14]) 2259  0.00 32 s
+300.0 413.0 m
+(validate a user/host combination until after the full text of the message has been transmitted.  If) 2247  2.25 32 s
+300.0 478.0 m
+(a long message is sent to an invalid address, it can be very expensive in terms of wasted time) 2210  2.56 32 s
+300.0 544.0 m
+(and connect charges.) 722  2.00 32 s
+300.0 652.0 m
+(Telemail also gives inadequate information when the host is correct but the user name is not.) 2196  2.33 32 s
+300.0 717.0 m
+(The failed mail notice received from Telemail is of little use to either a human reader or the) 2187  2.71 32 s
+300.0 783.0 m
+(CMR software.  The only information that Telemail returns is the message ID number -- it) 2167  2.33 32 s
+300.0 849.0 m
+(provides no subject, and no text to distinguish the message from the numerous others that pass) 2228  2.33 32 s
+300.0 914.0 m
+(through the mailbox.) 725  2.50 32 s
+300.0 1022.0 m
+(Dialcom does a better job of validating addresses.  If an address is not recognized, the system) 2214  2.50 32 s
+300.0 1088.0 m
+(immediately prompts for a correction.  A simple <RETURN> will delete the invalid address) 2183  2.46 32 s
+300.0 1153.0 m
+(from the list.) 564  2.50 32 s
+300.0 1261.0 m
+(The commercial systems are geared for paying customers to send and receive mail to other) 2157  2.57 32 s
+300.0 1327.0 m
+(paying customers.  They are not equipped to handle reverse billing, or \177collect calls."  ISI is) 2191  2.69 32 s
+300.0 1393.0 m
+(currently charged for connect time needed to transmit and receive mail to and from other) 2121  2.57 32 s
+300.0 1458.0 m
+(Internet sites.  A possible solution to this problem would be to extend the CMR. to include) 2155  2.38 32 s
+300.0 1524.0 m
+(accounting and billing procedures that would pass the costs of CMR to its users.) 1938  2.31 32 s
+300.0 1631.0 m
+(What had been GTE Telemail became Sprint SprintMail, Telenet became Sprintnet, and the) 2175  2.67 32 s
+300.0 1697.0 m
+(host TELEMAIL/USA became SM66/USA.) 1195  2.00 32 s
+300.0 1805.0 m
+(In April 1990, Sprint installed its X.400 implementation.  For the time being, the old-style) 2158  2.64 32 s
+300.0 1870.0 m
+(Interconnect syntax will work. The CMR telemail channel and the Simple Forwarding Header) 2219  2.67 32 s
+300.0 1936.0 m
+(\(SFH\) processor, were modified to accept either format in the SprintMail \177From" field.) 2085  2.67 32 s
+300.0 2044.0 m
+(Sprint uses the following syntax for X.400:) 1181  2.00 32 s
+300.0 2151.0 m
+525.0 h
+(\(O:USCISI,UN:INTERMAIL,TS:SM66\)) 1351  0.00 -1 s
+300.0 2259.0 m
+(The SFH processor will \177translate" this into:) 1210  2.67 32 s
+300.0 2367.0 m
+525.0 h
+(/O=USCISI/UN=INTERMAIL/TS=SM66/%TELEMAIL) 1683  0.00 -1 s
+300.0 2474.0 m
+(The channel program will reverse the process.  In the translation, parentheses become slashes,) 2220  2.77 32 s
+300.0 2540.0 m
+(colons become equal signs and commas become slashes and vice versa.) 1760  2.90 32 s
+300.0 2648.0 m
+(Unfortunately, the translation algorithm is not foolproof.  A Sprint/Internet relay did not use) 2183  2.31 32 s
+300.0 2713.0 m
+(the same field names and values as those in SprintMail.  Consequently, a CMR translated) 2130  2.79 32 s
+300.0 2779.0 m
+(address can not be sent unmodified to Sprint's relay, Sprint.COM, and Sprint.COM processed) 2215  2.42 32 s
+300.0 2845.0 m
+(addresses cannot be  sent unmodified to the CMR.) 1328  2.50 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 15]) 2259  0.00 32 s
+300.0 413.0 m
+(From experimentation, the modifications necessary to a CMR processed address to make it) 2149  2.17 32 s
+300.0 478.0 m
+(acceptable to Sprint.COM are \(1\) take the \177non-standard" X.400 fields of  \177UN" and \177TS" and) 2248  2.53 32 s
+300.0 544.0 m
+(prepend \177DD." to them, \(2\) add the country field and code \(C:US\) and \(3\) add the Telemail) 2178  2.38 32 s
+300.0 610.0 m
+(administrative domain name \(ADMD:Telemail\).  The above example would become:) 2038  2.89 32 s
+300.0 717.0 m
+(/O=USCISI/DD.UN=INTERMAIL/DD.TS=SM66/ADMD=TELEMAIL/C=US/@Sprint.COM) 2214  0.00 -1 s
+300.0 825.0 m
+(The country code must be changed from \177US" to \177USA."  The CMR queue name must also be) 2238  2.41 32 s
+300.0 891.0 m
+(appended: \177%TELEMAIL.") 871  2.00 32 s
+300.0 999.0 m
+(The situation is further complicated by Sprint's decision to only relay mail to and from its own) 2243  2.31 32 s
+300.0 1064.0 m
+(administrative domain.  Other X.400 ADMDs may be added in the future if payment problems) 2232  2.21 32 s
+300.0 1130.0 m
+(can be overcome.) 656  2.00 32 s
+300.0 1238.0 m
+(SprintMail encoded Internet addresses are not parsed correctly by the SFH processor, but that) 2208  2.38 32 s
+300.0 1303.0 m
+(should not be a major problem -- who on the Internet is going to send to the commercial side) 2221  2.28 32 s
+300.0 1369.0 m
+(of the relay?) 557  3.00 32 s
+300.0 1476.0 m
+(When the NSF decided to terminate NSFMAIL, it became clear that the CMR Project needed a) 2256  3.00 32 s
+300.0 1542.0 m
+(way to get news out to the commercial users.  The CMR channel programs now are able to) 2162  2.35 32 s
+300.0 1608.0 m
+(append a news file to the end of messages going into the commercial networks.  After) 2058  2.40 32 s
+300.0 1673.0 m
+(transmitting a message, each channel checks for a news file with the channel name and if) 2128  2.73 32 s
+300.0 1739.0 m
+(present, sends it.) 640  3.00 32 s
+300.0 1847.0 m
+(The biggest costs of the CMR are the connect times to the Sprintnet X.25 network and the) 2147  2.50 32 s
+300.0 1912.0 m
+(commercial machines.  Making the CMR transmit faster is the current number one problem.) 2183  2.69 32 s
+300.0 2020.0 m
+(Three strategies are being pursued:) 1012  2.75 32 s
+300.0 2128.0 m
+( ) 315  2.00 32 s
+525.0 h
+(- Improve the implementation of the current method) 1598  2.43 32 s
+300.0 2235.0 m
+525.0 h
+(- Change the method to take advantage of changes in the) 1695  2.60 32 s
+300.0 2301.0 m
+525.0 h
+(  commercial software) 980  2.67 32 s
+300.0 2409.0 m
+525.0 h
+(- Upgrade the modems and increase the number of phone lines  ) 1842  2.25 32 s
+300.0 2516.0 m
+(For a list of known problems or bugs in the CMR software, see the Appendix of the program) 2197  2.00 32 s
+300.0 2582.0 m
+(logic manual [6].) 651  3.00 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 16]) 2259  0.00 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 413.0 m
+(FUTURE DIRECTIONS) 834  1.00 32 s
+1 sf
+300.0 520.0 m
+(No) 361  0.00 -1 s
+( software project is ever completed, and the CMR is no exception. There are many possible) 2228  2.40 32 s
+300.0 586.0 m
+(extensions, some more difficult than others.) 1192  2.60 32 s
+300.0 694.0 m
+(One addition that will be made to the CMR is a channel for interacting with MCI Mail.  MCI) 2210  2.44 32 s
+300.0 759.0 m
+(Mail is one of the original TOPS-20 commercial systems that were serviced by Intermail; the) 2215  2.64 32 s
+300.0 825.0 m
+(CMR will need to replace this function before all of the TOPS-20 machines are removed from) 2237  2.47 32 s
+300.0 891.0 m
+(service on the Internet.) 769  3.00 32 s
+300.0 999.0 m
+(The adaptability of the CMR is such that adding new commercial systems should not be a) 2137  2.53 32 s
+300.0 1064.0 m
+(major problem.  Additional commercial systems under consideration include General Electric's) 2242  2.80 32 s
+300.0 1130.0 m
+(GENIE, Western Union's EasyLink, and Compuserve.  ) 1438  2.00 32 s
+300.0 1238.0 m
+(One possible addition to the CMR system could be maintenance of a list of gateways.  This) 2170  2.50 32 s
+300.0 1303.0 m
+(would allow commercial system users to incorporate the native address formats of other) 2094  2.42 32 s
+300.0 1369.0 m
+(networks into the SFHs.  An advantage of this would be that users could simply tell the CMR) 2214  2.29 32 s
+300.0 1435.0 m
+(to forward a message to BITNET, for example, and the CMR would find the gateway and) 2136  2.20 32 s
+300.0 1500.0 m
+(properly format the address for that gateway.) 1219  2.33 32 s
+300.0 1608.0 m
+(To increase the ease of use to Internet users, the system might treat each commercial system as) 2246  2.75 32 s
+300.0 1673.0 m
+(an Internet host and create DNS database records for them. This would allow users to send) 2153  2.27 32 s
+300.0 1739.0 m
+(mail to a non-Internet user at an Internet-style domain name.) 1559  2.67 32 s
+300.0 1847.0 m
+(Another improvement would be the possibility of accepting X.400-style addressing. The) 2106  2.40 32 s
+300.0 1912.0 m
+(current system rejects them.) 869  2.33 32 s
+300.0 2020.0 m
+(In order to further reduce the hazards of string changes in the commercial system software, an) 2222  2.33 32 s
+300.0 2086.0 m
+(AI component could be added to the commercial system interfaces.  Such an AI component) 2173  2.57 32 s
+300.0 2151.0 m
+(might be able to \177figure out" what marker a new prompt represents and to remember it.) 2091  2.40 32 s
+3 sf
+300.0 2259.0 m
+(ACCESS) 497  0.00 -1 s
+( INFORMATION) 882  1.00 32 s
+1 sf
+300.0 2367.0 m
+(For) 370  0.00 -1 s
+( instructions on how to use Intermail and CMR contact Intermail-Request@ISI.EDU.) 2114  2.40 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 17]) 2259  0.00 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 413.0 m
+(REFERENCES) 635  0.00 -1 s
+1 sf
+300.0 520.0 m
+([1] ) 373  1.00 32 s
+525.0 h
+(Cohen, D., \177A Suggestion for Internet Message Forwarding) 1737  2.00 32 s
+( for MOSIS",) 2014  2.00 32 s
+300.0 586.0 m
+525.0 h
+(IEN-180, USC/Information Sciences Institute, March 1981.) 1744  2.40 32 s
+300.0 694.0 m
+([2]) 359  0.00 -1 s
+525.0 h
+(Crocker, D., \177Standard for the Format of ARPA Internet Text Messages",) 2031  2.50 32 s
+300.0 759.0 m
+525.0 h
+(RFC-822, University of Delaware, August 1982.) 1521  2.00 32 s
+300.0 867.0 m
+([3]) 359  0.00 -1 s
+525.0 h
+(DeSchon, A. L., \177MCI Mail/ARPA Mail Forwarding", USC/Information) 2006  2.43 32 s
+300.0 933.0 m
+525.0 h
+(Sciences Institute, ISI Research Report, RR-84-141, August 1984.) 1890  2.71 32 s
+300.0 1041.0 m
+([4]) 359  0.00 -1 s
+525.0 h
+(DeSchon, A. L., \177INTERMAIL, An Experimental Mail Forwarding) 1903  2.14 32 s
+300.0 1106.0 m
+525.0 h
+(System", USC/Information Sciences Institute, ISI Research Report,) 1895  2.50 32 s
+300.0 1172.0 m
+525.0 h
+(RR-85-158, September 1985.) 1136  2.00 32 s
+300.0 1279.0 m
+([5]) 359  0.00 -1 s
+525.0 h
+(Kingston, D., \177MMDF II: A Technical Review", Usenix Conference, ) 1949  2.56 32 s
+300.0 1345.0 m
+525.0 h
+(Salt Lake City, August 1984.) 1121  2.50 32 s
+300.0 1453.0 m
+([6]) 359  0.00 -1 s
+525.0 h
+(Ward, C. E., \177The Commercial Mail Relay Project:  Intermail on UNIX",) 2033  2.82 32 s
+300.0 1518.0 m
+525.0 h
+(USC/Information Sciences Institute, 1988.) 1388  3.00 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 18]) 2259  0.00 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 413.0 m
+(APPENDIX A  ) 636  1.00 32 s
+300.0 520.0 m
+(The) 383  0.00 -1 s
+( Internet and Connected Networks) 1133  2.25 32 s
+1 sf
+300.0 628.0 m
+(The Internet is a network of networks interconnected by gateways or routers.  The common) 2167  2.21 32 s
+300.0 694.0 m
+(element is the TCP/IP protocol suite.  The Internet now includes approximately 800 networks) 2212  2.54 32 s
+300.0 759.0 m
+(and 100,000 host computers.  The Internet is made up of local area networks in research) 2105  2.40 32 s
+300.0 825.0 m
+(institutes and university campuses, regional networks, and long-haul networks.  These) 2060  2.50 32 s
+300.0 891.0 m
+(resources are supported by the using organizations and by several US goverment agencies) 2131  2.42 32 s
+300.0 956.0 m
+(\(including DARPA, NSF, NASA, DOE, and NIH\).   The long-haul networks in the Internet are) 2252  2.00 32 s
+300.0 1022.0 m
+(the ARPANET, the MILNET, the NSFNET Backbone, the NASA Science Internet \(NSI\), and) 2224  2.33 32 s
+300.0 1088.0 m
+(the DOE Energy Science Network \(ESNET\).) 1218  2.00 32 s
+300.0 1196.0 m
+(Other systems using TCP/IP or other protocols may be networks of networks or \177internets") 2156  2.08 32 s
+300.0 1261.0 m
+(with a lower case \177i".  The capital \177I" Internet is the one described above.) 1819  2.79 32 s
+300.0 1369.0 m
+(There are other networks with \(semi-\) compatible electronic mail systems.  These include) 2139  2.75 32 s
+300.0 1435.0 m
+(BITNET) 479  0.00 -1 s
+( \(and EARN and NETNORTH\), UUCP \(and EUNET\), CSNET, ACSNET, and) 2088  1.30 32 s
+300.0 1500.0 m
+(JANET.  Users) 609  2.00 32 s
+( of electronic mail may not necessarily be aware of the boundaries between) 2147  2.42 32 s
+300.0 1566.0 m
+(these systems and the Internet.) 925  3.00 32 s
+300.0 1673.0 m
+(The Domain Name System \(DNS\) is a mechanism used in the Internet for translating names of) 2237  2.33 32 s
+300.0 1739.0 m
+(host computers into addresses.  The DNS also allows host computers not directly on the) 2093  2.29 32 s
+300.0 1805.0 m
+(Internet to have registered names in the same style.) 1349  2.88 32 s
+3 sf
+300.0 1912.0 m
+(BITNET \(Because It's Time NETwork\)) 1148  2.00 32 s
+1 sf
+300.0 2020.0 m
+(BITNET has about 2,500 host computers, primarily at universities, in many countries.  It is) 2164  2.36 32 s
+300.0 2086.0 m
+(managed by EDUCOM, which provides administrative support and information services.) 2108  2.22 32 s
+300.0 2151.0 m
+(There are three main constituents of the network: BITNET in the United States and Mexico,) 2185  2.50 32 s
+300.0 2217.0 m
+(NETNORTH in Canada, and EARN in Europe.  There are also AsiaNet, in Japan, and) 2061  2.29 32 s
+300.0 2283.0 m
+(connections in South America.  Gateways exist between BITNET and the Internet.  The most) 2208  2.50 32 s
+300.0 2349.0 m
+(common gateway) 656  2.00 32 s
+( used is CUNYVM.CUNY.EDU.) 1327  1.33 32 s
+3 sf
+300.0 2456.0 m
+(CSNET) 466  0.00 -1 s
+( \(The Computer + Science Network\)) 1251  2.00 32 s
+1 sf
+300.0 2564.0 m
+(CSNET has 180 member organizations, primarily computer science research laboratories at) 2164  2.80 32 s
+300.0 2629.0 m
+(universities and research institutes, including international affiliates in more than a dozen) 2123  3.00 32 s
+300.0 2695.0 m
+(countries. CSNET has adopted DNS-style names for all its host computers.  It is administered) 2223  2.43 32 s
+300.0 2761.0 m
+(by the University Corporation for Atmospheric Research \(UCAR\) and provides administrative) 2216  2.10 32 s
+300.0 2826.0 m
+(support and information services via the CSNET Information Center \(CIC\) at Bolt Beranek and) 2249  2.31 32 s
+300.0 2892.0 m
+(Newman \(BBN\). The gateway between CSNET and the Internet is RELAY.CS.NET.) 2038  2.30 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 19]) 2259  0.00 32 s
+300.0 413.0 m
+(Note: CSNET and BITNET have officially merged into a single organization as of October 1,) 2215  2.36 32 s
+300.0 478.0 m
+(1989.) 413  0.00 -1 s
+/timsps12b 3 declareFont
+3 sf
+300.0 586.0 m
+(UUCP) 439  0.00 -1 s
+( \(UNIX to UNIX Copy\) ) 954  1.20 32 s
+1 sf
+300.0 694.0 m
+(UUCP) 433  0.00 -1 s
+( is a protocol, a set of files, and a set of commands for copying data files from one) 2127  2.28 32 s
+300.0 759.0 m
+(UNIX machine to another.  These procedures are widely used to implement a hop-by-hop) 2146  2.31 32 s
+300.0 825.0 m
+(electronic mail system.  This simple mechanism allows any UNIX host computer to join the) 2180  2.50 32 s
+300.0 891.0 m
+(system by arranging a connection \(dial-up or permanent\) with any UNIX host already in the) 2186  2.14 32 s
+300.0 956.0 m
+(system.  In the basic UUCP system, mail is source routed by the sending user through a path of) 2250  2.28 32 s
+300.0 1022.0 m
+(connected hosts to the destination.  Currently, there are databases of connection information) 2179  2.75 32 s
+300.0 1088.0 m
+(\(UUCP maps\) and programs \(pathalias\) that aid in determining routes.  There is some use of) 2188  2.27 32 s
+300.0 1153.0 m
+(DNS-style names by UUCP hosts.  EUNET is a UUCP-based network in) 1803  2.00 32 s
+( Europe, and JUNET) 2229  1.33 32 s
+300.0 1219.0 m
+(is) 333  0.00 -1 s
+( a similar net in Japan.  These international branches of UUCP use DNS-style names as well.) 2242  2.38 32 s
+300.0 1285.0 m
+(There are many hosts that may relay mail between UUCP and the Internet.  One prominent) 2164  2.53 32 s
+300.0 1350.0 m
+(gateway is) 514  2.00 32 s
+( UUNET.UU.NET.) 907  1.00 32 s
+3 sf
+300.0 1458.0 m
+(JANET \(Joint Academic NETwork\)) 1074  1.67 32 s
+1 sf
+300.0 1566.0 m
+(JANET is the primary academic network in) 1187  2.00 32 s
+( the United Kingdom, linking about 1,000) 2044  2.33 32 s
+300.0 1631.0 m
+(computers at about 100 universities and research institutes.  JANET has a domain name system) 2245  2.50 32 s
+300.0 1697.0 m
+(similar to that of the Internet, but the order of the domain name parts is opposite \(with the) 2144  2.35 32 s
+300.0 1763.0 m
+(top-level domain on the left\).  The protocols used in JANET are the UK \177Coloured Books".) 2184  2.27 32 s
+300.0 1828.0 m
+(The primary gateway between JANET and the Internet is NSFNET-RELAY.AC.UK.) 2041  2.00 32 s
+3 sf
+300.0 1936.0 m
+(ACSNET \(Australian Computer Science Network\)) 1391  2.75 32 s
+1 sf
+300.0 2044.0 m
+(ACSNET is the principal electronic mail system for the computer science and academic) 2097  2.92 32 s
+300.0 2109.0 m
+(research community in Australia, connecting about 300 sites.  It works similarly to UUCP.) 2152  2.46 32 s
+300.0 2175.0 m
+(ACSNET has a domain naming syntax similar to that for Internet domains.  The gateways) 2141  2.36 32 s
+300.0 2241.0 m
+(between ACSNET and the) 839  2.00 32 s
+( Internet are MUNNARI.OZ.AU and UUNET.UU.NET.) 1982  1.40 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 20]) 2259  0.00 32 s
+/timsps10 4 declareFont
+4 sf
+0.0 2970.0 m
+8.0 sw
+0.0 v
+newpath
+740 796 av
+981 796 as
+981 956 as
+740 956 as
+closepath
+[] 0 setdash
+dp
+newpath
+981 716 av
+1381 716 as
+1381 956 as
+981 956 as
+closepath
+[] 0 setdash
+dp
+newpath
+981 836 av
+1401 836 as
+[] 0 setdash
+dp
+newpath
+1381 836 av
+1741 836 as
+1741 956 as
+1381 956 as
+closepath
+[] 0 setdash
+dp
+/helvps10b 9 declareFont
+9 sf
+1041.0 789.0 m
+(NETNORTH) 1273  0.00 -1 s
+1041.0 909.0 m
+(BITNET) 1193  0.00 -1 s
+1481.0 916.0 m
+(EARN) 1599  0.00 -1 s
+801.0 875.0 m
+(CSNET) 943  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+840 956 av
+840 1116 as
+[8 20 ] 4 1 setpenpat
+dp
+/helvps12b 8 declareFont
+8 sf
+820.0 1155.0 m
+([G]) 893  0.00 -1 s
+0.0 0.0 m
+newpath
+840 1176 av
+840 1276 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+840 1276 av
+1201 1276 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1301 956 av
+1301 1116 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1301 1176 av
+1301 1376 as
+[8 20 ] 4 1 setpenpat
+dp
+1281.0 1155.0 m
+([G]) 1354  0.00 -1 s
+0.0 0.0 m
+newpath
+1201 1276 av
+1201 1376 as
+[8 20 ] 4 1 setpenpat
+dp
+8.0 sw
+newpath
+1121 1382 av
+1601 1382 as
+1601 1782 as
+1121 1782 as
+closepath
+[] 0 setdash
+dp
+9 sf
+1181.0 1516.0 m
+(THE INTERNET) 1488  1.00 32 s
+4.0 sw
+0.0 0.0 m
+newpath
+1581 1396 av
+2101 1396 as
+[8 20 ] 4 1 setpenpat
+dp
+8 sf
+2252.0 1736.0 m
+([G]) 2325  0.00 -1 s
+/helvps10 7 declareFont
+7 sf
+1641.0 1450.0 m
+(NSFNET-RELAY.AC.UK) 2109  0.00 -1 s
+1321.0 1070.0 m
+(CUNYVM.BITNET) 1664  0.00 -1 s
+1321.0 1250.0 m
+(CUNYVM.CUNY.EDU) 1732  0.00 -1 s
+0.0 0.0 m
+newpath
+2161 1036 av
+2161 1358 as
+[8 20 ] 4 1 setpenpat
+dp
+8.0 sw
+newpath
+2041 876 av
+2281 876 as
+2281 1036 as
+2041 1036 as
+closepath
+[] 0 setdash
+dp
+9 sf
+2101.0 970.0 m
+(JANET) 2238  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+748 1496 av
+1121 1496 as
+[8 20 ] 4 1 setpenpat
+dp
+8 sf
+660.0 1496.0 m
+([G]) 733  0.00 -1 s
+9 sf
+400.0 1696.0 m
+(UUCP) 518  0.00 -1 s
+0.0 0.0 m
+newpath
+1305 1796 av
+1305 1936 as
+[8 20 ] 4 1 setpenpat
+dp
+7 sf
+740.0 1876.0 m
+(INTERMAIL@ISI.EDU) 1158  0.00 -1 s
+0.0 0.0 m
+newpath
+1601 1562 av
+2290 1562 as
+[8 20 ] 4 1 setpenpat
+dp
+1741.0 1562.0 m
+(UUNET.UU.NET) 2053  0.00 -1 s
+1681.0 1636.0 m
+(USER@HOST.SUBDOMAIN.AU) 2290  0.00 -1 s
+9 sf
+1157.0 h
+(ARPANET, NSFNET,) 1564  1.00 32 s
+1157.0 1682.0 m
+(        MILNET) 1410  0.00 32 s
+0.0 0.0 m
+newpath
+2290 1556 av
+2290 1696 as
+[8 20 ] 4 1 setpenpat
+dp
+2214.0 1876.0 m
+(ACSNET) 2386  0.00 -1 s
+8.0 sw
+0.0 0.0 m
+newpath
+1101 1936 av
+1521 1936 as
+1521 2056 as
+1101 2056 as
+closepath
+[] 0 setdash
+dp
+1121.0 2010.0 m
+(INTERMAIL / CMR) 1483  1.00 32 s
+8 sf
+2121.0 1396.0 m
+([G]) 2194  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+1301 2076 av
+1301 2176 as
+[8 20 ] 4 1 setpenpat
+dp
+9 sf
+1221.0 2210.0 m
+(107-8239) 1405  0.00 -1 s
+0.0 0.0 m
+newpath
+740 2016 av
+1101 2016 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+740 2016 av
+740 2096 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+744 2174 av
+744 2275 as
+[8 20 ] 4 1 setpenpat
+dp
+420.0 2150.0 m
+([Intermail/USCISI]) 775  0.00 -1 s
+( SM66/USA) 997  1.00 32 s
+8.0 sw
+0.0 0.0 m
+newpath
+520 2297 av
+900 2297 as
+900 2637 as
+520 2637 as
+closepath
+[] 0 setdash
+dp
+580.0 2356.0 m
+(TELEMAIL) 791  0.00 -1 s
+580.0 2469.0 m
+(SM66) 689  0.00 -1 s
+580.0 2515.0 m
+(NASA) 698  0.00 -1 s
+580.0 2561.0 m
+(OMNET) 731  0.00 -1 s
+4.0 sw
+0.0 0.0 m
+newpath
+1301 2216 av
+1301 2276 as
+[8 20 ] 4 1 setpenpat
+dp
+1201.0 2350.0 m
+(MCI) 1278  0.00 -1 s
+( MAIL) 1393  0.00 32 s
+1841.0 h
+(DIALCOM) 2036  0.00 -1 s
+1841.0 2470.0 m
+(COMPMAIL) 2069  0.00 -1 s
+1841.0 2516.0 m
+(USDAMAIL) 2062  0.00 -1 s
+0.0 0.0 m
+newpath
+1541 2016 av
+1941 2016 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+1941 2022 av
+1941 2096 as
+[8 20 ] 4 1 setpenpat
+dp
+1801.0 2130.0 m
+(134:CMP0817) 2069  0.00 -1 s
+1801.0 2176.0 m
+(157:AGS9999) 2066  0.00 -1 s
+7 sf
+1621.0 1350.0 m
+(UK.AC.NSFNET-RELAY) 2089  0.00 -1 s
+8 sf
+900.0 555.0 m
+( APPENDIX B) 1220  1.00 32 s
+( - MAIL SYSTEMS  MAP) 1792  0.40 32 s
+8.0 sw
+0.0 0.0 m
+newpath
+2176 1796 av
+2405 1796 as
+2405 1956 as
+2176 1956 as
+closepath
+[] 0 setdash
+dp
+newpath
+340 1602 av
+580 1602 as
+580 1762 as
+340 1762 as
+closepath
+[] 0 setdash
+dp
+4.0 sw
+newpath
+2321 1754 av
+2321 1776 as
+[8 20 ] 4 1 setpenpat
+dp
+8.0 sw
+newpath
+1141 2297 av
+1521 2297 as
+1521 2637 as
+1141 2637 as
+closepath
+[] 0 setdash
+dp
+newpath
+1781 2297 av
+2161 2297 as
+2161 2637 as
+1781 2637 as
+closepath
+[] 0 setdash
+dp
+4.0 sw
+newpath
+1941 2216 av
+1941 2276 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+2290 1776 av
+2290 1798 as
+[8 20 ] 4 1 setpenpat
+dp
+9 sf
+1141.0 655.0 m
+(CREN) 1259  0.00 -1 s
+7 sf
+520.0 1096.0 m
+(RELAY.CS.NET) 823  0.00 -1 s
+140.0 1556.0 m
+(uunet!host!user) 428  0.00 -1 s
+900.0 1256.0 m
+(RELAY.CS.NET) 1203  0.00 -1 s
+780.0 1476.0 m
+(UUNET.UU.NET) 1092  0.00 -1 s
+0.0 0.0 m
+newpath
+1185 676 av
+1185 716 as
+[8 20 ] 4 1 setpenpat
+dp
+8.0 sw
+newpath
+80 455 av
+2441 455 as
+2441 2757 as
+80 2757 as
+closepath
+[] 0 setdash
+dp
+4.0 sw
+newpath
+500 1496 av
+640 1496 as
+[8 20 ] 4 1 setpenpat
+dp
+newpath
+500 1496 av
+500 1602 as
+[8 20 ] 4 1 setpenpat
+dp
+/Ops6 0 declareFont
+0 20 fillpatset
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+80 1976 av
+1101 1976 as
+1101 2000 as
+80 2000 as
+closepath
+fp
+[] 0 setdash
+dp
+/drawmode PL_REPLACE def
+newpath
+/drawmode PL_SET def
+1521 1972 av
+2441 1972 as
+2441 1996 as
+1521 1996 as
+closepath
+fp
+[] 0 setdash
+dp
+2550.0 2970.0 m
+4 sf
+eop
+0.0 0.0 m
+/Ops6 0 declareFont
+0 0 fillpatset
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 21]) 2259  0.00 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 413.0 m
+(APPENDIX C) 608  1.00 32 s
+300.0 520.0 m
+(March) 444  0.00 -1 s
+( 1990   ) 605  2.25 32 s
+1 sf
+750.0 h
+(sent) 830  0.00 -1 s
+975.0 h
+(read) 1061  0.00 -1 s
+1200.0 h
+(total) 1289  0.00 -1 s
+300.0 586.0 m
+(Telemail) 478  0.00 -1 s
+525.0 h
+750.0 h
+(1291) 850  0.00 -1 s
+975.0 h
+(768) 1050  0.00 -1 s
+1200.0 h
+(2059) 1300  0.00 -1 s
+300.0 652.0 m
+(MCI Mail) 503  2.00 32 s
+525.0 h
+750.0 h
+(56) 800  0.00 -1 s
+975.0 h
+(44) 1025  0.00 -1 s
+1200.0 h
+(100) 1275  0.00 -1 s
+300.0 717.0 m
+(Compmail) 511  0.00 -1 s
+525.0 h
+750.0 h
+(634) 825  0.00 -1 s
+975.0 h
+(306) 1050  0.00 -1 s
+1200.0 h
+(940) 1275  0.00 -1 s
+300.0 783.0 m
+(NSF-Mail) 511  0.00 -1 s
+525.0 h
+750.0 h
+(370) 825  0.00 -1 s
+975.0 h
+(243) 1050  0.00 -1 s
+1200.0 h
+(613) 1275  0.00 -1 s
+300.0 849.0 m
+(CGnet) 430  0.00 -1 s
+525.0 h
+750.0 h
+(171) 825  0.00 -1 s
+975.0 h
+(82) 1025  0.00 -1 s
+1200.0 h
+(253) 1275  0.00 -1 s
+300.0 914.0 m
+(USDA Mail) 545  2.00 32 s
+750.0 h
+(6) 775  0.00 -1 s
+975.0 h
+(1) 1000  0.00 -1 s
+1200.0 h
+(7) 1225  0.00 -1 s
+300.0 980.0 m
+(BellSouth) 500  0.00 -1 s
+525.0 h
+750.0 h
+(6) 775  0.00 -1 s
+975.0 h
+(10) 1025  0.00 -1 s
+1200.0 h
+(16) 1250  0.00 -1 s
+300.0 1046.0 m
+(Other) 414  0.00 -1 s
+525.0 h
+750.0 h
+(0) 775  0.00 -1 s
+975.0 h
+(0) 1000  0.00 -1 s
+1200.0 h
+(0) 1225  0.00 -1 s
+300.0 1111.0 m
+1177.0 v
+(Total) 406  0.00 -1 s
+525.0 h
+750.0 h
+(2534) 850  0.00 -1 s
+975.0 h
+(1454) 1075  0.00 -1 s
+1200.0 h
+(3988) 1300  0.00 -1 s
+300.0 1243.0 m
+(Days in) 456  2.00 32 s
+( Month) 603  1.00 32 s
+750.0 h
+(31) 800  0.00 -1 s
+300.0 1308.0 m
+(Messages) 492  0.00 -1 s
+( per Day) 669  2.00 32 s
+750.0 h
+(128.65) 888  0.00 -1 s
+3 sf
+300.0 1416.0 m
+(April 1990) 529  2.00 32 s
+1 sf
+(      ) 620  2.17 32 s
+750.0 h
+(sent) 830  0.00 -1 s
+975.0 h
+(read) 1061  0.00 -1 s
+1200.0 h
+(total) 1289  0.00 -1 s
+300.0 1482.0 m
+(Telemail) 478  0.00 -1 s
+525.0 h
+750.0 h
+(1363) 850  0.00 -1 s
+975.0 h
+(696) 1050  0.00 -1 s
+1200.0 h
+(2059) 1300  0.00 -1 s
+300.0 1547.0 m
+(MCI Mail) 503  2.00 32 s
+525.0 h
+750.0 h
+(40) 800  0.00 -1 s
+975.0 h
+(39) 1025  0.00 -1 s
+1200.0 h
+(79) 1250  0.00 -1 s
+300.0 1613.0 m
+(Compmail) 511  0.00 -1 s
+525.0 h
+750.0 h
+(771) 825  0.00 -1 s
+975.0 h
+(329) 1050  0.00 -1 s
+1200.0 h
+(1100) 1300  0.00 -1 s
+300.0 1679.0 m
+(CGnet) 430  0.00 -1 s
+525.0 h
+750.0 h
+(361) 825  0.00 -1 s
+975.0 h
+(191) 1050  0.00 -1 s
+1200.0 h
+(552) 1275  0.00 -1 s
+300.0 1744.0 m
+(USDA Mail) 545  2.00 32 s
+750.0 h
+(28) 800  0.00 -1 s
+975.0 h
+(31) 1025  0.00 -1 s
+1200.0 h
+(59) 1250  0.00 -1 s
+300.0 1810.0 m
+(BellSouth) 500  0.00 -1 s
+525.0 h
+750.0 h
+(98) 800  0.00 -1 s
+975.0 h
+(73) 1025  0.00 -1 s
+1200.0 h
+(17) 1250  0.00 -1 s
+300.0 1876.0 m
+(Other) 414  0.00 -1 s
+525.0 h
+750.0 h
+(0) 775  0.00 -1 s
+975.0 h
+(0) 1000  0.00 -1 s
+1200.0 h
+(0) 1225  0.00 -1 s
+300.0 1941.0 m
+(    ) 360  2.00 32 s
+300.0 2007.0 m
+(Total) 406  0.00 -1 s
+525.0 h
+750.0 h
+(2661) 850  0.00 -1 s
+975.0 h
+(1361) 1075  0.00 -1 s
+1200.0 h
+(4022) 1300  0.00 -1 s
+300.0 2073.0 m
+(Days in) 456  2.00 32 s
+( Month) 603  1.00 32 s
+750.0 h
+(30) 800  0.00 -1 s
+300.0 2139.0 m
+(Messages) 492  0.00 -1 s
+( per Day) 669  2.00 32 s
+750.0 h
+(134.07                                                       ) 1718  2.09 32 s
+3 sf
+300.0 2246.0 m
+(May 1990 ) 527  2.00 32 s
+1 sf
+(     ) 602  2.00 32 s
+750.0 h
+(sent) 830  0.00 -1 s
+975.0 h
+(read) 1061  0.00 -1 s
+1200.0 h
+(total) 1289  0.00 -1 s
+300.0 2312.0 m
+(Telemail) 478  0.00 -1 s
+525.0 h
+750.0 h
+(1007) 850  0.00 -1 s
+975.0 h
+(561) 1050  0.00 -1 s
+1200.0 h
+(1568) 1300  0.00 -1 s
+300.0 2378.0 m
+(MCI Mail) 503  2.00 32 s
+525.0 h
+750.0 h
+(23) 800  0.00 -1 s
+975.0 h
+(12) 1025  0.00 -1 s
+1200.0 h
+(35) 1250  0.00 -1 s
+300.0 2443.0 m
+(Compmail) 511  0.00 -1 s
+525.0 h
+750.0 h
+(815) 825  0.00 -1 s
+975.0 h
+(359) 1050  0.00 -1 s
+1200.0 h
+(1174) 1300  0.00 -1 s
+300.0 2509.0 m
+(CGnet) 430  0.00 -1 s
+525.0 h
+750.0 h
+(406) 825  0.00 -1 s
+975.0 h
+(210) 1050  0.00 -1 s
+1200.0 h
+(616) 1275  0.00 -1 s
+300.0 2575.0 m
+(USDA Mail) 545  2.00 32 s
+750.0 h
+(12) 800  0.00 -1 s
+975.0 h
+(5) 1000  0.00 -1 s
+1200.0 h
+(17) 1250  0.00 -1 s
+300.0 2640.0 m
+(BellSouth) 500  0.00 -1 s
+525.0 h
+750.0 h
+(167) 825  0.00 -1 s
+975.0 h
+(93) 1025  0.00 -1 s
+1200.0 h
+(260) 1275  0.00 -1 s
+300.0 2706.0 m
+(Other) 414  0.00 -1 s
+525.0 h
+750.0 h
+(0) 775  0.00 -1 s
+975.0 h
+(0) 1000  0.00 -1 s
+1200.0 h
+(0                                                    ) 2009  2.08 32 s
+300.0 2771.0 m
+(Total) 406  0.00 -1 s
+525.0 h
+750.0 h
+(2430) 850  0.00 -1 s
+975.0 h
+(1240) 1075  0.00 -1 s
+1200.0 h
+(3670) 1300  0.00 -1 s
+300.0 2837.0 m
+(Days in) 456  2.00 32 s
+( Month) 603  1.00 32 s
+750.0 h
+(31) 800  0.00 -1 s
+300.0 2903.0 m
+(Messages) 492  0.00 -1 s
+( per Day) 669  2.00 32 s
+750.0 h
+(118.39) 888  0.00 -1 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 22]) 2259  0.00 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 413.0 m
+(APPENDIX D) 608  1.00 32 s
+300.0 520.0 m
+(The) 383  0.00 -1 s
+( Domain Name System) 876  2.00 32 s
+1 sf
+300.0 628.0 m
+(The Domain Name System \(DNS\) provides for the translation between host names and) 2073  2.25 32 s
+300.0 694.0 m
+(addresses.   Within the Internet, this means translating from a name, such as \177ABC.ISI.EDU",) 2224  2.64 32 s
+300.0 759.0 m
+(to an IP address such as \177128.9.0.123".  The DNS is a set of protocols and databases.  The) 2155  2.44 32 s
+300.0 825.0 m
+(protocols define the syntax and semantics for a query language to ask questions about) 2049  2.38 32 s
+300.0 891.0 m
+(information located by DNS-style names.  The databases are distributed and replicated.  There) 2237  2.77 32 s
+300.0 956.0 m
+(is no dependence on a single central server, and each part of the database is provided in at least) 2254  2.67 32 s
+300.0 1022.0 m
+(two servers.) 544  2.00 32 s
+300.0 1130.0 m
+(In addition to translating names to addresses for hosts that are in the Internet, the DNS) 2070  2.40 32 s
+300.0 1196.0 m
+(provides for registering DNS-style names for other hosts reachable \(via electronic mail\)) 2097  2.45 32 s
+300.0 1261.0 m
+(through gateways or mail relays.  The records for such name registration point to an Internet) 2189  2.27 32 s
+300.0 1327.0 m
+(host \(one with an IP address\) that acts as a mail forwarder for the registered host.  For) 2063  2.24 32 s
+300.0 1393.0 m
+(example, the Australian host \177YARRA.OZ.AU" is registered in the DNS with a pointer to the) 2215  2.36 32 s
+300.0 1458.0 m
+(mail relay \177UUNET.UU.NET".  This gives electronic mail users a uniform mail addressing) 2165  2.42 32 s
+300.0 1524.0 m
+(syntax and avoids making them aware of the underlying network boundaries.) 1870  2.30 32 s
+eop
+0.0 0.0 m
+bop
+0 3300 2550 3300 2550 0 0 0 clp
+/timsps12 1 declareFont
+1 sf
+2045.0 240.0 m
+(July 1990) 2241  0.00 32 s
+807.0 h
+(Intermail and Commercial Mail Relay Services) 1754  0.00 32 s
+300.0 h
+(RFC 1168) 507  0.00 32 s
+300.0 3114.0 m
+(Westine, DeSchon, Postel & Ward) 996  0.00 32 s
+2065.0 3110.0 m
+([Page 23]) 2259  0.00 32 s
+/timsps12b 3 declareFont
+3 sf
+300.0 413.0 m
+(SECURITY CONSIDERATIONS) 1025  1.00 32 s
+1 sf
+300.0 520.0 m
+(Security) 467  0.00 -1 s
+( issues are not discussed in this memo.) 1255  2.14 32 s
+3 sf
+300.0 628.0 m
+(AUTHORS') 564  0.00 -1 s
+( ADDRESSES) 872  1.00 32 s
+300.0 736.0 m
+(Ann) 392  0.00 -1 s
+( Westine) 579  2.00 32 s
+1 sf
+300.0 801.0 m
+(USC/Information Sciences Instutite) 1019  2.00 32 s
+300.0 867.0 m
+(4676 Admiralty Way) 730  2.00 32 s
+300.0 933.0 m
+(Marina del Rey, CA  90292-6695) 992  2.00 32 s
+300.0 999.0 m
+1064.0 v
+(Phone:) 439  0.00 -1 s
+(  \(213\) 822-1511) 791  1.33 32 s
+300.0 1130.0 m
+(EMail:) 439  0.00 -1 s
+(  Westine@ISI.EDU) 856  2.00 32 s
+3 sf
+300.0 1238.0 m
+(Annette DeSchon) 674  2.00 32 s
+1 sf
+300.0 1303.0 m
+(USC/Information Sciences Instutite) 1019  2.00 32 s
+300.0 1369.0 m
+(4676 Admiralty Way) 730  2.00 32 s
+300.0 1435.0 m
+(Marina del Rey, CA  90292-6695) 992  2.00 32 s
+300.0 1500.0 m
+1566.0 v
+(Phone:) 439  0.00 -1 s
+(  \(213\) 822-1511) 791  1.33 32 s
+300.0 1631.0 m
+(EMail:  DeSchon@ISI.EDU) 876  2.00 32 s
+3 sf
+300.0 1739.0 m
+(Jon Postel) 521  2.00 32 s
+1 sf
+300.0 1805.0 m
+(USC/Information) 651  0.00 -1 s
+( Sciences Instutite) 1019  2.00 32 s
+300.0 1870.0 m
+(4676 Admiralty Way) 730  2.00 32 s
+300.0 1936.0 m
+(Marina del Rey, CA  90292-6695) 992  2.00 32 s
+300.0 2002.0 m
+2067.0 v
+(Phone:) 439  0.00 -1 s
+(  \(213\) 822-1511) 791  1.33 32 s
+300.0 2133.0 m
+(EMail:) 439  0.00 -1 s
+(  Postel@ISI.EDU) 815  2.00 32 s
+3 sf
+300.0 2241.0 m
+(Craig E. Ward) 624  2.50 32 s
+1 sf
+300.0 2306.0 m
+(USC/Information Sciences Instutite) 1019  2.00 32 s
+300.0 2372.0 m
+(4676 Admiralty Way) 730  2.00 32 s
+300.0 2438.0 m
+(Marina del Rey, CA  90292-6695) 992  2.00 32 s
+300.0 2503.0 m
+2569.0 v
+(Phone:) 439  0.00 -1 s
+(  \(213\) 822-1511) 791  1.33 32 s
+300.0 2635.0 m
+(EMail:  Ward@ISI.EDU) 804  2.00 32 s
+eop
+initialstate restore
+headerpage showpage

@@ -1,0 +1,1235 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                          A. Clark
+Request for Comments: 7294                                      Telchemy
+Category: Standards Track                                        G. Zorn
+ISSN: 2070-1721                                              Network Zen
+                                                                   C. Bi
+                                                                   STTRI
+                                                                   Q. Wu
+                                                                  Huawei
+                                                               July 2014
+
+
+        RTP Control Protocol (RTCP) Extended Report (XR) Blocks
+        for Concealment Metrics Reporting on Audio Applications
+
+Abstract
+
+   This document defines two RTP Control Protocol (RTCP) Extended Report
+   (XR) blocks that allow the reporting of concealment metrics for audio
+   applications of RTP.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7294.
+
+Copyright Notice
+
+   Copyright (c) 2014 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+Clark, et al.                Standards Track                    [Page 1]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+     1.1.  Loss Concealment and Concealed Seconds Metrics
+           Blocks  . . . . . . . . . . . . . . . . . . . . . . . . .   2
+     1.2.  RTCP and RTCP Extended Reports  . . . . . . . . . . . . .   3
+     1.3.  Performance Metrics Framework . . . . . . . . . . . . . .   4
+     1.4.  Applicability . . . . . . . . . . . . . . . . . . . . . .   4
+   2.  Terminology . . . . . . . . . . . . . . . . . . . . . . . . .   4
+     2.1.  Standards Language  . . . . . . . . . . . . . . . . . . .   4
+     2.2.  Notations . . . . . . . . . . . . . . . . . . . . . . . .   4
+   3.  Loss Concealment Metrics Block  . . . . . . . . . . . . . . .   5
+     3.1.  Report Block Structure  . . . . . . . . . . . . . . . . .   5
+     3.2.  Definition of Fields in Loss Concealment Metrics Block  .   5
+   4.  Concealed Seconds Metrics Block . . . . . . . . . . . . . . .   9
+     4.1.  Report Block Structure  . . . . . . . . . . . . . . . . .  10
+     4.2.  Definition of Fields in Concealed Seconds Metrics Block .  10
+   5.  SDP Signaling . . . . . . . . . . . . . . . . . . . . . . . .  14
+     5.1.  SDP rtcp-xr-attrib Attribute Extension  . . . . . . . . .  14
+     5.2.  Offer/Answer Usage  . . . . . . . . . . . . . . . . . . .  14
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  14
+     6.1.  New RTCP XR Block Type Values . . . . . . . . . . . . . .  14
+     6.2.  New RTCP XR SDP Parameters  . . . . . . . . . . . . . . .  15
+     6.3.  Contact Information for Registrations . . . . . . . . . .  15
+   7.  Security Considerations . . . . . . . . . . . . . . . . . . .  15
+   8.  Contributors  . . . . . . . . . . . . . . . . . . . . . . . .  15
+   9.  Acknowledgements  . . . . . . . . . . . . . . . . . . . . . .  15
+   10. References  . . . . . . . . . . . . . . . . . . . . . . . . .  16
+     10.1.  Normative References . . . . . . . . . . . . . . . . . .  16
+     10.2.  Informative References . . . . . . . . . . . . . . . . .  16
+   Appendix A.  Metrics Represented Using the Template from RFC 6390  17
+
+1.  Introduction
+
+1.1.  Loss Concealment and Concealed Seconds Metrics Blocks
+
+   At any instant, the audio output at a receiver may be classified as
+   either 'normal' or 'concealed'.  'Normal' refers to playout of audio
+   payload received from the remote end and also includes locally
+   generated signals such as announcements, tones, and comfort noise.
+   'Concealed' refers to playout of locally generated signals used to
+   mask the impact of network impairments or to reduce the audibility of
+   jitter buffer adaptations.
+
+   This document defines two new concealment-related block types to
+   augment those defined in [RFC3611] for use in a range of RTP
+   applications.  These two block types extend the packet loss
+   concealment mechanism defined in Section 4.7.6 of [RFC3611].
+
+
+
+Clark, et al.                Standards Track                    [Page 2]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   The first block type, the Loss Concealment Metrics Block, provides
+   metrics for actions taken by the receiver to mitigate the effect of
+   packet loss and packet discard.  Specifically, the first metric
+   (On-Time Playout Duration) reports the duration of normal playout of
+   data that the receiver obtained from the sender's stream.  A second
+   metric (Loss Concealment Duration) reports the total time during
+   which the receiver played out media data that was manufactured
+   locally, because the sender's data for these periods was not
+   available due to packet loss or discard.  A similar metric (Buffer
+   Adjustment Concealment Duration) reports the duration of playout of
+   locally manufactured data replacing data that is unavailable due to
+   adaptation of an adaptive de-jitter buffer.  Further metrics (Playout
+   Interrupt Count and Mean Playout Interrupt Size) report the number of
+   times normal playout was interrupted and the mean duration of these
+   interruptions.
+
+   Loss Concealment Duration and Buffer Adjustment Concealment Duration
+   are reported separately because buffer adjustment is typically
+   arranged to occur in silence periods, so it may have very little
+   impact on user experience, whilst loss concealment may occur at any
+   time.
+
+   The second block type, the Concealed Seconds Metrics Block, provides
+   metrics for Concealed Seconds, which are measured at the receiving
+   end of the RTP stream.  Specifically, the first metric (Unimpaired
+   Seconds) reports the number of whole seconds occupied only with
+   normal playout of data that the receiver obtained from the sender's
+   stream.  The second metric (Concealed Seconds) reports the number of
+   whole seconds during which the receiver played out any locally
+   generated media data.  A third metric, Severely Concealed Seconds
+   (SCSs), reports the number of whole seconds during which the receiver
+   played out locally generated data to conceal a lost or discarded
+   frame percentage in excess of the configured SCS Threshold.
+
+   These metrics belongs to the class of transport-related terminal
+   metrics defined in [RFC6792].
+
+1.2.  RTCP and RTCP Extended Reports
+
+   The use of RTCP for reporting is defined in [RFC3550].  [RFC3611]
+   defines an extensible structure for reporting using an RTCP Extended
+   Report (XR).  This document defines a new Extended Report block that
+   MUST be used as defined in [RFC3550] and [RFC3611].
+
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                    [Page 3]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+1.3.  Performance Metrics Framework
+
+   The Performance Metrics Framework [RFC6390] provides guidance on the
+   definition and specification of performance metrics.  The RTP
+   Monitoring Framework [RFC6792] provides guidelines for reporting
+   block format using RTCP XR.  The metrics blocks described in this
+   document are in accordance with those guidelines.
+
+1.4.  Applicability
+
+   These metrics are applicable to audio applications of RTP and the
+   audio component of audio/video applications in which the packet loss
+   concealment machinery is contained at the receiving end to mitigate
+   the impact of network impairments to user's perception of media
+   quality.
+
+2.  Terminology
+
+2.1.  Standards Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+2.2.  Notations
+
+   The report blocks in this document make use of binary fractions.  The
+   following terminology is used:
+
+      Numeric formats S X:Y
+
+         where S indicates a two's complement signed representation, X
+         the number of bits prior to the decimal place, and Y the number
+         of bits after the decimal place.
+
+         Hence, 8:8 represents an unsigned number in the range 0.0 to
+         255.996 with a granularity of 0.0039.  S7:8 would represent the
+         range -127.996 to +127.996. 0:16 represents a proper binary
+         fraction with range
+
+         0.0 to 1 - 1/65536 = 0.9999847
+
+         though note that use of flag values at the top of the numeric
+         range slightly reduces this upper limit.  For example, if the
+         16-bit values 0xFFFE and 0xFFFF are used as flags for "over-
+         range" and "unavailable" conditions, a 0:16 quantity has range
+
+         0.0 to 1 - 3/65536 = 0.9999542
+
+
+
+Clark, et al.                Standards Track                    [Page 4]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+3.  Loss Concealment Metrics Block
+
+   The Loss Concealment Metrics Block is intended to be used as
+   described in this section, in conjunction with information from the
+   Measurement Information Block [RFC6776].  Instances of this metrics
+   block refer by synchronization source (SSRC) to the separate
+   auxiliary Measurement Information Block [RFC6776], which describes
+   measurement periods in use (see [RFC6776], Section 4.2).  This
+   metrics block relies on the measurement period in the Measurement
+   Information Block indicating the span of the report and SHOULD be
+   sent in the same compound RTCP packet as the Measurement Information
+   Block.  If the measurement period is not received in the same
+   compound RTCP packet as this metrics block, this metrics block MUST
+   be discarded.
+
+3.1.  Report Block Structure
+
+   The structure of the Loss Concealment Metrics Block is as follows.
+
+     0               1               2               3
+     0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |    BT=30      | I |plc|  resv |       block length=6          |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                         SSRC of Source                        |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                 On-Time Playout Duration                      |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                  Loss Concealment Duration                    |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |              Buffer Adjustment Concealment Duration           |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |    Playout Interrupt Count    |           Reserved            |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                 Mean Playout Interrupt Size                   |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                 Figure 1: Loss Concealment Metrics Block
+
+3.2.  Definition of Fields in Loss Concealment Metrics Block
+
+   Block type (BT): 8 bits
+
+      A Loss Concealment Metrics Block is identified by the constant 30.
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                    [Page 5]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   Interval Metric flag (I): 2 bits
+
+      This field is used to indicate whether the loss concealment
+      metrics are Sampled, Interval, or Cumulative metrics:
+
+         I=10: Interval Duration - the reported value applies to the
+         most recent measurement interval duration between successive
+         metrics reports.
+
+         I=11: Cumulative Duration - the reported value applies to the
+         accumulation period characteristic of cumulative measurements.
+
+         I=01: Sampled Value - the reported value is a sampled
+         instantaneous value (not allowed in this block).
+
+         I=00: Reserved value - this value is reserved for future use.
+
+      In this document, Loss Concealment metrics can only be measured
+      over definite intervals and cannot be sampled.  Senders MUST NOT
+      use the values I=00 or I=01.  If a block is received with I=00 or
+      I=01, the receiver MUST discard the block.
+
+   Packet Loss Concealment Method (plc): 2 bits
+
+      This field is used to identify the packet loss concealment method
+      in use at the receiver, according to the following code:
+
+         bits 014-015
+
+            0 = silence insertion
+
+            1 = simple replay, no attenuation
+
+            2 = simple replay, with attenuation
+
+            3 = enhancement
+
+            Other values are reserved.
+
+      Note that the enhancement method (plc=3) for packet loss
+      concealment offers an improved audio quality and better robustness
+      against packet losses [G.711] and is equivalent to "enhanced" in
+      Section 4.7.6 of [RFC3611].
+
+   Reserved (resv): 4 bits
+
+      These bits are reserved.  They MUST be set to zero by senders and
+      ignored by receivers (see [RFC6709], Section 4.2).
+
+
+
+Clark, et al.                Standards Track                    [Page 6]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   block length: 16 bits
+
+      The length of this report block in 32-bit words, minus one.  For
+      the Loss Concealment Metrics Block, the block length is equal to
+      6.
+
+   SSRC of Source: 32 bits
+
+      As defined in Section 4.1 of [RFC3611].
+
+   On-Time Playout Duration: 32 bits
+
+      'On-time playout' is the uninterrupted, in-sequence playout of
+      valid decoded audio information originating from the remote
+      endpoint.  This includes comfort noise during periods of remote
+      talker silence, if Voice Activity Detection (VAD) [VAD] is used,
+      and locally generated or regenerated tones and announcements.
+
+      An equivalent definition is that on-time playout is playout of any
+      signal other than those used for concealment.
+
+      On-time playout duration is expressed in units of RTP timestamp
+      and MUST include both speech and silence intervals, whether VAD is
+      used or not.
+
+      Two values are reserved: a value of 0xFFFFFFFE indicates out of
+      range (that is, a measured value exceeding 0xFFFFFFFD), and a
+      value of 0xFFFFFFFF indicates that the measurement is unavailable.
+
+   Loss Concealment Duration: 32 bits
+
+      The duration, expressed in units of RTP timestamp, of audio
+      playout corresponding to Loss-Type concealment.
+
+      Loss-Type concealment is reactive insertion or deletion of samples
+      in the audio playout stream due to effective frame loss at the
+      audio decoder.  Effective frame loss is the event in which a frame
+      of coded audio is simply not present at the audio decoder when
+      required.  In this case, substitute audio samples are generally
+      formed, at the decoder or elsewhere, to reduce audible impairment.
+
+      Two values are reserved: a value of 0xFFFFFFFE indicates out of
+      range (that is, a measured value exceeding 0xFFFFFFFD), and a
+      value of 0xFFFFFFFF indicates that the measurement is unavailable.
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                    [Page 7]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   Buffer Adjustment Concealment Duration: 32 bits
+
+      The duration, expressed in units of RTP timestamp, of audio
+      playout corresponding to Buffer Adjustment-Type concealment, if
+      known.
+
+      Buffer Adjustment-Type concealment is proactive or controlled
+      insertion or deletion of samples in the audio playout stream due
+      to jitter buffer adaptation, re-sizing decisions, or re-centering
+      decisions within the endpoint.
+
+      Because this insertion is controlled, rather than occurring
+      randomly in response to losses, it is typically less audible than
+      Loss-Type concealment.  For example, jitter buffer adaptation
+      events may be constrained to occur during periods of talker
+      silence, in which case only silence duration is affected, or
+      sophisticated time-stretching methods for insertion/deletion
+      during favorable periods in active speech may be employed.
+
+      Concealment events that cannot be classified as Buffer Adjustment-
+      Type MUST be classified as Loss-Type.
+
+      Two values are reserved: a value of 0xFFFFFFFE indicates out of
+      range (that is, a measured value exceeding 0xFFFFFFFD), and a
+      value of 0xFFFFFFFF indicates that the measurement is unavailable.
+
+   Playout Interrupt Count: 16 bits
+
+      The number of interruptions to normal playout that occurred during
+      the reporting period.
+
+      Two values are reserved: a value of 0xFFFE indicates out of range
+      (that is, a measured value exceeding 0xFFFD), and a value of
+      0xFFFF indicates that the measurement is unavailable.
+
+   Reserved: 16 bits
+
+      These bits are reserved.  They MUST be set to zero by senders and
+      ignored by receivers (see [RFC6709], Section 4.2).
+
+
+
+
+
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                    [Page 8]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   Mean Playout Interrupt Size: 32 bits
+
+      The mean duration, expressed in units of RTP timestamp, of
+      interruptions to normal playout that occurred during the reporting
+      period.
+
+      Two values are reserved: a value of 0xFFFFFFFE indicates out of
+      range (that is, a measured value exceeding 0xFFFFFFFD), and a
+      value of 0xFFFFFFFF indicates that the measurement is unavailable.
+
+4.  Concealed Seconds Metrics Block
+
+   The Concealed Seconds Metrics Block is intended to be used as
+   described in this section, in conjunction with information from the
+   Measurement Information Block [RFC6776].  It provides a description
+   of potentially audible impairments due to lost and discarded packets
+   at the endpoint, expressed on a time basis analogous to a traditional
+   Public Switched Telephone Network (PSTN) T1/E1 errored seconds
+   metric.  Instances of this metrics block refer by synchronization
+   source (SSRC) to the separate auxiliary Measurement Information Block
+   [RFC6776] that describes measurement periods in use (see [RFC6776],
+   Section 4.2).  This metrics block relies on the measurement period in
+   the Measurement Information Block indicating the span of the report
+   and SHOULD be sent in the same compound RTCP packet as the
+   Measurement Information Block.  If the measurement period is not
+   received in the same compound RTCP packet as this metrics block, this
+   metrics block MUST be discarded.
+
+   The following metrics are based on successive one-second intervals as
+   declared by an RTP clock.  This RTP clock does not need to be
+   synchronized to any external time reference.  The starting time of
+   this clock is unspecified.  Note that this implies that the same loss
+   pattern could result in slightly different count values, depending on
+   where the losses occur relative to the particular one-second
+   demarcation points.  For example, two loss events occurring 50 ms
+   apart could result in either one Concealed Second or two, depending
+   on the particular one-second boundaries used.
+
+   The seconds in this sub-block are not necessarily calendar seconds.
+   At the tail end of a session, periods of time of less than one second
+   shall be incorporated into these counts if they exceed 500 ms and
+   shall be disregarded if they are less than 500 ms.
+
+
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                    [Page 9]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+4.1.  Report Block Structure
+
+   The structure of the Concealed Seconds Metrics Block is as follows.
+
+     0                   1                   2                   3
+     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |    BT=31      | I |plc|  resv |       block length=4          |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                         SSRC of Source                        |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                    Unimpaired Seconds                         |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                    Concealed Seconds                          |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    | Severely Concealed Seconds    | Reserved      | SCS Threshold |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                 Figure 2: Concealed Seconds Metrics Block
+
+4.2.  Definition of Fields in Concealed Seconds Metrics Block
+
+   Block type (BT): 8 bits
+
+      A Concealed Seconds Metrics Block is identified by the constant
+      31.
+
+   Interval Metric flag (I): 2 bits
+
+      This field is used to indicate whether the Concealed Seconds
+      metrics are Sampled, Interval, or Cumulative metrics:
+
+         I=10: Interval Duration - the reported value applies to the
+         most recent measurement interval duration between successive
+         metrics reports.
+
+         I=11: Cumulative Duration - the reported value applies to the
+         accumulation period characteristic of cumulative measurements.
+
+         I=01: Sampled Value - the reported value is a sampled
+         instantaneous value (Not allowed in this block).
+
+         I=00: Reserved value - this value is reserved for future use.
+
+      In this document, Concealed Seconds metrics can only be measured
+      over definite intervals and cannot be sampled.  Senders MUST NOT
+      use the values I=00 or I=01.  If a block is received with I=00 or
+      I=01, the receiver MUST discard the block.
+
+
+
+Clark, et al.                Standards Track                   [Page 10]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   Packet Loss Concealment Method (plc): 2 bits
+
+      This field is used to identify the packet loss concealment method
+      in use at the receiver, according to the following code:
+
+         bits 014-015
+
+            0 = silence insertion
+
+            1 = simple replay, no attenuation
+
+            2 = simple replay, with attenuation
+
+            3 = enhancement
+
+            Other values are reserved.
+
+      Note that the enhancement method (plc=3) for packet loss
+      concealment offers an improved audio quality and a better
+      robustness against packet losses [G.711] and is equivalent to
+      "enhanced" in Section 4.7.6 of [RFC3611].
+
+   Reserved (resv): 4 bits
+
+      These bits are reserved.  They MUST be set to zero by senders and
+      ignored by receivers (see [RFC6709], Section 4.2).
+
+   Block Length: 16 bits
+
+      The length of this report block in 32-bit words, minus one.  For
+      the Concealed Seconds Metrics Block, the block length is equal to
+      4.
+
+   SSRC of Source: 32 bits
+
+      As defined in Section 4.1 of [RFC3611].
+
+   Unimpaired Seconds: 32 bits
+
+      A count of the number of Unimpaired Seconds that have occurred.
+
+      An Unimpaired Second is defined as a continuous period of one
+      second during which no frame loss or discard due to late arrival
+      has occurred.  Every second in a session must be classified as
+      either OK or Concealed.
+
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 11]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+      Normal playout of comfort noise or other silence-concealment
+      signals during periods of talker silence, if VAD is used, shall be
+      counted as Unimpaired Seconds.
+
+      Two values are reserved: a value of 0xFFFFFFFE indicates out of
+      range (that is, a measured value exceeding 0xFFFFFFFD), and a
+      value of 0xFFFFFFFF indicates that the measurement is unavailable.
+
+   Concealed Seconds: 32 bits
+
+      A count of the number of Concealed Seconds that have occurred.
+
+      A Concealed Second is defined as a continuous period of one second
+      during which any frame loss or discard due to late arrival has
+      occurred.
+
+      Equivalently, a Concealed Second is one in which some Loss-Type
+      concealment has occurred.  Buffer Adjustment-Type concealment
+      SHOULD NOT cause Concealed Seconds to be incremented, with the
+      following exception.  An implementation MAY cause Concealed
+      Seconds to be incremented for 'emergency' buffer adjustments made
+      during talkspurts.
+
+      Loss-Type concealment is reactive insertion or deletion of samples
+      in the audio playout stream due to effective frame loss at the
+      audio decoder.  "Effective frame loss" is the event in which a
+      frame of coded audio is simply not present at the audio decoder
+      when required.  In this case, substitute audio samples are
+      generally formed, at the decoder or elsewhere, to reduce audible
+      impairment.
+
+      Buffer Adjustment-Type concealment is proactive or controlled
+      insertion or deletion of samples in the audio playout stream due
+      to jitter buffer adaptation, re-sizing decisions, or re-centering
+      decisions within the endpoint.
+
+      Because this insertion is controlled, rather than occurring
+      randomly in response to losses, it is typically less audible than
+      Loss-Type concealment.  For example, jitter buffer adaptation
+      events may be constrained to occur during periods of talker
+      silence, in which case only silence duration is affected, or
+      sophisticated time-stretching methods for insertion/deletion
+      during favorable periods in active speech may be employed.  For
+      these reasons, Buffer Adjustment-Type concealment MAY be exempted
+      from inclusion in calculations of Concealed Seconds and Severely
+      Concealed Seconds.
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 12]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+      However, an implementation SHOULD include Buffer Adjustment-Type
+      concealment in counts of Concealed Seconds and Severely Concealed
+      Seconds if the event occurs at an 'inopportune' moment, such as an
+      emergency or large, immediate adaptation during active speech or
+      an unsophisticated adaptation during speech without regard for the
+      underlying signal.  In these cases, the assumption of low
+      audibility cannot hold.  In other words, jitter buffer adaptation
+      events that may be presumed to be audible SHOULD be included in
+      Concealed Seconds and Severely Concealed Seconds counts.
+
+      Concealment events that cannot be classified as Buffer Adjustment-
+      Type MUST be classified as Loss-Type.
+
+      For clarification, the count of Concealed Seconds MUST include the
+      count of Severely Concealed Seconds.
+
+      Two values are reserved: a value of 0xFFFFFFFE indicates out of
+      range (that is, a measured value exceeding 0xFFFFFFFD), and a
+      value of 0xFFFFFFFF indicates that the measurement is unavailable.
+
+   Severely Concealed Seconds: 16 bits
+
+      A count of the number of Severely Concealed Seconds.
+
+      A Severely Concealed Second is defined as a non-overlapping period
+      of one second during which the cumulative amount of time that has
+      been subject to frame loss or discard due to late arrival exceeds
+      the SCS Threshold.
+
+      Two values are reserved: a value of 0xFFFE indicates out of range
+      (that is, a measured value exceeding 0xFFFD), and a value of
+      0xFFFF indicates that the measurement is unavailable.
+
+   Reserved: 8 bits
+
+      These bits are reserved.  They MUST be set to zero by senders and
+      ignored by receivers (see [RFC6709], Section 4.2).
+
+   SCS Threshold: 8 bits
+
+      The SCS Threshold is defined as the percentage of packets
+      corresponding to lost or discarded frames that must occur within a
+      one second period in order for the second to be classified as a
+      Severely Concealed Second.  This is expressed in numeric format
+      0:8 and hence can represent a range of 0 to 99.6 percent loss or
+      discard.
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 13]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+      A default threshold of 5 percent effective frame loss (50 ms
+      effective frame loss ) per second is suggested.  This corresponds
+      to an SCS Threshold in hexadecimal of 0x0D.
+
+5.  SDP Signaling
+
+   [RFC3611] defines the use of SDP (Session Description Protocol)
+   [RFC4566] for signaling the use of XR blocks.  XR blocks MAY be used
+   without prior signaling.
+
+5.1.  SDP rtcp-xr-attrib Attribute Extension
+
+   This section augments the SDP attribute "rtcp-xr" [RFC3611] by
+   providing two additional values of "xr-format" to signal the use of
+   the two report blocks defined in this document.
+
+   xr-format =/ xr-conceal-block
+              / xr-conc-sec-block
+
+   xr-conceal-block = "loss-conceal"
+   xr-conc-sec-block = "conc-sec" ["=" thresh]
+
+   thresh      = 1*DIGIT          ; threshold for SCS (ms)
+   DIGIT =     <as defined in Section 3 of [RFC5234]>
+
+5.2.  Offer/Answer Usage
+
+   When SDP is used in Offer/Answer context, the SDP Offer/Answer usage
+   defined in [RFC3611] applies.  Note that "thresh" is declared by the
+   offer.
+
+6.  IANA Considerations
+
+   New block types for RTCP XR are subject to IANA registration.  For
+   general guidelines on IANA considerations for RTCP XR, refer to
+   [RFC3611].
+
+6.1.  New RTCP XR Block Type Values
+
+   This document assigns two block type values in the IANA "RTP Control
+   Protocol Extended Reports (RTCP XR) Block Type Registry" under the
+   subregistry "RTCP XR Block Type":
+
+   Name:       LCB
+   Long Name:  Loss Concealment Metrics Block
+   Value       30
+   Reference:  Section 3.1
+
+
+
+
+Clark, et al.                Standards Track                   [Page 14]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   Name:       CSB
+   Long Name:  Concealed Seconds Metrics Block
+   Value       31
+   Reference:  Section 4.1
+
+6.2.  New RTCP XR SDP Parameters
+
+   This document also registers two new parameters in the "RTP Control
+   Protocol Extended Reports (RTCP XR) Session Description Protocol
+   (SDP) Parameters Registry":
+
+   o  "loss-conceal"
+
+   o  "conc-sec"
+
+6.3.  Contact Information for Registrations
+
+   The contact information for the registrations is:
+
+   RAI Area Directors
+
+   rai-ads@tools.ietf.org
+
+7.  Security Considerations
+
+   It is believed that the RTCP XR blocks defined in this document
+   introduce no new security considerations beyond those described in
+   [RFC3611].  These blocks do not provide per-packet statistics, so the
+   risk to confidentiality documented in Section 7, Paragraph 3 of
+   [RFC3611] does not apply.
+
+8.  Contributors
+
+   Geoff Hunt wrote the initial version of this document.
+
+9.  Acknowledgements
+
+   The authors gratefully acknowledge reviews and feedback provided by
+   Bruce Adams, Philip Arden, Amit Arora, Bob Biskner, Kevin Connor,
+   Alissa Cooper, Claus Dahm, Randy Ethier, Roni Even, Adrian Farrel,
+   Jim Frauenthal, Albert Higashi, Tom Hock, Shane Holthaus, Paul Jones,
+   Rajesh Kumar, Keith Lantz, Alfred C. Morton, Mohamed Mostafa, Amy
+   Pendleton, Colin Perkins, Mike Ramalho, Ravi Raviraj, Pete Resnick,
+   Albrecht Schwarz, Meral Shirazipour, Tom Taylor, and Hideaki Yamada.
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 15]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, July 2003.
+
+   [RFC3611]  Friedman, T., Caceres, R., and A. Clark, "RTP Control
+              Protocol Extended Reports (RTCP XR)", RFC 3611, November
+              2003.
+
+   [RFC4566]  Handley, M., Jacobson, V., and C. Perkins, "SDP: Session
+              Description Protocol", RFC 4566, July 2006.
+
+   [RFC5234]  Crocker, D. and P. Overell, "Augmented BNF for Syntax
+              Specifications: ABNF", STD 68, RFC 5234, January 2008.
+
+   [RFC6776]  Clark, A. and Q. Wu, "Measurement Identity and Information
+              Reporting Using a Source Description (SDES) Item and an
+              RTCP Extended Report (XR) Block", RFC 6776, October 2012.
+
+10.2.  Informative References
+
+   [G.711]    ITU-T, "Pulse Code Modulation (PCM) of Voice Frequencies",
+              ITU-T Recommendation G.711, 1988.
+
+   [RFC6390]  Clark, A. and B. Claise, "Guidelines for Considering New
+              Performance Metric Development", BCP 170, RFC 6390,
+              October 2011.
+
+   [RFC6709]  Carpenter, B., Aboba, B., and S. Cheshire, "Design
+              Considerations for Protocol Extensions", RFC 6709,
+              September 2012.
+
+   [RFC6792]  Wu, Q., Hunt, G., and P. Arden, "Guidelines for Use of the
+              RTP Monitoring Framework", RFC 6792, November 2012.
+
+   [VAD]      Wikipedia, "Voice activity detection", January 2014,
+              <http://en.wikipedia.org/w/
+              index.php?title=Voice_activity_detection&oldid=593287643>.
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 16]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+Appendix A.  Metrics Represented Using the Template from RFC 6390
+
+   a.  On-Time Playout Duration Metric
+
+       *  Metric Name: On-Time Playout Duration
+
+       *  Metric Description: 'On-time playout' is the uninterrupted,
+          in-sequence playout of valid decoded audio information
+          originating from the remote endpoint.  On-time playout
+          duration is playout duration of any signal other than those
+          used for concealment.
+
+       *  Method of Measurement or Calculation: See Section 3.2, On-Time
+          Playout Duration definition.
+
+       *  Units of Measurement: See Section 3.2, On-Time Playout
+          Duration definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 3rd paragraph.
+
+       *  Measurement Timing: See Section 3, 1st paragraph for
+          measurement timing and Section 3.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+   b.  Loss Concealment Duration Metric
+
+       *  Metric Name: Loss Concealment Duration
+
+       *  Metric Description: The duration of audio playout
+          corresponding to Loss-Type concealment.
+
+       *  Method of Measurement or Calculation: See Section 3.2, Loss
+          Concealment Duration definition.
+
+       *  Units of Measurement: See Section 3.2, Loss Concealment
+          Duration definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 3rd paragraph.
+
+       *  Measurement Timing: See Section 3, 1st paragraph for
+          measurement timing and Section 3.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+
+
+Clark, et al.                Standards Track                   [Page 17]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+       *  Reporting Model: See RFC 3611.
+
+   c.  Buffer Adjustment Concealment Duration Metric
+
+       *  Metric Name: Buffer Adjustment Concealment Duration
+
+       *  Metric Description: The duration of audio playout
+          corresponding to Buffer Adjustment-Type concealment.
+
+       *  Method of Measurement or Calculation: See Section 3.2, Buffer
+          Adjustment Concealment Duration definition.
+
+       *  Units of Measurement: See Section 3.2, Buffer Adjustment
+          Concealment Duration definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 3rd paragraph.
+
+       *  Measurement Timing: See Section 3, 1st paragraph for
+          measurement timing and Section 3.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+   d.  Playout Interrupt Count Metric
+
+       *  Metric Name: Playout Interrupt Count
+
+       *  Metric Description: The number of interruptions to normal
+          playout that occurred during the reporting period.
+
+       *  Method of Measurement or Calculation: See Section 3.2, Playout
+          Interrupt Count definition.
+
+       *  Units of Measurement: See Section 3.2, Playout Interrupt Count
+          definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 3rd paragraph.
+
+       *  Measurement Timing: See Section 3, 1st paragraph for
+          measurement timing and Section 3.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+
+
+
+Clark, et al.                Standards Track                   [Page 18]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   e.  Mean Playout Interrupt Size Metric
+
+       *  Metric Name: Mean Playout Interrupt Size
+
+       *  Metric Description: The mean duration of interruptions to
+          normal playout that occurred during the reporting period.
+
+       *  Method of Measurement or Calculation: See Section 3.2, Playout
+          Interrupt Count definition.
+
+       *  Units of Measurement: See Section 3.2, Playout Interrupt Count
+          definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 3rd paragraph.
+
+       *  Measurement Timing: See Section 3, 1st paragraph for
+          measurement timing and Section 3.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+   f.  Unimpaired Seconds Metric
+
+       *  Metric Name: Unimpaired Seconds
+
+       *  Metric Description: A count of the number of Unimpaired
+          Seconds that have occurred.
+
+       *  Method of Measurement or Calculation: See Section 4.2,
+          Unimpaired Seconds definition.
+
+       *  Units of Measurement: See Section 4.2, Unimpaired Seconds
+          definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 5th paragraph.
+
+       *  Measurement Timing: See Section 4, 1st paragraph for
+          measurement timing and Section 4.2 paragraph for Interval
+          Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 19]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   g.  Concealed Seconds Metric
+
+       *  Metric Name: Concealed Seconds
+
+       *  Metric Description: A count of the number of Concealed Seconds
+          that have occurred.
+
+       *  Method of Measurement or Calculation: See Section 4.2,
+          Concealed Seconds definition.
+
+       *  Units of Measurement: See Section 4.2, Concealed Seconds
+          definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 5th paragraph.
+
+       *  Measurement Timing: See Section 4, 1st paragraph for
+          measurement timing and Section 4.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+   h.  Severely Concealed Seconds Metric
+
+       *  Metric Name: Severely Concealed Seconds
+
+       *  Metric Description: A count of the number of Severely
+          Concealed Seconds that have occurred.
+
+       *  Method of Measurement or Calculation: See Section 4.2,
+          Severely Concealed Seconds definition.
+
+       *  Units of Measurement: See Section 4.2, Severely Concealed
+          Seconds definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 5th paragraph.
+
+       *  Measurement Timing: See Section 4, 1st paragraph for
+          measurement timing and Section 4.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 20]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+   i.  SCS Threshold Metric
+
+       *  Metric Name: SCS Threshold
+
+       *  Metric Description: The amount of time corresponding to lost
+          or discarded frames that must occur within a one-second period
+          in order for the second to be classified as a Severely
+          Concealed Second.
+
+       *  Method of Measurement or Calculation: See Section 4.2, SCS
+          Threshold definition.
+
+       *  Units of Measurement: See Section 4.2, SCS Threshold
+          definition.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          Section 1.1, 5th paragraph.
+
+       *  Measurement Timing: See Section 4, 1st paragraph for
+          measurement timing and Section 4.2 for Interval Metric flag.
+
+       *  Use and Applications: See Section 1.4.
+
+       *  Reporting Model: See RFC 3611.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 21]
+
+RFC 7294                   RTCP XR Concealment                 July 2014
+
+
+Authors' Addresses
+
+   Alan Clark
+   Telchemy Incorporated
+   2905 Premiere Parkway, Suite 280
+   Duluth, GA  30097
+   USA
+
+   EMail: alan.d.clark@telchemy.com
+
+
+   Glen Zorn
+   Network Zen
+   77/440 Soi Phoomjit, Rama IV Road
+   Phra Khanong, Khlong Toie
+   Bangkok  10110
+   Thailand
+
+   Phone: +66 (0) 87 502 4274
+   EMail: gwz@net-zen.net
+
+
+   Claire Bi
+   Shanghai Research Institute of China Telecom Corporation Limited
+   No. 1835, South Pudong Road
+   Shanghai  200122
+   China
+
+   EMail: bijy@sttri.com.cn
+
+
+   Qin Wu
+   Huawei
+   101 Software Avenue, Yuhua District
+   Nanjing, Jiangsu  210012
+   China
+
+   EMail: sunseawq@huawei.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+Clark, et al.                Standards Track                   [Page 22]
+

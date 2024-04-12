@@ -1,0 +1,899 @@
+
+
+
+
+
+
+Network Working Group                                        M. Lonnfors
+Request for Comments: 5262                                         Nokia
+Category: Standards Track                                    E. Leppanen
+                                                              Individual
+                                                            H. Khartabil
+                                                      Ericsson Australia
+                                                           J. Urpalainen
+                                                                   Nokia
+                                                          September 2008
+
+
+ Presence Information Data Format (PIDF) Extension for Partial Presence
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Abstract
+
+   The Presence Information Document Format (PIDF) specifies the
+   baseline XML-based format for describing presence information.  One
+   of the characteristics of the PIDF is that the document always needs
+   to carry all presence information available for the presentity.  In
+   some environments where low bandwidth and high latency links can
+   exist, it is often beneficial to limit the amount of transported
+   information over the network.  This document introduces a new MIME
+   type that enables transporting of either only the changed parts or
+   the full PIDF-based presence information.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 1]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Conventions .....................................................3
+   3. Structure of PIDF Diff Documents ................................3
+      3.1. 'version' Attribute ........................................4
+      3.2. 'entity' Attribute .........................................4
+   4. Usage of 'application/pidf-diff+xml' ............................4
+   5. IANA Considerations .............................................5
+      5.1. URN Sub-Namespace Registration for
+           'urn:ietf:params:xml:ns:pidf-diff' .........................5
+      5.2. application/pidf-diff+xml MIME Type ........................6
+      5.3. XML Schema Registration ....................................7
+   6. Examples ........................................................8
+   7. XML Schema .....................................................11
+   8. Interoperability Considerations ................................12
+   9. Security Considerations ........................................13
+   10. Internationalization Considerations ...........................13
+   11. Error Handling ................................................13
+   12. Acknowledgments ...............................................13
+   13. References ....................................................13
+      13.1. Normative references .....................................13
+      13.2. Informative references ...................................14
+
+1.  Introduction
+
+   The Presence Information Document Format (PIDF) [RFC3863] specifies
+   the baseline XML-based format for describing presence information.
+   One of the characteristics of the PIDF is that the document always
+   needs to carry all presence information available for the presentity.
+   In some environments where low bandwidth and high latency links can
+   exist, it is often beneficial to limit the amount of transported
+   information over the network.
+
+   This document introduces a new MIME-Type 'application/pidf-diff+xml',
+   which enables transporting of either only the changed parts or the
+   full PIDF based presence information.  The root element of the
+   document distinguishes whether the partial or full PIDF document
+   content was transported.
+
+      Note: With this new MIME-Type, applications can easily negotiate
+      the support of partial updates of presence by using the Accept
+      header.  If PIDF had initially been designed for partial updates,
+      a new separate MIME-Type would have been unnecessary.
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 2]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+2.  Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119] and
+   indicate requirement levels for compliant implementations.
+
+   This memo makes use of the vocabulary defined in RFC 2778 [RFC2778].
+   In addition, the following terms are defined:
+
+   Full presence document:  A presence document that contains all the
+      presentity's presence information that is available to a
+      particular watcher.
+
+   Partial presence document:  A presence document that represents a
+      fragment of the full presence document.  A partial presence
+      document can only be understood in the context of the full
+      presence document, i.e., a partial presence document modifies a
+      cached copy of the full presence document.
+
+3.  Structure of PIDF Diff Documents
+
+   The MIME type 'application/pidf-diff+xml' defines the new content
+   type for partial PIDF documents.
+
+   The XML Schema imports the PIDF [RFC3863] schema so that the full
+   PIDF document content with the addition of a 'version' attribute can
+   be transported.  The root element of the document is then
+   <pidf-full>, and the 'version' attribute information can be included
+   within it.  Otherwise, the content of <pidf-full> element is exactly
+   the same as what would have been if 'application/pidf+xml' content
+   type had been used.  Although the XML Schema also allows using
+   <presence> as the document root element, it is disallowed from
+   applications utilizing this document format.
+
+   When only the changes of the presence document are transported, the
+   model described in XML patch operations [RFC5261] is used.  The root
+   element of the document is then <pidf-diff>.  The patch operation
+   elements: <add>, <remove>, and <replace> allow changing the partial
+   content of the cached local copy of the full presence document.  The
+   <add> element is used to add new content, the <replace> element
+   updates, and the <remove> element removes existing content.
+
+   The optional 'version' attribute within the two possible document
+   root elements contains a sequence number which is incremented by one
+   between subsequent document updates, i.e., a more recent document
+   update has a higher 'version' value than the previous one.  This
+   number can be used to ensure consistent updates as the recipient of
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 3]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+   the document can use the 'version' number to properly order received
+   documents and to ensure that updates have not been lost.  The usage
+   of this attribute thus allows "state delta" processing described in
+   [RFC3265].  Partial notification [RFC5263] uses a similar model.
+   This number increments independently regardless of whether the
+   <pidf-full> or the <pidf-diff> content is transported.  In other
+   words, a single version counter is maintained across <pidf-full> and
+   <pidf-diff> documents.
+
+   Implementations using this document format MUST follow guidelines
+   specified in the PIDF [RFC3863] and PIDF extension formats, for
+   example, DataModel [RFC4479], Rich Presence Information Data (RPID)
+   [RFC4480], and Contact Information in PIDF (CIPID) [RFC4482] MUST
+   support the usage of the XML schema data type ID
+   [W3C.REC-xmlschema-2-20041028] of these listed RFCs.  Specifically,
+   the XML document MUST be well formed and SHOULD be valid.  This
+   specification makes use of XML namespaces for identifying presence
+   documents and document fragments.  The namespace URI for elements
+   defined by this specification is a URN [RFC2141], using the namespace
+   identifier 'ietf' specified in RFC 2648 [RFC2648] and extended by RFC
+   3688 [RFC3688].  This URN is:
+
+   urn:ietf:params:xml:ns:pidf-diff
+
+3.1.  'version' Attribute
+
+   Every presence document compliant with this specification MAY contain
+   a 'version' attribute within the <pidf-diff> and <pidf-full> element.
+
+3.2.  'entity' Attribute
+
+   Every presence document compliant with this specification MAY contain
+   an 'entity' attribute within the <pidf-diff> element.  Its content, a
+   presentity URI, MUST then be the same as the 'entity' attribute value
+   of the <presence> element described in [RFC3863].  The usage of this
+   presentity URI is described in more detail in Section 3.1 of
+   [RFC4479].
+
+4.  Usage of 'application/pidf-diff+xml'
+
+   The partial presence document SHOULD only contain those elements or
+   attributes that have changed.  However, when there are a lot of
+   changes, the full presence document content can then be transported
+   instead.
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 4]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+5.  IANA Considerations
+
+   IANA has performed the following actions:
+
+   o  registered a new XML namespace URN per [RFC3688].
+
+   o  registered a new MIME type 'application/pidf-diff+xml' according
+      to the procedures of RFC 4288 [RFC4288] and guidelines in RFC 3023
+      [RFC3023].
+
+   o  registered a new XML Schema according to the procedures of RFC
+      3688 [RFC3688].
+
+5.1.  URN Sub-Namespace Registration for
+      'urn:ietf:params:xml:ns:pidf-diff'
+
+   This specification registers a new XML namespace, as per the
+   guidelines in RFC 3688 [RFC3688].
+
+      URI:
+      urn:ietf:params:xml:ns:pidf-diff
+
+      Description:
+      This is the XML namespace for XML elements defined by RFC 5262 to
+      describe the 'application/pidf-diff+xml' content type for partial
+      PIDF.
+
+      Registrant Contact:
+      IETF, SIMPLE working group, (simple@ietf.org)
+      Jari Urpalainen, (jari.urpalainen@nokia.com)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 5]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+   XML:
+
+   BEGIN
+   <?xml version="1.0"?>
+   <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.0//EN"
+     "http://www.w3.org/TR/xhtml-basic/xhtml-basic10.dtd">
+   <html xmlns="http://www.w3.org/1999/xhtml">
+     <head>
+       <meta http-equiv="content-type"
+             content="text/html;charset=iso-8859-1"/>
+       <title>PIDF extension for partial PIDF</title>
+     </head>
+     <body>
+       <h1>Namespace for PIDF extension for partial
+           notifications</h1>
+       <h2>urn:ietf:params:xml:ns:pidf-diff</h2>
+       <p>See <a href="http://www.rfc-editor.org/rfc/rfc5262.txt">
+        RFC5262</a>.</p>
+     </body>
+   </html>
+   END
+
+5.2.  application/pidf-diff+xml MIME Type
+
+   MIME media type name: application
+
+   MIME subtype name: pidf-diff+xml
+
+   Mandatory parameters: none
+
+   Optional parameters:
+   Same as charset parameter of application/xml as specified in RFC 3023
+   [RFC3023].  Default value is UTF-8.
+
+   Encoding considerations:
+   Same as encoding considerations of application/xml as specified in
+   RFC 3023 [RFC3023].
+
+   Security considerations:
+   See Section 10 of RFC 3023 [RFC3023].  This content type is designed
+   to carry presence data, which may be considered private information.
+   Appropriate precautions should be adopted to limit disclosure of this
+   information.
+
+   Interoperability considerations: none
+
+   Published specification: RFC 5262
+
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 6]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+   Applications that use this media type: SIP-based presence systems
+
+   Additional information:
+
+      Magic Number: None
+
+      File Extension: .xml
+
+      Macintosh file type code: "TEXT"
+
+   Personal and email address for further information: Jari Urpalainen,
+   jari.urpalainen@nokia.com
+
+   Intended usage: LIMITED USE
+
+   Restrictions on usage: Presence [RFC3863] based systems.
+
+   Author:
+   This specification is a work item of the IETF SIMPLE working group,
+   with mailing list address <simple@ietf.org>.
+
+   Author/Change controller: the IETF.
+
+5.3.  XML Schema Registration
+
+   This section calls for IANA to register a new XML Schema, the sole
+   content of which can be found in Section 7.
+
+      URI:
+      urn:ietf:params:xml:schema:pidf-diff
+
+      Registrant Contact:
+      IETF, SIMPLE working group, <simple@ietf.org>
+      Jari Urpalainen, <jari.urpalainen@nokia.com>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 7]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+6.  Examples
+
+   An 'application/pidf-diff+xml' document that contains the full state
+   presence information:
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <p:pidf-full xmlns="urn:ietf:params:xml:ns:pidf"
+          xmlns:p="urn:ietf:params:xml:ns:pidf-diff"
+          xmlns:r="urn:ietf:params:xml:ns:pidf:rpid"
+          xmlns:ci="urn:ietf:params:xml:ns:pidf:cipid"
+          xmlns:c="urn:ietf:params:xml:ns:pidf:caps"
+          xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+          entity="pres:someone@example.com"
+          version="567">
+
+    <tuple id="sg89ae">
+     <status>
+      <basic>open</basic>
+     </status>
+     <c:servcaps>
+      <c:audio>true</c:audio>
+      <c:message>true</c:message>
+      <c:video>false</c:video>
+     </c:servcaps>
+     <contact priority="0.8">tel:09012345678</contact>
+    </tuple>
+
+    <tuple id="cg231jcr">
+     <status>
+      <basic>open</basic>
+     </status>
+     <contact priority="1.0">im:pep@example.com</contact>
+    </tuple>
+
+    <tuple id="r1230d">
+     <status>
+      <basic>closed</basic>
+     </status>
+     <ci:homepage>http://example.com/~pep/</ci:homepage>
+     <ci:icon>http://example.com/~pep/icon.gif</ci:icon>
+     <ci:card>http://example.com/~pep/card.vcd</ci:card>
+     <contact priority="0.9">sip:pep@example.com</contact>
+    </tuple>
+
+    <note xml:lang="en">Full state presence document</note>
+
+    <dm:person id="p123">
+     <r:activities>
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 8]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+      <r:on-the-phone/>
+      <r:busy/>
+     </r:activities>
+    </dm:person>
+    <dm:device id="u600b40c7">
+     <c:devcaps>
+      <c:mobility>
+       <c:supported>
+        <c:mobile/>
+       </c:supported>
+      </c:mobility>
+     </c:devcaps>
+     <dm:deviceID>urn:esn:600b40c7</dm:deviceID>
+    </dm:device>
+
+   </p:pidf-full>
+
+   An example partial update document with the <pidf-diff> root element:
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <p:pidf-diff
+        xmlns="urn:ietf:params:xml:ns:pidf"
+        xmlns:p="urn:ietf:params:xml:ns:pidf-diff"
+        xmlns:r="urn:ietf:params:xml:ns:pidf:rpid"
+        xmlns:d="urn:ietf:params:xml:ns:pidf:data-model"
+        entity="pres:someone@example.com"
+        version="568">
+
+   <p:add sel="presence/note" pos="before">
+    <tuple id="ert4773">
+     <status>
+      <basic>open</basic>
+     </status>
+     <contact priority="0.4">mailto:pep@example.com</contact>
+     <note xml:lang="en">This is a new tuple inserted
+          between the last tuple and person element</note>
+    </tuple>
+   </p:add>
+
+   <p:replace sel="*/tuple[@id='r1230d']/status/basic/text()"
+      >open</p:replace>
+
+   <p:remove sel="*/d:person/r:activities/r:busy" ws="after"/>
+
+   <p:replace sel="*/tuple[@id='cg231jcr']/contact/@priority"
+      >0.7</p:replace>
+
+   </p:pidf-diff>
+
+
+
+Lonnfors, et al.            Standards Track                     [Page 9]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+   An updated local composition presence document after applying the
+   patches:
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <p:pidf-full xmlns="urn:ietf:params:xml:ns:pidf"
+          xmlns:p="urn:ietf:params:xml:ns:pidf-diff"
+          xmlns:r="urn:ietf:params:xml:ns:pidf:rpid"
+          xmlns:ci="urn:ietf:params:xml:ns:pidf:cipid"
+          xmlns:c="urn:ietf:params:xml:ns:pidf:caps"
+          xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+          entity="pres:someone@example.com"
+          version="568">
+
+    <tuple id="sg89ae">
+     <status>
+      <basic>open</basic>
+     </status>
+     <c:servcaps>
+      <c:audio>true</c:audio>
+      <c:message>true</c:message>
+      <c:video>false</c:video>
+     </c:servcaps>
+     <contact priority="0.8">tel:09012345678</contact>
+    </tuple>
+
+    <tuple id="cg231jcr">
+     <status>
+      <basic>open</basic>
+     </status>
+     <contact priority="0.7">im:pep@example.com</contact>
+    </tuple>
+
+    <tuple id="r1230d">
+     <status>
+      <basic>open</basic>
+     </status>
+     <ci:homepage>http://example.com/~pep/</ci:homepage>
+     <ci:icon>http://example.com/~pep/icon.gif</ci:icon>
+     <ci:card>http://example.com/~pep/card.vcd</ci:card>
+     <contact priority="0.9">sip:pep@example.com</contact>
+    </tuple>
+
+    <tuple id="ert4773">
+     <status>
+      <basic>open</basic>
+     </status>
+     <contact priority="0.4">mailto:pep@example.com</contact>
+
+
+
+
+Lonnfors, et al.            Standards Track                    [Page 10]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+     <note xml:lang="en">This is a new tuple inserted
+         between the last tuple and note element</note>
+    </tuple>
+
+    <note xml:lang="en">Full state presence document</note>
+
+    <dm:person id="p123">
+     <r:activities>
+      <r:on-the-phone/>
+     </r:activities>
+    </dm:person>
+
+    <dm:device id="u600b40c7">
+     <c:devcaps>
+      <c:mobility>
+       <c:supported>
+        <c:mobile/>
+       </c:supported>
+      </c:mobility>
+     </c:devcaps>
+     <dm:deviceID>urn:esn:600b40c7</dm:deviceID>
+    </dm:device>
+
+   </p:pidf-full>
+
+7.  XML Schema
+
+   The XML schema for the 'application/pidf-diff+xml' data format.  The
+   included schema "urn:ietf:params:xml:schema:xml-patch-ops" is defined
+   in [RFC5261], and the PIDF Schema "pidf.xsd" is imported from
+   [RFC3863].
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <xsd:schema
+       targetNamespace="urn:ietf:params:xml:ns:pidf-diff"
+       xmlns:tns="urn:ietf:params:xml:ns:pidf-diff"
+       xmlns:pidf="urn:ietf:params:xml:ns:pidf"
+       xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+       elementFormDefault="qualified">
+
+    <!-- include patch-ops type definitions -->
+    <xsd:include
+         schemaLocation="urn:ietf:params:xml:schema:patch-ops"/>
+
+    <!-- import PIDF definitions -->
+    <xsd:import namespace="urn:ietf:params:xml:ns:pidf"
+                schemaLocation="pidf.xsd"/>
+
+
+
+
+Lonnfors, et al.            Standards Track                    [Page 11]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+    <!-- partial updates -->
+    <xsd:element name="pidf-diff">
+     <xsd:complexType>
+      <xsd:sequence minOccurs="0" maxOccurs="unbounded">
+       <xsd:choice>
+        <xsd:element name="add" type="tns:add"/>
+        <xsd:element name="replace" type="tns:replace"/>
+        <xsd:element name="remove" type="tns:remove"/>
+       </xsd:choice>
+      </xsd:sequence>
+      <xsd:attribute name="version" type="xsd:unsignedInt"/>
+      <xsd:attribute name="entity" type="xsd:anyURI"/>
+     </xsd:complexType>
+    </xsd:element>
+
+    <!-- full PIDF in addition to optional version -->
+    <xsd:element name="pidf-full">
+     <xsd:complexType>
+      <xsd:complexContent>
+       <xsd:extension base="pidf:presence">
+        <xsd:attribute name="version" type="xsd:unsignedInt"/>
+       </xsd:extension>
+      </xsd:complexContent>
+     </xsd:complexType>
+    </xsd:element>
+
+   </xsd:schema>
+
+8.  Interoperability Considerations
+
+   Systems compliant with Common Profile for Presence (CPP) [RFC3859]
+   will not be by default able to use this specification.  However, this
+   will not cause any interoperability problems because all endpoints
+   and gateways must support the default MIME type
+   (application/pidf+xml) regardless of if they support this
+   specification.  Thus, if a gateway or another end point does not
+   understand this specification it will not be used.  In SIMPLE-based
+   systems, use of this MIME type is negotiated using SIP content type
+   negotiation mechanism as specified in partial notification [RFC5263].
+
+   Other CPP-compliant (other than SIP-based) systems can also support
+   this specification if they have a mechanism to indicate support for
+   it.  If they do, it is possible to build a gateway that will preserve
+   end-to-end integrity with usage of partial PIDF.
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                    [Page 12]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+9.  Security Considerations
+
+   All security considerations identified for PIDF [RFC3863] apply
+   unchanged for this document as presence information may contain
+   highly sensitive information.  Furthermore, the protocol SHOULD
+   provide authorization policies what presence information can be given
+   to which watchers, and when, see [RFC5025].
+
+10.  Internationalization Considerations
+
+   The PIDF [RFC3863] format is represented in XML that performs all
+   character processing in terms of the Universal Character Set (UCS).
+   Conformant XML processors MUST support both UTF-8 and UTF-16
+   encodings of the UCS.  UTF-8 is the RECOMMENDED encoding of this
+   partial presence format.
+
+   If the character set of the initial <pidf-full> document has been
+   accepted by a receiving application, it MUST continue to accept the
+   same character set with the subsequent <pidf-diff> documents.
+   However, it MUST NOT need to accept a possible character set change.
+
+11.  Error Handling
+
+   Error conditions MAY be indicated by errors defined in [RFC5261].
+   This document doesn't define any additional error elements.  If the
+   'version' or 'entity' attributes have incorrect content, it MAY be
+   indicated by the <invalid-attribute-value> error element.
+
+12.  Acknowledgments
+
+   The authors would like to thank Jose Costa-Requena, Jyrki Aarnos,
+   Jonathan Rosenberg, Dean Willis, Miguel Garcia, Krisztian Kiss, Ben
+   Cambell, Robert Sparks, Anders Kristenssen, Aki Niemi, Jon Peterson,
+   Gonzalo Camarillo, Lars Eggert, Lakshminath Dondeti, and Chris Newman
+   for their valuable comments and contributions.
+
+13.  References
+
+13.1.  Normative references
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3863]  Sugano, H., Fujimoto, S., Klyne, G., Bateman, A., Carr,
+              W., and J. Peterson, "Presence Information Data Format
+              (PIDF)", RFC 3863, August 2004.
+
+
+
+
+
+Lonnfors, et al.            Standards Track                    [Page 13]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+   [RFC2141]  Moats, R., "URN Syntax", RFC 2141, May 1997.
+
+   [RFC2648]  Moats, R., "A URN Namespace for IETF Documents", RFC 2648,
+              August 1999.
+
+   [RFC3688]  Mealling, M., "The IETF XML Registry", BCP 81, RFC 3688,
+              January 2004.
+
+   [RFC3023]  Murata, M., St. Laurent, S., and D. Kohn, "XML Media
+              Types", RFC 3023, January 2001.
+
+   [RFC4288]  Freed, N. and J. Klensin, "Media Type Specifications and
+              Registration Procedures", BCP 13, RFC 4288, December 2005.
+
+   [RFC4479]  Rosenberg, J., "A Data Model for Presence", RFC 4479, July
+              2006.
+
+   [RFC4480]  Schulzrinne, H., Gurbani, V., Kyzivat, P., and J.
+              Rosenberg, "RPID: Rich Presence Extensions to the Presence
+              Information Data Format (PIDF)", RFC 4480, July 2006.
+
+   [RFC4482]  Schulzrinne, H., "CIPID: Contact Information for the
+              Presence Information Data Format", RFC 4482, July 2006.
+
+   [RFC5261]  Urpalainen, J., "An Extensible Markup Language (XML) Patch
+              Operations Framework Utilizing XML Path Language (XPath)
+              Selectors", RFC 5261, September 2008.
+
+   [W3C.REC-xmlschema-2-20041028]
+              Malhotra, A. and P. Biron, "XML Schema Part 2: Datatypes
+              Second Edition", World Wide Web Consortium Recommendation
+              REC-xmlschema-2-20041028, October 2004,
+              <http://www.w3.org/TR/2004/REC-xmlschema-2-20041028>.
+
+13.2.  Informative references
+
+   [RFC2778]  Day, M., Rosenberg, J., and H. Sugano, "A Model for
+              Presence and Instant Messaging", RFC 2778, February 2000.
+
+   [RFC3265]  Roach, A., "Session Initiation Protocol (SIP)-Specific
+              Event Notification", RFC 3265, June 2002.
+
+   [RFC3859]  Peterson, J., "Common Profile for Presence (CPP)", RFC
+              3859, August 2004.
+
+   [RFC5025]  Rosenberg, J., "Presence Authorization Rules", RFC 5025,
+              December 2007.
+
+
+
+
+Lonnfors, et al.            Standards Track                    [Page 14]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+   [RFC5263]  Lonnfors, M., "Session Initiation Protocol (SIP) Extension
+              for Partial Notification of Presence Information", RFC
+              5263, September 2008.
+
+Authors' Addresses
+
+   Mikko Lonnfors
+   Nokia
+   Itamerenkatu 11-13 00180
+   Helsinki
+   Finland
+
+   Phone: +358 71 8008000
+   EMail: mikko.lonnfors@nokia.com
+
+
+   Eva Leppanen
+   Individual
+   Lempaala
+   Finland
+
+   EMail: eva.leppanen@saunalahti.fi
+
+
+   Hisham Khartabil
+   Ericsson Australia
+   P.O. Box 256c
+   Melbourne, VIC 3001
+   Australia
+
+   EMail: hisham.khartabil@gmail.com
+
+
+   Jari Urpalainen
+   Nokia
+   Itamerenkatu 11-13 00180
+   Helsinki
+   Finland
+
+   Phone: +358 7180 37686
+   EMail: jari.urpalainen@nokia.com
+
+
+
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                    [Page 15]
+
+RFC 5262                      Partial PIDF                September 2008
+
+
+Full Copyright Statement
+
+   Copyright (C) The IETF Trust (2008).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+
+
+
+
+
+
+
+
+
+
+
+Lonnfors, et al.            Standards Track                    [Page 16]
+

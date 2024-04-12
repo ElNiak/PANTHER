@@ -1,0 +1,583 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                     B. Varga, Ed.
+Request for Comments: 9037                                     J. Farkas
+Category: Informational                                         Ericsson
+ISSN: 2070-1721                                                 A. Malis
+                                                        Malis Consulting
+                                                               S. Bryant
+                                                  Futurewei Technologies
+                                                               June 2021
+
+
+Deterministic Networking (DetNet) Data Plane: MPLS over IEEE 802.1 Time-
+                       Sensitive Networking (TSN)
+
+Abstract
+
+   This document specifies the Deterministic Networking (DetNet) MPLS
+   data plane when operating over an IEEE 802.1 Time-Sensitive
+   Networking (TSN) sub-network.  This document does not define new
+   procedures or processes.  Whenever this document makes statements or
+   recommendations, they are taken from normative text in the referenced
+   RFCs.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Not all documents
+   approved by the IESG are candidates for any level of Internet
+   Standard; see Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9037.
+
+Copyright Notice
+
+   Copyright (c) 2021 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+     2.1.  Terms Used in This Document
+     2.2.  Abbreviations
+   3.  DetNet MPLS Data Plane Overview
+   4.  DetNet MPLS Operation over IEEE 802.1 TSN Sub-networks
+     4.1.  Functions for DetNet Flow to TSN Stream Mapping
+     4.2.  TSN Requirements of MPLS DetNet Nodes
+     4.3.  Service Protection within the TSN Sub-network
+     4.4.  Aggregation during DetNet Flow to TSN Stream Mapping
+   5.  Management and Control Implications
+   6.  Security Considerations
+   7.  IANA Considerations
+   8.  References
+     8.1.  Normative References
+     8.2.  Informative References
+   Acknowledgements
+   Authors' Addresses
+
+1.  Introduction
+
+   Deterministic Networking (DetNet) is a service that can be offered by
+   a network to DetNet flows.  DetNet provides these flows with low
+   packet loss rate and assured maximum end-to-end delivery latency.
+   General background and concepts of DetNet can be found in [RFC8655].
+
+   The DetNet architecture decomposes DetNet-related data plane
+   functions into two sub-layers: a service sub-layer and a forwarding
+   sub-layer.  The service sub-layer is used to provide DetNet service
+   protection and reordering.  The forwarding sub-layer is used to
+   provide congestion protection (low loss, assured latency, and limited
+   reordering) leveraging MPLS Traffic Engineering mechanisms.
+
+   [RFC8964] specifies the DetNet data plane operation for an MPLS-based
+   PSN.  MPLS-encapsulated DetNet flows can be carried over network
+   technologies that can provide the DetNet-required level of service.
+   This document focuses on the scenario where MPLS (DetNet) nodes are
+   interconnected by an IEEE 802.1 TSN sub-network.  There is close
+   cooperation between the IETF DetNet Working Group and the IEEE 802.1
+   Time-Sensitive Networking Task Group (TSN TG).
+
+2.  Terminology
+
+2.1.  Terms Used in This Document
+
+   This document uses the terminology established in the DetNet
+   architecture [RFC8655] [RFC8964].  TSN-specific terms are defined in
+   the TSN TG of the IEEE 802.1 Working Group.  The reader is assumed to
+   be familiar with these documents and their terminology.
+
+2.2.  Abbreviations
+
+   The following abbreviations are used in this document:
+
+   A-Label       Aggregation label; a special case of an S-Label.
+
+   d-CW          DetNet Control Word
+
+   DetNet        Deterministic Networking
+
+   F-Label       Forwarding label that identifies the LSP used by a
+                 DetNet flow.
+
+   FRER          Frame Replication and Elimination for Redundancy (TSN
+                 function)
+
+   L2            Layer 2
+
+   L3            Layer 3
+
+   LSP           Label Switched Path
+
+   MPLS          Multiprotocol Label Switching
+
+   PREOF         Packet Replication, Elimination, and Ordering Functions
+
+   PSN           Packet Switched Network
+
+   PW            Pseudowire
+
+   RSVP-TE       Resource Reservation Protocol - Traffic Engineering
+
+   S-Label       Service label
+
+   TSN           Time-Sensitive Networking
+
+3.  DetNet MPLS Data Plane Overview
+
+   The basic approach defined in [RFC8964] supports the DetNet service
+   sub-layer based on existing PW encapsulations and mechanisms and
+   supports the DetNet forwarding sub-layer based on existing MPLS
+   Traffic Engineering encapsulations and mechanisms.
+
+   A node operates on a DetNet flow in the DetNet service sub-layer,
+   i.e., a node processing a DetNet packet that has the service label
+   (S-Label) as the top of stack uses the local context associated with
+   that S-Label, for example, a received forwarding label (F-Label), to
+   determine what local DetNet operation(s) is applied to that packet.
+   An S-Label may be unique when taken from the platform label space
+   [RFC3031], which would enable correct DetNet flow identification
+   regardless of which input interface or LSP the packet arrives on.
+   The service sub-layer functions (i.e., PREOF) use a d-CW.
+
+   The DetNet MPLS data plane builds on MPLS Traffic Engineering
+   encapsulations and mechanisms to provide a forwarding sub-layer that
+   is responsible for providing resource allocation and explicit routes.
+   The forwarding sub-layer is supported by one or more F-Labels.
+
+   DetNet edge/relay nodes are DetNet service sub-layer-aware,
+   understand the particular needs of DetNet flows, and provide both
+   DetNet service and forwarding sub-layer functions.  They add, remove,
+   and process d-CWs, S-Labels, and F-Labels as needed.  MPLS DetNet
+   nodes and transit nodes include DetNet forwarding sub-layer
+   functions, notable support for explicit routes, and resource
+   allocation to eliminate (or reduce) congestion loss and jitter.
+   Unlike other DetNet node types, transit nodes provide no service sub-
+   layer processing.
+
+   MPLS (DetNet) nodes and transit nodes interconnected by a TSN sub-
+   network are the primary focus of this document.  The mapping of
+   DetNet MPLS flows to TSN Streams and TSN protection mechanisms are
+   covered in Section 4.
+
+4.  DetNet MPLS Operation over IEEE 802.1 TSN Sub-networks
+
+   The DetNet WG collaborates with IEEE 802.1 TSN in order to define a
+   common architecture for both Layer 2 and Layer 3 that maintains
+   consistency across diverse networks.  Both DetNet MPLS and TSN use
+   the same techniques to provide their deterministic service:
+
+   *  Service protection
+
+   *  Resource allocation
+
+   *  Explicit routes
+
+   As described in the DetNet architecture [RFC8655], from the MPLS
+   perspective, a sub-network provides a single-hop connection between
+   MPLS (DetNet) nodes.  Functions used for resource allocation and
+   explicit routes are treated as domain internal functions and do not
+   require function interworking across the DetNet MPLS network and the
+   TSN sub-network.
+
+   In the case of the service protection function, due to the
+   similarities of the DetNet PREOF and TSN FRER functions, some level
+   of interworking is possible.  However, such interworking is out of
+   scope of this document and left for further study.
+
+   Figure 1 illustrates a scenario where two MPLS (DetNet) nodes are
+   interconnected by a TSN sub-network.  Node-1 is single-homed, and
+   Node-2 is dual-homed to the TSN sub-network.
+
+      MPLS (DetNet)                 MPLS (DetNet)
+         Node-1                        Node-2
+
+      +----------+                  +----------+
+   <--| Service* |-- DetNet flow ---| Service* |-->
+      +----------+                  +----------+
+      |Forwarding|                  |Forwarding|
+      +--------.-+    <-TSN Str->   +-.-----.--+
+                \      ,-------.     /     /
+                 +----[ TSN Sub-]---+     /
+                      [ network ]--------+
+                       `-------'
+   <---------------- DetNet MPLS --------------->
+
+   Note: * no service sub-layer required for transit nodes
+
+        Figure 1: DetNet-Enabled MPLS Network over a TSN Sub-network
+
+   At the time of this writing, the TSN TG of the IEEE 802.1 Working
+   Group have defined (and are defining) a number of amendments to
+   [IEEE8021Q] that provide zero congestion loss and bounded latency in
+   bridged networks.  Furthermore, [IEEE8021CB] defines frame
+   replication and elimination functions for reliability that should
+   prove both compatible with and useful to DetNet networks.  All these
+   functions have to identify flows that require TSN treatment (i.e.,
+   applying TSN functions during forwarding).
+
+   TSN capabilities of the TSN sub-network are made available for MPLS
+   (DetNet) flows via the protocol interworking function defined in
+   Annex C.5 of [IEEE8021CB].  For example, when applied on the TSN edge
+   port, it can convert an ingress unicast MPLS (DetNet) flow to use a
+   specific Layer 2 multicast destination Media Access Control (MAC)
+   address and a VLAN, in order to direct the packet through a specific
+   path inside the bridged network.  A similar interworking function
+   pair at the other end of the TSN sub-network would restore the packet
+   to its original Layer 2 destination MAC address and VLAN.
+
+   The placement of TSN functions depends on the TSN capabilities of the
+   nodes along the path.  MPLS (DetNet) nodes may or may not support TSN
+   functions.  For a given TSN Stream (i.e., DetNet flow), an MPLS
+   (DetNet) node is treated as a Talker or a Listener inside the TSN
+   sub-network.
+
+4.1.  Functions for DetNet Flow to TSN Stream Mapping
+
+   Mapping of a DetNet MPLS flow to a TSN Stream is provided via the
+   combination of a passive and an active Stream identification function
+   that operate at the frame level.  The passive Stream identification
+   function is used to catch the MPLS label(s) of a DetNet MPLS flow,
+   and the active Stream identification function is used to modify the
+   Ethernet header according to the ID of the mapped TSN Stream.
+
+   Clause 6.8 of [IEEEP8021CBdb] defines a Mask-and-Match Stream
+   identification function that can be used as a passive function for
+   MPLS DetNet flows.
+
+   Clause 6.6 of [IEEE8021CB] defines an Active Destination MAC and a
+   VLAN Stream identification function that can replace some Ethernet
+   header fields, namely (1) the destination MAC address, (2) the VLAN-
+   ID, and (3) priority parameters with alternate values.  Replacement
+   is provided for the frame that is passed either down the stack from
+   the upper layers or up the stack from the lower layers.
+
+   Active Destination MAC and VLAN Stream identification can be used
+   within a Talker to set flow identity or a Listener to recover the
+   original addressing information.  It can also be used in a TSN bridge
+   that is providing translation as a proxy service for an end system.
+
+4.2.  TSN Requirements of MPLS DetNet Nodes
+
+   This section covers required behavior of a TSN-aware MPLS (DetNet)
+   node using a TSN sub-network.  The implementation of TSN packet-
+   processing functions must be compliant with the relevant IEEE 802.1
+   standards.
+
+   From the TSN sub-network perspective, MPLS (DetNet) nodes are treated
+   as a Talker or Listener, which may be (1) TSN-unaware or (2) TSN-
+   aware.
+
+   In cases of TSN-unaware MPLS DetNet nodes, the TSN relay nodes within
+   the TSN sub-network must modify the Ethernet encapsulation of the
+   DetNet MPLS flow (e.g., MAC translation, VLAN-ID setting, sequence
+   number addition, etc.) to allow proper TSN-specific handling inside
+   the sub-network.  There are no requirements defined for TSN-unaware
+   MPLS DetNet nodes in this document.
+
+   MPLS (DetNet) nodes that are TSN-aware can be treated as a
+   combination of a TSN-unaware Talker/Listener and a TSN-Relay, as
+   shown in Figure 2.  In such cases, the MPLS (DetNet) node must
+   provide the TSN sub-network-specific Ethernet encapsulation over the
+   link(s) towards the sub-network.
+
+                 MPLS (DetNet)
+                     Node
+      <---------------------------------->
+
+      +----------+
+   <--| Service* |-- DetNet flow ------------------
+      +----------+
+      |Forwarding|
+      +----------+    +---------------+
+      |    L2    |    | L2 Relay with |<--- TSN ---
+      |          |    | TSN function  |    Stream
+      +-----.----+    +--.------.---.-+
+             \__________/        \   \______
+                                  \_________
+       TSN-unaware
+        Talker /          TSN-Bridge
+        Listener             Relay
+                                          <----- TSN Sub-network -----
+      <------- TSN-aware Tlk/Lstn ------->
+
+   Note: * no service sub-layer required for transit nodes
+
+              Figure 2: MPLS (DetNet) Node with TSN Functions
+
+   A TSN-aware MPLS (DetNet) node implementation must support the Stream
+   identification TSN component for recognizing flows.
+
+   A Stream identification component must be able to instantiate the
+   following functions: (1) Active Destination MAC and VLAN Stream
+   identification function, (2) Mask-and-Match Stream identification
+   function, and (3) the related managed objects in Clause 9 of
+   [IEEE8021CB] and [IEEEP8021CBdb].
+
+   A TSN-aware MPLS (DetNet) node implementation must support the
+   Sequencing function and the Sequence encode/decode function as
+   defined in Clauses 7.4 and 7.6 of [IEEE8021CB] in order for FRER to
+   be used inside the TSN sub-network.
+
+   The Sequence encode/decode function must support the Redundancy tag
+   (R-TAG) format as per Clause 7.8 of [IEEE8021CB].
+
+   A TSN-aware MPLS (DetNet) node implementation must support the Stream
+   splitting function and the Individual recovery function as defined in
+   Clauses 7.5 and 7.7 of [IEEE8021CB] in order for that node to be a
+   replication or elimination point for FRER.
+
+4.3.  Service Protection within the TSN Sub-network
+
+   TSN Streams supporting DetNet flows may use FRER as defined in Clause
+   8 of [IEEE8021CB] based on the loss service requirements of the TSN
+   Stream, which is derived from the DetNet service requirements of the
+   DetNet mapped flow.  The specific operation of FRER is not modified
+   by the use of DetNet and follows [IEEE8021CB].
+
+   FRER function and the provided service recovery is available only
+   within the TSN sub-network as the TSN Stream-ID and the TSN sequence
+   number are not valid outside the sub-network.  An MPLS (DetNet) node
+   represents an L3 border, and as such, it terminates all related
+   information elements encoded in the L2 frames.
+
+   As the Stream-ID and the TSN sequence number are paired with similar
+   MPLS flow parameters, FRER can be combined with PREOF functions.
+   Such service protection interworking scenarios may require moving
+   sequence number fields among TSN (L2) and PW (MPLS) encapsulations,
+   and they are left for further study.
+
+4.4.  Aggregation during DetNet Flow to TSN Stream Mapping
+
+   Implementation of this document shall use management and control
+   information to map a DetNet flow to a TSN Stream.  N:1 mapping
+   (aggregating DetNet flows in a single TSN Stream) shall be supported.
+   The management or control function that provisions flow mapping shall
+   ensure that adequate resources are allocated and configured to
+   provide proper service requirements of the mapped flows.
+
+5.  Management and Control Implications
+
+   Information related to DetNet flow and TSN Stream mapping is required
+   only for TSN-aware MPLS (DetNet) nodes.  From the data plane
+   perspective, there is no practical difference based on the origin of
+   flow-mapping-related information (management plane or control plane).
+
+   The following summarizes the set of information that is needed to
+   configure DetNet MPLS over TSN:
+
+   *  DetNet MPLS-related configuration information according to the
+      DetNet role of the DetNet MPLS node, as per [RFC8964].
+
+   *  TSN-related configuration information according to the TSN role of
+      the DetNet MPLS node, as per [IEEE8021Q], [IEEE8021CB], and
+      [IEEEP8021CBdb].
+
+   *  Mapping between a DetNet MPLS flow(s) (label information:
+      A-Labels, S-Labels, and F-Labels as defined in [RFC8964]) and a
+      TSN Stream(s) (as Stream identification information defined in
+      [IEEEP8021CBdb]).  Note that managed objects for TSN Stream
+      identification can be found in [IEEEP8021CBcv].
+
+   This information must be provisioned per DetNet flow.
+
+   Mappings between DetNet and TSN management and control planes are out
+   of scope of this document.  Some of the challenges are highlighted
+   below.
+
+   TSN-aware MPLS DetNet nodes are members of both the DetNet domain and
+   the TSN sub-network.  Within the TSN sub-network, the TSN-aware MPLS
+   (DetNet) node has a TSN-aware Talker/Listener role, so TSN-specific
+   management and control plane functionalities must be implemented.
+   There are many similarities in the management plane techniques used
+   in DetNet and TSN, but that is not the case for the control plane
+   protocols.  For example, RSVP-TE and the Multiple Stream Registration
+   Protocol (MSRP) behave differently.  Therefore, management and
+   control plane design are important aspects of scenarios where mapping
+   between DetNet and TSN is required.
+
+   In order to use a TSN sub-network between DetNet nodes, DetNet-
+   specific information must be converted to information specific to the
+   TSN sub-network.  DetNet flow ID and flow-related parameters/
+   requirements must be converted to a TSN Stream ID and stream-related
+   parameters/requirements.  Note that, as the TSN sub-network is just a
+   portion of the end-to-end DetNet path (i.e., a single hop from the
+   MPLS perspective), some parameters (e.g., delay) may differ
+   significantly.  Other parameters (like bandwidth) also may have to be
+   tuned due to the L2 encapsulation used within the TSN sub-network.
+
+   In some cases, it may be challenging to determine some TSN-Stream-
+   related information.  For example, on a TSN-aware MPLS (DetNet) node
+   that acts as a Talker, it is quite obvious which DetNet node is the
+   Listener of the mapped TSN Stream (i.e., the MPLS next hop).
+   However, it may be not trivial to locate the point/interface where
+   that Listener is connected to the TSN sub-network.  Such attributes
+   may require interaction between control and management plane
+   functions and between DetNet and TSN domains.
+
+   Mapping between DetNet flow identifiers and TSN Stream identifiers,
+   if not provided explicitly, can be done by a TSN-aware MPLS (DetNet)
+   node locally based on information provided for configuration of the
+   TSN Stream identification functions (Mask-and-Match Stream
+   identification and active Stream identification).
+
+   Triggering the setup/modification of a TSN Stream in the TSN sub-
+   network is an example where management and/or control plane
+   interactions are required between the DetNet and TSN sub-network.
+   TSN-unaware MPLS (DetNet) nodes make such a triggering even more
+   complicated as they are fully unaware of the sub-network and run
+   independently.
+
+   Configuration of TSN-specific functions (e.g., FRER) inside the TSN
+   sub-network is a TSN-domain-specific decision and may not be visible
+   in the DetNet domain.  Service protection interworking scenarios are
+   left for further study.
+
+6.  Security Considerations
+
+   Security considerations for DetNet are described in detail in
+   [DETNET-SECURITY].  General security considerations are described in
+   [RFC8655].  Considerations specific to the DetNet MPLS data plane are
+   summarized in [RFC8964].  This section considers exclusively security
+   considerations that are specific to the DetNet MPLS over TSN sub-
+   network scenario.
+
+   The sub-network between DetNet nodes needs to be subject to
+   appropriate confidentiality.  Additionally, knowledge of what DetNet/
+   TSN services are provided by a sub-network may supply information
+   that can be used in a variety of security attacks.  The ability to
+   modify information exchanges between connected DetNet nodes may
+   result in bogus operations.  Therefore, it is important that the
+   interface between DetNet nodes and the TSN sub-network are subject to
+   authorization, authentication, and encryption.
+
+   The TSN sub-network operates at Layer 2, so various security
+   mechanisms defined by IEEE can be used to secure the connection
+   between the DetNet nodes (e.g., encryption may be provided using
+   MACsec [IEEE802.1AE-2018]).
+
+7.  IANA Considerations
+
+   This document has no IANA actions.
+
+8.  References
+
+8.1.  Normative References
+
+   [IEEE8021CB]
+              IEEE, "IEEE Standard for Local and metropolitan area
+              networks -- Frame Replication and Elimination for
+              Reliability", IEEE Std 802.1CB-2017,
+              DOI 10.1109/IEEESTD.2017.8091139, October 2017,
+              <https://ieeexplore.ieee.org/document/8091139>.
+
+   [IEEEP8021CBdb]
+              IEEE, "Draft Standard for Local and metropolitan area
+              networks -- Frame Replication and Elimination for
+              Reliability -- Amendment: Extended Stream Identification
+              Functions", IEEE P802.1CBdb / D1.3, April 2021,
+              <https://1.ieee802.org/tsn/802-1cbdb/>.
+
+   [RFC3031]  Rosen, E., Viswanathan, A., and R. Callon, "Multiprotocol
+              Label Switching Architecture", RFC 3031,
+              DOI 10.17487/RFC3031, January 2001,
+              <https://www.rfc-editor.org/info/rfc3031>.
+
+   [RFC8655]  Finn, N., Thubert, P., Varga, B., and J. Farkas,
+              "Deterministic Networking Architecture", RFC 8655,
+              DOI 10.17487/RFC8655, October 2019,
+              <https://www.rfc-editor.org/info/rfc8655>.
+
+   [RFC8964]  Varga, B., Ed., Farkas, J., Berger, L., Malis, A., Bryant,
+              S., and J. Korhonen, "Deterministic Networking (DetNet)
+              Data Plane: MPLS", RFC 8964, DOI 10.17487/RFC8964, January
+              2021, <https://www.rfc-editor.org/info/rfc8964>.
+
+8.2.  Informative References
+
+   [DETNET-SECURITY]
+              Grossman, E., Ed., Mizrahi, T., and A. Hacker,
+              "Deterministic Networking (DetNet) Security
+              Considerations", Work in Progress, Internet-Draft, draft-
+              ietf-detnet-security-16, 2 March 2021,
+              <https://tools.ietf.org/html/draft-ietf-detnet-security-
+              16>.
+
+   [IEEE802.1AE-2018]
+              IEEE, "IEEE Standard for Local and metropolitan area
+              networks-Media Access Control (MAC) Security", IEEE Std
+              802.1AE-2018, DOI 10.1109/IEEESTD.2018.8585421, December
+              2018, <https://ieeexplore.ieee.org/document/8585421>.
+
+   [IEEE8021Q]
+              IEEE, "IEEE Standard for Local and metropolitan area
+              networks -- Bridges and Bridged Networks", IEEE Std
+              802.1Q-2018, DOI 10.1109/IEEESTD.2018.8403927, July 2018,
+              <https://ieeexplore.ieee.org/document/8403927/>.
+
+   [IEEEP8021CBcv]
+              IEEE 802.1, "Draft Standard for Local and metropolitan
+              area networks -- Frame Replication and Elimination for
+              Reliability -- Amendment: Information Model, YANG Data
+              Model and Management Information Base Module", IEEE
+              P802.1CBcv, Draft 1.1, February 2021,
+              <https://1.ieee802.org/tsn/802-1cbcv/>.
+
+Acknowledgements
+
+   The authors wish to thank Norman Finn, Lou Berger, Craig Gunther,
+   Christophe Mangin, and Jouni Korhonen for their various contributions
+   to this work.
+
+Authors' Addresses
+
+   Balázs Varga (editor)
+   Ericsson
+   Budapest
+   Magyar Tudosok krt. 11.
+   1117
+   Hungary
+
+   Email: balazs.a.varga@ericsson.com
+
+
+   János Farkas
+   Ericsson
+   Budapest
+   Magyar Tudosok krt. 11.
+   1117
+   Hungary
+
+   Email: janos.farkas@ericsson.com
+
+
+   Andrew G. Malis
+   Malis Consulting
+
+   Email: agmalis@gmail.com
+
+
+   Stewart Bryant
+   Futurewei Technologies
+
+   Email: sb@stewartbryant.com

@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Network Working Group                                        K. Murakami
+Request for Comments: 2175                                   M. Maruyama
+Category: Informational                                 NTT Laboratories
+                                                               June 1997
+
+
+               MAPOS 16 - Multiple Access Protocol over
+                    SONET/SDH with 16 Bit Addressing
+
+Status of this Memo
+
+   This memo provides information for the Internet community.  This memo
+   does not specify an Internet standard of any kind.  Distribution of
+   this memo is unlimited.
+
+Authors' note
+
+   This memo documents MAPOS 16, a multiple access protocol for
+   transmission of network-protocol datagrams, encapsulated in HDLC
+   frames with 16 bit addressing, over SONET/SDH.  The primary
+   difference with MAPOS version 1 is that it has 16 bit address field
+   that offers significant wide address space. This document is NOT the
+   product of an IETF working group nor is it a standards track
+   document.  It has not necessarily benefited from the widespread and
+   in depth community review that standards track documents receive.
+
+Abstract
+
+   This document describes the protocol MAPOS 16, Multiple Access
+   Protocol over SONET/SDH with 16 Bit Addressing, for transmitting
+   network-protocol datagrams over SONET/SDH.  The primary difference
+   with MAPOS version 1 is that it has 16 bit address field that offers
+   significant wide address space. It first describes the major
+   differences between MAPOS and MAPOS 16 briefly. Then, it explains the
+   header format and its 16 bit address format.
+
+1. Introduction
+
+   MAPOS is a multiple access protocol for transmission of High-level
+   Datalink Control (HDLC) frames over the Synchronous Optical Network /
+   Synchronous Digital Hierarchy(SONET/SDH)[1][2][3][4]. It provides
+   multiple access capability to SONET/SDH, an inherently point-to-point
+   link.
+
+   MAPOS version 1[5] focuses on the frame format compatibility with the
+   conventional PPP[6], resulting with its narrow 8 bit address field.
+   In contrast to MAPOS version 1, MAPOS 16 has a 16 bit address space.
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 1]
+
+RFC 2175                        MAPOS 16                       June 1997
+
+
+   In this document, header format and its 16 bit format are described.
+   It also explains that 16 bit addressing has minimal influence on the
+   conventional MAPOS protocol family such as Node-Switch Protocol[7]
+   and Switch-Switch Protocol[8].
+
+2. MAPOS 16 Frame Format
+
+   Like MAPOS version 1, MAPOS 16 framing is based on the HDLC-like
+   framing used in PPP-over-SONET/SDH, described in RFC-1662[6].
+   However, the address field is extended to 16 bits, and the control
+   field in the MAPOS version 1 is omitted for maintain the 32bit
+   alignment of the header.
+
+   Figure 2 shows the MAPOS 16 frame format.  Logical Link Control
+   (LLC), and Sublayer/Sub-Network Access Protocol (SNAP) are not used.
+   It does not include the bytes for transparency.  The fields are
+   transmitted from left to right.
+
+
+           +----------+---------------------+----------+
+           |          |                     |          |
+           |   Flag   |       Address       | Protocol |
+           | 01111110 |        16bits       |  16 bits |
+           +----------+---------------------+----------+
+              +-------------+------------+----------+-----------
+              |             |            |          | Inter-frame
+              | Information |    FCS     |   Flag   | fill or next
+              |             | 16/32 bits | 01111110 | address
+              +-------------+------------+----------+------------
+
+                        Figure 2.  Frame format
+
+     Flag Sequence
+
+     Flag sequence is used for frame synchronization.  Each frame begins
+     and ends with a flag sequence 01111110 (0x7E).  If a frame
+     immediately follows another, one flag sequence may be treated as
+     the end of the preceding frame and the beginning of the immediately
+     following frame.  When the line is idle, the flag sequence is to be
+     transmitted continuously on the line.
+
+     Address
+
+     The address field contains the destination HDLC address.  A frame
+     is forwarded by a switch based on this field.  It is 16 bits wide.
+     The LSB of the first byte indicates the continuation of this field,
+     and must always be 0. The LSB of the second byte indicates the end
+     of this field, and must always be 1.  The MSB of the first byte is
+
+
+
+Murakami & Maruyama          Informational                      [Page 2]
+
+RFC 2175                        MAPOS 16                       June 1997
+
+
+     used to indicate if the frame is a unicast or multicast frame.  The
+     MSB of 0 means unicast, with the remaining thirteen bits indicating
+     the destination node address including two E/A bits. MSB of 1 means
+     multicast, with the remaining thirteen bits indicating the group
+     address.  The address 0xFEFF means that the frame is a broadcast
+     frame. The address (0x0001) is reserved to identify the control
+     processor inside a switch.  Frames with an invalid address should
+     be silently discarded.
+
+             +-------------+-+-------------+-+
+             | | | | | | | | | | | | | | | | |
+             | | node addr |0|  node addr  |1|
+             +-+-----------+-+-------------+-+
+              ^             ^               ^
+              |             |               |
+              |             |               +------- EA bit (always 1)
+              |             +------- EA bit (always 0)
+              1 : broadcast, multicast
+              0 : unicast
+
+                        Figure 3 Address format
+
+
+
+     Protocol
+
+     The protocol field indicates the protocol to which the datagram
+     encapsulated in the information field belongs.  It conforms to the
+     ISO 3309 extension mechanism, and the value for this field may be
+     obtained from the most recent ``Assigned Numbers'' [9] and ``MAPOS
+     Version 1 Assigned Numbers'' [10].
+
+     Information
+
+     The information field contains the datagram for the protocol
+     specified in the protocol field.  The length of this field may
+     vary, but shall not exceed 65,280 (64K - 256) octets.
+
+     Frame Check Sequence (FCS)
+
+     By default, the frame check sequence (FCS) field is 16-bits long.
+     Optionally, 32 bit FCS may be used instead.  The FCS is calculated
+     over all bits of the address, protocol, and information fields
+     prior to escape conversions.  The least significant octet of the
+     result is transmitted first as it contains the coefficient of the
+     highest term.
+
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 3]
+
+RFC 2175                        MAPOS 16                       June 1997
+
+
+     Inter-frame fill
+
+     A sending station must continuously transmit the flag sequence as
+     inter-frame fill after the FCS field.  The inter-frame flag
+     sequences must be silently discarded by the receiving station.
+     When an under-run occurs during DMA in the sending station, it must
+     abort the frame transfer and continuously send the flag sequence to
+     indicate the error.
+
+3.2 Octet-Synchronous Framing
+
+   MAPOS 16 uses the same octet stuffing procedure[6] as MAPOS version
+   1[5]. Since SONET/SDH provides transparency, Async-Control-
+   Character-Map (ACCM) is not used.  HDLC frames are mapped into the
+   SONET/SDH payload as follows.
+
+   Each HDLC frame is separated from another frame by one or more flag
+   sequence, 01111110 (0x7E).  An escape sequence is defined to escape
+   the flag sequence and itself.  Prior to sending the frame, but after
+   the FCS computation, every occurrence of 01111110 (0x7E) other than
+   the flags is to be converted to the sequence 01111101 01011110 (0x7D
+   0x5E), and the sequence 01111101 (0x7D) is to be converted to the
+   sequence 01111101 01011101 (0x7D 0x5D).  Upon receiving a frame, this
+   conversion must be reversed prior to FCS computation.
+
+4. Influence on MAPOS ARP, UNARP, NSP, and SSP
+
+   Since all of the MAPOS protocol family, ARP[11], UNARP[11], NSP[7],
+   and SSP[8], use 32-bit address field for 8-bit MAPOS address, the
+   16-bit addressing has no influence on them.  Each protocol only have
+   to place a 16 bit address in the least significant place in their 32
+   bit address fields as follows;
+
+   (1) MAPOS ARP and UNARP
+    16-bit addresses are placed in the least significant places of the
+    32-bit sender and target HDLC addresses.
+
+   (2) NSP
+    In address assignment packet, a 16-bit address is placed in the
+    least significant bytes of the 32-bit address field. The rest of the
+    field is padded with zeros.
+
+   (3) SSP
+    In route entry of an SSP packet, the 16-bit MAPOS address is placed
+    in the least significant bytes of the 32-bit address field.
+
+
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 4]
+
+RFC 2175                        MAPOS 16                       June 1997
+
+
+5. Mapping IP Multicast Address to MAPOS 16 Address
+
+   When transmitting IP multicast[11], the thirteen bits of the HDLC
+   address must contain the lowest-order thirteen bits of the IP
+   multicast group address.  Exceptions arise when these thirteen bits
+   are either all zeros or all ones, in which case the address 1111 1110
+   1111 1101 should be used.
+
+6. Security Considerations
+
+   Security issues are not discussed in this memo.
+
+References
+
+   [1]  CCITT Recommendation G.707: Synchronous Digital Hierarchy Bit
+        Rates (1990).
+
+   [2]  CCITT Recommendation G.708: Network Node Interface for
+        Synchronous Digital Hierarchy (1990).
+
+   [3]  CCITT Recommendation G.709: Synchronous Multiplexing Structure
+        (1990).
+
+   [4]  American National Standard for Telecommunications - Digital
+        Hierarchy - Optical Interface Rates and Formats Specification,
+        ANSI T1.105-1991.
+
+   [5]  Murakami, K. and M. Maruyama, " MAPOS - Multiple Access Protocol
+        over SONET/SDH version 1", RFC2171, June, 1997.
+
+   [6]  Simpson, W., editor, "PPP in HDLC-like Framing," RFC1662, July
+        1994.
+
+   [7]  Murakami, K. and M. Maruyama, "A MAPOS version 1 Extension -
+        Node Switch Protocol," RFC2173, June, 1997.
+
+   [8]  Murakami, K. and M. Maruyama, "A MAPOS version 1 Extension -
+        Switch Switch Protocol," RFC2174, June, 1997.
+
+   [9]  Reynolds, J. and J. Postel, "ASSIGNED NUMBERS," RFC1700, Oct.
+        1994.
+
+   [10] Maruyama, M. and K. Murakami, "MAPOS Version 1 Assigned
+        Numbers," RFC2172, June, 1997.
+
+   [11] Murakami, K. and M. Maruyama, "IPv4 over MAPOS Version 1,"
+        RFC2176, June, 1997.
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 5]
+
+RFC 2175                        MAPOS 16                       June 1997
+
+
+Acknowledgements
+
+   The authors would like to acknowledge the contributions and
+   thoughtful suggestions of John P. Mullaney, Clark Bremer, Masayuki
+   Kobayashi, Paul Francis, Toshiaki Yoshida, and Takahiro Sajima.
+
+Author's Address
+
+             Ken Murakami
+             NTT Software Laboratories
+             3-9-11, Midori-cho
+             Musashino-shi
+             Tokyo-180, Japan
+             E-mail: murakami@ntt-20.ecl.net
+
+             Mitsuru Maruyama
+             NTT Software Laboratories
+             3-9-11, Midori-cho
+             Musashino-shi
+             Tokyo-180, Japan
+             E-mail: mitsuru@ntt-20.ecl.net
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Murakami & Maruyama          Informational                      [Page 6]
+

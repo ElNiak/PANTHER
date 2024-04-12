@@ -1,0 +1,1067 @@
+
+
+
+
+
+
+Network Working Group                                       G. Fairhurst
+Request for Comments: 5595                        University of Aberdeen
+Updates: 4340                                             September 2009
+Category: Standards Track
+
+
+     The Datagram Congestion Control Protocol (DCCP) Service Codes
+
+Abstract
+
+   This document describes the usage of Service Codes by the Datagram
+   Congestion Control Protocol, RFC 4340.  It motivates the setting of a
+   Service Code by applications.  Service Codes provide a method to
+   identify the intended service/application to process a DCCP
+   connection request.  This provides improved flexibility in the use
+   and assignment of port numbers for connection multiplexing.  The use
+   of a DCCP Service Code can also enable more explicit coordination of
+   services with middleboxes (e.g., network address translators and
+   firewalls).  This document updates the specification provided in RFC
+   4340.
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright and License Notice
+
+   Copyright (c) 2009 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the BSD License.
+
+   This document may contain material from IETF Documents or IETF
+   Contributions published or made publicly available before November
+   10, 2008.  The person(s) controlling the copyright in some of this
+   material may not have granted the IETF Trust the right to allow
+
+
+
+Fairhurst                   Standards Track                     [Page 1]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   modifications of such material outside the IETF Standards Process.
+   Without obtaining an adequate license from the person(s) controlling
+   the copyright in such materials, this document may not be modified
+   outside the IETF Standards Process, and derivative works of it may
+   not be created outside the IETF Standards Process, except to format
+   it for publication as an RFC or to translate it into languages other
+   than English.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+      1.1. History ....................................................3
+      1.2. Conventions Used in This Document ..........................6
+   2. An Architecture for Service Codes ...............................6
+      2.1. IANA Port Numbers ..........................................6
+      2.2. DCCP Service Code Values ...................................7
+           2.2.1. New Versions of Applications or Protocols ...........8
+      2.3. Service Code Registry ......................................8
+      2.4. Zero Service Code ..........................................9
+      2.5. Invalid Service Code .......................................9
+      2.6. SDP for Describing Service Codes ...........................9
+      2.7. A Method to Hash the Service Code to a Dynamic Port ........9
+   3. Use of the DCCP Service Code ...................................10
+      3.1. Setting Service Codes at the Client .......................11
+      3.2. Using Service Codes in the Network ........................11
+      3.3. Using Service Codes at the Server .........................12
+           3.3.1. Reception of a DCCP-Request ........................13
+           3.3.2. Multiple Associations of a Service Code
+                  with Ports .........................................14
+           3.3.3. Automatically Launching a Server ...................14
+   4. Security Considerations ........................................14
+      4.1. Server Port Number Reuse ..................................15
+      4.2. Association of Applications with Service Codes ............15
+      4.3. Interactions with IPsec ...................................15
+   5. IANA Considerations ............................................16
+   6. Acknowledgments ................................................16
+   7. References .....................................................17
+      7.1. Normative References ......................................17
+      7.2. Informative References ....................................17
+
+
+
+
+
+
+
+
+
+
+
+
+Fairhurst                   Standards Track                     [Page 2]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+1.  Introduction
+
+   DCCP specifies a Service Code as a 4-byte value (32 bits) that
+   describes the application-level service to which a client application
+   wishes to connect ([RFC4340], Section 8.1.2).  A Service Code
+   identifies the protocol (or the standard profile, e.g., [RTP-DCCP])
+   to be used at the application layer.  It is not intended to be used
+   to specify a variant of an application or a specific variant of a
+   protocol (Section 2.2).
+
+   The Service Code mechanism allows an application to declare the set
+   of services that are associated with server port numbers.  This can
+   affect how an application interacts with DCCP.  It also allows
+   decoupling of the role of port numbers to indicate a desired service
+   from the role of port numbers in demultiplexing and state management.
+   A DCCP application identifies the requested service by the Service
+   Code value in a DCCP-Request packet.  Each application therefore
+   associates one or more Service Codes with each listening port
+   ([RFC4340], Section 8.1.2).
+
+   The use of Service Codes can assist in identifying the intended
+   service by a firewall and may assist other middleboxes (e.g., a proxy
+   server or network address translator (NAT) [RFC2663]).  Middleboxes
+   that desire to identify the type of data a flow claims to transport
+   should utilize the Service Code for this purpose.  When consistently
+   used, the Service Code can provide a more specific indication of the
+   actual service (e.g., indicating the type of multimedia flow or
+   intended application behaviour) than deriving this information from
+   the server port value.
+
+   The more flexible use of server ports can also offer benefits to
+   applications where servers need to handle very large numbers of
+   simultaneous-open ports to the same service.
+
+   RFC 4340 omits a description of the motivation behind Service Codes,
+   and it does not properly describe how Well Known and Registered
+   server ports relate to Service Codes.  The intent of this document is
+   to clarify these issues.
+
+   RFC 4340 states that Service Codes are not intended to be DCCP-
+   specific.  Service Codes, or similar concepts, may therefore also be
+   useful to other IETF transport protocols.
+
+1.1.  History
+
+   It is simplest to understand the motivation for defining Service
+   Codes by describing the history of the DCCP protocol.
+
+
+
+
+Fairhurst                   Standards Track                     [Page 3]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   Most current Internet transport protocols (TCP [RFC793], UDP
+   [RFC768], SCTP (the Stream Control Transmission Protocol) [RFC4960],
+   and UDP-Lite [RFC3828]) use "Published" port numbers from the Well
+   Known or Registered number spaces [RFC814].  These 16-bit values
+   indicate the application service associated with a connection or
+   message.  The server port must be known to the client to allow a
+   connection to be established.  This may be achieved using out-of-band
+   signalling (e.g., described using SDP [RFC4566]), but more commonly a
+   Published port is allocated to a particular protocol or application;
+   for example, HTTP commonly uses port 80 and SMTP commonly uses port
+   25.  Making a port number Published [RFC1122] involves registration
+   with the Internet Assigned Numbers Authority (IANA), which includes
+   defining a service by a unique keyword and reserving a port number
+   from among a fixed pool [IANA].
+
+   In the earliest draft of DCCP, the authors wanted to address the
+   issue of Published ports in a future-proof manner, since this method
+   suffers from several problems:
+
+   o  The port space is not sufficiently large for ports to be easily
+      allocated (e.g., in an unregulated manner).  Thus, many
+      applications operate using unregistered ports, possibly colliding
+      with use by other applications.
+
+   o  The use of port-based firewalls encourages application writers to
+      disguise one application as another in an attempt to bypass
+      firewall filter rules.  This motivates firewall writers to use
+      deep packet inspection in an attempt to identify the service
+      associated with a port number.
+
+   o  ISPs often deploy transparent proxies, primarily to improve
+      performance and reduce costs.  For example, TCP requests destined
+      to TCP port 80 are often redirected to a web proxy.
+
+   These issues are coupled.  When applications collide on the same
+   Published-but-unregistered port, there is no simple way for network
+   security equipment to tell them apart, and thus it is likely that
+   problems will be introduced through the interaction of features.
+
+   There is little that a transport protocol designer can do about
+   applications that attempt to masquerade as other applications.  For
+   ones that are not attempting to hide, the problem may be simply that
+   they cannot trivially obtain a Published port.  Ideally, it should be
+   sufficiently easy that every application writer can request a Well
+   Known or Registered port and receive one instantly with no questions
+   asked.  The 16-bit port space traditionally used is not large enough
+   to support such a trivial allocation of ports.
+
+
+
+
+Fairhurst                   Standards Track                     [Page 4]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   Thus, the designers of DCCP sought an alternative solution.  The idea
+   was simple.  A 32-bit server port space should be sufficiently large
+   to enable use of very simple allocation policies.  However, overhead
+   considerations made a 32-bit port value undesirable (DCCP needed to
+   be useful for low-rate applications).
+
+   The solution in DCCP to this problem was to use a 32-bit Service Code
+   [RFC4340] that is included only in the DCCP-Request packet.  The use
+   of a 32-bit value was intended to make it trivially simple to obtain
+   a unique value for each application.  Placing the value in a DCCP-
+   Request packet requires no additional overhead for the actual data
+   flow.  It is however sufficient for both the end systems, and
+   provides any stateful middleboxes along the path with additional
+   information to understand what applications are being used.
+
+   Early discussion of the DCCP protocol considered an alternative to
+   the use of traditional ports; instead, it was suggested that a client
+   use a 32-bit identifier to uniquely identify each connection and that
+   the server listen on a socket bound only to a Service Code.  This
+   solution was unambiguous; the Service Code was the only identifier
+   for a listening socket at the server side.  The DCCP client included
+   a Service Code in the request, allowing it to reach the corresponding
+   listening application.  One downside was that this prevented
+   deployment of two servers for the same service on a single machine,
+   something that is trivial with ports.  The design also suffered from
+   the downside of being sufficiently different from existing protocols
+   that there were concerns that it would hinder the use of DCCP through
+   NATs and other middleboxes.
+
+   RFC 4340 abandoned the use of a 32-bit connection identifier in favor
+   of two traditional 16-bit port values, one chosen by the server and
+   one by the client.  This allows middleboxes to utilize similar
+   techniques for DCCP, UDP, TCP, etc.  However, it introduced a new
+   problem: "How does the server port relate to the Service Code?"  The
+   intent was that the Service Code identified the application or
+   protocol using DCCP, providing middleboxes with information about the
+   intended use of a connection, and that the pair of ports effectively
+   formed a 32-bit connection identifier, which was unique between a
+   pair of end systems.
+
+   The large number of available, unique Service Code values allows all
+   applications to be assigned a unique Service Code.  However, there
+   remained a problem: the server port was chosen by the server, but the
+   client needed to know this port to establish a connection.  It was
+   undesirable to mandate out-of-band communication to discover the
+   server port.  The chosen solution was to register DCCP server ports.
+   The limited availability of DCCP server ports appears to contradict
+   the benefits of DCCP Service Codes because, although it may be
+
+
+
+Fairhurst                   Standards Track                     [Page 5]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   trivial to obtain a Service Code, it has not traditionally been
+   trivial to obtain a Registered port from IANA and, in the long-run,
+   it may not be possible to allocate a unique Registered DCCP port to
+   new applications.  As port numbers become scarce, this motivates the
+   need to associate more than one Service Code with a listening port
+   (e.g., two different applications could be assigned the same server
+   port and need to run on the same host at the same time,
+   differentiated by their different associated Service Codes).
+
+   Service Codes provide flexibility in the way clients identify the
+   server application to which they wish to communicate.  The mechanism
+   allows a server to associate a set of server ports with a service.
+   The set may be common with other services available at the same
+   server host, allowing a larger number of concurrent connections for a
+   particular service than possible when the service is identified by a
+   single Published port number.
+
+1.2.  Conventions Used in This Document
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+2.  An Architecture for Service Codes
+
+   DCCP defines the use of a combination of ports and Service Codes to
+   identify the server application ([RFC4340], Section 8.1.2).  These
+   are described in the following sections.
+
+2.1.  IANA Port Numbers
+
+   In DCCP, the packets belonging to a connection are demultiplexed
+   based on a combination of four values {source IP address, source
+   port, dest IP address, dest port}, as in TCP.  An endpoint address is
+   associated with a port number (e.g., forming a socket) and a pair of
+   associations uniquely identifies each connection.  Ports provide the
+   fundamental per-packet demultiplexing function.
+
+   The Internet Assigned Numbers Authority currently manages the set of
+   globally reserved port numbers [IANA].  The source port associated
+   with a connection request, often known as the "ephemeral port", is
+   traditionally in the range 49152-65535 and also includes the range
+   1024-49151.  The value used for the ephemeral port is usually chosen
+   by the client operating system.  It has been suggested that a
+   randomized choice port number value can help defend against "blind"
+   attacks [Rand] in TCP.  This method may be applicable to other IETF-
+   defined transport protocols, including DCCP.
+
+
+
+
+Fairhurst                   Standards Track                     [Page 6]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   Traditionally, the destination (server) port value associated with a
+   service is determined either by an operating system index that points
+   to a copy of the IANA table (e.g., getportbyname() in Unix, which
+   indexes the /etc/services file) or by the application specifying a
+   direct mapping.
+
+   The UDP and TCP port number space: 0..65535, is split into three
+   ranges [RFC2780]:
+
+   o  0..1023 "Well Known", also called "system" ports,
+
+   o  1024..49151 "Registered", also called "user" ports, and
+
+   o  49152..65535 "Dynamic", also called "private" ports.
+
+   DCCP supports Well Known and Registered ports.  These are allocated
+   in the DCCP IANA Port Numbers registry ([RFC4340], Section 19.9).
+   Each Registered DCCP port MUST be associated with at least one pre-
+   defined Service Code.
+
+   Applications that do not need to use a server port in the Well Known
+   or Registered range SHOULD use a Dynamic server port (i.e., one not
+   required to be registered in the DCCP Port registry).  Clients can
+   identify the server port value for the services to which they wish to
+   connect using a range of methods.  One common method is by reception
+   of an SDP record (Section 2.6) exchanged out-of-band (e.g., using SIP
+   [RFC3261] or the Real Time Streaming Protocol (RTSP) [RFC2326]).  DNS
+   SRV resource records also provide a way to identify a server port for
+   a particular service based on the service's string name [RFC2782].
+
+   Applications that do not use out-of-band signalling can still
+   communicate, provided that both client and server agree on the port
+   value to be used.  This eliminates the need for each registered
+   Service Code to be allocated to an IANA-assigned server port (see
+   also Section 2.7).
+
+2.2.  DCCP Service Code Values
+
+   DCCP specifies a 4-byte Service Code ([RFC4340], Section 8.1.2)
+   represented in one of three forms: a decimal number (the canonical
+   method), a 4-character ASCII string [ANSI.X3-4.1986], or an 8-digit
+   hexadecimal number.  All standards assigned Service Codes, including
+   all values assigned by IANA, are required to use a value that may be
+   represented using a subset of the ASCII character set.  Private
+   Service Codes do not need to follow this convention, although RFC
+   4340 suggests that users choose Service Codes that may also be
+   represented in ASCII.
+
+
+
+
+Fairhurst                   Standards Track                     [Page 7]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   The Service Code identifies the application-level service to which a
+   client application wishes to connect.  For example, services have
+   been defined for the Real-Time Protocol (RTP) [RTP-DCCP].  In a
+   different example, Datagram Transport Layer Security (DTLS) [RFC5238]
+   provides a transport-service (not an application-layer service);
+   therefore, applications using DTLS are individually identified by a
+   set of corresponding Service Code values.
+
+   Endpoints MUST associate a Service Code with every DCCP socket
+   [RFC4340], both actively and passively opened.  The application will
+   generally supply this Service Code.  A single passive-listening port
+   may be associated with more than one Service Code value.  The set of
+   Service Codes could be associated with one or more server
+   applications.  This permits a more flexible correspondence between
+   services and port numbers than is possible using the corresponding
+   socket pair (4-tuple of layer-3 addresses and layer-4 ports).  In the
+   currently defined set of packet types, the Service Code value is
+   present only in DCCP-Request ([RFC4340], Section 5.2) and DCCP-
+   Response packets ([RFC4340], Section 5.3).  Note that new DCCP packet
+   types (e.g., [RFC5596]) could also carry a Service Code value.
+
+2.2.1.  New Versions of Applications or Protocols
+
+   Applications/protocols that provide version negotiation or indication
+   in the protocol operating over DCCP do not require a new server port
+   or new Service Code for each new protocol version.  New versions of
+   such applications/protocols SHOULD continue to use the same Service
+   Code.  If the application developers feel that the new version
+   provides significant new capabilities (e.g., that will change the
+   behavior of middleboxes), they MAY allocate a new Service Code
+   associated with the same or different set of Well Known ports.  If
+   the new Service Code is associated with a Well Known or Registered
+   port, the DCCP Ports registry MUST also be updated to include the new
+   Service Code value, but MAY share the same server port assignment(s).
+
+2.3.  Service Code Registry
+
+   The set of registered Service Codes specified for use within the
+   general Internet are defined in an IANA-controlled name space.  IANA
+   manages new allocations of Service Codes in this space [RFC4340].
+   Private Service Codes are not centrally allocated and are denoted by
+   the decimal range 1056964608-1073741823 (i.e., 32-bit values with the
+   high-order byte equal to a value of 63, corresponding to the ASCII
+   character '?').
+
+   Associations of Service Code with Well Known ports are also defined
+   in the IANA DCCP Port registry (Section 2.1).
+
+
+
+
+Fairhurst                   Standards Track                     [Page 8]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+2.4.  Zero Service Code
+
+   A Service Code of zero is "permanently reserved (it represents the
+   absence of a meaningful Service Code)" [RFC4340].  This indicates
+   that no application information was provided.  RFC 4340 states that
+   applications MAY be associated with this Service Code in the same way
+   as other Service Code values.  This use is permitted for any server
+   port.
+
+   This document clarifies Section 19.8 of RFC 4340 by adding the
+   following:
+
+      Applications SHOULD NOT use a Service Code of zero.
+
+      Application writers that need a temporary Service Code value
+      SHOULD choose a value from the private range (Section 2.3).
+
+      Applications intended for deployment in the Internet are
+      encouraged to use an IANA-defined Service Code.  If no specific
+      Service Code exists, they SHOULD request a new assignment from the
+      IANA.
+
+2.5.  Invalid Service Code
+
+   RFC 4340 defines the Service Code value of 4294967295 in decimal
+   (0xFFFFFFFF) as "invalid".  This is provided so implementations can
+   use a special 4-byte value to indicate "no valid Service Code".
+   Implementations MUST NOT accept a DCCP-Request with this value, and
+   SHOULD NOT allow applications to bind to this Service Code value
+   [RFC4340].
+
+2.6.  SDP for Describing Service Codes
+
+   Methods that currently signal destination port numbers, such as the
+   Session Description Protocol (SDP) [RFC4566], require an extension to
+   support DCCP Service Codes [RTP-DCCP].
+
+2.7.  A Method to Hash the Service Code to a Dynamic Port
+
+   Applications that do not use out-of-band signalling or an IANA-
+   assigned port still require both the client and server to agree on
+   the server port value to be used.  This section describes an optional
+   method that allows an application to derive a default server port
+   number from the Service Code.  The returned value is in the Dynamic
+   port range [RFC4340]:
+
+
+
+
+
+
+Fairhurst                   Standards Track                     [Page 9]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+     int s_port; /* server port */
+     s_port = ((sc[0]<<7)^(sc[1]<<5)^(sc[2]<<3)^sc[3]) | 0xC000;
+     if (s_port==0xFFFF) {s_port = 0xC000;}
+
+   where sc[] represents the 4 bytes of the Service Code, and sc[3] is
+   the least significant byte.  For example, this function associates
+   SC:fdpz with the server port 64634.
+
+   This algorithm has the following properties:
+
+   o  It identifies a default server port for each service.
+
+   o  It seeks to assign different Service Codes to different ports, but
+      does not guarantee an assignment is unique.
+
+   o  It preserves the 4 lowest bits of the final bytes of the Service
+      Code, which allows many common series of Service Codes to be
+      mapped to a set of adjacent port numbers, e.g., Foo1, and Foo2;
+      Fooa and Foob would be assigned adjacent ports.  (Note: this
+      consecutive numbering only applies to characters in the range 0-9
+      and A-O and P-Z.  When the characters cross a range boundary, the
+      algorithm introduces a discontinuity, resulting in mapping to
+      non-consecutive ports.  Hence, Fooo and Foop respectively map to
+      the decimal values of 65015 and 65000).
+
+   o  It avoids the port 0xFFFF, which is not accessible on all host
+      platforms.
+
+   Applications and higher-layer protocols that have been assigned a
+   Service Code (or use a Service Code from the unassigned private
+   space) may use this method.  It does not preclude other applications
+   using the selected server port, since DCCP servers are differentiated
+   by the Service Code value.
+
+3.  Use of the DCCP Service Code
+
+   The basic operation of Service Codes is as follows:
+
+   A client initiating a connection:
+
+      -  issues a DCCP-Request with a Service Code and chooses a
+         destination (server) port number that is expected to be
+         associated with the specified Service Code at the destination.
+
+
+
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 10]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   A server that receives a DCCP-Request:
+
+      -  determines whether an available service matching the Service
+         Code is supported for the specified destination server port.
+         The session is associated with the Service Code and a
+         corresponding server.  A DCCP-Response is returned.
+
+      -  if the service is not available, the session is rejected and a
+         DCCP-Reset packet is returned.
+
+3.1.  Setting Service Codes at the Client
+
+   A client application MUST associate every DCCP connection (and hence
+   every DCCP active socket) with a single Service Code value
+   [RFC4340]).  This value is used in the corresponding DCCP-Request
+   packet.
+
+3.2.  Using Service Codes in the Network
+
+   DCCP connections identified by the Service Code continue to use IP
+   addresses and ports, although neither port number may be Published.
+
+   Port numbers and IP addresses are the traditional methods to identify
+   a flow within an IP network.  Middlebox [RFC3234] implementors
+   therefore need to note that new DCCP connections are identified by
+   the pair of server port and Service Code in addition to the IP
+   address.  This means that the IANA may allocate a server port to more
+   than one DCCP application [RFC4340].
+
+   Network address and port translators, known collectively as NATs
+   [RFC2663], may interpret DCCP ports ([RFC2993] and [RFC5597]).  They
+   may also interpret DCCP Service Codes.  Interpreting DCCP Service
+   Codes can reduce the need to correctly interpret port numbers,
+   leading to new opportunities for network address and port
+   translators.  Although it is encouraged to associate specific
+   delivery properties with the Service Code, e.g., to identify the
+   real-time nature of a flow that claims to be using RTP, there is no
+   guarantee that the actual connection data corresponds to the
+   associated Service Code.  A middlebox implementor may still use deep
+   packet inspection, and other means, in an attempt to verify the
+   content of a connection.
+
+   The use of the DCCP Service Code can potentially lead to interactions
+   with other protocols that interpret or modify DCCP port numbers
+   [RFC3234].  The following additional clarifications update the
+   description provided in Section 16 of RFC 4340:
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 11]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+      o  A middlebox that intends to differentiate applications SHOULD
+         test the Service Code in addition to the destination or source
+         port of a DCCP-Request or DCCP-Response packet.
+
+      o  A middlebox that does not modify the intended application
+         (e.g., NATs [RFC5597] and Firewalls) MUST NOT change the
+         Service Code.
+
+      o  A middlebox MAY send a DCCP-Reset in response to a packet with
+         a Service Code that is considered unsuitable.
+
+3.3.  Using Service Codes at the Server
+
+   The combination of the Service Code and server port disambiguates
+   incoming DCCP-Requests received by a server.  The Service Code is
+   used to associate a new DCCP connection with the corresponding
+   application service.  Four cases can arise when two DCCP server
+   applications passively listen on the same host:
+
+      o  The simplest case arises when two servers are associated with
+         different Service Codes and are bound to different server ports
+         (Section 3.3.1).
+
+      o  Two servers may be associated with the same DCCP Service Code
+         value but be bound to different server ports (Section 3.3.2).
+
+      o  Two servers could use different DCCP Service Code values and be
+         bound to the same server port (Section 3.3.1).
+
+      o  Two servers could attempt to use the same DCCP Service Code and
+         bind to the same server port.  A DCCP implementation MUST
+         disallow this, since there is no way for the DCCP host to
+         direct a new connection to the correct server application.
+
+   RFC 4340 (Section 8.1.2) states that an implementation:
+
+      o  MUST associate each active socket with exactly one Service Code
+         on a specified server port.
+
+   In addition, Section 8.1.2 of RFC 4340 also states:
+
+      o  Passive sockets MAY, at the implementation's discretion, be
+         associated with more than one Service Code; this might let
+         multiple applications, or multiple versions of the same
+         application, listen on the same port, differentiated by Service
+         Code.
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 12]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   This document updates the above text from RFC 4340 by replacing it
+   with the following:
+
+      o  An implementation SHOULD allow more than one Service Code to be
+         associated with a passive server port, enabling multiple
+         applications, or multiple versions of an application, to listen
+         on the same port, differentiated by the associated Service
+         Code.
+
+   It also adds:
+
+      o  An implementation SHOULD provide a method that informs a server
+         of the Service Code value that was selected by an active
+         connection.
+
+   A single passively opened (listening) port MAY therefore be
+   associated with multiple Service Codes, although an active (open)
+   connection can only be associated with a single Service Code.  A
+   single application may wish to accept connections for more than one
+   Service Code using the same server port.  This may allow a server to
+   offer more than the limit of 65,536 services depending on the size of
+   the Port field.  The upper limit is based solely on the number of
+   unique connections between two hosts (i.e., 4,294,967,296).
+
+3.3.1.  Reception of a DCCP-Request
+
+   When a DCCP-Request is received and the specified destination port is
+   not bound to a server, the host MUST reject the connection by issuing
+   a DCCP-Reset with the Reset Code "Connection Refused".  A host MAY
+   also use the Reset Code "Too Busy" ([RFC4340], Section 8.1.3).
+
+   When the requested destination port is bound to a server, the host
+   MUST also verify that the server port is associated with the
+   specified Service Code (there could be multiple Service Code values
+   associated with the same server port).  Two cases can occur:
+
+   o  If the receiving host is listening on a server port and the DCCP-
+      Request uses a Service Code that is associated with the port, the
+      host accepts the connection.  Once connected, the server returns a
+      copy of the Service Code in the DCCP-Response packet, completing
+      the initial handshake [RFC4340].
+
+   o  If the server port is not associated with the requested Service
+      Code, the server SHOULD reject the request by sending a DCCP-Reset
+      packet with the Reset Code 8, "Bad Service Code" ([RFC4340],
+      Section 8.1.2), but MAY use the reason "Connection Refused".
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 13]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   After a connection has been accepted, the protocol control block is
+   associated with a pair of ports, a pair of IP addresses, and a single
+   Service Code value.
+
+3.3.2.  Multiple Associations of a Service Code with Ports
+
+   DCCP Service Codes are not restricted to specific ports, although
+   they may be associated with a specific Well Known port.  This allows
+   the same DCCP Service Code value to be associated with more than one
+   server port (in either the active or passive state).
+
+3.3.3.  Automatically Launching a Server
+
+   A host implementation may permit a service to be associated with a
+   server port (or range of ports) that is not permanently running at
+   the server.  In this case, the arrival of a DCCP-Request may require
+   a method to associate a DCCP-Request with a server that handles the
+   corresponding Service Code.  This operation could resemble that of
+   "inetd" [inetd].
+
+   As in the previous section, when the specified Service Code is not
+   associated with the specified server port, the connection MUST be
+   aborted and a DCCP Reset message sent [RFC4340].
+
+4.  Security Considerations
+
+   The security considerations of RFC 4340 identify and offer guidance
+   on security issues relating to DCCP.  This document discusses the
+   usage of Service Codes.  It does not describe new protocol functions.
+
+   All IPsec modes protect the integrity of the DCCP header.  This
+   protects the Service Code field from undetected modification within
+   the network.  In addition, the IPsec Encapsulated Security Payload
+   (ESP) mode may be used to encrypt the Service Code field, hiding the
+   Service Code value within the network and also preventing
+   interpretation by middleboxes.  The DCCP header is not protected by
+   application-layer security (e.g., the use of DTLS [RFC5238] as
+   specified in DTLS/DCCP [RFC4347]).
+
+   There are four areas of security that are important:
+
+   1. Server Port number reuse (Section 4.1).
+
+   2. Interaction with NATs and firewalls (Section 3.2 describes
+      middlebox behavior).  Requirements relating to DCCP are described
+      in [RFC5597].
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 14]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   3. Interpretation of DCCP Service Codes overriding traditional use of
+      reserved/Well Known port numbers (Section 4.2).
+
+   4. Interaction with IPsec and DTLS security (Section 4.3).
+
+4.1.  Server Port Number Reuse
+
+   Service Codes are used in addition to ports when demultiplexing
+   incoming connections.  This changes the service model to be used by
+   applications and middleboxes.  The Port Numbers registry already
+   contains instances of multiple application registrations for a single
+   port number for TCP and UDP.  These are relatively rare.  Since the
+   DCCP Service Code allows multiple applications to safely share the
+   same port number, even on the same host, server port number reuse in
+   DCCP may be more common than in TCP and UDP.
+
+4.2.  Association of Applications with Service Codes
+
+   The use of Service Codes provides more ready feedback that a concrete
+   service is associated with a given port on a server than for a
+   service that does not employ Service Codes.  By responding to an
+   inbound connection request, systems not using these codes may
+   indicate that some service is, or is not, available on a given port,
+   but systems using this mechanism immediately provide confirmation (or
+   denial) that a particular service is present.  This may have
+   implications in terms of port scanning and reconnaissance.
+
+   Care needs to be exercised when interpreting the mapping of a Service
+   Code value to the corresponding service.  The same service
+   (application) may be accessed using more than one Service Code.
+   Examples include the use of separate Service Codes for an application
+   layered directly upon DCCP and one using DTLS transport over DCCP
+   [RFC5238].  Other possibilities include the use of a private Service
+   Code to map to an application that has already been assigned an IANA-
+   defined Service Code value, or multiple Service Code values that map
+   to a single application providing more than one service.  Different
+   versions of a service (application) may also be mapped to a
+   corresponding set of Service Code values.
+
+   Processing of Service Codes may imply more processing than currently
+   associated with incoming port numbers.  Implementors need to guard
+   against increasing opportunities for Denial of Service attacks.
+
+4.3.  Interactions with IPsec
+
+   The Internet Key Exchange protocol (IKEv2) does not currently specify
+   a method to use DCCP Service Codes as a part of the information used
+   to set up an IPsec security association.
+
+
+
+Fairhurst                   Standards Track                    [Page 15]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   IPsec uses port numbers to perform access control in transport mode
+   [RFC4301].  Security policies can define port-specific access control
+   (PROTECT, BYPASS, DISCARD) as well as port-specific algorithms and
+   keys.  Similarly, firewall policies allow or block traffic based on
+   port numbers.
+
+   Use of port numbers in IPsec selectors and firewalls may assume that
+   the numbers correspond to Well Known services.  It is useful to note
+   that there is no such requirement; any service may run on any port,
+   subject to mutual agreement between the endpoint hosts.  Use of the
+   Service Code may interfere with this assumption both within IPsec and
+   within other firewall systems, but it does not add a new
+   vulnerability.  New implementations of IPsec and firewall systems may
+   interpret the Service Code when implementing policy rules, but should
+   not rely on either port numbers or Service Codes to indicate a
+   specific service.
+
+5.  IANA Considerations
+
+   This document does not update the IANA allocation procedures for the
+   DCCP Port Number and DCCP Service Codes Registries as defined in RFC
+   4340.
+
+   For completeness, the document notes that it is not required to
+   supply an approved document (e.g., a published RFC) to support an
+   application for a DCCP Service Code or port number value, although
+   RFCs may be used to request Service Code values via the IANA
+   Considerations section.  A specification is however required to
+   allocate a Service Code that uses a combination of ASCII digits,
+   uppercase letters, and character space, '-', '.', and '/') [RFC4340].
+
+6.  Acknowledgments
+
+   This work has been supported by the EC IST SatSix Project.
+   Significant contributions to this document resulted from discussion
+   with Joe Touch, and this is gratefully acknowledged.  The author also
+   thanks Ian McDonald, Fernando Gont, Eddie Kohler, and the DCCP WG for
+   helpful comments on this topic, and Gerrit Renker for his help in
+   determining DCCP behavior and review of this document.  Mark Handley
+   provided significant input to the text on the definition of Service
+   Codes and their usage.  He also contributed much of the material that
+   has formed the historical background section.
+
+
+
+
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 16]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC1122]  Braden, R., Ed., "Requirements for Internet Hosts -
+              Communication Layers", STD 3, RFC 1122, October 1989.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4340]  Kohler, E., Handley, M., and S. Floyd, "Datagram
+              Congestion Control Protocol (DCCP)", RFC 4340, March 2006.
+
+   [RFC5597]  Denis-Courmont, R., "Network Address Translation (NAT)
+              Behavioral Requirements for the Datagram Congestion
+              Control Protocol", BCP 150, RFC 5597, September 2009.
+
+7.2.  Informative References
+
+   [ANSI.X3-4.1986]
+              American National Standards Institute, "Coded Character
+              Set - 7-bit American Standard Code for Information
+              Interchange", ANSI X3.4, 1986.
+
+   [IANA]     Internet Assigned Numbers Authority, www.iana.org.
+
+   [RTP-DCCP] Perkins, C., "RTP and the Datagram Congestion Control
+              Protocol (DCCP)", Work in Progress, June 2007.
+
+   [Rand]     Larsen, M. and F. Gont, "Port Randomization", Work in
+              Progress, March 2009.
+
+   [inetd]    The extended inetd project, http://xinetd.org.
+
+   [RFC768]   Postel, J., "User Datagram Protocol", STD 6, RFC 768,
+              August 1980.
+
+   [RFC793]   Postel, J., "Transmission Control Protocol", STD 7, RFC
+              793, September 1981.
+
+   [RFC814]   Clark, D., "Name, addresses, ports, and routes", RFC 814,
+              July 1982.
+
+   [RFC2326]  Schulzrinne, H., Rao, A., and R. Lanphier, "Real Time
+              Streaming Protocol (RTSP)", RFC 2326, April 1998.
+
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 17]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+   [RFC2663]  Srisuresh, P. and M. Holdrege, "IP Network Address
+              Translator (NAT) Terminology and Considerations", RFC
+              2663, August 1999.
+
+   [RFC2780]  Bradner, S. and V. Paxson, "IANA Allocation Guidelines For
+              Values In the Internet Protocol and Related Headers", BCP
+              37, RFC 2780, March 2000.
+
+   [RFC2782]  Gulbrandsen, A., Vixie, P., and L. Esibov, "A DNS RR for
+              specifying the location of services (DNS SRV)", RFC 2782,
+              February 2000.
+
+   [RFC2993]  Hain, T., "Architectural Implications of NAT", RFC 2993,
+              November 2000.
+
+   [RFC3234]  Carpenter, B. and S. Brim, "Middleboxes: Taxonomy and
+              Issues", RFC 3234, February 2002.
+
+   [RFC3261]  Rosenberg, J., Schulzrinne, H., Camarillo, G., Johnston,
+              A., Peterson, J., Sparks, R., Handley, M., and E.
+              Schooler, "SIP: Session Initiation Protocol", RFC 3261,
+              June 2002.
+
+   [RFC3828]  Larzon, L-A., Degermark, M., Pink, S., Jonsson, L-E., Ed.,
+              and G. Fairhurst, Ed., "The Lightweight User Datagram
+              Protocol (UDP-Lite)", RFC 3828, July 2004.
+
+   [RFC4301]  Kent, S. and K. Seo, "Security Architecture for the
+              Internet Protocol", RFC 4301, December 2005.
+
+   [RFC4347]  Rescorla, E. and N. Modadugu, "Datagram Transport Layer
+              Security", RFC 4347, April 2006.
+
+   [RFC4566]  Handley, M., Jacobson, V., and C. Perkins, "SDP: Session
+              Description Protocol", RFC 4566, July 2006.
+
+   [RFC4960]  Stewart, R., Ed., "Stream Control Transmission Protocol",
+              RFC 4960, September 2007.
+
+   [RFC5238]  Phelan, T., "Datagram Transport Layer Security (DTLS) over
+              the Datagram Congestion Control Protocol (DCCP)", RFC
+              5238, May 2008.
+
+   [RFC5596]  Fairhurst, G., "Datagram Congestion Control Protocol
+              (DCCP) Simultaneous-Open Technique to Facilitate
+              NAT/Middlebox Traversal", RFC 5596, September 2009.
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 18]
+
+RFC 5595                   DCCP Service Codes             September 2009
+
+
+Author's Address
+
+   Godred Fairhurst,
+   School of Engineering,
+   University of Aberdeen,
+   Kings College,
+   Aberdeen, AB24 3UE,
+   UK
+   EMail: gorry@erg.abdn.ac.uk
+   URL:   http://www.erg.abdn.ac.uk/users/gorry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Fairhurst                   Standards Track                    [Page 19]
+

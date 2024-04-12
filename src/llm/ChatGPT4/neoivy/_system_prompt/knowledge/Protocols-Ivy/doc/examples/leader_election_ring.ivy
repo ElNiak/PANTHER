@@ -1,0 +1,147 @@
+#lang ivy1.7
+
+################################################################################
+#
+# A module containing the axioms of total order
+#
+################################################################################
+
+module total_order_properties(t) = {
+    property [transitivity] X:t < Y & Y < Z -> X < Z
+    property [antisymmetry] ~(X:t < Y & Y < X)
+    property [totality] X:t < Y | X = Y | Y < X
+}
+
+################################################################################
+#
+# ADT describing a totally ordered datatype
+#
+################################################################################
+
+isolate id = {
+    type this
+    specification {
+        instantiate total_order_properties(this)
+    }
+
+    implementation {
+        interpret this -> bv[64]
+    }
+}
+
+################################################################################
+#
+# ADT describing a ring topology.
+#
+# Nodes are totally ordered and provide a `get_next` action that gets
+# the next element of the ring in round-robin order.
+#
+################################################################################
+
+isolate node = {
+    type this
+    action get_next(x:this) returns (y:this)
+    function pid(X:node) : id          # map each node to an id
+
+    axiom [injectivity] pid(X) = pid(Y) -> X = Y
+    
+    specification {
+
+        # We guarantee that nodes are totally ordered.
+        
+        instantiate total_order_properties(this)   
+
+        # get_next has the property that either we wrap around (i.e.,
+        # the output is the least element and the input the greatest) or
+        # the output is the successor of the input (i.e., output is greater
+        # than input and there are no elements between). 
+
+	after get_next {
+	    ensure (y <= X & X <= x) | (x < y & ~ (x < Z & Z < y))
+	}
+    }
+
+    implementation {
+        interpret this -> bv[1]
+        implement get_next {
+            y := x + 1;
+        }
+    }
+}
+
+################################################################################
+#
+# The transport-layer service specification
+#
+################################################################################
+
+isolate trans = {
+
+    action send(src:node, dst:node, v:id)
+    action recv(dst:node, v:id)
+
+    specification {
+        relation sent(V:id, N:node) # The identity V is sent at node N
+
+        after init {
+            sent(V, N) := false;
+        }
+
+	before send {
+	    sent(v,dst) := true
+	}
+
+	before recv {
+	    require sent(v,dst)
+	}
+    }
+}
+
+################################################################################
+#
+# The high-level service specification
+#
+################################################################################
+
+
+isolate app = {
+
+    action tick(me:node)                 # called when a timer expires
+    action elect(me:node)                 # called when v is elected leader
+
+    specification {
+	before elect {
+	    ensure me.pid >= node.pid(X)    # only the max pid can be elected
+	}
+    }
+
+    implementation {
+        implement tick(me:node) {
+ 	    call trans.send(me,me.get_next,me.pid);
+        }
+        
+        implement trans.recv(me:node,v:id) {
+            if v = me.pid {  # Found a leader
+                call elect(me);
+            }
+	    else if v > me.pid  { # pass message to next node
+	        call trans.send(me,me.get_next,v);
+            }
+        }
+    }
+
+    # private {
+    #     invariant ~(node.pid(N) < node.pid(P) & trans.sent(node.pid(N),N))
+    #     invariant ~(node.pid(P) < node.pid(Q) & trans.sent(node.pid(P),N) & N < P & P < Q)
+    #     invariant ~(node.pid(N) < node.pid(P) & trans.sent(node.pid(N),Q) & N < P & P < Q)
+    #     invariant ~(node.pid(Q) < node.pid(N) & trans.sent(node.pid(Q),P) & N < P & P < Q)
+    # }
+    
+} with node, id, trans
+
+import app.elect
+export app.tick
+import trans.send
+export trans.recv
+
+

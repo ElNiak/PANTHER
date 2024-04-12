@@ -1,0 +1,787 @@
+
+
+
+
+
+
+Network Working Group                                            M. Rose
+Request for Comments: 1486                  Dover Beach Consulting, Inc.
+                                                              C. Malamud
+                                           Internet Multicasting Service
+                                                               July 1993
+
+
+                    An Experiment in Remote Printing
+
+Status of this Memo
+
+   This memo defines an Experimental Protocol for the Internet
+   community.  It does not specify an Internet standard.  Discussion and
+   suggestions for improvement are requested.  Please refer to the
+   current edition of the "IAB Official Protocol Standards" for the
+   standardization state and status of this protocol.  Distribution of
+   this memo is unlimited.
+
+Table of Contents
+
+   1. Introduction ..........................................    1
+   1.1 The Advantage of a General-Purpose Infrastructure.....    2
+   2. Procedure .............................................    2
+   2.1 Naming, Addressing, and Routing ......................    3
+   2.2 The application/remote-printing Content-Type .........    4
+   2.3 Usage Example ........................................    5
+   2.4 Remote Printing without MIME .........................    6
+   3. The Experiment ........................................    7
+   3.1 Infrastructure .......................................    8
+   3.1.1 Zones ..............................................    8
+   3.1.2 MX records .........................................    8
+   3.2 Accounting and Privacy ...............................    9
+   3.3 Mailing list .........................................    9
+   3.4 Prototype Implementation .............................   10
+   4. Future Issues .........................................   11
+   5. Security Considerations ...............................   11
+   6. Acknowledgements ......................................   11
+   7. References ............................................   11
+   8. Authors' Addresses.....................................   12
+   A.  The image/tiff Content-Type ..........................   13
+   B.  Uniform Addressing ...................................   13
+
+1.  Introduction
+
+   Although electronic mail is preferable as a means of third-party
+   communication, in some cases it may be necessary to print
+   information, in hard-copy form, at a remote location.  The remote
+   output device may consist of a standard line printer, a printer with
+
+
+
+Rose & Malamud                                                  [Page 1]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   multiple fonts and faces, a printer that can reproduce graphics, or a
+   facsimile device.  Remote output may be accompanied by information
+   that identifies the intended recipient.  This memo describes a
+   technique for "remote printing" using the Internet mail
+   infrastructure.  In particular, this memo focuses on the case in
+   which remote printers are connected to the international telephone
+   network.  Furthermore, it describes an experiment in remote printing.
+
+1.1.  The Advantage of a General-Purpose Infrastructure
+
+   The experiment in remote printing is about "outreach"; specifically,
+   integrating the e-mail and facsimile communities.  By providing easy
+   access to remote printing recipients, enterprise-wide access is
+   enhanced, regardless of kind of institution (e.g., commercial,
+   educational, or government), or the size of institution (e.g.,
+   global, regional, or local).  This approach at outreach allows an
+   organization to make it easier for the "outside world" to communicate
+   with the personnel in the organization who are users of facsimile but
+   not e-mail; e.g., the sales person, the university registrar, or the
+   (elected) official.  The ease in which the Internet mail
+   infrastructure can be used to provide this facility is (yet) another
+   example of the power of a general-purpose infrastructure.
+
+2.  Procedure
+
+   When information is to be remotely printed, the user application
+   constructs an RFC 822 [1] message, containing a "Message-ID" field
+   along with a "multipart/mixed" content [2] having two parts, the
+   first being a "application/remote-printing" content-type, and the
+   second being an arbitrary content-type corresponding to the
+   information to be printed.  The message is then sent to the remote
+   printer server's electronic mail address.
+
+   It should be noted that not all content-types have a natural printing
+   representation, e.g., an "audio" or "video" content.  For this
+   reason, the second part of the "multipart/mixed" content should be
+   one of the following:
+
+      text/plain, message/rfc822, application/postscript image/tiff
+      (defined in Appendix A), any multipart
+
+   Note that:
+
+   (1)  With the "text/plain" content-type, not all character sets may
+        be available for printing.
+
+   (2)  With the "message" content-type, the subordinate content will be
+        processed recursively.
+
+
+
+Rose & Malamud                                                  [Page 2]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   (3)  With the "application/postscript" content-type, the remote
+        printer server should evaluate the contents in a safe execution
+        environment.
+
+   (4)  With the "multipart" content-type the subordinate contents will
+        be processed recursively: for a "multipart/mixed" or
+        "multipart/digest" content, each subordinate content will start
+        on a new page, whilst for a "multipart/parallel" content, all
+        subordinate contents will, if possible, start on the same page.
+        Naturally, when processing a "multipart/alternative" content,
+        only one subordinate content will be printed.
+
+   When the remote printer server finishes its processing, a message is
+   returned to the originator, indicating either success or failure.
+
+2.1.  Naming, Addressing, and Routing
+
+   A printer is identified by a telephone number which corresponds to a
+   G3-facsimile device connected to the international telephone network,
+   e.g.,
+
+        +1 415 968 2510
+
+   where "+1" indicates the IDDD country code, and the remaining string
+   is a telephone number within that country.  This number is used to
+   construct the address of a remote printer server, which forms the
+   recipient address for the message, e.g.,
+
+        remote-printer@0.1.5.2.8.6.9.5.1.4.1.tpc.int
+
+   That is, the local-part of the remote printer server's address is
+   ALWAYS "remote-printer", and the domain-part is constructed by
+   reversing the telephone number, converting each digit to a domain-
+   label, and being placed under "tpc.int."
+
+   The message is routed in exactly the same fashion as all other
+   electronic mail, i.e., using the MX algorithm [3].  Since a remote
+   printer server might be able to access many printers, the wildcarding
+   facilities of the DNS [4,5] are used accordingly.  For example, if a
+   remote printer server residing at "dbc.mtview.ca.us" was willing to
+   access any printer with a telephone number prefix of
+
+        +1 415 968
+
+      then this resource record might be present
+
+        *.8.6.9.5.1.4.1.tpc.int.    IN MX 10 dbc.mtview.ca.us.
+
+
+
+
+Rose & Malamud                                                  [Page 3]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   Naturally, if several remote printer servers were willing to access
+   any printer in that prefix, multiple MX resource records would be
+   present.
+
+   It should be noted that the presence of a wildcard RR which matches a
+   remote printer server's address does not imply that the corresponding
+   telephone number is valid, or, if valid, that a G3-facsimile device
+   is connected at the phone number.
+
+2.2.  The application/remote-printing Content-Type
+
+   (1)  MIME type name: application
+
+   (2)  MIME subtype name: remote-printing
+
+   (3)  Required parameters: none
+
+   (4)  Optional parameters: none
+
+   (5)  Encoding considerations: 7bit preferred
+
+   (6)  Security considerations: none
+
+   The "application/remote-printing" content-type contains originator
+   and recipient information used when generating a cover sheet.  Using
+   the ABNF notation of RFC 822, the syntax for this content is:
+
+        <content>         ::=  <recipient-info> CRLF
+                               <originator-info>
+                               [CRLF <cover-info>]
+
+        <recipient-info>  ::=   "Recipient"    ":" <value> CRLF
+                               <address-info>
+        <originator-info> ::=   "Originator"   ":" <value> CRLF
+                               <address-info>
+
+        <address-info>    ::=  ["Title"        ":" <value> CRLF]
+                               ["Department"   ":" <value> CRLF]
+                               ["Organization" ":" <value> CRLF]
+                               ["Mailstop"     ":" <value> CRLF]
+                               ["Address"      ":" <value> CRLF]
+                               ["Telephone"    ":" <value> CRLF]
+                                "Facsimile"    ":" <value> CRLF
+                               ["Email"        ":" <value> CRLF]
+        <value>           ::=  *text
+                               [CRLF LWSP-char     <value>     ]
+
+        <cover-info>      ::= *(*text CRLF)
+
+
+
+Rose & Malamud                                                  [Page 4]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   Note that the value of the "Email" field is an RFC 822 mailbox
+   address.
+
+2.3.  Usage Example
+
+   Suppose someone wished to send the author some comments on this memo
+   using this facility.  The message constructed might look like this:
+
+        To: remote-printer@0.1.5.2.8.6.9.5.1.4.1.tpc.int
+        From: "John Q. Public" <jpublic@tpd.org>
+        Date: Sun, 11 Apr 1993 20:34:13 -0800
+        Subject: Comments on "An Experiment in Remote Printing"
+        Message-ID: <19930411203413000.456@tpd.org>
+        MIME-Version: 1.0
+        Content-Type: multipart/mixed;
+                boundary="----- =_aaaaaaaaaa0"
+
+        ------- =_aaaaaaaaaa0
+        Content-Type: application/remote-printing
+
+        Recipient:    Marshall Rose
+        Title:        Principal
+        Organization: Dover Beach Consulting, Inc.
+        Address:      420 Whisman Court
+                      Mountain View, CA  94043-2186
+                      US
+        Telephone:    +1 415 968 1052
+        Facsimile:    +1 415 968 2510
+
+        Originator:   John Q. Public
+        Organization: The Public Domain
+        Telephone:    +1 801 555 1234
+        Facsimile:    +1 801 555 6789
+        EMail:        "John Q. Public" <jpublic@tpd.org>
+
+        Any text appearing here would go on the cover-sheet.
+
+        ------- =_aaaaaaaaaa0
+        Content-Type: text/plain; charset="us-ascii"
+
+        Here are my comments on your draft.
+
+         ...
+
+        ------- =_aaaaaaaaaa0--
+
+
+
+
+
+
+Rose & Malamud                                                  [Page 5]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+2.4.  Remote Printing without MIME
+
+   If the originator's user agent doesn't support MIME, (e.g., the
+   originator accesses the Internet mail infrastructure via a gateway in
+   another mail dominion), then it is still possible for remote printing
+   to occur, albeit in a more limited fashion.  Specifically, because a
+   "application/remote-printing" content is not present, cover sheet
+   information must be derived from some other source; and, the message
+   body will be treated as a "text/plain" content.
+
+   Typically, a cover sheet consists of three sections:
+
+   o    information identifying the originator;
+
+   o    information identifying the recipient; and,
+
+   o    additional information supplied by the remote printer server.
+
+   To identify the originator, the remote printer server will use the
+   message headers, usually by stripping any trace headers (i.e.,
+   "Received" and "Return-Path") and then re-ordering the remaining
+   headers starting with the "From" header.
+
+   To identify the recipient, an alternative syntax is used for
+   recipient addressing, in which the local-part of the remote printer
+   server's address consists of "remote-printer" followed by an RFC 822
+   atom, e.g.,
+
+   remote-printer.Arlington_Hewes/Room_403@0.1.5.2.8.6.9.5.1.4.1.tpc.int
+
+   This mailbox syntax is purposefully restricted in the interests of
+   pragmatism.
+
+   The atom following "remote-printer" is considered an opaque string
+   for use in recipient identification when generating a cover sheet.
+
+   To paraphrase RFC 822, an atom is defined as:
+
+    atom    = 1*atomchar
+
+    atomchar=   <any upper or lowercase alphabetic character (A-Z a-z)>
+              / <any digit (0-9)>
+              / "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+"
+              / "-" / "/" / "=" / "?" / "^" / "_" / "`" / "{"
+              / "|" / "}" / "~"
+
+   When generating a cover sheet using this opaque string, the remote
+   printer server will interpret an underscore character ("_") as a
+
+
+
+Rose & Malamud                                                  [Page 6]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   space, and a solidus character ("/") as an end-of-line sequence.  A
+   remote printer server will interpret two consecutive underscore
+   characters in the opaque string as a single underscore, and two
+   consecutive solidus characters as a single solidus.  So, the opaque
+   string,
+
+        Arlington_Hewes/Room_403
+
+   used in the example above might appear on the cover sheet as
+
+        To: Arlington Hewes
+            Room 403
+
+   Note that some Internet mail software (especially gateways from
+   outside the Internet) impose stringent limitations on the size of a
+   mailbox-string.  Thus, originating user agents should take care in
+   limiting the local-part to no more than 70 or so characters.
+
+   Note that by using the alternative syntax for recipient addressing,
+   it is completely legal to send non- textual messages in which the
+   cover sheet information is automatically derived -- simply by
+   including "MIME-Version:" and "Content-Type:" headers in the message,
+   but omitting the initial "application/remote-printing" content, e.g.,
+
+To: remote-printer.Arlington_Hewes/Room_403@0.1.5.2.8.6.9.5.1.4.1.tpc.int
+cc: Marshall Rose <mrose@dbc.mtview.ca.us>
+From: Carl Malamud <carl@malamud.com>
+Date: Sun, 18 Jul 1993 09:14:13 -0500
+Subject: proposal for enhancement
+Message-ID: <19930718141413000.123@malamud.com>
+MIME-Version: 1.0
+Content-Type: application/postcript
+
+%!
+
+   Note that by using the alternative syntax for recipient addressing,
+   remote printing and e-mail recipients can be identified in the same
+   message.
+
+3.  The Experiment
+
+   In order to gain experience with this style of remote printing, an
+   experiment is underway.
+
+
+
+
+
+
+
+
+Rose & Malamud                                                  [Page 7]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+3.1.  Infrastructure
+
+   The domain "tpc.int." is being populated in order to provide the MX-
+   based infrastructure for routing to a remote printer server.  In
+   order to facilitate distributed operations, this domain is divided
+   into a zone for each IDDD country code.  Sites participating in the
+   experiment contact the appropriate zone administrator in order to be
+   listed, by examining the SOA resource record associated with the
+   zone.  For example, a site in the Netherlands (IDDD country code 31)
+   would contact the zone administrator for the domain "1.3.tpc.int." in
+   order to be listed, e.g.,
+
+        % dig 1.3.tpc.int. soa
+
+   Each zone administrator has a simple set of procedures for listing a
+   participant.  For example, in the US (IDDD country code 1),
+   participating sites send an "exchange file" to the administrator,
+   which indicates the prefixes that the site wishes to list.  The zone
+   administrator for the domain "1.tpc.int." merges the exchange files
+   from all participating sites to create a zone for each area code.
+   These zones are then replicated using the normal DNS zone transfer
+   procedures.
+
+3.1.1.  Zones
+
+   It should be noted that zones under "tpc.int" are created on the
+   basis of IDDD country codes and area codes; they are not created for
+   each subdomain.  For example, in the US and Canada (IDDD country code
+   1), no more than one zone is allocated for each area code.  In
+   contrast, for countries with a smaller numbering plan, only a single
+   zone, for the whole country would be allocated.  For example, if Fiji
+   (IDDD country code 679), were to join the experiment, then it is
+   likely that a single zone would be added to the DNS, i.e.,
+   "9.7.6.tpc.int."
+
+3.1.2.  MX records
+
+   The MX records present in a zone can have an arbitrary level of
+   precision.  For example, the North American Numbering Plan (IDDD
+   country code 1) is structured by a 3-digit area code, followed by a
+   3-digit exchange prefix, followed by a 4-digit station number.  As
+   such, one might expect that MX records in this zone would be similar
+   to
+
+        *.5.1.4.1.tpc.int.          IN MX 10 dbc.mtview.ca.us.
+
+
+
+
+
+
+Rose & Malamud                                                  [Page 8]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   which accessed any printer with a telephone number prefix of
+
+        +1 415
+
+   (i.e., allowing access to any printer in area code 415), or might be
+   similar to
+
+        *.8.6.9.5.1.4.1.tpc.int.    IN MX 10 dbc.mtview.ca.us.
+
+   (i.e., allowing access to any printer in area code 415, exchange
+   prefix 968).
+
+   However, the level of precision is arbitrary.  For example, if all of
+   the printers in an organization had a telephone number prefix of
+
+        +1 415 96
+
+   then an MX record such as
+
+        *.6.9.5.1.4.1.tpc.int.    IN MX 10 dbc.mtview.ca.us.
+
+   could be used.
+
+3.2.  Accounting and Privacy
+
+   There is no accounting nor settlement in the experiment; however,
+   participating sites may implement access control to prevent abuse.
+   Records may be kept for auditing purposes; however, the privacy of a
+   participant's printing should be honored.  As such, any auditing
+   should contain at most this information:
+
+   o    the date the message was received;
+
+   o    the "From" and "Message-ID" fields;
+
+   o    the size of the body;
+
+   o    the identity (telephone number) of the printer;
+
+   o    any telephony-related information, such as call duration;
+        and,
+
+   o    any G3-related information, such recipient ID.
+
+3.3.  Mailing list
+
+   There is a mailing list for the experiment.  Interested readers
+   should send a note to:
+
+
+
+Rose & Malamud                                                  [Page 9]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+        tpc-rp-request@aarnet.edu.au
+
+   and ask to subscribe to the
+
+        tpc-rp@aarnet.edu.au
+
+   list.
+
+3.4.  Prototype Implementation
+
+   A prototype implementation is openly available.  The MIME
+   instructions for retrieval are:
+
+        MIME-Version: 1.0
+        Content-Type: multipart/alternative;
+                boundary="----- =_aaaaaaaaaa0"
+        Content-Description:  pointers to ftp and e-mail access
+
+        ------- =_aaaaaaaaaa0
+        Content-Type: message/external-body;
+                access-type="mail-server";
+                server="archive-server@ftp.ics.uci.edu"
+
+        Content-Type: application/octet-stream; type="tar";
+                x-conversions="x-compress"
+        Content-ID: <4599.735726126.1@dbc.mtview.ca.us>
+
+        mimesend mrose/tpc/rp.tar.Z
+
+        ------- =_aaaaaaaaaa0
+        Content-Type: message/external-body;
+                access-type="anon-ftp"; name="rp.tar.Z";
+                directory="mrose/tpc"; site="ftp.ics.uci.edu"
+
+        Content-Type: application/octet-stream; type="tar";
+                x-conversions="x-compress"
+        Content-ID: <4599.735726126.2@dbc.mtview.ca.us>
+
+        ------- =_aaaaaaaaaa0--
+
+   This package contains software for UNIX-based systems, and was
+   developed and tested under SunOS, with an openly-available facsimile
+   package (Sam Leffler's FlexFAX package), and contains information for
+   sites acting as either client or server participants, and zone
+   administrators.
+
+
+
+
+
+
+Rose & Malamud                                                 [Page 10]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+4.  Future Issues
+
+   The experiment in remote printing described herein does not address
+   several issues, e.g.,
+
+   o    determining which content-types and character sets are
+        supported by a remote printer server;
+
+   o    introduction of authentication, integrity, privacy,
+        authorization, and accounting services;
+
+   o    preferential selection of a remote printer server; and,
+
+   o    aggregation of multiple print recipients in a single
+        message.
+
+   Initially, the experiment will not address these issues.  However,
+   subsequent work might consider these issues in detail.
+
+5.  Security Considerations
+
+   Internet mail may be subject to monitoring by third parties, and in
+   particular, message relays.
+
+6.  Acknowledgements
+
+   Carl Malamud of the Internet Multicasting Service provided
+   substantive comments on the design of the experiment.  Douglas Comer
+   of Purdue, Daniel Karrenberg of RIPE, Sam Leffler of SGI, Paul
+   Mockapetris of ARPA, also provided comments.
+
+7.  References
+
+   [1] Crocker, D., "Standard for the Format of ARPA Internet Text
+       Messages", STD 11, RFC 822, UDEL, August, 1982.
+
+   [2] Borenstein, N., and N. Freed, "MIME: Mechanisms for Specifying
+       and Describing the Format of Internet Message Bodies", RFC 1341,
+       Bellcore, Innosoft, June 1992.
+
+   [3] Partridge, C., "Mail Routing and the Domain System", RFC 974,
+       CSNET CIC BBN, August 1982.
+
+   [4] Mockapetris, P., "Domain Names -- Concepts and Facilities", STD
+       13, RFC 1034, USC/Information Sciences Institute, November 1987.
+
+
+
+
+
+
+Rose & Malamud                                                 [Page 11]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   [5] Mockapetris, P., "Domain Names -- Implementation and
+       Specification", STD 13, RFC 1035, USC/Information Sciences
+       Institute, November 1987.
+
+8.  Authors' Addresses
+
+   Marshall T. Rose
+   Dover Beach Consulting, Inc.
+   420 Whisman Court
+   Mountain View, CA  94043-2186
+   US
+
+   Phone: +1 415 968 1052
+   Fax:   +1 415 968 2510
+   EMail: mrose@dbc.mtview.ca.us
+
+
+   Carl Malamud
+   Internet Multicasting Service
+   Suite 1155, The National Press Building
+   Washington, DC 20045
+   US
+
+   Phone: +1 202 628-2044
+   Fax:   +1 202 628 2042
+   EMail: carl@malamud.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Rose & Malamud                                                 [Page 12]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+Appendix A.  The image/tiff Content-Type
+
+   (1)  MIME type name: image
+
+   (2)  MIME subtype name: tiff
+
+   (3)  Required parameters: none
+
+   (4)  Optional parameters: none
+
+   (5)  Encoding considerations: base64
+
+   (6)  Security considerations: none
+
+   (7)  Published specification: TIFF class F, as defined in:
+
+      Tag Image File Format (TIFF) revision 6.0
+
+        Developer's Desk Aldus Corporation 411 First Ave. South Suite
+        200 Seattle, WA  98104 206-622-5500
+
+Appendix B.  Uniform Addressing
+
+   A user may choose to include several recipients in a message, one or
+   more of which may be recipients reached via remote printing.
+   However, the message format accepted by a remote printer server
+   contains only a single recipient.
+
+   There are three solutions to this problem: first, during composition,
+   a "smart" user agent can determine that one or more remote printing
+   recipients are present, and submit the appropriate messages.  This
+   has the disadvantage that the submission for the e-mail recipients
+   does not contain any information about the remote-printing
+   recipients.
+
+   A second solution is to use the alternative syntax for recipient
+   addressing described in Section 2.4 -- however, this minimizes useful
+   information available when constructing the cover sheet.
+
+   A third solution is for a site participating as a client to offer a
+   remote printing recipient exploder server to its users.  Each remote
+   printing recipient is assigned a mailbox relative to the exploder,
+   and, as such, appears as an "ordinary" e-mail address.  Using this
+   strategy, the user agent has no knowledge of which recipients are
+   accessible via e-mail or remote-printing -- the user simply specifies
+   a collection of mailbox recipients.  Those recipients which are
+   accessible via remote-printing are automatically routed to the
+   exploder.  For each recipient in the envelope, a local database is
+
+
+
+Rose & Malamud                                                 [Page 13]
+
+RFC 1486           An Experiment in Remote Printing            July 1993
+
+
+   consulted to retrieve addressing information for the recipient, and a
+   message is submitted to the appropriate remote printer server.
+
+For example, if the original message submitted was:
+
+        To: mrose@rpexplode.tpd.org
+        cc: Arlington Hewes <tpcadmin@dbc.mtview.ca.us>
+        From: "John Q. Public" <jpublic@tpd.org>
+        Date: Sun, 11 Apr 1993 20:34:12 -0800
+        Subject: Comments on "An Experiment in Remote Printing"
+        Message-ID: <19930411203412000.123@tpd.org>
+        MIME-Version: 1.0
+        Content-Type: text/plain; charset=us-ascii
+
+        Here are my comments on your draft.
+         ...
+
+   then the first recipient, "mrose@rpexplode.tpd.org", would be routed
+   to an remote printing exploder, which would submit the message shown
+   in the example in Section 2.3.  The second recipient,
+   "tpcadmin@dbc.mtview.ca.us", would receive the message shown here.
+   Note that a reply by this recipient could include the remote printing
+   recipient.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Rose & Malamud                                                 [Page 14]
+

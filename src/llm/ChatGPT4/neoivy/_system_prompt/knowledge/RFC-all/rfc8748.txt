@@ -1,0 +1,1578 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                         R. Carney
+Request for Comments: 8748                                  GoDaddy Inc.
+Category: Standards Track                                       G. Brown
+ISSN: 2070-1721                                     CentralNic Group plc
+                                                               J. Frakes
+                                                              March 2020
+
+
+ Registry Fee Extension for the Extensible Provisioning Protocol (EPP)
+
+Abstract
+
+   Given the expansion of the DNS namespace and the proliferation of
+   novel business models, it is desirable to provide a method for
+   Extensible Provisioning Protocol (EPP) clients to query EPP servers
+   for the fees and credits associated with various billable
+   transactions and provide expected fees and credits for certain
+   commands and objects.  This document describes an EPP extension
+   mapping for registry fees.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8748.
+
+Copyright Notice
+
+   Copyright (c) 2020 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Conventions Used in This Document
+   2.  Migrating to Newer Versions of This Extension
+   3.  Extension Elements
+     3.1.  Client Commands
+     3.2.  Currency Codes
+     3.3.  Validity Periods
+     3.4.  Fees and Credits
+       3.4.1.  Refunds
+       3.4.2.  Grace Periods
+       3.4.3.  Correlation between Refundability and Grace Periods
+       3.4.4.  Applicability
+     3.5.  Account Balance
+     3.6.  Credit Limit
+     3.7.  Classification of Objects
+     3.8.  "Phase" and "Subphase" Attributes
+     3.9.  Reason
+   4.  Server Handling of Fee Information
+   5.  EPP Command Mapping
+     5.1.  EPP Query Commands
+       5.1.1.  EPP <check> Command
+       5.1.2.  EPP Transfer Query Command
+     5.2.  EPP Transform Commands
+       5.2.1.  EPP <create> Command
+       5.2.2.  EPP <delete> Command
+       5.2.3.  EPP <renew> Command
+       5.2.4.  EPP <transfer> Command
+       5.2.5.  EPP <update> Command
+   6.  Formal Syntax
+     6.1.  Fee Extension Schema
+   7.  Security Considerations
+   8.  IANA Considerations
+     8.1.  XML Namespace
+     8.2.  EPP Extension Registry
+   9.  References
+     9.1.  Normative References
+     9.2.  Informative References
+   Acknowledgements
+   Authors' Addresses
+
+1.  Introduction
+
+   Historically, domain name registries have applied a simple fee
+   structure for billable transactions, namely a basic unit price
+   applied to domain <create>, <renew>, <transfer>, and Redemption Grace
+   Period (RGP) [RFC3915] restore commands.  Given the relatively small
+   number of EPP servers to which EPP clients have been required to
+   connect, it has generally been the case that client operators have
+   been able to obtain details of these fees out of band by contacting
+   the server operators.
+
+   Given the expansion of the DNS namespace and the proliferation of
+   novel business models, it is desirable to provide a method for EPP
+   clients to query EPP servers for the fees and credits associated with
+   various billable transactions and certain commands and specific
+   objects.
+
+   This document describes an extension mapping for version 1.0 of the
+   Extensible Provisioning Protocol (EPP) [RFC5730].  This EPP mapping
+   provides a mechanism by which EPP clients may query the fees and
+   credits associated with various billable transactions and obtain
+   their current account balance.
+
+1.1.  Conventions Used in This Document
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+   XML is case sensitive.  Unless stated otherwise, the XML
+   specifications and examples provided in this document MUST be
+   interpreted in the character case presented in order to develop a
+   conforming implementation.
+
+   "fee" is used as an abbreviation for "urn:ietf:params:xml:ns:epp:fee-
+   1.0".  The XML namespace prefix "fee" is used, but implementations
+   MUST NOT depend on it and instead employ a proper namespace-aware XML
+   parser and serializer to interpret and output the XML documents.
+
+   In the examples, "C:" represents lines sent by a protocol client, and
+   "S:" represents lines returned by a protocol server.  Indentation and
+   white space in the examples are provided only to illustrate element
+   relationships and are not a required feature of this protocol.
+
+2.  Migrating to Newer Versions of This Extension
+
+   Servers that implement this extension SHOULD provide a way for
+   clients to progressively update their implementations when a new
+   version of the extension is deployed.
+
+   Servers SHOULD (for a temporary migration period) provide support for
+   older versions of the extension in parallel to the newest version and
+   allow clients to select their preferred version via the
+   <svcExtension> element of the <login> command.
+
+   If a client requests multiple versions of the extension at login,
+   then, when preparing responses to commands that do not include
+   extension elements, the server SHOULD only include extension elements
+   in the namespace of the newest version of the extension requested by
+   the client.
+
+   When preparing responses to commands that do include extension
+   elements, the server SHOULD only include extension elements for the
+   extension versions present in the command.
+
+3.  Extension Elements
+
+3.1.  Client Commands
+
+   The <fee:command> element is used in the EPP <check> command to
+   determine the fee that is applicable to the given command.
+
+   The "name" attribute of the <fee:command> is used to define which
+   transform fees the client is requesting information about.  The
+   possible values for the "name" attribute are:
+
+   *  "create", indicating a <create> command as defined in [RFC5730].
+
+   *  "delete", indicating a <delete> command as defined in [RFC5730].
+
+   *  "renew", indicating a <renew> command as defined in [RFC5730].
+
+   *  "update", indicating a <update> command as defined in [RFC5730].
+
+   *  "transfer", indicating a <transfer> command as defined in
+      [RFC5730].
+
+   *  If the server supports registry grace period mapping [RFC3915],
+      then the server MUST also support the "restore" value as defined
+      in [RFC3915].
+
+   *  "custom", indicating a custom command that MUST set the
+      "customName" attribute with a custom command name.  The possible
+      set of custom command name values is dictated by the server
+      policy.
+
+   The <fee:command> element MAY have an OPTIONAL "phase" attribute
+   specifying a launch phase as described in [RFC8334].  It may also
+   contain an OPTIONAL "subphase" attribute identifying the custom or
+   subphase as described in [RFC8334].
+
+3.2.  Currency Codes
+
+   The <fee:currency> element is used to indicate the currency in which
+   fees are charged.  The value of this element MUST be a three-
+   character currency code from [ISO4217_2015].
+
+   Note that [ISO4217_2015] provides the special "XXX" code, which MAY
+   be used if the server uses a non-currency-based system for assessing
+   fees, such as a system of credits.
+
+   The use of <fee:currency> elements in client commands is OPTIONAL: if
+   a <fee:currency> element is not present in a command, the server MUST
+   determine the currency based on the server default currency or on the
+   client's account settings, which are agreed to by the client and
+   server via an out-of-band channel.  However, the <fee:currency>
+   element MUST be present in the responses.
+
+   Servers SHOULD NOT perform a currency conversion if a client uses an
+   incorrect currency code.  Servers SHOULD return a 2004 "Parameter
+   value range error" instead.
+
+3.3.  Validity Periods
+
+   When querying for fee information using the <check> command, the
+   <fee:period> element is used to indicate the validity period, which
+   is to be added to extend the registration period of objects by the
+   <create>, <renew>, and <transfer> commands.  Validity periods are
+   measured in years or months, with the appropriate units specified
+   using the "unit" attribute.  Valid values for the "unit" attribute
+   are "y" for years and "m" for months.  This element is derived from
+   the <domain:period> element described in [RFC5731].
+
+   The <fee:period> element is OPTIONAL in <check> commands; if omitted,
+   the server MUST determine the fee(s) using the server default period.
+   The <fee:period> element MUST be present in <check> responses.
+
+3.4.  Fees and Credits
+
+   Servers that implement this extension will include elements in
+   responses that provide information about the fees and/or credits
+   associated with a given billable transaction.  A fee will result in
+   subtracting from the Account Balance (described in Section 3.5), and
+   a credit will result in adding to the Account Balance (described in
+   Section 3.5).
+
+   The <fee:fee> and <fee:credit> elements are used to provide this
+   information.  The presence of a <fee:fee> element in a response
+   indicates a debit against the client's account balance; a
+   <fee:credit> element indicates a credit.  A <fee:fee> element MUST
+   have a zero or greater (non-negative) value.  A <fee:credit> element
+   MUST have a negative value.
+
+   A server MAY respond with multiple <fee:fee> and <fee:credit>
+   elements in the same response.  In such cases, the net fee or credit
+   applicable to the transaction is the arithmetic sum of the values of
+   each of the <fee:fee> and/or <fee:credit> elements.  This amount
+   applies to the total additional validity period for the object (where
+   applicable).
+
+   The following attributes are defined for the <fee:fee> element.
+   These are described in detail below:
+
+   description:  an OPTIONAL attribute that provides a human-readable
+      description of the fee.  Servers should provide documentation on
+      the possible values of this attribute and their meanings.  An
+      OPTIONAL "lang" attribute MAY be present, per the language
+      structure in [RFC5646], to identify the language of the returned
+      text and has a default value of "en" (English).  If the
+      "description" attribute is not present, the "lang" attribute can
+      be ignored.
+
+   refundable:  an OPTIONAL boolean attribute indicating whether the fee
+      is refundable if the object is deleted.
+
+   grace-period:  an OPTIONAL attribute that provides the time period
+      during which the fee is refundable.
+
+   applied:  an OPTIONAL attribute indicating when the fee will be
+      deducted from the client's account.
+
+   The <fee:credit> element can take a "description" attribute as
+   described above.  An OPTIONAL "lang" attribute MAY be present to
+   identify the language of the returned text and has a default value of
+   "en" (English).
+
+3.4.1.  Refunds
+
+   <fee:fee> elements MAY have an OPTIONAL "refundable" attribute that
+   takes a boolean value.  Fees may be refunded under certain
+   circumstances, such as when a domain application is rejected (as
+   described in [RFC8334]) or when an object is deleted during the
+   relevant grace period (see Section 3.4.2).
+
+   If the "refundable" attribute is omitted, then clients SHOULD NOT
+   make any assumptions about the refundability of the fee.
+
+3.4.2.  Grace Periods
+
+   [RFC3915] describes a system of "grace periods", which are time
+   periods following a billable transaction during which, if an object
+   is deleted, the client receives a refund.
+
+   The "grace-period" attribute MAY be used to indicate the relevant
+   grace period for a fee.  If a server implements the registry grace
+   period extension [RFC3915], it MUST specify the grace period for all
+   relevant transactions.
+
+   If the "grace-period" attribute is omitted, then clients SHOULD NOT
+   make any assumptions about the grace period of the fee.
+
+3.4.3.  Correlation between Refundability and Grace Periods
+
+   If a <fee:fee> element has a "grace-period" attribute, then it MUST
+   also be refundable, and the "refundable" attribute MUST be true.  If
+   the "refundable" attribute of a <fee:fee> element is false, then it
+   MUST NOT have a "grace-period" attribute.
+
+3.4.4.  Applicability
+
+   Fees may be applied immediately upon receipt of a command from a
+   client or may only be applied once an out-of-band process (such as
+   the processing of applications at the end of a launch phase) has
+   taken place.
+
+   The "applied" attribute of the <fee:fee> element allows servers to
+   indicate whether a fee will be applied immediately or whether it will
+   be applied at some point in the future.  This attribute takes two
+   possible values: "immediate" or "delayed".
+
+3.5.  Account Balance
+
+   The <fee:balance> element is an OPTIONAL element that MAY be included
+   in server responses to transform commands.  If present, it can be
+   used by the client to determine the remaining credit at the server.
+
+   Whether or not the <fee:balance> is included in responses is a matter
+   of server policy.  However, if a server chooses to offer support for
+   this element, it MUST be included in responses to all "transform" or
+   billable commands (e.g., <create>, <renew>, <update>, <delete>,
+   <transfer op="request">).
+
+   The value of the <fee:balance> MAY be negative.  A negative balance
+   indicates that the server has extended a line of credit to the client
+   (see Section 3.6).
+
+   If a server includes a <fee:balance> element in response to transform
+   commands, the value of the element MUST reflect the client's account
+   balance after any fees or credits associated with that command have
+   been applied.  If the "applied" attribute of the <fee:fee> element is
+   "delayed", then the <fee:balance> MUST reflect the client's account
+   balance without any fees or credits associated with that command.
+
+3.6.  Credit Limit
+
+   As described above, if a server returns a response containing a
+   <fee:balance> with a negative value, then the server has extended a
+   line of credit to the client.  A server MAY also include in responses
+   a <fee:creditLimit> element that indicates the maximum credit
+   available to a client.  A server MAY reject certain transactions if
+   the absolute value of the <fee:balance> is equal to or exceeds the
+   value of the <fee:creditLimit> element.
+
+   Whether or not the <fee:creditLimit> is included in responses is a
+   matter of server policy.  However, if a server chooses to offer
+   support for this element, it MUST be included in responses to all
+   "transform" commands (e.g., <create>, <renew>, <update>, <delete>,
+   <transfer op="request">).
+
+3.7.  Classification of Objects
+
+   Objects may be assigned to a particular class, category, or tier,
+   each of which has a particular fee or set of fees associated with it.
+   The <fee:class> element, which MAY appear in <check> and transform
+   responses, is used to indicate the classification of an object.
+
+   If a server makes use of this element, it should provide clients with
+   a list of all the values that the element may take via an out-of-band
+   channel.  Servers MUST NOT use values that do not appear on this
+   list.
+
+   Servers that make use of this element MUST use a <fee:class> element
+   with the value "standard" for all objects that are subject to the
+   standard or default fee.
+
+3.8.  "Phase" and "Subphase" Attributes
+
+   The <fee:command> element has two attributes, "phase" and "subphase",
+   that provide additional information related to a specific launch
+   phase, as described in [RFC8334].  These attributes are used as
+   filters that should refine the server processing.
+
+   If the client <fee:command> contains a server-supported combination
+   of phase/subphase, the server MUST return the fee data (including the
+   phase/subphase attribute(s)) for the specific combination.
+
+   If the client <fee:command> contains no "phase"/"subphase" attributes
+   and the server has only one active phase/subphase combination, the
+   server MUST return the data (including the "phase"/"subphase"
+   attribute(s)) of the currently active phase/subphase.
+
+   If the client <fee:command> contains no phase/subphase attributes and
+   the server has more than one active phase/subphase combination, the
+   server MUST respond with a 2003 "Required parameter missing" error.
+
+   If the client <fee:command> contains no phase/subphase attributes and
+   the server is currently in a "quiet period" (e.g., not accepting
+   registrations or applications), the server MUST return data
+   consistent with the default general availability phase (e.g., "open"
+   or "claims"), including the appropriate phase/subphase attribute(s).
+
+   If the client <fee:command> contains a phase attribute with no
+   subphase and the server has only one active subphase (or no subphase)
+   of this phase, the server MUST return the data (including the phase/
+   subphase attribute(s)) of the provided phase and currently active
+   subphase.
+
+   If the client <fee:command> contains a phase attribute with no
+   subphase and the server has more than one active subphase combination
+   of this phase, the server MUST respond with a 2003 "Required
+   parameter missing" error.
+
+   If the client <fee:command> contains a subphase with no phase
+   attribute, the server MUST respond with a 2003 "Required parameter
+   missing" error.
+
+   If the client <fee:command> contains a phase attribute not defined in
+   [RFC8334] or not supported by the server, the server MUST respond
+   with a 2004 "Parameter value range error".
+
+   If the client <fee:command> contains a subphase attribute (or phase/
+   subphase combination) not supported by the server, the server MUST
+   respond with a 2004 "Parameter value range error".
+
+3.9.  Reason
+
+   The <fee:reason> element is used to provide server-specific text in
+   an effort to better explain why a <check> command did not complete as
+   the client expected.  An OPTIONAL "lang" attribute MAY be present to
+   identify the language, per the language structure in [RFC5646], of
+   the returned text and has a default value of "en" (English).
+
+   The <fee:reason> element can be used within the server response
+   <fee:command> element or within the <fee:cd> element.  See
+   Section 5.1.1 for details on the <fee:cd> "check data" element.
+
+   If the server cannot calculate the relevant fees because the object,
+   command, currency, period, class, or some combination is invalid per
+   server policy, the server has two ways of handling the error
+   processing of <fee:command> element(s):
+
+   1.  Fast-fail: The server, upon error identification, MAY stop
+       processing <fee:command> elements and return a <fee:cd> to the
+       client containing the <fee:objID> and a <fee:reason> element
+       detailing the reason for failure.
+
+          S: <fee:cd avail="0">
+          S:   <fee:objID>example.xyz</fee:objID>
+          S:   <fee:reason>Only 1 year registration periods are
+          S:   valid.</fee:reason>
+          S: </fee:cd>
+
+   2.  Partial-fail: The server, upon error identification, MAY continue
+       processing <fee:command> elements and return a <fee:cd> to the
+       client containing the successfully processed <fee:command>
+       elements and failed <fee:command> elements.  All returned failed
+       <fee:command> elements MUST have a <fee:reason> element detailing
+       the reason for failure, and the server MAY additionally include a
+       <fee:reason> element at the <fee:cd> level.
+
+          S: <fee:cd avail="0">
+          S:   <fee:objID>example.xyz</fee:objID>
+          S:   <fee:command name="create">
+          S:     <fee:period unit="y">2</fee:period>
+          S:     <fee:reason>Only 1 year registration periods are
+          S:     valid.</fee:reason>
+          S:   </fee:command>
+          S: </fee:cd>
+
+   In either failure scenario, the server MUST set the <fee:cd> "avail"
+   attribute to false (0), and the server MUST process all objects in
+   the client request.
+
+4.  Server Handling of Fee Information
+
+   Depending on the server policy, a client MAY be required to include
+   the extension elements described in this document for certain
+   transform commands.  Servers must provide clear documentation to
+   clients about the circumstances in which this extension must be used.
+
+   The server MUST return avail="0" in its response to a <check> command
+   for any object in the <check> command that does not include the
+   <fee:check> extension where the server would fail a domain <create>
+   command when no <fee> extension is provided for that same object.
+
+   If a server receives a <check> command from a client that results in
+   no possible fee combination, the server MUST set the "avail"
+   attribute of the <fee:cd> element to false (0) and provide a
+   <fee:reason>.
+
+   If a server receives a <check> command from a client that results in
+   an ambiguous result (i.e., multiple possible fee combinations), the
+   server MUST reject the command with a 2003 "Required parameter
+   missing" error.
+
+   If a server receives a command from a client that does not include
+   the fee extension data elements required by the server for that
+   command, then the server MUST respond with a 2003 "Required parameter
+   missing" error.
+
+   If the total fee provided by the client is less than the server's own
+   calculation of the fee or the server determines the currency is
+   inappropriate for that command, then the server MUST reject the
+   command with a 2004 "Parameter value range error".
+
+5.  EPP Command Mapping
+
+   A detailed description of the EPP syntax and semantics can be found
+   in [RFC5730].
+
+5.1.  EPP Query Commands
+
+   This extension does not add any elements to the EPP <poll> or <info>
+   commands or responses.
+
+5.1.1.  EPP <check> Command
+
+   This extension defines a new command called the Fee Check Command
+   that defines additional elements for the EPP <check> command to
+   provide fee information.
+
+   The command MAY contain an <extension> element, which MAY contain a
+   <fee:check> element.  The <fee:check> element MAY contain one
+   <fee:currency> element and MUST contain one or more <fee:command>
+   elements.
+
+   The <fee:command> element(s) MUST contain a "name" attribute (see
+   Section 3.1), an OPTIONAL "phase" attribute, and an OPTIONAL
+   "subphase" attribute (see Section 3.8).  The <fee:command> element(s)
+   MAY have the following child elements:
+
+   *  An OPTIONAL <fee:period> element (as described in Section 3.3).
+
+   Example <check> command:
+
+   C: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   C: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   C:   <command>
+   C:     <check>
+   C:       <domain:check
+   C:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   C:         <domain:name>example.com</domain:name>
+   C:         <domain:name>example.net</domain:name>
+   C:         <domain:name>example.xyz</domain:name>
+   C:       </domain:check>
+   C:     </check>
+   C:     <extension>
+   C:       <fee:check xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   C:         <fee:currency>USD</fee:currency>
+   C:         <fee:command name="create">
+   C:           <fee:period unit="y">2</fee:period>
+   C:         </fee:command>
+   C:         <fee:command name="renew"/>
+   C:         <fee:command name="transfer"/>
+   C:         <fee:command name="restore"/>
+   C:       </fee:check>
+   C:     </extension>
+   C:     <clTRID>ABC-12345</clTRID>
+   C:   </command>
+   C: </epp>
+
+   When the server receives a <check> command that includes the
+   extension elements described above, its response MUST contain an
+   <extension> element, which MUST contain a child <fee:chkData>
+   element.  The <fee:chkData> element MUST contain a <fee:currency>
+   element and a <fee:cd> element for each object referenced in the
+   client <check> command.
+
+   Each <fee:cd> (check data) element MUST contain the following child
+   elements:
+
+   *  A <fee:objID> element, which MUST match an element referenced in
+      the client <check> command.
+
+   *  An OPTIONAL <fee:class> element (as described in Section 3.7).
+
+   *  A <fee:command> element matching each <fee:command> (unless the
+      "avail" attribute of the <fee:cd> is false) that appeared in the
+      corresponding <fee:check> of the client command.  This element MAY
+      have the OPTIONAL "standard" attribute, with a default value of
+      "0" (or "false"), which indicates whether the fee is the standard
+      or default fee (see Section 3.7).  This element MAY have the
+      OPTIONAL "phase" and "subphase" attributes, which will match the
+      same attributes in the corresponding <fee:command> element of the
+      client command if sent by the client.
+
+   The <fee:cd> element also has an OPTIONAL "avail" attribute, which is
+   a boolean.  If the value of this attribute evaluates to false, this
+   indicates that the server cannot calculate the relevant fees because
+   the object, command, currency, period, class, or some combination is
+   invalid per server policy.  If "avail" is false, then the <fee:cd> or
+   the <fee:command> element MUST contain a <fee:reason> element (as
+   described in Section 3.9), and the server MAY eliminate some or all
+   of the <fee:command> element(s).
+
+   The <fee:command> element(s) MAY have the following child elements:
+
+   *  An OPTIONAL <fee:period> element (as described in Section 3.3),
+      which contains the same unit, if present, that appeared in the
+      <fee:period> element of the command.  If the value of the parent
+      <fee:command> element is "restore", this element MUST NOT be
+      included; otherwise, it MUST be included.  If no <fee:period>
+      appeared in the client command (and the command is not "restore"),
+      then the server MUST return its default period value.
+
+   *  Zero or more <fee:fee> elements (as described in Section 3.4).
+
+   *  Zero or more <fee:credit> elements (as described in Section 3.4).
+
+   *  An OPTIONAL <fee:reason> element (as described in Section 3.9).
+
+   If the "avail" attribute of the <fee:cd> element is true (1) and if
+   no <fee:fee> elements are present in a <fee:command> element, this
+   indicates that no fee will be assessed by the server for this
+   command.
+
+   If the "avail" attribute of the <fee:cd> element is true (1), then
+   the <fee:command> element MUST NOT contain a <fee:reason> element.
+
+   Example <check> response:
+
+   S: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   S: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   S:   <response>
+   S:     <result code="1000">
+   S:       <msg>Command completed successfully</msg>
+   S:     </result>
+   S:     <resData>
+   S:       <domain:chkData
+   S:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   S:         <domain:cd>
+   S:           <domain:name avail="1">example.com</domain:name>
+   S:         </domain:cd>
+   S:         <domain:cd>
+   S:           <domain:name avail="1">example.net</domain:name>
+   S:         </domain:cd>
+   S:         <domain:cd>
+   S:           <domain:name avail="1">example.xyz</domain:name>
+   S:         </domain:cd>
+   S:       </domain:chkData>
+   S:     </resData>
+   S:     <extension>
+   S:       <fee:chkData
+   S:           xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   S:         <fee:currency>USD</fee:currency>
+   S:         <fee:cd avail="1">
+   S:           <fee:objID>example.com</fee:objID>
+   S:           <fee:class>Premium</fee:class>
+   S:           <fee:command name="create">
+   S:             <fee:period unit="y">2</fee:period>
+   S:             <fee:fee
+   S:               description="Registration Fee"
+   S:               refundable="1"
+   S:               grace-period="P5D">10.00</fee:fee>
+   S:           </fee:command>
+   S:           <fee:command name="renew">
+   S:             <fee:period unit="y">1</fee:period>
+   S:             <fee:fee
+   S:               description="Renewal Fee"
+   S:               refundable="1"
+   S:               grace-period="P5D">10.00</fee:fee>
+   S:           </fee:command>
+   S:           <fee:command name="transfer">
+   S:             <fee:period unit="y">1</fee:period>
+   S:             <fee:fee
+   S:               description="Transfer Fee"
+   S:               refundable="1"
+   S:               grace-period="P5D">10.00</fee:fee>
+   S:           </fee:command>
+   S:           <fee:command name="restore">
+   S:             <fee:fee
+   S:               description="Redemption Fee">15.00</fee:fee>
+   S:           </fee:command>
+   S:         </fee:cd>
+   S:         <fee:cd avail="1">
+   S:           <fee:objID>example.net</fee:objID>
+   S:           <fee:class>standard</fee:class>
+   S:           <fee:command name="create" standard="1">
+   S:             <fee:period unit="y">2</fee:period>
+   S:             <fee:fee
+   S:               description="Registration Fee"
+   S:               refundable="1"
+   S:               grace-period="P5D">5.00</fee:fee>
+   S:           </fee:command>
+   S:           <fee:command name="renew" standard="1">
+   S:             <fee:period unit="y">1</fee:period>
+   S:             <fee:fee
+   S:               description="Renewal Fee"
+   S:               refundable="1"
+   S:               grace-period="P5D">5.00</fee:fee>
+   S:           </fee:command>
+   S:           <fee:command name="transfer" standard="1">
+   S:             <fee:period unit="y">1</fee:period>
+   S:             <fee:fee
+   S:               description="Transfer Fee"
+   S:               refundable="1"
+   S:               grace-period="P5D">5.00</fee:fee>
+   S:           </fee:command>
+   S:           <fee:command name="restore" standard="1">
+   S:             <fee:fee
+   S:               description="Redemption Fee">5.00</fee:fee>
+   S:           </fee:command>
+   S:         </fee:cd>
+   S:         <fee:cd avail="0">
+   S:           <fee:objID>example.xyz</fee:objID>
+   S:           <fee:command name="create">
+   S:             <fee:period unit="y">2</fee:period>
+   S:             <fee:reason>Only 1 year registration periods are
+   S:               valid.</fee:reason>
+   S:           </fee:command>
+   S:         </fee:cd>
+   S:       </fee:chkData>
+   S:     </extension>
+   S:     <trID>
+   S:       <clTRID>ABC-12345</clTRID>
+   S:       <svTRID>54322-XYZ</svTRID>
+   S:     </trID>
+   S:   </response>
+   S: </epp>
+
+5.1.2.  EPP Transfer Query Command
+
+   This extension does not add any elements to the EPP <transfer> query
+   command, but it does include elements in the response when the
+   extension is included in the <login> command service extensions.
+
+   When the <transfer> query command has been processed successfully, if
+   the client has included the extension in the <login> command service
+   <svcExtension> element, and if the client is authorized by the server
+   to view information about the transfer, then the server MAY include
+   in the <extension> section of the EPP response a <fee:trnData>
+   element, which contains the following child elements:
+
+   *  A <fee:currency> element (as described in Section 3.2).
+
+   *  A <fee:period> element (as described in Section 3.3).
+
+   *  Zero or more <fee:fee> elements (as described in Section 3.4)
+      containing the fees that will be charged to the gaining client.
+
+   *  Zero or more <fee:credit> elements (as described in Section 3.4)
+      containing the credits that will be refunded to the losing client.
+
+   Servers SHOULD omit <fee:credit> when returning a response to the
+   gaining client and omit <fee:fee> elements when returning a response
+   to the losing client.
+
+   If no <fee:trnData> element is included in the response, then no fee
+   will be assessed by the server for the transfer.
+
+   Example <transfer> query response:
+
+   S: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   S: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   S:   <response>
+   S:     <result code="1001">
+   S:       <msg>Command completed successfully; action pending</msg>
+   S:     </result>
+   S:     <resData>
+   S:       <domain:trnData
+   S:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   S:         <domain:name>example.com</domain:name>
+   S:         <domain:trStatus>pending</domain:trStatus>
+   S:         <domain:reID>ClientX</domain:reID>
+   S:         <domain:reDate>2019-06-08T22:00:00.0Z</domain:reDate>
+   S:         <domain:acID>ClientY</domain:acID>
+   S:         <domain:acDate>2019-06-13T22:00:00.0Z</domain:acDate>
+   S:         <domain:exDate>2021-09-08T22:00:00.0Z</domain:exDate>
+   S:       </domain:trnData>
+   S:     </resData>
+   S:     <extension>
+   S:       <fee:trnData xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   S:         <fee:currency>USD</fee:currency>
+   S:         <fee:period unit="y">1</fee:period>
+   S:         <fee:fee>5.00</fee:fee>
+   S:       </fee:trnData>
+   S:     </extension>
+   S:     <trID>
+   S:       <clTRID>ABC-12345</clTRID>
+   S:       <svTRID>54322-XYZ</svTRID>
+   S:     </trID>
+   S:   </response>
+   S: </epp>
+
+5.2.  EPP Transform Commands
+
+5.2.1.  EPP <create> Command
+
+   This extension adds elements to both the EPP <create> command and
+   response when the extension is included in the <login> command
+   service extensions.
+
+   When submitting a <create> command to the server, the client MAY
+   include in the <extension> element a <fee:create> element, which
+   includes the following child elements:
+
+   *  An OPTIONAL <fee:currency> element (as described in Section 3.2).
+
+   *  One or more <fee:fee> elements (as described in Section 3.4).
+
+   When the <create> command has been processed successfully, the client
+   included the extension in the <login> command service extensions, and
+   a fee was assessed by the server for the transaction, the server MUST
+   include in the <extension> section of the EPP response a
+   <fee:creData> element, which contains the following child elements:
+
+   *  A <fee:currency> element (as described in Section 3.2).
+
+   *  Zero or more <fee:fee> elements (as described in Section 3.4).
+
+   *  Zero or more <fee:credit> elements (as described in Section 3.4).
+
+   *  An OPTIONAL <fee:balance> element (as described in Section 3.5).
+
+   *  An OPTIONAL <fee:creditLimit> element (as described in
+      Section 3.6).
+
+   Example <create> command:
+
+   C: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   C: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   C:   <command>
+   C:     <create>
+   C:       <domain:create
+   C:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   C:         <domain:name>example.com</domain:name>
+   C:         <domain:period unit="y">2</domain:period>
+   C:         <domain:ns>
+   C:           <domain:hostObj>ns1.example.net</domain:hostObj>
+   C:           <domain:hostObj>ns2.example.net</domain:hostObj>
+   C:         </domain:ns>
+   C:         <domain:registrant>jd1234</domain:registrant>
+   C:         <domain:contact type="admin">sh8013</domain:contact>
+   C:         <domain:contact type="tech">sh8013</domain:contact>
+   C:         <domain:authInfo>
+   C:           <domain:pw>2fooBAR</domain:pw>
+   C:         </domain:authInfo>
+   C:       </domain:create>
+   C:     </create>
+   C:     <extension>
+   C:       <fee:create xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   C:         <fee:currency>USD</fee:currency>
+   C:         <fee:fee>5.00</fee:fee>
+   C:       </fee:create>
+   C:     </extension>
+   C:     <clTRID>ABC-12345</clTRID>
+   C:   </command>
+   C: </epp>
+
+   Example <create> response:
+
+   S: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   S: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   S:   <response>
+   S:     <result code="1000">
+   S:       <msg>Command completed successfully</msg>
+   S:     </result>
+   S:     <resData>
+   S:       <domain:creData
+   S:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   S:         <domain:name>example.com</domain:name>
+   S:         <domain:crDate>2019-04-03T22:00:00.0Z</domain:crDate>
+   S:         <domain:exDate>2021-04-03T22:00:00.0Z</domain:exDate>
+   S:       </domain:creData>
+   S:     </resData>
+   S:     <extension>
+   S:       <fee:creData xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   S:         <fee:currency>USD</fee:currency>
+   S:         <fee:fee
+   S:           description="Registration Fee"
+   S:           lang="en"
+   S:           refundable="1"
+   S:           grace-period="P5D">5.00</fee:fee>
+   S:         <fee:balance>-5.00</fee:balance>
+   S:         <fee:creditLimit>1000.00</fee:creditLimit>
+   S:       </fee:creData>
+   S:     </extension>
+   S:     <trID>
+   S:       <clTRID>ABC-12345</clTRID>
+   S:       <svTRID>54321-XYZ</svTRID>
+   S:     </trID>
+   S:   </response>
+   S: </epp>
+
+5.2.2.  EPP <delete> Command
+
+   This extension does not add any elements to the EPP <delete> command,
+   but it does include elements in the response when the extension is
+   included in the <login> command service extensions.
+
+   When the <delete> command has been processed successfully and the
+   client included the extension in the <login> command service
+   extensions, the server MAY include in the <extension> section of the
+   EPP response a <fee:delData> element, which contains the following
+   child elements:
+
+   *  A <fee:currency> element (as described in Section 3.2).
+
+   *  Zero or more <fee:fee> elements (as described in Section 3.4).
+
+   *  Zero or more <fee:credit> elements (as described in Section 3.4).
+
+   *  An OPTIONAL <fee:balance> element (as described in Section 3.5).
+
+   *  An OPTIONAL <fee:creditLimit> element (as described in
+      Section 3.6).
+
+   Example <delete> response:
+
+   S: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   S: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   S:   <response>
+   S:     <result code="1000">
+   S:       <msg>Command completed successfully</msg>
+   S:     </result>
+   S:     <extension>
+   S:       <fee:delData
+   S:         xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   S:         <fee:currency>USD</fee:currency>
+   S:         <fee:credit
+   S:           description="AGP Credit"
+   S:           lang="en">-5.00</fee:credit>
+   S:         <fee:balance>1005.00</fee:balance>
+   S:       </fee:delData>
+   S:     </extension>
+   S:     <trID>
+   S:       <clTRID>ABC-12345</clTRID>
+   S:       <svTRID>54321-XYZ</svTRID>
+   S:     </trID>
+   S:   </response>
+   S: </epp>
+
+5.2.3.  EPP <renew> Command
+
+   This extension adds elements to both the EPP <renew> command and
+   response when the extension is included in the <login> command
+   service extensions.
+
+   When submitting a <renew> command to the server, the client MAY
+   include in the <extension> element a <fee:renew> element, which
+   includes the following child elements:
+
+   *  An OPTIONAL <fee:currency> element (as described in Section 3.2).
+
+   *  One or more <fee:fee> elements (as described in Section 3.4).
+
+   When the <renew> command has been processed successfully and the
+   client included the extension in the <login> command service
+   extensions, the server MAY include in the <extension> section of the
+   EPP response a <fee:renData> element, which contains the following
+   child elements:
+
+   *  A <fee:currency> element (as described in Section 3.2).
+
+   *  Zero or more <fee:fee> elements (as described in Section 3.4).
+
+   *  Zero or more <fee:credit> elements (as described in Section 3.4).
+
+   *  An OPTIONAL <fee:balance> element (as described in Section 3.5).
+
+   *  An OPTIONAL <fee:creditLimit> element (as described in
+      Section 3.6).
+
+   Example <renew> command:
+
+   C: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   C: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   C:   <command>
+   C:     <renew>
+   C:       <domain:renew
+   C:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   C:         <domain:name>example.com</domain:name>
+   C:         <domain:curExpDate>2019-04-03</domain:curExpDate>
+   C:         <domain:period unit="y">5</domain:period>
+   C:       </domain:renew>
+   C:     </renew>
+   C:     <extension>
+   C:       <fee:renew xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   C:         <fee:currency>USD</fee:currency>
+   C:         <fee:fee>5.00</fee:fee>
+   C:       </fee:renew>
+   C:     </extension>
+   C:     <clTRID>ABC-12345</clTRID>
+   C:   </command>
+   C: </epp>
+
+   Example <renew> response:
+
+   S: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   S: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   S:   <response>
+   S:     <result code="1000">
+   S:       <msg>Command completed successfully</msg>
+   S:     </result>
+   S:     <resData>
+   S:       <domain:renData
+   S:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   S:         <domain:name>example.com</domain:name>
+   S:         <domain:exDate>2024-04-03T22:00:00.0Z</domain:exDate>
+   S:       </domain:renData>
+   S:     </resData>
+   S:     <extension>
+   S:       <fee:renData xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   S:         <fee:currency>USD</fee:currency>
+   S:         <fee:fee
+   S:           refundable="1"
+   S:           grace-period="P5D">5.00</fee:fee>
+   S:         <fee:balance>1000.00</fee:balance>
+   S:       </fee:renData>
+   S:     </extension>
+   S:     <trID>
+   S:       <clTRID>ABC-12345</clTRID>
+   S:       <svTRID>54322-XYZ</svTRID>
+   S:     </trID>
+   S:   </response>
+   S: </epp>
+
+5.2.4.  EPP <transfer> Command
+
+   This extension adds elements to both the EPP <transfer> command and
+   response when the value of the "op" attribute of the <transfer>
+   command element is "request" and the extension is included in the
+   <login> command service extensions.
+
+   When submitting a <transfer> command to the server, the client MAY
+   include in the <extension> element a <fee:transfer> element, which
+   includes the following child elements:
+
+   *  An OPTIONAL <fee:currency> element (as described in Section 3.2).
+
+   *  One or more <fee:fee> elements (as described in Section 3.4).
+
+   When the <transfer> command has been processed successfully and the
+   client included the extension in the <login> command service
+   extensions, the server MAY include in the <extension> section of the
+   EPP response a <fee:trnData> element, which contains the following
+   child elements:
+
+   *  A <fee:currency> element (as described in Section 3.2).
+
+   *  Zero or more <fee:fee> elements (as described in Section 3.4).
+
+   *  Zero or more <fee:credit> elements (as described in Section 3.4).
+
+   *  An OPTIONAL <fee:balance> element (as described in Section 3.5).
+
+   *  An OPTIONAL <fee:creditLimit> element (as described in
+      Section 3.6).
+
+   Example <transfer> command:
+
+   C: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   C: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   C:   <command>
+   C:     <transfer op="request">
+   C:       <domain:transfer
+   C:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   C:         <domain:name>example.com</domain:name>
+   C:         <domain:period unit="y">1</domain:period>
+   C:         <domain:authInfo>
+   C:           <domain:pw roid="JD1234-REP">2fooBAR</domain:pw>
+   C:         </domain:authInfo>
+   C:       </domain:transfer>
+   C:     </transfer>
+   C:     <extension>
+   C:      <fee:transfer xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   C:        <fee:currency>USD</fee:currency>
+   C:        <fee:fee>5.00</fee:fee>
+   C:      </fee:transfer>
+   C:     </extension>
+   C:     <clTRID>ABC-12345</clTRID>
+   C:   </command>
+   C: </epp>
+
+   Example <transfer> response:
+
+   S: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   S: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   S:   <response>
+   S:     <result code="1001">
+   S:       <msg>Command completed successfully; action pending</msg>
+   S:     </result>
+   S:     <resData>
+   S:       <domain:trnData
+   S:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   S:         <domain:name>example.com</domain:name>
+   S:         <domain:trStatus>pending</domain:trStatus>
+   S:         <domain:reID>ClientX</domain:reID>
+   S:         <domain:reDate>2019-06-08T22:00:00.0Z</domain:reDate>
+   S:         <domain:acID>ClientY</domain:acID>
+   S:         <domain:acDate>2019-06-13T22:00:00.0Z</domain:acDate>
+   S:         <domain:exDate>2021-09-08T22:00:00.0Z</domain:exDate>
+   S:       </domain:trnData>
+   S:     </resData>
+   S:     <extension>
+   S:       <fee:trnData xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   S:         <fee:currency>USD</fee:currency>
+   S:         <fee:fee
+   S:           refundable="1"
+   S:           grace-period="P5D">5.00</fee:fee>
+   S:       </fee:trnData>
+   S:     </extension>
+   S:     <trID>
+   S:       <clTRID>ABC-12345</clTRID>
+   S:       <svTRID>54322-XYZ</svTRID>
+   S:     </trID>
+   S:   </response>
+   S: </epp>
+
+5.2.5.  EPP <update> Command
+
+   This extension adds elements to both the EPP <update> command and
+   response when the extension is included in the <login> command
+   service extensions.
+
+   When submitting an <update> command to the server, the client MAY
+   include in the <extension> element a <fee:update> element, which
+   includes the following child elements:
+
+   *  An OPTIONAL <fee:currency> element (as described in Section 3.2).
+
+   *  One or more <fee:fee> elements (as described in Section 3.4).
+
+   When the <update> command has been processed successfully and the
+   client included the extension in the <login> command service
+   extensions, the server MAY include in the <extension> section of the
+   EPP response a <fee:updData> element, which contains the following
+   child elements:
+
+   *  A <fee:currency> element (as described in Section 3.2).
+
+   *  Zero or more <fee:fee> elements (as described in Section 3.4).
+
+   *  Zero or more <fee:credit> elements (as described in Section 3.4).
+
+   *  An OPTIONAL <fee:balance> element (as described in Section 3.5).
+
+   *  An OPTIONAL <fee:creditLimit> element (as described in
+      Section 3.6).
+
+   Example <update> command:
+
+   C: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   C: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   C:   <command>
+   C:     <update>
+   C:       <domain:update
+   C:         xmlns:domain="urn:ietf:params:xml:ns:domain-1.0">
+   C:         <domain:name>example.com</domain:name>
+   C:         <domain:chg>
+   C:           <domain:registrant>sh8013</domain:registrant>
+   C:         </domain:chg>
+   C:       </domain:update>
+   C:     </update>
+   C:     <extension>
+   C:       <fee:update xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   C:         <fee:currency>USD</fee:currency>
+   C:         <fee:fee>5.00</fee:fee>
+   C:       </fee:update>
+   C:     </extension>
+   C:     <clTRID>ABC-12345</clTRID>
+   C:   </command>
+   C: </epp>
+
+   Example <update> response:
+
+   S: <?xml version="1.0" encoding="utf-8" standalone="no"?>
+   S: <epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+   S:   <response>
+   S:     <result code="1000">
+   S:       <msg>Command completed successfully</msg>
+   S:     </result>
+   S:     <extension>
+   S:       <fee:updData xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0">
+   S:         <fee:currency>USD</fee:currency>
+   S:         <fee:fee>5.00</fee:fee>
+   S:       </fee:updData>
+   S:     </extension>
+   S:     <trID>
+   S:       <clTRID>ABC-12345</clTRID>
+   S:       <svTRID>54321-XYZ</svTRID>
+   S:     </trID>
+   S:   </response>
+   S: </epp>
+
+6.  Formal Syntax
+
+   One schema is presented here -- the EPP Fee Extension schema.
+
+   The formal syntax presented here is a complete schema representation
+   of the object mapping suitable for automated validation of EPP XML
+   instances.
+
+6.1.  Fee Extension Schema
+
+   The formal syntax presented here is a complete schema representation
+   [W3C.REC-xmlschema-1-20041028] of the object mapping suitable for
+   automated validation of EPP XML instances.  The <CODE BEGINS> and
+   <CODE ENDS> tags are not part of the schema; they are used to note
+   the beginning and end of the schema for URI registration purposes.
+
+   <CODE BEGINS>
+   <?xml version="1.0" encoding="utf-8"?>
+   <schema xmlns="http://www.w3.org/2001/XMLSchema"
+     xmlns:fee="urn:ietf:params:xml:ns:epp:fee-1.0"
+     xmlns:eppcom="urn:ietf:params:xml:ns:eppcom-1.0"
+     xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
+     targetNamespace="urn:ietf:params:xml:ns:epp:fee-1.0"
+     elementFormDefault="qualified">
+
+     <import namespace="urn:ietf:params:xml:ns:eppcom-1.0" />
+     <import namespace="urn:ietf:params:xml:ns:domain-1.0" />
+
+     <annotation>
+       <documentation>
+         Extensible Provisioning Protocol v1.0 Fee Extension
+       </documentation>
+     </annotation>
+
+     <!-- Child elements found in EPP commands and responses -->
+     <element name="check" type="fee:checkType" />
+     <element name="chkData" type="fee:chkDataType" />
+     <element name="create" type="fee:transformCommandType" />
+     <element name="creData" type="fee:transformResultType" />
+     <element name="renew" type="fee:transformCommandType" />
+     <element name="renData" type="fee:transformResultType" />
+     <element name="transfer" type="fee:transformCommandType" />
+     <element name="trnData" type="fee:transformResultType" />
+     <element name="update" type="fee:transformCommandType" />
+     <element name="updData" type="fee:transformResultType" />
+     <element name="delData" type="fee:transformResultType" />
+
+     <!-- client <check> command -->
+     <complexType name="checkType">
+       <sequence>
+         <element name="currency" type="fee:currencyType"
+           minOccurs="0" />
+         <element name="command" type="fee:commandType"
+           minOccurs="1" maxOccurs="unbounded" />
+       </sequence>
+     </complexType>
+
+     <complexType name="objectIdentifierType">
+       <simpleContent>
+         <extension base="eppcom:labelType">
+           <attribute name="element"
+           type="NMTOKEN" default="name" />
+         </extension>
+       </simpleContent>
+     </complexType>
+
+     <!-- server <check> result -->
+     <complexType name="chkDataType">
+       <sequence>
+         <element name="currency" type="fee:currencyType" />
+         <element name="cd" type="fee:objectCDType"
+           maxOccurs="unbounded" />
+       </sequence>
+     </complexType>
+
+     <complexType name="objectCDType">
+       <sequence>
+         <element name="objID" type="fee:objectIdentifierType" />
+         <element name="class" type="token" minOccurs="0" />
+         <element name="command" type="fee:commandDataType"
+           minOccurs="0" maxOccurs="unbounded" />
+         <element name="reason" type="fee:reasonType" minOccurs="0" />
+       </sequence>
+       <attribute name="avail" type="boolean" default="1" />
+     </complexType>
+
+     <!-- general transform (create, renew, update, transfer) command-->
+     <complexType name="transformCommandType">
+       <sequence>
+         <element name="currency" type="fee:currencyType"
+           minOccurs="0" />
+         <element name="fee" type="fee:feeType"
+           maxOccurs="unbounded" />
+         <element name="credit" type="fee:creditType"
+           minOccurs="0" maxOccurs="unbounded" />
+       </sequence>
+     </complexType>
+
+     <!-- general transform (create, renew, update) result -->
+     <complexType name="transformResultType">
+       <sequence>
+         <element name="currency" type="fee:currencyType"
+           minOccurs="0" />
+         <element name="period" type="domain:periodType"
+           minOccurs="0" />
+         <element name="fee" type="fee:feeType"
+           minOccurs="0" maxOccurs="unbounded" />
+         <element name="credit" type="fee:creditType"
+           minOccurs="0" maxOccurs="unbounded" />
+         <element name="balance" type="fee:balanceType"
+           minOccurs="0" />
+         <element name="creditLimit" type="fee:creditLimitType"
+           minOccurs="0" />
+       </sequence>
+     </complexType>
+
+     <!-- common types -->
+     <simpleType name="currencyType">
+       <restriction base="string">
+         <pattern value="[A-Z]{3}" />
+       </restriction>
+     </simpleType>
+
+     <complexType name="commandType">
+       <sequence>
+         <element name="period" type="domain:periodType"
+           minOccurs="0" maxOccurs="1" />
+       </sequence>
+       <attribute name="name" type="fee:commandEnum" use="required"/>
+       <attribute name="customName" type="token"/>
+       <attribute name="phase" type="token" />
+       <attribute name="subphase" type="token" />
+     </complexType>
+
+     <complexType name="commandDataType">
+       <complexContent>
+         <extension base="fee:commandType">
+           <sequence>
+             <element name="fee" type="fee:feeType"
+               minOccurs="0" maxOccurs="unbounded" />
+             <element name="credit" type="fee:creditType"
+               minOccurs="0" maxOccurs="unbounded" />
+             <element name="reason" type="fee:reasonType"
+               minOccurs="0" />
+           </sequence>
+           <attribute name="standard" type="boolean" default="0" />
+         </extension>
+       </complexContent>
+     </complexType>
+
+     <complexType name="reasonType">
+       <simpleContent>
+         <extension base="token">
+           <attribute name="lang" type="language" default="en"/>
+         </extension>
+       </simpleContent>
+     </complexType>
+
+     <simpleType name="commandEnum">
+       <restriction base="token">
+         <enumeration value="create"/>
+         <enumeration value="delete"/>
+         <enumeration value="renew"/>
+         <enumeration value="update"/>
+         <enumeration value="transfer"/>
+         <enumeration value="restore"/>
+         <enumeration value="custom"/>
+       </restriction>
+     </simpleType>
+
+     <simpleType name="nonNegativeDecimal">
+       <restriction base="decimal">
+         <minInclusive value="0" />
+       </restriction>
+     </simpleType>
+
+     <simpleType name="negativeDecimal">
+       <restriction base="decimal">
+         <maxInclusive value="0" />
+       </restriction>
+     </simpleType>
+
+     <complexType name="feeType">
+       <simpleContent>
+         <extension base="fee:nonNegativeDecimal">
+           <attribute name="description"/>
+           <attribute name="lang" type="language" default="en"/>
+           <attribute name="refundable" type="boolean" />
+           <attribute name="grace-period" type="duration" />
+           <attribute name="applied">
+             <simpleType>
+               <restriction base="token">
+                 <enumeration value="immediate" />
+                 <enumeration value="delayed" />
+               </restriction>
+             </simpleType>
+           </attribute>
+         </extension>
+       </simpleContent>
+     </complexType>
+
+     <complexType name="creditType">
+       <simpleContent>
+         <extension base="fee:negativeDecimal">
+           <attribute name="description"/>
+           <attribute name="lang" type="language" default="en"/>
+         </extension>
+       </simpleContent>
+     </complexType>
+
+     <simpleType name="balanceType">
+       <restriction base="decimal" />
+     </simpleType>
+
+     <simpleType name="creditLimitType">
+       <restriction base="decimal" />
+     </simpleType>
+
+   </schema>
+   <CODE ENDS>
+
+7.  Security Considerations
+
+   The mapping extensions described in this document do not provide any
+   security services beyond those described by the EPP [RFC5730], the
+   EPP domain name mapping [RFC5731], and the protocol layers used by
+   the EPP.  The security considerations described in these other
+   specifications apply to this specification as well.  This extension
+   passes financial information using the EPP protocol, so
+   confidentiality and integrity protection must be provided by the
+   transport mechanism.  All transports compliant with [RFC5730] provide
+   the needed level of confidentiality and integrity protections.  The
+   server will only provide information, including financial
+   information, that is relevant to the authenticated client.
+
+8.  IANA Considerations
+
+8.1.  XML Namespace
+
+   This document uses URNs to describe XML namespaces and XML schemas
+   conforming to a registry mechanism described in [RFC3688].
+
+   Registration request for the fee namespace:
+
+   URI: urn:ietf:params:xml:ns:epp:fee-1.0
+
+   Registrant Contact: IESG
+
+   XML: None.  Namespace URIs do not represent an XML specification.
+
+   Registration request for the fee schema:
+
+   URI: urn:ietf:params:xml:schema:epp:fee-1.0
+
+   Registrant Contact: IESG
+
+   XML: See Section 6 of this document.
+
+8.2.  EPP Extension Registry
+
+   The EPP extension described in this document has been registered by
+   IANA in the "Extensions for the Extensible Provisioning Protocol
+   (EPP)" registry described in [RFC7451].  The details of the
+   registration are as follows:
+
+   Name of Extension: Registry Fee Extension for the Extensible
+   Provisioning Protocol (EPP)
+
+   Document status: Standards Track
+
+   Reference: RFC 8748
+
+   Registrant Name and Email Address: IESG <iesg@ietf.org>
+
+   TLDs: Any
+
+   IPR Disclosure: None
+
+   Status: Active
+
+   Notes: None
+
+9.  References
+
+9.1.  Normative References
+
+   [ISO4217_2015]
+              ISO, "Codes for the representation of currencies",
+              ISO 4217:2015, August 2015,
+              <https://www.iso.org/standard/64758.html>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3688]  Mealling, M., "The IETF XML Registry", BCP 81, RFC 3688,
+              DOI 10.17487/RFC3688, January 2004,
+              <https://www.rfc-editor.org/info/rfc3688>.
+
+   [RFC3915]  Hollenbeck, S., "Domain Registry Grace Period Mapping for
+              the Extensible Provisioning Protocol (EPP)", RFC 3915,
+              DOI 10.17487/RFC3915, September 2004,
+              <https://www.rfc-editor.org/info/rfc3915>.
+
+   [RFC5646]  Phillips, A., Ed. and M. Davis, Ed., "Tags for Identifying
+              Languages", BCP 47, RFC 5646, DOI 10.17487/RFC5646,
+              September 2009, <https://www.rfc-editor.org/info/rfc5646>.
+
+   [RFC5730]  Hollenbeck, S., "Extensible Provisioning Protocol (EPP)",
+              STD 69, RFC 5730, DOI 10.17487/RFC5730, August 2009,
+              <https://www.rfc-editor.org/info/rfc5730>.
+
+   [RFC5731]  Hollenbeck, S., "Extensible Provisioning Protocol (EPP)
+              Domain Name Mapping", STD 69, RFC 5731,
+              DOI 10.17487/RFC5731, August 2009,
+              <https://www.rfc-editor.org/info/rfc5731>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8334]  Gould, J., Tan, W., and G. Brown, "Launch Phase Mapping
+              for the Extensible Provisioning Protocol (EPP)", RFC 8334,
+              DOI 10.17487/RFC8334, March 2018,
+              <https://www.rfc-editor.org/info/rfc8334>.
+
+   [W3C.REC-xmlschema-1-20041028]
+              Thompson, H., Beech, D., Maloney, M., and N. Mendelsohn,
+              "XML Schema Part 1: Structures Second Edition", World Wide
+              Web Consortium Recommendation REC-xmlschema-1-20041028,
+              October 2004,
+              <http://www.w3.org/TR/2004/REC-xmlschema-1-20041028>.
+
+9.2.  Informative References
+
+   [RFC7451]  Hollenbeck, S., "Extension Registry for the Extensible
+              Provisioning Protocol", RFC 7451, DOI 10.17487/RFC7451,
+              February 2015, <https://www.rfc-editor.org/info/rfc7451>.
+
+Acknowledgements
+
+   The authors wish to thank the following persons for their feedback
+   and suggestions:
+
+   *  James Gould of Verisign Inc.
+   *  Luis Munoz of ISC
+   *  Michael Young
+   *  Ben Levac
+   *  Jeff Eckhaus
+   *  Seth Goldman of Google
+   *  Klaus Malorny and Michael Bauland of Knipp
+   *  Jody Kolker, Joe Snitker, and Kevin Allendorf of GoDaddy
+   *  Michael Holloway of Com Laude
+   *  Santosh Kalsangrah of Impetus Infotech
+   *  Alex Mayrhofer of Nic.at
+   *  Thomas Corte of Knipp Medien und Kommunikation GmbH
+
+Authors' Addresses
+
+   Roger Carney
+   GoDaddy Inc.
+   14455 N. Hayden Rd. #219
+   Scottsdale, AZ 85260
+   United States of America
+
+   Email: rcarney@godaddy.com
+   URI:   http://www.godaddy.com
+
+
+   Gavin Brown
+   CentralNic Group plc
+   35-39 Moorgate
+   London
+   EC2R 6AR
+   United Kingdom
+
+   Phone: +44 20 33 88 0600
+   Email: gavin.brown@centralnic.com
+   URI:   http://www.centralnic.com
+
+
+   Jothan Frakes
+
+   Email: jothan@jothan.com
+   URI:   http://jothan.com

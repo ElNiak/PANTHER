@@ -1,0 +1,955 @@
+
+
+
+
+
+
+Network Working Group                                            R. Mahy
+Request for Comments: 3911                                     Airespace
+Category: Standards Track                                      D. Petrie
+                                                                 Pingtel
+                                                            October 2004
+
+
+          The Session Initiation Protocol (SIP) "Join" Header
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2004).
+
+Abstract
+
+   This document defines a new header for use with SIP multi-party
+   applications and call control.  The Join header is used to logically
+   join an existing SIP dialog with a new SIP dialog.  This primitive
+   can be used to enable a variety of features, for example: "Barge-In",
+   answering-machine-style "Message Screening" and "Call Center
+   Monitoring".  Note that definition of these example features is non-
+   normative.
+
+Table of Contents
+
+   1.   Introduction . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.   Conventions  . . . . . . . . . . . . . . . . . . . . . . . .   3
+   3.   Applicability of RFC 2804 ("Raven"). . . . . . . . . . . . .   3
+   4.   User Agent Server Behavior: Receiving a Join Header  . . . .   4
+   5.   User Agent Client Behavior: Sending a Join header  . . . . .   6
+   6.   Proxy behavior . . . . . . . . . . . . . . . . . . . . . . .   7
+   7.   Syntax . . . . . . . . . . . . . . . . . . . . . . . . . . .   7
+        7.1.  The Join Header  . . . . . . . . . . . . . . . . . . .   7
+        7.2.  New option tag for Require and Supported headers . . .   8
+   8.   Usage Examples . . . . . . . . . . . . . . . . . . . . . . .   8
+        8.1.  Join accepted and transitioned to central conference .   9
+        8.2.  Join rejected  . . . . . . . . . . . . . . . . . . . .  12
+   9.   Security Considerations  . . . . . . . . . . . . . . . . . .  13
+   10.  IANA Considerations  . . . . . . . . . . . . . . . . . . . .  14
+        10.1. Registration of "Join" SIP header. . . . . . . . . . .  14
+
+
+
+Mahy & Petrie               Standards Track                     [Page 1]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+        10.2. Registration of "join" SIP Option-tag. . . . . . . . .  14
+   11.  Acknowledgments  . . . . . . . . . . . . . . . . . . . . . .  14
+   12.  References . . . . . . . . . . . . . . . . . . . . . . . . .  14
+        12.1. Normative References . . . . . . . . . . . . . . . . .  14
+        12.2. Informative References . . . . . . . . . . . . . . . .  15
+   13.  Authors' Addresses . . . . . . . . . . . . . . . . . . . . .  16
+   14.  Full Copyright Statement . . . . . . . . . . . . . . . . . .  17
+
+1. Introduction
+
+   This document describes a SIP [1] extension header field as part of
+   the SIP multiparty applications architecture framework [12].  The
+   Join header is used to logically join an existing SIP dialog with a
+   new SIP dialog.  This is especially useful in peer-to-peer call
+   control environments.
+
+   One use of the "Join" header is to insert a new participant into a
+   multimedia conversation (which may be a two-party call or a SIP
+   conference [15]).  While this functionality is already available
+   using 3rd party call control [17], style call control, the 3pcc model
+   requires a central point of control which may not be desirable in
+   many environments.  As such, a method of performing these same call
+   control primitives in a distributed, peer-to-peer fashion is very
+   desirable.
+
+   Use of an explicit Join header is needed in some cases instead of
+   addressing an INVITE to a conference URI for the following reasons:
+
+   o  A conference may not yet exist--the new invitation may be trying
+      to join an ordinary two-party call.
+
+   o  The party joining may not know if the dialog it wants to join is
+      part of a conference.
+
+   o  The party joining may not know the conference URI.
+
+   The Join header enables services such as barge-in, real-time message
+   screening, and call center monitoring in a distributed peer-to-peer
+   way.  This list of services is not exhaustive.
+
+   For example, the Boss has an established 2-party conversation with a
+   Customer, and using some out-of-band mechanism (e.g., voice,
+   gestures, or email) asks an Assistant to join the conversation.  The
+   Assistant sends an INVITE with a Join header to the Boss with the
+   dialog information for the established dialog.  The Assistant
+   obtained this information from some other mechanism, for example a
+   web-page, an instant message, or from the SIP session dialog package
+   [13].
+
+
+
+Mahy & Petrie               Standards Track                     [Page 2]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Assistant     Boss        Customer
+   | callid: 4@A |  callid: 7@c |
+   |             |              |
+   |             |<============>|
+   |             |              |
+   |INVITE------>|              |
+   |Join: 7@c    |              |
+   |             |reINVITE----->|
+   |<----200-----|<----200------|
+   |-----ACK---->|<----ACK------|
+   |             |              |
+   |   .. begins mixing ..      |
+   |             |              |
+   |<===========>|<============>|
+   |<::::::::::::::::::::::::::>|
+
+   Note that this operation effectively creates a new conference.  The
+   Boss needs to cause a new conference to start (and consequently
+   create or obtain a new conference URI).   In our example, the Boss
+   mixes all media locally, so it needs to generate a new conference
+   URI, return the conference URI as the Contact to the Join INVITE
+   (with the "isfocus" Contact header field parameter as defined in [6],
+   and reINVITE or UPDATE [22] the Customer with the conference URI as
+   the new Contact.  This scenario is also discussed in more detail in
+   [16].
+
+2.  Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED",  "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [2].
+
+   This document refers frequently to the terms "confirmed dialog" and
+   "early dialog".  These are defined in Section 12 of SIP [1].
+
+3.  Applicability of RFC 2804 ("Raven")
+
+   This primitive can be used to create services which are used for
+   monitoring purposes, however these services do not meet the
+   definition of a wiretap according to RFC 2804 [14].  The definition
+   from RFC 2804 is included here:
+
+      Wiretapping is what occurs when information passed across the
+      Internet from one party to one or more other parties is delivered
+      to a third party:
+
+      1. Without the sending party knowing about the third party
+
+
+
+
+Mahy & Petrie               Standards Track                     [Page 3]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+      2. Without any of the recipient parties knowing about the delivery
+         to the third party
+
+      3. When the normal expectation of the sender is that the
+         transmitted information will only be seen by the recipient
+         parties or parties obliged to keep the information in
+         confidence
+
+      4. When the third party acts deliberately to target the
+         transmission of the first party, either because he is of
+         interest, or because the second party's reception is of
+         interest.
+
+   Specifically, item 2 of this definition does not apply to this
+   extension, as one party is always aware of a Join request and can
+   even decline such requests.  In addition, in many applications of
+   this primitive, some or all of the other items may not apply.  For
+   example, in many call centers which handle financial transactions,
+   all conversations are recorded with the full knowledge and
+   expectation of all parties involved.
+
+4.  User Agent Server Behavior: Receiving a Join Header
+
+   The Join header contains information used to match an existing SIP
+   dialog (call-id, to-tag, and from-tag).  Upon receiving an INVITE
+   with a Join header, the UA attempts to match this information with a
+   confirmed or early dialog.  The to-tag and from-tag parameters are
+   matched as if they were tags present in an incoming request.  In
+   other words the to-tag parameter is compared to the local tag, and
+   the from-tag parameter is compared to the remote tag.
+
+   If more than one Join header field is present in an INVITE, or if a
+   Join header field is present in a request other than INVITE, the UAS
+   MUST reject the request with a 400 Bad Request response.
+
+   The Join header has specific call control semantics.  If both a Join
+   header field and another header field with contradictory semantics
+   (for example a Replaces [8] header field) are present in a request,
+   the request MUST be rejected with a 400 "Bad Request" response.
+
+   If the Join header field matches more than one dialog, the UA MUST
+   act as if no match is found.
+
+   If no match is found, but the Request-URI in the INVITE corresponds
+   to a conference URI, the UAS MUST ignore the Join header and continue
+   processing the INVITE as if the Join header did not exist.  This
+   allows User Agents which receive an INVITE with Join to redirect the
+   request directly to a conference URI.
+
+
+
+Mahy & Petrie               Standards Track                     [Page 4]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Otherwise if no match is found, the UAS rejects the INVITE and
+   returns a 481 Call/Transaction Does Not Exist response.  Likewise, if
+   the Join header field matches a dialog which was not created with an
+   INVITE, the UAS MUST reject the request with a 481 response.
+
+   If the Join header field matches a dialog which has already
+   terminated, the UA SHOULD decline the request with a 603 Declined
+   response.
+
+   If the Join header field matches an active dialog (n.b. unlike the
+   Replaces header, the Join header has no limitation on its use with
+   early dialogs), the UA MUST verify that the initiator of the new
+   INVITE is authorized to join the matched dialog.  If the initiator of
+   the new INVITE has authenticated successfully as equivalent to the
+   user who is being joined, then the join is authorized.  For example,
+   if the user being joined and the initiator of the joining dialog
+   share the same credentials for Digest authentication [4], or they
+   sign the join request with S/MIME [5] with the same private key and
+   present the (same) corresponding certificate used in the original
+   dialog, then the join is authorized.
+
+   Alternatively, the Referred-By mechanism [9] defines a mechanism that
+   the UAS can use to verify that a join request was sent on behalf of
+   the other participant in the matched dialog (in this case, triggered
+   by a REFER request).  If the join request contains a Referred-By
+   header which corresponds to the user being joined, the UA SHOULD
+   treat the join as if it was authorized by the joined party.  The
+   Referred-By header MUST reference a corresponding, valid Refererred-
+   By Authenticated Identity Body [10].  The UA MAY apply other local
+   policy to authorize the remainder of the request.  In other words,
+   the UAS may apply different policy to the joined dialog than was
+   applied to the target dialog.
+
+   The UA MAY also maintain a list of authorized entities who are
+   allowed to join any dialog with certain characteristics (for example,
+   all dialogs placed in the call center context of the UA).  In
+   addition, the UA MAY use other authorization mechanisms defined for
+   this purpose in standards track extensions.  For example, an
+   extension could define a mechanism for transitively asserting
+   authorization of a join.
+
+   If authorization is successful, the UA attempts to accept the new
+   INVITE, and assign any mixing or conferencing resources necessary to
+   complete the join.  If the UA cannot accept the new INVITE (for
+   example: it cannot establish required QoS or keying, or it has
+   incompatible media), the UA MUST return an appropriate error response
+   and MUST leave the matched dialog unchanged.
+
+
+
+
+Mahy & Petrie               Standards Track                     [Page 5]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   A User Agent that accepts a Join header needs to setup dialogs or
+   conferences such that the requesting UAC is logically added to the
+   conversation space associated with the matched dialog.  Any dialogs
+   which are already logically associated with the matched dialog in the
+   same conversation space are included as well.  For a detailed
+   description of various conferencing mechanisms that could be used to
+   handle a Join, please consult the SIP conferencing framework [15].
+
+   If the UAS has sufficient resources to locally handle the Join
+   request, the UAS SHOULD accept the Join request and perform the
+   appropriate media mixing or combining.  The UAS MAY rearrange
+   appropriate dialogs instead as described below, based on some local
+   policy.
+
+   If the UAS does not have sufficient resources locally to handle the
+   request, or does not wish to use these local resources, but is aware
+   of other resources which could be used to satisfy the request (e.g.,
+   a centralized conference server), the UA SHOULD create a conference
+   using this resource (e.g., INVITE the conference server to obtain a
+   conference URI), redirect the requestor to this resource, and request
+   other participants in the same conversation space to use this
+   resource.  The UA MAY use any appropriate mechanism to transition
+   participants to the new resource (e.g., 3xx response, 3rd-party call
+   control reinvitiations, REFER requests, or reinvitations to a
+   multicast group).  The UA SHOULD only use mechanisms which are
+   expected to be acceptable to the other participants.  For example,
+   the UA SHOULD NOT attempt to transition the participants to a
+   multicast group unless the UA can reasonably expect that all the
+   participants can support multicast.
+
+   If the UAS is incapable of satisfying the Join request, it MUST
+   return a 488 "Not Acceptable Here" response.
+
+5.  User Agent Client Behavior: Sending a Join header
+
+   A User Agent that wishes to add a new dialog of its own to a single
+   existing early or confirmed dialog and any associated dialogs or
+   conferences, MAY send the target User Agent an INVITE request
+   containing a Join header field.  The UAC places the Call-ID, to-tag,
+   and from-tag information for the target dialog in a single Join
+   header field and sends the new INVITE to the target.
+
+   If the User Agent receives a 300-class response, and acts on this
+   response by sending an INVITE to a Contact in the response, this
+   redirected INVITE MUST contain the same Join header which was present
+   in the original request.  Although this is unusual, this allows
+   INVITE requests with a Join header to be redirected before reaching
+   the target UAS.
+
+
+
+Mahy & Petrie               Standards Track                     [Page 6]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Note that use of the Join mechanism does not provide a way to match
+   multiple dialogs, nor does it provide a way to match an entire call,
+   an entire transaction, or to follow a chain of proxy forking logic.
+
+6.  Proxy behavior
+
+   Proxy Servers do not require any new behavior to support this
+   extension.  They simply pass the Join header field transparently as
+   described in the SIP specification.
+
+   Note that it is possible for a proxy (especially when forking based
+   on some application layer logic, such as caller screening or time-
+   of-day routing) to forward an INVITE request containing a Join header
+   field to a completely orthogonal set of Contacts than the original
+   request it was intended to replace.  In this case, the INVITE request
+   with the Join header field will fail.
+
+7.  Syntax
+
+7.1.  The Join Header
+
+   The Join header field indicates that a new dialog (created by the
+   INVITE in which the Join header field in contained) should be joined
+   with a dialog identified by the header field, and any associated
+   dialogs or conferences.  It is a request header only, and defined
+   only for INVITE requests.  The Join header field MAY be encrypted as
+   part of end-to-end encryption.  Only a single Join header field value
+   may be present in a SIP request
+
+   This document adds the following entry to Table 3 of [1].  Additions
+   to this table are also provided for extension methods defined at the
+   time of publication of this document.  This is provided as a courtesy
+   to the reader and is not normative in any way.  MESSAGE, SUBSCRIBE
+   and NOTIFY, REFER, INFO, UPDATE, PRACK, and PUBLISH are defined
+   respectively in [19], [20], [7], [21], [22], [23], and [24].
+
+   Header field    where   proxy   ACK  BYE  CAN  INV  OPT  REG  MSG
+   ------------    -----   -----   ---  ---  ---  ---  ---  ---  ---
+   Join              R              -    -    -    o    -    -    -
+
+
+                                   SUB  NOT  REF  INF  UPD  PRA  PUB
+                                   ---  ---  ---  ---  ---  ---  ---
+   Join              R              -    -    -    -    -    -    -
+
+
+
+
+
+
+
+Mahy & Petrie               Standards Track                     [Page 7]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   The following syntax specification uses the augmented Backus-Naur
+   Form (BNF) as described in RFC 2234 [3].
+
+      Join            = "Join" HCOLON callid *(SEMI join-param)
+      join-param      = to-tag / from-tag / generic-param
+      to-tag          = "to-tag" EQUAL token
+      from-tag        = "from-tag" EQUAL token
+
+   A Join header MUST contain exactly one to-tag and exactly one from-
+   tag, as they are required for unique dialog matching.  For
+   compatibility with dialogs initiated by RFC 2543 [11] compliant UAs,
+   a to-tag of zero matches both a to-tag value of zero and a null to-
+   tag.  Likewise, a from-tag of zero matches both a to-tag value of
+   zero and a null from-tag.
+
+   Examples:
+
+      Join: 98732@sip.example.com
+             ;from-tag=r33th4x0r
+             ;to-tag=ff87ff
+
+      Join: 12adf2f34456gs5;to-tag=12345;from-tag=54321
+
+      Join: 87134@192.0.2.23;to-tag=24796;from-tag=0
+
+7.2.  New option tag for Require and Supported headers
+
+   This specification defines a new Require/Supported header option tag
+   "join".  UAs which support the Join header MUST include the "join"
+   option tag in a Supported header field.  UAs that want explicit
+   failure notification if Join is not supported MAY include the "join"
+   option in a Require header field.
+
+   Example:
+
+      Require: join, 100rel
+
+8.  Usage Examples
+
+   The following non-normative examples are not intended to enumerate
+   all the possibilities for the usage of this extension, but rather to
+   provide examples or ideas only.  For more examples, please see
+   service-examples [18].
+
+
+
+
+
+
+
+
+Mahy & Petrie               Standards Track                     [Page 8]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+8.1.  Join accepted and transitioned to central conference
+
+   A             B              C            conf
+   |             |  callid: 7@c |              |
+   |             |              |              |
+   |             |<-INVITE------|              | *1
+   |             |-----200----->|              | *2
+   |             |<----ACK------|              | *3
+   |             |<============>|              |
+   |             |              |              |
+   |INVITE------>|              |              | *4
+   |Join: 7@c    |--INVITE-------------------->| *5
+   |             |<----200---------------------| *6
+   |             |-----ACK-------------------->|
+   |<----302-----|              |              | *7
+   |-----ACK---->|              |              |
+   |INVITE------------------------------------>| *8
+   |<--200-------------------------------------| *9
+   |---ACK------------------------------------>|
+   |             |--REFER------>|              | *10
+   |             |<---202-------|              |
+   |             |<--NOTIFY-----|--INVITE-*11->|
+   |             |------200---->|<----200-*12--|
+   |             |<--NOTIFY-----|-----ACK----->|
+   |             |------200---->|              |
+   |             |---BYE------->|              |
+   |             |<--200--------|              |
+   |             |              |              |
+   |<=========================================>| mixes the
+   |             |<===========================>| three sessions
+   |             |              |<============>| together
+
+   The conversation now appears identical to the locally mixed one from
+   the example in the Introduction.  Details of how the Join are
+   implemented are transparent to A.  B could have used 3rd party call
+   control instead to move the necessary sessions.
+
+   Message *1: C -> B
+
+   INVITE sip:bob@example.org SIP/2.0
+   To: <bob@example.org>
+   From: <carol@example.org>;tag=xyz
+   Call-Id: 7@c.example.org
+   CSeq 1 INVITE
+   Contact: <sip:carol@c.example.org>
+
+
+
+
+
+
+Mahy & Petrie               Standards Track                     [Page 9]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Message *2: B -> C
+
+   SIP/2.0 200 OK
+   To: <bob@example.org>;tag=pdq
+   From: <carol@example.org>;tag=xyz
+   Call-Id: 7@c.example.org
+   CSeq 1 INVITE
+   Contact: <sip:bob@b.example.org>
+
+
+   Message *3: C -> B
+
+   ACK sip:carol@c.example.org SIP/2.0
+   To: <bob@example.org>;tag=pdq
+   From: <carol@example.org>;tag=xyz
+   Call-Id: 7@c.example.org
+   CSeq 1 INVITE
+
+
+   Message *4: A ->  B
+
+   INVITE sip:bob@b.example.org SIP/2.0
+   To: <sip:bob@example.org>
+   From: <sip:alice@example.org>;tag=iii
+   Call-Id: 777@a.example.org
+   CSeq: 1 INVITE
+   Contact: <sip:alice@a.example.org>
+   Join: 7@c.example.org;to-tag=xyz;from-tag=pdq
+
+
+   Message *5: B -> conf
+
+   INVITE sip:conf-factory@example.org SIP/2.0
+   To: <sip:conf-factory@example.org>
+   From: <sip:bob@example.org>;tag=abc
+   Call-Id: 999@b.example.org
+   CSeq: 1INVITE
+   Contact: <sip:bob@b.example.org>
+
+
+   Message *6: conf -> B
+
+   SIP/2.0 200 OK
+   To: <sip:conf-factory@example.org>;tag=def
+   From: <sip:bob@example.org>;tag=abc
+   Call-Id: 999@b.example.org
+   CSeq: 1INVITE
+   Contact: <sip:conf456@conf-srv2.example.org>;isfocus
+
+
+
+Mahy & Petrie               Standards Track                    [Page 10]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Message *7: B -> A
+
+   SIP/2.0 302 Moved Temporarily
+   To: <sip:bob@example.org>
+   From: <sip:alice@example.org>;tag=iii
+   Call-Id: 777@a.example.org
+   CSeq: 1 INVITE
+   Contact: <sip:conf456@conf-srv2.example.org>;isfocus
+
+
+   Message *8: A -> conf
+
+   INVITE sip:conf456@conf-srv2.example.org SIP/2.0
+   To: <sip:bob@example.org>
+   From: <sip:alice@example.org>;tag=iii
+   Call-Id: 777@a.example.org
+   CSeq: 2 INVITE
+   Contact: <sip:alice@a.example.org>
+   Join: 7@c.example.org;to-tag=xyz;from-tag=pdq
+
+
+   Message *9: conf ->A
+
+   SIP/2.0 200 OK
+   To: <sip:bob@example.org>;tag=jjj
+   From: <sip:alice@example.org>;tag=iii
+   Call-Id: 777@a.example.org
+   CSeq: 2 INVITE
+   Contact: <sip:conf456@conf-srv2.example.org>;isfocus
+
+
+   Message *10: B -> C
+
+   REFER sip:carol@c.example.org SIP/2.0
+   To: <carol@example.org>;tag=xyz
+   From: <bob@example.org>;tag=pdq
+   Call-Id: 7@c.example.org
+   CSeq: 1 REFER
+   Contact: <sip:bob@b.example.org>
+   Refer-To: <sip:conf456@conf-srv2.example.org>
+   Referred-By: <sip:bob@b.example.org>
+
+
+   Message *11: C -> conf
+
+   INVITE sip:conf456@conf-srv2.example.org SIP/2.0
+   To: <sip:conf456@conf-srv2.example.org>
+   From: <carol@example.org>;tag=mmm
+
+
+
+Mahy & Petrie               Standards Track                    [Page 11]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Call-Id: 34343@c.example.com
+   CSeq: 1 INVITE
+   Contact: <sip:carol@c.example.com>
+   Referred-By: <sip:bob@b.example.org>
+
+
+   Message *12: C -> conf
+
+   SIP/2.0 200 OK
+   To: <sip:conf456@conf-srv2.example.org>
+   From: <carol@example.org>;tag=mmm
+   Call-Id: 34343@c.example.com
+   CSeq: 1 INVITE
+   Contact: <sip:conf456@conf-srv2.example.org>;isfocus
+   Referred-By: <sip:bob@b.example.org>
+
+8.2.  Join rejected
+
+   A             B              C
+   |             |  callid: 7@c |
+   |             |              |
+   |             |<============>|
+   |             |              |
+   |INVITE------>|  *1          |
+   |Join: 7@c    |              |
+   |             |              |
+   |<----486-----|  *2          |
+   |-----ACK---->|              |
+   |             |              |
+
+   In this example B is Busy (does not want to be disturbed), and
+   therefore does not wish to add A.  B could also decline the request
+   with a 603 response.
+
+   Message *1: A ->  B
+
+   INVITE sip:bob@b.example.org SIP/2.0
+   To: <sip:bob@example.org>
+   From: <sip:alice@example.org>;tag=iii
+   Call-Id: 777@a.example.org
+   CSeq: 1 INVITE
+   Contact: <sip:alice@a.example.org>
+   Join: 7@c.example.org;to-tag=xyz;from-tag=pdq
+
+
+
+
+
+
+
+
+Mahy & Petrie               Standards Track                    [Page 12]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Message *2: B -> A
+
+   SIP/2.0 486 Busy
+   To: <sip:bob@example.org>
+   From: <sip:alice@example.org>;tag=iii
+   Call-Id: 777@a.example.org
+   CSeq: 1 INVITE
+
+9.  Security Considerations
+
+   The extension specified in this document significantly changes the
+   relative security of SIP devices.  Currently in SIP, even if an
+   eavesdropper learns the Call-ID, To, and From headers of a dialog,
+   they cannot easily modify or destroy that dialog if Digest
+   authentication or end-to-end message integrity are used.
+
+   This extension can be used to insert or monitor potentially sensitive
+   content in a multimedia conversation.  As such, invitations with the
+   Join header MUST only be accepted if the peer requesting replacement
+   has been properly authenticated using a standard SIP mechanism
+   (Digest or S/MIME), and authorized to be joined with the target
+   dialog.  (All SIP implementations are already required to support
+   Digest Authentication.)  Generally authorization for joins are
+   configured as a matter of local policy as long-duration persistent
+   relationships.
+
+   For example, the UAs used by call center agents might be configured
+   with a list of identities who could join their calls (supervisors and
+   any call center monitoring User Agents).  Alternatively the call
+   center agents might rely on transitive authorization assertions from
+   a (shorter) list of authorized hosts (e.g., a certificate authority).
+   For answering-machine-style message screening this is even easier.
+   Presumably the user screening their messages already has some
+   credentials with their messaging server.
+
+   Some mechanisms for obtaining the dialog information needed by the
+   Join header (Call-ID, to-tag, and from-tag) include URIs on a web
+   page, subscriptions to an appropriate event package, and
+   notifications after a REFER request.  Use of end-to-end security
+   mechanisms to integrity protect and encrypt this information is also
+   RECOMMENDED.
+
+   This extension was designed to take advantage of future signature or
+   authorization schemes defined by standards track extensions.  In
+   general, call control features would benefit considerably from such
+   work.
+
+
+
+
+
+Mahy & Petrie               Standards Track                    [Page 13]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   Section 4 describes specific mechanisms for authorization using
+   Digest Authentication and S/MIME (RFC 3261) and Referred-by [9], the
+   currently available capabilities in SIP.
+
+10.  IANA Considerations
+
+10.1.  Registration of "Join" SIP header
+
+   Name of Header:          Join
+
+   Short form:              none
+
+   Normative description:   section 7.1 of this document
+
+10.2.  Registration of "join" SIP Option-tag
+
+   Name of option:          join
+
+   Description:             Support for the SIP Join header
+
+   SIP headers defined:     Join
+
+   Normative description:   This document
+
+11.  Acknowledgments
+
+   Thanks to Robert Sparks, Alan Johnston, and Ben Campbell and many
+   other members of the SIP WG for their continued support of the cause
+   of distributed call control in SIP.
+
+12.  References
+
+12.1.  Normative References
+
+   [1]   Rosenberg, J., Schulzrinne, H., Camarillo, G., Johnston, A.,
+         Peterson, J., Sparks, R., Handley, M., and E. Schooler, "SIP:
+         Session Initiation Protocol", RFC 3261, June 2002.
+
+   [2]   Bradner, S., "Key words for use in RFCs to Indicate Requirement
+         Levels", BCP 14, RFC 2119, March 1997.
+
+   [3]   Crocker, D. and P. Overell, "Augmented BNF for Syntax
+         Specifications: ABNF", RFC 2234, November 1997.
+
+   [4]   Franks, J., Hallam-Baker, P., Hostetler, J., Lawrence, S.,
+         Leach, P., Luotonen, A., and L. Stewart, "HTTP Authentication:
+         Basic and Digest Access Authentication", RFC 2617, June 1999.
+
+
+
+
+Mahy & Petrie               Standards Track                    [Page 14]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   [5]   Ramsdell, B., "Secure/Multipurpose Internet Mail Extensions
+         (S/MIME) Version 3.1 Message Specification", RFC 3851, July
+         2004.
+
+   [6]   Rosenberg, J., "Indicating User Agent Capabilities in the
+         Session Initiation Protocol  (SIP)", RFC 3840, August 2004.
+
+12.2.  Informative References
+
+   [7]   Sparks, R., "The Session Initiation Protocol (SIP) Refer
+         Method", RFC 3515, April 2003.
+
+   [8]   Dean, R., Biggs, B., and R. Mahy, "The Session Initiation
+         Protocol (SIP) "Replaces" Header", RFC 3891, September 2004.
+
+   [9]   Sparks, R., "The Session Initiation Protocol (SIP) Referred-By
+         Mechanism", RFC 3892, September 2004.
+
+   [10]  Peterson, J., "Session Initiation Protocol (SIP) Authenticated
+         Identity Body (AIB) Format", RFC 3893, September 2004.
+
+   [11]  Handley, M., Schulzrinne, H., Schooler, E., and J. Rosenberg,
+         "SIP: Session Initiation Protocol", RFC 2543, March 1999.
+
+   [12]  Mahy, R., "A Call Control and Multi-party usage framework for
+         the Session  Initiation Protocol (SIP)", Work in Progress,
+         March 2003.
+
+   [13]  Rosenberg, J. and H. Schulzrinne, "An INVITE Initiated Dialog
+         Event Package for the Session Initiation Protocol (SIP)", Work
+         in Progress, March 2003.
+
+   [14]  IAB and IESG, "IETF Policy on Wiretapping", RFC 2804, May 2000.
+
+   [15]  Rosenberg, J., "A Framework for Conferencing with the Session
+         Initiation Protocol", Work in Progress, May 2003.
+
+   [16]  Johnston, A. and O. Levin, "Session Initiation Protocol Call
+         Control - Conferencing for User  Agents", Work in Progress,
+         April 2003.
+
+   [17]  Rosenberg, J., Peterson, J., Schulzrinne, H., and G. Camarillo,
+         "Best Current Practices for Third Party Call Control (3pcc) in
+         the Session Initiation Protocol (SIP)", BCP 85, RFC 3725, April
+         2004.
+
+   [18]  Johnston, A. and S. Donovan, "Session Initiation Protocol
+         Service Examples", Work in Progress, March 2003.
+
+
+
+Mahy & Petrie               Standards Track                    [Page 15]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+   [19]  Campbell, B., Rosenberg, J., Schulzrinne, H., Huitema, C., and
+         D. Gurle, "Session Initiation Protocol (SIP) Extension for
+         Instant Messaging", RFC 3428, December 2002.
+
+   [20]  Roach, A., "Session Initiation Protocol (SIP)-Specific Event
+         Notification", RFC 3265, June 2002.
+
+   [21]  Donovan, S., "The SIP INFO Method", RFC 2976, October 2000.
+
+   [22]  Rosenberg, J., "The Session Initiation Protocol (SIP) UPDATE
+         Method", RFC 3311, October 2002.
+
+   [23]  Rosenberg, J. and H. Schulzrinne, "Reliability of Provisional
+         Responses in Session Initiation Protocol (SIP)", RFC 3262, June
+         2002.
+
+   [24]  Campbell, B., "SIMPLE Presence Publication Mechanism", Work in
+         Progress, February 2003.
+
+13.  Authors' Addresses
+
+   Rohan Mahy
+   Airespace
+   110 Nortech Parkway
+   San Jose, CA 95134
+   USA
+
+   EMail: rohan@airespace.com
+
+
+   Dan Petrie
+   Pingtel
+   400 West Cummings Park, Suite 2200
+   Woburn, MA  01801
+   USA
+
+   EMail: dpetrie@pingtel.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Mahy & Petrie               Standards Track                    [Page 16]
+
+RFC 3911                        SIP Join                    October 2004
+
+
+14.  Full Copyright Statement
+
+   Copyright (C) The Internet Society (2004).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE INTERNET
+   ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
+   INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the IETF's procedures with respect to rights in IETF Documents can
+   be found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at ietf-
+   ipr@ietf.org.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+Mahy & Petrie               Standards Track                    [Page 17]
+

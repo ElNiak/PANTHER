@@ -1,0 +1,1011 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                         A. Morton
+Request for Comments: 6038                                 L. Ciavattone
+Updates: 5357                                                  AT&T Labs
+Category: Standards Track                                   October 2010
+ISSN: 2070-1721
+
+
+     Two-Way Active Measurement Protocol (TWAMP) Reflect Octets and
+                       Symmetrical Size Features
+
+Abstract
+
+   This memo describes two closely related features for the core
+   specification of the Two-Way Active Measurement Protocol (TWAMP): an
+   optional capability where the responding host returns some of the
+   command octets or padding octets to the sender, and an optional
+   sender packet format that ensures equal test packet sizes are used in
+   both directions.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6038.
+
+Copyright Notice
+
+   Copyright (c) 2010 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 1]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+   This document may contain material from IETF Documents or IETF
+   Contributions published or made publicly available before November
+   10, 2008.  The person(s) controlling the copyright in some of this
+   material may not have granted the IETF Trust the right to allow
+   modifications of such material outside the IETF Standards Process.
+   Without obtaining an adequate license from the person(s) controlling
+   the copyright in such materials, this document may not be modified
+   outside the IETF Standards Process, and derivative works of it may
+   not be created outside the IETF Standards Process, except to format
+   it for publication as an RFC or to translate it into languages other
+   than English.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. Requirements Language ...........................................3
+   3. Purpose and Scope ...............................................4
+   4. TWAMP Control Extensions ........................................4
+      4.1. Connection Setup with New Features .........................5
+      4.2. Reflect Octets: Request-TW-Session Packet Format ...........6
+      4.3. Reflect Octets: Accept Session Packet Format ...............7
+      4.4. Additional Considerations ..................................9
+   5. Extended TWAMP Test .............................................9
+      5.1. Sender Behavior ............................................9
+           5.1.1. Packet Timings ......................................9
+           5.1.2. Reflect Octets: Packet Formats and Contents .........9
+           5.1.3. Reflect Octets: Interaction with Padding
+                  Truncation .........................................11
+           5.1.4. Symmetrical Size: Session-Sender Packet Format .....13
+           5.1.5. Symmetrical Size AND Reflect Octets:
+                  Session-Sender Packet ..............................14
+      5.2. Reflector Behavior ........................................14
+           5.2.1. Reflect Octets: Session-Reflector Packet
+                  Format and Contents ................................15
+           5.2.2. Symmetrical Size: Session-Reflector Packet Format ..16
+           5.2.3. Symmetrical Size AND Reflect Octets:
+                  Session-Sender Packet Format .......................16
+   6. Security Considerations ........................................17
+   7. IANA Considerations ............................................17
+      7.1. Registry Specification ....................................17
+      7.2. Registry Contents .........................................17
+   8. Acknowledgements ...............................................17
+   9. Normative References ...........................................18
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 2]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+1.  Introduction
+
+   The Two-Way Active Measurement Protocol (TWAMP) [RFC5357] is an
+   extension of the One-way Active Measurement Protocol (OWAMP)
+   [RFC4656].  The TWAMP specification gathered wide review as it
+   approached completion, and the by-products were several
+   recommendations for new features in TWAMP.
+
+   This memo describes two closely related features for TWAMP.
+
+   One is the OPTIONAL capability for the responder host to return a
+   limited number of unassigned (padding) octets to the Control-Client
+   or Session-Sender entities in both the TWAMP-Control and TWAMP-Test
+   protocols.  With this capability, the Control-Client or Session-
+   Sender can embed octets of information it deems useful and have the
+   assurance that the corresponding reply/test packet will contain that
+   information when it is reflected and returned (by the Server or
+   Session-Reflector).
+
+   The memo also adds an OPTIONAL capability to ensure that reflected
+   test packets are the same size in both directions of transmission.
+   This is accomplished by specifying a new TWAMP-Test Session-Sender
+   packet format.  Although TWAMP [RFC5357] recommends padding
+   truncation to achieve symmetrical sizes (to compensate for the
+   Session-Reflector's larger test packet header), it's not guaranteed
+   that the Session-Reflector will truncate the padding, and it's not
+   possible if there's insufficient padding.
+
+   This memo is an update to the TWAMP core protocol specified in
+   [RFC5357].  Measurement systems are not required to implement the
+   features described in this memo to claim compliance with [RFC5357].
+
+   Throughout this memo, the bits marked MBZ (Must Be Zero) MUST be set
+   to zero by senders and MUST be ignored by receivers.  Also, the HMAC
+   (Hashed Message Authentication Code) MUST be calculated as defined in
+   Section 3.2 of [RFC4656].
+
+2.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 3]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+3.  Purpose and Scope
+
+   The purpose of this memo is to define two OPTIONAL closely related
+   features for TWAMP [RFC5357].  The features enhance the TWAMP host's
+   capabilities to perform a simple operation on control and test
+   packets: the reflection of octets or padding, and the capability to
+   ensure symmetrical size TWAMP-Test packets.  Motivations include
+   permitting the controller host to tag packets with an index for
+   simplified identification, and/or assert that the same size test
+   packets will be used in each direction.
+
+   The scope of the memo is limited to specifications of the following
+   features:
+
+   o  Reflect Octets: the capability of the Server/Session-Reflector to
+      reflect specific octets back to the Client/Session-Sender, and a
+      similar service provided by the Client and Session-Sender.
+
+   o  Symmetrical Size: the capability to ensure that TWAMP-Test
+      protocol uses the same packet size in both directions through
+      support of a new TWAMP-Test Session-Sender test packet format in
+      both the Session-Sender and the Session-Reflector.  Only the
+      Session-Sender test packet format is new.
+
+   This memo extends the modes of operation through assignment of two
+   new values in the Modes field (see Section 3.1 of [RFC4656] for the
+   format of the Server Greeting message), while retaining backward
+   compatibility with the core TWAMP [RFC5357] implementations.  The two
+   new values correspond to the two features defined in this memo.
+
+   When the Server and Control-Client have agreed to use the Reflect
+   Octets mode during control connection setup, then the Control-Client,
+   the Server, the Session-Sender, and the Session-Reflector MUST all
+   conform to the requirements of that mode, as identified below.
+
+   When the Server and Control-Client have agreed to use the Symmetrical
+   Size mode during control connection setup, then the Control-Client,
+   the Server, the Session-Sender, and the Session-Reflector MUST all
+   conform to the requirements of that mode, as identified below.
+
+4.  TWAMP Control Extensions
+
+   TWAMP-Control protocol [RFC5357] uses the Modes field to identify and
+   select specific communication capabilities, and this field is a
+   recognized extension mechanism.  The following sections describe two
+   such extensions.
+
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 4]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+4.1.  Connection Setup with New Features
+
+   TWAMP connection establishment follows the procedure defined in
+   Section 3.1 of [RFC4656] and Section 3.1 of [RFC5357].  The new
+   features require two new bit positions (and values) to identify the
+   ability of the Server/Session-Reflector to reflect specific octets
+   back to the Control-Client/Session-Sender, and to support the new
+   Session-Sender packet format in the TWAMP-Test protocol.  See the
+   IANA section for details on the assigned values and bit positions.
+
+   The Server sets one or both of the new bit positions in the Modes
+   field of the Server Greeting message to indicate its capabilities and
+   willingness to operate in either of these modes (or both) if desired.
+
+   If the Control-Client intends to operate all test sessions invoked
+   with this control connection using one or both of the new modes, it
+   MUST set the Mode field bit corresponding to each function in the
+   Setup Response message.  With this and other extensions, the Control-
+   Client MAY set multiple Mode field bits in the Setup Response
+   message.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 5]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+4.2.  Reflect Octets: Request-TW-Session Packet Format
+
+   The bits designated for the Reflect Octets feature in the Request-TW-
+   Session command are as shown in the packet format below.
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      5        |  MBZ  | IPVN  |  Conf-Sender  | Conf-Receiver |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                  Number of Schedule Slots                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   .                                                               .
+   .           ... Many fields (66 octets) not shown ...           .
+   .                                                               .
+   .                                                               .
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Padding Length  (4 octets)                 |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Start Time  (8 octets)                   |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Timeout  (8 octets)                     |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Type-P Descriptor                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |     Octets to be reflected    |  Length of padding to reflect |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       MBZ (4 octets)                          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                       HMAC (16 octets)                        |
+   |                                                               |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   It is important to note that the Padding Length field continues to
+   specify the number of padding octets that the Session-Sender will
+   append to ALL TWAMP-Test packets associated with this test session.
+   See below for considerations on the minimum length of the padding
+   octets following the definitions of the two new fields that follow
+   the Type-P Descriptor.
+
+   Note that the number of padding octets appended to the Session-
+   Reflector's test packet depends on support for the truncation process
+   that TWAMP recommends, see Section 4.2.1 of [RFC5357].
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 6]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+   The Octets to be reflected field SHALL be 2 octets long, as shown,
+   and contain the octets that the Server MUST reflect in the Accept
+   Session message as specified below.
+
+   The Length of padding to reflect field SHALL be 2 octets long and
+   contain an unsigned binary value in units of octets.  This field
+   communicates the length of the padding in the TWAMP-Test Packet that
+   the Session-Sender expects to be reflected and the length of octets
+   that the Session-Reflector SHALL return in its TWAMP-Test packet
+   format (see Section 5.2).  By including this length field in the
+   Request-TW-Session message, a Server is able to determine if it can
+   comply with a specific request to reflect padding in the TWAMP-Test
+   packets and to arrange for the Session-Reflector processing in
+   advance.
+
+   The Padding Length SHOULD be >= 27 octets when specifying a test
+   session using the Unauthenticated TWAMP-Test mode to allow for the
+   truncation process that TWAMP recommends, see Section 4.2.1 of
+   [RFC5357].
+
+   The Padding Length SHOULD be >= 56 octets when specifying a test
+   session using the Authenticated or Encrypted TWAMP-Test modes to
+   allow for the truncation process that TWAMP recommends, see Section
+   4.2.1 of [RFC5357].
+
+   The Padding Length SHALL be > the Length of padding to reflect when
+   specifying a test session using the OPTIONAL Reflect Octets mode.
+
+   In Unauthenticated TWAMP-Test mode, the Padding Length SHALL be >= 27
+   + Length of padding to reflect octets when specifying a test session
+   using both the OPTIONAL Reflect Octets mode and the truncation
+   process that TWAMP recommends, see Section 4.2.1 of [RFC5357].
+
+   In Authenticated or Encrypted TWAMP-Test modes, the Padding Length
+   SHALL be >= 56 + Length of padding to reflect octets when specifying
+   a test session using both the OPTIONAL Reflect Octets mode and the
+   truncation process that TWAMP recommends, see Section 4.2.1 of
+   [RFC5357].
+
+4.3.  Reflect Octets: Accept Session Packet Format
+
+   The bits designated for the Reflect Padding feature in the Accept
+   Session command are as shown in the packet format below.
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 7]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Accept     |      MBZ      |            Port               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-|
+   |                                                               |
+   |                        SID (16 octets)                        |
+   |                                                               |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       Reflected octets        |         Server octets         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       MBZ (8 octets)                          |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |                       HMAC (16 octets)                        |
+   |                                                               |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The Reflected octets field SHALL contain the octets from the Request-
+   TW-Session Octets to be reflected field and be 2 octets long, as
+   shown.
+
+   The Server octets field SHALL contain information that the Server
+   intends to be returned in the TWAMP-Test Packet Padding (to be
+   reflected) field, OR SHALL be zero, and be 2 octets long, as shown.
+   Although the Server determines the SID, this field is very long (16
+   octets) and does not normally appear in TWAMP-Test packets.  The
+   following items MUST be part of compliant implementations using the
+   Reflect Octets feature:
+
+   o  When a Server does not require octets to be returned in TWAMP-Test
+      packets, it MUST send all zeros in the Server octets field.
+
+   o  When a Server intends octets to be returned in TWAMP-Test packets,
+      it MUST send a non-zero value in the Server octets field, and the
+      TWAMP-Test Sender MUST include those octets at the beginning of
+      the Packet Padding (to be reflected) field.
+
+   o  Section 4.1.2 defines how Server octets MUST be included in the
+      TWAMP-Test packet padding when this service is desired by the
+      Server (indicated in the second of two figures in this section).
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 8]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+   When performing the truncation process that TWAMP recommends, see
+   Section 4.2.1 of [RFC5357], if calculations on the Padding lengths
+   reveal that there are insufficient octets supplied to produce equal-
+   length Session-Sender and Session-Reflector test packets, then the
+   Accept field MUST be set to 3 to indicate that some aspect of the
+   request is not supported.
+
+4.4.  Additional Considerations
+
+   The value of the Modes field sent by the Server in the Server
+   Greeting message is the bit-wise OR of the mode values that it is
+   willing to support during this session.
+
+   With the publication of this memo as an RFC, the last 7 bit positions
+   of the Modes 32-bit field are used.  A Control-Client conforming to
+   this extension of [RFC5357] MAY ignore the values in the higher bits
+   of the Modes field, or it MAY support other features that are
+   communicated in those bit positions.  The other bits are available
+   for future protocol extensions.
+
+5.  Extended TWAMP Test
+
+   The TWAMP-Test protocol is similar to the OWAMP [RFC4656] test
+   protocol with the exception that the Session-Reflector transmits test
+   packets to the Session-Sender in response to each test packet it
+   receives.  TWAMP, see Section 4 of [RFC5357], defines two additional
+   test packet formats for packets transmitted by the Session-Reflector.
+   The appropriate format depends on the security mode chosen.  The new
+   modes specified here utilize some of the padding octets within each
+   test packet format or require truncation of those octets depending on
+   the security mode in use.
+
+5.1.  Sender Behavior
+
+   This section describes extensions to the behavior of the TWAMP
+   Session-Sender.
+
+5.1.1.  Packet Timings
+
+   The Send Schedule is not utilized in TWAMP, and this is unchanged in
+   this memo.
+
+5.1.2.  Reflect Octets: Packet Formats and Contents
+
+   The Session-Sender packet format and content follow the same
+   procedure and guidelines as defined in Section 4.1.2 of [RFC4656] (as
+   indicated in Section 4.1.2 of [RFC5357]).
+
+
+
+
+Morton & Ciavattone          Standards Track                    [Page 9]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+   The Reflect Octets mode re-designates the original TWAMP-Test Packet
+   Padding field (see Section 4.1.2 of [RFC4656]), as shown below for
+   Unauthenticated mode:
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Sequence Number                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          Timestamp                            |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Error Estimate        |                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               +
+   |                                                               |
+   |                  Packet Padding (to be reflected)             |
+   .               (length in octets specified in command)         .
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   .                                                               .
+   .                  Additional Packet Padding                    .
+   .                                                               .
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The Packet Padding (to be reflected) field SHALL correspond to the
+   length of octets specified in the Request-TW-Session Length of
+   padding to reflect field to this test session.  These are the octets
+   that the Session-Sender expects will be returned by the Session-
+   Reflector.
+
+   The length of the Additional Packet Padding field is the difference
+   between two fields in the Request-TW-Session command, as follows:
+
+   Additional Packet Padding, in octets =
+
+   Padding Length - Length of padding to reflect
+
+   When a Server intends octets to be returned in TWAMP-Test packets, it
+   MUST send a non-zero value in the Server octets field, and the TWAMP-
+   Test Session-Sender MUST include those octets in the first 2 octets
+   of the Packet Padding (to be reflected) field as shown below:
+
+
+
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 10]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+                                   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+                                   |         Server octets         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   |              Remaining Packet Padding (to be reflected)       |
+   .             (total length in octets specified in command)     .
+   .                                                               .
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The Server octets field contains the same information that the Server
+   returned to the Control-Client in the Accept-Session message
+   corresponding to this specific test session (see Section 4.3).  At
+   the Session-Reflector, these octets MUST be reflected the same as the
+   rest of the Packet Padding (to be reflected) field.
+
+   Note that it is permissible for the Session-Sender to insert the same
+   octets used in the Octets to be reflected field of the Request-TW-
+   Session command elsewhere in the Packet Padding (to be reflected)
+   field.
+
+5.1.3.  Reflect Octets: Interaction with Padding Truncation
+
+   When the Reflect Octets mode is selected, and performing the
+   truncation process that TWAMP recommends, see Section 4.2.1 of
+   [RFC5357], the Session-Sender MUST anticipate a minimum padding
+   required to achieve equal-size test packets in both directions.  The
+   amount of padding needed to achieve symmetrical packet size depends
+   on both the security mode (Unauthenticated/Authenticated/Encrypted)
+   and whether the Reflect Octets mode is selected simultaneously.
+
+   When using the truncation process in TWAMP alone, see Section 4.2.1
+   of [RFC5357], the Session-Sender MUST append sufficient Packet
+   Padding octets to allow the same IP packet payload lengths to be used
+   in each direction of transmission (this is usually desirable).  To
+   compensate for the Session-Reflector's larger test packet format, the
+   Session-Sender MUST append at least 27 octets of padding in
+   Unauthenticated mode, and at least 56 octets in Authenticated and
+   Encrypted modes.  The sizes of TWAMP-Test protocol packets and the
+   resulting truncated padding to achieve equal packet sizes in both
+   directions are shown in the table below:
+
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 11]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+    +-------------------+----------------------+---------------------+
+    | Octets in:        | Unauthenticated Mode | Auth/Encrypted Mode |
+    +-------------------+----------------------+---------------------+
+    | Reflector Header  | 41                   | 104                 |
+    | Sender Header     | 14                   | 48                  |
+    | Truncated Padding | 27                   | 56                  |
+    +-------------------+----------------------+---------------------+
+
+                       TWAMP-Test Padding Truncation
+
+   When using the Reflect Octets mode simultaneously with the truncation
+   process that TWAMP recommends in Section 4.2.1 of [RFC5357], the
+   Session-Sender MUST append at least 27 octets of padding plus the
+   Length of the padding to reflect octets when operating in
+   Unauthenticated mode.  The Session-Sender MUST append at least 56
+   octets of padding plus the Length of the padding to reflect octets
+   when operating in Authenticated and Encrypted modes.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 12]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+5.1.4.  Symmetrical Size: Session-Sender Packet Format
+
+   When the Symmetrical Size mode is selected, the Session-Sender SHALL
+   use the following TWAMP-Test Packet Format in Unauthenticated mode:
+
+   Unauthenticated Mode
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Sequence Number                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          Timestamp                            |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Error Estimate        |                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               +
+   |                                                               |
+   |                                                               |
+   |                         MBZ (27 octets)                       |
+   |                                                               |
+   |                                                               |
+   |                                                               |
+   +               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |               |                                               |
+   +-+-+-+-+-+-+-+-+                                               +
+   .                                                               .
+   .                        Packet Padding                         .
+   .                                                               .
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   This feature REQUIRES only a new Session-Sender test packet format,
+   the Session-Reflector test packet format is unchanged.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 13]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+5.1.5.  Symmetrical Size AND Reflect Octets: Session-Sender Packet
+        Format
+
+   When both the Symmetrical Size mode and the Reflect Octets mode are
+   selected, the Session-Sender SHALL use the following TWAMP-Test
+   Packet Format in Unauthenticated mode:
+
+   Unauthenticated Mode
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Sequence Number                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                          Timestamp                            |
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Error Estimate        |                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               +
+   |                                                               |
+   |                                                               |
+   |                         MBZ (27 octets)                       |
+   |                                                               |
+   |                                                               |
+   |                                                               |
+   +               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |               |                                               |
+   +-+-+-+-+-+-+-+-+                                               +
+   |                  Packet Padding (to be reflected)             |
+   .               (length in octets specified in command)         .
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   .                                                               .
+   .                  Additional Packet Padding                    .
+   .                                                               .
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   In this combined mode, the Packet Padding to be reflected follows the
+   27 MBZ octets.  In Authenticated or Encrypted modes, the Packet
+   Padding to be reflected follows the 56 MBZ octets.
+
+5.2.  Reflector Behavior
+
+   The TWAMP Reflector follows the procedures and guidelines in Section
+   4.2 of [RFC5357], with the following additional functions:
+
+   o  Reflect Octets mode: Designated octets in the Packet Padding (to
+      be reflected) field of the Session-Sender's test packet MUST be
+      included in the Session-Reflector's test packet.
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 14]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+   o  Symmetrical Size mode: The Session-Reflector MUST operate using
+      the Session_Reflector Packet Format defined in Section 5.1.4,
+      where the Padding Octets are separated from the information
+      fields.
+
+5.2.1.  Reflect Octets: Session-Reflector Packet Format and Contents
+
+   The Reflect Padding feature re-designates the Packet Padding field,
+   as shown below.  When the Reflect Octets mode is selected, the
+   Session-Sender SHALL use the following TWAMP-Test Packet Format in
+   Unauthenticated mode:
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                        Sequence Number                        |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                          Timestamp                            |
+    |                                                               |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |         Error Estimate        |           MBZ                 |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                          Receive Timestamp                    |
+    |                                                               |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                        Sender Sequence Number                 |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |                      Sender Timestamp                         |
+    |                                                               |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |      Sender Error Estimate    |           MBZ                 |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    |  Sender TTL   |         Packet Padding (from Session-Sender)  |
+    +-+-+-+-+-+-+-+-+                                               +
+    .                                                               .
+    +                                               +-+-+-+-+-+-+-+-+
+    |          Packet Padding (from Session-Sender) |               |
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+               +
+    |                                                               |
+    |                                                               |
+    .                  Additional Packet Padding                    .
+    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The Packet Padding (from Session-Sender) field MUST be the same
+   octets as the Packet Padding (to be reflected) field in the Session-
+   Sender's test packet, and therefore MUST conform to the length
+   specified in the Request-TW-Session message.
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 15]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+   When the Server has returned a non-zero value in the Server octets
+   field of the Accept Session message (as described in Section 4.3),
+   then the Session-Reflector SHALL reflect these octets the same as the
+   rest of the Packet Padding (to be reflected) field.
+
+   Section 4.2.1 of [RFC5357] recommends a padding truncation process
+   for use in TWAMP.  When using that process in conjunction with the
+   Reflect Octets mode, the Session-Reflector MUST reflect the
+   designated octets from the Session-Sender's test packet in the Packet
+   Padding (from Session-Sender) field, and MAY re-use additional Packet
+   Padding from the Session-Sender.  The Session-Reflector MUST truncate
+   the padding such that the highest number octets are discarded, and
+   the test packet length equals the Session-Sender's packet length.
+   When using the recommended truncation process, the Session-Reflector
+   MUST truncate exactly 27 octets of padding in Unauthenticated mode,
+   and exactly 56 octets in Authenticated and Encrypted modes.
+
+   In any case, the Session-Reflector MAY re-use the Sender's Packet
+   Padding (since the requirements for padding generation are the same
+   for each).
+
+5.2.2.  Symmetrical Size: Session-Reflector Packet Format
+
+   When Symmetrical Size mode is selected, the Session-Reflector packet
+   formats for Unauthenticated and Authenticated/Encrypted modes are
+   identical to the core TWAMP specification, see Section 4.2.1 of
+   [RFC5357].  Thus, the Session-Reflector test packet format is
+   unchanged.
+
+   The Session-Reflector MUST construct its test packet using the
+   information in the Session-Sender's test packet.  The length of the
+   Session-Reflector's test packet SHALL equal the length of the
+   Session-Sender's test packet.
+
+5.2.3.  Symmetrical Size AND Reflect Octets: Session-Sender Packet
+        Format
+
+   When both the Symmetrical Size mode and the Reflect Octets mode are
+   selected, the Session-Reflector MUST operate using the Session-Sender
+   Packet Format defined in Section 5.1.5, where the Padding Octets are
+   separated from the information fields, and the Packet Padding (to be
+   reflected) field precedes the Additional Padding.
+
+   The Session-Reflector SHALL use the same TWAMP-Test Packet Format as
+   specified in Section 5.2.1, above.
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 16]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+6.  Security Considerations
+
+   These extended modes of operation do not appear to permit any new
+   attacks on hosts communicating with core TWAMP [RFC5357].
+
+   The security considerations that apply to any active measurement of
+   live networks are relevant here as well.  See [RFC4656] and
+   [RFC5357].
+
+7.  IANA Considerations
+
+   This memo adds two modes to the IANA registry for the TWAMP Modes
+   field, and describes behavior when the new modes are used.  This
+   field is a recognized extension mechanism for TWAMP.
+
+7.1.  Registry Specification
+
+   IANA has created a TWAMP-Modes registry (as requested in [RFC5618]).
+   TWAMP-Modes are specified in TWAMP Server Greeting messages and Setup
+   Response messages, as described in Section 3.1 of [RFC5357],
+   consistent with Section 3.1 of [RFC4656], and extended by this memo.
+   Modes are indicated by setting bits in the 32-bit Modes field that
+   correspond to values in the Modes registry.  For the TWAMP-Modes
+   registry, we expect that new features will be assigned increasing
+   registry values that correspond to single bit positions, unless there
+   is a good reason to do otherwise (more complex encoding than single-
+   bit positions may be used in the future to access the 2^32 value
+   space).
+
+7.2.  Registry Contents
+
+   The TWAMP-Modes registry has been augmented as follows:
+
+   Value  Description             Semantics Definition
+   --------------------------------------------------------
+   32     Reflect Octets          this memo, Section 3.1
+          Capability              new bit position (5)
+   64     Symmetrical Size        this memo, Section 3.1
+          Sender Test Packet Format new bit position (6)
+
+8.  Acknowledgements
+
+   The authors thank Steve Baillargeon, Walt Steverson, and Stina Ross
+   for helpful review and comments.
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 17]
+
+RFC 6038             Reflect Octets & Symmetric Size        October 2010
+
+
+9.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4656]  Shalunov, S., Teitelbaum, B., Karp, A., Boote, J., and M.
+              Zekauskas, "A One-way Active Measurement Protocol
+              (OWAMP)", RFC 4656, September 2006.
+
+   [RFC5357]  Hedayat, K., Krzanowski, R., Morton, A., Yum, K., and J.
+              Babiarz, "A Two-Way Active Measurement Protocol (TWAMP)",
+              RFC 5357, October 2008.
+
+   [RFC5618]  Morton, A. and K. Hedayat, "Mixed Security Mode for the
+              Two-Way Active Measurement Protocol (TWAMP)", RFC 5618,
+              August 2009.
+
+Authors' Addresses
+
+   Al Morton
+   AT&T Labs
+   200 Laurel Avenue South
+   Middletown, NJ  07748
+   USA
+
+   Phone: +1 732 420 1571
+   Fax:   +1 732 368 1192
+   EMail: acmorton@att.com
+   URI:   http://home.comcast.net/~acmacm/
+
+
+   Len Ciavattone
+   AT&T Labs
+   200 Laurel Avenue South
+   Middletown, NJ  07748
+   USA
+
+   Phone: +1 732 420 1239
+   EMail: lencia@att.com
+
+
+
+
+
+
+
+
+
+
+
+
+Morton & Ciavattone          Standards Track                   [Page 18]
+

@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                         J. Levine
+Request for Comments: 7505                          Taughannock Networks
+Category: Standards Track                                      M. Delany
+ISSN: 2070-1721                                               Apple Inc.
+                                                               June 2015
+
+
+ A "Null MX" No Service Resource Record for Domains That Accept No Mail
+
+Abstract
+
+   Internet mail determines the address of a receiving server through
+   the DNS, first by looking for an MX record and then by looking for an
+   A/AAAA record as a fallback.  Unfortunately, this means that the
+   A/AAAA record is taken to be mail server address even when that
+   address does not accept mail.  The No Service MX RR, informally
+   called "null MX", formalizes the existing mechanism by which a domain
+   announces that it accepts no mail, without having to provide a mail
+   server; this permits significant operational efficiencies.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7505.
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+Levine & Delany              Standards Track                    [Page 1]
+
+RFC 7505                         Null MX                       June 2015
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Conventions Used in This Document . . . . . . . . . . . . . .   2
+   3.  MX Resource Records Specifying Null MX  . . . . . . . . . . .   3
+   4.  Effects of Null MX  . . . . . . . . . . . . . . . . . . . . .   3
+     4.1.  SMTP Server Benefits  . . . . . . . . . . . . . . . . . .   3
+     4.2.  Sending Mail from Domains That Publish Null MX  . . . . .   4
+   5.  Security Considerations . . . . . . . . . . . . . . . . . . .   4
+   6.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   5
+   7.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   5
+     7.1.  Normative References  . . . . . . . . . . . . . . . . . .   5
+     7.2.  Informative References  . . . . . . . . . . . . . . . . .   6
+   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .   6
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .   6
+
+1.  Introduction
+
+   This document defines the No Service MX, informally called "null MX",
+   as a simple mechanism by which a domain can indicate that it does not
+   accept email.
+
+   SMTP clients have a prescribed sequence for identifying a server that
+   accepts email for a domain.  Section 5 of [RFC5321] covers this in
+   detail; in essence, the SMTP client first looks up a DNS MX RR, and,
+   if that is not found, it falls back to looking up a DNS A or AAAA RR.
+   Hence, this overloads a DNS record (that has a different primary
+   mission) with an email service semantic.
+
+   If a domain has no MX records, senders will attempt to deliver mail
+   to the hosts at the addresses in the domain's A or AAAA records.  If
+   there are no SMTP listeners at the A/AAAA addresses, message delivery
+   will be attempted repeatedly for a long period, typically a week,
+   before the sending Mail Transfer Agent (MTA) gives up.  This will
+   delay notification to the sender in the case of misdirected mail and
+   will consume resources at the sender.
+
+   This document defines a null MX that will cause all mail delivery
+   attempts to a domain to fail immediately, without requiring domains
+   to create SMTP listeners dedicated to preventing delivery attempts.
+
+2.  Conventions Used in This Document
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+
+
+
+
+Levine & Delany              Standards Track                    [Page 2]
+
+RFC 7505                         Null MX                       June 2015
+
+
+   The terms "RFC5321.MailFrom" and "RFC5322.From" are used as defined
+   in [RFC5598].
+
+3.  MX Resource Records Specifying Null MX
+
+   To indicate that a domain does not accept email, it advertises a
+   single MX RR (see Section 3.3.9 of [RFC1035]) with an RDATA section
+   consisting of preference number 0 and a zero-length label, written in
+   master files as ".", as the exchange domain, to denote that there
+   exists no mail exchanger for a domain.  Since "." is not a valid host
+   name, a null MX record cannot be confused with an ordinary MX record.
+   The use of "." as a pseudo-hostname meaning no service available is
+   modeled on the SRV RR [RFC2782] where it has a similar meaning.
+
+   A domain that advertises a null MX MUST NOT advertise any other MX
+   RR.
+
+4.  Effects of Null MX
+
+   The null MX record has a variety of efficiency and usability
+   benefits.
+
+4.1.  SMTP Server Benefits
+
+   Mail often has an incorrect address due to user error, where the
+   address was mistranscribed or misunderstood, for example, to
+   alice@www.example.com, alice@example.org, or alice@examp1e.com rather
+   than alice@example.com.  Null MX allows a mail system to report the
+   delivery failure when the user sends the message, rather than hours
+   or days later.
+
+   Senders of abusive mail often use forged undeliverable return
+   addresses.  Null MX allows Delivery Status Notifications (DSNs) and
+   other attempted responses to such mail to be disposed of efficiently.
+
+   The ability to detect domains that do not accept email offers
+   resource savings to an SMTP client.  It will discover on the first
+   sending attempt that an address is not deliverable, avoiding queuing
+   and retries.
+
+   When a submission or SMTP relay server rejects an envelope recipient
+   due to a domain's null MX record, it SHOULD use a 556 reply code
+   [RFC7504] (Requested action not taken: domain does not accept mail)
+   and a 5.1.10 enhanced status code (Permanent failure: Recipient
+   address has null MX).
+
+
+
+
+
+
+Levine & Delany              Standards Track                    [Page 3]
+
+RFC 7505                         Null MX                       June 2015
+
+
+   A receiving SMTP server that chooses to reject email during the SMTP
+   conversation that presents an undeliverable RFC5321.MailFrom or
+   RFC5322.From domain can be more confident that for other messages a
+   subsequent attempt to send a DSN or other response will reach a
+   recipient SMTP server.
+
+   SMTP servers that reject mail because a RFC5321.MailFrom or
+   RFC5322.From domain has a null MX record SHOULD use a 550 reply code
+   (Requested action not taken: mailbox unavailable) and a 5.7.27
+   enhanced status code (Permanent failure: Sender address has null MX).
+
+4.2.  Sending Mail from Domains That Publish Null MX
+
+   Null MX is primarily intended for domains that do not send or receive
+   any mail, but have mail sent to them anyway due to mistakes or
+   malice.  Many receiving systems reject mail that has an invalid
+   return address.  Return addresses are needed to allow the sender to
+   handle message delivery errors.  An invalid return address often
+   signals that the message is spam.  Hence, mail systems SHOULD NOT
+   publish a null MX record for domains that they use in
+   RFC5321.MailFrom or RFC5322.From addresses.  If a system nonetheless
+   does so, it risks having its mail rejected.
+
+   Operators of domains that do not send mail can publish Sender Policy
+   Framework (SPF) "-all" policies [RFC7208] to make an explicit
+   declaration that the domains send no mail.
+
+   Null MX is not intended to be a replacement for the null reverse-path
+   described in Section 4.5.5 of RFC 5321 and does not change the
+   meaning or use of a null reverse-path.
+
+5.  Security Considerations
+
+   Within the DNS, a null MX RR is an ordinary MX record and presents no
+   new security issues.  If desired, it can be secured in the same
+   manner as any other DNS record using DNSSEC.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Levine & Delany              Standards Track                    [Page 4]
+
+RFC 7505                         Null MX                       June 2015
+
+
+6.  IANA Considerations
+
+   IANA has added the following entries to the "Enumerated Status Codes"
+   subregistry of the "Simple Mail Transfer Protocol (SMTP) Enhanced
+   Status Codes Registry".
+
+   Code:              X.1.10
+   Sample Text:       Recipient address has null MX
+   Associated basic status code:  556
+   Description:       This status code is returned when the associated
+                      address is marked as invalid using a null MX.
+   Reference:         This document
+   Submitter:         Authors of this document
+   Change controller: IESG
+
+   Code:              X.7.27
+   Sample Text:       Sender address has null MX
+   Associated basic status code:  550
+   Description:       This status code is returned when the associated
+                      sender address has a null MX, and the SMTP
+                      receiver is configured to reject mail from such
+                      sender (e.g., because it could not return a DSN).
+   Reference:         This document
+   Submitter:         Authors of this document
+   Change controller: IESG
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC1035]  Mockapetris, P., "Domain names - implementation and
+              specification", STD 13, RFC 1035, DOI 10.17487/RFC1035,
+              November 1987, <http://www.rfc-editor.org/info/rfc1035>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC5321]  Klensin, J., "Simple Mail Transfer Protocol", RFC 5321,
+              DOI 10.17487/RFC5321, October 2008,
+              <http://www.rfc-editor.org/info/rfc5321>.
+
+   [RFC7504]  Klensin, J., "SMTP 521 and 556 Reply Codes", RFC 7504,
+              DOI 10.17487/RFC7504, June 2015,
+              <http://www.rfc-editor.org/info/rfc7504>.
+
+
+
+
+
+Levine & Delany              Standards Track                    [Page 5]
+
+RFC 7505                         Null MX                       June 2015
+
+
+7.2.  Informative References
+
+   [RFC2782]  Gulbrandsen, A., Vixie, P., and L. Esibov, "A DNS RR for
+              specifying the location of services (DNS SRV)", RFC 2782,
+              DOI 10.17487/RFC2782, February 2000,
+              <http://www.rfc-editor.org/info/rfc2782>.
+
+   [RFC5598]  Crocker, D., "Internet Mail Architecture", RFC 5598,
+              DOI 10.17487/RFC5598, July 2009,
+              <http://www.rfc-editor.org/info/rfc5598>.
+
+   [RFC7208]  Kitterman, S., "Sender Policy Framework (SPF) for
+              Authorizing Use of Domains in Email, Version 1", RFC 7208,
+              DOI 10.17487/RFC7208, April 2014,
+              <http://www.rfc-editor.org/info/rfc7208>.
+
+Acknowledgements
+
+   We thank Dave Crocker for his diligent and lengthy shepherding of
+   this document, and members of the APPSAWG working group for their
+   constructive suggestions.
+
+Authors' Addresses
+
+   John Levine
+   Taughannock Networks
+   PO Box 727
+   Trumansburg, NY  14886
+   United States
+
+   Phone: +1 831 480 2300
+   Email: standards@taugh.com
+   URI:   http://jl.ly
+
+
+   Mark Delany
+   Apple Inc.
+   1 Infinite Loop
+   Cupertino, CA  95014
+   United States
+
+   Email: mx0dot@yahoo.com
+
+
+
+
+
+
+
+
+
+Levine & Delany              Standards Track                    [Page 6]
+

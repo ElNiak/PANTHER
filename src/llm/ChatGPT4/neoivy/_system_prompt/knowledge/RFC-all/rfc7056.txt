@@ -1,0 +1,619 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                        S. Hartman
+Request for Comments: 7056                             Painless Security
+Category: Standards Track                                     J. Howlett
+ISSN: 2070-1721                                                JANET(UK)
+                                                           December 2013
+
+
+                    Name Attributes for the GSS-API
+           Extensible Authentication Protocol (EAP) Mechanism
+
+Abstract
+
+   The naming extensions to the Generic Security Service Application
+   Programming Interface (GSS-API) provide a mechanism for applications
+   to discover authorization and personalization information associated
+   with GSS-API names.  The Extensible Authentication Protocol GSS-API
+   mechanism allows an Authentication, Authorization, and Accounting
+   (AAA) peer to provide authorization attributes alongside an
+   authentication response.  It also supplies mechanisms to process
+   Security Assertion Markup Language (SAML) messages provided in the
+   AAA response.  This document describes how to use the Naming
+   Extensions API to access that information.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7056.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Hartman & Howlett            Standards Track                    [Page 1]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+Copyright Notice
+
+   Copyright (c) 2013 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. Requirements Notation ...........................................3
+   3. Naming Extensions and SAML ......................................3
+   4. Federated Context ...............................................4
+   5. Name Attributes for GSS-EAP .....................................5
+   6. Names of SAML Attributes in the Federated Context ...............6
+      6.1. Assertions .................................................6
+      6.2. SAML Attributes ............................................6
+      6.3. SAML Name Identifiers ......................................7
+   7. Security Considerations .........................................8
+   8. IANA Considerations .............................................8
+      8.1. Registration of the GSS URN Namespace ......................9
+   9. Acknowledgements ................................................9
+   10. References ....................................................10
+      10.1. Normative References .....................................10
+      10.2. Informative References ...................................11
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Hartman & Howlett            Standards Track                    [Page 2]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+1.  Introduction
+
+   The naming extensions [RFC6680] to the Generic Security Service
+   Application Programming Interface (GSS-API) [RFC2743] provide a
+   mechanism for applications to discover authorization and
+   personalization information associated with GSS-API names.  The
+   Extensible Authentication Protocol GSS-API mechanism [RFC7055] allows
+   an Authentication, Authorization, and Accounting (AAA) peer to
+   provide authorization attributes alongside an authentication
+   response.  It also supplies mechanisms to process Security Assertion
+   Markup Language (SAML) messages provided in the AAA response.  Other
+   mechanisms such as SAML Enhanced Client (EC) [SASL-SAML] also support
+   SAML assertions and attributes carried in the GSS-API.  This document
+   describes how to use the Naming Extensions API to access that
+   information.
+
+   The semantics of setting attributes defined in this specification are
+   undefined and left to future work.
+
+2.  Requirements Notation
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+3.  Naming Extensions and SAML
+
+   SAML assertions can carry attributes describing properties of the
+   subject of the assertion.  For example, an assertion might carry an
+   attribute describing the organizational affiliation or email address
+   of a subject.  According to Sections 8.2 and 2.7.3.1 of [OASIS], the
+   name of an attribute has two parts.  The first is a Universal
+   Resource Identifier (URI) describing the format of the name.  The
+   second part, whose form depends on the format URI, is the actual
+   name.  GSS-API name attributes may take a form starting with a URI
+   describing the form of the name; the rest of the name is specified by
+   that URI.
+
+   SAML attributes carried in GSS-API names are named with three parts.
+   The first is a Universal Resource Name (URN) indicating that the name
+   is a SAML attribute and describing the context (Section 4).  This URN
+   is followed by a space, the URI indicating the format of the SAML
+   name, a space, and the SAML attribute name.  The URI indicating the
+   format of the SAML attribute name is not optional and MUST be
+   present.
+
+
+
+
+
+
+Hartman & Howlett            Standards Track                    [Page 3]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+   SAML attribute names may not be globally unique.  Many names that are
+   named by URNs or URIs are likely to have semantics independent of the
+   issuer.  However, other name formats, including unspecified name
+   formats, make it easy for two issuers to choose the same name for
+   attributes with different semantics.  Attributes using the federated
+   context (Section 4) are issued by the same party performing the
+   authentication.  So, based on who is the subject of the name, the
+   semantics of the attribute can be determined.
+
+4.  Federated Context
+
+   GSS-API naming extensions have the concept of an authenticated name
+   attribute.  The mechanism guarantees that the contents of an
+   authenticated name attribute are an authenticated statement from the
+   trusted source of the peer credential.  The fact that an attribute is
+   authenticated does not imply that the trusted source of the peer
+   credential is authorized to assert the attribute.
+
+   In the federated context, the trusted source of the peer credential
+   is typically some identity provider.  In the GSS EAP mechanism,
+   information is combined from AAA and SAML sources.  The SAML Identity
+   Provider (IdP) and home AAA server are assumed to be in the same
+   trust domain.  However, this trust domain is not typically the same
+   as the trust domain of the service.  With other SAML mechanisms using
+   this specification, the SAML assertion also comes from the party
+   performing authentication.  Typically, the IdP is run by another
+   organization in the same federation.  The IdP is trusted to make some
+   statements, particularly related to the context of a federation.  For
+   example, an academic federation's participants would typically trust
+   an IdP's assertions about whether someone was a student or a
+   professor.  However, that same IdP would not typically be trusted to
+   make assertions about local entitlements such as group membership.
+   Thus, a service MUST make a policy decision about whether the IdP is
+   permitted to assert a particular attribute and about whether the
+   asserted value is acceptable.  This policy can be implemented as
+   local configuration on the service, as rules in AAA proxies, or
+   through other deployment-specific mechanisms.
+
+   In contrast, attributes in an enterprise context are often verified
+   by a central authentication infrastructure that is trusted to assert
+   most or all attributes.  For example, in a Kerberos infrastructure,
+   the Key Distribution Center (KDC) typically indicates group
+   membership information for clients to a server using KDC-
+   authenticated authorization data.
+
+   The context of an attribute is an important property of that
+   attribute; trust context is an important part of this overall
+   context.  In order for applications to distinguish the context of
+
+
+
+Hartman & Howlett            Standards Track                    [Page 4]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+   attributes, attributes with different contexts need different names.
+   This specification defines attribute names for SAML and AAA
+   attributes in the federated context.
+
+   These names MUST NOT be used for attributes issued by a party other
+   than one closely associated with the source of credentials unless the
+   source of credentials is re-asserting the attributes.  For example, a
+   source of credentials can consult whatever sources of attributes it
+   chooses, but acceptors can assume attributes in the federated context
+   are from the source of credentials.  This requirement is typically
+   enforced in mechanism specifications.  For example, [AAA-SAML]
+   provides enough information that we know the attributes it carries
+   today are in the federated context.  Similarly, we know that the
+   requirements of this paragraph are met by SAML mechanisms where the
+   assertion is the means of authentication.
+
+5.  Name Attributes for GSS-EAP
+
+   This section describes how RADIUS attributes received in an access-
+   accept message by the GSS-EAP [RFC7055] mechanism are named.  The use
+   of attributes defined in this section for other RADIUS messages or
+   prior to the access-accept message is undefined at this time.  Future
+   specifications can explore these areas giving adequate weight to
+   backward compatibility.  In particular, this specification defines
+   the meaning of these attributes for the src_name output of
+   GSS_Accept_sec_context after that function returns GSS_S_COMPLETE.
+   Attributes MAY be absent or values MAY change in other circumstances;
+   future specifications MAY define this behavior.
+
+   The first portion of the name is urn:ietf:params:gss:radius-attribute
+   (a URN indicating that this is a GSS-EAP RADIUS AVP).  This is
+   followed by a space and a numeric RADIUS name as described by
+   Section 2.7 of [RFC6929].  For example, the name of the User-Name
+   attribute is "urn:ietf:params:gss:radius-attribute 1".  The name of
+   extended type 1 within type 241 would be
+   "urn:ietf:params:gss:radius-attribute 241.1".
+
+   Consider a case where the RADIUS access-accept response includes the
+   RADIUS User-Name attribute.  An application wishing to retrieve the
+   value of this attribute would first wait until
+   GSS-_Accept_sec_context returned GSS_S_COMPLETE.  Then, the
+   application would take the src_name output from
+   GSS_Accept_sec_context and call GSS_Get_name_attribute passing this
+   name and an attribute of "urn:ietf:params:gss:radius-attribute 1" as
+   inputs.  After confirming that the authenticated boolean output is
+   true, the application can find the username in the values output.
+
+
+
+
+
+Hartman & Howlett            Standards Track                    [Page 5]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+   The value of RADIUS attributes is the raw octets of the packet.
+   Integers are in network byte order.  The display value SHOULD be a
+   human-readable string; an implementation can only produce this string
+   if it knows the type of a given RADIUS attribute.  If multiple
+   attributes are present with a given name in the RADIUS message, then
+   a multi-valued GSS-API attribute SHOULD be returned.  As an
+   exception, implementations SHOULD concatenate RADIUS attributes such
+   as EAP message or large attributes defined in [RFC6929] that use
+   multiple attributes to carry more than 253 octets of information.
+
+6.  Names of SAML Attributes in the Federated Context
+
+6.1.  Assertions
+
+   An assertion generated by the credential source is named by
+   "urn:ietf:params:gss:federated-saml-assertion".  The value of this
+   attribute is the assertion carried in the AAA protocol or used for
+   authentication in a SAML mechanism.  This attribute is absent from a
+   given acceptor name if no such assertion is present or if the
+   assertion fails local policy checks.
+
+   When GSS_Get_name_attribute is called, this attribute will be
+   returned with the authenticated output set to true only if the
+   mechanism can successfully authenticate the SAML statement.  For the
+   GSS-EAP mechanism, this is true if the AAA exchange has successfully
+   authenticated.  However, uses of the GSS-API MUST confirm that the
+   attribute is marked authenticated as other mechanisms MAY permit an
+   initiator to provide an unauthenticated SAML statement.
+
+   Mechanisms MAY perform additional local policy checks and MAY remove
+   the attribute corresponding to assertions that fail these checks.
+
+6.2.  SAML Attributes
+
+   Each attribute carried in the assertion SHOULD also be a GSS name
+   attribute.  The name of this attribute has three parts, all separated
+   by an ASCII space character.  The first part is
+   urn:ietf:params:gss:federated-saml-attribute.  The second part is the
+   URI for the <saml:Attribute> element's NameFormat XML attribute.  The
+   final part is the <saml:Attribute> element's Name XML attribute.  The
+   SAML attribute name may itself contain spaces.  As required by the
+   URI specification [RFC3986], spaces within a URI are encoded as
+   "%20".  Spaces within a URI, including either the first or second
+   part of the name, encoded as "%20" do not separate parts of the
+   GSS-API attribute name; they are simply part of the URI.
+
+
+
+
+
+
+Hartman & Howlett            Standards Track                    [Page 6]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+   As an example, if the eduPersonEntitlement attribute is present in an
+   assertion, then an attribute with the name
+   "urn:ietf:params:gss:federated-saml-attribute
+   urn:oasis:names:tc:SAML:2.0:attrname-format:uri
+   urn:oid:1.3.6.1.4.1.5923.1.1.1.7" could be returned from
+   GSS_Inquire_Name.  If an application calls GSS_Get_name_attribute
+   with this attribute in the attr parameter, then the values output
+   would include one or more URIs of entitlements that were associated
+   with the authenticated user.
+
+   If the content of each <saml:AttributeValue> element is a simple text
+   node (or nodes), then the raw and "display" values of the GSS name
+   attribute MUST be the text content of the element(s).  The raw value
+   MUST be encoded as UTF-8.
+
+   If the value is not simple or is empty, then the raw value(s) of the
+   GSS name attribute MUST be a namespace well-formed serialization
+   [XMLNS] of the <saml:AttributeValue> element(s) encoded as UTF-8.
+   The "display" values are implementation defined.
+
+   These attributes SHOULD be marked authenticated if they are contained
+   in SAML assertions that have been successfully validated back to the
+   trusted source of the peer credential.  In the GSS-EAP mechanism, a
+   SAML assertion carried in an integrity-protected and authenticated
+   AAA protocol SHALL be successfully validated; attributes from that
+   assertion SHALL be returned from GSS_Get_name_attribute with the
+   authenticated output set to true.  An implementation MAY apply local
+   policy checks to each attribute in this assertion and discard the
+   attribute if it is unacceptable according to these checks.
+
+6.3.  SAML Name Identifiers
+
+   The <saml:NameID> carried in the subject of the assertion SHOULD also
+   be a GSS name attribute.  The name of this attribute has two parts,
+   separated by an ASCII space character.  The first part is
+   urn:ietf:params:gss:federated-saml-nameid.  The second part is the
+   URI for the <saml:NameID> element's Format XML attribute.
+
+   The raw value of the GSS name attribute MUST be the well-formed
+   serialization of the <saml:NameID> element encoded as UTF-8.  The
+   "display" value is implementation defined.  For formats defined by
+   Section 8.3 of [OASIS], missing values of the NameQualifier or
+   SPNameQualifier XML attributes MUST be populated in accordance with
+   the definition of the format prior to serialization.  In other words,
+   the defaulting rules specified for the "persistent" and "transient"
+   formats MUST be applied prior to serialization.
+
+
+
+
+
+Hartman & Howlett            Standards Track                    [Page 7]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+   This attribute SHOULD be marked authenticated if the name identifier
+   is contained in a SAML assertion that has been successfully validated
+   back to the trusted source of the peer credential.  In the GSS-EAP
+   mechanism, a SAML assertion carried in an integrity-protected and
+   authenticated AAA protocol SHALL be sufficiently validated.  An
+   implementation MAY apply local policy checks to this assertion and
+   discard it if it is unacceptable according to these checks.
+
+7.  Security Considerations
+
+   This document describes how to access RADIUS attributes, SAML
+   attributes, and SAML assertions from some GSS-API mechanisms.  These
+   attributes are typically used for one of two purposes.  The least
+   sensitive is personalization: a central service MAY provide
+   information about an authenticated user so they need not enter it
+   with each acceptor they access.  A more sensitive use is
+   authorization.
+
+   The mechanism is responsible for authentication and integrity
+   protection of the attributes.  However, the acceptor application is
+   responsible for making a decision about whether the credential source
+   is trusted to assert the attribute and validating the asserted value.
+
+   Mechanisms are permitted to perform local policy checks on SAML
+   assertions, attributes, and name identifiers exposed through name
+   attributes defined in this document.  If there is another way to get
+   access to the SAML assertion, for example, the mechanism described in
+   [AAA-SAML], then an application MAY get different results depending
+   on how the SAML is accessed.  This is intended behavior; applications
+   who choose to bypass local policy checks SHOULD perform their own
+   evaluation before relying on information.
+
+8.  IANA Considerations
+
+   A new top-level registry has been created titled "Generic Security
+   Service Application Program Interface Parameters".
+
+   In this top-level registry, a subregistry titled "GSS-API URN
+   Parameters" has been created.  Registration in this registry is by
+   the IETF Review or Expert Review procedures [RFC5226].
+
+   This paragraph gives guidance to Designated Experts.  Registrations
+   in this registry are generally only expected as part of protocols
+   published as RFCs on the IETF stream; other URIs are expected to be
+   better choices for non-IETF work.  Expert Review is permitted mainly
+   to permit early registration related to specifications under
+   development when the community believes they have reach sufficient
+   maturity.  The expert SHOULD evaluate the maturity and stability of
+
+
+
+Hartman & Howlett            Standards Track                    [Page 8]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+   such an IETF-stream specification.  Experts SHOULD review anything
+   not from the IETF stream for consistency and consensus with current
+   practice.  Today, such requests would not typically be approved.
+
+   If the "paramname" parameter is registered in this registry, then its
+   URN will be "urn:ietf:params:gss:paramname".  The initial
+   registrations are as follows:
+
+                +--------------------------+-------------+
+                | Parameter                | Reference   |
+                +--------------------------+-------------+
+                | radius-attribute         | Section 5   |
+                | federated-saml-assertion | Section 6.1 |
+                | federated-saml-attribute | Section 6.2 |
+                | federated-saml-nameid    | Section 6.3 |
+                +--------------------------+-------------+
+
+8.1.  Registration of the GSS URN Namespace
+
+   IANA has registered the "gss" URN sub-namespace in the IETF URN sub-
+   namespace for protocol parameters defined in [RFC3553].
+
+   Registry Name: gss
+
+   Specification: RFC 7056
+
+   Repository: GSS-API URN Parameters (Section 8)
+
+   Index Value: Sub-parameters MUST be specified in UTF-8 using standard
+   URI encoding where necessary.
+
+9.  Acknowledgements
+
+   Scott Cantor contributed significant text and multiple reviews of
+   this document.
+
+   The authors would like to thank Stephen Farrell, Luke Howard, and Jim
+   Schaad.
+
+   Sam Hartman's work on this specification has been funded by Janet.
+
+
+
+
+
+
+
+
+
+
+
+Hartman & Howlett            Standards Track                    [Page 9]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+10.  References
+
+10.1.  Normative References
+
+   [OASIS]     Cantor, S., Kemp, J., Philpott, R., and E. Maler,
+               "Assertions and Protocol for the OASIS Security Assertion
+               Markup Language (SAML) V2.0", OASIS Standard
+               saml-core-2.0-os, March 2005.
+
+   [RFC2119]   Bradner, S., "Key words for use in RFCs to Indicate
+               Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC2743]   Linn, J., "Generic Security Service Application Program
+               Interface Version 2, Update 1", RFC 2743, January 2000.
+
+   [RFC3553]   Mealling, M., Masinter, L., Hardie, T., and G. Klyne, "An
+               IETF URN Sub-namespace for Registered Protocol
+               Parameters", BCP 73, RFC 3553, June 2003.
+
+   [RFC5226]   Narten, T. and H. Alvestrand, "Guidelines for Writing an
+               IANA Considerations Section in RFCs", BCP 26, RFC 5226,
+               May 2008.
+
+   [RFC6680]   Williams, N., Johansson, L., Hartman, S., and S.
+               Josefsson, "Generic Security Service Application
+               Programming Interface (GSS-API) Naming Extensions", RFC
+               6680, August 2012.
+
+   [RFC6929]   DeKok, A. and A. Lior, "Remote Authentication Dial In
+               User Service (RADIUS) Protocol Extensions", RFC 6929,
+               April 2013.
+
+   [RFC7055]   Hartman, S., Ed. and J. Howlett, "A GSS-API Mechanism for
+               the Extensible Authentication Protocol", RFC 7055,
+               December 2013.
+
+   [XMLNS]     W3C, "XML Namespaces Conformance", 2009,
+               <http://www.w3.org/TR/2009/REC-xml-names-20091208/
+               #Conformance>.
+
+
+
+
+
+
+
+
+
+
+
+
+Hartman & Howlett            Standards Track                   [Page 10]
+
+RFC 7056                 GSS EAP Name Attributes           December 2013
+
+
+10.2.  Informative References
+
+   [AAA-SAML]  Howlett, J. and S. Hartman, "A RADIUS Attribute, Binding,
+               Profiles, Name Identifier Format, and Confirmation
+               Methods for SAML", Work in Progress, July 2013.
+
+   [RFC3986]   Berners-Lee, T., Fielding, R., and L. Masinter, "Uniform
+               Resource Identifier (URI): Generic Syntax", STD 66, RFC
+               3986, January 2005.
+
+   [SASL-SAML] Cantor, S. and S. Josefsson, "SAML Enhanced Client SASL
+               and GSS-API Mechanisms", Work in Progress, September
+               2013.
+
+Authors' Addresses
+
+   Sam Hartman
+   Painless Security
+
+   EMail: hartmans-ietf@mit.edu
+
+
+   Josh Howlett
+   JANET(UK)
+
+   EMail: josh.howlett@ja.net
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Hartman & Howlett            Standards Track                   [Page 11]
+

@@ -1,0 +1,675 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                     V. Singh, Ed.
+Request for Comments: 7243                                        J. Ott
+Category: Standards Track                               Aalto University
+ISSN: 2070-1721                                                I. Curcio
+                                                   Nokia Research Center
+                                                                May 2014
+
+
+         RTP Control Protocol (RTCP) Extended Report (XR) Block
+                     for the Bytes Discarded Metric
+
+Abstract
+
+   The RTP Control Protocol (RTCP) is used in conjunction with the Real-
+   time Transport Protocol (RTP) to provide a variety of short-term and
+   long-term reception statistics.  The available reporting may include
+   aggregate information across longer periods of time as well as
+   individual packet reporting.  This document specifies a report
+   computing the bytes discarded from the de-jitter buffer after
+   successful reception.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7243.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh, et al.                Standards Track                    [Page 1]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+Copyright Notice
+
+   Copyright (c) 2014 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. Terminology .....................................................4
+   3. Bytes Discarded Report Block ....................................4
+   4. Protocol Operation ..............................................6
+      4.1. Reporting Node (Receiver) ..................................6
+      4.2. Media Sender ...............................................6
+   5. SDP Signaling ...................................................7
+   6. Security Considerations .........................................7
+   7. IANA Considerations .............................................8
+      7.1. XR Report Block Registration ...............................8
+      7.2. SDP Parameter Registration .................................8
+      7.3. Contact Information for IANA Registrations .................8
+   8. Acknowledgments .................................................8
+   9. References ......................................................9
+      9.1. Normative References .......................................9
+      9.2. Informative References .....................................9
+   Appendix A. Metrics Represented Using the Template from RFC 6390 ..11
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh, et al.                Standards Track                    [Page 2]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+1.  Introduction
+
+   RTP [RFC3550] provides a transport for real-time media flows such as
+   audio and video together with the RTP Control Protocol (RTCP), which
+   provides periodic feedback about the media streams received in a
+   specific duration.  In addition, RTCP can be used for timely feedback
+   about individual events to report (e.g., packet loss) [RFC4585].
+   Both long-term and short-term feedback enable a media sender to adapt
+   its media transmission and/or encoding dynamically to the observed
+   path characteristics.
+
+   [RFC3611] defines RTCP Extended Reports as a detailed reporting
+   framework to provide more than just the coarse Receiver Report (RR)
+   statistics.  The detailed reporting may enable a media sender to
+   react more appropriately to the observed networking conditions as
+   these can be characterized better, although at the expense of extra
+   overhead.
+
+   In addition to lost packets, [RFC3611] defines the notion of
+   "discarded" packets: packets that were received but dropped from the
+   de-jitter buffer because they were either too early (for buffering)
+   or too late (for playout).  The "discard rate" metric is part of the
+   VoIP metrics report block even though it is not just applicable to
+   audio: it is specified as the fraction of discarded packets since the
+   beginning of the session.  See Section 4.7.1 of [RFC3611].  The
+   discard metric is believed to be applicable to a large class of RTP
+   applications that use a de-jitter buffer [RFC5481].
+
+   Recently proposed extensions to the Extended Reports (XR) reporting
+   suggest enhancing the discard metric:
+
+   o  Reporting the number of discarded packets in a measurement
+      interval, i.e., during either the last reporting interval or since
+      the beginning of the session, as indicated by a flag in the
+      suggested XR report [RFC7002].  If an endpoint needs to report
+      packet discard due to other reasons than early- and late-arrival
+      (for example, discard due to duplication, redundancy, etc.)  then
+      it should consider using the Discarded Packets Report Block
+      [RFC7002].
+
+   o  Reporting gaps and bursts of discarded packets during a
+      measurement interval, i.e., the last reporting interval or the
+      duration of the session [RFC7003].
+
+   o  Reporting run-length encoding of a discarded packet during a
+      measurement interval, i.e., between a set of sequence numbers
+      [RFC7097].
+
+
+
+
+Singh, et al.                Standards Track                    [Page 3]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+   However, none of these metrics allow a receiver to report precisely
+   the number of RTP payload bytes that were discarded.  While this
+   information could in theory be derived from high-frequency reporting
+   on the number of discarded packets [RFC7002] or from the Discard RLE
+   (Run Length Encoding) report [RFC7097], these two mechanisms do not
+   appear feasible.  The former would require an unduly high amount of
+   reporting that still might not be sufficient due to the non-
+   deterministic scheduling of RTCP packets.  The latter incurs
+   significant complexity (by storing a map of sequence numbers and
+   packet sizes) and reporting overhead.
+
+   An XR block is defined in this document to indicate the number of RTP
+   payload bytes discarded, per interval or for the duration of the
+   session, similar to the other XR blocks.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in BCP 14, [RFC2119].
+
+   The terminology defined in RTP [RFC3550] and in the extensions for XR
+   reporting [RFC3611] applies.
+
+3.  Bytes Discarded Report Block
+
+   The Bytes Discarded Report Block uses the following format, which
+   follows the model of the framework for performance metric development
+   [RFC6390].
+
+    0               1               2               3
+    0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |     BT=26     | I |E|Reserved |       Block length=2          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        SSRC of source                         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |             Number of RTP payload bytes discarded             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                 Figure 1: XR Bytes Discarded Report Block
+
+   Block Type (BT): 8 bits. A Bytes Discarded Packets Report Block is
+   identified by the constant 26.
+
+   Interval Metric flag (I): 2 bits. It is used to indicate whether the
+   discard metric is an Interval or a Cumulative metric, that is,
+   whether the reported value applies to the most recent measurement
+
+
+
+Singh, et al.                Standards Track                    [Page 4]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+   interval duration between successive reports (I=10, the Interval
+   Duration) or to the accumulation period characteristic of cumulative
+   measurements (I=11, the Cumulative Duration).  Since the bytes
+   discarded are not measured at a particular time instance but over one
+   or several reporting intervals, the metric MUST NOT be reported as a
+   Sampled Metric (I=01).  In addition, the value I=00 is reserved and
+   MUST NOT be sent, and it MUST be discarded when received.
+
+   Early bit (E): It is introduced to distinguish between packets
+   discarded due to early arrival and those discarded due to late
+   arrival.  The E bit is set to '1' if it reports bytes discarded due
+   to early arrival and is set to '0' if it reports bytes discarded due
+   to late arrival.  If a duplicate packet is received and discarded,
+   these duplicate packets are ignored and not reported.  In case both
+   early and late discarded packets shall be reported, two Bytes
+   Discarded report blocks MUST be included.
+
+   Reserved: 5 bits.  This field is reserved for future definition.  In
+   the absence of such definition, the bits in this field MUST be set to
+   zero and MUST be ignored by the receiver.
+
+   Block length: 16 bits.  It MUST be set to 2, in accordance with the
+   definition of this field in [RFC3611].  The block MUST be discarded
+   if the block length is set to a different value.
+
+   Number of RTP payload bytes discarded: It is a 32-bit unsigned
+   integer value indicating the total number of bytes discarded.  The
+   'bytes discarded' corresponds to the RTP payload size of every RTP
+   packet that is discarded (due to early or late arrival).  Hence, the
+   'bytes discarded' ignores the size of any RTP header extensions and
+   the size of the padding bits.  Also the discarded packet is
+   associated to the interval in which it was discarded, not when it was
+   expected.
+
+   If the Interval Metric flag is set as I=11, the value in the field
+   indicates the number of RTP payload bytes discarded from the start of
+   the session; if the Interval Metric flag is set as I=10, it indicates
+   the number of bytes discarded in the most recent reporting interval.
+
+   If the XR block follows a Measurement Information Block [RFC6776] in
+   the same RTCP compound packet, then the cumulative (I=11) or the
+   interval (I=10) for this report block corresponds to the values of
+   the "measurement duration" in the Measurement Information Block.
+
+   If the receiver sends the Bytes Discarded Report Block without the
+   Measurement Information Block, then the Bytes Discarded Report Block
+   MUST be sent in conjunction with an RTCP Receiver Report (RR) as a
+   compound RTCP packet.
+
+
+
+Singh, et al.                Standards Track                    [Page 5]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+4.  Protocol Operation
+
+   This section describes the behavior of the reporting node (i.e., the
+   media receiver) and the media sender.
+
+4.1.  Reporting Node (Receiver)
+
+   The media receiver MAY send the Bytes Discarded Reports as part of
+   the regularly scheduled RTCP packets as per RFC 3550.  It MAY also
+   include Bytes Discarded Reports in immediate or early feedback
+   packets as per [RFC4585].
+
+   Transmission of the RTCP XR Bytes Discarded Report is up to the
+   discretion of the media receiver, as is the reporting granularity.
+   However, it is RECOMMENDED that the media receiver signals the bytes
+   discarded packets using the method defined in this document.  When
+   reporting several metrics in a single RTCP packet, the reporting
+   intervals for the report blocks are synchronized, therefore the media
+   receiver may choose to additionally send the Discarded Packets
+   [RFC7002] or Discard RLE [RFC7097] Report Block to assist the media
+   sender in correlating the bytes discarded to the packets discarded in
+   that particular interval.
+
+   If all packets over a reporting period were discarded, the media
+   receiver MAY use the Discarded Packets Report Block [RFC7002]
+   instead.
+
+4.2.  Media Sender
+
+   The media sender MUST be prepared to operate without receiving any
+   Bytes Discarded reports.  If Bytes Discarded reports are generated by
+   the media receiver, the media sender cannot rely on all these reports
+   being received, nor can the media sender rely on a regular generation
+   pattern from the media receiver.
+
+   However, if the media sender receives any RTCP reports but no Bytes
+   Discarded report blocks and is aware that the media receiver supports
+   Bytes Discarded report blocks, it MAY assume that no packets were
+   discarded by the media receiver.
+
+   The media sender SHOULD accept the Bytes Discarded Report Block only
+   if it is received in a compound RTCP receiver report or if it is
+   preceded by a Measurement Information Block [RFC6776].  Under all
+   other circumstances, it MUST ignore the block.
+
+
+
+
+
+
+
+Singh, et al.                Standards Track                    [Page 6]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+5.  SDP Signaling
+
+   A participant of a media session MAY use SDP to signal its support
+   for the report block specified in this document or use them without
+   any prior signaling (see Section 5 of [RFC3611]).
+
+   For signaling in SDP, the RTCP XR attribute as defined in [RFC3611]
+   MUST be used.  The SDP [RFC4566] attribute 'xr-format' defined in RFC
+   3611 is augmented to indicate the Bytes Discarded metric.  This is
+   described in the following ABNF [RFC5234]:
+
+   rtcp-xr-attrib = "a=" "rtcp-xr" ":" [xr-format *(SP xr-format)]
+                    CRLF   ; defined in [RFC3611]
+
+   xr-format       =/ xr-discard-bytes
+
+   xr-discard-bytes = "discard-bytes"
+
+   The parameter 'discard-bytes' to indicate support for the Bytes
+   Discarded Report Block is defined in Section 3.
+
+   When SDP is used in the offer/answer context, the mechanism defined
+   in [RFC3611] for unilateral "rtcp-xr" attribute parameters applies
+   (see Section 5.2 of [RFC3611]).
+
+6.  Security Considerations
+
+   The Bytes Discarded block does not provide per-packet statistics,
+   hence the risk to confidentiality documented in Section 7, paragraph
+   3 of [RFC3611] does not apply.  In some situations, returning very
+   detailed error information (e.g., over-range measurement or
+   measurement unavailable) using this report block can provide an
+   attacker with insight into the security processing.  For example,
+   assume that the attacker sends a packet with a stale timestamp (i.e.,
+   time in the past) to the receiver.  If the receiver now sends a
+   discard report with the same number of bytes as the payload of the
+   injected packet, the attacker can infer that no security processing
+   was performed.  If, on the other hand, the attacker does not receive
+   a discard report, it can equivalently assume that the security
+   procedures were performed on the packet.
+
+   Implementers should therefore consider the guidance in [RFC7202] for
+   using appropriate security mechanisms, i.e., where security is a
+   concern, the implementation should apply encryption and
+   authentication to the report block.  For example, this can be
+   achieved by using the AVPF profile together with the Secure RTP
+
+
+
+
+
+Singh, et al.                Standards Track                    [Page 7]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+   profile as defined in [RFC3711]; an appropriate combination of the
+   two profiles (an "SAVPF") is specified in [RFC5124].  However, other
+   mechanisms also exist (documented in [RFC7201]) and might be more
+   suitable.
+
+   The Bytes Discarded report is employed by the sender to perform
+   congestion control, typically, for calculating goodput (i.e.,
+   throughput that is useful).  In these cases, an attacker MAY drive
+   the endpoint to lower its sending rate and under-utilize the link;
+   therefore, media senders should choose appropriate security measures
+   to mitigate such attacks.
+
+   Lastly, the security considerations of [RFC3550], [RFC3611], and
+   [RFC4585] apply.
+
+7.  IANA Considerations
+
+   New block types for RTCP XR are subject to IANA registration.  For
+   general guidelines on IANA considerations for RTCP XR, refer to
+   [RFC3611].
+
+7.1.  XR Block Registration
+
+   This document registers a new value in the IANA "RTP Control Protocol
+   Extended Reports (RTCP XR) Block Type Registry": 26 for BDR (Bytes
+   Discarded Report).
+
+7.2.  SDP Parameter Registration
+
+   This document registers a new parameter for the Session Description
+   Protocol (SDP), "discard-bytes" in the "RTP Control Protocol Extended
+   Reports (RTCP XR) Session Description Protocol (SDP) Parameters
+   Registry".
+
+7.3.  Contact Information for IANA Registrations
+
+   RAI Area Directors <rai-ads@tools.ietf.org>
+
+8.  Acknowledgments
+
+   The authors would like to thank Benoit Claise, Alan Clark, Roni Even,
+   Vijay Gurbani, Sam Hartman, Vinayak Hegde, Jeffrey Hutzelman, Barry
+   Leiba, Colin Perkins, Dan Romascanu, Dan Wing, and Qin Wu for
+   providing valuable feedback on this document during its development.
+
+
+
+
+
+
+
+Singh, et al.                Standards Track                    [Page 8]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, July 2003.
+
+   [RFC3611]  Friedman, T., Caceres, R., and A. Clark, "RTP Control
+              Protocol Extended Reports (RTCP XR)", RFC 3611, November
+              2003.
+
+   [RFC4566]  Handley, M., Jacobson, V., and C. Perkins, "SDP: Session
+              Description Protocol", RFC 4566, July 2006.
+
+   [RFC4585]  Ott, J., Wenger, S., Sato, N., Burmeister, C., and J. Rey,
+              "Extended RTP Profile for Real-time Transport Control
+              Protocol (RTCP)-Based Feedback (RTP/AVPF)", RFC 4585, July
+              2006.
+
+   [RFC5234]  Crocker, D., Ed., and P. Overell, "Augmented BNF for
+              Syntax Specifications: ABNF", STD 68, RFC 5234, January
+              2008.
+
+   [RFC6390]  Clark, A. and B. Claise, "Guidelines for Considering New
+              Performance Metric Development", BCP 170, RFC 6390,
+              October 2011.
+
+   [RFC6776]  Clark, A. and Q. Wu, "Measurement Identity and Information
+              Reporting Using a Source Description (SDES) Item and an
+              RTCP Extended Report (XR) Block", RFC 6776, October 2012.
+
+   [RFC7002]  Clark, A., Zorn, G., and Q. Wu, "RTP Control Protocol
+              (RTCP) Extended Report (XR) Block for Discard Count Metric
+              Reporting", RFC 7002, September 2013.
+
+9.2.  Informative References
+
+   [RFC3711]  Baugher, M., McGrew, D., Naslund, M., Carrara, E., and K.
+              Norrman, "The Secure Real-time Transport Protocol (SRTP)",
+              RFC 3711, March 2004.
+
+   [RFC5124]  Ott, J. and E. Carrara, "Extended Secure RTP Profile for
+              Real-time Transport Control Protocol (RTCP)-Based Feedback
+              (RTP/SAVPF)", RFC 5124, February 2008.
+
+
+
+Singh, et al.                Standards Track                    [Page 9]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+   [RFC5481]  Morton, A. and B. Claise, "Packet Delay Variation
+              Applicability Statement", RFC 5481, March 2009.
+
+   [RFC7003]  Clark, A., Huang, R., and Q. Wu, "RTP Control Protocol
+              (RTCP) Extended Report (XR) Block for Burst/Gap Discard
+              Metric Reporting", RFC 7003, September 2013.
+
+   [RFC7097]  Ott, J., Singh, V., and I. Curcio, "RTP Control Protocol
+              (RTCP) Extended Report (XR) for RLE of Discarded Packets",
+              RFC 7097, January 2014.
+
+   [RFC7201]  Westerlund, M. and C. Perkins, "Options for Securing RTP
+              Sessions", RFC 7201, April 2014.
+
+   [RFC7202]  Perkins, C. and M. Westerlund, "Securing the RTP
+              Framework: Why RTP Does Not Mandate a Single Media
+              Security Solution", RFC 7202, April 2014.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh, et al.                Standards Track                   [Page 10]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+Appendix A.  Metrics Represented Using the Template from RFC 6390
+
+   a.  RTP Payload Bytes Discarded Metric
+
+       *  Metric Name: RTP Payload Bytes Discarded Metric
+
+       *  Metric Description: Total number of RTP payload bytes
+          discarded over the period covered by this report.
+
+       *  Method of Measurement or Calculation: See the definition of
+          "Number of RTP payload bytes discarded" in Section 3.
+
+       *  Units of Measurement:  See the definition of "Number of RTP
+          payload bytes discarded" in Section 3.
+
+       *  Measurement Point(s) with Potential Measurement Domain: See
+          the first paragraph of Section 3.
+
+       *  Measurement Timing: See the last three paragraphs of Section 3
+          for measurement timing and for the Interval Metric flag.
+
+       *  Use and applications: See the third paragraph of Section 1.
+
+       *  Reporting model: See RFC 3611.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh, et al.                Standards Track                   [Page 11]
+
+RFC 7243                 RTCP XR Bytes Discarded                May 2014
+
+
+Authors' Addresses
+
+   Varun Singh (editor)
+   Aalto University
+   School of Electrical Engineering
+   Otakaari 5 A
+   Espoo, FIN  02150
+   Finland
+
+   EMail: varun@comnet.tkk.fi
+   URI:   http://www.netlab.tkk.fi/~varun/
+
+
+   Joerg Ott
+   Aalto University
+   School of Electrical Engineering
+   Otakaari 5 A
+   Espoo, FIN  02150
+   Finland
+
+   EMail: jo@comnet.tkk.fi
+
+
+   Igor D.D. Curcio
+   Nokia Research Center
+   P.O. Box 1000 (Visiokatu 3)
+   Tampere, FIN  33721
+   Finland
+
+   EMail: igor.curcio@nokia.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh, et al.                Standards Track                   [Page 12]
+

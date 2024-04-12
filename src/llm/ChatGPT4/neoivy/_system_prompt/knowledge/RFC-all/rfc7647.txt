@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                         R. Sparks
+Request for Comments: 7647                                        Oracle
+Updates: 3515                                                 A.B. Roach
+Category: Standards Track                                        Mozilla
+ISSN: 2070-1721                                           September 2015
+
+
+           Clarifications for the Use of REFER with RFC 6665
+
+Abstract
+
+   The SIP REFER method relies on the SIP-Specific Event Notification
+   framework.  That framework was revised by RFC 6665.  This document
+   highlights the implications of the requirement changes in RFC 6665,
+   and updates the definition of the REFER method described in RFC 3515
+   to clarify and disambiguate the impact of those changes.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7647.
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+Sparks & Roach               Standards Track                    [Page 1]
+
+RFC 7647                  Refer Clarifications            September 2015
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Conventions Used in This Document . . . . . . . . . . . . . .   2
+   3.  Use of GRUU Is Mandatory  . . . . . . . . . . . . . . . . . .   3
+   4.  Dialog Reuse Is Prohibited  . . . . . . . . . . . . . . . . .   3
+   5.  The 202 Response Code Is Deprecated . . . . . . . . . . . . .   4
+   6.  Security Considerations . . . . . . . . . . . . . . . . . . .   4
+   7.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   4
+     7.1.  Normative References  . . . . . . . . . . . . . . . . . .   4
+     7.2.  Informative References  . . . . . . . . . . . . . . . . .   5
+   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .   6
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .   6
+
+1.  Introduction
+
+   The SIP REFER method relies on the SIP-Specific Event Notification
+   framework.  That framework was revised by [RFC6665].  This document
+   highlights the implications of the requirement changes in RFC 6665,
+   and updates [RFC3515] to clarify and disambiguate the impact of those
+   changes.
+
+   Accepting a REFER request (without invoking extensions) results in an
+   implicit SIP-Events subscription.  If that REFER was part of an
+   existing dialog, the implicit subscription creates a new, problematic
+   dialog usage within that dialog [RFC5057].  The "norefersub"
+   extension defined in [RFC4488] asks to suppress this implicit
+   subscription, but cannot prevent its creation.
+
+   There are implementations in some known specialized environments
+   (such as 3GPP) that use out-of-signaling agreements to ensure that
+   in-dialog REFER requests using the RFC 4488 extension do not create a
+   new subscription inside that dialog.  In the 3GPP environment, the
+   behavior is based on capabilities advertised using media feature
+   tags.  That mechanism does not, however, prevent additional dialog
+   usages when interoperating with implementations that do not support
+   the mechanism.  The extensions in [RFC7614] provide a standardized
+   mechanism that allows avoiding any additional dialog usage.
+
+2.  Conventions Used in This Document
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+
+
+
+
+
+
+Sparks & Roach               Standards Track                    [Page 2]
+
+RFC 7647                  Refer Clarifications            September 2015
+
+
+3.  Use of GRUU Is Mandatory
+
+   Section 4.5.1 of [RFC6665] makes GRUU [RFC5627] mandatory for
+   notifiers to implement and use as the local target in the
+   subscription created by the REFER request.
+
+   A user agent (UA) accepting a REFER that creates a subscription MUST
+   populate its Contact header field with a GRUU.
+
+   A UA that might possibly become a notifier (e.g., by accepting a
+   REFER request that creates a subscription) needs to include a GRUU in
+   the Contact header field of dialog-forming and target-refresh methods
+   (such as INVITE) [RFC7621].  This ensures that out-of-dialog REFER
+   requests corresponding to any resulting INVITE dialogs arrive at this
+   UA.  Extensions can relax this requirement by defining a REFER
+   request that cannot create an implicit subscription, thus not causing
+   the accepting UA to become an RFC 6665 notifier in the context of
+   this dialog.  [RFC7614] is an example of such an extension.
+
+4.  Dialog Reuse Is Prohibited
+
+   If a peer in an existing dialog has provided a GRUU as its Contact,
+   sending a REFER that might result in an additional dialog usage
+   within that dialog is prohibited.  This is a direct consequence of
+   [RFC6665] requiring the use of GRUU and the requirements in
+   Section 4.5.2 of that document.
+
+   A user agent constructing a REFER request that could result in an
+   implicit subscription in a dialog MUST build it as an out-of-dialog
+   message as defined in [RFC3261], unless the remote endpoint is an
+   older implementation of RFC 3515 that has not been updated to conform
+   to RFC 6665 (as determined by the absence of a GRUU in the remote
+   target).  Thus, the REFER request will have no tag parameter in its
+   To: header field.
+
+   Using the "norefersub" option tag [RFC4488] does not change this
+   requirement, even if used in a "Require" header field.  Even if the
+   recipient supports the "norefersub" mechanism, and accepts the
+   request with the option tag in the "Require" header field, it is
+   allowed to return a "Refer-Sub" header field with a value of "true"
+   in the response, and create an implicit subscription.
+
+   A user agent wishing to identify an existing dialog (such as for call
+   transfer as defined in [RFC5589]) MUST use the "Target-Dialog"
+   extension defined in [RFC4538] to do so, and user agents accepting
+   REFER MUST be able to process that extension in requests they
+   receive.
+
+
+
+
+Sparks & Roach               Standards Track                    [Page 3]
+
+RFC 7647                  Refer Clarifications            September 2015
+
+
+   If a user agent can be certain that no implicit subscription will be
+   created as a result of sending a REFER request (such as by requiring
+   an extension that disallows any such subscription [RFC7614]), the
+   REFER request MAY be sent within an existing dialog (whether or not
+   the remote target is a GRUU).  Such a REFER will be constructed with
+   its Contact header field populated with the dialog's local URI as
+   specified in Section 12 of [RFC3261].
+
+   As described in Section 4.5.2 of [RFC6665], there are cases where a
+   user agent may fall back to sharing existing dialogs for backwards-
+   compatibility purposes.  This applies to a REFER only when the peer
+   has not provided a GRUU as its Contact in the existing dialog (i.e.,
+   when the peer is an implementation of RFC 3515 that has not been
+   updated to conform with RFC 6665).
+
+5.  The 202 Response Code Is Deprecated
+
+   Section 8.3.1 of [RFC6665] requires that elements not send a 202
+   response code to a subscribe request, but use the 200 response code
+   instead.  Any 202 response codes received to a subscribe request are
+   treated as 200s.  These changes also apply to REFER.  Specifically,
+   an element accepting a REFER request MUST NOT reply with a 202
+   response code and MUST treat any 202 responses received as identical
+   to a 200 response.  Wherever [RFC3515] requires sending a 202
+   response code, a 200 response code MUST be sent instead.
+
+6.  Security Considerations
+
+   This document introduces no new security considerations directly.
+   The updated considerations in [RFC6665] apply to the implicit
+   subscription created by an accepted REFER request.
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3261]  Rosenberg, J., Schulzrinne, H., Camarillo, G., Johnston,
+              A., Peterson, J., Sparks, R., Handley, M., and
+              E. Schooler, "SIP: Session Initiation Protocol", RFC 3261,
+              DOI 10.17487/RFC3261, June 2002,
+              <http://www.rfc-editor.org/info/rfc3261>.
+
+
+
+
+
+Sparks & Roach               Standards Track                    [Page 4]
+
+RFC 7647                  Refer Clarifications            September 2015
+
+
+   [RFC3515]  Sparks, R., "The Session Initiation Protocol (SIP) Refer
+              Method", RFC 3515, DOI 10.17487/RFC3515, April 2003,
+              <http://www.rfc-editor.org/info/rfc3515>.
+
+   [RFC4538]  Rosenberg, J., "Request Authorization through Dialog
+              Identification in the Session Initiation Protocol (SIP)",
+              RFC 4538, DOI 10.17487/RFC4538, June 2006,
+              <http://www.rfc-editor.org/info/rfc4538>.
+
+   [RFC5627]  Rosenberg, J., "Obtaining and Using Globally Routable User
+              Agent URIs (GRUUs) in the Session Initiation Protocol
+              (SIP)", RFC 5627, DOI 10.17487/RFC5627, October 2009,
+              <http://www.rfc-editor.org/info/rfc5627>.
+
+   [RFC6665]  Roach, A.B., "SIP-Specific Event Notification", RFC 6665,
+              DOI 10.17487/RFC6665, July 2012,
+              <http://www.rfc-editor.org/info/rfc6665>.
+
+   [RFC7621]  Roach, A.B., "A Clarification on the Use of Globally
+              Routable User Agent URIs (GRUUs) in the SIP Event
+              Notification Framework", RFC 7621, DOI 10.17487/RFC7621,
+              August 2015, <http://www.rfc-editor.org/info/rfc7621>.
+
+7.2.  Informative References
+
+   [RFC4488]  Levin, O., "Suppression of Session Initiation Protocol
+              (SIP) REFER Method Implicit Subscription", RFC 4488,
+              DOI 10.17487/RFC4488, May 2006,
+              <http://www.rfc-editor.org/info/rfc4488>.
+
+   [RFC5057]  Sparks, R., "Multiple Dialog Usages in the Session
+              Initiation Protocol", RFC 5057, DOI 10.17487/RFC5057,
+              November 2007, <http://www.rfc-editor.org/info/rfc5057>.
+
+   [RFC5589]  Sparks, R., Johnston, A., Ed., and D. Petrie, "Session
+              Initiation Protocol (SIP) Call Control - Transfer",
+              BCP 149, RFC 5589, DOI 10.17487/RFC5589, June 2009,
+              <http://www.rfc-editor.org/info/rfc5589>.
+
+   [RFC7614]  Sparks, R., "Explicit Subscriptions for the REFER Method",
+              RFC 7614, DOI 10.17487/RFC7614, August 2015,
+              <http://www.rfc-editor.org/info/rfc7614>.
+
+
+
+
+
+
+
+
+
+Sparks & Roach               Standards Track                    [Page 5]
+
+RFC 7647                  Refer Clarifications            September 2015
+
+
+Acknowledgements
+
+   Christer Holmberg provided the formulation for the final paragraph of
+   the introduction.  Christer Holmberg and Ivo Sedlacek provided
+   detailed comments during working group discussion of the document.
+
+Authors' Addresses
+
+   Robert Sparks
+   Oracle
+   7460 Warren Parkway
+   Suite 300
+   Frisco, Texas  75034
+   United States
+
+   Email: rjsparks@nostrum.com
+
+
+   Adam Roach
+   Mozilla
+   Dallas, TX
+   United States
+
+   Phone: +1 650 903 0800 x863
+   Email: adam@nostrum.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Sparks & Roach               Standards Track                    [Page 6]
+

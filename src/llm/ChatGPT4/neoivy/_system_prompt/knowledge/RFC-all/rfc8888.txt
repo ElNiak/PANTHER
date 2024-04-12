@@ -1,0 +1,731 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                         Z. Sarker
+Request for Comments: 8888                                   Ericsson AB
+Category: Standards Track                                     C. Perkins
+ISSN: 2070-1721                                    University of Glasgow
+                                                                V. Singh
+                                                            callstats.io
+                                                              M. Ramalho
+                                                           AcousticComms
+                                                            January 2021
+
+
+      RTP Control Protocol (RTCP) Feedback for Congestion Control
+
+Abstract
+
+   An effective RTP congestion control algorithm requires more fine-
+   grained feedback on packet loss, timing, and Explicit Congestion
+   Notification (ECN) marks than is provided by the standard RTP Control
+   Protocol (RTCP) Sender Report (SR) and Receiver Report (RR) packets.
+   This document describes an RTCP feedback message intended to enable
+   congestion control for interactive real-time traffic using RTP.  The
+   feedback message is designed for use with a sender-based congestion
+   control algorithm, in which the receiver of an RTP flow sends back to
+   the sender RTCP feedback packets containing the information the
+   sender needs to perform congestion control.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8888.
+
+Copyright Notice
+
+   Copyright (c) 2021 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+   3.  RTCP Feedback for Congestion Control
+     3.1.  RTCP Congestion Control Feedback Report
+   4.  Feedback Frequency and Overhead
+   5.  Response to Loss of Feedback Packets
+   6.  SDP Signaling
+   7.  Relationship to RFC 6679
+   8.  Design Rationale
+   9.  IANA Considerations
+   10. Security Considerations
+   11. References
+     11.1.  Normative References
+     11.2.  Informative References
+   Acknowledgements
+   Authors' Addresses
+
+1.  Introduction
+
+   For interactive real-time traffic, such as video conferencing flows,
+   the typical protocol choice is the Real-time Transport Protocol (RTP)
+   [RFC3550] running over the User Datagram Protocol (UDP).  RTP does
+   not provide any guarantee of Quality of Service (QoS), reliability,
+   or timely delivery, and expects the underlying transport protocol to
+   do so.  UDP alone certainly does not meet that expectation.  However,
+   the RTP Control Protocol (RTCP) [RFC3550] provides a mechanism by
+   which the receiver of an RTP flow can periodically send transport and
+   media quality metrics to the sender of that RTP flow.  This
+   information can be used by the sender to perform congestion control.
+   In the absence of standardized messages for this purpose, designers
+   of congestion control algorithms have developed proprietary RTCP
+   messages that convey only those parameters needed for their
+   respective designs.  As a direct result, the different congestion
+   control designs are not interoperable.  To enable algorithm evolution
+   as well as interoperability across designs (e.g., different rate
+   adaptation algorithms), it is highly desirable to have a generic
+   congestion control feedback format.
+
+   To help achieve interoperability for unicast RTP congestion control,
+   this memo specifies a common RTCP feedback packet format that can be
+   used by Network-Assisted Dynamic Adaptation (NADA) [RFC8698], Self-
+   Clocked Rate Adaptation for Multimedia (SCReAM) [RFC8298], Google
+   Congestion Control [Google-GCC], and Shared Bottleneck Detection
+   [RFC8382], and, hopefully, also by future RTP congestion control
+   algorithms.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+   In addition, the terminology defined in [RFC3550], [RFC4585], and
+   [RFC5506] applies.
+
+3.  RTCP Feedback for Congestion Control
+
+   Based on an analysis of NADA [RFC8698], SCReAM [RFC8298], Google
+   Congestion Control [Google-GCC], and Shared Bottleneck Detection
+   [RFC8382], the following per-RTP packet congestion control feedback
+   information has been determined to be necessary:
+
+   RTP Sequence Number:  The receiver of an RTP flow needs to feed the
+      sequence numbers of the received RTP packets back to the sender,
+      so the sender can determine which packets were received and which
+      were lost.  Packet loss is used as an indication of congestion by
+      many congestion control algorithms.
+
+   Packet Arrival Time:  The receiver of an RTP flow needs to feed the
+      arrival time of each RTP packet back to the sender.  Packet delay
+      and/or delay variation (jitter) is used as a congestion signal by
+      some congestion control algorithms.
+
+   Packet Explicit Congestion Notification (ECN) Marking:  If ECN
+      [RFC3168] [RFC6679] is used, it is necessary to feed back the
+      2-bit ECN mark in received RTP packets, indicating for each RTP
+      packet whether it is marked not-ECT, ECT(0), ECT(1), or ECN
+      Congestion Experienced (ECN-CE).  ("ECT" stands for "ECN-Capable
+      Transport".)  If the path used by the RTP traffic is ECN capable,
+      the sender can use ECN-CE marking information as a congestion
+      control signal.
+
+   Every RTP flow is identified by its Synchronization Source (SSRC)
+   identifier.  Accordingly, the RTCP feedback format needs to group its
+   reports by SSRC, sending one report block per received SSRC.
+
+   As a practical matter, we note that host operating system (OS)
+   process interruptions can occur at inopportune times.  Accordingly,
+   recording RTP packet send times at the sender, and the corresponding
+   RTP packet arrival times at the receiver, needs to be done with
+   deliberate care.  This is because the time duration of host OS
+   interruptions can be significant relative to the precision desired in
+   the one-way delay estimates.  Specifically, the send time needs to be
+   recorded at the last opportunity prior to transmitting the RTP packet
+   at the sender, and the arrival time at the receiver needs to be
+   recorded at the earliest available opportunity.
+
+3.1.  RTCP Congestion Control Feedback Report
+
+   Congestion control feedback can be sent as part of a regular
+   scheduled RTCP report or in an RTP/AVPF early feedback packet.  If
+   sent as early feedback, congestion control feedback MAY be sent in a
+   non-compound RTCP packet [RFC5506] if the RTP/AVPF profile [RFC4585]
+   or the RTP/SAVPF profile [RFC5124] is used.
+
+   Irrespective of how it is transported, the congestion control
+   feedback is sent as a Transport-Layer Feedback Message (RTCP packet
+   type 205).  The format of this RTCP packet is shown in Figure 1:
+
+      0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |V=2|P| FMT=11  |   PT = 205    |          length               |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                 SSRC of RTCP packet sender                    |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                   SSRC of 1st RTP Stream                      |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |          begin_seq            |          num_reports          |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |R|ECN|  Arrival time offset    | ...                           .
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     .                                                               .
+     .                                                               .
+     .                                                               .
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                   SSRC of nth RTP Stream                      |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |          begin_seq            |          num_reports          |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |R|ECN|  Arrival time offset    | ...                           |
+     .                                                               .
+     .                                                               .
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                 Report Timestamp (32 bits)                    |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+          Figure 1: RTCP Congestion Control Feedback Packet Format
+
+   The first 8 octets comprise a standard RTCP header, with PT=205 and
+   FMT=11 indicating that this is a congestion control feedback packet,
+   and with the SSRC set to that of the sender of the RTCP packet.
+
+   Section 6.1 of [RFC4585] requires the RTCP header to be followed by
+   the SSRC of the RTP flow being reported upon.  Accordingly, the RTCP
+   header is followed by a report block for each SSRC from which RTP
+   packets have been received, followed by a Report Timestamp.
+
+   Each report block begins with the SSRC of the received RTP stream on
+   which it is reporting.  Following this, the report block contains a
+   16-bit packet metric block for each RTP packet that has a sequence
+   number in the range begin_seq to begin_seq+num_reports inclusive
+   (calculated using arithmetic modulo 65536 to account for possible
+   sequence number wrap-around).  If the number of 16-bit packet metric
+   blocks included in the report block is not a multiple of two, then 16
+   bits of zero padding MUST be added after the last packet metric
+   block, to align the end of the packet metric blocks with the next
+   32-bit boundary.  The value of num_reports MAY be 0, indicating that
+   there are no packet metric blocks included for that SSRC.  Each
+   report block MUST NOT include more than 16384 packet metric blocks
+   (i.e., it MUST NOT report on more than one quarter of the sequence
+   number space in a single report).
+
+   The contents of each 16-bit packet metric block comprise the R, ECN,
+   and ATO fields as follows:
+
+   Received (R, 1 bit):  A boolean that indicates whether the packet was
+      received.  0 indicates that the packet was not yet received and
+      the subsequent 15 bits (ECN and ATO) in this 16-bit packet metric
+      block are also set to 0 and MUST be ignored.  1 indicates that the
+      packet was received and the subsequent bits in the block need to
+      be parsed.
+
+   ECN (2 bits):  The echoed ECN mark of the packet.  These bits are set
+      to 00 if not received or if ECN is not used.
+
+   Arrival time offset (ATO, 13 bits):  The arrival time of the RTP
+      packet at the receiver, as an offset before the time represented
+      by the Report Timestamp (RTS) field of this RTCP congestion
+      control feedback report.  The ATO field is in units of 1/1024
+      seconds (this unit is chosen to give exact offsets from the RTS
+      field) so, for example, an ATO value of 512 indicates that the
+      corresponding RTP packet arrived exactly half a second before the
+      time instant represented by the RTS field.  If the measured value
+      is greater than 8189/1024 seconds (the value that would be coded
+      as 0x1FFD), the value 0x1FFE MUST be reported to indicate an over-
+      range measurement.  If the measurement is unavailable or if the
+      arrival time of the RTP packet is after the time represented by
+      the RTS field, then an ATO value of 0x1FFF MUST be reported for
+      the packet.
+
+   The RTCP congestion control feedback report packet concludes with the
+   Report Timestamp field (RTS, 32 bits).  This denotes the time instant
+   on which this packet is reporting and is the instant from which the
+   arrival time offset values are calculated.  The value of the RTS
+   field is derived from the same clock used to generate the NTP
+   timestamp field in RTCP Sender Report (SR) packets.  It is formatted
+   as the middle 32 bits of an NTP format timestamp, as described in
+   Section 4 of [RFC3550].
+
+   RTCP Congestion Control Feedback Packets SHOULD include a report
+   block for every active SSRC.  The sequence number ranges reported on
+   in consecutive reports for a given SSRC will generally be contiguous,
+   but overlapping reports MAY be sent (and need to be sent in cases
+   where RTP packet reordering occurs across the boundary between
+   consecutive reports).  If an RTP packet was reported as received in
+   one report, that packet MUST also be reported as received in any
+   overlapping reports sent later that cover its sequence number range.
+   If feedback reports covering overlapping sequence number ranges are
+   sent, information in later feedback reports may update any data sent
+   in previous reports for RTP packets included in both feedback
+   reports.
+
+   RTCP Congestion Control Feedback Packets can be large if they are
+   sent infrequently relative to the number of RTP data packets.  If an
+   RTCP Congestion Control Feedback Packet is too large to fit within
+   the path MTU, its sender SHOULD split it into multiple feedback
+   packets.  The RTCP reporting interval SHOULD be chosen such that
+   feedback packets are sent often enough that they are small enough to
+   fit within the path MTU.  ([RTCP-Multimedia-Feedback] discusses how
+   to choose the reporting interval; specifications for RTP congestion
+   control algorithms can also provide guidance.)
+
+   If duplicate copies of a particular RTP packet are received, then the
+   arrival time of the first copy to arrive MUST be reported.  If any of
+   the copies of the duplicated packet are ECN-CE marked, then an ECN-CE
+   mark MUST be reported for that packet; otherwise, the ECN mark of the
+   first copy to arrive is reported.
+
+   If no packets are received from an SSRC in a reporting interval, a
+   report block MAY be sent with begin_seq set to the highest sequence
+   number previously received from that SSRC and num_reports set to 0
+   (or the report can simply be omitted).  The corresponding Sender
+   Report / Receiver Report (SR/RR) packet will have a non-increased
+   extended highest sequence number received field that will inform the
+   sender that no packets have been received, but it can ease processing
+   to have that information available in the congestion control feedback
+   reports too.
+
+   A report block indicating that certain RTP packets were lost is not
+   to be interpreted as a request to retransmit the lost packets.  The
+   receiver of such a report might choose to retransmit such packets,
+   provided a retransmission payload format has been negotiated, but
+   there is no requirement that it do so.
+
+4.  Feedback Frequency and Overhead
+
+   There is a trade-off between speed and accuracy of reporting, and the
+   overhead of the reports.  [RTCP-Multimedia-Feedback] discusses this
+   trade-off, suggests desirable RTCP feedback rates, and provides
+   guidance on how to configure, for example, the RTCP bandwidth
+   fraction to make appropriate use of the reporting block described in
+   this memo.  Specifications for RTP congestion control algorithms can
+   also provide guidance.
+
+   It is generally understood that congestion control algorithms work
+   better with more frequent feedback.  However, RTCP bandwidth and
+   transmission rules put some upper limits on how frequently the RTCP
+   feedback messages can be sent from an RTP receiver to the RTP sender.
+   In many cases, sending feedback once per frame is an upper bound
+   before the reporting overhead becomes excessive, although this will
+   depend on the media rate and more frequent feedback might be needed
+   with high-rate media flows [RTCP-Multimedia-Feedback].  Analysis
+   [feedback-requirements] has also shown that some candidate congestion
+   control algorithms can operate with less frequent feedback, using a
+   feedback interval range of 50-200 ms.  Applications need to negotiate
+   an appropriate congestion control feedback interval at session setup
+   time, based on the choice of congestion control algorithm, the
+   expected media bitrate, and the acceptable feedback overhead.
+
+5.  Response to Loss of Feedback Packets
+
+   Like all RTCP packets, RTCP Congestion Control Feedback Packets might
+   be lost.  All RTP congestion control algorithms MUST specify how they
+   respond to the loss of feedback packets.
+
+   RTCP packets do not contain a sequence number, so loss of feedback
+   packets has to be inferred based on the time since the last feedback
+   packet.  If only a single congestion control feedback packet is lost,
+   an appropriate response is to assume that the level of congestion has
+   remained roughly the same as the previous report.  However, if
+   multiple consecutive congestion control feedback packets are lost,
+   then the media sender SHOULD rapidly reduce its sending rate as this
+   likely indicates a path failure.  The RTP circuit breaker
+   specification [RFC8083] provides further guidance.
+
+6.  SDP Signaling
+
+   A new "ack" feedback parameter, "ccfb", is defined for use with the
+   "a=rtcp-fb:" Session Description Protocol (SDP) extension to indicate
+   the use of the RTP Congestion Control Feedback Packet format defined
+   in Section 3.  The ABNF definition [RFC5234] of this SDP parameter
+   extension is:
+
+           rtcp-fb-ack-param = <See Section 4.2 of [RFC4585]>
+           rtcp-fb-ack-param =/ ccfb-par
+           ccfb-par          = SP "ccfb"
+
+   The payload type used with "ccfb" feedback MUST be the wildcard type
+   ("*").  This implies that the congestion control feedback is sent for
+   all payload types in use in the session, including any Forward Error
+   Correction (FEC) and retransmission payload types.  An example of the
+   resulting SDP attribute is:
+
+           a=rtcp-fb:* ack ccfb
+
+   The offer/answer rules for these SDP feedback parameters are
+   specified in Section 4.2 of the RTP/AVPF profile [RFC4585].
+
+   An SDP offer might indicate support for both the congestion control
+   feedback mechanism specified in this memo and one or more alternative
+   congestion control feedback mechanisms that offer substantially the
+   same semantics.  In this case, the answering party SHOULD include
+   only one of the offered congestion control feedback mechanisms in its
+   answer.  If a subsequent offer containing the same set of congestion
+   control feedback mechanisms is received, the generated answer SHOULD
+   choose the same congestion control feedback mechanism as in the
+   original answer where possible.
+
+   When the SDP BUNDLE extension [RFC8843] is used for multiplexing, the
+   "a=rtcp-fb:" attribute has multiplexing category IDENTICAL-PER-PT
+   [RFC8859].
+
+7.  Relationship to RFC 6679
+
+   The use of Explicit Congestion Notification (ECN) with RTP is
+   described in [RFC6679], which specifies how to negotiate the use of
+   ECN with RTP and defines an RTCP ECN Feedback Packet to carry ECN
+   feedback reports.  It uses an SDP "a=ecn-capable-rtp:" attribute to
+   negotiate the use of ECN, and the "a=rtcp-fb:" attribute with the
+   "nack" parameter "ecn" to negotiate the use of RTCP ECN Feedback
+   Packets.
+
+   The RTCP ECN Feedback Packet is not useful when ECN is used with the
+   RTP Congestion Control Feedback Packet defined in this memo, since it
+   provides duplicate information.  When congestion control feedback is
+   to be used with RTP and ECN, the SDP offer generated MUST include an
+   "a=ecn-capable-rtp:" attribute to negotiate ECN support, along with
+   an "a=rtcp-fb:" attribute with the "ack" parameter "ccfb" to indicate
+   that the RTP Congestion Control Feedback Packet can be used.  The
+   "a=rtcp-fb:" attribute MAY also include the "nack" parameter "ecn" to
+   indicate that the RTCP ECN Feedback Packet is also supported.  If an
+   SDP offer signals support for both RTP Congestion Control Feedback
+   Packets and the RTCP ECN Feedback Packet, the answering party SHOULD
+   signal support for one, but not both, formats in its SDP answer to
+   avoid sending duplicate feedback.
+
+   When using ECN with RTP, the guidelines in Section 7.2 of [RFC6679]
+   MUST be followed to initiate the use of ECN in an RTP session.  The
+   guidelines in Section 7.3 of [RFC6679] regarding the ongoing use of
+   ECN within an RTP session MUST also be followed, with the exception
+   that feedback is sent using the RTCP Congestion Control Feedback
+   Packets described in this memo rather than using RTP ECN Feedback
+   Packets.  Similarly, the guidance in Section 7.4 of [RFC6679] related
+   to detecting failures MUST be followed, with the exception that the
+   necessary information is retrieved from the RTCP Congestion Control
+   Feedback Packets rather than from RTP ECN Feedback Packets.
+
+8.  Design Rationale
+
+   The primary function of RTCP SR/RR packets is to report statistics on
+   the reception of RTP packets.  The reception report blocks sent in
+   these packets contain information about observed jitter, fractional
+   packet loss, and cumulative packet loss.  It was intended that this
+   information could be used to support congestion control algorithms,
+   but experience has shown that it is not sufficient for that purpose.
+   An efficient congestion control algorithm requires more fine-grained
+   information on per-packet reception quality than is provided by SR/RR
+   packets to react effectively.  The feedback format defined in this
+   memo provides such fine-grained feedback.
+
+   Several other RTCP extensions also provide more detailed feedback
+   than SR/RR packets:
+
+   TMMBR:  The codec control messages for the RTP/AVPF profile [RFC5104]
+      include a Temporary Maximum Media Stream Bit Rate Request (TMMBR)
+      message.  This is used to convey a temporary maximum bitrate
+      limitation from a receiver of RTP packets to their sender.  Even
+      though it was not designed to replace congestion control, TMMBR
+      has been used as a means to do receiver-based congestion control
+      where the session bandwidth is high enough to send frequent TMMBR
+      messages, especially when used with non-compound RTCP packets
+      [RFC5506].  This approach requires the receiver of the RTP packets
+      to monitor their reception, determine the level of congestion, and
+      recommend a maximum bitrate suitable for current available
+      bandwidth on the path; it also assumes that the RTP sender
+      can/will respect that bitrate.  This is the opposite of the
+      sender-based congestion control approach suggested in this memo,
+      so TMMBR cannot be used to convey the information needed for
+      sender-based congestion control.  TMMBR could, however, be viewed
+      as a complementary mechanism that can inform the sender of the
+      receiver's current view of an acceptable maximum bitrate.
+      Mechanisms that convey the receiver's estimate of the maximum
+      available bitrate provide similar feedback.
+
+   RTCP Extended Reports (XRs):  Numerous RTCP XR blocks have been
+      defined to report details of packet loss, arrival times [RFC3611],
+      delay [RFC6843], and ECN marking [RFC6679].  It is possible to
+      combine several such XR blocks into a compound RTCP packet, to
+      report the detailed loss, arrival time, and ECN marking
+      information needed for effective sender-based congestion control.
+      However, the result has high overhead in terms of both bandwidth
+      and complexity, due to the need to stack multiple reports.
+
+   Transport-wide Congestion Control:  The format defined in this memo
+      provides individual feedback on each SSRC.  An alternative is to
+      add a header extension to each RTP packet, containing a single,
+      transport-wide, packet sequence number, then have the receiver
+      send RTCP reports giving feedback on these additional sequence
+      numbers [RTP-Ext-for-CC].  Such an approach increases the size of
+      each RTP packet by 8 octets, due to the header extension, but
+      reduces the size of the RTCP feedback packets, and can simplify
+      the rate calculation at the sender if it maintains a single rate
+      limit that applies to all RTP packets sent, irrespective of their
+      SSRC.  Equally, the use of transport-wide feedback makes it more
+      difficult to adapt the sending rate, or respond to lost packets,
+      based on the reception and/or loss patterns observed on a per-SSRC
+      basis (for example, to perform differential rate control and
+      repair for audio and video flows, based on knowledge of what
+      packets from each flow were lost).  Transport-wide feedback is
+      also a less natural fit with the wider RTP framework, which makes
+      extensive use of per-SSRC sequence numbers and feedback.
+
+   Considering these issues, we believe it appropriate to design a new
+   RTCP feedback mechanism to convey information for sender-based
+   congestion control algorithms.  The new congestion control feedback
+   RTCP packet described in Section 3 provides such a mechanism.
+
+9.  IANA Considerations
+
+   The IANA has registered one new RTP/AVPF Transport-Layer Feedback
+   Message in the "FMT Values for RTPFB Payload Types" table [RFC4585]
+   as defined in Section 3.1:
+
+   Name:         CCFB
+   Long name:    RTP Congestion Control Feedback
+   Value:        11
+   Reference:    RFC 8888
+
+   The IANA has also registered one new SDP "rtcp-fb" attribute "ack"
+   parameter, "ccfb", in the SDP '"ack" and "nack" Attribute Values'
+   registry:
+
+   Value name:   ccfb
+   Long name:    Congestion Control Feedback
+   Usable with:  ack
+   Mux:          IDENTICAL-PER-PT
+   Reference:    RFC 8888
+
+10.  Security Considerations
+
+   The security considerations of the RTP specification [RFC3550], the
+   applicable RTP profile (e.g., [RFC3551], [RFC3711], or [RFC4585]),
+   and the RTP congestion control algorithm being used (e.g., [RFC8698],
+   [RFC8298], [Google-GCC], or [RFC8382]) apply.
+
+   A receiver that intentionally generates inaccurate RTCP congestion
+   control feedback reports might be able to trick the sender into
+   sending at a greater rate than the path can support, thereby causing
+   congestion on the path.  This scenario will negatively impact the
+   quality of experience of that receiver, potentially causing both
+   denial of service to other traffic sharing the path and excessively
+   increased resource usage at the media sender.  Since RTP is an
+   unreliable transport, a sender can intentionally drop a packet,
+   leaving a gap in the RTP sequence number space without causing
+   serious harm, to check that the receiver is correctly reporting
+   losses.  (This needs to be done with care and some awareness of the
+   media data being sent, to limit impact on the user experience.)
+
+   An on-path attacker that can modify RTCP Congestion Control Feedback
+   Packets can change the reports to trick the sender into sending at
+   either an excessively high or excessively low rate, leading to denial
+   of service.  The secure RTCP profile [RFC3711] can be used to
+   authenticate RTCP packets to protect against this attack.
+
+   An off-path attacker that can spoof RTCP Congestion Control Feedback
+   Packets can similarly trick a sender into sending at an incorrect
+   rate, leading to denial of service.  This attack is difficult, since
+   the attacker needs to guess the SSRC and sequence number in addition
+   to the destination transport address.  As with on-path attacks, the
+   secure RTCP profile [RFC3711] can be used to authenticate RTCP
+   packets to protect against this attack.
+
+11.  References
+
+11.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3168]  Ramakrishnan, K., Floyd, S., and D. Black, "The Addition
+              of Explicit Congestion Notification (ECN) to IP",
+              RFC 3168, DOI 10.17487/RFC3168, September 2001,
+              <https://www.rfc-editor.org/info/rfc3168>.
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, DOI 10.17487/RFC3550,
+              July 2003, <https://www.rfc-editor.org/info/rfc3550>.
+
+   [RFC3551]  Schulzrinne, H. and S. Casner, "RTP Profile for Audio and
+              Video Conferences with Minimal Control", STD 65, RFC 3551,
+              DOI 10.17487/RFC3551, July 2003,
+              <https://www.rfc-editor.org/info/rfc3551>.
+
+   [RFC3711]  Baugher, M., McGrew, D., Naslund, M., Carrara, E., and K.
+              Norrman, "The Secure Real-time Transport Protocol (SRTP)",
+              RFC 3711, DOI 10.17487/RFC3711, March 2004,
+              <https://www.rfc-editor.org/info/rfc3711>.
+
+   [RFC4585]  Ott, J., Wenger, S., Sato, N., Burmeister, C., and J. Rey,
+              "Extended RTP Profile for Real-time Transport Control
+              Protocol (RTCP)-Based Feedback (RTP/AVPF)", RFC 4585,
+              DOI 10.17487/RFC4585, July 2006,
+              <https://www.rfc-editor.org/info/rfc4585>.
+
+   [RFC5124]  Ott, J. and E. Carrara, "Extended Secure RTP Profile for
+              Real-time Transport Control Protocol (RTCP)-Based Feedback
+              (RTP/SAVPF)", RFC 5124, DOI 10.17487/RFC5124, February
+              2008, <https://www.rfc-editor.org/info/rfc5124>.
+
+   [RFC5234]  Crocker, D., Ed. and P. Overell, "Augmented BNF for Syntax
+              Specifications: ABNF", STD 68, RFC 5234,
+              DOI 10.17487/RFC5234, January 2008,
+              <https://www.rfc-editor.org/info/rfc5234>.
+
+   [RFC5506]  Johansson, I. and M. Westerlund, "Support for Reduced-Size
+              Real-Time Transport Control Protocol (RTCP): Opportunities
+              and Consequences", RFC 5506, DOI 10.17487/RFC5506, April
+              2009, <https://www.rfc-editor.org/info/rfc5506>.
+
+   [RFC6679]  Westerlund, M., Johansson, I., Perkins, C., O'Hanlon, P.,
+              and K. Carlberg, "Explicit Congestion Notification (ECN)
+              for RTP over UDP", RFC 6679, DOI 10.17487/RFC6679, August
+              2012, <https://www.rfc-editor.org/info/rfc6679>.
+
+   [RFC8083]  Perkins, C. and V. Singh, "Multimedia Congestion Control:
+              Circuit Breakers for Unicast RTP Sessions", RFC 8083,
+              DOI 10.17487/RFC8083, March 2017,
+              <https://www.rfc-editor.org/info/rfc8083>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8843]  Holmberg, C., Alvestrand, H., and C. Jennings,
+              "Negotiating Media Multiplexing Using the Session
+              Description Protocol (SDP)", RFC 8843,
+              DOI 10.17487/RFC8843, January 2021,
+              <https://www.rfc-editor.org/info/rfc8843>.
+
+   [RFC8859]  Nandakumar, S., "A Framework for Session Description
+              Protocol (SDP) Attributes When Multiplexing", RFC 8859,
+              DOI 10.17487/RFC8859, January 2021,
+              <https://www.rfc-editor.org/info/rfc8859>.
+
+11.2.  Informative References
+
+   [feedback-requirements]
+              "RMCAT Feedback Requirements", IETF 95, April 2016,
+              <https://www.ietf.org/proceedings/95/slides/slides-95-
+              rmcat-1.pdf>.
+
+   [Google-GCC]
+              Holmer, S., Lundin, H., Carlucci, G., De Cicco, L., and S.
+              Mascolo, "A Google Congestion Control Algorithm for Real-
+              Time Communication", Work in Progress, Internet-Draft,
+              draft-ietf-rmcat-gcc-02, 8 July 2016,
+              <https://tools.ietf.org/html/draft-ietf-rmcat-gcc-02>.
+
+   [RFC3611]  Friedman, T., Ed., Caceres, R., Ed., and A. Clark, Ed.,
+              "RTP Control Protocol Extended Reports (RTCP XR)",
+              RFC 3611, DOI 10.17487/RFC3611, November 2003,
+              <https://www.rfc-editor.org/info/rfc3611>.
+
+   [RFC5104]  Wenger, S., Chandra, U., Westerlund, M., and B. Burman,
+              "Codec Control Messages in the RTP Audio-Visual Profile
+              with Feedback (AVPF)", RFC 5104, DOI 10.17487/RFC5104,
+              February 2008, <https://www.rfc-editor.org/info/rfc5104>.
+
+   [RFC6843]  Clark, A., Gross, K., and Q. Wu, "RTP Control Protocol
+              (RTCP) Extended Report (XR) Block for Delay Metric
+              Reporting", RFC 6843, DOI 10.17487/RFC6843, January 2013,
+              <https://www.rfc-editor.org/info/rfc6843>.
+
+   [RFC8298]  Johansson, I. and Z. Sarker, "Self-Clocked Rate Adaptation
+              for Multimedia", RFC 8298, DOI 10.17487/RFC8298, December
+              2017, <https://www.rfc-editor.org/info/rfc8298>.
+
+   [RFC8382]  Hayes, D., Ed., Ferlin, S., Welzl, M., and K. Hiorth,
+              "Shared Bottleneck Detection for Coupled Congestion
+              Control for RTP Media", RFC 8382, DOI 10.17487/RFC8382,
+              June 2018, <https://www.rfc-editor.org/info/rfc8382>.
+
+   [RFC8698]  Zhu, X., Pan, R., Ramalho, M., and S. Mena, "Network-
+              Assisted Dynamic Adaptation (NADA): A Unified Congestion
+              Control Scheme for Real-Time Media", RFC 8698,
+              DOI 10.17487/RFC8698, February 2020,
+              <https://www.rfc-editor.org/info/rfc8698>.
+
+   [RTCP-Multimedia-Feedback]
+              Perkins, C., "RTP Control Protocol (RTCP) Feedback for
+              Congestion Control in Interactive Multimedia Conferences",
+              Work in Progress, Internet-Draft, draft-ietf-rmcat-rtp-cc-
+              feedback-05, 4 November 2019,
+              <https://tools.ietf.org/html/draft-ietf-rmcat-rtp-cc-
+              feedback-05>.
+
+   [RTP-Ext-for-CC]
+              Holmer, S., Flodman, M., and E. Sprang, "RTP Extensions
+              for Transport-wide Congestion Control", Work in Progress,
+              Internet-Draft, draft-holmer-rmcat-transport-wide-cc-
+              extensions-01, 19 October 2015,
+              <https://tools.ietf.org/html/draft-holmer-rmcat-transport-
+              wide-cc-extensions-01>.
+
+Acknowledgements
+
+   This document is based on the outcome of a design team discussion in
+   the RTP Media Congestion Avoidance Techniques (RMCAT) Working Group.
+   The authors would like to thank David Hayes, Stefan Holmer, Randell
+   Jesup, Ingemar Johansson, Jonathan Lennox, Sergio Mena, Nils
+   Ohlmeier, Magnus Westerlund, and Xiaoqing Zhu for their valuable
+   feedback.
+
+Authors' Addresses
+
+   Zaheduzzaman Sarker
+   Ericsson AB
+   Torshamnsgatan 23
+   SE-164 83 Stockholm
+   Sweden
+
+   Phone: +46 10 717 37 43
+   Email: zaheduzzaman.sarker@ericsson.com
+
+
+   Colin Perkins
+   University of Glasgow
+   School of Computing Science
+   Glasgow
+   G12 8QQ
+   United Kingdom
+
+   Email: csp@csperkins.org
+
+
+   Varun Singh
+   CALLSTATS I/O Oy
+   Annankatu 31-33 C 42
+   FI-00100 Helsinki
+   Finland
+
+   Email: varun.singh@iki.fi
+   URI:   https://www.callstats.io/
+
+
+   Michael A. Ramalho
+   AcousticComms Consulting
+   6310 Watercrest Way Unit 203
+   Lakewood Ranch, FL 34202-5122
+   United States of America
+
+   Phone: +1 732 832 9723
+   Email: mar42@cornell.edu
+   URI:   http://ramalho.webhop.info/

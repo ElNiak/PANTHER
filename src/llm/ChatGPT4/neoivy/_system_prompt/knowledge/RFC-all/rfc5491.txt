@@ -1,0 +1,1571 @@
+
+
+
+
+
+
+Network Working Group                                    J. Winterbottom
+Request for Comments: 5491                                    M. Thomson
+Updates: 4119                                         Andrew Corporation
+Category: Standards Track                                  H. Tschofenig
+                                                  Nokia Siemens Networks
+                                                              March 2009
+
+
+   GEOPRIV Presence Information Data Format Location Object (PIDF-LO)
+        Usage Clarification, Considerations, and Recommendations
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (c) 2009 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents in effect on the date of
+   publication of this document (http://trustee.ietf.org/license-info).
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 1]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+Abstract
+
+   The Presence Information Data Format Location Object (PIDF-LO)
+   specification provides a flexible and versatile means to represent
+   location information.  There are, however, circumstances that arise
+   when information needs to be constrained in how it is represented.
+   In these circumstances, the range of options that need to be
+   implemented are reduced.  There is growing interest in being able to
+   use location information contained in a PIDF-LO for routing
+   applications.  To allow successful interoperability between
+   applications, location information needs to be normative and more
+   tightly constrained than is currently specified in RFC 4119 (PIDF-
+   LO).  This document makes recommendations on how to constrain,
+   represent, and interpret locations in a PIDF-LO.  It further
+   recommends a subset of Geography Markup Language (GML) 3.1.1 that is
+   mandatory to implement by applications involved in location-based
+   routing.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. Terminology .....................................................3
+   3. Using Location Information ......................................4
+      3.1. Single Civic Location Information ..........................7
+      3.2. Civic and Geospatial Location Information ..................7
+      3.3. Manual/Automatic Configuration of Location Information .....8
+      3.4. Multiple Location Objects in a Single PIDF-LO ..............9
+   4. Geodetic Coordinate Representation .............................10
+   5. Geodetic Shape Representation ..................................10
+      5.1. Polygon Restrictions ......................................12
+      5.2. Shape Examples ............................................13
+           5.2.1. Point ..............................................13
+           5.2.2. Polygon ............................................14
+           5.2.3. Circle .............................................17
+           5.2.4. Ellipse ............................................17
+           5.2.5. Arc Band ...........................................19
+           5.2.6. Sphere .............................................21
+           5.2.7. Ellipsoid ..........................................22
+           5.2.8. Prism ..............................................24
+   6. Security Considerations ........................................26
+   7. Acknowledgments ................................................26
+   8. References .....................................................26
+      8.1. Normative References ......................................26
+      8.2. Informative References ....................................27
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 2]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+1.  Introduction
+
+   The Presence Information Data Format Location Object (PIDF-LO)
+   [RFC4119] is the recommended way of encoding location information and
+   associated privacy policies.  Location information in a PIDF-LO may
+   be described in a geospatial manner based on a subset of Geography
+   Markup Language (GML) 3.1.1 [OGC-GML3.1.1] or as civic location
+   information [RFC5139].  A GML profile for expressing geodetic shapes
+   in a PIDF-LO is described in [GeoShape].  Uses for the PIDF-LO are
+   envisioned in the context of numerous location-based applications.
+   This document makes recommendations for formats and conventions to
+   make interoperability less problematic.
+
+   The PIDF-LO provides a general presence format for representing
+   location information, and permits specification of location
+   information relating to a whole range of aspects of a Target.  The
+   general presence data model is described in [RFC4479] and caters to a
+   presence document to describe different aspects of the reachability
+   of a presentity.  Continuing this approach, a presence document may
+   contain several GEOPRIV objects that specify different locations and
+   aspects of reachability relating to a presentity.  This degree of
+   flexibility is important, and recommendations in this document make
+   no attempt to forbid the usage of a PIDF-LO in this manner.  This
+   document provides a specific set of guidelines for building presence
+   documents when it is important to unambiguously convey exactly one
+   location.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+   The definition for "Target" is taken from [RFC3693].
+
+   In this document a "discrete location" is defined as a place, point,
+   area, or volume in which a Target can be found.
+
+   The term "compound location" is used to describe location information
+   represented by a composite of both civic and geodetic information.
+   An example of compound location might be a geodetic polygon
+   describing the perimeter of a building and a civic element
+   representing the floor in the building.
+
+   The term "method" in this document refers to the mechanism used to
+   determine the location of a Target.  This may be something employed
+   by a location information server (LIS), or by the Target itself.  It
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 3]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   specifically does not refer to the location configuration protocol
+   (LCP) used to deliver location information either to the Target or
+   the Recipient.
+
+   The term "source" is used to refer to the LIS, node, or device from
+   which a Recipient (Target or Third-Party) obtains location
+   information.
+
+3.  Using Location Information
+
+   The PIDF format provides for an unbounded number of <tuple>,
+   <device>, and <person> elements.  Each of these elements contains a
+   single <status> element that may contain more than one <geopriv>
+   element as a child.  Each <geopriv> element must contain at least the
+   following two child elements: <location-info> element and <usage-
+   rules> element.  One or more elements containing location information
+   are contained inside a <location-info> element.
+
+   Hence, a single PIDF document may contain an arbitrary number of
+   location objects, some or all of which may be contradictory or
+   complementary.  Graphically, the structure of a PIDF-LO document can
+   be depicted as shown in Figure 1.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 4]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   <presence>
+      <tuple> -- #1
+         <status>
+            <geopriv> -- #1
+               <location-info>
+                  location element #1
+                  location element #2
+                  ...
+                  location element #n
+               <usage-rules>
+            </geopriv>
+            <geopriv> -- #2
+            <geopriv> -- #3
+            ...
+            <geopriv> -- #m
+         </status>
+      </tuple>
+      <device>
+         <geopriv> -- #1
+            <location-info>
+               location element(s)
+            <usage-rules>
+         </geopriv>
+         <geopriv> -- #2
+         ...
+         <geopriv> -- #m
+      </device>
+      <person>
+         <geopriv> -- #1
+            <location-info>
+               location element(s)
+            <usage-rules>
+         </geopriv>
+         <geopriv> -- #2
+         ...
+         <geopriv> -- #m
+      </person>
+      <tuple> -- #2
+      <device> -- #2
+      <person> -- #2
+      ...
+      <tuple> -- #o
+   </presence>
+
+                 Figure 1: Structure of a PIDF-LO Document
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 5]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   All of these potential sources and storage places for location lead
+   to confusion for the generators, conveyors, and consumers of location
+   information.  Practical experience within the United States National
+   Emergency Number Association (NENA) in trying to solve these
+   ambiguities led to a set of conventions being adopted.  These rules
+   do not have any particular order, but should be followed by creators
+   and consumers of location information contained in a PIDF-LO to
+   ensure that a consistent interpretation of the data can be achieved.
+
+   Rule #1:  A <geopriv> element MUST describe a discrete location.
+
+   Rule #2:  Where a discrete location can be uniquely described in more
+      than one way, each location description SHOULD reside in a
+      separate <tuple>, <device>, or <person> element; only one geopriv
+      element per tuple.
+
+   Rule #3:  Providing more than one <geopriv> element in a single
+      presence document (PIDF) MUST only be done if the locations refer
+      to the same place or are put into different element types.  For
+      example, one location in a <tuple>, a second location in a
+      <device> element, and a third location in a <person> element.
+
+         This may occur if a Target's location is determined using a
+         series of different techniques or if the Target wishes to
+         represent her location as well as the location of her PC.  In
+         general, avoid putting more than one location into a document
+         unless it makes sense to do so.
+
+   Rule #4:  Providing more than one location chunk in a single
+      <location-info> element SHOULD be avoided where possible.  Rule #5
+      and Rule #6 provide further refinement.
+
+   Rule #5:  When providing more than one location chunk in a single
+      <location-info> element, the locations MUST be provided by a
+      common source at the same time and by the same location
+      determination method.
+
+   Rule #6:  Providing more than one location chunk in a single
+      <location-info> element SHOULD only be used for representing
+      compound location referring to the same place.
+
+         For example, a geodetic location describing a point, and a
+         civic location indicating the floor in a building.
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 6]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   Rule #7:  Where the compound location is provided in a single
+      <location-info> element, the coarse location information MUST be
+      provided first.
+
+         For example, a geodetic location describing an area and a civic
+         location indicating the floor should be represented with the
+         area first followed by the civic location.
+
+   Rule #8:  Where a PIDF document contains more than one <geopriv>
+      element, the priority of interpretation is given to the first
+      <device> element in the document containing a location.  If no
+      <device> element containing a location is present in the document,
+      then priority is given to the first <tuple> element containing a
+      location.  Locations contained in <person> tuples SHOULD only be
+      used as a last resort.
+
+   Rule #9:  Where multiple PIDF documents can be sent or received
+      together, say in a multi-part MIME body, and current location
+      information is required by the recipient, then document selection
+      SHOULD be based on document order, with the first document
+      considered first.
+
+   The following examples illustrate the application of these rules.
+
+3.1.  Single Civic Location Information
+
+   Jane is at a coffee shop on the ground floor of a large shopping
+   mall.  Jane turns on her laptop and connects to the coffee shop's
+   WiFi hotspot; Jane obtains a complete civic address for her current
+   location, for example, using the DHCP civic mechanism defined in
+   [RFC4776].  A Location Object is constructed consisting of a single
+   PIDF document, with a single <tuple> or <device> element, a single
+   <status> element, a single <geopriv> element, and a single location
+   chunk residing in the <location-info> element.  This document is
+   unambiguous, and should be interpreted consistently by receiving
+   nodes if sent over the network.
+
+3.2.  Civic and Geospatial Location Information
+
+   Mike is visiting his Seattle office and connects his laptop into the
+   Ethernet port in a spare cube.  In this case, location information is
+   geodetic location, with the altitude represented as a building floor
+   number.  Mike's main location is the point specified by the geodetic
+   coordinates.  Further, Mike is on the second floor of the building
+   located at these coordinates.  Applying rules #6 and #7, the
+   resulting compound location information is shown in Figure 2.
+
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 7]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+    <presence xmlns="urn:ietf:params:xml:ns:pidf"
+              xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+              xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+              xmlns:gml="http://www.opengis.net/gml"
+              xmlns:cl="urn:ietf:params:xml:ns:pidf:geopriv10:civicAddr"
+              entity="pres:mike@seattle.example.com">
+      <dm:device id="mikepc">
+        <gp:geopriv>
+          <gp:location-info>
+            <gml:Point srsName="urn:ogc:def:crs:EPSG::4326">
+              <gml:pos>-43.5723 153.21760</gml:pos>
+            </gml:Point>
+            <cl:civicAddress>
+              <cl:FLR>2</cl:FLR>
+            </cl:civicAddress>
+          </gp:location-info>
+          <gp:usage-rules/>
+          <gp:method>Wiremap</gp:method>
+        </gp:geopriv>
+        <dm:deviceID>mac:8asd7d7d70cf</dm:deviceID>
+        <dm:timestamp>2007-06-22T20:57:29Z</dm:timestamp>
+      </dm:device>
+    </presence>
+
+             Figure 2: PIDF-LO Containing a Compound Location
+
+3.3.  Manual/Automatic Configuration of Location Information
+
+   Loraine has a predefined civic location stored in her laptop, since
+   she normally lives in Sydney, the address is for her Sydney-based
+   apartment.  Loraine decides to visit sunny San Francisco, and when
+   she gets there, she plugs in her laptop and makes a call.  Loraine's
+   laptop receives a new location from the visited network in San
+   Francisco.  As this system cannot be sure that the preexisting and
+   new location both describe the same place, Loraine's computer
+   generates a new PIDF-LO and will use this to represent Loraine's
+   location.  If Loraine's computer were to add the new location to her
+   existing PIDF location document (breaking rule #3), then the correct
+   information may still be interpreted by the Location Recipient
+   providing Loraine's system applies rule #9.  In this case, the
+   resulting order of location information in the PIDF document should
+   be San Francisco first, followed by Sydney.  Since the information is
+   provided by different sources, rule #8 should also be applied and the
+   information placed in different tuples with the tuple containing the
+   San Francisco location first.
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 8]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+3.4.  Multiple Location Objects in a Single PIDF-LO
+
+   Vanessa has her PC with her at the park, but due to a
+   misconfiguration, her PC reports her location as being in the office.
+   The resulting PIDF-LO will have a <device> element showing the
+   location of Vanessa's PC as the park, and a <person> element saying
+   that Vanessa is in her office.
+
+    <presence xmlns="urn:ietf:params:xml:ns:pidf"
+              xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+              xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+              xmlns:ca="urn:ietf:params:xml:ns:pidf:geopriv10:civicAddr"
+              xmlns:gml="http://www.opengis.net/gml"
+              xmlns:gs="http://www.opengis.net/pidflo/1.0"
+              entity="pres:ness@example.com">
+      <dm:device id="nesspc-1">
+        <gp:geopriv>
+          <gp:location-info>
+            <ca:civicAddress xml:lang="en-AU">
+              <ca:country>AU</ca:country>
+              <ca:A1>NSW</ca:A1>
+              <ca:A3>     Wollongong
+              </ca:A3><ca:A4>North Wollongong
+            </ca:A4>
+            <ca:RD>Flinders</ca:RD><ca:STS>Street</ca:STS>
+            <ca:RDBR>Campbell Street</ca:RDBR>
+            <ca:LMK>
+              Gilligan's Island
+              </ca:LMK> <ca:LOC>Corner</ca:LOC>
+              <ca:NAM> Video Rental Store </ca:NAM>
+              <ca:PC>2500</ca:PC>
+              <ca:ROOM> Westerns and Classics </ca:ROOM>
+              <ca:PLC>store</ca:PLC>
+              <ca:POBOX>Private Box 15</ca:POBOX>
+            </ca:civicAddress>
+          </gp:location-info>
+          <gp:usage-rules/>
+          <gp:method>GPS</gp:method>
+        </gp:geopriv>
+        <dm:deviceID>mac:1234567890ab</dm:deviceID>
+        <dm:timestamp>2007-06-22T20:57:29Z</dm:timestamp>
+      </dm:device>
+      <dm:person id="ness">
+        <gp:geopriv>
+          <gp:location-info>
+            <gs:Circle srsName="urn:ogc:def:crs:EPSG::4326">
+              <gml:pos>-34.410649 150.87651</gml:pos>
+              <gs:radius uom="urn:ogc:def:uom:EPSG::9001">
+
+
+
+Winterbottom, et al.        Standards Track                     [Page 9]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+                30
+              </gs:radius>
+            </gs:Circle>
+          </gp:location-info>
+          <gp:usage-rules/>
+          <gp:method>Manual</gp:method>
+        </gp:geopriv>
+        <dm:timestamp>2007-06-24T12:28:04Z</dm:timestamp>
+      </dm:person>
+    </presence>
+
+          Figure 3: PIDF-LO Containing Multiple Location Objects
+
+4.  Geodetic Coordinate Representation
+
+   The geodetic examples provided in RFC 4119 [RFC4119] are illustrated
+   using the <gml:location> element, which uses the <gml:coordinates>
+   element inside the <gml:Point> element, and this representation has
+   several drawbacks.  Firstly, it has been deprecated in later versions
+   of GML (3.1 and beyond) making it inadvisable to use for new
+   applications.  Secondly, the format of the coordinates type is opaque
+   and so can be difficult to parse and interpret to ensure consistent
+   results, as the same geodetic location can be expressed in a variety
+   of ways.  The PIDF-LO Geodetic Shapes specification [GeoShape]
+   provides a specific GML profile for expressing commonly used shapes
+   using simple GML representations.  The shapes defined in [GeoShape]
+   are the recommended shapes to ensure interoperability.
+
+5.  Geodetic Shape Representation
+
+   The cellular mobile world today makes extensive use of geodetic-based
+   location information for emergency and other location-based
+   applications.  Generally, these locations are expressed as a point
+   (either in two or three dimensions) and an area or volume of
+   uncertainty around the point.  In theory, the area or volume
+   represents a coverage in which the user has a relatively high
+   probability of being found, and the point is a convenient means of
+   defining the centroid for the area or volume.  In practice, most
+   systems use the point as an absolute value and ignore the
+   uncertainty.  It is difficult to determine if systems have been
+   implemented in this manner for simplicity, and even more difficult to
+   predict if uncertainty will play a more important role in the future.
+   An important decision is whether an uncertainty area should be
+   specified.
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 10]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   The PIDF-LO Geodetic Shapes specification [GeoShape] defines eight
+   shape types, most of which are easily translated into shape
+   definitions used in other applications and protocols, such as the
+   Open Mobile Alliance (OMA) Mobile Location Protocol (MLP).  For
+   completeness, the shapes defined in [GeoShape] are listed below:
+
+   o  Point (2d and 3d)
+
+   o  Polygon (2d)
+
+   o  Circle (2d)
+
+   o  Ellipse (2d)
+
+   o  Arc band (2d)
+
+   o  Sphere (3d)
+
+   o  Ellipsoid (3d)
+
+   o  Prism (3d)
+
+   The above-listed shapes MUST be implemented.
+
+   The GeoShape specification [GeoShape] also describes a standard set
+   of coordinate reference systems (CRS), unit of measure (UoM) and
+   conventions relating to lines and distances.  The use of the world
+   geodetic system 1984 (WGS84) [WGS84] coordinate reference system and
+   the usage of European petroleum survey group (EPSG) code 4326 (as
+   identified by the URN urn:ogc:def:crs:EPSG::4326, [CRS-URN]) for two-
+   dimensional (2d) shape representations and EPSG 4979 (as identified
+   by the URN urn:ogc:def:crs:EPSG::4979) for three-dimensional (3d)
+   volume representations is mandated.  Distance and heights are
+   expressed in meters using EPSG 9001 (as identified by the URN
+   urn:ogc:def:uom:EPSG::9001).  Angular measures MUST use either
+   degrees or radians.  Measures in degrees MUST be identified by the
+   URN urn:ogc:def:uom:EPSG::9102, measures in radians MUST be
+   identified by the URN urn:ogc:def:uom:EPSG::9101.  Angles
+   representing bearings are measured in a clockwise direction from
+   Northing, as defined by the WGS84 CRS, not magnetic north.
+
+   Implementations MUST specify the CRS using the srsName attribute on
+   the outermost geometry element.  The CRS MUST NOT be respecified or
+   changed for any sub-elements.  The srsDimension attribute SHOULD be
+   omitted, since the number of dimensions in these CRSs is known.  A
+   CRS MUST be specified using the above URN notation only;
+   implementations do not need to support user-defined CRSs.
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 11]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   Numerical values for coordinates and measures are expressed using the
+   lexical representation for "double" defined in
+   [W3C.REC-xmlschema-2-20041028].  Leading zeros and trailing zeros
+   past the decimal point are not significant; for instance "03.07500"
+   is equivalent to "3.075".
+
+   It is RECOMMENDED that uncertainty is expressed at a confidence of
+   95% or higher.  Specifying a convention for confidence enables better
+   use of uncertainty values.
+
+5.1.  Polygon Restrictions
+
+   The polygon shape type defined in [GeoShape] intentionally does not
+   place any constraints on the number of vertices that may be included
+   to define the bounds of a polygon.  This allows arbitrarily complex
+   shapes to be defined and conveyed in a PIDF-LO.  However, where
+   location information is to be used in real-time processing
+   applications, such as location-dependent routing, having arbitrarily
+   complex shapes consisting of tens or even hundreds of points could
+   result in significant performance impacts.  To mitigate this risk,
+   Polygon shapes SHOULD be restricted to a maximum of 15 points (16
+   including the repeated point) when the location information is
+   intended for use in real-time applications.  This limit of 15 points
+   is chosen to allow moderately complex shape definitions while at the
+   same time enabling interoperation with other location transporting
+   protocols such as those defined in the 3rd Generation Partnership
+   Project (3GPP) (see [3GPP.23.032]) and OMA where the 15-point limit
+   is already imposed.
+
+   The edges of a polygon are defined by the shortest path between two
+   points in space (not a geodesic curve).  Two-dimensional points MAY
+   be interpreted as having a zero value for their altitude component.
+   To avoid significant errors arising from potential geodesic
+   interpolation, the length between adjacent vertices SHOULD be
+   restricted to a maximum of 130 km.  More information relating to this
+   restriction is provided in [GeoShape].
+
+   A connecting line SHALL NOT cross another connecting line of the same
+   Polygon.
+
+   Polygons MUST be defined with the upward normal pointing up.  This is
+   accomplished by defining the vertices in a counter-clockwise
+   direction.
+
+   Points specified in a polygon using three-dimensional coordinates
+   MUST all have the same altitude.
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 12]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+5.2.  Shape Examples
+
+   This section provides some examples of where some of the more complex
+   shapes are used, how they are determined, and how they are
+   represented in a PIDF-LO.  Complete details on all of the GeoShape
+   types are provided in [GeoShape].
+
+5.2.1.  Point
+
+   The point shape type is the simplest form of geodetic location
+   information (LI), which is natively supported by GML.  The gml:Point
+   element is used when there is no known uncertainty.  A point also
+   forms part of a number of other geometries.  A point may be specified
+   using either WGS 84 (latitude, longitude) or WGS 84 (latitude,
+   longitude, altitude).  Figure 4 shows a 2d point:
+
+    <presence xmlns="urn:ietf:params:xml:ns:pidf"
+              xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+              xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+              xmlns:cl="urn:ietf:params:xml:ns:pidf:geopriv10:civicAddr"
+              xmlns:gml="http://www.opengis.net/gml"
+              entity="pres:point2d@example.com">
+      <dm:device id="point2d">
+        <gp:geopriv>
+          <gp:location-info>
+            <gml:Point srsName="urn:ogc:def:crs:EPSG::4326">
+              <gml:pos>-34.407 150.883</gml:pos>
+            </gml:Point>
+          </gp:location-info>
+          <gp:usage-rules/>
+          <gp:method>Wiremap</gp:method>
+        </gp:geopriv>
+        <dm:deviceID>mac:1234567890ab</dm:deviceID>
+        <dm:timestamp>2007-06-22T20:57:29Z</dm:timestamp>
+      </dm:device>
+    </presence>
+
+           Figure 4: PIDF-LO Containing a Two-Dimensional Point
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 13]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   Figure 5 shows a 3d point:
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               entity="pres:point3d@example.com">
+       <dm:device id="point3d">
+         <gp:geopriv>
+           <gp:location-info>
+             <gml:Point srsName="urn:ogc:def:crs:EPSG::4979"
+                        xmlns:gml="http://www.opengis.net/gml">
+               <gml:pos>-34.407 150.883 24.8</gml:pos>
+             </gml:Point>
+           </gp:location-info>
+           <gp:usage-rules/>
+           <gp:method>Wiremap</gp:method>
+         </gp:geopriv>
+         <dm:deviceID>mac:1234567890ab</dm:deviceID>
+         <dm:timestamp>2007-06-22T20:57:29Z</dm:timestamp>
+       </dm:device>
+     </presence>
+
+          Figure 5: PIDF-LO Containing a Three-Dimensional Point
+
+5.2.2.  Polygon
+
+   The polygon shape type may be used to represent a building outline or
+   coverage area.  The first and last points of the polygon have to be
+   the same.  For example, looking at the hexagon in Figure 6 with
+   vertices, A, B, C, D, E, and F.  The resulting polygon will be
+   defined with 7 points, with the first and last points both having the
+   coordinates of point A.
+
+       F--------------E
+      /                \
+     /                  \
+    /                    \
+   A                      D
+    \                    /
+     \                  /
+      \                /
+       B--------------C
+
+                      Figure 6: Example of a Polygon
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 14]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               entity="pres:hexagon@example.com">
+       <tuple id="polygon-pos">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gml:Polygon srsName="urn:ogc:def:crs:EPSG::4326">
+                 <gml:exterior>
+                   <gml:LinearRing>
+                     <gml:pos>43.311 -73.422</gml:pos> <!--A-->
+                     <gml:pos>43.111 -73.322</gml:pos> <!--F-->
+                     <gml:pos>43.111 -73.222</gml:pos> <!--E-->
+                     <gml:pos>43.311 -73.122</gml:pos> <!--D-->
+                     <gml:pos>43.411 -73.222</gml:pos> <!--C-->
+                     <gml:pos>43.411 -73.322</gml:pos> <!--B-->
+                     <gml:pos>43.311 -73.422</gml:pos> <!--A-->
+                   </gml:LinearRing>
+                 </gml:exterior>
+               </gml:Polygon>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>Wiremap</gp:method>
+           </gp:geopriv>
+         </status>
+         <timestamp>2007-06-22T20:57:29Z</timestamp>
+       </tuple>
+     </presence>
+
+                  Figure 7: PIDF-LO Containing a Polygon
+
+   In addition to the form shown in Figure 7, GML supports a posList
+   that provides a more compact representation for the coordinates of
+   the Polygon vertices than the discrete pos elements.  The more
+   compact form is shown in Figure 8.  Both forms are permitted.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 15]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               entity="pres:hexagon@example.com">
+       <tuple id="polygon-poslist">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gml:Polygon srsName="urn:ogc:def:crs:EPSG::4326">
+                 <gml:exterior>
+                   <gml:LinearRing>
+                     <gml:posList>
+                       43.311 -73.422 43.111 -73.322
+                       43.111 -73.222 43.311 -73.122
+                       43.411 -73.222 43.411 -73.322
+                       43.311 -73.422
+                     </gml:posList>
+                   </gml:LinearRing>
+                 </gml:exterior>
+               </gml:Polygon>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>Wiremap</gp:method>
+           </gp:geopriv>
+         </status>
+         <timestamp>2007-06-22T20:57:29Z</timestamp>
+       </tuple>
+     </presence>
+
+        Figure 8: Compact Form of a Polygon Expressed in a PIDF-LO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 16]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+5.2.3.  Circle
+
+   The circular area is used for coordinates in two-dimensional CRSs to
+   describe uncertainty about a point.  The definition is based on the
+   one-dimensional geometry in GML, gml:CircleByCenterPoint.  The center
+   point of a circular area is specified by using a two-dimensional CRS;
+   in three dimensions, the orientation of the circle cannot be
+   specified correctly using this representation.  A point with
+   uncertainty that is specified in three dimensions should use the
+   sphere shape type.
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               xmlns:gs="http://www.opengis.net/pidflo/1.0"
+               entity="pres:circle@example.com">
+       <tuple id="circle">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gs:Circle srsName="urn:ogc:def:crs:EPSG::4326">
+                 <gml:pos>42.5463 -73.2512</gml:pos>
+                 <gs:radius uom="urn:ogc:def:uom:EPSG::9001">
+                   850.24
+                 </gs:radius>
+               </gs:Circle>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>OTDOA</gp:method>
+           </gp:geopriv>
+         </status>
+       </tuple>
+     </presence>
+
+                   Figure 9: PIDF-LO Containing a Circle
+
+5.2.4.  Ellipse
+
+   An elliptical area describes an ellipse in two-dimensional space.
+   The ellipse is described by a center point, the length of its semi-
+   major and semi-minor axes, and the orientation of the semi-major
+   axis.  Like the circular area (Circle), the ellipse MUST be specified
+   using the two-dimensional CRS.
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 17]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               xmlns:gs="http://www.opengis.net/pidflo/1.0"
+               entity="pres:Ellipse@somecell.example.com">
+       <tuple id="ellipse">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gs:Ellipse srsName="urn:ogc:def:crs:EPSG::4326">
+                 <gml:pos>42.5463 -73.2512</gml:pos>
+                 <gs:semiMajorAxis uom="urn:ogc:def:uom:EPSG::9001">
+                   1275
+                 </gs:semiMajorAxis>
+                 <gs:semiMinorAxis uom="urn:ogc:def:uom:EPSG::9001">
+                   670
+                 </gs:semiMinorAxis>
+                 <gs:orientation uom="urn:ogc:def:uom:EPSG::9102">
+                   43.2
+                 </gs:orientation>
+               </gs:Ellipse>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>Device-Assisted_A-GPS</gp:method>
+           </gp:geopriv>
+         </status>
+         <timestamp>2007-06-22T20:57:29Z</timestamp>
+       </tuple>
+     </presence>
+
+                 Figure 10: PIDF-LO Containing an Ellipse
+
+   The gml:pos element indicates the position of the center, or origin,
+   of the ellipse.  The gs:semiMajorAxis and gs:semiMinorAxis elements
+   are the length of the semi-major and semi-minor axes, respectively.
+   The gs:orientation element is the angle by which the semi-major axis
+   is rotated from the first axis of the CRS towards the second axis.
+   For WGS 84, the orientation indicates rotation from Northing to
+   Easting, which, if specified in degrees, is roughly equivalent to a
+   compass bearing (if magnetic north were the same as the WGS north
+   pole).  Note: An ellipse with equal major and minor axis lengths is a
+   circle.
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 18]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+5.2.5.  Arc Band
+
+   The arc band shape type is commonly generated in wireless systems
+   where timing advance or code offsets sequences are used to compensate
+   for distances between handsets and the access point.  The arc band is
+   represented as two radii emanating from a central point, and two
+   angles that represent the starting angle and the opening angle of the
+   arc.  In a cellular environment, the central point is nominally the
+   location of the cell tower, the two radii are determined by the
+   extent of the timing advance, and the two angles are generally
+   provisioned information.
+
+   For example, Paul is using a cellular wireless device and is 7 timing
+   advance symbols away from the cell tower.  For a GSM-based network,
+   this would place Paul roughly between 3,594 meters and 4,148 meters
+   from the cell tower, providing the inner and outer radius values.  If
+   the start angle is 20 degrees from north, and the opening angle is
+   120 degrees, an arc band representing Paul's location would look
+   similar to Figure 11.
+
+         N ^        ,.__
+           | a(s)  /     `-.
+           | 20   /         `-.
+           |--.  /             `.
+           |   `/                \
+           |   /__                \
+           |  .   `-.              \
+           | .       `.             \
+           |. \        \             .
+        ---c-- a(o) -- |             | -->
+           |.  / 120   '             |   E
+           |  .       /              '
+           |    .    /              ;
+                  .,'              /
+               r(i)`.             /
+            (3594m)  `.          /
+                       `.      ,'
+                         `.  ,'
+                       r(o)`'
+                     (4148m)
+
+                     Figure 11: Example of an Arc Band
+
+   The resulting PIDF-LO is shown in Figure 12.
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 19]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               xmlns:gs="http://www.opengis.net/pidflo/1.0"
+               entity="pres:paul@somecell.example.com">
+       <tuple id="arcband">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gs:ArcBand srsName="urn:ogc:def:crs:EPSG::4326">
+                 <gml:pos>-43.5723 153.21760</gml:pos>
+                 <gs:innerRadius uom="urn:ogc:def:uom:EPSG::9001">
+                   3594
+                 </gs:innerRadius>
+                 <gs:outerRadius uom="urn:ogc:def:uom:EPSG::9001">
+                   4148
+                 </gs:outerRadius>
+                 <gs:startAngle uom="urn:ogc:def:uom:EPSG::9102">
+                   20
+                 </gs:startAngle>
+                 <gs:openingAngle uom="urn:ogc:def:uom:EPSG::9102">
+                   20
+                 </gs:openingAngle>
+               </gs:ArcBand>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>TA-NMR</gp:method>
+           </gp:geopriv>
+         </status>
+         <timestamp>2007-06-22T20:57:29Z</timestamp>
+       </tuple>
+     </presence>
+
+                 Figure 12: PIDF-LO Containing an Arc Band
+
+   An important note to make on the arc band is that the center point
+   used in the definition of the shape is not included in resulting
+   enclosed area, and that Target may be anywhere in the defined area of
+   the arc band.
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 20]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+5.2.6.  Sphere
+
+   The sphere is a volume that provides the same information as a circle
+   in three dimensions.  The sphere has to be specified using a three-
+   dimensional CRS.  Figure 13 shows the sphere shape type, which is
+   identical to the circle example, except for the addition of an
+   altitude in the provided coordinates.
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               xmlns:gs="http://www.opengis.net/pidflo/1.0"
+               entity="pres:sphere@example.com">
+       <tuple id="sphere">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gs:Sphere srsName="urn:ogc:def:crs:EPSG::4979">
+                 <gml:pos>42.5463 -73.2512 26.3</gml:pos>
+                 <gs:radius uom="urn:ogc:def:uom:EPSG::9001">
+                   850.24
+                 </gs:radius>
+               </gs:Sphere>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>Device-Based_A-GPS</gp:method>
+           </gp:geopriv>
+         </status>
+       </tuple>
+     </presence>
+
+                  Figure 13: PIDF-LO Containing a Sphere
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 21]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+5.2.7.  Ellipsoid
+
+   The ellipsoid is the volume most commonly produced by GPS systems.
+   It is used extensively in navigation systems and wireless location
+   networks.  The ellipsoid is constructed around a central point
+   specified in three dimensions, and three axes perpendicular to one
+   another are extended outwards from this point.  These axes are
+   defined as the semi-major (M) axis, the semi-minor (m) axis, and the
+   vertical (v) axis, respectively.  An angle is used to express the
+   orientation of the ellipsoid.  The orientation angle is measured in
+   degrees from north, and represents the direction of the semi-major
+   axis from the center point.
+
+                  \
+                _.-\""""^"""""-._
+              .'    \   |        `.
+             /       v  m          \
+            |         \ |           |
+            |          -c ----M---->|
+            |                       |
+             \                     /
+              `._               _.'
+                 `-...........-'
+
+                    Figure 14: Example of an Ellipsoid
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 22]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   A PIDF-LO containing an ellipsoid appears as shown in Figure 15.
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               xmlns:gs="http://www.opengis.net/pidflo/1.0"
+               entity="pres:somone@gpsreceiver.example.com">
+       <tuple id="ellipsoid">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gs:Ellipsoid srsName="urn:ogc:def:crs:EPSG::4979">
+                 <gml:pos>42.5463 -73.2512 26.3</gml:pos>
+                 <gs:semiMajorAxis uom="urn:ogc:def:uom:EPSG::9001">
+                   7.7156
+                 </gs:semiMajorAxis>
+                 <gs:semiMinorAxis uom="urn:ogc:def:uom:EPSG::9001">
+                   3.31
+                 </gs:semiMinorAxis>
+                 <gs:verticalAxis uom="urn:ogc:def:uom:EPSG::9001">
+                   28.7
+                 </gs:verticalAxis>
+                 <gs:orientation uom="urn:ogc:def:uom:EPSG::9102">
+                   90
+                 </gs:orientation>
+               </gs:Ellipsoid>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>Hybrid_A-GPS</gp:method>
+           </gp:geopriv>
+         </status>
+         <timestamp>2007-06-22T20:57:29Z</timestamp>
+       </tuple>
+     </presence>
+
+                Figure 15: PIDF-LO Containing an Ellipsoid
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 23]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+5.2.8.  Prism
+
+   A prism may be used to represent a section of a building or range of
+   floors of building.  The prism extrudes a polygon by providing a
+   height element.  It consists of a base made up of coplanar points
+   defined in 3 dimensions all at the same altitude.  The prism is then
+   an extrusion from this base to the value specified in the height
+   element.  The height of the Prism MUST be a positive value.  The
+   first and last points of the polygon have to be the same.
+
+   For example, looking at the cube in Figure 16: if the prism is
+   extruded from the bottom up, then the polygon forming the base of the
+   prism is defined with the points A, B, C, D, A.  The height of the
+   prism is the distance between point A and point E in meters.
+
+              G-----F
+             /|    /|
+            / |   / |
+           H--+--E  |
+           |  C--|--B
+           | /   | /
+           |/    |/
+           D-----A
+
+                       Figure 16: Example of a Prism
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 24]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   The resulting PIDF-LO is shown in Figure 17.
+
+     <presence xmlns="urn:ietf:params:xml:ns:pidf"
+               xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+               xmlns:gml="http://www.opengis.net/gml"
+               xmlns:gs="http://www.opengis.net/pidflo/1.0"
+               entity="pres:mike@someprism.example.com">
+       <tuple id="prism">
+         <status>
+           <gp:geopriv>
+             <gp:location-info>
+               <gs:Prism srsName="urn:ogc:def:crs:EPSG::4979">
+                 <gs:base>
+                   <gml:Polygon>
+                     <gml:exterior>
+                       <gml:LinearRing>
+                         <gml:posList>
+                           42.556844 -73.248157 36.6 <!--A-->
+                           42.656844 -73.248157 36.6 <!--B-->
+                           42.656844 -73.348157 36.6 <!--C-->
+                           42.556844 -73.348157 36.6 <!--D-->
+                           42.556844 -73.248157 36.6 <!--A-->
+                         </gml:posList>
+                       </gml:LinearRing>
+                     </gml:exterior>
+                   </gml:Polygon>
+                 </gs:base>
+                 <gs:height uom="urn:ogc:def:uom:EPSG::9001">
+                   2.4
+                 </gs:height>
+               </gs:Prism>
+             </gp:location-info>
+             <gp:usage-rules/>
+             <gp:method>Wiremap</gp:method>
+           </gp:geopriv>
+         </status>
+         <timestamp>2007-06-22T20:57:29Z</timestamp>
+       </tuple>
+     </presence>
+
+                   Figure 17: PIDF-LO Containing a Prism
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 25]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+6.  Security Considerations
+
+   The primary security considerations relate to how location
+   information is conveyed and used, which are outside the scope of this
+   document.  This document is intended to serve only as a set of
+   guidelines as to which elements MUST or SHOULD be implemented by
+   systems wishing to perform location dependent routing.  The
+   ramification of such recommendations is that they extend to devices
+   and clients that wish to make use of such services.
+
+7.  Acknowledgments
+
+   The authors would like to thank the GEOPRIV working group for their
+   discussions in the context of PIDF-LO, in particular Carl Reed, Ron
+   Lake, James Polk, Henning Schulzrinne, Jerome Grenier, Roger Marshall
+   and Robert Sparks.  Furthermore, we would like to thank Jon Peterson
+   as the author of PIDF-LO and Nadine Abbott for her constructive
+   comments in clarifying some aspects of the document.
+
+   Thanks to Karen Navas for pointing out some omissions in the
+   examples.
+
+8.  References
+
+8.1.  Normative References
+
+   [GeoShape] Thomson, M. and C. Reed, "GML 3.1.1 PIDF-LO Shape
+              Application Schema for use by the Internet Engineering
+              Task Force (IETF)", Candidate OpenGIS Implementation
+              Specification 06-142r1, Version: 1.0, April 2007.
+
+   [OGC-GML3.1.1]
+              Portele, C., Cox, S., Daisy, P., Lake, R., and A.
+              Whiteside, "Geography Markup Language (GML) 3.1.1",
+              OGC 03-105r1, July 2003.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4119]  Peterson, J., "A Presence-based GEOPRIV Location Object
+              Format", RFC 4119, December 2005.
+
+   [RFC4479]  Rosenberg, J., "A Data Model for Presence", RFC 4479,
+              July 2006.
+
+   [RFC5139]  Thomson, M. and J. Winterbottom, "Revised Civic Location
+              Format for Presence Information Data Format Location
+              Object (PIDF-LO)", RFC 5139, February 2008.
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 26]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+   [W3C.REC-xmlschema-2-20041028]
+              Biron, P. and A. Malhotra, "XML Schema Part 2: Datatypes
+              Second Edition", World Wide Web Consortium
+              Recommendation REC-xmlschema-2-20041028, October 2004,
+              <http://www.w3.org/TR/2004/REC-xmlschema-2-20041028>.
+
+8.2.  Informative References
+
+   [3GPP.23.032]
+              3rd Generation Partnership Project, "Universal
+              Geographical Area Description (GAD)", 3GPP TS 23.032
+              V6.0.0, January 2005,
+              <http://www.3gpp.org/ftp/Specs/html-info/23032.htm>.
+
+   [CRS-URN]  Whiteside, A., "GML 3.1.1 Common CRSs Profile", OGC 03-
+              105r1, November 2005.
+
+   [RFC3693]  Cuellar, J., Morris, J., Mulligan, D., Peterson, J., and
+              J. Polk, "Geopriv Requirements", RFC 3693, February 2004.
+
+   [RFC4776]  Schulzrinne, H., "Dynamic Host Configuration Protocol
+              (DHCPv4 and DHCPv6) Option for Civic Addresses
+              Configuration Information", RFC 4776, November 2006.
+
+   [WGS84]    US National Imagery and Mapping Agency, "Department of
+              Defense (DoD) World Geodetic System 1984 (WGS 84), Third
+              Edition", NIMA TR8350.2, January 2000.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 27]
+
+RFC 5491                 GEOPRIV PIDF-LO Usage                March 2009
+
+
+Authors' Addresses
+
+   James Winterbottom
+   Andrew Corporation
+   Wollongong
+   NSW Australia
+
+   EMail: james.winterbottom@andrew.com
+
+
+   Martin Thomson
+   Andrew Corporation
+   Wollongong
+   NSW Australia
+
+   EMail: martin.thomson@andrew.com
+
+
+   Hannes Tschofenig
+   Nokia Siemens Networks
+   Linnoitustie 6
+   Espoo  02600
+   Finland
+
+   Phone: +358 (50) 4871445
+   EMail: Hannes.Tschofenig@gmx.net
+   URI:   http://www.tschofenig.priv.at
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Winterbottom, et al.        Standards Track                    [Page 28]
+

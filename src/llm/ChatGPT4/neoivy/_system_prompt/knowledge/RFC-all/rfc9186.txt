@@ -1,0 +1,320 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                         G. Mirsky
+Request for Comments: 9186                                      Ericsson
+Category: Standards Track                                          X. Ji
+ISSN: 2070-1721                                          ZTE Corporation
+                                                            January 2022
+
+
+ Fast Failover in Protocol Independent Multicast - Sparse Mode (PIM-SM)
+ Using Bidirectional Forwarding Detection (BFD) for Multipoint Networks
+
+Abstract
+
+   This document specifies how Bidirectional Forwarding Detection (BFD)
+   for multipoint networks can provide sub-second failover for routers
+   that participate in Protocol Independent Multicast - Sparse Mode
+   (PIM-SM).  An extension to the PIM Hello message used to bootstrap a
+   point-to-multipoint BFD session is also defined in this document.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9186.
+
+Copyright Notice
+
+   Copyright (c) 2022 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Revised BSD License text as described in Section 4.e of the
+   Trust Legal Provisions and are provided without warranty as described
+   in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Conventions Used in This Document
+       1.1.1.  Terminology
+       1.1.2.  Requirements Language
+   2.  BFD Discriminator PIM Hello Option
+     2.1.  Using P2MP BFD in PIM Router Monitoring
+     2.2.  P2MP BFD in PIM DR Load Balancing
+     2.3.  Multipoint BFD Encapsulation
+   3.  IANA Considerations
+   4.  Security Considerations
+   5.  References
+     5.1.  Normative References
+     5.2.  Informative References
+   Acknowledgments
+   Authors' Addresses
+
+1.  Introduction
+
+   Faster convergence in the control plane minimizes the periods of
+   traffic loss due to the use of stale routing information, transient
+   routing loops, and other situations that may negatively affect
+   service data flow.  Faster convergence in the control plane is
+   beneficial to unicast and multicast routing protocols.
+
+   [RFC7761] is the current specification of the Protocol Independent
+   Multicast - Sparse Mode (PIM-SM) for IPv4 and IPv6 networks.  A
+   conforming implementation of PIM-SM elects a Designated Router (DR)
+   on each PIM-SM interface.  When a group of PIM-SM nodes is connected
+   to a shared media segment, e.g., Ethernet, the node elected as the DR
+   acts on behalf of directly connected hosts in the context of the PIM-
+   SM protocol.  Failure of the DR impacts the quality of the multicast
+   services it provides to directly connected hosts because the default
+   failure detection interval for PIM-SM routers is 105 seconds.
+
+   Bidirectional Forwarding Detection (BFD) [RFC5880] was originally
+   defined to detect a failure of a point-to-point (P2P) path, single
+   hop [RFC5881], or multihop [RFC5883].  In some PIM-SM deployments, a
+   P2P BFD can be used to detect a failure and enable faster failover.
+   [RFC8562] extends the BFD base specification [RFC5880] for multipoint
+   and multicast networks, which matches the deployment scenarios for
+   PIM-SM over a LAN segment.  A BFD system in a point-to-multipoint
+   (P2MP) environment that transmits BFD Control messages using the BFD
+   Demand mode [RFC5880] creates less BFD state than the Asynchronous
+   mode.  P2MP BFD can enable faster detection of PIM-SM router failure
+   compared to PIM-SM without BFD and thus minimizes multicast service
+   disruption.  The monitored PIM-SM router acts as the head and other
+   routers act as tails of a P2MP BFD session.  This document defines
+   the monitoring of a PIM-SM router using P2MP BFD.  This document also
+   defines the extension to PIM-SM [RFC7761] to bootstrap a PIM-SM
+   router to join in the P2MP BFD session over a shared media segment.
+
+1.1.  Conventions Used in This Document
+
+1.1.1.  Terminology
+
+   This document uses terminology defined in [RFC5880], [RFC8562], and
+   [RFC7761].  Familiarity with these specifications and the terminology
+   used is expected.
+
+1.1.2.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  BFD Discriminator PIM Hello Option
+
+   Figure 1 displays the new optional BFD Discriminator PIM Hello Option
+   to bootstrap a tail of the P2MP BFD session:
+
+
+        0                   1                   2                   3
+        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |          OptionType           |         OptionLength          |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                       HeadDiscriminator                       |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                Figure 1: BFD Discriminator PIM Hello Option
+
+   where new fields are interpreted as:
+
+   OptionType:  39
+
+   OptionLength:  MUST be set to 4.
+
+   HeadDiscriminator:  the 4-octet field MUST be included in the BFD
+      Discriminator PIM-SM Hello Option.  The value MUST NOT be zero.
+      It equals the value of My Discriminator [RFC5880] allocated by the
+      head.
+
+   If the value of the OptionLength field is not equal to 4, the BFD
+   Discriminator PIM Hello Option is considered malformed, and the
+   receiver MUST stop processing PIM Hello Options.  If the value of the
+   HeadDiscriminator field equals zero, then the BFD Discriminator PIM
+   Hello Option MUST be considered invalid, and the receiver MUST ignore
+   it.  The receiver SHOULD log a notification regarding the malformed
+   or invalid BFD Discriminator Hello Option under the control of a
+   throttling logging mechanism.
+
+2.1.  Using P2MP BFD in PIM Router Monitoring
+
+   If the head is no longer serving the function that prompted it to be
+   monitored, then it MUST cease including the BFD Discriminator PIM
+   Hello Option in its PIM Hello message, and it SHOULD shut down the
+   BFD session following the procedures described in [RFC8562],
+   Section 5.9.
+
+   The head MUST create a BFD session of type MultipointHead [RFC8562].
+   Note that any PIM-SM router, regardless of its role, MAY become a
+   head of a P2MP BFD session.  To control the volume of BFD Control
+   traffic on a shared media segment, an operator should carefully
+   select PIM-SM routers configured as a head of a P2MP BFD session.
+   The head MUST include the BFD Discriminator PIM Hello Option in its
+   PIM Hello messages.
+
+   A PIM-SM router that is configured to monitor the head by using P2MP
+   BFD is referred to throughout this document as a "tail".  When such a
+   tail receives a PIM Hello packet with the BFD Discriminator PIM Hello
+   Option, the tail MAY create a P2MP BFD session of type
+   MultipointTail, as defined in [RFC8562].
+
+   The node that includes the BFD Discriminator PIM Hello Option
+   transmits BFD Control packets periodically.  For the tail to
+   correctly demultiplex BFD [RFC8562], the source address and My
+   Discriminator of the BFD packets MUST be the same as the source
+   address and the HeadDiscriminator, respectively, of the PIM Hello
+   message.  If that is not the case, the tail BFD node would not be
+   able to monitor the state of the PIM-SM node -- that is, the head of
+   the P2MP BFD session -- though the regular PIM-SM mechanisms remain
+   fully operational.
+
+   If the tail detects a MultipointHead failure [RFC8562], it MUST
+   delete the corresponding neighbor state and follow procedures defined
+   in [RFC7761] for the DR and additional neighbor state deletion after
+   the neighbor timeout expires.
+
+   If the head ceases to include the BFD Discriminator PIM Hello Option
+   in its PIM Hello message, the tail SHOULD close the corresponding
+   MultipointTail BFD session without affecting the PIM state in any
+   way.  Thus, the tail stops using BFD to monitor the head and reverts
+   to the procedures defined in [RFC7761].
+
+2.2.  P2MP BFD in PIM DR Load Balancing
+
+   [RFC8775] specifies the PIM Designated Router Load-Balancing (DRLB)
+   functionality.  Any PIM router that advertises the DR Load-Balancing
+   Capability (DRLB-Cap) Hello Option can become the head of a P2MP BFD
+   session, as specified in Section 2.1.  The head router
+   administratively sets the bfd.SessionState to Up in the
+   MultipointHead session [RFC8562] only if it is a Group Designated
+   Router (GDR) Candidate, as specified in Sections 5.5 and 5.6 of
+   [RFC8775].  If the router is no longer the GDR, then it MUST shut
+   down following the procedures described in [RFC8562], Section 5.9.
+   For each GDR Candidate that includes the BFD Discriminator Option in
+   its PIM Hello, the PIM DR MUST create a MultipointTail session
+   [RFC8562].  PIM DR demultiplexes BFD sessions based on the value of
+   the My Discriminator field and the source IP address.  If PIM DR
+   detects a failure of one of the sessions, it MUST remove that router
+   from the GDR Candidate list and immediately transmit a new DRLB-List
+   option.
+
+2.3.  Multipoint BFD Encapsulation
+
+   The MultipointHead of a P2MP BFD session when transmitting BFD
+   Control packets:
+
+   *  MUST set the TTL or Hop Limit value to 255 ([RFC5881], Section 5).
+      Similarly, all received BFD Control packets that are demultiplexed
+      to the session MUST be discarded if the received TTL or Hop Limit
+      is not equal to 255, and
+
+   *  MUST use the group address ALL-PIM-ROUTERS ("224.0.0.13" for IPv4
+      and "ff02::d" for IPv6) as the destination IP address.
+
+3.  IANA Considerations
+
+   IANA has allocated a new OptionType value in the "PIM-Hello Options"
+   registry according to Table 1:
+
+         +=======+========+==========================+===========+
+         | Value | Length | Name                     | Reference |
+         +=======+========+==========================+===========+
+         | 39    | 4      | BFD Discriminator Option | RFC 9186  |
+         +-------+--------+--------------------------+-----------+
+
+                   Table 1: BFD Discriminator Option Type
+
+4.  Security Considerations
+
+   This document defines a way to accelerate detection of a failure that
+   affects PIM functionality by using BFD.  The operation of either
+   protocol is not changed.
+
+   The security considerations discussed in [RFC5880], [RFC5881],
+   [RFC7761], [RFC8562], and [RFC8775] apply to this document.
+
+5.  References
+
+5.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC5880]  Katz, D. and D. Ward, "Bidirectional Forwarding Detection
+              (BFD)", RFC 5880, DOI 10.17487/RFC5880, June 2010,
+              <https://www.rfc-editor.org/info/rfc5880>.
+
+   [RFC5881]  Katz, D. and D. Ward, "Bidirectional Forwarding Detection
+              (BFD) for IPv4 and IPv6 (Single Hop)", RFC 5881,
+              DOI 10.17487/RFC5881, June 2010,
+              <https://www.rfc-editor.org/info/rfc5881>.
+
+   [RFC7761]  Fenner, B., Handley, M., Holbrook, H., Kouvelas, I.,
+              Parekh, R., Zhang, Z., and L. Zheng, "Protocol Independent
+              Multicast - Sparse Mode (PIM-SM): Protocol Specification
+              (Revised)", STD 83, RFC 7761, DOI 10.17487/RFC7761, March
+              2016, <https://www.rfc-editor.org/info/rfc7761>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8562]  Katz, D., Ward, D., Pallagatti, S., Ed., and G. Mirsky,
+              Ed., "Bidirectional Forwarding Detection (BFD) for
+              Multipoint Networks", RFC 8562, DOI 10.17487/RFC8562,
+              April 2019, <https://www.rfc-editor.org/info/rfc8562>.
+
+   [RFC8775]  Cai, Y., Ou, H., Vallepalli, S., Mishra, M., Venaas, S.,
+              and A. Green, "PIM Designated Router Load Balancing",
+              RFC 8775, DOI 10.17487/RFC8775, April 2020,
+              <https://www.rfc-editor.org/info/rfc8775>.
+
+5.2.  Informative References
+
+   [RFC5883]  Katz, D. and D. Ward, "Bidirectional Forwarding Detection
+              (BFD) for Multihop Paths", RFC 5883, DOI 10.17487/RFC5883,
+              June 2010, <https://www.rfc-editor.org/info/rfc5883>.
+
+Acknowledgments
+
+   The authors cannot say enough to express their appreciation of the
+   comments and suggestions that were received from Stig Venaas.  The
+   authors also greatly appreciate the comments and suggestions by
+   Alvaro Retana that improved the clarity of this document.
+
+Authors' Addresses
+
+   Greg Mirsky
+   Ericsson
+
+   Email: gregimirsky@gmail.com
+
+
+   Xiaoli Ji
+   ZTE Corporation
+   Yuhuatai District
+   No. 50 Software Avenue
+   Nanjing
+   China
+
+   Email: ji.xiaoli@zte.com.cn

@@ -1,0 +1,731 @@
+
+
+
+
+
+
+Network Working Group                                       G. Camarillo
+Request for Comments: 5366                                      Ericsson
+Category: Standards Track                                    A. Johnston
+                                                                   Avaya
+                                                            October 2008
+
+
+        Conference Establishment Using Request-Contained Lists
+                in the Session Initiation Protocol (SIP)
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Abstract
+
+   This document describes how to create a conference using SIP URI-list
+   services.  In particular, it describes a mechanism that allows a User
+   Agent Client to provide a conference server with the initial list of
+   participants using an INVITE-contained URI list.
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Terminology .....................................................2
+   3. User Agent Client Procedures ....................................2
+      3.1. Response Handling ..........................................2
+      3.2. Re-INVITE Request Generation ...............................3
+   4. URI-List Document Format ........................................3
+   5. Conference Server Procedures ....................................5
+      5.1. Re-INVITE Request Handling .................................6
+   6. Example .........................................................6
+   7. Security Considerations ........................................10
+   8. IANA Considerations ............................................10
+   9. Acknowledgments ................................................11
+   10. References ....................................................11
+      10.1. Normative References .....................................11
+      10.2. Informative References ...................................12
+
+
+
+
+
+
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 1]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+1.  Introduction
+
+   Section 5.4 of [RFC4579] describes how to create a conference using
+   ad hoc SIP [RFC3261] methods.  The client sends an INVITE request to
+   a conference factory URI and receives the actual conference URI,
+   which contains the "isfocus" feature tag, in the Contact header field
+   of a response -- typically a 200 (OK) response.
+
+   Once the UAC (User Agent Client) obtains the conference URI, it can
+   add participants to the newly created conference in several ways,
+   which are described in [RFC4579].
+
+   Some environments have tough requirements regarding conference
+   establishment time.  They require the UAC to be able to request the
+   creation of an ad hoc conference and to provide the conference server
+   with the initial set of participants in a single operation.  This
+   document describes how to meet this requirement using the mechanism
+   to transport URI lists in SIP messages described in [RFC5363].
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+3.  User Agent Client Procedures
+
+   A UAC that wants to include the set of initial participants in its
+   initial INVITE request to create an ad hoc conference adds a body
+   whose disposition type is 'recipient-list', as defined in [RFC5363],
+   with a URI list that contains the participants that the UAC wants the
+   conference server to invite.  Additionally, the UAC MUST include the
+   'recipient-list-invite' option-tag (which is registered with the IANA
+   in Section 8) in a Require header field.  The UAC sends this INVITE
+   request to the conference factory URI.
+
+   The INVITE transaction is also part of an offer/answer exchange that
+   will establish a session between the UAC and the conference server,
+   as specified in [RFC4579].  Therefore, the INVITE request may need to
+   carry a multipart body: a session description and a URI list.
+
+3.1.  Response Handling
+
+   The status code in the response to the INVITE request does not
+   provide any information about whether or not the conference server
+   was able to bring the users in the URI list into the conference.
+   That is, a 200 (OK) response means that the conference was created
+   successfully, that the UAC that generated the INVITE request is in
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 2]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+   the conference, and that the server understood the URI list.  If the
+   UAC wishes to obtain information about the status of other users in
+   the conference, it SHOULD use general conference mechanisms, such as
+   the conference package, which is defined in [RFC4575].
+
+3.2.  Re-INVITE Request Generation
+
+   The previous sections have specified how to include a URI list in an
+   initial INVITE request to a conference server.  Once the INVITE-
+   initiated dialog between the UAC and the conference server has been
+   established, the UAC can send subsequent INVITE requests (typically
+   referred to as re-INVITE requests) to the conference server to, for
+   example, modify the characteristics of the media exchanged with the
+   server.
+
+   At this point, there are no semantics associated with 'recipient-
+   list' bodies in re-INVITE requests (although future extensions may
+   define them).  Therefore, UACs SHOULD NOT include 'recipient-list'
+   bodies in re-INVITE requests sent to a conference server.
+
+      Note that a difference between an initial INVITE request and a
+      re-INVITE request is that while the initial INVITE request is sent
+      to the conference factory URI, the re-INVITE request is sent to
+      the URI provided by the server in a Contact header field when the
+      dialog was established.  Therefore, from the UAC's point of view,
+      the resource identified by the former URI supports 'recipient-
+      list' bodies, while the resource identified by the latter does not
+      support them.
+
+4.  URI-List Document Format
+
+   As described in [RFC5363], specifications of individual URI-list
+   services, like the conferencing service described here, need to
+   specify a default format for 'recipient-list' bodies used within the
+   particular service.
+
+   The default format for 'recipient-list' bodies for conferencing UAs
+   (User Agents) is the XML resource list format (which is specified in
+   [RFC4826]) extended with the "Extensible Markup Language (XML) Format
+   Extension for Representing Copy Control Attributes in Resource Lists"
+   [RFC5364].  Consequently, conferencing UACs generating 'recipient-
+   list' bodies MUST support both of these formats and MAY support other
+   formats.  Conferencing servers able to handle 'recipient-list' bodies
+   MUST support both of these formats and MAY support other formats.
+
+   As described in "Extensible Markup Language (XML) Format Extension
+   for Representing Copy Control Attributes in Resource Lists"
+   [RFC5364], each URI can be tagged with a 'copyControl' attribute set
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 3]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+   to either "to", "cc", or "bcc", indicating the role in which the
+   recipient will get the INVITE request.  Additionally, URIs can be
+   tagged with the 'anonymize' attribute to prevent the conference
+   server from disclosing the target URI in a URI list.
+
+   In addition, "Extensible Markup Language (XML) Format Extension for
+   Representing Copy Control Attributes in Resource Lists" [RFC5364]
+   defines a 'recipient-list-history' body that contains the list of
+   recipients.  The default format for 'recipient-list-history' bodies
+   for conferencing UAs is also the XML resource list document format
+   specified in [RFC4826] extended with "Extensible Markup Language
+   (XML) Format Extension for Representing Copy Control Attributes in
+   Resource Lists" [RFC5364].  Consequently, conferencing UACs able to
+   generate 'recipient-list-history' bodies MUST support these formats
+   and MAY support others.  Conferencing UAs able to understand
+   'recipient-list-history' MUST support these formats and MAY support
+   others.  Conferencing servers able to handle 'recipient-list-history'
+   bodies MUST support these formats and MAY support others.
+
+   Nevertheless, the XML resource list document specified in [RFC4826]
+   provides features, such as hierarchical lists and the ability to
+   include entries by reference relative to the XML Configuration Access
+   Protocol (XCAP) root URI, that are not needed by the conferencing
+   service defined in this document, which only needs to transfer a flat
+   list of URIs between a UA (User Agent) and the conference server.
+   Therefore, when using the default resource list document,
+   conferencing UAs SHOULD use flat lists (i.e., no hierarchical lists)
+   and SHOULD NOT use <entry-ref> elements.  A conference factory
+   application receiving a URI list with more information than what has
+   just been described MAY discard all the extra information.
+
+   Figure 1 shows an example of a flat list that follows the XML
+   resource list document (specified in [RFC4826]) extended with
+   "Extensible Markup Language (XML) Format Extension for Representing
+   Copy Control Attributes in Resource Lists" [RFC5364].
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <resource-lists xmlns="urn:ietf:params:xml:ns:resource-lists"
+             xmlns:cp="urn:ietf:params:xml:ns:copycontrol">
+     <list>
+       <entry uri="sip:bill@example.com" cp:copyControl="to"  />
+       <entry uri="sip:joe@example.org" cp:copyControl="cc" />
+       <entry uri="sip:ted@example.net" cp:copyControl="bcc" />
+     </list>
+   </resource-lists>
+
+                            Figure 1: URI list
+
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 4]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+5.  Conference Server Procedures
+
+   Conference servers that are able to receive and process INVITE
+   requests with a 'recipient-list' body SHOULD include a 'recipient-
+   list-invite' option-tag in a Supported header field when responding
+   to OPTIONS requests.
+
+   On reception of an INVITE request containing a 'recipient-list' body
+   as described in Section 3, a conference server MUST follow the rules
+   described in [RFC4579] to create ad hoc conferences.  Once the ad hoc
+   conference is created, the conference server SHOULD attempt to add
+   the participants in the URI list to the conference as if their
+   addition had been requested using any of the methods described in
+   [RFC4579].
+
+   The INVITE transaction is also part of an offer/answer exchange that
+   will establish a session between the UAC and the conference server,
+   as specified in [RFC4579].  Therefore, the INVITE request may carry a
+   multipart body: a session description and a URI list.
+
+   Once the conference server has created the ad hoc conference and has
+   attempted to add the initial set of participants, the conference
+   server behaves as a regular conference server and MUST follow the
+   rules in [RFC4579].
+
+   The incoming INVITE request will contain a URI-list body or reference
+   (as specified in [RFC5363]) with the actual list of recipients.  If
+   this URI list includes resources tagged with the 'copyControl'
+   attribute set to a value of "to" or "cc", the conference server
+   SHOULD include a URI list in each of the outgoing INVITE requests.
+   This list SHOULD be formatted according to the XML format for
+   representing resource lists (specified in [RFC4826]) and the
+   copyControl extension specified in [RFC5364].
+
+   The URI-list service MUST follow the procedures specified in
+   [RFC5364] with respect to the handling of the 'anonymize', 'count',
+   and 'copyControl' attributes.
+
+   If the conference server includes a URI list in an outgoing INVITE
+   request, it MUST include a Content-Disposition header field (which is
+   specified in [RFC2183]) with the value set to 'recipient-list-
+   history' and a 'handling' parameter (as specified in [RFC3204]) set
+   to "optional".
+
+
+
+
+
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 5]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+5.1.  Re-INVITE Request Handling
+
+   At this point, there are no semantics associated with 'recipient-
+   list' bodies in re-INVITE requests (although future extensions may
+   define them).  Therefore, a conference server receiving a re-INVITE
+   request with a 'recipient-list' body and, consequently, a
+   'recipient-list-invite' option-tag, following standard SIP
+   procedures, rejects it with a 420 (Bad Extension), which carries an
+   Unsupported header field listing the 'recipient-list-invite' option-
+   tag.
+
+      This is because the resource identified by the conference URI does
+      not actually support this extension.  On the other hand, the
+      resource identified by the conference factory URI does support
+      this extension and, consequently, would include the 'recipient-
+      list-invite' option-tag in, for example, responses to OPTIONS
+      requests.
+
+6.  Example
+
+   Figure 2 shows an example of operation.  A UAC sends an INVITE
+   request (F1) that contains an SDP body and a URI list to the
+   conference server.  The conference server answers with a 200 (OK)
+   response and generates an INVITE request to each of the UASs (User
+   Agent Servers) identified by the URIs included in the URI list.  The
+   conference server includes SDP and a manipulated URI list in each of
+   the outgoing INVITE requests.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 6]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+   +--------+        +---------+      +--------+ +--------+ +--------+
+   |SIP UAC |        | confer. |      |SIP UAS | |SIP UAS | |SIP UAS |
+   |        |        | server  |      |   1    | |   2    | |   n    |
+   +--------+        +---------+      +--------+ +--------+ +--------+
+       |                  |               |          |          |
+       | F1 INVITE        |               |          |          |
+       | ---------------->|               |          |          |
+       | F2 200 OK        |               |          |          |
+       |<---------------- |  F3 INVITE    |          |          |
+       |                  | ------------->|          |          |
+       |                  |  F4 INVITE    |          |          |
+       |                  | ------------------------>|          |
+       |                  |  F5 INVITE    |          |          |
+       |                  | ----------------------------------->|
+       |                  |  F6 200 OK    |          |          |
+       |                  |<------------- |          |          |
+       |                  |  F7 200 OK    |          |          |
+       |                  |<------------------------ |          |
+       |                  |  F8 200 OK    |          |          |
+       |                  |<----------------------------------- |
+       |                  |               |          |          |
+       |                  |               |          |          |
+       |                  |               |          |          |
+
+                      Figure 2: Example of operation
+
+   Figure 3 shows an example of the INVITE request F1, which carries a
+   multipart/mixed body composed of two other bodies: an application/sdp
+   body that describes the session and an application/resource-lists+xml
+   body that contains the list of target URIs.
+
+   INVITE sip:conf-fact@example.com SIP/2.0
+   Via: SIP/2.0/TCP atlanta.example.com
+       ;branch=z9hG4bKhjhs8ass83
+   Max-Forwards: 70
+   To: "Conf Factory" <sip:conf-fact@example.com>
+   From: Alice <sip:alice@example.com>;tag=32331
+   Call-ID: d432fa84b4c76e66710
+   CSeq: 1 INVITE
+   Contact: <sip:alice@atlanta.example.com>
+   Allow: INVITE, ACK, CANCEL, BYE, REFER
+   Allow-Events: dialog
+   Accept: application/sdp, message/sipfrag
+   Require: recipient-list-invite
+   Content-Type: multipart/mixed;boundary="boundary1"
+   Content-Length: 690
+
+
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 7]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+   --boundary1
+   Content-Type: application/sdp
+
+   v=0
+   o=alice 2890844526 2890842807 IN IP4 atlanta.example.com
+   s=-
+   c=IN IP4 192.0.2.1
+   t=0 0
+   m=audio 20000 RTP/AVP 0
+   a=rtpmap:0 PCMU/8000
+   m=video 20002 RTP/AVP 31
+   a=rtpmap:31 H261/90000
+
+   --boundary1
+   Content-Type: application/resource-lists+xml
+   Content-Disposition: recipient-list
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <resource-lists xmlns="urn:ietf:params:xml:ns:resource-lists"
+             xmlns:cp="urn:ietf:params:xml:ns:copyControl">
+     <list>
+       <entry uri="sip:bill@example.com" cp:copyControl="to" />
+       <entry uri="sip:randy@example.net" cp:copyControl="to"
+                                          cp:anonymize="true"/>
+       <entry uri="sip:eddy@example.com" cp:copyControl="to"
+                                         cp:anonymize="true"/>
+       <entry uri="sip:joe@example.org" cp:copyControl="cc" />
+       <entry uri="sip:carol@example.net" cp:copyControl="cc"
+                                          cp:anonymize="true"/>
+       <entry uri="sip:ted@example.net" cp:copyControl="bcc" />
+       <entry uri="sip:andy@example.com" cp:copyControl="bcc" />
+     </list>
+   </resource-lists>
+   --boundary1--
+
+        Figure 3: INVITE request received at the conference server
+
+   The INVITE requests F3, F4, and F5 are similar in nature.  All those
+   INVITE requests contain a multipart/mixed body that is composed of
+   two other bodies: an application/sdp body describing the session and
+   an application/resource-lists+xml containing the list of recipients.
+   The application/resource-lists+xml bodies are not equal to the
+   application/resource-lists+xml included in the received INVITE
+   request F1, because the conference server has anonymized those URIs
+   tagged with the 'anonymize' attribute and has removed those URIs
+   tagged with a "bcc" 'copyControl' attribute.  Figure 4 shows an
+   example of the message F3.
+
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 8]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+   INVITE sip:bill@example.com SIP/2.0
+   Via: SIP/2.0/TCP conference.example.com
+       ;branch=z9hG4bKhjhs8as454
+   Max-Forwards: 70
+   To: <sip:bill@example.com>
+   From: Conference Server <sip:conf34@example.com>;tag=234332
+   Call-ID: 389sn189dasdf
+   CSeq: 1 INVITE
+   Contact: <sip:conf34@conference.example.com>;isfocus
+   Allow: INVITE, ACK, CANCEL, BYE, REFER
+   Allow-Events: dialog, conference
+   Accept: application/sdp, message/sipfrag
+   Content-Type: multipart/mixed;boundary="boundary1"
+   Content-Length: 690
+
+   --boundary1
+   Content-Type: application/sdp
+
+   v=0
+   o=conf 2890844343 2890844343 IN IP4 conference.example.com
+   s=-
+   c=IN IP4 192.0.2.5
+   t=0 0
+   m=audio 40000 RTP/AVP 0
+   a=rtpmap:0 PCMU/8000
+   m=video 40002 RTP/AVP 31
+   a=rtpmap:31 H261/90000
+
+   --boundary1
+   Content-Type: application/resource-lists+xml
+   Content-Disposition: recipient-list-history; handling=optional
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <resource-lists xmlns="urn:ietf:params:xml:ns:resource-lists"
+             xmlns:cp="urn:ietf:params:xml:ns:copycontrol">
+     <list>
+       <entry uri="sip:bill@example.com" cp:copyControl="to" />
+       <entry uri="sip:anonymous@anonymous.invalid" cp:copyControl="to"
+                                                    cp:count="2"/>
+       <entry uri="sip:joe@example.org" cp:copyControl="cc" />
+       <entry uri="sip:anonymous@anonymous.invalid" cp:copyControl="cc"
+                                                    cp:count="1"/>
+     </list>
+   </resource-lists>
+   --boundary1--
+
+          Figure 4: INVITE request sent by the conference server
+
+
+
+
+Camarillo & Johnston        Standards Track                     [Page 9]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+7.  Security Considerations
+
+   This document discusses setup of SIP conferences using a request-
+   contained URI list.  Both conferencing and URI-list services have
+   specific security requirements, which are summarized here.
+   Conferences generally have authorization rules about who can or
+   cannot join a conference, what type of media can or cannot be used,
+   etc.  This information is used by the focus to admit or deny
+   participation in a conference.  It is RECOMMENDED that these types of
+   authorization rules be used to provide security for a SIP conference.
+
+   For this authorization information to be used, the focus needs to be
+   able to authenticate potential participants.  Normal SIP mechanisms,
+   including Digest authentication and certificates, can be used.  These
+   conference-specific security requirements are discussed further in
+   the requirements and framework documents -- [RFC4245] and [RFC4353].
+
+   For conference creation using a list, there are some additional
+   security considerations.  "Framework and Security Considerations for
+   Session Initiation Protocol (SIP) URI-List Services" [RFC5363]
+   discusses issues related to SIP URI-list services.  Given that a
+   conference server sending INVITE requests to a set of users acts as a
+   URI-list service, implementations of conference servers that handle
+   lists MUST follow the security-related rules in [RFC5363].  These
+   rules include opt-in lists and mandatory authentication and
+   authorization of clients.
+
+8.  IANA Considerations
+
+   This document defines the 'recipient-list-invite' SIP option-tag.  It
+   has been registered in the Option Tags subregistry under the SIP
+   parameter registry.  The following is the description used in the
+   registration:
+
+   +------------------------+------------------------------+-----------+
+   | Name                   | Description                  | Reference |
+   +------------------------+------------------------------+-----------+
+   | recipient-list-invite  | The body contains a list of  | [RFC5366] |
+   |                        | URIs that indicates the      |           |
+   |                        | recipients of the SIP INVITE |           |
+   |                        | request                      |           |
+   +------------------------+------------------------------+-----------+
+
+     Table 1: Registration of the 'recipient-list-invite' option-tag
+                                  in SIP
+
+
+
+
+
+
+Camarillo & Johnston        Standards Track                    [Page 10]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+9.  Acknowledgments
+
+   Cullen Jennings, Hisham Khartabil, Jonathan Rosenberg, and Keith
+   Drage provided useful comments on this document.  Miguel Garcia-
+   Martin assembled the dependencies to the 'copyControl' attribute
+   extension.
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC2183]  Troost, R., Dorner, S., and K. Moore, Ed., "Communicating
+              Presentation Information in Internet Messages: The
+              Content-Disposition Header Field", RFC 2183, August 1997.
+
+   [RFC3204]  Zimmerer, E., Peterson, J., Vemuri, A., Ong, L., Audet,
+              F., Watson, M., and M. Zonoun, "MIME media types for ISUP
+              and QSIG Objects", RFC 3204, December 2001.
+
+   [RFC3261]  Rosenberg, J., Schulzrinne, H., Camarillo, G., Johnston,
+              A., Peterson, J., Sparks, R., Handley, M., and E.
+              Schooler, "SIP: Session Initiation Protocol", RFC 3261,
+              June 2002.
+
+   [RFC4579]  Johnston, A. and O. Levin, "Session Initiation Protocol
+              (SIP) Call Control - Conferencing for User Agents", BCP
+              119, RFC 4579, August 2006.
+
+   [RFC4826]  Rosenberg, J., "Extensible Markup Language (XML) Formats
+              for Representing Resource Lists", RFC 4826, May 2007.
+
+   [RFC5363]  Camarillo, G. and A.B. Roach, "Framework and Security
+              Considerations for Session Initiation Protocol (SIP) URI-
+              List Services", RFC 5363, October 2008.
+
+   [RFC5364]  Garcia-Martin, M. and G. Camarillo, "Extensible Markup
+              Language (XML) Format Extension for Representing Copy
+              Control Attributes in Resource Lists", RFC 5364, October
+              2008.
+
+
+
+
+
+
+
+
+
+Camarillo & Johnston        Standards Track                    [Page 11]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+10.2.  Informative References
+
+   [RFC4245]  Levin, O. and R. Even, "High-Level Requirements for
+              Tightly Coupled SIP Conferencing", RFC 4245, November
+              2005.
+
+   [RFC4353]  Rosenberg, J., "A Framework for Conferencing with the
+              Session Initiation Protocol (SIP)", RFC 4353, February
+              2006.
+
+   [RFC4575]  Rosenberg, J., Schulzrinne, H., and O. Levin, Ed., "A
+              Session Initiation Protocol (SIP) Event Package for
+              Conference State", RFC 4575, August 2006.
+
+Authors' Addresses
+
+   Gonzalo Camarillo
+   Ericsson
+   Hirsalantie 11
+   Jorvas  02420
+   Finland
+
+   EMail: Gonzalo.Camarillo@ericsson.com
+
+
+   Alan Johnston
+   Avaya
+   St. Louis, MO  63124
+   USA
+
+   EMail: alan@sipstation.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Camarillo & Johnston        Standards Track                    [Page 12]
+
+RFC 5366                 INVITE-Contained Lists             October 2008
+
+
+Full Copyright Statement
+
+   Copyright (C) The IETF Trust (2008).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY, THE IETF TRUST AND
+   THE INTERNET ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF
+   THE INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at
+   ietf-ipr@ietf.org.
+
+
+
+
+
+
+
+
+
+
+
+
+Camarillo & Johnston        Standards Track                    [Page 13]
+

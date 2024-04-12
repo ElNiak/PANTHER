@@ -1,0 +1,7040 @@
+%!              for use by dvi2ps Version 2.00
+% a start (Ha!) at a TeX mode for PostScript.
+% The following defines procedures assumed and used by program "dvi2ps"
+% and must be downloaded or sent as a header file for all TeX jobs.
+
+% By:  Neal Holtz, Carleton University, Ottawa, Canada
+%      <holtz@cascade.carleton.cdn>
+%      <holtz%cascade.carleton.cdn@ubc.csnet>
+%      June, 1985
+%      Last Modified: Aug 25/85
+% oystr 12-Feb-1986
+%   Changed @dc macro to check for a badly formed bits in character
+%   definitions.  Can get a <> bit map if a character is not actually
+%   in the font file.  This is absolutely guaranteed to drive the
+%   printer nuts - it will appear that you can no longer define a
+%   new font, although the built-ins will still be there.
+
+% To convert this file into a downloaded file instead of a header
+% file, uncomment all of the lines beginning with %-%
+
+%-%0000000 			% Server loop exit password
+%-%serverdict begin exitserver
+%-%  systemdict /statusdict known
+%-%  {statusdict begin 9 0 3 setsccinteractive /waittimeout 300 def end}
+%-% if
+
+/TeXDict 200 dict def   % define a working dictionary
+TeXDict begin           % start using it.
+
+                        % units are in "dots" (300/inch)
+/Resolution 300 def
+/Inch  {Resolution mul} def  % converts inches to internal units
+
+/Mtrx 6 array def
+
+%%%%%%%%%%%%%%%%%%%%% Page setup (user) options %%%%%%%%%%%%%%%%%%%%%%%%
+
+% dvi2ps will output coordinates in the TeX system ([0,0] 1" down and in
+% from top left, with y +ive downward).  The default PostScript system
+% is [0,0] at bottom left, y +ive up.  The Many Matrix Machinations in
+% the following code are an attempt to reconcile that. The intent is to
+% specify the scaling as 1 and have only translations in the matrix to
+% properly position the text.  Caution: the default device matrices are
+% *not* the same in all PostScript devices; that should not matter in most
+% of the code below (except for lanscape mode -- in that, rotations of
+% -90 degrees resulted in the the rotation matrix [ e 1 ]
+%                                                 [ 1 e ]
+% where the "e"s were almost exactly but not quite unlike zeros.
+
+% NOTE: We use A4 size paper. For letter size paper the constants '340' in the
+% following code should be changed to '310'.
+
+/@a4
+{
+72 Resolution div dup neg scale
+270 -3215 translate
+Mtrx currentmatrix pop
+}def
+/@letter
+  { letter initmatrix
+    72 Resolution div dup neg scale          % set scaling to 1.
+    310 -3005 translate      % move origin to top (these are not exactly 1"
+    Mtrx currentmatrix pop   % and -10" because margins aren't set exactly right)
+  } def
+        % note mode is like letter, except it uses less VM
+/@note
+  { note initmatrix
+    72 Resolution div dup neg scale          % set scaling to 1.
+    310 -3005 translate                      % move origin to top
+    Mtrx currentmatrix pop
+  } def
+
+		% A3 modes courtesy of Francis Pintos, UCL
+
+/@a3landscape
+{a3 initmatrix
+72 Resolution div dup neg scale
+-90 rotate
+300 310 translate
+Mtrx currentmatrix pop
+statusdict begin 1 setpapertray end
+}def
+
+/@a3portrait
+{a3 initmatrix
+72 Resolution div dup neg scale
+300 310 translate
+Mtrx currentmatrix pop
+statusdict begin 1 setpapertray end
+}def
+
+/@landscape
+  { letter initmatrix
+    72 Resolution div dup neg scale          % set scaling to 1.
+    -90 rotate                              % it would be nice to be able to do this
+%    Mtrx currentmatrix 0 0.0 put             % but instead we have to do things like this because what
+%    Mtrx 1 -1.0 put                          % should be zero terms aren't (and text comes out wobbly)
+%    Mtrx 2 1.0 put                           % Fie!  This likely will not work on QMS printers
+%    Mtrx 3 0.0 put                           % (nor on others where the device matrix is not like
+%    Mtrx  setmatrix                          %  like it is on the LaserWriter).
+    300 310  translate                       % move origin to top
+    Mtrx currentmatrix pop
+  } def
+
+/@legal
+  { legal initmatrix
+    72 Resolution div dup neg scale          % set scaling to 1.
+    295 -3880 translate                      % move origin to top
+    Mtrx currentmatrix pop
+  } def
+
+/@manualfeed
+   { statusdict /manualfeed true put
+   } def
+        % n @copies -   set number of copies
+/@copies
+   { /#copies exch def
+   } def
+/@restore /restore load def
+/restore
+   {vmstatus pop
+   dup @VMused lt{pop @VMused}if		% calculate virtual memory used
+   exch pop exch @restore /@VMused exch def
+   }def
+
+/@pri
+    {
+    ( ) print
+    (                                       ) cvs print
+    }def
+
+/@FontMatrix [1 0 0 -1 0 0] def
+/@FontBBox [0 0 1 1] def
+
+%%%%%%%%%%%%%%%%%%%% Procedure Defintions %%%%%%%%%%%%%%%%%%%%%%%%%%
+
+/@newfont       % id @newfont -         -- initialize a new font dictionary
+  { /newname exch def
+    newname 7 dict def          % allocate new font dictionary
+    newname load begin
+        /FontType 3 def
+	/FontMatrix @FontMatrix def
+	/FontBBox @FontBBox def
+        /BitMaps 128 array def
+        /BuildChar {CharBuilder} def
+        /Encoding 128 array def
+        0 1 127 {Encoding exch /.undef put} for
+        end
+    newname newname load definefont pop
+  } def
+
+
+% the following is the only character builder we need.  it looks up the
+% char data in the BitMaps array, and paints the character if possible.
+% char data  -- a bitmap descriptor -- is an array of length 6, of
+%          which the various slots are:
+
+/ch-image {ch-data 0 get} def   % the hex string image
+/ch-width {ch-data 1 get} def   % the number of pixels across
+/ch-height {ch-data 2 get} def  % the number of pixels tall
+/ch-xoff  {ch-data 3 get} def   % number of pixels below origin
+/ch-yoff  {ch-data 4 get} def   % number of pixels to left of origin
+/ch-tfmw  {ch-data 5 get} def   % spacing to next character
+
+/CharBuilder    % fontdict ch Charbuilder -     -- image one character
+     {save 3 1 roll exch /BitMaps get exch get /ch-data exch def
+      ch-data null ne
+      {ch-tfmw 0 ch-xoff neg ch-yoff neg ch-width ch-xoff sub ch-height ch-yoff sub
+            setcachedevice
+        ch-width ch-height true [1 0  0 1  ch-xoff ch-yoff]
+            {ch-image} imagemask
+     }if
+     restore
+  } def
+
+
+/@sf            % fontdict @sf -        -- make that the current font
+  { dup
+    % All smallcaps fonts must have the string SmallCaps in their name
+    /FontName known
+      { dup /FontName get tempstring cvs (SmallCaps) search
+	  {/smallcaps true def pop pop pop}
+	  {/smallcaps false def pop}
+        ifelse
+      }
+      {/smallcaps false def} 
+    ifelse
+    setfont
+  } def
+
+                % in the following, the font-cacheing mechanism requires that
+                % a name unique in the particular font be generated
+
+/@dc            % char-data ch @dc -    -- define a new character bitmap in current font
+  { /ch-code exch def
+% ++oystr 12-Feb-86++
+    dup 0 get
+    length 2 lt
+      { pop [ <00> 1 1 0 0 8.00 ] } % replace <> with null
+    if
+% --oystr 12-Feb-86--
+    /ch-data exch def
+    currentfont /BitMaps get ch-code ch-data put
+    currentfont /Encoding get ch-code
+       dup (   ) cvs cvn   % generate a unique name simply from the character code
+       put
+  } def
+
+/@pc		% char-data ch @pc -    -- print a character bitmap not downloaded
+    {pop
+    /ch-data exch def
+    currentpoint translate
+    ch-width ch-height true [1 0 0 -1 ch-xoff ch-yoff]
+    {ch-image}imagemask
+    }def
+
+/@bop0           % n @bop0 -              -- begin the char def section of a new page
+  { pop
+  } def
+
+/@bop1           % n @bop1 -              -- begin a brand new page
+  { pop
+    erasepage initgraphics
+    Mtrx setmatrix
+    /SaveImage save def
+%
+% RLW:
+% The following is a fix necessary since a /@beginspecial immediately
+% following a /@bop1 failed.  This was due to a lack of definition of the
+% current point, something which can only happen in the one situation.
+% Suffer the extra code for all other case as new pages don't happen too often.
+%
+    0 0 moveto
+%
+  } def
+
+/@eop           % - @eop -              -- end a page
+  { showpage
+    SaveImage restore
+  } def
+
+/@start         % - @start -            -- start everything
+  { @a4                             % (there is not much to do)
+    vmstatus pop /@VMused exch def pop
+  } def
+
+/@end           % - @end -              -- done the whole shebang
+  {(VM used: ) print @VMused @pri
+  (. Unused: ) print vmstatus @VMused sub @pri pop pop
+  (\n) print flush
+  end
+  } def
+
+/p              % x y p -               -- move to position
+  { moveto
+  } def
+
+/r              % x r -                 -- move right
+  { 0 rmoveto
+  } def
+
+/s              % string s -            -- show the string
+  { smallcaps {SmallCapShow} {show} ifelse
+  } def
+
+/c              % ch c -                -- show the character (code given)
+  { c-string exch 0 exch put
+    c-string s
+  } def
+
+/c-string ( ) def
+
+/ru             % dx dy ru -   -- set a rule (rectangle)
+  { /dy exch neg def    % because dy is height up from bottom
+    /dx exch def
+    /x currentpoint /y exch def def   % remember current point
+    newpath x y moveto
+    dx 0 rlineto
+    0 dy rlineto
+    dx neg 0 rlineto
+    closepath fill
+    x y moveto
+  } def
+
+/l              % x y l -               -- draw line to
+  { lineto
+  } def
+
+/rl             % dx dy rl -            -- draw relative line
+  { rlineto
+  } def
+
+/rc             % x0 y0 x1 y1 y2 y2 rc  -- draw bezier curve
+  { rcurveto
+  } def
+
+/np		% np -			-- start a new path and save currenpoint
+  { /SaveX currentpoint /SaveY exch def def   % remember current point
+    newpath
+  } def
+
+/st             % st -                  -- draw the last path and restore currentpoint
+  { stroke
+    SaveX SaveY moveto                  % restore the current point
+  } def
+
+/f              % f                     -- fill the last path and restore currentpoint
+  { fill
+    SaveX SaveY moveto                  % restore the current point
+  } def
+
+/ellipse        % xc yc xrad yrad startAngle endAngle ellipse
+    {
+        /endangle exch def
+        /startangle exch def
+        /yrad exch def
+        /xrad exch def
+        /y exch def
+        /x exch def
+
+        /savematrix matrix currentmatrix def
+
+        x y translate
+        xrad yrad scale
+        0 0 1 startangle endangle arc
+        savematrix setmatrix
+    } def
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%     the \special command junk
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%   The structure of the PostScript produced by dvi2ps for \special is:
+%         @beginspecial
+%           - any number of @hsize, @hoffset, @hscale, etc., commands
+%         @setspecial
+%           - the users file of PostScript commands
+%         @endspecial
+
+% The @beginspecial command recognizes whether the Macintosh Laserprep
+% has been loaded or not, and redfines some Mac commands if so.
+%%% NOTE: This has been disabled as we don't use it !!
+% The @setspecial handles the users shifting, scaling, clipping commands
+
+
+% The following are user settable options from the \special command.
+
+/@SpecialDefaults
+  { /hs 8.5 Inch def
+    /vs 11.68 Inch def
+    /ho 0 def
+    /vo 0 def
+    /hsc 1 def
+    /vsc 1 def
+    /CLIP false def
+  } def
+
+%       d @hsize -      specify a horizontal clipping dimension
+%                       these 2 are executed before the MacDraw initializations
+/@hsize {/hs exch def /CLIP true def} def
+/@vsize {/vs exch def /CLIP true def} def
+%       d @hoffset -    specify a shift for the drwgs
+/@hoffset {/ho exch def} def
+/@voffset {/vo exch def} def
+%       s @hscale -     set scale factor
+/@hscale {/hsc exch def} def
+/@vscale {/vsc exch def} def
+
+/@setclipper
+  { hsc vsc scale
+    CLIP
+      { newpath 0 0 moveto hs 0 rlineto 0 vs rlineto hs neg 0 rlineto closepath clip }
+    if
+  } def
+
+% this will be invoked as the result of a \special command (for the
+% inclusion of PostScript graphics).  The basic idea is to change all
+% scaling and graphics back to defaults, but to shift the origin
+% to the current position on the page.  Due to TeXnical difficulties,
+% we only set the y-origin.  The x-origin is set at the left edge of
+% the page.
+
+/@beginspecial          % - @beginspecial -     -- enter special mode
+  { gsave /SpecialSave save def
+          % the following magic incantation establishes the current point as
+          % the users origin, and reverts back to default scalings, rotations
+    currentpoint transform initgraphics itransform translate
+    @SpecialDefaults    % setup default offsets, scales, sizes
+%%%    @MacSetUp           % fix up Mac stuff  -- DISABLED
+  /showpage {} def %%% Ignore showpage commands
+  } def
+
+/@setspecial    % to setup user specified offsets, scales, sizes (for clipping)
+  {
+    MacDrwgs
+      {md begin /pxt ho def /pyt vo neg def end}
+      {ho vo translate @setclipper}
+    ifelse
+  } def
+
+/@endspecial            % - @endspecial -       -- leave special mode
+  { SpecialSave restore
+    grestore
+  } def
+
+%!
+% All software, documentation, and related files in this distribution of
+% psfig/tex are Copyright (c) 1987 Trevor J. Darrell
+%
+% Permission is granted for use and non-profit distribution of psfig/tex 
+% providing that this notice be clearly maintained, but the right to
+% distribute any portion of psfig/tex for profit or as part of any commercial
+% product is specifically reserved for the author.
+%
+%
+% psfigTeX PostScript Prolog
+% $Header: tex.ps,v 1.13 87/12/14 00:57:00 van Exp $
+%
+/psf$TeXscale { 65536 div } def
+
+/DocumentInitState [ matrix currentmatrix currentlinewidth currentlinecap
+currentlinejoin currentdash currentgray currentmiterlimit ] cvx def
+
+%  x y bb-llx bb-lly bb-urx bb-ury startFig -
+/startTexFig {
+	/psf$SavedState save def
+	userdict maxlength dict begin
+	currentpoint transform
+
+	DocumentInitState setmiterlimit setgray setdash setlinejoin setlinecap
+		setlinewidth setmatrix
+
+	itransform moveto
+
+	/psf$ury exch psf$TeXscale def
+	/psf$urx exch psf$TeXscale def
+	/psf$lly exch psf$TeXscale def
+	/psf$llx exch psf$TeXscale def
+	/psf$y exch psf$TeXscale def
+	/psf$x exch psf$TeXscale def
+	
+	currentpoint /psf$cy exch def /psf$cx exch def
+
+	/psf$sx psf$x psf$urx psf$llx sub div def 	% scaling for x
+	/psf$sy psf$y psf$ury psf$lly sub div def	% scaling for y
+
+	psf$sx psf$sy scale			% scale by (sx,sy)
+
+	psf$cx psf$sx div psf$llx sub
+	psf$cy psf$sy div psf$ury sub translate
+	
+	/DefFigCTM matrix currentmatrix def
+
+	/initmatrix {
+		DefFigCTM setmatrix
+	} def
+	/defaultmatrix {
+		DefFigCTM exch copy
+	} def
+
+	/initgraphics {
+		DocumentInitState setmiterlimit setgray setdash 
+			setlinejoin setlinecap setlinewidth setmatrix
+		DefFigCTM setmatrix
+	} def
+
+	/showpage {
+		initgraphics
+	} def
+	@MacSetUp
+} def
+
+% llx lly urx ury doclip -	(args in figure coordinates)
+/doclip {
+	currentpoint 6 2 roll
+	newpath 4 copy
+	4 2 roll moveto
+	6 -1 roll exch lineto
+	exch lineto
+	exch lineto
+	closepath clip
+	newpath
+	moveto
+} def
+
+% - endTexFig -
+/endTexFig { end psf$SavedState restore } def
+
+
+
+%%%% Additions by LA Carr to reencode Adobe fonts as TeX fonts (almost)
+%%%% Based on routine in LaserWriter Cookbook
+/ReEncodeForTeX
+  { /newfontname exch def
+    /basefontname exch def
+    /TeXstr 30 string def
+
+    /basefontdict basefontname findfont def
+    /newfont basefontdict maxlength dict def
+    basefontdict
+      { exch dup /FID ne
+	  { dup /Encoding eq
+	    { exch dup length array copy
+	        newfont 3 1 roll put }
+	    { exch newfont 3 1 roll put }
+	    ifelse
+	  }
+	{ pop pop }
+	ifelse
+      } forall
+
+%%    newfont /FontName newfontname put %%
+      basefontname TeXstr cvs (Dingbat) search
+	{ pop pop pop }
+        { pop
+	  /TeXvec basefontname TeXstr cvs (Courier) search
+	    { pop pop pop TeXcourvec }
+	    { pop TeXnormalvec }
+	  ifelse def
+          TeXvec aload pop
+
+          TeXvec length 2 idiv
+	    { newfont /Encoding get 3 1 roll put }
+	  repeat
+	}
+      ifelse
+
+      newfontname newfont definefont pop
+  } def
+
+/TeXnormalvec
+	[ 8#014 /fi 8#015 /fl 8#020 /dotlessi 8#022 /grave 8#023 /acute
+	  8#024 /caron 8#025 /breve 8#026 /macron 8#027 /ring 8#030 /cedilla
+	  8#031 /germandbls 8#032 /ae 8#033 /oe 8#034 /oslash 8#035 /AE
+	  8#036 /OE 8#037 /Oslash 8#042 /quotedblright 8#074 /exclamdown
+	  8#076 /questiondown 8#134 /quotedblleft 8#136 /circumflex
+	  8#137 /dotaccent 8#173 /endash 8#174 /emdash 8#175 /quotedbl
+	  8#177 /dieresis ] def
+/TeXcourvec
+	[ 8#016 /exclamdown 8#017 /questiondown 8#020 /dotlessi 8#022 /grave
+	  8#023 /acute 8#024 /caron 8#025 /breve 8#026 /macron 8#027 /ring
+	  8#030 /cedilla 8#031 /germandbls 8#032 /ae 8#033 /oe 8#034 /oslash
+	  8#035 /AE 8#036 /OE 8#037 /Oslash 8#074 /less 8#076 /greater
+	  8#134 /backslash 8#136 /circumflex 8#137 /underscore 8#173 /braceleft
+	  8#174 /bar 8#175 /braceright 8#177 /dieresis ] def
+
+/TeXPSmakefont {	% defines a routine for generating PS fonts, fudged!
+	/TeXsize exch def
+	findfont 
+	[ TeXsize 0 0 TeXsize neg 0 0 ] makefont
+	} def
+
+%Create a General Oblique font
+/ObliqueFont {
+    /ObliqueAngle exch def
+    /ObliqueBaseName exch def
+    /ObliqueFontName exch def
+    /ObliqueTransform [1 0 ObliqueAngle sin ObliqueAngle cos div 1 0 0] def
+    /basefontdict ObliqueBaseName findfont ObliqueTransform makefont def
+    /newfont basefontdict maxlength dict def
+    basefontdict
+      { exch dup /FID ne
+	  { dup /Encoding eq
+	    { exch dup length array copy
+	        newfont 3 1 roll put }
+	    { exch newfont 3 1 roll put }
+	    ifelse
+	  }
+	{ pop pop }
+	ifelse
+      } forall
+
+     newfont /FontName ObliqueFontName put
+     ObliqueFontName newfont definefont
+     pop
+     } def
+
+/Times-Oblique /Times-Roman 15.5 ObliqueFont
+/Times-BoldOblique /Times-Bold 15 ObliqueFont
+%/Palatino-Oblique /Palatino-Roman 10 ObliqueFont
+%/Palatino-BoldOblique /Palatino-Bold 10 ObliqueFont
+/Times-ItalicUnslanted /Times-Italic -15.15 ObliqueFont
+
+%Create a Palatino-ItalicUnslanted font? You must be joking!
+
+%Create a General SmallCaps font
+/SmallCapsFont {
+    /SmallCapsBaseName exch def
+    /SmallCapsFontName exch def
+    /basefontdict SmallCapsBaseName findfont def
+    /newfont basefontdict maxlength dict def
+    basefontdict
+      { exch dup /FID ne
+	  { dup /Encoding eq
+	    { exch dup length array copy
+	        newfont 3 1 roll put }
+	    { exch newfont 3 1 roll put }
+	    ifelse
+	  }
+	{ pop pop }
+	ifelse
+      } forall
+
+     newfont /FontName SmallCapsFontName put
+     SmallCapsFontName newfont definefont
+     pop
+     } def
+
+/Times-SmallCaps /Times-Roman SmallCapsFont
+%/Palatino-SmallCaps /Palatino-Roman SmallCapsFont
+
+/SmallCapShow {
+	% string smallcaps show
+	/achar (A) def
+	/xfac 0.8 def
+	/yfac 0.8 def
+	/xrec 1 xfac div def
+	/yrec 1 yfac div def
+	{ dup dup
+	  8#141 ge exch 8#172 le and 
+	    { 8#40 sub achar exch 0 exch put achar
+	      xfac yfac scale show xrec yrec scale }
+	    { achar exch 0 exch put achar show }
+	  ifelse
+	} forall
+} def
+
+/tempstring 100 string def	% used for string conversions
+%%%% Additions by LA Carr to reencode Adobe fonts as TeX fonts (almost)
+%%%% Based on routine in LaserWriter Cookbook
+
+/MacDrwgs false def     % will get set if we think the Mac LaserPrep file has been loaded
+
+        % - @MacSetUp -   turn-off/fix-up all the MacDraw stuff that might hurt us
+                        % we depend on 'psu' being the first procedure executed
+                        % by a Mac document.  We redefine 'psu' to adjust page
+                        % translations, and to do all other the fixups required.
+                        % This stuff will not harm other included PS files
+/@MacSetUp
+  { userdict /md known  % if md is defined
+      { userdict /md get type /dicttype eq      % and if it is a dictionary
+         { /MacDrwgs true def
+           md begin                             % then redefine some stuff
+              /psu                              % redfine psu to set origins, etc.
+                /psu load
+                        % this procedure contains almost all the fixup code
+                { /letter {} def        % it is bad manners to execute the real
+                  /note {} def          %   versions of these (clears page image, etc.)
+                  /legal {} def
+                  statusdict /waittimeout 300 put
+                  /page {pop} def       % no printing of pages
+                  /pyt vo neg def       % x & y pixel translations
+                  /pxt ho def
+                }
+                concatprocs
+              def
+              /od                               % redefine od to set clipping region
+                /od load
+                { @setclipper }
+                concatprocs
+              def
+           end }
+        if }
+    if
+  } def
+
+%       p1 p2 concatprocs p       - concatenate procedures
+/concatprocs
+  { /p2 exch cvlit def
+    /p1 exch cvlit def
+    /p p1 length p2 length add array def
+    p 0 p1 putinterval
+    p p1 length p2 putinterval
+    p cvx
+  } def
+
+end                     % revert to previous dictionary
+
+statusdict /waittimeout 300 put
+
+% Creator: Soren-Aksel Sorensen, Dept Computer Science, UCL
+% Title: University College London Logo
+% EndComments
+/UCL_line { 3 1 roll lineto { rlineto } repeat } def
+
+/UCL_mline  { 3 1 roll moveto { rlineto } repeat } def
+
+/UCL_mcline { 3 1 roll moveto { rlineto } repeat closepath } def
+
+/UCL_box { 2 index exch 2 index exch dup 6 index exch
+	         moveto 3 { lineto } repeat closepath stroke newpath } def
+
+/UCL_leftdome { 216 355 85 180 130 arcn 196 446 175 528 10 arcto
+		 4 { pop } repeat 202 456 8 191 110 arcn
+		 17 20 -6 0 0 30 202 466 3 UCL_line
+		 7 0 0 9 211 518 2 UCL_line stroke newpath } def
+ 
+/UCL_rightdome { 216 355 85 0 50 arc 236 446 257 528 10 arcto
+		 4 { pop } repeat 230 456 8 349 70 arc
+		 -17 20 6 0 0 30 230 466 3 UCL_line
+		 -7 0 0 9 221 518 2 UCL_line stroke newpath } def
+
+/UCL_support { 0 0 432 28 UCL_box 16 42 416 68 UCL_box
+                 2 26 378 0 2 -26 23 261 3 UCL_mline
+                 -2 -10 197 -42 197 42 -2 10 19 261 4 UCL_mcline
+                 0 -18  4 -4  0 -26  10 -16  184 0  10 16  0 26 
+                 4 4  0 18  110 289 9 UCL_mline  
+                 204 0 114 333 1 UCL_mline stroke newpath } def
+ 
+/UCL_domebars { 88 0 172 428 1 UCL_mline 0 75 216 353 1 UCL_mline
+		stroke newpath 301 347 144 177 146 arcn stroke newpath
+		386 353 200 180 158 arcn stroke newpath 46 353 200 22 0 arcn
+		stroke newpath 131 347 144 34 3 arcn stroke newpath } def
+
+/UCL_LargeU { newpath 6 setlinewidth 0 setgray 58 213 moveto
+		63 213 63 150 9 arcto 4 { pop } repeat 63 123 lineto
+		63 80 150 80 150 123 curveto 150 209 167 211 9 arcto
+		4 { pop } repeat 165 211 lineto 165 212 1 270 90 arc
+		127 213 lineto 127 212 1 90 270 arc 145 209 145 150 9 arcto
+		4 { pop } repeat 145 128 lineto 145 85 75 85 75 128 curveto
+		75 209 93 211 9 arcto 4 { pop } repeat 91 211 lineto
+		91 212 1 270 90 arc closepath gsave fill grestore stroke
+		newpath 58 213 moveto 31 213 lineto 31 212 1 90 270 arc
+		47 209 47 150 9 arcto 4 { pop } repeat 47 128 lineto
+		47 80 150 80 150 123 curveto stroke } def
+
+/UCL_LargeC { newpath 251 216 moveto 213 216 187 190 187 150 curveto
+		187 121 209 92 250 92 curveto 271 92 277 98 283 102 curveto
+		284 108 288 113 288 124 curveto 287 124 1 0 170 arc
+		281 110 266 96 250 96 curveto 218 96 201 115 201 155 curveto
+		201 190 218 211 254 211 curveto 266 211 275 205 285 191 curveto
+		286 191 1 200 0 arc 286 196 285 205 282 210 curveto
+		268 216 258 216 251 216 curveto closepath gsave fill grestore
+		stroke newpath 251 216 moveto 198 216 172 190 171 150 curveto
+		171 125 183 92 250 92 curveto stroke newpath } def
+
+/UCL_LargeL { 318 213 moveto 339 213 339 150 11 arcto
+		4 { pop } repeat 339 94 318 94 14 arcto 4 { pop } repeat
+		401 94 lineto 403 100 404 110 405 121 curveto
+		404 121 1 0 170 arc 390 98 308 98 42 arcto 4 { pop } repeat
+		350 98 350 210 12 arcto 4 { pop } repeat
+		350 209 366 211 11 arcto 4 { pop } repeat 366 211 lineto
+		366 212 1 270 90 arc closepath gsave fill grestore stroke
+		newpath 318 213 moveto 307 213 lineto 307 212 1 90 270 arc
+		323 209 323 150 9 arcto 4 { pop } repeat 323 98 307 96 10 arcto
+		4 { pop } repeat 307 96 lineto 307 95 1 90 270 arc
+		404 94 lineto stroke newpath } def
+
+/UCL_logo { 4 setlinewidth UCL_leftdome UCL_rightdome UCL_domebars UCL_support
+	    UCL_LargeU UCL_LargeC UCL_LargeL } def
+
+TeXDict begin @start
+%%Title: domain.dvi
+%%Creator: dvi2ps
+%%EndProlog
+0 @bop0
+/cmr10.329 @newfont
+cmr10.329 @sf
+[<FFF000C0FFF001C00F0003C0060003C0060007C0060007C006000FC006001FC006001FC006003FC006007EC006007EC00600
+  FCC00601F8C00601F8C00603F0C00603E0C00607E0C0060FC0C0060FC0C0061F80C0063F00C0063F00C0067E00C006FC00C0
+  06FC00C007F800C007F800C007F001E0FFE01FFEFFE01FFE> 31 31 -1 0 34] 78 @dc
+[<03F8000FFE001F87003E03807C0180780000F80000F00000F00000F00000FFFF80FFFF80F00380F007807807807807003C0F
+  001E1E000FFC0003F000> 17 20 -1 0 20] 101 @dc
+[<07E00FF01F301E181E181E181E181E181E001E001E001E001E001E001E001E001E001E00FFF8FFF83E001E000E000E000600
+  060006000600> 13 28 -1 0 18] 116 @dc
+[<00E01C0000E01C0000F03C0001F03E0001F03E0001F87E0003F87F0003D87B0003D8730003CCF300078CF180078CE1800787
+  E1800F07E0C00F07C0C00F03C0C01E03C0E01E07C0F0FF9FF3FCFF9FF3FC> 30 20 -1 0 33] 119 @dc
+[<01F80007FE001E07803C03C03801C07801E07000E0F000F0F000F0F000F0F000F0F000F0F000F07000E07000E03801C03C03
+  C01E078007FE0001F800> 20 20 -1 0 23] 111 @dc
+[<FFF0FFF00F000F000F000F000F000F000F000F000F000F000F000F000F0E0F9F0F9FFFDFFFFF0F7C> 16 20 0 0 18] 114 @dc
+[<FFE7FCFFE7FC0F03E00F07C00F07C00F0F800F1F800F1F000FBE000FFE000FFC000FFC000F78000F3C000F1E000F0F000F07
+  800F07C00F0FF80F0FF80F00000F00000F00000F00000F00000F00000F00000F00000F0000FF0000FF00000F0000> 22 32 0 0 24] 107 @dc
+[<000600060000000E00070000000F000F0000000F000F0000001F000F8000001F801F8000001F801F8000003F801FC000003E
+  C03EC000003EC03EC000003EC03EC000007C607C6000007C607C6000007C607C600000F830F8300000F830F8300000F830F8
+  300001F019F0180001F019F0180001F019F0180003E00FF00C0003E00FE00C0003E00FE00C0007C00FE0060007C007C00600
+  07C007C006000F800FC003000F800F8007001F800F800F80FFF8FFF83FF0FFF8FFF83FF0> 44 31 -1 0 47] 87 @dc
+[<FFE0FFE00F000F000F000F000F000F000F000F000F000F000F000F000F000F000F007F007F000F0000000000000000000000
+  00000E001F001F001F000E00> 11 31 0 0 13] 105 @dc
+[<FFF3FFFFF3FF0F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F80F00F80F00FC1
+  F0FF61E0FF3FE00F1F80> 24 20 0 0 25] 110 @dc
+[<03FC001FFF803E07C07801E0F000F0E00070E00070E00070F000F07803F03FFFE01FFFE03FFF803FFE003800003000003000
+  0037F0003FFC003E3E003C1E00780F00780F00780F00780F00780F003C1E703E3EF01FFFF007F1E0> 20 30 -1 10 23] 103 @dc
+[<001FF06000FFFCE001FC1FE007E007E00FC003E01F0003E01F0003E03E0003E07C0003E07C0003E07C0003E0F800FFFCF800
+  FFFCF8000000F8000000F8000000F8000000F8000000F8000000F80000607C0000607C0000607C0000E03E0000E01F0001E0
+  1F0001E00F8003E007E00FE001F81EE000FFF860001FE060> 30 31 -3 0 36] 71 @dc
+[<01F8FF07FEFF0F87F00F03F00F01F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00
+  F0FF0FF0FF0FF00F00F0> 24 20 0 0 25] 117 @dc
+[<FFF000FFF0000F00000F00000F00000F00000F00000F00000F00000F3F800F7FC00FE3E00F80F00F80F80F00780F007C0F00
+  3C0F003C0F003C0F003C0F003C0F003C0F007C0F00780F00F80F80F0FFE1F0FFFFE00F1F80> 22 29 0 9 25] 112 @dc
+[<FFFE03F8FFFE0FFC07C01F8E07C03F0607C03E0607C03E0007C03E0007C03E0007C03E0007C03E0007C03E0007C03E0007C0
+  7E0007C07C0007C0F80007FFF00007FFF80007C07C0007C01E0007C01F0007C00F0007C00F8007C00F8007C00F8007C00F80
+  07C00F0007C01F0007C01E0007C07C00FFFFF800FFFFC000> 31 31 -1 0 33] 82 @dc
+[<003FFC003FFC0003C00003C00003C00003C00003C00003C00003C007E3C01FFBC03E1FC03C0FC07C07C07803C0F803C0F003
+  C0F003C0F003C0F003C0F003C0F003C0F803C07803C07C07C03C0FC01F1DC00FF9C007F0C0> 22 29 -2 9 24] 113 @dc
+[<CFC0FFE0F8F0F078E038C038C07800F807F83FF07FF07FC0FF00F000E030E030E07070F07FF01FB0> 13 20 -2 0 18] 115 @dc
+[<FFF000FFF0000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00
+  000F0000FFF000FFF0000F00000F00000F00000F00000F00000F00000F0F800F8F8007CF8003EF8001FF00007E00> 17 32 0 0 14] 102 @dc
+[<001FE00000FFF80003F83C0007E00E000F8007001F0003801E0001803E0001C07C0000C07C0000C07C0000C0F8000000F800
+  0000F8000000F8000000F8000000F8000000F8000000F8000000F80000C07C0000C07C0000C07C0001C03E0001C01E0003C0
+  1F0003C00F8007C007E00FC003F83DC000FFF8C0001FC0C0> 26 31 -3 0 33] 67 @dc
+[<FFF3FF9FFCFFF3FF9FFC0F007803C00F007803C00F007803C00F007803C00F007803C00F007803C00F007803C00F007803C0
+  0F007803C00F007803C00F007803C00F007803C00F807C03C00F807C03C00FC0FE07C0FF71F38F80FF3FF1FF800F1FC0FE00> 38 20 0 0 39] 109 @dc
+[<7FFF7FFF03C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C0F3C0
+  FFC00FC001C000C0> 16 29 -3 0 23] 49 @dc
+[<FFFF80FFFF80FFFF807FFF803801C01C00C00E00C00780C003C00001E00000F000007800003C00003E00001F00000F80000F
+  800007C00007C03007C0FC03C0FC07C0FC07C0FC07C0F80F80701F80783F001FFE0007F000> 18 29 -2 0 23] 50 @dc
+[<03800007C00007C00007C00007C00007C00007C00007C00007C00003C00003C00003C00003C00001C00001E00000E00000E0
+  00006000007000003800001800C01C00C00E00C00600E007007FFF807FFFC07FFFC07FFFC0600000> 18 30 -3 0 23] 55 @dc
+[<0FC0003FF000787C007C1C007C0E007C0F007C07000007800007800003800183C00FF3C01FFBC03C1FC0780FC07007C0F007
+  C0F003C0F003C0F003C0F003C0F00380F003807007807807003C0F001E1E000FFC0003F000> 18 29 -2 0 23] 57 @dc
+[<C3F800EFFE00FE1F00F80780F00780E00380C003C0C003C0C003C00003C00007C00007C0001FC000FF800FFF801FFF003FFE
+  007FFC007FE000FE0000FC0000F80000F00180F00180F00380F00380780780780F803C3F801FFF8007F180> 18 31 -3 0 25] 83 @dc
+[<70F8F8F870> 5 5 -4 0 13] 46 @dc
+[<FFFFFFC0FFFFFFC007C007C007C001E007C000E007C000E007C0006007C0006007C0006007C0003007C0603007C0603007C0
+  600007C0600007C0E00007FFE00007FFE00007C0E00007C0600007C0600007C060C007C060C007C000C007C000C007C001C0
+  07C0018007C0018007C0038007C00F80FFFFFF80FFFFFF80> 28 31 -1 0 31] 69 @dc
+[<FFFC7FFEFFFC7FFE07C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C0
+  07C007C007C007C007C007FFFFC007FFFFC007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C0
+  07C007C007C007C007C007C007C007C0FFFC7FFEFFFC7FFE> 31 31 -1 0 34] 72 @dc
+[<1F83C03FE7E07C7FF0F81F30F01F30F00F30F00F30F80F007C0F003E0F000FCF0003FF00000F00000F00380F007C1F007C1E
+  007C7E007FFC001FF000> 20 20 -2 0 23] 97 @dc
+[<07E3FC1FFBFC3E1FC03C0FC07807C07803C0F003C0F003C0F003C0F003C0F003C0F003C0F003C0F003C07803C07803C03C07
+  C01E1FC00FFFC007F3C00003C00003C00003C00003C00003C00003C00003C00003C00003C0003FC0003FC00003C0> 22 32 -2 0 25] 100 @dc
+[<03F00FFC1F0E3E077C037800F800F000F000F000F000F000F000F000781C783E3C3E1E3E0FFE03F8> 16 20 -2 0 20] 99 @dc
+[<FFF0FFF00F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F00
+  0F000F000F000F00FF00FF000F00> 12 32 0 0 13] 108 @dc
+[<FFC0FFC0FFC0> 10 3 -1 -9 15] 45 @dc
+[<FFFE3FFEFFFE3FFE07C00FF007C007E007C00FC007C00F8007C01F8007C03F0007C03F0007C07E0007C07C0007C0FC0007E1
+  F80007F1F80007FBF00007DFE00007CFE00007C7C00007C3C00007C1C00007C0E00007C0700007C0780007C03C0007C01E00
+  07C00F0007C0078007C003C007C003F0FFFE0FFEFFFE0FFE> 31 31 -1 0 35] 75 @dc
+[<000FF000003FFC00007C1E0000F0070001E0038003E0018003C0018007C001C007C000C007C000C007C000C007C000C007C0
+  00C007C000C007C000C007C000C007C000C007C000C007C000C007C000C007C000C007C000C007C000C007C000C007C000C0
+  07C000C007C000C007C000C007C001E0FFFE1FFEFFFE1FFE> 31 31 -1 0 34] 85 @dc
+[<00700000700000700000F80000F80001FC0001EC0001EC0003EE0003C60003C6000783000783000783000F01800F01800F01
+  C01F03E0FFC7F8FFC7F8> 21 20 -1 0 24] 118 @dc
+[<3C00007F0000E38000C18000F8C00070C00000600000600000600000700000700000700000F80000F80001FC0001EC0001EC
+  0003EE0003C60003C6000783000783000783000F01800F01800F01C01F03E0FFC7F8FFC7F8> 21 29 -1 9 24] 121 @dc
+[<FFFFFEFFFFFE07C07E07C01E07C00E07C00607C00707C00707C00307C00307C00307C00307C00007C00007C00007C00007C0
+  0007C00007C00007C00007C00007C00007C00007C00007C00007C00007C00007C00007C000FFFF00FFFF00> 24 31 -1 0 28] 76 @dc
+[<0C3F800E7FC00FE1E00F80F00F80780F00780F003C0F003C0F003C0F003C0F003C0F003C0F003C0F003C0F00780F00780F80
+  F00FE1F00FFFE00F1F800F00000F00000F00000F00000F00000F00000F00000F00000F0000FF0000FF00000F0000> 22 32 0 0 25] 98 @dc
+/cmr10.432 @newfont
+cmr10.432 @sf
+[<FFFE007FFFC0FFFE007FFFC00FF8001FF80001F0000FF00000E0000FE0000060001FC0000030001FC0000038003F80000018
+  003F0000001C007F0000000E00FE0000000600FC0000000701FC0000000303F80000000183F800000001C7F000000000C7E0
+  000000006FE0000000007FC0000000003F80000000003F80000000007F00000000007F0000000000FE0000000000FF000000
+  0001FF0000000003FB8000000003F18000000007F0C00000000FE0E00000000FE0600000001FC0300000001F80380000003F
+  80180000007F000C0000007E000E000000FE000F000001FC000F800003FF001FE0007FFFC0FFFE007FFFC0FFFE00> 42 41 -1 0 45] 88 @dc
+[<7CFEFEFEFEFE7C> 7 7 -5 0 17] 46 @dc
+[<01FC0007FF801F0FC03C03E03801F07000F86000F8E000FCFC007CFC007EFC007EFC007EFC007E78007E00007E00007E0000
+  7E00007C00007C0000FC1800F81C00F81E01F01F87E01BFF8018FE0018000018000018000018000018000018000018000019
+  F0001FFE001FFF801FFFE01FFFF01FFFF81F00F8180018> 23 41 -3 1 30] 53 @dc
+[<007F000001FFC00007C1F0000F80F8000F0078001E003C003E003E003E003E003C001E007C001F007C001F007C001F007C00
+  1F00FC001F80FC001F80FC001F80FC001F80FC001F80FC001F80FC001F80FC001F80FC001F80FC001F80FC001F80FC001F80
+  FC001F80FC001F80FC001F807C001F007C001F007C001F007C001F003C001E003E003E003E003E001E003C000F0078000F80
+  F80007C1F00001FFC000007F0000> 25 41 -2 1 30] 48 @dc
+[<07F81F001FFE7F803F8F7FC07E03F860FE01F860FC01F860FC00F860FC00F860FC00F860FE00F8007F00F8003F80F8001FE0
+  F8000FFCF80001FFF800001FF8000000F8000000F8000000F8001E00F8003F01F8003F01F0003F03F0003F07E0001FFF8000
+  07FE0000> 27 26 -2 0 30] 97 @dc
+[<FFFE7FFCFFFE7FFC07C00F8007C00F8007C00F8007C00F8007C00F8007C00F8007C00F8007C00F8007C00F8007C00F8007C0
+  0F8007C00F8007C00F8007C00F8007C00F8007C00F8007C00F8007E00F8007E00F8007F00F800FF81F00FFDE3F00FFCFFE00
+  07C3F800> 30 26 -1 0 33] 110 @dc
+[<00FE1FF803FF9FF80FC1FF801F80FF001F003F003E003F007E001F007C001F007C001F00FC001F00FC001F00FC001F00FC00
+  1F00FC001F00FC001F00FC001F00FC001F007C001F007E001F007E001F003E001F001F003F000F807F0007E1FF0003FFDF00
+  00FF1F0000001F0000001F0000001F0000001F0000001F0000001F0000001F0000001F0000001F0000001F0000001F000000
+  1F0000003F000003FF000003FF0000001F00> 29 42 -2 0 33] 100 @dc
+[<FFFFFFC000FFFFFFF80007F000FE0003F0003F0003F0000F8003F00007C003F00003E003F00001F003F00001F803F00000F8
+  03F00000FC03F00000FC03F000007E03F000007E03F000007E03F000007F03F000007F03F000007F03F000007F03F000007F
+  03F000007F03F000007F03F000007F03F000007F03F000007F03F000007E03F000007E03F000007E03F00000FC03F00000FC
+  03F00000FC03F00001F803F00001F003F00003F003F00003E003F00007C003F0000F8003F0003F0007F000FC00FFFFFFF800
+  FFFFFFC000> 40 41 -2 0 46] 68 @dc
+[<007F000001FFC00007C1F0000F80F8001F007C003E003E003E003E007C001F007C001F00FC001F80FC001F80FC001F80FC00
+  1F80FC001F80FC001F80FC001F80FC001F807C001F007C001F003E003E003E003E001E003C000F00780007C1F00001FFC000
+  007F0000> 25 26 -2 0 30] 111 @dc
+[<FFFE7FFE7FFEFFFE7FFE7FFE07C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C0
+  07C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C0
+  07C007C007C007C007E007E007C007E007E007C007E007E007C007F00FF00FC00FF80FB80F80FFDE1F9E1F80FFCFFF0FFF00
+  07C3FC03FC00> 47 26 -1 0 50] 109 @dc
+[<FFFCFFFC07C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C00FC07FC07FC0
+  07C0000000000000000000000000000000000F801FC01FC01FC01FC01FC00F80> 14 41 0 0 16] 105 @dc
+[<C3FC00EFFF00FE0F80F803C0F003C0F001E0E001E0E001E0C003E0C007E0001FE003FFC00FFFC03FFF807FFF007FFC00FFC0
+  00FC0000F800C0F000C0F000C0F001C07803C03E0FC01FFFC007F8C0> 19 26 -2 0 24] 115 @dc
+/cmbx12.300 @newfont
+cmbx12.300 @sf
+[<C0FFC0E7FFF0FFFFF8FF80FCFC007EF8003EF0001FE0001FE0001FE0001F00003F00003F0000FF0003FF007FFE03FFFE0FFF
+  FC1FFFF83FFFF07FFFE07FFF00FFF000FF0000FE0000FC001CF8001CF8003CF8003C7C007C7C00FC3F03FC1FFFFC0FFF9C03
+  FE0C> 24 34 -3 0 31] 83 @dc
+[<01FC0003FE0007E7000FC7800FC3800FC3800FC3800FC3800FC3800FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0
+  000FC0000FC000FFFF00FFFF003FFF000FC00007C00007C00003C00003C00003C00001C00001C00001C00001C000> 17 32 -1 0 22] 116 @dc
+[<0FF0FF3FFDFF7F1FFFFF0FF8FE07F0FE03F0FE03F0FF03F07F03F07F83F03FE3F00FFFF001FFF00003F00003F01E03F03F03
+  F03F07F03F07E03F0FC01FFF8007FE00> 24 22 -2 0 27] 97 @dc
+[<03FC7FC00FFF7FC00FC3FFC01F81FE001F80FE001F80FE001F807E001F807E001F807E001F807E001F807E001F807E001F80
+  7E001F807E001F807E001F807E001F807E001F807E001F807E00FF83FE00FF83FE00FF83FE00> 26 22 -2 0 31] 117 @dc
+[<C7F800FFFE00FE1F00F80F00F00780F00780E00F80E00F80007F800FFF801FFF007FFE007FFC00FFF800FF0000F80000F007
+  00F00700780F007C1F003FFF000FFF00> 17 22 -2 0 22] 115 @dc
+[<00FE0007FFC00F83E01F01F03F01F87E00FC7E00FCFE00FEFE00FEFE00FEFE00FEFE00FEFE00FEFE00FE7E00FC7E00FC7E00
+  FC3E00F81F01F00F83E007FFC000FE00> 23 22 -2 0 28] 111 @dc
+[<7FFC007FFC007FFC000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC0
+  000FC0000FC000FFFC00FFFC00FFFC000FC0000FC0000FC0000FC0000FC0000FC0000FC3C00FC7E007E7E007E7E003F7E001
+  FFC0003F80> 19 35 -1 0 17] 102 @dc
+[<FFF1FFC0FFF1FFC0FFF1FFC01F807E001F807E001F807E001F807E001F807E001F807E001F807E001F807E001F807E001F80
+  7E001F807E001F807E001FC07E001FC07E001FE07E001FF07E001FF8FC001F9FFC001F87F0001F8000001F8000001F800000
+  1F8000001F8000001F8000001F8000001F8000001F8000001F800000FF800000FF800000FF800000> 26 35 -2 0 31] 104 @dc
+[<FFF0FFF0FFF01F801F801F801F801F801F801F801F801F801F801F801F801F801F801F801F80FF80FF80FF80000000000000
+  0000000000001F003F807F807F807F807F803F801F00> 12 36 -1 0 15] 105 @dc
+[<FFF80700FFFFFFF80F80FFFFFFF80F80FFFF07000F8007E007001FC007E007001FC007E007003FE007E007003FE007E00700
+  7E7007E007007E7007E007007E7007E00700FC3807E00700FC3807E00701F81C07E00701F81C07E00703F00E07E00703F00E
+  07E00703F00E07E00707E00707E00707E00707E0070FC00387E0070FC00387E0071F8001C7E0071F8001C7E0071F8001C7E0
+  073F0000E7E0073F0000E7E0077E000077E0077E000077E007FC00003FE007FC00003FE0FFFC00003FFFFFF800001FFFFFF8
+  00001FFF> 48 34 -2 0 53] 77 @dc
+[<00FF8007FFE00FE1F01F80783F00387F00007E0000FE0000FE0000FE0000FE0000FFFFF8FFFFF8FE01F8FE01F87E01F87E01
+  F03F03F03F03E01FC7E007FF8001FE00> 21 22 -2 0 26] 101 @dc
+[<FFF1FFE3FFC0FFF1FFE3FFC0FFF1FFE3FFC01F803F007E001F803F007E001F803F007E001F803F007E001F803F007E001F80
+  3F007E001F803F007E001F803F007E001F803F007E001F803F007E001F803F007E001F803F007E001FC03F807E001FC03F80
+  7E001FE03FC07E001FF07FE0FE00FFBC7E78FC00FF9FFC3FF800FF87F80FF000> 42 22 -2 0 47] 109 @dc
+cmr10.329 @sf
+[<07FFFF0007FFFF00000F8000000F8000000F8000000F8000000F8000000F8000000F8000000F8000000F8000000F8000000F
+  8000000F8000000F8000000F8000000F8000000F8000000F8000000F8000C00F8030C00F8030C00F8030C00F8030E00F8070
+  600F8060600F8060700F80E07C0F81E07FFFFFE07FFFFFE0> 28 31 -2 0 33] 84 @dc
+[<FFF3FFFFF3FF0F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F80F00F80F00FC1
+  F00F61E00F3FE00F1F800F00000F00000F00000F00000F00000F00000F00000F00000F0000FF0000FF00000F0000> 24 32 0 0 25] 104 @dc
+[<FFC3FFFFC3FF0F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00
+  F00F00F0FFFFF0FFFFF00F00000F00000F00000F00000F00000F01F00F01F00781F007C1F003F0F000FFE0001FC0> 24 32 0 0 25] 12 @dc
+[<FFCFFEFFCFFE1F83E00703C003878001878001CF0000FE00007E00003C0000780000780000FC0001EE0001E60003C3000783
+  800F83E07FE7FC7FE7FC> 23 20 0 0 24] 120 @dc
+[<FFFE0000FFFE000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0
+  000007C0000007FFF00007FFFC0007C03E0007C00F0007C00F8007C0078007C007C007C007C007C007C007C007C007C007C0
+  07C0078007C00F8007C00F0007C03E00FFFFFC00FFFFF000> 26 31 -1 0 31] 80 @dc
+[<FFFEFFFE07C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C007C0
+  07C007C007C007C0FFFEFFFE> 15 31 0 0 16] 73 @dc
+[<FFFFF000FFFFFE0007C01F0007C0078007C003C007C001E007C000F007C000F007C000F807C0007807C0007807C0007C07C0
+  007C07C0007C07C0007C07C0007C07C0007C07C0007C07C0007C07C0007C07C0007807C0007807C000F807C000F007C001F0
+  07C001E007C003C007C0078007C01F00FFFFFE00FFFFF000> 30 31 -1 0 35] 68 @dc
+[<381C7C3EFC7EFC7EF87CC060C060C060E07060307038381C3C1E180C> 15 14 -5 -18 23] 92 @dc
+[<FFE07FFEFFE07FFE0F800FC0070007C003000F8003000F8003000F8001801F0001801F0001FFFF0000FFFE0000C03E0000C0
+  3E0000607C0000607C0000607C000030F8000030F8000030F8000019F0000019F0000019F000000FE000000FE000000FE000
+  0007C0000007C0000007C000000380000003800000038000> 31 31 -1 0 34] 65 @dc
+[<FFFFF800FFFFFE0007C01F0007C00F8007C007C007C003C007C003E007C003E007C003E007C003E007C003E007C003C007C0
+  07C007C0078007C01F0007FFFE0007FFFC0007C03E0007C01F0007C00F8007C0078007C007C007C007C007C007C007C007C0
+  07C007C007C00F8007C00F0007C01F00FFFFFC00FFFFF000> 27 31 -1 0 32] 66 @dc
+[<003FC00000FFF00003E07C0007C03E000F801F001F000F801E0007803E0007C07C0003E07C0003E07C0003E0F80001F0F800
+  01F0F80001F0F80001F0F80001F0F80001F0F80001F0F80001F0F80001F0780001E07C0003E03C0003C03C0003C01E000780
+  1E0007800F000F0007801E0003E07C0000FFF000003FC000> 28 31 -3 0 35] 79 @dc
+[<FFE3FF3FF8FFE3FF3FF80F007807800F007807800F007807800F007807800F007807800F007807800F007807800F00780780
+  0F007807800F007807800F007807800F007807800F007807800F007807800F007807800F00780780FFFFFFFF80FFFFFFFF80
+  0F007800000F007800000F007800000F007800000F007800000F00F80F800F00F80F800780FC0F8007C0FE0F8003F07F8780
+  00FFF7FF00001FC0FE00> 37 32 0 0 38] 14 @dc
+[<6030F0787038381C180C1C0E0C060C060C067C3EFC7EFC7EF87C7038> 15 14 -2 -18 23] 34 @dc
+[<FFFEFFFEF81E7C063E063F071F030F830FC307C003E003F061F060F860FC707C303E381F3FFF3FFF> 16 20 -1 0 20] 122 @dc
+cmbx12.300 @sf
+[<FFF00FFFF8FFF00FFFF8FFF00FFFF80700007F00038000FE00038000FE0003C001FE0001C001FC0001C001FC0001FFFFFC00
+  00FFFFF80000FFFFF800007007F000007007F00000780FF00000380FE00000380FE000001C1FC000001C1FC000001E3FC000
+  000E3F8000000E3F8000000F7F800000077F000000077F00000003FE00000003FE00000003FE00000001FC00000001FC0000
+  0000F800000000F800000000F800000000700000> 37 34 -2 0 42] 65 @dc
+[<1C1FE0001E7FF8001FF0FE001FC07F001F803F001F803F801F801F801F801FC01F801FC01F801FC01F801FC01F801FC01F80
+  1FC01F801FC01F801FC01F801F801F801F801F803F801FC03F001FF0FE001FFFFC001F9FE0001F8000001F8000001F800000
+  1F8000001F8000001F8000001F8000001F8000001F8000001F800000FF800000FF800000FF800000> 26 35 -2 0 31] 98 @dc
+[<FFF800FFF800FFF8001F80001F80001F80001F80001F80001F80001F80001F80001F80001F80001F80001F80001F83C01FC7
+  E01FC7E01FE7E0FF77E0FF7FC0FF1F80> 19 22 -2 0 23] 114 @dc
+[<01FF0007FFC01FE1E03F80F03F80707F00007F0000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE00007E01E07F03
+  F03F03F03F83F01FC3F007FFE001FF80> 20 22 -2 0 25] 99 @dc
+cmr10.329 @sf
+[<FFFF0000FFFF000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0600007C0600007C0
+  600007C0600007C0E00007FFE00007FFE00007C0E00007C0600007C0600007C060C007C060C007C000C007C000C007C001C0
+  07C0018007C0018007C0038007C00F80FFFFFF80FFFFFF80> 26 31 -1 0 30] 70 @dc
+[<FFF07FFEFFF07FFE0FC00FE003800FC001800F8001C01F8000C03F0000E03E0000607E0000307C000038FC000019F800000D
+  F000000FF0000007E0000007E000000FC000000F8000001FC000001FC000003FE000007E6000007C300000FC380000F81800
+  01F80C0003F00E0003E00F0007F01F807FFC7FF87FFC7FF8> 31 31 -1 0 34] 88 @dc
+[<07F0001FFC007C3E00701F00F80F80F80780F807C0F807C0F807C00007C00007C00007C0000780380F803C0F003E1F003FFC
+  0033F8003000003000003000003000003000003000003FF0003FFC003FFE003FFF00380700> 18 29 -2 0 23] 53 @dc
+[<03F0000FFC001E1E003C0F00380700780780700380700380F003C0F003C0F003C0F003C0F003C0F003C0F003C0F003C0F003
+  C0F003C0F003C0F003C0F003C07003807003807807803807003C0F001E1E000FFC0003F000> 18 29 -2 0 23] 48 @dc
+[<60F07038181C0C0C0C7CFCFCF870> 6 14 -4 9 13] 44 @dc
+0 @bop1
+cmr10.329 @sf
+224 271 p (Net) s
+119 c
+-1 r (ork) s
+13 r 87 c
+-3 r (orking) s
+13 r (Group) s
+224 328 p (Requests) s
+16 r (for) s
+15 r (Comm) s
+-1 r (en) s
+-1 r (ts) s
+13 r (1279) s
+1302 271 p (S.E.) s
+15 r (Hardcastle-Kille) s
+1191 328 p (Univ) s
+(ersit) s
+-1 r 121 c
+13 r (College) s
+14 r (London) s
+1413 384 p (No) s
+118 c
+-1 r (em) s
+-2 r 98 c
+1 r (er) s
+14 r (1991) s
+cmr10.432 @sf
+713 898 p (X.500) s
+19 r (and) s
+21 r (Domains) s
+cmbx12.300 @sf
+224 1479 p (Status) s
+19 r (of) s
+19 r (this) s
+19 r (Memo) s
+cmr10.329 @sf
+349 1555 p (This) s
+18 r (memo) s
+17 r (de\014nes) s
+20 r (an) s
+19 r (Exp) s
+1 r (erimen) s
+(tal) s
+17 r (Proto) s
+1 r (col) s
+18 r (for) s
+18 r (the) s
+19 r (In) s
+(ternet) s
+19 r (com-) s
+349 1611 p 109 c
+-1 r (unit) s
+-1 r 121 c
+-4 r 46 c
+29 r (Discussion) s
+18 r (and) s
+19 r (suggestions) s
+17 r (for) s
+18 r (impro) s
+-1 r 118 c
+-1 r (em) s
+-1 r (en) s
+-1 r 116 c
+17 r (are) s
+18 r (requested.) s
+349 1668 p (Please) s
+13 r (refer) s
+14 r (to) s
+13 r (the) s
+14 r (curren) s
+116 c
+12 r (edition) s
+13 r (of) s
+14 r (the) s
+14 r (\\IAB) s
+14 r (O\016cial) s
+13 r (Proto) s
+1 r (col) s
+12 r (Stan-) s
+349 1724 p (dards") s
+15 r (for) s
+14 r (the) s
+16 r (standardization) s
+13 r (state) s
+15 r (and) s
+15 r (status) s
+15 r (of) s
+14 r (this) s
+15 r (proto) s
+1 r (col.) s
+19 r (Dis-) s
+349 1781 p (tribution) s
+14 r (of) s
+14 r (this) s
+15 r (memo) s
+13 r (is) s
+15 r (unlimited.) s
+cmbx12.300 @sf
+224 1857 p (Abstract) s
+cmr10.329 @sf
+349 1933 p (This) s
+19 r (RF) s
+(Cconsiders) s
+17 r (X.500) s
+19 r (in) s
+19 r (relation) s
+18 r (to) s
+18 r (In) s
+(ternet) s
+19 r (and) s
+19 r (UK) s
+20 r (Domains.) s
+349 1989 p 65 c
+14 r (basic) s
+14 r (mo) s
+1 r (del) s
+14 r (of) s
+14 r (X.500) s
+13 r (pro) s
+(viding) s
+13 r 97 c
+14 r (higher) s
+14 r (lev) s
+(el) s
+13 r (and) s
+15 r (more) s
+13 r (descriptiv) s
+101 c
+349 2046 p (naming) s
+15 r (structure) s
+17 r (is) s
+16 r (emphasised.) s
+25 r (In) s
+17 r (addition,) s
+16 r 97 c
+17 r (mapping) s
+16 r (of) s
+16 r (domains) s
+349 2102 p (on) s
+(to) s
+13 r (X.500) s
+14 r (is) s
+14 r (prop) s
+1 r (osed,) s
+15 r (whic) s
+104 c
+14 r (giv) s
+(es) s
+13 r 97 c
+15 r (range) s
+14 r (of) s
+15 r (new) s
+15 r (managem) s
+-1 r (en) s
+116 c
+12 r (and) s
+349 2159 p (user) s
+17 r (facilities) s
+15 r 111 c
+118 c
+-1 r (er) s
+15 r (and) s
+18 r (ab) s
+1 r 111 c
+118 c
+-1 r 101 c
+15 r (those) s
+17 r (curren) s
+(tly) s
+16 r 97 c
+118 c
+-2 r (a) s
+-1 r (ila) s
+-1 r (ble.) s
+24 r (This) s
+17 r (sp) s
+1 r (eci\014-) s
+349 2215 p (cation) s
+15 r (prop) s
+1 r (oses) s
+16 r (an) s
+15 r (exp) s
+1 r (erimen) s
+(tal) s
+14 r (new) s
+16 r (mec) s
+(hanism) s
+12 r (to) s
+15 r (access) s
+16 r (and) s
+17 r (man-) s
+349 2271 p (age) s
+21 r (domain) s
+21 r (informat) s
+-1 r (ion) s
+20 r (on) s
+22 r (the) s
+22 r (In) s
+(ternet) s
+21 r (and) s
+22 r (in) s
+22 r (the) s
+22 r (UK) s
+22 r (Academic) s
+349 2328 p (Comm) s
+-2 r (unit) s
+-2 r 121 c
+-4 r 46 c
+22 r (There) s
+16 r (is) s
+16 r (no) s
+17 r (curren) s
+116 c
+15 r (in) s
+(ten) s
+-1 r (tio) s
+-1 r 110 c
+15 r (to) s
+16 r (pro) s
+(vide) s
+15 r (an) s
+16 r (op) s
+1 r (erational) s
+349 2384 p (replacemen) s
+116 c
+13 r (for) s
+14 r (DNS.) s
+@eop
+1 @bop0
+/cmr12.300 @newfont
+cmr12.300 @sf
+[<FFFE00FE00FFFE03FF0007C007E38007C00FC18007C00F818007C00F800007C00F800007C00F800007C00F800007C00F8000
+  07C00F800007C00F800007C01F800007C01F000007C03F000007C0FE000007FFF8000007FFF8000007C03E000007C00F0000
+  07C007800007C007C00007C003E00007C003E00007C003E00007C003E00007C003E00007C003E00007C007C00007C0078000
+  07C00F000007C03E0000FFFFF80000FFFFE00000> 33 34 -2 0 36] 82 @dc
+[<FFFF0000FFFF000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0600007C0600007C0
+  600007C0600007C0E00007C1E00007FFE00007FFE00007C1E00007C0E00007C0600007C0600007C0606007C0606007C00060
+  07C0006007C000E007C000E007C000C007C001C007C003C007C00FC0FFFFFFC0FFFFFFC0> 27 34 -2 0 32] 70 @dc
+[<000FF000007FFC0001FC1F0003F0078007C001800F8001C01F0000E01E0000603E0000707C0000307C0000307C000030F800
+  0030F8000000F8000000F8000000F8000000F8000000F8000000F8000000F8000030F80000307C0000307C0000707C000070
+  3E0000701E0000F01F0000F00F8001F007C003F003F007F001FC1E70007FFC30000FF030> 28 34 -3 0 35] 67 @dc
+[<FFFFFFFF03C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C0
+  03C003C0FBC0FFC007C001C000C0> 16 32 -4 0 24] 49 @dc
+[<FFFFC0FFFFC0FFFFC07FFFC03800C01C00E00E006007006003806001C00001E00000F000007800003C00001E00000F00000F
+  800007C00007C00003E00003E03003E0FC01E0FC01E0FC03E0FC03E0F803C06007C0700F803C3F001FFE0007F800> 19 32 -2 0 24] 50 @dc
+[<03800007C00007C00007C00007C00007C00007C00007C00007C00003C00003C00003C00003C00001C00001E00001E00000E0
+  0000E000007000007000003800001800001C00C00E00C00600C00700E003806001807FFFC07FFFE07FFFE07FFFE070000060
+  0000> 19 34 -3 0 24] 55 @dc
+[<0FE0001FF800387C00701E007C0F007C07007C07807C03800003C00003C00001C00081E00FF1E01FF9E03C0DE03807E07803
+  E07003E0F003E0F001E0F001E0F001E0F001E0F001C0F001C0F003C07803807807803C07001F1F000FFE0003F800> 19 32 -2 0 24] 57 @dc
+[<FFF00FFFC0FFF00FFFC00FC003FC00038001F800018003F00001C003E00000C007E00000600FC00000700F800000301F8000
+  00181F0000001C3F0000000C7E000000067C00000007FC00000003F800000003F000000003F000000003E000000007E00000
+  000FE00000000FB00000001FB80000003F180000003E0C0000007E0E0000007C06000000FC03000001F803800001F0018000
+  03F001C00007F003F0007FFC0FFF007FFC0FFF00> 34 34 -1 0 37] 88 @dc
+[<70F8F8F870> 5 5 -4 0 14] 46 @dc
+[<07F0001FFC003C3F00700F806007C0F807C0F803C0F803E0F803E0F803E00003E00003E00003E00003E00003C01807C01C07
+  801F1F001FFE0019F8001800001800001800001800001800001800001FF0001FFC001FFF001FFF801E0780180180> 19 32 -2 0 24] 53 @dc
+[<01F00007FC000E0E001C07003803803803807803C07001C07001C0F001E0F001E0F001E0F001E0F001E0F001E0F001E0F001
+  E0F001E0F001E0F001E0F001E0F001E0F001E07001C07001C07001C03803803803801C07000E0E0007FC0001F000> 19 32 -2 0 24] 48 @dc
+[<1F83C03FE7F07C7FB8F81F18F01F18F00F18F00F18F00F00780F007C0F003E0F000FCF0001FF00000F00000F00380F007C0F
+  007C1F007C3E007FFC001FF000> 21 21 -2 0 24] 97 @dc
+[<FFF3FFFFF3FF0F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F00F80F00F80
+  F01FC1F0FF61E0FF3FE00F1F80> 24 21 -1 0 27] 110 @dc
+[<03F1FE0FFDFE1F0FF03C07E07803E07801E07001E0F001E0F001E0F001E0F001E0F001E0F001E0F001E07801E07801E07C01
+  E03E03E01F0FE00FFFE003F9E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00003E0001FE000
+  1FE00001E0> 23 35 -2 0 27] 100 @dc
+[<FFFFF800FFFFFE0007C01F0007C007C007C003E007C001E007C000F007C0007807C0007807C0007C07C0003C07C0003C07C0
+  003E07C0003E07C0003E07C0003E07C0003E07C0003E07C0003E07C0003E07C0003E07C0003C07C0003C07C0003C07C0007C
+  07C0007807C000F807C000F007C001E007C003C007C007C007C01F00FFFFFE00FFFFF000> 31 34 -2 0 37] 68 @dc
+[<01FC0007FF000F07801C01C03800E07800F0700070F00078F00078F00078F00078F00078F00078F000787000707800F03800
+  E01C01C00F078007FF0001FC00> 21 21 -1 0 24] 111 @dc
+[<FFF3FF9FFCFFF3FF9FFC0F007803C00F007803C00F007803C00F007803C00F007803C00F007803C00F007803C00F007803C0
+  0F007803C00F007803C00F007803C00F007803C00F007803C00F807C03C00F807C03C01FC0FE07C0FF71F38F80FF3FF1FF80
+  0F1FC0FE00> 38 21 -1 0 41] 109 @dc
+[<FFE0FFE00F000F000F000F000F000F000F000F000F000F000F000F000F000F000F001F00FF00FF000F000000000000000000
+  00000000000000000E001F001F001F000E00> 11 34 0 0 13] 105 @dc
+[<CFE0FFF0F878F03CE01CE01CC01CC03C00FC0FF83FF87FF0FFC0FC00F000E018E018F03878783FF81FD8> 14 21 -2 0 19] 115 @dc
+[<FFF00060FFF000E01F8001E0060001E0060003E0060003E0060007E006000FE006000FE006001FE006001FE006003F600600
+  7E6006007E600600FC600600F8600601F8600603F0600603F0600607E0600607C060060FC060061F8060061F8060063F0060
+  063E0060067E006006FC006006FC006007F8006007F0006007F001F8FFE00FFFFFE00FFF> 32 34 -2 0 37] 78 @dc
+[<003800003800007C00007C00007C0000FE0000F60000F60001E30001E30003E38003C18003C18007C0C00780C00780C00F00
+  E00F00701F00F8FFE3FEFFE3FE> 23 21 -1 0 26] 118 @dc
+[<01FC0007FF000F83C03E01C03C00E0780060780000F00000F00000F00000F00000F00000FFFFE0FFFFE07801E07801E03C01
+  C03E03C01F0F8007FF0001FC00> 19 21 -1 0 22] 101 @dc
+[<0C3F800E7FE00FE1F00F80F80F807C0F003C0F003C0F001E0F001E0F001E0F001E0F001E0F001E0F001E0F001C0F003C0F00
+  3C0F80780FE1F00FFFE00F1F800F00000F00000F00000F00000F00000F00000F00000F00000F00000F00001F0000FF0000FF
+  00000F0000> 23 35 -1 0 27] 98 @dc
+[<FFF8FFF80F000F000F000F000F000F000F000F000F000F000F000F000F000F0E0F9F1F9FFFDFFFFF0F7C> 16 21 -1 0 19] 114 @dc
+/cmbx10.432 @newfont
+cmbx10.432 @sf
+[<7FFFFE7FFFFE7FFFFE00FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF
+  0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF0000FF00F8FF00FF
+  FF00FFFF0007FF00007F00000F00000700> 23 39 -5 0 34] 49 @dc
+[<00FFFFFFE00000FFFFFFE00000FFFFFFE00000007FC0000000007FC0000000007FC0000000007FC0000000007FC000000000
+  7FC0000000007FC0000000007FC0000000007FC0000000007FC0000000007FC0000000007FC0000000007FC0000000007FC0
+  000000007FC0000000007FC0000000007FC0000000007FC0000000007FC0000000007FC0000000007FC0000000007FC00000
+  E0007FC000E0E0007FC000E0E0007FC000E0E0007FC000E0E0007FC000E0F0007FC001E0F0007FC001E070007FC001C07800
+  7FC003C078007FC003C07C007FC007C07F807FC03FC07FFFFFFFFFC07FFFFFFFFFC07FFFFFFFFFC0> 43 40 -2 0 48] 84 @dc
+[<FFFE3FFF80FFFE3FFF80FFFE3FFF800FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F800
+  0FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FF003F8000FF003F800
+  0FF803F8000FF803F8000FFE07F8000FEF87F0000FE7FFE0000FE3FFC0000FE0FF00000FE00000000FE00000000FE0000000
+  0FE00000000FE00000000FE00000000FE00000000FE00000000FE00000000FE00000000FE00000000FE0000000FFE0000000
+  FFE0000000FFE0000000> 33 42 -3 0 38] 104 @dc
+[<003FF00001FFFE0003FFFF800FFC0FC01FF003C03FC001E03F8000E07F8000007F800000FF000000FF000000FF000000FF00
+  0000FFFFFFE0FFFFFFE0FFFFFFE0FF0007E0FF0007E07F0007E07F800FC03F800FC03FC01FC01FC03F800FF07F0007FFFE00
+  01FFFC00003FE000> 27 27 -2 0 32] 101 @dc
+[<FFFFFFFC0000FFFFFFFF8000FFFFFFFFE00003FE003FF80003FE0007FC0003FE0001FE0003FE0000FF0003FE00007F8003FE
+  00007FC003FE00003FC003FE00003FE003FE00001FE003FE00001FF003FE00001FF003FE00001FF003FE00001FF803FE0000
+  1FF803FE00001FF803FE00001FF803FE00001FF803FE00001FF803FE00001FF803FE00001FF803FE00001FF803FE00001FF8
+  03FE00001FF003FE00001FF003FE00001FF003FE00001FF003FE00001FE003FE00003FE003FE00003FC003FE00007FC003FE
+  00007F8003FE0000FF0003FE0001FE0003FE0007FC0003FE003FF800FFFFFFFFE000FFFFFFFF8000FFFFFFF80000> 45 41 -3 0 53] 68 @dc
+[<003FE00001FFFC0007FFFF000FF07F801FC01FC03F800FE03F800FE07F0007F07F0007F0FF0007F8FF0007F8FF0007F8FF00
+  07F8FF0007F8FF0007F8FF0007F8FF0007F87F0007F07F0007F07F0007F03F800FE03F800FE01FC01FC00FF07F8003FFFE00
+  01FFFC00003FE000> 29 27 -2 0 34] 111 @dc
+[<FFFE1FFFC3FFF8FFFE1FFFC3FFF8FFFE1FFFC3FFF80FE001FC003F800FE001FC003F800FE001FC003F800FE001FC003F800F
+  E001FC003F800FE001FC003F800FE001FC003F800FE001FC003F800FE001FC003F800FE001FC003F800FE001FC003F800FE0
+  01FC003F800FE001FC003F800FE001FC003F800FE001FC003F800FF001FE003F800FF001FE003F800FF801FF003F800FFC01
+  FF803F800FDE03FBC07F000FCF87F9F0FF00FFC7FFF0FFFE00FFC1FFE03FFC00FFC07F800FF000> 53 27 -3 0 60] 109 @dc
+[<03FC07FC0FFF0FFC3FFFDFFC7FC3FFC07F00FF80FF007F80FE003F80FE003F80FE003F80FF003F807F003F803F803F801FE0
+  3F800FFE3F8003FFFF80003FFF8000003F8000003F801F803F803FC03F803FC03F803FC07F003FC0FF003FC1FE001FFFFC00
+  0FFFF00003FFC000> 30 27 -2 0 33] 97 @dc
+[<FFFEFFFEFFFE0FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE0FFE0
+  FFE0FFE00000000000000000000000000F801FC03FE03FF03FF03FF03FF03FE01FC00F80> 15 43 -3 0 20] 105 @dc
+[<FFFE3FFF80FFFE3FFF80FFFE3FFF800FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F800
+  0FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FF003F8000FF003F800
+  0FF803F8000FF803F8000FDE07F8000FCF87F000FFC7FFE000FFC3FFC000FFC0FF0000> 33 27 -3 0 38] 110 @dc
+[<FFFE00000380FFFE00000780FFFE00000F80038000000F80038000001F80038000003F80038000007F8003800000FF800380
+  0001FF8003800001FF8003800003FF8003800007FF800380000FFF800380001FFF800380001FFB800380003FF3800380007F
+  E380038000FFE380038001FFC380038003FF8380038003FF0380038007FE038003800FFE038003801FFC038003803FF80380
+  03807FF0038003807FE003800380FFC003800381FFC003800383FF8003800387FF0003800387FE000380038FFC000380039F
+  FC00038003BFF800038003FFF000038003FFE000038003FFC0000380FFFF8000FFFEFFFF8000FFFEFFFF0000FFFE> 47 41 -3 0 54] 78 @dc
+[<E03FF800F1FFFE00FFFFFF80FFE01FC0FF0007E0FC0003E0F80003F0F00001F0F00001F8E00001F8E00001F8E00001F8E000
+  03F8000007F800000FF800001FF80003FFF8003FFFF001FFFFF007FFFFE00FFFFFC01FFFFFC03FFFFF807FFFFE007FFFF800
+  FFFFC000FFF80000FF800000FF0000E0FE0000E0FC0000E0FC0001E0FC0001E07C0003E07E0003E03E0007E03F001FE01FC0
+  FFE00FFFFFE003FFF1E000FF80E0> 29 41 -4 0 38] 83 @dc
+[<0F800000003FE00000007FF8000000F67C000000FE1C000000FE0E000000FE0F0000007C0700000038078000000003800000
+  00038000000001C000000001C000000003E000000003E000000007F000000007F00000000FF80000000FF80000000FF80000
+  001FDC0000001FDC0000003FDE0000003F8E0000007F8F0000007F070000007F07000000FE03800000FE03800001FC01C000
+  01FC01C00003FC01E00003F800E00007F800F00007F000700007F0007000FFFE03FF80FFFE03FF80FFFE03FF80> 33 39 -1 12 36] 121 @dc
+[<E1FF00FFFFC0FFFFF0FF03F8FC00F8F8007CF0007CE0007CE000FC0001FC0007FC01FFFC0FFFF81FFFF03FFFE07FFFC0FFFF
+  00FFE000FE0000FC0070F80070F800707C00F07E03F03FFFF01FFFF003FE70> 22 27 -2 0 27] 115 @dc
+[<003F8000FFE001FFF003F8F007F87807F03807F03807F03807F03807F03807F03807F00007F00007F00007F00007F00007F0
+  0007F00007F00007F00007F00007F00007F00007F000FFFFF0FFFFF0FFFFF01FF00007F00003F00001F00001F00000F00000
+  F000007000007000007000007000> 21 38 -1 0 27] 116 @dc
+cmr10.329 @sf
+[<00E001E003C0038007000F000E001E001C003C00380038007800780070007000F000F000F000F000F000F000F000F000F000
+  F000F000F000F000F0007000700078007800380038003C001C001E000E000F000700038003C001E000E0> 11 46 -3 12 18] 40 @dc
+[<E000F000780038001C001E000E000F00070007800380038003C003C001C001C001E001E001E001E001E001E001E001E001E0
+  01E001E001E001E001E001C001C003C003C003800380078007000F000E001E001C0038007800F000E000> 11 46 -3 12 18] 41 @dc
+[<FEFEC0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0C0FEFE> 7 45 -4 11 13] 91 @dc
+[<FFF060FFFEFFF0F0FFFE0F00F007C00600F007C00601F807C00601F807C00601F807C00603CC07C00603CC07C00603CC07C0
+  06078607C006078607C006078607C0060F0307C0060F0307C0060F0307C0061E0187C0061E0187C0063C00C7C0063C00C7C0
+  063C00C7C006780067C006780067C006780067C006F00037C006F00037C006F00037C007E0001FC007E0001FC0FFE0001FFE
+  FFC0000FFE> 39 31 -1 0 42] 77 @dc
+[<07F0001FFC003E1F00780780700380F001C0E001C0E001C0E003C0E007C0F00FC0781FC03C7F801FFF000FFF000FFC001FF8
+  003FFE003FCF007F07007C0780780380700380700380700780380F001E1F000FFE0003F800> 18 29 -2 0 23] 56 @dc
+[<FEFE0606060606060606060606060606060606060606060606060606060606060606060606060606060606FEFE> 7 45 -1 11 13] 93 @dc
+[<07F0003FFC007C3F00F81F00FC0F80FC07C0FC07C0FC07C07807C00007C00007C0000780000F80001F00003E0003F00003F8
+  00007E00001F00000F00000F807C0F807C0F807E0F807C0F807C0F003C3F001FFE0007F000> 18 29 -2 0 23] 51 @dc
+[<70F8F8F8700000000000000000000070F8F8F870> 5 20 -4 0 13] 58 @dc
+/cmtt10.329 @newfont
+cmtt10.329 @sf
+[<FE03F8FE03F8FE03F83800E03800E03800E03800E03800E03800E03870E03870E038F8E038F8E038D8E039DCE039DCE039DC
+  E0398CE0398CE03B8EE03B8EE03B06E03B06E03B06E03F07E0FE03F8FE03F8FC01F8> 21 28 -1 0 24] 77 @dc
+[<FFFFC0FFFFC0FFFFC001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E0
+  0001E00001E00001E00001E00001E00001E00001E00001E000FFFFC0FFFFC0FFFFC0> 18 28 -3 0 24] 73 @dc
+[<07FF8007FF8007FF800078000078000078000078000078000078000078000078000078000078000078000078000078000078
+  00007800007800007800007800F07878F07878F07878F07878FFFFF8FFFFF8FFFFF8> 21 28 -1 0 24] 84 @dc
+[<78FCFCFCFC78> 6 6 -9 0 24] 46 @dc
+[<FFFFF8FFFFF8FFFFF81E00781E00781E00781E00781E00781E00001E00001E1E001E1E001E1E001FFE001FFE001FFE001E1E
+  001E1E001E1E001E00001E00001E00F01E00F01E00F01E00F0FFFFF0FFFFF0FFFFF0> 21 28 -1 0 24] 69 @dc
+[<FFF800FFFE00FFFF001E0F801E07C01E03C01E03E01E01E01E01E01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00
+  F01E00F01E01F01E01E01E01E01E03E01E03C01E07C01E0F80FFFF00FFFE00FFF800> 20 28 -1 0 24] 68 @dc
+[<007C0001FF0007FFC00FC7E00F83E01F01F01F01F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00
+  F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F0FFC7FEFFC7FEFFC7FE> 23 28 0 0 24] 85 @dc
+[<00F80000F80001FC0001FC0001DC0001DC0001DC0003DE0003DE0003DE00038E00078F00078F00078F00078F000707000F07
+  800F07800F07800F07801E03C01E03C01E03C01E03C03E03E0FF8FF8FF8FF8FF8FF8> 21 28 -1 0 24] 86 @dc
+[<FF83C0FF87C0FF87C01C0FC01C0DC01C0DC01C1DC01C19C01C19C01C39C01C39C01C39C01C31C01C71C01C71C01C61C01CE1
+  C01CE1C01CE1C01CC1C01CC1C01DC1C01D81C01D81C01F81C0FF0FF8FF0FF8FE0FF8> 21 28 -1 0 24] 78 @dc
+[<FFC0F0FFC3F8FFC7FC1E07FC1E07BC1E07BC1E07801E07801E07801E07801E07801E0F801E1F001FFF001FFE001FFF001E1F
+  801E07801E07C01E03C01E03C01E03C01E07C01E07801E1F80FFFF00FFFE00FFF800> 22 28 -1 0 24] 82 @dc
+[<FFDFF8FFDFF8FFDFF81E03C01E03C01E03C00F07800FFF800FFF800FFF800F0780078F00078F00078F00078F00078F00038E
+  0003DE0003DE0003DE0003DE0001DC0001DC0001DC0001FC0000F80000F80000F800> 21 28 -1 0 24] 65 @dc
+[<E7FC00FFFF00FFFF80FE0FC0F803C0F003E0F001E0F001E00001E00003E00003E00007E0007FC007FF801FFF003FFC007FC0
+  00FE0000F80000F80000F00780F00780F80F80F80F807C1F803FFF801FFF8007F380> 19 28 -2 0 24] 83 @dc
+[<01FC0007FF000FFF801F8FC03F07E03E03E07C01E07C01E07801E0F80000F00000F00000F00000F00000F00000F00000F000
+  00F00000F800007801E07C01E07C03E03E03E03F07E01F8FE00FFFE007FFE001FCE0> 19 28 -2 0 24] 67 @dc
+[<FFFFF0FFFFF0FFFFF00F00F00F00F00F00F00F00F00F00F00F00000F00000F00000F00000F00000F00000F00000F00000F00
+  000F00000F00000F00000F00000F00000F00000F00000F0000FFF000FFF000FFF000> 20 28 -1 0 24] 76 @dc
+[<FF87F8FF87F8FF87F81C03C01C03C01C07801C07801C0F001C0F001E1E001F1E001F3C001FBC001FF8001FF8001DF0001CF0
+  001CF8001C7C001C3C001C1E001C1F001C0F801C07801C03C0FF87F8FF87F8FF87F8> 21 28 -1 0 24] 75 @dc
+[<000380000F80001F80003F8000FE0001FC0003F8000FE0001FC0003F8000FE0000FC0000FC0000FE00003F80001FC0000FE0
+  0003F80001FC0000FE00003F80001F80000F80000380> 17 24 -3 -2 24] 60 @dc
+[<FFFFC0FFFFC0FFFFC001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E00001E0
+  00FFE000FFE000FFE00000000000000000000000000001C00003E00003E00003E00001C000> 18 29 -3 0 24] 105 @dc
+[<FFFFF0FFFFF0FFFFF000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F0
+  0000F00000F00000F00000F00000F00000F00000F00000F000FFF000FFF000FFF000> 20 28 -2 0 24] 108 @dc
+[<01FE0007FF801FFFC03F87E07E03E07C01E0F80000F80000FFFFE0FFFFE0FFFFE0F001E0F801E0F803E07C03C07E07C03F0F
+  C01FFF8007FF0001F800> 19 20 -2 0 24] 101 @dc
+[<00FE0003FF8007FFE00F83E01F01E03E3E007C7F0078FF8071F7C0F1E3C0F3C1E0E3C1E0E380E0E380E0E380E0E380E0E3C1
+  E0F3C1E0F1E3E071F7E078FFE07C7FE03E3FC01F03C00F87C007FF8003FF0000FC00> 19 28 -2 0 24] 64 @dc
+[<E00000F80000FC0000FE00003F80001FC0000FE00003F80001FC0000FE00003F80001F80001F80003F8000FE0001FC0003F8
+  000FE0001FC0003F8000FE0000FC0000F80000E00000> 17 24 -3 -2 24] 62 @dc
+cmbx10.432 @sf
+[<FFFFFF80FFFFFF80FFFFFF807FFFFF803FFFFFC01FFFFFC00FFFFFC007FFFFC003C001C003E001C001F001C000F800E0007E
+  00E0003F00E0001F8000000FC0000007F0000003F8000003FC000001FE000000FF000000FF8000007FC000007FC000003FE0
+  00003FE03E003FE07F003FE0FF803FE0FF803FE0FF803FE0FF807FC0FF807FC07F00FF807E01FF803F83FF001FFFFC0007FF
+  F80000FFC000> 27 39 -3 0 34] 50 @dc
+[<FFFFC03FFFFEFFFFC03FFFFEFFFFC03FFFFE01F00001FF8000F80003FF00007C0007FE00003C0007FE00003E000FFC00001F
+  001FF800000F801FF800000F803FF0000007C07FE0000003E0FFE0000001F0FFC0000001F1FF80000000FBFF000000007FFF
+  000000007FFE000000003FFC000000001FFC000000001FF8000000003FF0000000003FF0000000007FE000000000FFE00000
+  0001FFF000000001FFF800000003FF7C00000007FF7C00000007FE3E0000000FFC1F0000001FF81F0000001FF80F8000003F
+  F007C000007FE003E000007FE003E00000FFC001F00001FF8000F8007FFFFC3FFFF07FFFFC3FFFF07FFFFC3FFFF0> 47 41 -2 0 52] 88 @dc
+[<1E007F807F80FFC0FFC0FFC0FFC07F807F801E00> 10 10 -4 0 19] 46 @dc
+[<00FF800007FFF0000FFFFC003F83FE003C00FF007C007F80FF007FC0FF003FC0FF803FE0FF803FE0FF803FE0FF003FE07F00
+  3FE03C003FE000003FE000003FE000003FC000003FC01E007F801F007F801FC1FF001FFFFE001FFFF8001E7FC0001E000000
+  1E0000001E0000001E0000001E0000001FFE00001FFF80001FFFE0001FFFF0001FFFFC001FFFFC001FFFFE001FFFFF001F80
+  3F001C000700> 27 39 -3 0 34] 53 @dc
+[<003F800001FFF00007FFFC000FE0FE001FC07F001F803F003F803F803F001F807F001FC07F001FC07F001FC07F001FC0FF00
+  1FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0FF001FE0
+  FF001FE0FF001FE07F001FC07F001FC07F001FC07F001FC03F001F803F803F801F803F001FC07F000FE0FE0007FFFC0001FF
+  F000003F8000> 27 39 -3 0 34] 48 @dc
+cmr12.300 @sf
+[<FFFE7FFFFFFE7FFF07C003E007C003E007C003E007C003E007C003E007C003E007C003E007C003E007C003E007C003E007C0
+  03E007C003E007C003E007C003E007C003E007FFFFE007FFFFE007C003E007C003E007C003E007C003E007C003E007C003E0
+  07C003E007C003E007C003E007C003E007C003E007C003E007C003E0FFFE7FFFFFFE7FFF> 32 34 -2 0 37] 72 @dc
+[<03FC000FFF001F87803E01803C01C07800C0780000F00000F00000F00000F00000F00000F00000F000007800007807003C0F
+  803E0F801F0F800FFF8003FE00> 18 21 -2 0 22] 99 @dc
+[<01F007F807980F1C0F0C0F0C0F0C0F0C0F0C0F000F000F000F000F000F000F000F000F000F00FFF8FFF83F001F000F000700
+  070007000300030003000300> 14 31 -1 0 19] 116 @dc
+[<FFF0FFF00F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F00
+  0F000F000F000F000F000F001F00FF00FF000F00> 12 35 0 0 13] 108 @dc
+[<FFE0FFE0FFE0> 11 3 -1 -9 16] 45 @dc
+[<FFFE0FFF80FFFE0FFF8007C003FC0007C003F80007C003F00007C007E00007C007E00007C00FC00007C00F800007C01F8000
+  07C03F000007C03F000007C07E000007E07C000007F0FC000007F9F8000007DDF8000007CFF0000007CFE0000007C7E00000
+  07C3C0000007C1C0000007C0E0000007C070000007C038000007C01C000007C00E000007C007000007C003800007C001C000
+  07C001E00007C003F800FFFE07FF00FFFE07FF00> 33 34 -2 0 38] 75 @dc
+[<FFFE0000FFFE000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0000007C0
+  000007C0000007C0000007FFF00007FFFC0007C03F0007C00F8007C0078007C003C007C003C007C003E007C003E007C003E0
+  07C003E007C003E007C003C007C003C007C0078007C00F8007C03F00FFFFFC00FFFFF000> 27 34 -2 0 33] 80 @dc
+[<03FE000FFF803F07E07C01F0F00078F00078E00038E00038E000787000787C01F81FFFF00FFFE01FFFC01FFF001C00001800
+  001800001BF8001FFC001F1F001E0F003C07803C07803C07803C07803C07803C07801E0F381F1F7807FFF803F8F0> 21 32 -1 11 24] 103 @dc
+1 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmbx10.432 @sf
+224 195 p 49 c
+69 r (The) s
+23 r (Dom) s
+-1 r (ain) s
+21 r (Nam) s
+-1 r 101 c
+21 r (System) s
+cmr10.329 @sf
+224 316 p (The) s
+18 r (Domain) s
+16 r (\(Nameserv) s
+-1 r (er\)) s
+16 r (System) s
+17 r (\(DNS\)) s
+17 r (pro) s
+(vides) s
+16 r 97 c
+18 r (hierarc) s
+(hical) s
+15 r (resource) s
+224 373 p (lab) s
+1 r (elling) s
+14 r (system) s
+14 r 91 c
+(Mo) s
+1 r (c87a) s
+-1 r 93 c
+14 r 91 c
+(Mo) s
+1 r (c87b) s
+93 c
+14 r 91 c
+(Lar83) s
+-1 r (].) s
+20 r (Example) s
+14 r (domains) s
+13 r (are:) s
+cmtt10.329 @sf
+224 498 p (MIT.EDU) s
+224 555 p (VENERA.ISI.EDU) s
+224 611 p (CS.UCL.AC.UK) s
+cmr10.329 @sf
+224 737 p (En) s
+(tries) s
+16 r (usually) s
+18 r (ha) s
+118 c
+-1 r 101 c
+16 r 97 c
+18 r (single) s
+18 r (name,) s
+17 r (although) s
+17 r 112 c
+1 r (oin) s
+(ters) s
+17 r (to) s
+17 r (en) s
+(tries) s
+17 r (\(not) s
+17 r (sub-) s
+224 794 p (trees\)) s
+13 r (ma) s
+121 c
+12 r 98 c
+1 r 101 c
+14 r (pro) s
+(vided) s
+13 r 98 c
+121 c
+13 r (CNAME) s
+13 r (records.) s
+19 r (Information) s
+12 r (\(resource) s
+14 r (records\)) s
+224 850 p (is) s
+15 r (asso) s
+1 r (ciated) s
+15 r (with) s
+15 r (eac) s
+104 c
+14 r (en) s
+(try) s
+-3 r 46 c
+19 r (Name) s
+14 r (comp) s
+1 r (onen) s
+(ts) s
+14 r (are) s
+15 r 116 c
+(ypically) s
+13 r 99 c
+(hosen) s
+15 r (to) s
+15 r 98 c
+1 r 101 c
+224 907 p (shortish) s
+14 r (\(e.g.,) s
+14 r (\\CS"\).) s
+224 983 p (RF) s
+67 c
+14 r (822) s
+14 r (mailb) s
+1 r 111 c
+-1 r 120 c
+13 r (names) s
+14 r (are) s
+15 r (closely) s
+15 r (related) s
+14 r 91 c
+(Cro82) s
+-1 r (].) s
+19 r 70 c
+-3 r (or) s
+14 r (example:) s
+cmtt10.329 @sf
+338 1108 p (<S.Kille@CS.UCL.A) s
+-1 r (C.UK>) s
+cmr10.329 @sf
+224 1234 p (The) s
+14 r (lo) s
+1 r (cal-part) s
+13 r (of) s
+14 r (the) s
+14 r (RF) s
+67 c
+13 r (822) s
+13 r (mailb) s
+1 r 111 c
+-1 r 120 c
+11 r (can) s
+15 r 98 c
+1 r 101 c
+14 r (considered) s
+15 r (as) s
+13 r (one) s
+15 r (lev) s
+(el) s
+12 r (lo) s
+119 c
+-1 r (er) s
+224 1291 p (in) s
+15 r (the) s
+15 r (domain) s
+14 r (hierarc) s
+104 c
+-1 r 121 c
+-3 r 46 c
+cmbx10.432 @sf
+224 1453 p 50 c
+69 r (X.500) s
+cmr10.329 @sf
+224 1574 p (The) s
+14 r (OSI) s
+14 r (Directory) s
+-3 r 44 c
+11 r (usually) s
+12 r (kno) s
+(wn) s
+12 r (as) s
+13 r (X.500,) s
+12 r (pro) s
+(vides) s
+12 r 97 c
+13 r 118 c
+(ery) s
+11 r (general) s
+13 r (naming) s
+224 1631 p (framew) s
+-1 r (ork) s
+15 r 91 c
+(CCI88) s
+-1 r (].) s
+26 r 65 c
+17 r (basic) s
+17 r (usage) s
+18 r (of) s
+17 r (X.500) s
+16 r (is) s
+17 r (to) s
+16 r (pro) s
+(vide) s
+16 r (Organisationally) s
+224 1687 p (Structured) s
+14 r (Names.) s
+18 r 65 c
+14 r (Sc) s
+(hema) s
+11 r (for) s
+13 r (this) s
+13 r (is) s
+13 r (de\014ned) s
+15 r (within) s
+13 r (the) s
+14 r (standard.) s
+19 r (Name) s
+224 1744 p (comp) s
+1 r (onen) s
+(ts) s
+13 r (will) s
+12 r 116 c
+(ypically) s
+12 r (ha) s
+118 c
+101 c
+12 r (longish) s
+13 r 118 c
+-2 r (alues.) s
+19 r (This) s
+14 r (is) s
+14 r (an) s
+14 r (example) s
+13 r (directory) s
+224 1800 p (name) s
+14 r (represen) s
+(ted) s
+15 r (in) s
+15 r 84 c
+-3 r (abular) s
+14 r (form:) s
+472 1922 p (Coun) s
+(try) s
+280 r (GB) s
+472 1979 p (Organisation) s
+189 r (Univ) s
+(ersit) s
+-2 r 121 c
+13 r (College) s
+15 r (London) s
+472 2035 p (Organisational) s
+13 r (Unit) s
+50 r (Computer) s
+13 r (Science) s
+472 2092 p (Commo) s
+-1 r 110 c
+14 r (Name) s
+135 r (Stephen) s
+16 r (E.) s
+15 r (Hardcastle-Kille) s
+224 2214 p (This) s
+17 r (can) s
+18 r (also) s
+16 r 98 c
+1 r 101 c
+19 r (written) s
+16 r (in) s
+18 r (the) s
+17 r (\\User) s
+17 r 70 c
+-3 r (riendly) s
+16 r (Name") s
+17 r (notation) s
+16 r (de\014ned) s
+19 r (in) s
+224 2270 p 91 c
+(HK91) s
+(].) s
+19 r (This) s
+15 r (syn) s
+(tax) s
+13 r (is) s
+15 r (used) s
+16 r (for) s
+14 r (names) s
+15 r (in) s
+15 r (the) s
+15 r (rest) s
+15 r (of) s
+14 r (this) s
+15 r (do) s
+1 r (cumen) s
+(t:) s
+338 2396 p (Stephen) s
+16 r (E.) s
+15 r (Hardcastle-Kille,) s
+13 r (Computer) s
+14 r (Science,) s
+338 2452 p (Univ) s
+(ersit) s
+-2 r 121 c
+14 r (College) s
+14 r (London,) s
+15 r (GB) s
+224 2578 p (This) s
+14 r 116 c
+(yp) s
+1 r 101 c
+14 r (of) s
+14 r (structure) s
+14 r (is) s
+14 r (termed) s
+13 r (\\organisational) s
+12 r (X.500".) s
+18 r (This) s
+14 r (is) s
+14 r 97 c
+14 r (subset) s
+15 r (of) s
+224 2635 p (the) s
+15 r (general) s
+15 r (capabilities.) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 49 c
+@eop
+2 @bop0
+cmbx10.432 @sf
+[<00FFC00007FFF8001FFFFC003F83FF007F01FF807F80FF80FFC0FFC0FFC07FC0FFC07FE0FFC07FE0FFC07FE07F807FE07F80
+  7FE01E007FE000007FE000007FC00000FFC00000FF800001FF000003FE0000FFF80000FFC00000FFF0000007F8000003FC00
+  0001FE000F81FF001FC0FF003FE0FF803FE0FF803FE0FF803FE0FF803FE0FF803FC0FF801F81FF000FC3FE0007FFFC0003FF
+  F80000FFC000> 27 39 -3 0 34] 51 @dc
+[<0E01FE00000F07FFC0000F9FFFF0000FFE0FF8000FF803FC000FF001FE000FE000FE000FE000FF000FE0007F000FE0007F80
+  0FE0007F800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F000FE000FF00
+  0FE000FE000FF001FE000FF801FC000FFF07F8000FFFFFF0000FE7FFC0000FE1FF00000FE00000000FE00000000FE0000000
+  0FE00000000FE00000000FE00000000FE00000000FE00000000FE00000000FE00000000FE00000000FE0000000FFE0000000
+  FFE0000000FFE0000000> 33 42 -2 0 38] 98 @dc
+[<003FF00001FFFC0007FFFF000FFC0F801FF003803FC003C03FC001C07F8000007F800000FF000000FF000000FF000000FF00
+  0000FF000000FF000000FF000000FF000000FF0000007F003F007F807F803F807F803FC07F801FE07F800FF87F8007FFFF00
+  01FFFE00003FF800> 26 27 -2 0 31] 99 @dc
+[<007FC3FF8001FFF3FF8007FFFBFF800FF07FF8001FC01FF8003FC00FF8003F8007F8007F8003F8007F0003F800FF0003F800
+  FF0003F800FF0003F800FF0003F800FF0003F800FF0003F800FF0003F800FF0003F800FF0003F8007F0003F8007F8003F800
+  3F8003F8003FC007F8001FE00FF8000FF83FF80007FFFFF80001FFFBF800003FC3F800000003F800000003F800000003F800
+  000003F800000003F800000003F800000003F800000003F800000003F800000003F800000003F800000003F80000003FF800
+  00003FF80000003FF800> 33 42 -2 0 38] 100 @dc
+[<FFFEFFFEFFFE0FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE0
+  0FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE00FE0FFE0FFE0FFE0> 15 42 -3 0 20] 108 @dc
+/cmti10.329 @newfont
+cmti10.329 @sf
+[<FFF80000FFF800000F800000078000000780000007C0000007C0000003C0000003C0000003E0000003E0000001E0000001E0
+  000001F0000001FFF80000FFFF0000F00F8000F803E000F801E0007800F0007800F8007C00F8007C007C003C007C003C007C
+  003E007C003E0078001E0078001E01F001FFFFE001FFFF80> 30 31 -3 0 31] 80 @dc
+[<1F0F803FDFC079FCC0707CE0F03C60F03C60F03E70F01E00F01E00F81E00781F00780F00780F003C0F003C0F801E07800F0F
+  80079FC003FFC000FB80> 20 20 -4 0 23] 97 @dc
+[<03E3E007FFF00F3F300F0F380F0F180F0F180F0F9C0F07800F07800F87800787C00783C007C3C0E3C3C063C3E063E1E071E1
+  E039E1F01FC1F00F80E0> 22 20 -3 0 24] 117 @dc
+[<3E007F00F300F380F180F980F9C0780078007C007C003C003C003E003E001E001E001F001F000F000F000F800F8007800780
+  07C007C003C003C01FE01FE003E0> 11 32 -3 0 12] 108 @dc
+[<FFE183FFE000FFE1C3FFE0001F01C03E00000E01E01E00000601F01E00000701F01F00000301D81F00000303980F00000303
+  8C0F000003838C0F80000183860F800001838307800001838307800001C38187C00000C38187C00000C380C3C00000C380C3
+  C00000E38063E00000638033E00000638031E00000638019E00000770019F0000037000DF0000037000CF00000370006F000
+  003F0003F800001F0003F800001F0001F800001F0001FC0001FF0000FFC001FF0000FFC0> 42 31 -3 0 41] 77 @dc
+[<0FC0003FF8003C7C00781E00700F00F00780F00780F003C0F003C0F803E07803E07801E07801E03C01E03C01E01E01C00F03
+  C007C78003FF80007E00> 19 20 -4 0 23] 111 @dc
+[<0FE0003FFC003C3E00780700700300F00000F00000F00000F00000F800007800007800007800003C02003C07801E07800F07
+  8007C38003FF00007E00> 17 20 -4 0 21] 99 @dc
+[<700F80F81FC0783DC0783CE0783C607C3C603C3E703C3E003C7C003FFC001FF0001FC0001FC0001FE0E00F70F00F38F00F1C
+  F00F8E300787F00781E007800007C00003C00003C00003C00003E00001E00001E00001E0000FF0000FF00001F000> 20 32 -2 0 21] 107 @dc
+[<FFE000FFE0001F00001F00000F00000F00000F80000F800007800007BE0007FF8007F3C003E1E003C0F003E07803E07801E0
+  3C01E03C01F03E01F03E00F01E00F01E1CF81E0CF81E0C781E0E7C1C067F3C07F7F803E1F0> 23 29 0 9 23] 112 @dc
+[<0FE0001FFC003C3E00780700700300700000F00000F00000F00000F800007FF0007FFC00781F007C07003C03801E01800F03
+  8007C78003FF0000FE00> 17 20 -4 0 21] 101 @dc
+[<1F003F8079C078E078607C607C703C003C003E003E001E001E001F001F000F000F000F80FFF0FFF0078007C007C003C003C0
+  03E003E001C0> 12 28 -4 0 15] 116 @dc
+[<1C00003E00001E00001E00001E00001F00000F00000F00000F00000F8000078000078000078000E7C38063C3C063C3C073E3
+  C033F1C03FBF801F1F00> 18 20 -3 0 19] 114 @dc
+[<1F003F803DC03CE03C603E601E701E001F000F000F000F800780E78067C063C073C03BC01FC00F8000000000000000000000
+  0000000000E000F000F000F0> 12 31 -3 0 14] 105 @dc
+[<1FC07FF0F078F03CF01CF01C701E003E03FE07FE0FFC1FF81FF01F000E0F0E0F0F0F078703FE00FC> 16 20 -3 0 19] 115 @dc
+cmr10.329 @sf
+[<FFC3FF00FFC3FF000F00F0000F00F0000F00F0000F00F0000F00F0000F00F0000F00F0000F00F0000F00F0000F00F0000F00
+  F0000F00F0000F00F0000F00F0000F00F0000F00F000FFFFFF80FFFFFF800F00F0000F00F0000F00F0000F00F0000F00F000
+  0F00F0000F01F07C0781F87C07C1FC7C03F1FE7C00FFFFF8001FC3F0> 30 32 0 0 27] 11 @dc
+/cmsy10.329 @newfont
+cmsy10.329 @sf
+[<07E01FF83FFC7FFE7FFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF7FFE7FFE3FFC1FF807E0> 16 18 -3 -2 23] 15 @dc
+cmti10.329 @sf
+[<1C01F03E03F81E079C1E078E1E07C61F03C60F03C70F03E00F01E00F81E00781F00780F00780F0E7C0F063C0F863E07873F0
+  7833F8F03F9FF01F0FC0> 24 20 -3 0 26] 110 @dc
+cmr10.329 @sf
+[<3F807FE0F9F0F8F0F87870780078007800780078007800780078007800780078007800780078007800780078007800780078
+  00F807F807F80078000000000000000000000000007000F800F800F80070> 13 40 3 9 14] 106 @dc
+cmbx10.432 @sf
+[<007FFFF8007FFFF8007FFFF80000FF000000FF000000FF000000FF000000FF000000FF000000FF00FFFFFFF8FFFFFFF8FFFF
+  FFF8F0007F0078007F003C007F001E007F001E007F000F007F0007807F0003C07F0001C07F0001E07F0000F07F0000787F00
+  003C7F00003C7F00001E7F00000F7F000007FF000003FF000003FF000001FF000000FF0000007F0000007F0000003F000000
+  1F0000000F00> 29 39 -2 0 34] 52 @dc
+[<FFFFF800FFF0FFFFF807FFFCFFFFF80FFFFE03FE001FFE1F03FE003FFC0F03FE003FF80703FE003FF00703FE003FF00003FE
+  003FF00003FE003FF00003FE003FF00003FE003FE00003FE003FE00003FE003FE00003FE003FE00003FE007FC00003FE007F
+  C00003FE00FF800003FE01FF000003FFFFFE000003FFFFFE000003FFFFFF800003FE007FE00003FE001FF00003FE000FF800
+  03FE0007FC0003FE0007FC0003FE0007FE0003FE0007FE0003FE0007FE0003FE0007FE0003FE0007FE0003FE0007FE0003FE
+  0007FC0003FE0007FC0003FE000FF80003FE001FF00003FE007FE000FFFFFFFF8000FFFFFFFE0000FFFFFFE00000> 48 41 -3 0 52] 82 @dc
+[<FFFE000000FFFE000000FFFE0000000FE00000000FE00000000FE00000000FE00000000FE00000000FE00000000FE0000000
+  0FE00000000FE00000000FE1FE00000FE7FFC0000FFFFFF0000FFE0FF8000FF803FC000FF001FE000FE001FE000FE000FF00
+  0FE000FF000FE000FF800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F800FE0007F80
+  0FE000FF000FE000FF000FE001FE000FF001FE000FF803FC000FFF0FF800FFFFFFF000FFE7FFC000FFE1FF0000> 33 39 -2 12 38] 112 @dc
+[<FFFF00FFFF00FFFF000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE0000FE0
+  000FE0000FF07E0FF0FF0FF0FF0FF8FF0FF8FF0FDCFFFFDFFEFFCFFCFFC7F0> 24 27 -2 0 28] 114 @dc
+[<00FFF80007FFFF001FFFFFC03FE03FE07F0007F07E0003F0FE0003F8FC0001F8FC0001F8FC0001F8FE0003F87E000FF83FFF
+  FFF01FFFFFF00FFFFFE01FFFFFC03FFFFF003FFFFC003E0000003C0000003C0000003800000038FF80001FFFF0000FFFF800
+  1FC1FC003F80FE003F007E007F007F007F007F007F007F007F007F007F007F007F007F003F007E783F80FE7C1FC1FEFC0FFF
+  FFFC07FFF7FC00FF81F0> 30 40 -2 13 34] 103 @dc
+2 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmbx10.432 @sf
+224 195 p 51 c
+69 r (The) s
+23 r (basic) s
+22 r (m) s
+-1 r 111 c
+2 r (del) s
+cmr10.329 @sf
+338 315 p (X.500) s
+19 r (has) s
+20 r (as) s
+20 r 109 c
+-1 r (uc) s
+104 c
+18 r (relation) s
+19 r (to) s
+19 r (the) s
+21 r (DNS) s
+20 r (as) s
+20 r (DNS) s
+20 r (has) s
+20 r (to) s
+20 r (ARP) s
+-3 r 46 c
+cmti10.329 @sf
+338 371 p (Paul) s
+16 r (Mo) s
+-1 r (ckap) s
+-1 r (etris) s
+cmr10.329 @sf
+224 493 p (This) s
+22 r (is,) s
+23 r (essen) s
+(tiall) s
+-1 r 121 c
+-4 r 44 c
+22 r (the) s
+22 r 112 c
+1 r (osition) s
+21 r (adopted) s
+22 r (here.) s
+41 r (The) s
+22 r (basic) s
+22 r (mo) s
+1 r (del) s
+21 r (is) s
+21 r (that) s
+224 550 p (organisational) s
+8 r (X.500) s
+10 r (is) s
+11 r (pro) s
+(viding) s
+8 r 97 c
+11 r (la) s
+121 c
+-1 r (er) s
+9 r (of) s
+10 r (naming) s
+10 r (at) s
+10 r (the) s
+11 r (lev) s
+(el) s
+9 r (ab) s
+1 r 111 c
+118 c
+101 c
+9 r (domain) s
+224 606 p (names.) s
+24 r (These) s
+17 r (structured) s
+17 r (names) s
+16 r (can) s
+17 r 98 c
+1 r 101 c
+17 r (considered) s
+18 r (to) s
+16 r (form) s
+15 r 97 c
+16 r (naming) s
+16 r (la) s
+121 c
+-1 r (er) s
+224 663 p (ab) s
+1 r 111 c
+118 c
+101 c
+13 r (domain) s
+14 r (names.) s
+18 r (There) s
+16 r (are) s
+15 r (the) s
+15 r (follo) s
+-1 r (wing) s
+13 r 107 c
+(ey) s
+14 r (di\013erences:) s
+cmsy10.329 @sf
+292 785 p 15 c
+cmr10.329 @sf
+23 r (Organisational) s
+13 r (X.500) s
+14 r (tends) s
+15 r (to) s
+15 r (use) s
+15 r (longer) s
+15 r (and) s
+15 r (more) s
+14 r (descriptiv) s
+101 c
+14 r 118 c
+-2 r (alues) s
+cmsy10.329 @sf
+292 878 p 15 c
+cmr10.329 @sf
+23 r (The) s
+15 r (organisati) s
+-1 r (onal) s
+12 r (X.500) s
+13 r (DIT) s
+15 r (is) s
+14 r (sligh) s
+(t) s
+-1 r (ly) s
+13 r (shallo) s
+-1 r 119 c
+-1 r (er) s
+12 r (than) s
+15 r (the) s
+14 r (DNS) s
+15 r (tree) s
+cmsy10.329 @sf
+292 971 p 15 c
+cmr10.329 @sf
+23 r (X.500) s
+14 r (has) s
+15 r 97 c
+15 r (ric) s
+(her) s
+14 r (informa) s
+-1 r (tio) s
+-1 r 110 c
+14 r (framew) s
+-1 r (or) s
+-1 r 107 c
+14 r (than) s
+15 r (DNS) s
+224 1093 p (These) s
+16 r (di\013erences) s
+15 r (suggest) s
+15 r (that) s
+14 r (the) s
+15 r (follo) s
+(wi) s
+-1 r (ng) s
+13 r (should) s
+16 r (NOT) s
+15 r 98 c
+1 r 101 c
+16 r (done:) s
+cmsy10.329 @sf
+292 1204 p 15 c
+cmr10.329 @sf
+23 r (Represen) s
+116 c
+15 r (X.500) s
+14 r (informat) s
+-1 r (ion) s
+13 r (in) s
+15 r (the) s
+15 r (DNS) s
+cmsy10.329 @sf
+292 1296 p 15 c
+cmr10.329 @sf
+23 r (Ha) s
+118 c
+-1 r 101 c
+13 r (an) s
+16 r (algorit) s
+-1 r (hmi) s
+-1 r 99 c
+14 r (mapping) s
+13 r 98 c
+1 r (et) s
+119 c
+(een) s
+14 r (the) s
+15 r 116 c
+119 c
+-1 r 111 c
+13 r (hierarc) s
+(hies) s
+224 1407 p (This) s
+12 r (note) s
+12 r (prop) s
+1 r (oses) s
+12 r (to) s
+11 r (represen) s
+116 c
+11 r (DNS) s
+12 r (informatio) s
+-1 r 110 c
+11 r (in) s
+11 r (the) s
+13 r (DIT,) s
+11 r (and) s
+13 r (to) s
+11 r (pro) s
+(vide) s
+224 1464 p (for) s
+16 r 97 c
+17 r (lo) s
+1 r (ose) s
+16 r (coupling) s
+16 r 98 c
+1 r (et) s
+119 c
+(een) s
+15 r (the) s
+17 r 116 c
+119 c
+-1 r 111 c
+15 r (trees.) s
+24 r (This) s
+16 r (note) s
+17 r (do) s
+1 r (es) s
+cmti10.329 @sf
+17 r (not) s
+cmr10.329 @sf
+17 r (prop) s
+1 r (ose) s
+17 r (an) s
+224 1520 p (equiv) s
+-2 r (alencing) s
+14 r (of) s
+15 r (X.500) s
+14 r (and) s
+16 r (Domai) s
+-1 r (ns.) s
+224 1596 p (The) s
+17 r (prop) s
+1 r (osed) s
+16 r (mo) s
+1 r (del) s
+16 r (is) s
+15 r (illustrated) s
+15 r (in) s
+16 r (Figure) s
+16 r (1.) s
+23 r (Both) s
+16 r (an) s
+16 r (organisatio) s
+-1 r (nal) s
+14 r (and) s
+224 1653 p (domain) s
+18 r (structure) s
+19 r (is) s
+19 r (represen) s
+(ted) s
+19 r (in) s
+19 r (the) s
+20 r (DIT,) s
+19 r 98 c
+121 c
+18 r (use) s
+20 r (of) s
+19 r (appropriate) s
+18 r (ob) s
+3 r (ject) s
+224 1709 p (classes) s
+19 r (and) s
+20 r (attribute) s
+19 r 116 c
+(yp) s
+1 r (es.) s
+32 r 65 c
+20 r 119 c
+(eak) s
+18 r (link) s
+-2 r (age) s
+18 r (is) s
+20 r (pro) s
+(vided) s
+18 r 98 c
+1 r (et) s
+119 c
+(een) s
+18 r (the) s
+20 r 116 c
+119 c
+-1 r 111 c
+224 1765 p (parts) s
+14 r (of) s
+14 r (the) s
+15 r (tree) s
+14 r 98 c
+121 c
+14 r (use) s
+15 r (of) s
+14 r (sp) s
+1 r (ecial) s
+14 r (attributes.) s
+19 r (Here,) s
+14 r (the) s
+15 r (link) s
+-2 r (age) s
+13 r (is) s
+14 r (1:1,) s
+14 r (but) s
+14 r (it) s
+224 1822 p (ma) s
+-1 r 121 c
+15 r 98 c
+1 r 101 c
+17 r (more) s
+16 r (complex) s
+15 r (for) s
+16 r (some) s
+16 r (parts) s
+16 r (of) s
+16 r (the) s
+17 r (organisati) s
+-1 r (onal) s
+14 r (DIT) s
+17 r (or) s
+16 r (domain) s
+224 1878 p (namespace.) s
+18 r (The) s
+13 r (link) s
+-2 r (age) s
+10 r (is) s
+12 r (ac) s
+(hiev) s
+-1 r (ed) s
+11 r 98 c
+121 c
+11 r (use) s
+12 r (of) s
+12 r (sp) s
+1 r (ecial) s
+12 r (attributes,) s
+11 r (as) s
+12 r (describ) s
+1 r (ed) s
+224 1935 p (in) s
+15 r (Section) s
+15 r (11.) s
+cmbx10.432 @sf
+224 2097 p 52 c
+69 r (Represen) s
+-1 r (ti) s
+-1 r (ng) s
+22 r (Dom) s
+-1 r (ai) s
+-1 r (ns) s
+22 r (in) s
+22 r (X.500) s
+cmr10.329 @sf
+224 2218 p (Domains) s
+15 r (are) s
+17 r (at) s
+16 r (the) s
+17 r (lev) s
+(el) s
+15 r 98 c
+1 r (elo) s
+119 c
+16 r (X.500) s
+16 r (names) s
+15 r (of) s
+17 r (the) s
+17 r (form) s
+15 r (illustrated) s
+16 r (in) s
+16 r (the) s
+224 2275 p (previous) s
+19 r (section.) s
+30 r (Ho) s
+119 c
+-1 r (ev) s
+-1 r (er,) s
+17 r (it) s
+18 r (is) s
+19 r (also) s
+17 r 112 c
+1 r (ossible) s
+19 r (to) s
+18 r (use) s
+19 r (X.500) s
+18 r (in) s
+19 r (other) s
+18 r 119 c
+97 c
+-1 r (ys.) s
+224 2331 p (In) s
+16 r (particular,) s
+15 r (there) s
+15 r (are) s
+16 r 98 c
+1 r (ene\014ts) s
+16 r (from) s
+14 r (represen) s
+(ting) s
+15 r (Domai) s
+-1 r (ns) s
+14 r (in) s
+16 r (X.500.) s
+20 r (Note) s
+224 2387 p (that) s
+15 r (this) s
+15 r (is) s
+14 r 118 c
+(ery) s
+14 r (di\013eren) s
+116 c
+14 r (to) s
+15 r (equiv) s
+-2 r (alencing,) s
+14 r (as) s
+15 r (no) s
+15 r (attempt) s
+13 r (is) s
+15 r (made) s
+14 r (to) s
+15 r (repre-) s
+224 2444 p (sen) s
+116 c
+15 r (X.500) s
+14 r (informati) s
+-1 r (on) s
+14 r (within) s
+15 r (the) s
+16 r (domain) s
+14 r (sc) s
+(heme.) s
+20 r (There) s
+16 r (are) s
+15 r (the) s
+16 r (follo) s
+-1 r (wing) s
+224 2500 p 112 c
+1 r (oten) s
+(tial) s
+13 r (adv) s
+-2 r (an) s
+(tag) s
+-1 r (es:) s
+cmsy10.329 @sf
+292 2623 p 15 c
+cmr10.329 @sf
+23 r (Domai) s
+-1 r 110 c
+14 r (Services) s
+16 r (\(DNS) s
+15 r (and) s
+16 r (NRS\)) s
+15 r (could) s
+16 r 98 c
+1 r 101 c
+16 r (replaced) s
+16 r (with) s
+15 r (an) s
+15 r (OSI) s
+16 r (ser-) s
+338 2679 p (vice) s
+18 r (\(some) s
+16 r (ma) s
+-1 r 121 c
+16 r (not) s
+17 r (view) s
+18 r (this) s
+17 r (as) s
+18 r (an) s
+17 r (adv) s
+-2 r (an) s
+(tage\).) s
+25 r (This) s
+18 r (is) s
+17 r (particularly) s
+338 2736 p (attractiv) s
+-1 r 101 c
+14 r (for) s
+16 r (OSI) s
+18 r (services,) s
+16 r (where) s
+17 r (use) s
+16 r (of) s
+16 r 97 c
+17 r (non-OSI) s
+17 r (directory) s
+16 r (ma) s
+-1 r 121 c
+15 r 98 c
+1 r 101 c
+338 2792 p (inappropriate.) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 50 c
+@eop
+3 @bop0
+/linew10.300 @newfont
+linew10.300 @sf
+[<700000000000FC0000000000FF00000000007FC0000000001FF00000000007FC0000000001FF00000000007FC0000000001F
+  F00000000007FC0000000001FF00000000007FC0000000001FF00000000007FC0000000001FF00000000007FC0000000001F
+  F00000000007FC0000000001FF00000000007FC0000000001FF00000000007FC0000000001FC00000000007C00000000001C> 46 25 2 2 0] 8 @dc
+[<010000000180000003C0000003E0000007F0000007F000000FF800000FFC00001FFE00001FFF00003FFF80003FFFC0007FFF
+  E0007FFFF000FFFFF800FFFFFC00001FFE0000001F0000000080> 25 19 -16 -2 0] 42 @dc
+[<800000007C0000003FFC00001FFFFF800FFFFF8007FFFF0003FFFF0001FFFE0000FFFE00007FFC00003FFC00001FF800000F
+  F8000007F0000007F0000003E0000001E0000000C00000004000> 26 19 -1 0 0] 25 @dc
+[<7000F000F000F000F8007800780078007C003C003C003C003E001E001E001E001F000F000F000F000F800780078007800780
+  07C003C003C003C003E001E001E001E001F000F000F000F000F8007800780078007C003C003C003C001C> 14 46 2 2 0] 3 @dc
+[<0001C00003C00003C00007C0000780000780000F80000F00000F00001F00001E00001E00003E00003C00003C00007C000078
+  0000780000F80000F00000F00001F00001E00001E00003E00003C00003C00007C0000780000780000F80000F00000F00001F
+  00001E00001E00003E00003C00003C00007C0000780000780000F80000F00000F00000700000> 18 46 2 2 0] 66 @dc
+[<00000000001C00000000007C0000000000FC0000000003FC0000000007F0000000000FE0000000003F80000000007F000000
+  0000FE0000000003F80000000007F0000000000FE0000000003F80000000007F0000000000FE0000000003F80000000007F0
+  000000001FE0000000003F80000000007F0000000001FC0000000003F80000000007F0000000001FC0000000003F80000000
+  007F0000000001FC0000000003F80000000007F0000000001FC0000000003F80000000007F0000000000FC0000000000F800
+  00000000700000000000> 46 35 2 2 0] 90 @dc
+[<700000000000F80000000000FC00000000007F00000000003F80000000001FE00000000007F00000000003FC0000000000FE
+  00000000007F80000000001FC0000000000FF00000000003F80000000001FE00000000007F00000000003FC0000000000FE0
+  0000000007F80000000001FC0000000000FF00000000003F80000000001FE00000000007F00000000003FC0000000000FE00
+  000000007F80000000001FC0000000000FF00000000003F80000000001FC00000000007C00000000001C> 46 32 2 2 0] 17 @dc
+cmr10.329 @sf
+[<FFFFFFF0FFFFFFF00000000000000000000000000000000000000000000000000000000000000000FFFFFFF0FFFFFFF0> 28 12 -3 -5 35] 61 @dc
+/cmbx10.329 @newfont
+cmbx10.329 @sf
+[<FFF8000E00FFF8001E00FFF8003E000700003E000700007E00070000FE00070001FE00070003FE00070003FE00070007FE00
+  07000FFE0007001FEE0007003FEE0007003FCE0007007F8E000700FF0E000701FF0E000701FE0E000703FC0E000707F80E00
+  070FF00E00071FF00E00071FE00E00073FC00E00077F800E0007FF000E0007FF000E0007FE000E00FFFC01FFF0FFF801FFF0
+  FFF001FFF0> 36 31 -2 0 41] 78 @dc
+[<01FF0007FFC01F83F03E00F83E00F87C007C7C007CFC007EFC007EFC007EFC007EFC007EFC007E7C007C7C007C3E00F83E00
+  F81F83F007FFC001FF00> 23 20 -1 0 26] 111 @dc
+[<03F00FFC0FDC1F8E1F8E1F8E1F8E1F8E1F801F801F801F801F801F801F801F801F80FFFCFFFC3FFC1F800F80078007800780
+  0380038003800380> 15 29 -1 0 20] 116 @dc
+[<01FF8007FFE01FC1F03F00783E00387E00007C0000FC0000FC0000FC0000FFFFF8FFFFF8FC00F8FC00F87E00F87E00F03F01
+  F01F87E007FFC001FF00> 21 20 -1 0 24] 101 @dc
+[<3C7EFFFFFFFF7E3C000000003C7EFFFFFFFF7E3C> 8 20 -3 0 15] 58 @dc
+cmr12.300 @sf
+[<07F8001FFE003C1F00700F80F807C0FC07C0FC03E0FC03E0FC03E03003E00003E00003E00007C00007C0000F80001E0003F8
+  0003FC00003E00001F00000F800007800007C03807C07C07C07E07C07E07C07C07C0780F803C1F001FFE0007F800> 19 32 -2 0 24] 51 @dc
+3 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+linew10.300 @sf
+599 1278 p 8 c
+606 1275 p 8 c
+683 1236 p 8 c
+690 1233 p 8 c
+767 1194 p 8 c
+774 1191 p 8 c
+851 1153 p 8 c
+857 1149 p 8 c
+42 c
+599 1278 p 25 c
+580 1053 p 8 c
+587 1050 p 8 c
+664 1011 p 8 c
+671 1008 p 8 c
+748 970 p 8 c
+755 966 p 8 c
+832 928 p 8 c
+839 924 p 8 c
+42 c
+580 1053 p 25 c
+599 828 p 8 c
+606 825 p 8 c
+683 786 p 8 c
+690 783 p 8 c
+767 745 p 8 c
+774 741 p 8 c
+851 703 p 8 c
+857 699 p 8 c
+42 c
+599 828 p 25 c
+1114 945 p 3 c
+1103 986 p 3 c
+1093 1028 p 3 c
+1086 1053 p 3 c
+1086 720 p 66 c
+1100 761 p 66 c
+1114 803 p 66 c
+1128 844 p 66 c
+1129 847 p 66 c
+1066 603 p 4 150 ru
+372 1260 p 4 132 ru
+391 1072 p 4 169 ru
+401 720 p 3 c
+391 761 p 3 c
+380 803 p 3 c
+374 828 p 3 c
+420 495 p 3 c
+410 537 p 3 c
+399 578 p 3 c
+393 603 p 3 c
+787 185 p 90 c
+828 216 p 90 c
+870 247 p 90 c
+911 278 p 90 c
+953 309 p 90 c
+994 340 p 90 c
+1036 372 p 90 c
+1045 379 p 90 c
+745 181 p 17 c
+703 209 p 17 c
+662 237 p 17 c
+620 264 p 17 c
+579 292 p 17 c
+537 320 p 17 c
+496 347 p 17 c
+454 375 p 17 c
+449 379 p 17 c
+cmr10.329 @sf
+224 1335 p (Domain) s
+13 r (Comp) s
+1 r (onen) s
+(t=S.Kill) s
+-1 r 101 c
+899 1110 p (Comm) s
+-1 r (on) s
+13 r (Name=Stev) s
+101 c
+14 r (Kille) s
+899 885 p (Org) s
+15 r (Unit) s
+15 r (Name=Com) s
+-1 r (puter) s
+14 r (Science) s
+899 660 p (Organisation) s
+14 r (Name=Univ) s
+-1 r (erist) s
+-2 r 121 c
+14 r (College) s
+14 r (London) s
+974 435 p (Coun) s
+(try) s
+13 r (Name=GB) s
+224 1110 p (Domain) s
+13 r (Comp) s
+1 r (onen) s
+(t=CS) s
+224 885 p (Domain) s
+13 r (Comp) s
+1 r (onen) s
+(t=UCL) s
+224 660 p (Domain) s
+13 r (Comp) s
+1 r (onen) s
+(t=A) s
+-1 r 67 c
+224 435 p (Domain) s
+13 r (Comp) s
+1 r (onen) s
+(t=UK) s
+674 1432 p (Figure) s
+15 r (1:) s
+19 r (Example) s
+14 r (X.500) s
+14 r (tree) s
+cmsy10.329 @sf
+292 1566 p 15 c
+cmr10.329 @sf
+23 r 70 c
+-3 r (or) s
+12 r (In) s
+(ternet) s
+13 r (sites,) s
+13 r (access) s
+14 r (to) s
+13 r (domain) s
+12 r (informat) s
+-1 r (ion) s
+12 r (\(b) s
+1 r (ey) s
+(ond) s
+13 r (MX) s
+13 r (records\)) s
+338 1622 p (could) s
+15 r 98 c
+1 r 101 c
+16 r (pro) s
+(vided) s
+15 r (for) s
+15 r (systems) s
+14 r (registered) s
+15 r (remotely) s
+-4 r 46 c
+19 r 70 c
+-3 r (or) s
+13 r (UK) s
+16 r (Academic) s
+338 1679 p (Comm) s
+-2 r (unit) s
+-2 r 121 c
+12 r (sites,) s
+12 r (access) s
+14 r (to) s
+12 r (domain) s
+12 r (informati) s
+-1 r (on) s
+12 r (for) s
+12 r (domains) s
+12 r (not) s
+13 r (regis-) s
+338 1735 p (tered) s
+14 r (in) s
+14 r (the) s
+14 r (NRS) s
+15 r (could) s
+14 r 98 c
+1 r 101 c
+15 r (giv) s
+(en.) s
+18 r 70 c
+-3 r (or) s
+13 r (sites) s
+13 r (neither) s
+14 r (on) s
+14 r (the) s
+14 r (In) s
+(ternet) s
+14 r (nor) s
+338 1792 p (in) s
+12 r (the) s
+13 r (UK) s
+13 r (Academic) s
+12 r (Comm) s
+-2 r (unit) s
+-1 r 121 c
+11 r (there) s
+13 r (will) s
+11 r (usually) s
+12 r 98 c
+1 r 101 c
+14 r (ev) s
+(en) s
+12 r (more) s
+11 r (of) s
+13 r (an) s
+338 1848 p (adv) s
+-2 r (an) s
+(ta) s
+-1 r (ge,) s
+13 r (as) s
+14 r (they) s
+14 r (usually) s
+14 r (ha) s
+118 c
+101 c
+13 r 118 c
+(ery) s
+13 r (limit) s
+-1 r (ed) s
+13 r (informati) s
+-1 r (on) s
+13 r (on) s
+14 r (domains.) s
+cmsy10.329 @sf
+292 1942 p 15 c
+cmr10.329 @sf
+23 r (Assuming) s
+21 r (that) s
+21 r (informatio) s
+-1 r 110 c
+21 r (is) s
+22 r (do) s
+(wnloaded) s
+21 r (from) s
+20 r (an) s
+23 r (X.500) s
+21 r (database) s
+338 1998 p (in) s
+(to) s
+10 r 97 c
+13 r (DNS) s
+13 r (or) s
+12 r (NRS) s
+13 r (system,) s
+12 r (the) s
+12 r (remote) s
+12 r (managem) s
+-1 r (en) s
+-1 r 116 c
+11 r (facilities) s
+10 r (of) s
+13 r (X.500) s
+338 2055 p (could) s
+16 r 98 c
+1 r 101 c
+17 r (used.) s
+24 r (This) s
+16 r (is) s
+16 r 112 c
+1 r (ossible) s
+16 r 98 c
+1 r (ecause) s
+17 r (of) s
+16 r (the) s
+16 r (extra) s
+16 r (securit) s
+121 c
+15 r (features) s
+338 2111 p (of) s
+15 r (X.500.) s
+cmbx10.329 @sf
+338 2218 p (Note:) s
+cmr10.329 @sf
+22 r 70 c
+-3 r (or) s
+19 r (initial) s
+18 r 119 c
+(ork,) s
+19 r (the) s
+21 r (con) s
+118 c
+-1 r (erse) s
+18 r (situation) s
+19 r (of) s
+20 r (informat) s
+-1 r (ion) s
+18 r 98 c
+1 r (eing) s
+438 2274 p (mastered) s
+11 r (in) s
+13 r (Domai) s
+-1 r 110 c
+11 r (Databases) s
+12 r (and) s
+13 r (uploaded) s
+13 r (in) s
+(to) s
+10 r (the) s
+13 r (X.500) s
+12 r (DIT) s
+438 2330 p (is) s
+14 r (more) s
+14 r (lik) s
+(ely) s
+-4 r 46 c
+cmsy10.329 @sf
+292 2437 p 15 c
+cmr10.329 @sf
+23 r (User) s
+15 r (access) s
+15 r (to) s
+15 r (the) s
+15 r (domain) s
+13 r (data,) s
+14 r (and) s
+16 r (in) s
+15 r (particular) s
+13 r (searc) s
+(hing,) s
+14 r (could) s
+15 r 98 c
+1 r 101 c
+338 2493 p (pro) s
+(vided.) s
+29 r (This) s
+18 r 119 c
+(ould) s
+17 r (allo) s
+-1 r 119 c
+16 r (users) s
+19 r (to) s
+18 r (bro) s
+(wse) s
+17 r (the) s
+19 r (domain) s
+17 r (namespace,) s
+338 2550 p (and) s
+15 r (to) s
+15 r (determine) s
+14 r (informati) s
+-1 r (on) s
+13 r (asso) s
+1 r (ciated) s
+15 r (with) s
+14 r (the) s
+16 r (domains.) s
+cmsy10.329 @sf
+292 2643 p 15 c
+cmr10.329 @sf
+23 r (The) s
+18 r (X.500) s
+18 r (framew) s
+-1 r (o) s
+-1 r (rk) s
+17 r 119 c
+(ould) s
+16 r (allo) s
+119 c
+16 r (for) s
+18 r (additional) s
+16 r (managemen) s
+-1 r 116 c
+16 r (infor-) s
+338 2700 p (matio) s
+-1 r 110 c
+21 r (to) s
+21 r 98 c
+1 r 101 c
+22 r (stored,) s
+23 r (and) s
+22 r (to) s
+21 r (relate) s
+21 r (the) s
+22 r (domain) s
+21 r (names) s
+20 r (in) s
+(to) s
+20 r 97 c
+22 r (more) s
+338 2756 p (complex) s
+16 r (structure) s
+18 r (of) s
+17 r (informatio) s
+-1 r (n.) s
+26 r 70 c
+-3 r (or) s
+16 r (example,) s
+17 r (this) s
+17 r (migh) s
+116 c
+15 r (allo) s
+119 c
+15 r (for) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 51 c
+@eop
+4 @bop0
+cmtt10.329 @sf
+[<07F1F83FFFF87FFFF8FC1F80F80F80F00780F00780F80780FC07807F87803FFF800FFF8000FF80000780380F807C0F807C1F
+  007FFF007FFC001FF000> 21 20 -2 0 24] 97 @dc
+[<E7F800FFFE00FFFF00FE0F80F80780F80380F00380F00780003F800FFF003FFE007FF800FF0000F00000E00F00F00F00F81F
+  007FFF003FFF000FFF00> 17 20 -3 0 24] 115 @dc
+[<03FE000FFF803FFFE07E03F0F800F8F00078E00038E00038F00078F000787C01F07FFFF01FFFC01FFF001E00001C00001DF0
+  001FFC001FFE001F1F003E0F803E0F803C07803C07803C07803E0F803E0FF01F1FF80FFFF807FFF801F1F0> 21 31 -1 11 24] 103 @dc
+[<FFF3FEFFF3FEFFF3FE0F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F81E00F81E00FC1E00FE3
+  E0FFFFC0FFFFC0FF3F00> 23 20 0 0 24] 110 @dc
+[<01F0000FFE001FFF003F1F803C07807803C07803C0F001E0F001E0F001E0F001E0F001E0F001E07803C07803C03C07803E0F
+  801FFF000FFE0001F000> 19 20 -2 0 24] 111 @dc
+[<FFFF80FFFF80FFFF8003C00003C00003C00003C00003C00003C00003C00003C00003E00003E00003E00003F00003F87803FC
+  78FFFFF8FFDFF8FFC7F0> 21 20 -1 0 24] 114 @dc
+[<07F8001FFE007FFF007E1F80F807C0F803E0F803E0F801E0F801E00001E00003E00003E03807C03E0FC03FFF803FFF003FF8
+  003C00003C00003C00003C00003C00003C00003C00003C00003FFF803FFF803FFF80> 19 28 -2 0 24] 53 @dc
+[<007E0000FF8001FFC003E3E003E3E003C1E003C1E003C0C003C00003C00003C00003C00003C00003C00003C00003C00003C0
+  00FFFFC0FFFFC0FFFFC003C00003C00003C00003C00003C000> 19 25 -1 0 24] 116 @dc
+[<1E00003F00007F80007BC0007DE0007CE00000F00000700000700000700000780000780000780000FC0000DC0000CC0001CE
+  0001CE00038E000386000387000707000707000703800E03800E03800E01C0FF8FF8FF8FF8FF8FF8> 21 30 -1 10 24] 121 @dc
+[<FF8FF8FF8FF8FF8FF80F0780070700038E00039E0001DC0000F80000F00000700000F80001F80001DC00039E00078E000707
+  007F9FF07F9FF07F9FF0> 21 20 -1 0 24] 120 @dc
+[<FFFE00FFFF80FFFFC01E03E01E01E01E00F01E00F01E00F01E00F01E00F01E00F01E01E01E03E01FFFC01FFF001FFF801E07
+  C01E03C01E01E01E01E01E01E01E01E01E01E01E03C01E07C0FFFF80FFFF00FFFE00> 20 28 -1 0 24] 66 @dc
+[<FFFF80FFFF80FFFF80FFFF80> 17 4 -3 -12 24] 45 @dc
+[<03FF0003FF0003FF0000780000780000780000780000780000780000780000780000780000FC0000FC0001FC0001DE0001DE
+  0003CF0003CF00078F00078F800F87800F07801F03C01E03C0FF8FF8FF8FF8FF8FF8> 21 28 -1 0 24] 89 @dc
+[<FFDFF8FFDFF8FFDFF81E07C00F07800F0F80078F00078F00079E0003DE0003FC0001FC0001F80000F80000F00000F00000F8
+  0001F80001FC0003FC0003FE0007DE00079F000F8F000F0F007F9FE07F9FE07F9FE0> 21 28 -1 0 24] 88 @dc
+[<FFDFF8FFDFF8FFDFF81E03C01E03C01E03C01E03C01E03C01E03C01E03C01E03C01E03C01E03C01FFFC01FFFC01FFFC01E03
+  C01E03C01E03C01E03C01E03C01E03C01E03C01E03C01E03C0FFDFF8FFDFF8FFDFF8> 21 28 -1 0 24] 72 @dc
+[<FFE000FFE000FFE0001E00001E00001E00001E00001E00001E00001E00001E0F001E0F001E0F001FFF001FFF001FFF001E0F
+  001E0F001E0F001E00001E00001E00F01E00F01E00F01E00F0FFFFF0FFFFF0FFFFF0> 20 28 -1 0 24] 70 @dc
+[<0FF8003FFE007FFF007C1F00780F00F80F80F00780F00780F00780F00780F00780F00780F00780F00780F00780F00780F007
+  80F00780F00780F00780F00780F00780F00780780F007C1F007FFF003FFE000FF800> 17 28 -3 0 24] 79 @dc
+[<000F00000F00001F00001E00003E00003C000FFC003FFE007FFF007CFF0078FF00F1F780F1E780F1E780F00780F00780F007
+  80F00780F00780F00780F00780F00780F00780F00780F00780F00780F00780F00780F00780780F007C1F007FFF003FFE000F
+  F800> 17 34 -3 6 24] 81 @dc
+[<01FBC007FFC00FFFC01F1FC03E0FC03E07C07C07C07807C07803C0F803C0F03FF0F03FF0F03FF0F00000F00000F00000F000
+  00F00000F800007803C07803C07C03C03E07C03E0FC01F1FC00FFFC007FFC001F9C0> 20 28 -2 0 24] 71 @dc
+[<FFBFBF80FFBFBF80FFBFBF801C1C1C001C1C1C001C1C1C001C1C1C001C1C1C001C1C1C001C1C1C001C1C1C001C1C1C001C1C
+  1C001E1E1C001E1E1C001F1F1C001FBFBC00FFFFFC00FFFBF800FDF1F000> 25 20 1 0 24] 109 @dc
+[<FFF000FFF000FFF0000F00000F00000F00000F00000F00000F00000F00000F3F000FFFC00FFFE00FE3F00FC1F80F80F80F80
+  7C0F007C0F003C0F003C0F003C0F003C0F007C0F007C0F80F80FC0F80FE3F0FFFFE0FFFFC0FF3F00> 22 30 0 10 24] 112 @dc
+[<0E03800F07800F07800F07800D8D801D8DC01D8DC01D8DC01D8DC01D8DC019DCC019DCC019DCC039DCE039DCE038F8E038F8
+  E03800E03800E03800E03800E03800E0700070700070700070FE03F8FE03F8FE03F8> 21 28 -1 0 24] 87 @dc
+[<01FC000FFF001FFF803F0FC07E07C07C03C0F80000F80000F00000F00000F00000F00000F80000F800007C07007E0F803F0F
+  801FFF800FFF8001FE00> 18 20 -3 0 24] 99 @dc
+[<1FF0007FFC00FFFE00F83F00F81F00F80F00F80F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F
+  00000F00000F00000F00000F00000F00000F00000F00000F0003FFE003FFE003FFE0> 19 28 -2 0 24] 74 @dc
+[<0007E0003FE0007FE000FC0000F80000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00001F0007FF0
+  00FFE000FFE0007FF00001F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F80000FC0000
+  7FE0003FE00007E0> 19 36 -2 4 24] 123 @dc
+[<FE0000FFC000FFE00007F00001F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00000F80000FF
+  C0007FE0007FE000FFC000F80000F00000F00000F00000F00000F00000F00000F00000F00000F00000F00001F00007F000FF
+  E000FFC000FE0000> 19 36 -2 4 24] 125 @dc
+[<03F3FC0FFFFC1FFFFC3F1FC07C0FC07C07C0F807C0F803C0F003C0F003C0F003C0F003C0F803C0F803C07C07C07E0FC03F1F
+  C01FFFC00FFFC003FBC00003C00003C00003C00003C00003C0003FC0003FC0003FC0> 22 28 -1 0 24] 100 @dc
+[<F0F8FE3E0F0F3F7F7F7F7E3C> 8 12 -8 6 24] 44 @dc
+[<FFFFF0FFFFF0FFFFF07C00F03E00F01F00F00F80F007C00003E00001F00000F800007C00003E00001F00780F807807C07803
+  E07FFFF07FFFF07FFFF0> 20 20 -1 0 24] 122 @dc
+[<0F3F000FFFC00FFFE00FE3F00FC1F80F80F80F807C0F007C0F003C0F003C0F003C0F003C0F007C0F007C0F80F80FC0F80FE3
+  F00FFFE00FFFC00F3F000F00000F00000F00000F00000F0000FF0000FF0000FF0000> 22 28 0 0 24] 98 @dc
+[<01FDFE07FFFE0FFFFE0F87E00F03E00F03E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01
+  E0FF1FE0FF1FE0FF1FE0> 23 20 0 0 24] 117 @dc
+[<03F8000FFE001FFF003E0F807C07C07803C0F001E0F001E0F001E0F001E0F001E07803C03C07801F1F000FFE0007FC001FFF
+  003E0F803C07807803C07803C07803C07803C03C07803E0F801FFF000FFE0003F800> 19 28 -2 0 24] 56 @dc
+[<FFFFE0FFFFE0FFFFE07E01E03F01E01F800007C00003E00001F80000FC00007E00003F00001F80000F800007C00007C00003
+  E00003E00001E0F801E0F801E0F803E0F803E0F807C07E1FC03FFF801FFE0007F800> 19 28 -2 0 24] 50 @dc
+[<FFF3FEFFF3FEFFF3FE0F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F01E00F81E00F81E00FC1E00FE3
+  E00FFFC00FFFC00F3F000F00000F00000F00000F00000F0000FF0000FF0000FF0000> 23 28 0 0 24] 104 @dc
+cmr12.300 @sf
+[<01FFF801FFF8000F00000F00000F00000F00000F00000F00000F00FFFFF8FFFFF8E00F00600F00300F00380F00180F000C0F
+  000E0F00060F00030F00038F00018F0001CF0000CF00006F00007F00003F00001F00001F00000F00000700000700> 21 32 -1 0 24] 52 @dc
+4 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmr10.329 @sf
+338 195 p (the) s
+15 r (managers) s
+13 r (of) s
+15 r 97 c
+15 r (system) s
+13 r (to) s
+15 r 98 c
+1 r 101 c
+15 r (iden) s
+(ti\014ed,) s
+14 r (and) s
+15 r (informatio) s
+-1 r 110 c
+14 r (on) s
+15 r (ho) s
+119 c
+13 r (to) s
+338 252 p (con) s
+(tact) s
+13 r (the) s
+15 r (manager.) s
+cmsy10.329 @sf
+292 344 p 15 c
+cmr10.329 @sf
+23 r 65 c
+15 r (facilit) s
+121 c
+13 r (to) s
+15 r (map) s
+14 r (RF) s
+67 c
+15 r (822) s
+14 r (mailb) s
+1 r 111 c
+-1 r 120 c
+14 r (in) s
+(to) s
+13 r 97 c
+16 r (Directory) s
+14 r (Name) s
+14 r (\(and) s
+16 r (th) s
+(us) s
+338 401 p (access) s
+17 r (other) s
+18 r (user) s
+17 r (informati) s
+-1 r (on) s
+16 r (on) s
+17 r (the) s
+18 r (basis) s
+17 r (of) s
+17 r (this) s
+17 r 107 c
+(ey\)) s
+16 r (could) s
+17 r 98 c
+1 r 101 c
+19 r (pro-) s
+338 457 p (vided.) s
+19 r (This) s
+12 r (ma) s
+121 c
+10 r 98 c
+1 r 101 c
+13 r (useful) s
+13 r (for) s
+12 r (the) s
+13 r (user) s
+12 r (to) s
+12 r (determine) s
+12 r (informat) s
+-1 r (ion) s
+11 r (ab) s
+1 r (out) s
+338 514 p 97 c
+15 r (message) s
+13 r (originator.) s
+cmsy10.329 @sf
+292 607 p 15 c
+cmr10.329 @sf
+23 r (This) s
+15 r (tec) s
+(hnique) s
+15 r (ma) s
+121 c
+14 r 98 c
+1 r 101 c
+16 r (useful) s
+16 r (to) s
+15 r (facilitate) s
+14 r (in) s
+(tro) s
+1 r (duction) s
+14 r (of) s
+16 r (securit) s
+121 c
+-4 r 44 c
+14 r (as) s
+338 663 p (it) s
+11 r (will) s
+10 r (enable) s
+12 r (certi\014cates) s
+12 r (to) s
+11 r 98 c
+1 r 101 c
+12 r (asso) s
+1 r (ciated) s
+12 r (with) s
+11 r (domains) s
+10 r (and) s
+12 r (mailb) s
+1 r 111 c
+-1 r (xes.) s
+338 720 p (This) s
+14 r (ma) s
+121 c
+13 r 98 c
+1 r 101 c
+16 r 118 c
+(ery) s
+13 r (useful) s
+16 r (for) s
+14 r (the) s
+15 r (priv) s
+-2 r (acy) s
+14 r (enc) s
+(hanced) s
+16 r (mail) s
+13 r 119 c
+(ork) s
+13 r 91 c
+(Lin89) s
+-1 r (].) s
+cmbx10.432 @sf
+224 882 p 53 c
+69 r (Represen) s
+-1 r (ti) s
+-1 r (ng) s
+22 r (Dom) s
+-1 r (ai) s
+-1 r 110 c
+22 r (Nam) s
+-1 r (es) s
+cmr10.329 @sf
+224 1003 p 65 c
+15 r (new) s
+16 r (attribute) s
+14 r (syn) s
+(tax) s
+13 r (is) s
+15 r (de\014ned:) s
+cmtt10.329 @sf
+224 1126 p (CaseIgnoreIA5StringS) s
+-1 r (yntax) s
+22 r (ATTRIBUTE-SYNTAX) s
+320 1182 p (IA5String) s
+320 1239 p (MATCHES) s
+23 r (FOR) s
+23 r (EQUALITY) s
+23 r (SUBSTRINGS) s
+22 r (ORDERING) s
+cmr10.329 @sf
+224 1418 p 65 c
+15 r (new) s
+16 r (attribute) s
+14 r (and) s
+15 r 116 c
+119 c
+-1 r 111 c
+13 r (new) s
+16 r (ob) s
+3 r (ject) s
+14 r (classes) s
+15 r (are) s
+15 r (de\014ned:) s
+cmtt10.329 @sf
+224 1540 p (DomainComponent) s
+22 r (ATTRIBUTE) s
+320 1597 p (WITH) s
+23 r (ATTRIBUTE-SYNTAX) s
+22 r (caseIgnoreIA5Str) s
+-1 r (ingSynt) s
+-1 r (ax) s
+320 1653 p (SINGLE) s
+23 r (VALUE) s
+224 1766 p (Domain) s
+23 r (OBJECT-CLASS) s
+320 1823 p (SUBCLASS) s
+22 r (OF) s
+24 r (top) s
+320 1879 p (MUST) s
+23 r (CONTAIN) s
+23 r ({DomainComponent}) s
+320 1935 p (MAY) s
+23 r (CONTAIN) s
+23 r ({AssociatedName,) s
+415 1992 p (organizationName,) s
+415 2048 p (organizationalAttri) s
+-1 r (buteSet) s
+-1 r 44 c
+415 2105 p (manager}) s
+224 2218 p (RFC822Mailbox) s
+22 r (OBJECT-CLASS) s
+320 2274 p (SUBCLASS) s
+22 r (OF) s
+24 r (Domain) s
+320 2331 p (MAY) s
+23 r (CONTAIN) s
+23 r ({commonName,) s
+391 2387 p (surname,) s
+391 2444 p (description,) s
+391 2500 p (telephoneNumber,) s
+391 2556 p (postalAttributeSet,) s
+391 2613 p (telecommunicationAtt) s
+-1 r (ributeS) s
+-1 r (et) s
+22 r 125 c
+cmr10.329 @sf
+224 2736 p (Note) s
+13 r (that) s
+12 r (the) s
+14 r (attribute) s
+cmtt10.329 @sf
+12 r (AssociatedName) s
+cmr10.329 @sf
+11 r (is) s
+13 r (de\014ned) s
+14 r (in) s
+13 r (Section) s
+13 r (11.) s
+19 r (The) s
+14 r (man-) s
+224 2792 p (ager) s
+17 r (attribute) s
+16 r (is) s
+16 r (de\014ned) s
+19 r (in) s
+17 r (the) s
+17 r (COSINE) s
+18 r (and) s
+17 r (In) s
+(ternet) s
+17 r (naming) s
+15 r (arc) s
+(hitecture) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 52 c
+@eop
+5 @bop0
+cmr10.329 @sf
+[<003FF00000FFFF0003E01FE0078001F00E0000001C000000181F8F80387FDFC070F9FEE070F07C6061E07C30E1E03C30C3E0
+  3C30C3C03C30C3C03C30C3C03C30C3C03C30C3C03C30C3C03C30C3E03C30E1E03C7061E07C6070F070E070F9E0E0387FC1C0
+  181F81801C0003800E00070007801E0003E07C0000FFF000003FC000> 28 32 -3 0 35] 64 @dc
+[<0003800000038000000380000007C0000007C000000FE000000FE000000FE000001FB000001F3000001F3000003E1800003E
+  1800003E1800007C0C00007C0C0000FC0E0000F8060000F8060001F8030001F0030001F0030003E0018003E0018003E00180
+  07C000C007C000C00FC000E00FC001F0FFF807FEFFF807FE> 31 31 -1 0 34] 86 @dc
+cmtt10.329 @sf
+[<7FFFC0FFFFE0FFFFE0FFFFE0000000000000000000000000FFFFE0FFFFE0FFFFE07FFFC0> 19 12 -2 -8 24] 61 @dc
+cmr10.329 @sf
+[<C000C000E000600060007000300030003800180018001C000C000C000E0006000600070003000300038001800180018001C0
+  00C000C000E000600060007000300030003800180018001C000C000C000E00060006000700030003> 16 45 -3 11 23] 47 @dc
+cmbx10.432 @sf
+[<007FE00001FFF80003FFFC0007F0FF000FE07F801FC03F803F803FC03F803FC07F803FE07F803FE07F803FE07F803FE0FF80
+  3FE0FF803FE0FF803FE0FF803FE0FFC03FE0FFC03FC0FFC03FC0FFE03F80FFE07F00FFFFFE00FFBFFC00FF9FF000FF820000
+  7F8000007F8000007F801E007FC03F003FC07F803FC07F801FC07F800FE07F800FF03F8007F81F0001FE1F0000FFFE00003F
+  FC000007F800> 27 39 -3 0 34] 54 @dc
+[<00000E00000700000000001F00000F80000000001F00000F80000000001F80001F80000000003F80001FC0000000003F8000
+  1FC0000000003FC0003FC0000000007FC0003FE0000000007FC0003FE000000000FFE0007FF000000000FFE0007FF0000000
+  00FFF000FFF000000001FFF000FFB800000001FF7000FFB800000001FF7801FFB800000003FE3801FF1C00000003FE3801FF
+  1C00000007FE1C03FE1E00000007FC1C03FE0E00000007FC1E07FE0E0000000FFC0E07FC070000000FF80E07FC070000001F
+  F80F0FFC078000001FF0070FF8038000001FF0070FF8038000003FF0039FF003C000003FE0039FF001C000003FE003FFF001
+  C000007FE001FFE000E000007FC001FFE000E00000FFC000FFE000F00000FF8000FFC000700000FF8000FFC000700001FF80
+  00FF8000780001FF0000FF8000380001FF0001FF8000380003FE0001FF00001C0003FE0001FF00001C00FFFFF87FFFF807FF
+  F0FFFFF87FFFF807FFF0FFFFF87FFFF807FFF0> 68 41 -1 0 71] 87 @dc
+cmtt10.329 @sf
+[<701C701C701C701C701CF83EF83EF83EF83EF83EF83EF83EF83E3018> 15 14 -4 -15 24] 34 @dc
+[<01C00001C00001C00001C000E1C380F1C780FDDF80FFFF803FFE000FF8000FF8003FFE00FFFF80FDDF80F1C780E1C38001C0
+  0001C00001C00001C000> 17 20 -3 -4 24] 42 @dc
+[<FFC000FFC000FFC0001E00001E00001E00001E00001E00001E00001E00001E00001FFE001FFF801FFFC01E07C01E03E01E01
+  E01E00F01E00F01E00F01E00F01E00F01E01E01E03E01E07C0FFFFC0FFFF80FFFE00> 20 28 -1 0 24] 80 @dc
+5 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmr10.329 @sf
+224 195 p 91 c
+(BHK91) s
+(].) s
+37 r (It) s
+21 r (allo) s
+-1 r (ws) s
+19 r 97 c
+21 r (manager) s
+19 r (to) s
+21 r 98 c
+1 r 101 c
+21 r (asso) s
+1 r (ciated) s
+21 r (with) s
+20 r (the) s
+21 r (domain,) s
+21 r (whic) s
+104 c
+224 252 p (is) s
+19 r (useful) s
+19 r (where) s
+20 r (the) s
+19 r (manager) s
+18 r (of) s
+18 r (the) s
+20 r (domain) s
+17 r (is) s
+19 r (di\013eren) s
+116 c
+17 r (to) s
+19 r (the) s
+19 r (manager) s
+18 r (of) s
+224 308 p (the) s
+17 r (ob) s
+3 r (ject) s
+16 r (de\014ned) s
+18 r 98 c
+121 c
+15 r (the) s
+cmtt10.329 @sf
+17 r (AssociatedName) s
+cmr10.329 @sf
+46 c
+22 r (This) s
+17 r (will) s
+15 r (allo) s
+-1 r 119 c
+15 r (an) s
+121 c
+15 r (domain) s
+15 r (to) s
+224 364 p 98 c
+1 r 101 c
+18 r (represen) s
+(ted) s
+16 r (in) s
+16 r (an) s
+17 r (X.500) s
+16 r (hierarc) s
+104 c
+-1 r 121 c
+-4 r 46 c
+23 r (The) s
+17 r (lo) s
+1 r (cal) s
+16 r (part) s
+16 r (of) s
+16 r (an) s
+17 r (RF) s
+67 c
+16 r (822) s
+16 r (mail) s
+-1 r 45 c
+224 421 p 98 c
+1 r 111 c
+120 c
+16 r (is) s
+16 r (treated) s
+16 r (as) s
+17 r 97 c
+16 r (sp) s
+1 r (ecial) s
+17 r (sort) s
+16 r (of) s
+16 r (domain) s
+15 r (comp) s
+1 r (onen) s
+(t,) s
+15 r (and) s
+17 r (so) s
+17 r (these) s
+17 r (can) s
+17 r 98 c
+1 r 101 c
+224 477 p (represen) s
+(ted) s
+15 r (in) s
+15 r (the) s
+15 r (tree) s
+15 r (as) s
+15 r 97 c
+15 r (natural) s
+14 r (extension) s
+15 r (of) s
+15 r (the) s
+15 r (hierarc) s
+104 c
+-1 r 121 c
+-3 r 46 c
+224 553 p 70 c
+-3 r (or) s
+17 r (example,) s
+19 r (consider) s
+19 r (the) s
+19 r (mailb) s
+1 r 111 c
+-2 r 120 c
+17 r (S.Kille@cs.ucl.ac.uk.) s
+30 r (This) s
+19 r (will) s
+17 r (lead) s
+19 r (to) s
+224 610 p (the) s
+15 r (follo) s
+(wi) s
+-1 r (ng) s
+13 r (structure) s
+15 r (in) s
+15 r (the) s
+16 r (DIT:) s
+427 693 p 1089 2 ru
+427 750 p 2 57 ru
+452 734 p (Ob) s
+3 r (ject) s
+15 r (Class) s
+801 751 p 2 57 ru
+826 733 p (RDN) s
+16 r 84 c
+(yp) s
+1 r 101 c
+1236 750 p 2 57 ru
+1262 733 p (RDN) s
+15 r 86 c
+-3 r (alue) s
+1515 750 p 2 57 ru
+427 752 p 1089 2 ru
+427 808 p 2 57 ru
+452 792 p (Domain) s
+801 809 p 2 57 ru
+826 791 p (DomainCom) s
+-1 r 112 c
+1 r (onen) s
+-1 r 116 c
+1236 808 p 2 57 ru
+1262 791 p (UK) s
+1515 808 p 2 57 ru
+427 865 p 2 57 ru
+452 849 p (Domain) s
+801 866 p 2 57 ru
+826 848 p (DomainCom) s
+-1 r 112 c
+1 r (onen) s
+-1 r 116 c
+1236 865 p 2 57 ru
+1262 848 p 65 c
+67 c
+1515 865 p 2 57 ru
+427 921 p 2 57 ru
+452 905 p (Domain) s
+801 922 p 2 57 ru
+826 904 p (DomainCom) s
+-1 r 112 c
+1 r (onen) s
+-1 r 116 c
+1236 921 p 2 57 ru
+1262 904 p (UCL) s
+1515 921 p 2 57 ru
+427 977 p 2 57 ru
+452 961 p (Domain) s
+801 978 p 2 57 ru
+826 960 p (DomainCom) s
+-1 r 112 c
+1 r (onen) s
+-1 r 116 c
+1236 977 p 2 57 ru
+1262 960 p (CS) s
+1515 977 p 2 57 ru
+427 1034 p 2 57 ru
+452 1018 p (RF) s
+(C822Ma) s
+-1 r (ilb) s
+1 r 111 c
+-1 r 120 c
+801 1035 p 2 57 ru
+826 1017 p (DomainCom) s
+-1 r 112 c
+1 r (onen) s
+-1 r 116 c
+1236 1034 p 2 57 ru
+1262 1017 p (S.Kille) s
+1515 1034 p 2 57 ru
+427 1036 p 1089 2 ru
+224 1140 p (This) s
+15 r (can) s
+15 r 98 c
+1 r 101 c
+16 r (represen) s
+(ted) s
+15 r (in) s
+15 r (User) s
+15 r 70 c
+-3 r (riendly) s
+14 r (Name) s
+14 r (format) s
+13 r (as:) s
+cmtt10.329 @sf
+224 1266 p (DomainComponent=S.Ki) s
+-1 r (lle,) s
+22 r (DomainComponent=C) s
+-1 r (S,) s
+22 r (DomainComponent=UCL) s
+-1 r 44 c
+224 1322 p (DomainComponent=AC,) s
+21 r (DomainComponent=UK) s
+cmr10.329 @sf
+224 1447 p (Note) s
+15 r (that) s
+14 r (the) s
+16 r (RF) s
+(C822M) s
+-1 r (ail) s
+-1 r 98 c
+1 r 111 c
+-1 r 120 c
+13 r (Ob) s
+3 r (ject) s
+16 r (Class) s
+14 r (is) s
+15 r 97 c
+14 r (sub) s
+1 r (class) s
+16 r (of) s
+14 r (Domain.) s
+224 1523 p (Some) s
+13 r (attributes) s
+12 r (are) s
+14 r (allo) s
+-1 r 119 c
+-1 r (ed) s
+12 r (to) s
+13 r 98 c
+1 r 101 c
+14 r (asso) s
+1 r (ciated) s
+13 r (with) s
+13 r (these) s
+14 r (ob) s
+3 r (jects.) s
+18 r (There) s
+14 r (ma) s
+121 c
+224 1580 p 98 c
+1 r 101 c
+15 r (other) s
+13 r (additional) s
+13 r (managem) s
+-1 r (en) s
+-1 r 116 c
+12 r (attributes) s
+12 r (whic) s
+104 c
+13 r (it) s
+13 r (is) s
+14 r (useful) s
+14 r (to) s
+13 r (de\014ne) s
+15 r (\(e.g.,) s
+224 1636 p (Mac) s
+(hine) s
+14 r 84 c
+(yp) s
+1 r (e,) s
+14 r (Owner,) s
+15 r (Lo) s
+1 r (cation) s
+15 r (etc.\).) s
+19 r (This) s
+14 r (allo) s
+(ws) s
+13 r (some) s
+13 r (informatio) s
+-1 r 110 c
+14 r (whic) s
+104 c
+224 1693 p (truly) s
+10 r 98 c
+1 r (elongs) s
+11 r (to) s
+10 r (the) s
+11 r (domain) s
+10 r (to) s
+10 r 98 c
+1 r 101 c
+12 r (represen) s
+(ted) s
+10 r (there.) s
+18 r (It) s
+11 r (also) s
+10 r (allo) s
+(ws) s
+8 r (for) s
+11 r (further) s
+224 1749 p (informati) s
+-1 r (on) s
+14 r (to) s
+15 r 98 c
+1 r 101 c
+17 r (asso) s
+1 r (ciated) s
+15 r (with) s
+15 r (the) s
+15 r (domain/m) s
+-1 r (ail) s
+-1 r 98 c
+1 r 111 c
+-1 r 120 c
+14 r (when) s
+16 r (there) s
+16 r (is) s
+15 r (not) s
+16 r 97 c
+224 1806 p (relev) s
+-2 r (an) s
+116 c
+13 r (part) s
+14 r (of) s
+15 r (the) s
+15 r (organisatio) s
+-1 r (nally) s
+12 r (structure) s
+15 r (DIT) s
+15 r (to) s
+14 r 98 c
+1 r 101 c
+16 r 112 c
+1 r (oin) s
+(ted) s
+14 r (at.) s
+19 r (When) s
+224 1862 p (there) s
+19 r (is) s
+18 r (an) s
+19 r (asso) s
+1 r (ciated) s
+18 r (part) s
+18 r (of) s
+19 r (the) s
+18 r (DIT,) s
+19 r (informat) s
+-1 r (ion) s
+17 r (from) s
+17 r (that) s
+18 r (part) s
+18 r (of) s
+18 r (the) s
+224 1919 p (DIT) s
+15 r (should) s
+15 r (not) s
+15 r 98 c
+1 r 101 c
+16 r (duplicated) s
+15 r (in) s
+15 r (the) s
+16 r (domain) s
+13 r (en) s
+(try) s
+-3 r 46 c
+cmbx10.432 @sf
+224 2081 p 54 c
+69 r (Wildcards) s
+cmr10.329 @sf
+224 2202 p (Wildcards) s
+22 r (are) s
+22 r (supp) s
+1 r (orted) s
+23 r 98 c
+121 c
+21 r (ha) s
+(ving) s
+cmtt10.329 @sf
+21 r ("*") s
+cmr10.329 @sf
+21 r (as) s
+22 r 97 c
+22 r (sp) s
+1 r (ecial) s
+23 r (domain) s
+20 r (comp) s
+1 r (onen) s
+116 c
+224 2259 p (name.) s
+21 r (If) s
+17 r (there) s
+16 r (is) s
+15 r 97 c
+16 r (need) s
+17 r (to) s
+15 r (em) s
+(ulat) s
+-1 r 101 c
+14 r (wildcard) s
+16 r (matc) s
+-1 r (hing) s
+14 r (using) s
+15 r (the) s
+16 r (directory) s
+-3 r 44 c
+224 2315 p (the) s
+14 r (follo) s
+-1 r (wing) s
+11 r (algorithm) s
+11 r 109 c
+-1 r (ust) s
+12 r 98 c
+1 r 101 c
+14 r (emplo) s
+-1 r 121 c
+-1 r (ed.) s
+18 r 70 c
+-3 r (or) s
+12 r (example,) s
+12 r (the) s
+14 r (wildcard) s
+13 r (en) s
+(try) s
+224 2372 p (for) s
+cmtt10.329 @sf
+15 r (*.*.PODUNK.COM) s
+cmr10.329 @sf
+13 r 119 c
+(ould) s
+14 r 98 c
+1 r 101 c
+15 r (represen) s
+(ted) s
+15 r (in) s
+15 r (the) s
+15 r (DIT) s
+15 r (as:) s
+cmtt10.329 @sf
+320 2497 p (DomainComponent=) s
+-1 r (*,) s
+22 r (DomainComponent=*,) s
+320 2554 p (DomainComponent=) s
+-1 r (MIT,) s
+22 r (DomainComponent=C) s
+-1 r (OM) s
+cmr10.329 @sf
+224 2679 p (If) s
+cmtt10.329 @sf
+13 r (A.B.PODUNK.COM) s
+cmr10.329 @sf
+10 r (is) s
+12 r (lo) s
+1 r (ok) s
+(ed) s
+11 r (up) s
+13 r (in) s
+13 r (the) s
+12 r (directory) s
+-3 r 44 c
+11 r (the) s
+13 r (query) s
+12 r (will) s
+12 r (fail) s
+11 r (and) s
+13 r (indi-) s
+224 2736 p (cate) s
+12 r (that) s
+12 r 116 c
+119 c
+-1 r 111 c
+10 r (comp) s
+1 r (onen) s
+(ts) s
+11 r (are) s
+12 r (matc) s
+-1 r (hed.) s
+17 r 65 c
+13 r (substitution) s
+11 r (should) s
+13 r 98 c
+1 r 101 c
+13 r (made,) s
+11 r (and) s
+cmtt10.329 @sf
+224 2792 p (*.*.PODUNK.COM) s
+cmr10.329 @sf
+11 r (lo) s
+1 r (ok) s
+(ed) s
+11 r (up) s
+13 r (explicitly) s
+12 r (to) s
+12 r (iden) s
+(tify) s
+11 r (the) s
+13 r (asso) s
+1 r (ciated) s
+12 r (informat) s
+-1 r (ion.) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 53 c
+@eop
+6 @bop0
+cmbx10.432 @sf
+[<0078000000FC000001FE000001FE000001FE000001FE000001FE000001FE000001FE000001FE000000FE000000FE000000FE
+  000000FE0000007E0000007E0000007F0000003F0000003F0000003F0000001F0000000F8000000F80000007C0000007C000
+  E003E000E001F000E000F8007000780070007C0070003E007FFFFF007FFFFF807FFFFFC07FFFFFC03FFFFFE03FFFFFF03FFF
+  FFF03FFFFFF03E00000038000000> 28 41 -4 0 34] 55 @dc
+[<FFFFFEFFFFFEFFFFFE01FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF
+  0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001FF0001
+  FF0001FF0001FF0001FF0001FF00FFFFFEFFFFFEFFFFFE> 23 41 -1 0 26] 73 @dc
+[<7FFF80007FFF80007FFF800007F0000007F0000007F0000007F0000007F0000007F0000007F0000007F0000007F0000007F0
+  000007F0000007F0000007F0000007F0000007F0000007F0000007F0000007F0000007F0000007F0000007F00000FFFFC000
+  FFFFC000FFFFC00007F0000007F0000007F0000007F0000007F0000007F0000007F03F0007F07F8007F87F8003F87F8003FC
+  7F8001FF7F80007FFF00003FFE000007FC00> 25 42 -2 0 21] 102 @dc
+cmti10.329 @sf
+[<03F00007F8000F9C000F0E000F07000F03000F03000F01800F01800F81800781C00780C007C0C0E3C0C063C0E063E1E071E3
+  E039E3E01FC3E00F81C0> 19 20 -3 0 21] 118 @dc
+cmr10.329 @sf
+[<FFFFF8FFFFF8FC01F87E00787E00383F00181F00181F801C0FC01C0FC00C07E00C07E00C03F00C03F00001F80000F80000FC
+  00007E00007E00003F00C03F00C01F80C01F80E00FC0E007C06007E07003F07803F07E01F87FFFF87FFFF8> 22 31 -3 0 28] 90 @dc
+cmbx10.329 @sf
+[<FFF01FFFE0FFF01FFFE0FFF01FFFE0070001FC00070001FC00038003F800038003F80003C007F80001FFFFF00001FFFFF000
+  00FFFFE00000E00FE00000F01FE00000701FC00000703FC00000383F800000383F8000003C7F8000001C7F0000001CFF0000
+  000EFE0000000EFE0000000FFE00000007FC00000007FC00000003F800000003F800000003F800000001F000000001F00000
+  0000E00000> 35 31 -2 0 40] 65 @dc
+[<C1FF00FFFFC0FFFFF0FF03F0F800F8F000F8F0007CE0007CE0007C0000FC0000FC0003FC003FFC03FFF80FFFF81FFFF03FFF
+  E07FFFC07FFF80FFF800FF0000FE0000FC0038F80038F80078F800F87C01F87E07F83FFFF80FFFF803FC18> 22 31 -3 0 29] 83 @dc
+[<3C7EFFFFFFFF7E3C> 8 8 -3 0 15] 46 @dc
+[<FFFF80FFFF80FFFF8003F00003F00003F00003F00003F00003F00003F00003F00003F00003F00003F00003F00003F00003F0
+  0003F00003F00003F00003F00003F00003F000F3F000FFF000FFF0000FF00001F000007000> 17 29 -4 0 26] 49 @dc
+[<FFFFFFF0FFFFFFF0FFFFFFF007F007F807F001F807F0007807F0007807F0003807F0003807F0003807F0701C07F0701C07F0
+  701C07F0700007F1F00007FFF00007FFF00007FFF00007F1F00007F0707007F0707007F0707007F0707007F000F007F000F0
+  07F001E007F003E007F007E0FFFFFFE0FFFFFFE0FFFFFFE0> 30 31 -2 0 34] 69 @dc
+[<FFF1FFC0FFF1FFC0FFF1FFC01F807E001F807E001F807E001F807E001F807E001F807E001F807E001F807E001F807E001F80
+  7E001F807E001FC07E001FC07E001FE07E00FF78FC00FF3FFC00FF0FF000> 26 20 -2 0 29] 110 @dc
+[<03FE000FFF801FC3C03F01E07E00E07E0000FC0000FC0000FC0000FC0000FC0000FC0000FC0000FC07807C0FC07E0FC03F0F
+  C01F8FC00FFF8003FE00> 19 20 -2 0 23] 99 @dc
+[<03FCFF800FFFFF801F87FF803E01FC007E00FC007C00FC00FC00FC00FC00FC00FC00FC00FC00FC00FC00FC00FC00FC00FC00
+  FC00FC00FC007C00FC007E00FC003F01FC001F87FC000FFFFC0003FCFC000000FC000000FC000000FC000000FC000000FC00
+  0000FC000000FC000000FC000000FC000007FC000007FC000007FC00> 25 32 -2 0 29] 100 @dc
+[<FFFFFE0000FFFFFFC000FFFFFFF00007F00FF80007F001FC0007F000FE0007F0007F0007F0007F0007F0003F8007F0003F80
+  07F0003F8007F0003FC007F0003FC007F0003FC007F0003FC007F0003FC007F0003FC007F0003FC007F0003FC007F0003FC0
+  07F0003F8007F0003F8007F0003F8007F0007F0007F0007F0007F000FE0007F001FC0007F00FF800FFFFFFF000FFFFFFC000
+  FFFFFE0000> 34 31 -2 0 40] 68 @dc
+[<FFFFFF00FFFFFFE0FFFFFFF007E007F807E003FC07E001FC07E001FE07E001FE07E001FE07E001FE07E001FE07E001FC07E0
+  01FC07E003F807E007F007FFFFE007FFFF8007E01FE007E007F007E003F807E003FC07E003FC07E003FC07E003FC07E003FC
+  07E003FC07E003F807E007F0FFFFFFE0FFFFFFC0FFFFFE00> 31 31 -2 0 37] 66 @dc
+[<FFF0FFF0FFF01F801F801F801F801F801F801F801F801F801F801F801F801F801F80FF80FF80FF8000000000000000000000
+  1F003F803F807F807F803F803F801F00> 12 33 -2 0 15] 105 @dc
+[<0FF0FE3FFDFE7E1FFEFC07F0F803F0F803F0F803F0FC03F07E03F03FC3F00FFFF001FFF00003F01E03F03F03F03F03F03F07
+  E03F0FE01FFF8007FE00> 23 20 -1 0 25] 97 @dc
+[<FFF800FFF800FFF8001F80001F80001F80001F80001F80001F80001F80001F80001F80001F80001F83C01FC7E01FC7E01FE7
+  E0FF77E0FF7FC0FF1F80> 19 20 -1 0 22] 114 @dc
+[<1F0000007F800000F1E00000E0E00000FC700000FC7800007838000000380000001C0000001C0000003E0000003E0000007F
+  0000007F000000FF800000FF800000FF800001F9C00001F9C00003F9E00003F0E00007F0F00007E0700007E070000FC03800
+  0FC03800FFF0FF80FFF0FF80FFF0FF80> 25 29 -1 9 28] 121 @dc
+[<07FFFFC007FFFFC007FFFFC0000FE000000FE000000FE000000FE000000FE000000FE000000FE000000FE000000FE000000F
+  E000000FE000000FE000000FE000000FE000000FE000E00FE00EE00FE00EE00FE00EE00FE00EF00FE01EF00FE01E700FE01C
+  780FE03C7E0FE0FC7FFFFFFC7FFFFFFC7FFFFFFC> 31 30 -2 0 36] 84 @dc
+[<FFC3FF80FFC3FF80FFC3FF800781F8000383F00003C7E00001EFE00000FFC000007F8000003F0000007E000000FE000000FF
+  000001FF800003F3C00007F1E0000FE1E000FFF3FF00FFF3FF00FFF3FF00> 25 20 -1 0 28] 120 @dc
+cmr10.329 @sf
+[<FFE0FFE00F000F000F000F000F000F000F000F000F000F000F000F000F000F000F007F007F000F00> 11 20 0 0 13] 16 @dc
+cmtt10.329 @sf
+[<FFF8FFF8FFF8F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000F000
+  F000F000F000F000F000F000F000F000FFF8FFF8FFF8> 13 36 -9 4 24] 91 @dc
+[<E0F8FC3C1E1E3E7E7E7E7E3C00000000000000003C7E7E7E7E3C> 7 26 -8 6 24] 59 @dc
+[<FFF8FFF8FFF80078007800780078007800780078007800780078007800780078007800780078007800780078007800780078
+  00780078007800780078007800780078FFF8FFF8FFF8> 13 36 -1 4 24] 93 @dc
+[<01F00007FC000FFE001F1F001E0F003C07807C07C07803C07803C0F803E0F001E0F001E0F001E0F001E0F001E0F001E0F001
+  E0F001E0F001E07803C07803C07803C03C07801E0F001F1F000FFE0007FC0001F000> 19 28 -2 0 24] 48 @dc
+[<FFFFFFFFFFFF03C003C003C003C003C003C003C003C003C003C003C003C003C003C003C003C063C0FBC0FFC03FC00FC007C0
+  03C003C001C0> 16 28 -4 0 24] 49 @dc
+[<03F8000FFE001FFF003F0F803E07C07C03E07803E07801E0F801E0F801E0F801E0F803E0F803E0FC07C0FF0F80FFFF80F7FE
+  00F9F800F800007800007C00003E07C03E07C01F07C00FC7C007FFC003FF80007E00> 19 28 -2 0 24] 54 @dc
+cmr12.300 @sf
+[<03F80007FE000F0F001C07803C03C03803C07801E07001E07001E0F001E0F001E0F001E0F001E0F801E0F801C0F803C0FC03
+  80F60780F7FF00F1FE00F020007000007800007800003807C03C07C01C07C01E07C00F01C007C38001FF80007E00> 19 32 -2 0 24] 54 @dc
+6 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmbx10.432 @sf
+224 195 p 55 c
+69 r (DNS) s
+23 r (Informati) s
+-1 r (on) s
+cmr10.329 @sf
+224 316 p (DNS) s
+12 r (informat) s
+-1 r (ion) s
+10 r (can) s
+11 r 98 c
+1 r 101 c
+13 r (asso) s
+1 r (ciated) s
+11 r (with) s
+11 r (an) s
+11 r (en) s
+(try) s
+11 r (in) s
+11 r (the) s
+12 r (DIT.) s
+11 r (It) s
+12 r (is) s
+11 r (imp) s
+1 r (ortan) s
+-1 r 116 c
+224 373 p (that) s
+13 r (this) s
+14 r (is) s
+13 r (done) s
+15 r (in) s
+14 r 97 c
+13 r (manner) s
+13 r (whic) s
+104 c
+13 r (is) s
+14 r (exactly) s
+13 r (equiv) s
+-2 r (alen) s
+116 c
+12 r (to) s
+13 r (the) s
+14 r (informatio) s
+-1 r 110 c
+224 429 p (stored) s
+13 r (in) s
+13 r (the) s
+14 r (DNS.) s
+13 r (This) s
+13 r (will) s
+12 r (allo) s
+119 c
+11 r (the) s
+13 r (DIT) s
+14 r (to) s
+12 r (ha) s
+118 c
+101 c
+11 r (informatio) s
+-1 r 110 c
+12 r (loaded) s
+13 r (from) s
+224 485 p (the) s
+13 r (DNS) s
+cmti10.329 @sf
+13 r (or) s
+15 r (vic) s
+-1 r 101 c
+13 r (versa) s
+cmr10.329 @sf
+46 c
+18 r (All) s
+13 r (\(authoritati) s
+-1 r 118 c
+-1 r (e\)) s
+11 r (records) s
+13 r (asso) s
+1 r (ciated) s
+12 r (with) s
+12 r 97 c
+13 r (domain) s
+224 542 p (will) s
+15 r 98 c
+1 r 101 c
+16 r (stored) s
+16 r (in) s
+15 r (the) s
+16 r (DIT.) s
+16 r (There) s
+16 r (is) s
+15 r (no) s
+16 r (attempt) s
+14 r (made) s
+15 r 98 c
+121 c
+15 r (the) s
+16 r (OSI) s
+17 r (Directory) s
+224 598 p (to) s
+17 r (em) s
+(ulate) s
+16 r (DNS) s
+18 r (cac) s
+(hing) s
+16 r (or) s
+18 r (TTL) s
+18 r (handling.) s
+27 r (It) s
+18 r (is) s
+18 r (assumed) s
+17 r (that) s
+17 r (the) s
+18 r (master) s
+224 655 p (en) s
+(tries) s
+10 r (are) s
+10 r (main) s
+(t) s
+-1 r (ained) s
+10 r 98 c
+121 c
+10 r (use) s
+11 r (of) s
+11 r (DNS) s
+11 r (Zone) s
+11 r 84 c
+-3 r (ransfer) s
+10 r (\(or) s
+10 r (equiv) s
+-2 r (alen) s
+(t\)) s
+-1 r 44 c
+10 r (and) s
+11 r (that) s
+224 711 p (they) s
+15 r (can) s
+15 r 98 c
+1 r 101 c
+16 r (treated) s
+14 r (as) s
+14 r (authoritativ) s
+-1 r (e.) s
+18 r (There) s
+15 r (is) s
+14 r 97 c
+15 r (need) s
+16 r (to) s
+14 r (de\014ne) s
+16 r (an) s
+15 r (attribute) s
+224 768 p (syn) s
+(tax) s
+13 r (whic) s
+104 c
+13 r (represen) s
+(ts) s
+13 r 97 c
+14 r (DNS) s
+14 r (record.) s
+20 r (This) s
+14 r (then) s
+14 r (allo) s
+(ws) s
+12 r (DNS) s
+14 r (records) s
+14 r (to) s
+14 r 98 c
+1 r 101 c
+224 824 p (stored) s
+15 r (in) s
+15 r (the) s
+15 r (DIT.) s
+15 r (There) s
+15 r (are) s
+15 r (three) s
+16 r 112 c
+1 r (ossible) s
+15 r (enco) s
+1 r (dings) s
+15 r (of) s
+15 r (this) s
+14 r (record:) s
+cmbx10.329 @sf
+224 943 p (ASN.1) s
+17 r (Enco) s
+1 r (ded) s
+cmr10.329 @sf
+24 r (This) s
+21 r (is) s
+20 r (the) s
+22 r (most) s
+19 r (natural) s
+20 r (approac) s
+104 c
+20 r (in) s
+21 r (terms) s
+20 r (of) s
+21 r (X.500.) s
+338 999 p (Ho) s
+119 c
+-1 r (ev) s
+-1 r (er,) s
+16 r (it) s
+16 r 119 c
+(ould) s
+16 r (require) s
+18 r (all) s
+16 r (users) s
+18 r (of) s
+17 r (this) s
+17 r (service) s
+18 r (to) s
+17 r (handle) s
+18 r (the) s
+17 r (new) s
+338 1056 p (syn) s
+(tax,) s
+15 r (whic) s
+104 c
+16 r 119 c
+(ould) s
+15 r 98 c
+1 r 101 c
+18 r 97 c
+(wkw) s
+-1 r (ard.) s
+23 r (There) s
+17 r (is) s
+17 r 97 c
+17 r (problem) s
+15 r (with) s
+17 r (handling) s
+338 1112 p (the) s
+15 r (resource) s
+15 r (format) s
+13 r (in) s
+15 r 97 c
+15 r (general) s
+15 r (manner.) s
+cmbx10.329 @sf
+224 1204 p (DNS) s
+18 r (Binary) s
+16 r (Enco) s
+1 r (ded) s
+cmr10.329 @sf
+24 r (Use) s
+11 r (the) s
+10 r (formal) s
+-1 r (ly) s
+8 r (de\014ned) s
+12 r (record) s
+10 r (syn) s
+(tax.) s
+16 r (This) s
+10 r 119 c
+(ould) s
+338 1261 p 98 c
+1 r 101 c
+22 r (con) s
+118 c
+-1 r (enien) s
+116 c
+19 r (for) s
+21 r (access) s
+21 r (to) s
+21 r (the) s
+21 r (data) s
+21 r 98 c
+121 c
+20 r (DNS) s
+22 r (related) s
+21 r (soft) s
+119 c
+-2 r (are,) s
+20 r (but) s
+338 1317 p 119 c
+(ould) s
+13 r 98 c
+1 r 101 c
+16 r (an) s
+15 r 97 c
+(wkw) s
+-1 r (ard) s
+13 r (enco) s
+1 r (ding) s
+16 r (for) s
+14 r (indep) s
+1 r (enden) s
+116 c
+16 r (X.500) s
+14 r (DUAs.) s
+cmbx10.329 @sf
+224 1409 p 84 c
+-3 r (ext) s
+16 r (enco) s
+1 r (ded) s
+cmr10.329 @sf
+24 r (Use) s
+12 r (of) s
+12 r 97 c
+12 r (text) s
+12 r (enco) s
+1 r (ding) s
+13 r (deriv) s
+(ed) s
+11 r (from) s
+10 r (the) s
+13 r (DNS) s
+12 r (sp) s
+1 r (eci\014cations.) s
+338 1465 p (This) s
+10 r (is) s
+11 r (straigh) s
+-1 r (tforw) s
+-2 r (ard) s
+9 r (to) s
+10 r (map) s
+10 r (on) s
+(to) s
+9 r (DNS) s
+11 r (proto) s
+1 r (col,) s
+11 r (and) s
+11 r (easy) s
+11 r (to) s
+10 r (supp) s
+1 r (ort) s
+338 1522 p (in) s
+15 r 97 c
+15 r (na\020v) s
+101 c
+13 r (X.500) s
+14 r (DUA.) s
+15 r (This) s
+15 r (approac) s
+104 c
+14 r (is) s
+14 r 99 c
+(hosen.) s
+224 1641 p (The) s
+19 r (syn) s
+(tax) s
+16 r (is) s
+18 r (de\014ned) s
+19 r (in) s
+18 r (IA5) s
+18 r 99 c
+(haracters.) s
+27 r (The) s
+19 r (BNF) s
+18 r (of) s
+18 r (the) s
+18 r (record) s
+18 r (uses) s
+18 r (the) s
+224 1697 p (de\014nitions) s
+15 r (of) s
+15 r (section) s
+15 r (5.1) s
+14 r (of) s
+15 r (RF) s
+67 c
+13 r (1035.) s
+19 r (It) s
+15 r (is) s
+cmtt10.329 @sf
+320 1816 p (<rr>) s
+23 r 91 c
+24 r (";") s
+23 r (<comment>) s
+23 r 93 c
+cmr10.329 @sf
+224 1934 p (Three) s
+16 r (examples) s
+14 r (of) s
+14 r (this) s
+15 r (\(for) s
+14 r (domain) s
+14 r (C.ISI.EDU\)) s
+15 r (migh) s
+-1 r 116 c
+13 r 98 c
+1 r (e:) s
+cmtt10.329 @sf
+224 2053 p (500) s
+24 r 65 c
+71 r (10.1.0.52) s
+572 r 59 c
+23 r (Basic) s
+23 r (address) s
+23 r (record) s
+224 2110 p (IN) s
+24 r (600) s
+23 r (MX) s
+48 r (10) s
+23 r (VENERA.ISI.EDU.) s
+380 r 59 c
+24 r (MX) s
+23 r (record) s
+224 2166 p (600) s
+24 r (IN) s
+23 r (MX) s
+48 r (10) s
+23 r (VENERA.ISI.EDU.) s
+380 r 59 c
+24 r (MX) s
+23 r (record) s
+23 r 45 c
+24 r (other) s
+23 r (order) s
+cmr10.329 @sf
+224 2285 p (Note) s
+15 r (that:) s
+cmsy10.329 @sf
+292 2404 p 15 c
+cmr10.329 @sf
+23 r (The) s
+15 r (class) s
+15 r (and) s
+15 r (TTL) s
+15 r (ma) s
+121 c
+13 r 98 c
+1 r 101 c
+16 r (in) s
+15 r (either) s
+15 r (order) s
+15 r (\(follo) s
+-1 r (w) s
+-1 r (ing) s
+13 r (RF) s
+67 c
+14 r (1035\)) s
+cmsy10.329 @sf
+292 2495 p 15 c
+cmr10.329 @sf
+23 r (The) s
+15 r (class) s
+15 r (defaults) s
+14 r (to) s
+15 r (IN) s
+cmsy10.329 @sf
+292 2587 p 15 c
+cmr10.329 @sf
+23 r (Domai) s
+-1 r (ns) s
+19 r 109 c
+(ust) s
+18 r (alw) s
+97 c
+-1 r (ys) s
+18 r 98 c
+1 r 101 c
+22 r (fully) s
+19 r (sp) s
+1 r (eci\014ed) s
+22 r (\(i.e.,) s
+21 r (master) s
+18 r (\014le) s
+21 r (abbreviate) s
+338 2644 p (rules) s
+15 r (are) s
+15 r (not) s
+14 r (used\).) s
+cmsy10.329 @sf
+292 2736 p 15 c
+cmr10.329 @sf
+23 r (The) s
+18 r (TTL) s
+18 r (for) s
+17 r 97 c
+18 r (record) s
+17 r 109 c
+(ust) s
+16 r (alw) s
+97 c
+-2 r (ys) s
+16 r 98 c
+1 r 101 c
+18 r (presen) s
+116 c
+17 r (\(this) s
+17 r (sa) s
+118 c
+-1 r (es) s
+16 r (lo) s
+1 r (oking) s
+17 r (at) s
+338 2792 p (the) s
+15 r (paren) s
+116 c
+14 r (en) s
+(try) s
+14 r (to) s
+14 r (\014nd) s
+16 r (the) s
+15 r (SO) s
+65 c
+15 r (record\).) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 54 c
+@eop
+7 @bop0
+cmbx10.432 @sf
+[<00FFC00007FFF8000FFFFE001FC07F003F000F807E0007807C0007C0FC0003C0F80003E0F80003E0F80007E0F80007E0F800
+  1FE0FC007FE07C00FFE07E03FFE03F0FFFC01FBFFFC00FFFFF8007FFFF0003FFFE0007FFFC000FFFF8001FFFFC001FFFFE00
+  3FFE3F003FF81F003FF01F803FC00F803F000F803E000F803E000F801E001F801E001F000F003F000FC0FE0007FFFC0001FF
+  F800007FC000> 27 39 -3 0 34] 56 @dc
+7 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmsy10.329 @sf
+292 195 p 15 c
+cmr10.329 @sf
+23 r (Records) s
+13 r (\(e.g.,) s
+12 r (SO) s
+(A\)) s
+12 r (ma) s
+121 c
+11 r 98 c
+1 r 101 c
+14 r 109 c
+-1 r (ulti) s
+-1 r (line.) s
+17 r (Lines) s
+14 r (should) s
+13 r 98 c
+1 r 101 c
+13 r (separated) s
+13 r (with) s
+338 252 p (the) s
+15 r 116 c
+119 c
+-1 r 111 c
+13 r (IA5) s
+15 r 99 c
+(haracters) s
+cmtt10.329 @sf
+14 r (<CR><LF>) s
+cmr10.329 @sf
+46 c
+224 377 p (CNAME) s
+15 r (records) s
+15 r (are) s
+15 r (mapp) s
+1 r (ed) s
+15 r (symmet) s
+-1 r (rical) s
+-1 r (ly) s
+13 r (on) s
+(to) s
+13 r (Directory) s
+14 r (Aliases.) s
+224 453 p (This) s
+20 r (is) s
+19 r (no) s
+119 c
+18 r (de\014ned) s
+22 r (in) s
+19 r (terms) s
+19 r (of) s
+19 r (attribute) s
+19 r (and) s
+20 r (ob) s
+3 r (ject) s
+19 r (class) s
+20 r (de\014nitions.) s
+33 r 65 c
+224 510 p (single) s
+18 r (record) s
+19 r 116 c
+(yp) s
+1 r 101 c
+18 r (is) s
+18 r (de\014ned,) s
+20 r (as) s
+19 r (opp) s
+1 r (osed) s
+19 r (to) s
+18 r (one) s
+19 r (attribute) s
+18 r 116 c
+(yp) s
+1 r 101 c
+17 r 112 c
+1 r (er) s
+20 r (record) s
+224 566 p 116 c
+(yp) s
+1 r (e.) s
+33 r (This) s
+19 r (allo) s
+-1 r (ws) s
+18 r (the) s
+19 r (de\014nition) s
+20 r (to) s
+19 r (not) s
+19 r (require) s
+20 r (extension) s
+19 r (when) s
+21 r (new) s
+19 r (DNS) s
+224 623 p (Record) s
+18 r 116 c
+(yp) s
+1 r (es) s
+15 r (are) s
+17 r (de\014ne.) s
+26 r (Ho) s
+119 c
+-1 r (ev) s
+-1 r (er,) s
+15 r (there) s
+17 r (is) s
+16 r (some) s
+15 r (loss) s
+16 r (of) s
+17 r (e\016ciency) s
+17 r (if) s
+16 r (only) s
+17 r 97 c
+224 679 p (single) s
+15 r (record) s
+15 r 116 c
+(yp) s
+1 r 101 c
+14 r (is) s
+15 r (needed,) s
+16 r (as) s
+15 r (\014ltering) s
+14 r 109 c
+(ust) s
+13 r 98 c
+1 r 101 c
+16 r (done) s
+15 r 98 c
+121 c
+14 r (the) s
+16 r (DUA.) s
+224 755 p (Similarl) s
+-1 r 121 c
+-3 r 44 c
+10 r (no) s
+13 r (distinction) s
+12 r (is) s
+13 r (made) s
+12 r (on) s
+12 r (the) s
+13 r (basis) s
+13 r (of) s
+12 r (DNS) s
+13 r (class.) s
+19 r (This) s
+12 r (means) s
+12 r (that) s
+224 812 p (if) s
+16 r (there) s
+16 r (are) s
+15 r 116 c
+119 c
+-1 r 111 c
+14 r (class) s
+15 r (hierarc) s
+(hies,) s
+14 r (that) s
+15 r (they) s
+16 r 109 c
+(ust) s
+14 r 98 c
+1 r 101 c
+16 r (represen) s
+(ted) s
+16 r (in) s
+16 r 97 c
+15 r (single) s
+224 868 p (DIT,) s
+16 r (and) s
+16 r (that) s
+16 r (informa) s
+-1 r (tio) s
+-1 r 110 c
+15 r (for) s
+15 r (di\013eren) s
+116 c
+15 r (classes) s
+15 r 109 c
+(ust) s
+14 r 98 c
+1 r 101 c
+17 r (separated) s
+16 r 98 c
+121 c
+15 r (DUA) s
+224 925 p (\014ltering.) s
+cmtt10.329 @sf
+224 1050 p (DNSDomain) s
+23 r (OBJECT-CLASS) s
+320 1107 p (SUBCLASS) s
+22 r (OF) s
+24 r (Domain) s
+320 1163 p (MAY) s
+23 r (CONTAIN) s
+23 r 123 c
+415 1220 p (DNSRecord) s
+23 r 125 c
+224 1333 p (DNSRecord) s
+23 r (ATTRIBUTE) s
+320 1389 p (ATTRIBUTE-SYNTAX) s
+21 r (IA5String) s
+320 1446 p (MATCHES) s
+23 r (FOR) s
+23 r (EQUALITY) s
+cmr10.329 @sf
+224 1628 p (Lo) s
+1 r (okup) s
+13 r (of) s
+13 r 97 c
+12 r (domain) s
+11 r (is) s
+12 r (ac) s
+(hiev) s
+(ed) s
+11 r 98 c
+121 c
+11 r (translating) s
+11 r (it) s
+12 r (algorithm) s
+-1 r (i) s
+-1 r (cally) s
+10 r (to) s
+12 r 97 c
+13 r (Distin-) s
+224 1684 p (guished) s
+15 r (Name) s
+13 r (\(DN\),) s
+14 r (and) s
+14 r (reading) s
+15 r (bac) s
+107 c
+13 r (attributes) s
+13 r (desired.) s
+20 r (This) s
+14 r (informatio) s
+-1 r 110 c
+224 1741 p (can) s
+15 r 98 c
+1 r 101 c
+16 r (managed) s
+14 r (and) s
+16 r (searc) s
+(hed) s
+14 r (in) s
+15 r 97 c
+15 r (straigh) s
+-1 r (tforw) s
+-2 r (ard) s
+13 r (fashion.) s
+224 1817 p (The) s
+13 r (informati) s
+-1 r (on) s
+11 r (ma) s
+-1 r 121 c
+11 r (also) s
+12 r 98 c
+1 r 101 c
+13 r (do) s
+(wnloaded) s
+12 r (in) s
+(to) s
+10 r 97 c
+13 r (DNS) s
+13 r (database.) s
+18 r (This) s
+12 r (should) s
+224 1873 p 98 c
+1 r 101 c
+18 r (done) s
+18 r 98 c
+121 c
+17 r (use) s
+18 r (of) s
+17 r (zone) s
+17 r (transfer.) s
+27 r 65 c
+17 r (to) s
+1 r (ol) s
+17 r (to) s
+16 r 112 c
+1 r (erform) s
+17 r (zone) s
+18 r (transfer) s
+16 r (\(in) s
+17 r 98 c
+1 r (oth) s
+224 1930 p (directions\)) s
+9 r 98 c
+1 r (et) s
+119 c
+(een) s
+9 r 97 c
+10 r (DNS) s
+10 r (Serv) s
+(er) s
+9 r (and) s
+10 r 97 c
+10 r (DSA) s
+11 r 119 c
+(ould) s
+8 r (seem) s
+9 r (to) s
+10 r 98 c
+1 r 101 c
+11 r 98 c
+1 r (oth) s
+10 r (straigh) s
+(t) s
+-1 r 45 c
+224 1986 p (forw) s
+(ard) s
+12 r (and) s
+14 r (useful.) s
+20 r (This) s
+14 r 119 c
+(ould) s
+12 r 98 c
+1 r 101 c
+15 r 97 c
+14 r 107 c
+(ey) s
+13 r (to) s
+1 r (ol) s
+13 r (in) s
+14 r 97 c
+13 r (transition) s
+13 r (to) s
+13 r (X.500) s
+13 r (based) s
+224 2043 p (managemen) s
+-1 r 116 c
+10 r (of) s
+12 r (the) s
+12 r (DNS.) s
+12 r (It) s
+12 r 119 c
+(ould) s
+11 r (also) s
+11 r (allo) s
+119 c
+10 r 97 c
+12 r (large) s
+11 r (part) s
+12 r (of) s
+12 r (the) s
+12 r (DNS) s
+12 r (names-) s
+224 2099 p (pace) s
+16 r (to) s
+14 r 98 c
+1 r 101 c
+16 r (rapidly) s
+15 r (made) s
+14 r 97 c
+118 c
+-2 r (a) s
+-1 r (ila) s
+-1 r (ble) s
+14 r (in) s
+15 r (an) s
+15 r (X.500) s
+14 r (pilot.) s
+224 2175 p (In) s
+118 c
+(erse) s
+16 r (informat) s
+-1 r (ion) s
+15 r (can) s
+18 r 98 c
+1 r 101 c
+18 r (deriv) s
+(ed) s
+16 r 98 c
+121 c
+16 r (the) s
+18 r (usual) s
+17 r (IN-ADDR) s
+18 r (domain,) s
+16 r (whic) s
+104 c
+224 2232 p (will) s
+14 r 98 c
+1 r 101 c
+16 r (represen) s
+(ted) s
+15 r (in) s
+15 r (the) s
+15 r (same) s
+14 r (manner) s
+14 r (in) s
+15 r (the) s
+15 r (DIT.) s
+cmbx10.432 @sf
+224 2394 p 56 c
+69 r (NRS) s
+23 r (Informati) s
+-1 r (on) s
+cmr10.329 @sf
+224 2515 p (Information) s
+13 r (asso) s
+1 r (ciated) s
+14 r (with) s
+15 r (the) s
+15 r (UK) s
+15 r (NRS) s
+16 r (\(Name) s
+14 r (Registration) s
+13 r (Sc) s
+(heme\)) s
+13 r (can) s
+224 2572 p 98 c
+1 r 101 c
+12 r (handled) s
+11 r (in) s
+11 r 97 c
+10 r (simila) s
+-1 r 114 c
+9 r (manner) s
+10 r 91 c
+(Lar83) s
+-1 r (].) s
+18 r (This) s
+10 r (is) s
+10 r 98 c
+1 r (eing) s
+11 r (dev) s
+(elop) s
+1 r (ed) s
+11 r (in) s
+11 r 97 c
+10 r (separate) s
+224 2628 p (do) s
+1 r (cumen) s
+116 c
+14 r 98 c
+121 c
+14 r (Alan) s
+15 r 84 c
+-3 r (urland.) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 55 c
+@eop
+8 @bop0
+cmbx10.432 @sf
+[<01FE000007FFC0000FFFE0001F07F8001F01FC003F80FE003FC0FF003FC07F003FC07F803FC07F801F803FC00F003FC00000
+  3FC000003FC000083FE001FF3FE007FFBFE00FFFFFE01FC0FFE03F80FFE07F807FE07F807FE0FF807FE0FF803FE0FF803FE0
+  FF803FE0FF803FE0FF803FC0FF803FC0FF803FC0FF803FC07F803F807F803F803F807F001FC07E000FE1FE0007FFFC0003FF
+  F000007FC000> 27 39 -3 0 34] 57 @dc
+[<FFFF003FFFFEFFFF003FFFFEFFFF003FFFFE03E00001FF8001E00001FF0001F00003FF0000F00003FE0000F00003FE0000F8
+  0007FE0000780007FC00007C000FFC00003FFFFFF800003FFFFFF800003FFFFFF800001E001FF000001F003FF000000F003F
+  E000000F003FE000000F807FE0000007807FC0000007C0FFC0000003C0FF80000003C0FF80000003E1FF80000001E1FF0000
+  0001F3FF00000000F3FE00000000F3FE00000000FFFE000000007FFC000000007FFC000000003FF8000000003FF800000000
+  3FF8000000001FF0000000001FF0000000000FE0000000000FE0000000000FE00000000007C00000000007C00000> 47 41 -2 0 52] 65 @dc
+[<FFFFFFFFF0FFFFFFFFF0FFFFFFFFF003FE001FF803FE0003F803FE0001F803FE0000F803FE00007803FE00003803FE00003C
+  03FE00001C03FE00001C03FE00001C03FE01C01C03FE01C00E03FE01C00E03FE01C00E03FE03C00003FE03C00003FE0FC000
+  03FFFFC00003FFFFC00003FFFFC00003FE0FC00003FE03C00003FE03C00003FE01C03803FE01C03803FE01C03803FE01C078
+  03FE00007003FE00007003FE00007003FE0000F003FE0000F003FE0001F003FE0007F003FE001FE0FFFFFFFFE0FFFFFFFFE0
+  FFFFFFFFE0> 39 41 -3 0 45] 69 @dc
+[<00078003C00000078003C000000FC007E000000FC007E000000FC007E000001FE00FF000001FE00FF000003FF01FF800003F
+  F01FB800003FF01FB800007F783F3C00007F383F1C0000FF383F1E0000FE1C7E0E0000FE1C7E0E0001FE1EFC0F0001FC0EFC
+  070001FC0EFC070003F807F8038003F807F8038007F807F803C007F003F001C007F003F001C00FE007E000E0FFFE7FFC0FFE
+  FFFE7FFC0FFEFFFE7FFC0FFE> 47 27 -1 0 50] 119 @dc
+[<FFFC3FFEFFFC3FFEFFFC3FFE0FC00FF00FC01FE00FC03FC00FC03F800FC07F800FC0FF000FC0FE000FE1FE000FF3FC000FFF
+  F8000FFFF0000FFFF0000FEFE0000FE7C0000FE3E0000FE1F0000FE0F8000FE07C000FE01E000FE00F800FE007C00FE01FFC
+  0FE01FFC0FE01FFC0FE000000FE000000FE000000FE000000FE000000FE000000FE000000FE000000FE000000FE000000FE0
+  00000FE00000FFE00000FFE00000FFE00000> 31 42 -2 0 36] 107 @dc
+cmtt10.329 @sf
+[<0707000F8F800F8F800F8F800DDD800DDD800DDD801CD9C01CF9C01CF9C01CF9C01C71C01C01C01C01C03800E03800E03800
+  E0FF8FF8FF8FF8FF8FF8> 21 20 -1 0 24] 119 @dc
+[<FFC7F8FFC7F8FFC7F80E03C00E07C00E0F800E0F000F1E000FBE000FFC000FF8000FF8000EF8000E7C000E3E000E1F000E0F
+  800E7FF00E7FF00E7FF00E00000E00000E00000E00000E0000FE0000FE0000FE0000> 21 28 -1 0 24] 107 @dc
+[<00700000F80000F80001DC0001DC0001DC0003DE00038E00038E00038E000707000707000707000E03800E03800E03801E03
+  C0FF8FF8FF8FF8FF8FF8> 21 20 -1 0 24] 118 @dc
+[<00FFF800FFF800FFF8000700000700000700000700000700000700FFFFF8FFFFF8FFFFF8F007007807003807003C07001E07
+  000E070007070007870003C70001C70001E70000F700007700007F00003F00001F00> 21 28 -1 0 24] 52 @dc
+cmr12.300 @sf
+[<03F8000FFE003E0F007C03807801C0F001C0E000E0E000E0E000E0E001E0E001E07007E0780FE0383FC01E7F800FFF8007FF
+  000FFC001FFC003FFF003FC7807F03807C03C07801C07001C07001C07001C03803C03C07801E1F000FFE0003F800> 19 32 -2 0 24] 56 @dc
+8 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmbx10.432 @sf
+224 195 p 57 c
+69 r (Application) s
+21 r (En) s
+-1 r (tit) s
+-2 r 121 c
+21 r (Titles) s
+cmr10.329 @sf
+224 316 p (In) s
+19 r (man) s
+121 c
+16 r (cases,) s
+19 r (Application) s
+18 r (en) s
+(titi) s
+-1 r (es) s
+17 r (will) s
+17 r 98 c
+1 r 101 c
+19 r (closely) s
+18 r (related) s
+18 r (to) s
+18 r (domains.) s
+28 r (In) s
+224 373 p (some) s
+13 r (cases,) s
+13 r (it) s
+13 r (ma) s
+121 c
+11 r 98 c
+1 r 101 c
+15 r (appropriate) s
+13 r (to) s
+13 r (giv) s
+101 c
+12 r (Application) s
+13 r (En) s
+(tit) s
+-1 r (ies) s
+12 r (names) s
+13 r (whic) s
+104 c
+224 429 p (are) s
+14 r (related) s
+13 r (to) s
+13 r (the) s
+14 r (DNS) s
+14 r (part) s
+13 r (of) s
+13 r (the) s
+14 r (DIT.) s
+13 r (In) s
+15 r (this) s
+13 r (case,) s
+14 r (the) s
+14 r (Domai) s
+-1 r 110 c
+12 r (Name) s
+13 r (will) s
+224 485 p 98 c
+1 r 101 c
+13 r (used) s
+13 r (to) s
+12 r (iden) s
+(tify) s
+11 r (the) s
+13 r (application,) s
+11 r (and) s
+13 r (the) s
+12 r (en) s
+(try) s
+12 r (for) s
+12 r (the) s
+12 r (domain) s
+11 r (will) s
+11 r (also) s
+12 r 98 c
+1 r 101 c
+224 542 p (of) s
+16 r (ob) s
+3 r (ject) s
+15 r (class) s
+15 r (Application) s
+15 r (Pro) s
+1 r (cess.) s
+22 r (The) s
+16 r 99 c
+(hildren) s
+15 r (of) s
+15 r (this) s
+15 r (en) s
+(try) s
+15 r (will) s
+14 r (iden) s
+(tify) s
+224 598 p (Application) s
+14 r (En) s
+(tities,) s
+13 r (with) s
+14 r (names) s
+14 r (suc) s
+104 c
+15 r (as) s
+15 r (\\FT) s
+-3 r (AM) s
+13 r (Service".) s
+cmbx10.432 @sf
+224 758 p (10) s
+70 r (Net) s
+-1 r 119 c
+-3 r (orks) s
+cmr10.329 @sf
+224 879 p (It) s
+18 r (is) s
+17 r (clearly) s
+17 r (useful) s
+18 r (to) s
+18 r (represen) s
+116 c
+17 r (net) s
+119 c
+-1 r (orks) s
+15 r (within) s
+17 r (the) s
+18 r (DIT.) s
+18 r 65 c
+18 r (short) s
+17 r (note) s
+18 r (on) s
+224 936 p (ho) s
+119 c
+15 r (to) s
+15 r (do) s
+16 r (this) s
+15 r (is) s
+15 r (giv) s
+(en) s
+15 r (here.) s
+22 r (It) s
+16 r (is) s
+15 r (lik) s
+(ely) s
+14 r (that) s
+15 r (this) s
+16 r (sp) s
+1 r (eci\014cation) s
+15 r (will) s
+15 r (later) s
+15 r 98 c
+1 r 101 c
+224 992 p (ev) s
+(olv) s
+-1 r (ed) s
+14 r (in) s
+15 r 97 c
+15 r (separate) s
+14 r (do) s
+1 r (cumen) s
+(t.) s
+19 r (This) s
+15 r (de\014nes) s
+16 r (an) s
+15 r (Ob) s
+3 r (ject) s
+15 r (Class) s
+14 r (for) s
+15 r 97 c
+15 r (general) s
+224 1049 p (net) s
+119 c
+(o) s
+-1 r (rk,) s
+16 r (and) s
+17 r (sho) s
+(ws) s
+16 r (ho) s
+119 c
+16 r (it) s
+17 r (can) s
+18 r 98 c
+1 r 101 c
+18 r (sub) s
+1 r (classed) s
+18 r (to) s
+16 r (de\014ne) s
+19 r (tec) s
+(hnology) s
+16 r (sp) s
+1 r (eci\014c) s
+224 1105 p (net) s
+119 c
+(o) s
+-1 r (rks.) s
+cmtt10.329 @sf
+224 1211 p (Network) s
+23 r (OBJECT-CLASS) s
+320 1267 p (SUBCLASS) s
+22 r (OF) s
+24 r (TOP) s
+320 1324 p (MAY) s
+23 r (CONTAIN) s
+23 r 123 c
+367 1380 p (Manager,) s
+367 1437 p (Locality,) s
+367 1493 p (Description) s
+23 r 125 c
+224 1606 p (IPNetwork) s
+23 r (OBJECT-CLASS) s
+320 1663 p (SUBCLASS) s
+22 r (OF) s
+24 r (Network) s
+320 1719 p (MUST) s
+23 r (CONTAIN) s
+23 r ({AssociatedDomain) s
+-1 r 125 c
+cmr10.329 @sf
+224 1825 p (The) s
+21 r (Net) s
+119 c
+-1 r (ork) s
+19 r (Ob) s
+3 r (ject) s
+21 r (Class) s
+20 r (allo) s
+-1 r (ws) s
+19 r (net) s
+119 c
+-1 r (or) s
+-1 r (ks) s
+19 r (to) s
+20 r 98 c
+1 r 101 c
+22 r (de\014ned,) s
+23 r (and) s
+21 r (for) s
+20 r (useful) s
+224 1881 p (attributes) s
+16 r (to) s
+16 r 98 c
+1 r 101 c
+18 r (asso) s
+1 r (ciated) s
+16 r (with) s
+16 r (the) s
+17 r (en) s
+(try) s
+-3 r 46 c
+23 r 65 c
+17 r (net) s
+119 c
+(or) s
+-1 r 107 c
+15 r (will) s
+16 r (often) s
+16 r (app) s
+1 r (ear) s
+18 r (in) s
+224 1937 p (more) s
+13 r (than) s
+13 r (one) s
+14 r (organisational) s
+11 r (structure,) s
+14 r (and) s
+14 r (this) s
+13 r (link) s
+-2 r (age) s
+12 r (should) s
+14 r 98 c
+1 r 101 c
+15 r (ac) s
+(hiev) s
+-1 r (ed) s
+224 1994 p 98 c
+121 c
+14 r (use) s
+16 r (of) s
+15 r (aliases.) s
+18 r (This) s
+15 r (grouping) s
+14 r (can) s
+16 r (facilitate) s
+13 r (managem) s
+-1 r (en) s
+116 c
+12 r (of) s
+15 r (net) s
+119 c
+(o) s
+-1 r (rks.) s
+224 2070 p (The) s
+19 r (sub) s
+1 r (class) s
+18 r (IPNet) s
+119 c
+-1 r (ork) s
+16 r (mandates) s
+17 r (link) s
+-2 r (age) s
+17 r (in) s
+(to) s
+16 r (the) s
+18 r (DNS) s
+18 r (part) s
+18 r (of) s
+18 r (the) s
+18 r (DIT.) s
+224 2126 p (This) s
+24 r (will) s
+23 r 98 c
+1 r 101 c
+25 r (represen) s
+(ted) s
+23 r (in) s
+24 r (the) s
+25 r (DIT) s
+24 r (using) s
+24 r (the) s
+24 r (structures) s
+24 r (of) s
+24 r (RF) s
+67 c
+23 r (1101) s
+224 2183 p 91 c
+(Mo) s
+1 r (c89) s
+-1 r (].) s
+31 r (Both) s
+19 r (of) s
+19 r (the) s
+19 r (domains) s
+18 r (whic) s
+104 c
+18 r (iden) s
+(tify) s
+17 r (the) s
+19 r (net) s
+119 c
+(o) s
+-1 r (rk) s
+17 r (should) s
+19 r 98 c
+1 r 101 c
+20 r (rep-) s
+224 2239 p (resen) s
+(ted) s
+15 r (in) s
+15 r (the) s
+15 r (Ob) s
+3 r (ject) s
+16 r (Class.) s
+19 r 70 c
+-3 r (or) s
+14 r (example,) s
+14 r 97 c
+15 r (net) s
+119 c
+-1 r (ork) s
+13 r (migh) s
+-1 r 116 c
+13 r (ha) s
+118 c
+101 c
+13 r (the) s
+16 r (\(user) s
+224 2296 p (friendly\)) s
+15 r (name:) s
+cmtt10.329 @sf
+248 2401 p (UCL-Ethernet,) s
+22 r (University) s
+23 r (College) s
+22 r (London,) s
+23 r (GB) s
+cmr10.329 @sf
+224 2507 p (This) s
+15 r 119 c
+(ould) s
+14 r (ha) s
+118 c
+-1 r 101 c
+13 r (asso) s
+1 r (ciated) s
+15 r (domains) s
+cmtt10.329 @sf
+13 r (0.0.40.128.IN-ADDR.AR) s
+-1 r (PA) s
+cmr10.329 @sf
+13 r (and) s
+cmtt10.329 @sf
+224 2563 p (UCL-ETHERNET.UCL.AC.) s
+-1 r (UK) s
+cmr10.329 @sf
+46 c
+13 r (These) s
+15 r 119 c
+(ould) s
+14 r 98 c
+1 r (oth) s
+15 r (ha) s
+118 c
+101 c
+13 r (the) s
+15 r (analogous) s
+14 r (DIT) s
+15 r (rep-) s
+224 2620 p (resen) s
+(tations.) s
+18 r 70 c
+-3 r (or) s
+13 r (example:) s
+cmtt10.329 @sf
+224 2725 p (DomainComponent=0,) s
+22 r (DomainComponent) s
+-1 r (=0,) s
+22 r (DomainComponent=40) s
+-1 r 44 c
+224 2782 p (DomainComponent=128,) s
+21 r (DomainComponent=IN-AD) s
+-1 r (DR,) s
+22 r (DomainComponent=AR) s
+-1 r (PA) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 56 c
+@eop
+9 @bop0
+cmbx10.432 @sf
+[<FFFFFFFF00FFFFFFFF00FFFFFFFF0003FE01FF0003FE007F8003FE001F8003FE000F8003FE000F8003FE00078003FE000780
+  03FE00038003FE00038003FE0003C003FE0001C003FE0001C003FE0001C003FE0001C003FE00000003FE00000003FE000000
+  03FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE000000
+  03FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE000000FFFFFE0000FFFFFE0000
+  FFFFFE0000> 34 41 -3 0 41] 76 @dc
+cmsy10.329 @sf
+[<C00000E000006000007000003000003800001800001C00000C00000E000006000007000003000003800001800001C00000C0
+  0000E000006000007000003000003000003800001800001C00000C00000E000006000007000003000003800001800001C000
+  00C00000E000006000007000003000003800001800001C00000C> 22 42 -6 10 0] 54 @dc
+cmr10.329 @sf
+[<40E07030303818181878F8F8F8700000000000000000000070F8F8F870> 5 29 -4 9 13] 59 @dc
+cmtt10.329 @sf
+[<3FC0FFF0FFF8F87CF83CF83E001E001E001E001E001E001E001E001E001E001E001E001E001E001E001E001E001E001E001E
+  001E001E1FFE1FFE1FFE0000000000000000001C003E003E003E001C> 15 39 -2 10 24] 106 @dc
+9 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmbx10.432 @sf
+224 195 p (11) s
+70 r (Link) s
+-3 r (age) s
+cmr10.329 @sf
+224 316 p (There) s
+21 r (is) s
+20 r 97 c
+20 r (need) s
+22 r (to) s
+20 r (asso) s
+1 r (ciate) s
+19 r (the) s
+21 r (organisational) s
+18 r (X.500) s
+19 r (DIT) s
+21 r (and) s
+21 r (the) s
+20 r (DNS) s
+224 373 p (tree.) s
+19 r (The) s
+14 r (ob) s
+3 r (jects) s
+12 r (represen) s
+(ted) s
+13 r (are) s
+13 r (di\013eren) s
+116 c
+11 r (\(Domai) s
+-1 r 110 c
+cmsy10.329 @sf
+12 r 54 c
+cmr10.329 @sf
+61 c
+13 r (Organisation;) s
+12 r 80 c
+(erson) s
+cmsy10.329 @sf
+224 429 p 54 c
+cmr10.329 @sf
+61 c
+23 r (RF) s
+67 c
+20 r (822) s
+22 r (Mailb) s
+1 r 111 c
+-1 r (x\).) s
+38 r (Therefore) s
+22 r (aliasing) s
+21 r (is) s
+21 r (not) s
+22 r (an) s
+22 r (appropriate) s
+21 r (link) s
+-2 r (age.) s
+224 485 p (Ho) s
+119 c
+-1 r (ev) s
+-1 r (er,) s
+11 r (in) s
+12 r (man) s
+-1 r 121 c
+11 r (cases,) s
+12 r (there) s
+12 r (is) s
+12 r 97 c
+12 r (link) s
+-2 r (age) s
+11 r (whic) s
+104 c
+11 r (is) s
+12 r (rather) s
+12 r (stronger) s
+11 r (than) s
+12 r (that) s
+224 542 p (implied) s
+11 r 98 c
+121 c
+11 r (the) s
+12 r (seeAlso) s
+12 r (attribute.) s
+18 r (Therefore,) s
+12 r 119 c
+101 c
+11 r (de\014ne) s
+13 r (new) s
+12 r (attributes,) s
+12 r (whic) s
+104 c
+224 598 p (represen) s
+116 c
+16 r (this) s
+16 r (stronger) s
+16 r (cross-link) s
+-2 r (age.) s
+23 r (The) s
+17 r (same) s
+16 r (mec) s
+(hanism) s
+13 r (can) s
+17 r 98 c
+1 r 101 c
+18 r (used) s
+17 r (to) s
+224 655 p (link) s
+15 r 97 c
+15 r (domains) s
+13 r (with) s
+15 r (an) s
+15 r (Application) s
+14 r (En) s
+(tit) s
+-1 r 121 c
+13 r (or) s
+15 r (an) s
+15 r (Application) s
+14 r (Pro) s
+1 r (cess.) s
+224 731 p (Links) s
+17 r (from) s
+15 r (the) s
+17 r (organisatio) s
+-1 r (nal) s
+15 r (X.500) s
+15 r (DIT) s
+17 r (to) s
+16 r (the) s
+16 r (DNS) s
+17 r (tree) s
+17 r (are) s
+16 r (pro) s
+(vided) s
+16 r 98 c
+121 c
+224 787 p 97 c
+17 r (new) s
+17 r (attribute,) s
+16 r (whic) s
+104 c
+15 r (could) s
+17 r 98 c
+1 r 101 c
+18 r (presen) s
+116 c
+15 r (in) s
+17 r (Organisation) s
+15 r (or) s
+17 r (Organisational) s
+224 844 p (Unit) s
+15 r (en) s
+(tries.) s
+cmtt10.329 @sf
+224 960 p (ObjectWithAssociated) s
+-1 r (Domain) s
+21 r (OBJECT-CLASS) s
+272 1016 p (SUBCLASS) s
+23 r (OF) s
+23 r (top) s
+272 1073 p (MUST) s
+23 r (CONTAIN) s
+23 r ({AssociatedDomain}) s
+224 1186 p (AssociatedDomain) s
+22 r (ATTRIBUTE) s
+272 1242 p (WITH) s
+23 r (ATTRIBUTE-SYNTAX) s
+22 r (ia5StringSyntax) s
+cmr10.329 @sf
+224 1358 p 70 c
+-3 r (or) s
+14 r (example,) s
+13 r (the) s
+16 r (organisati) s
+-1 r (onal) s
+13 r (en) s
+(try:) s
+338 1475 p (Univ) s
+(ersit) s
+-2 r 121 c
+14 r (College) s
+14 r (London,) s
+15 r (GB) s
+224 1591 p 119 c
+(ould) s
+14 r (ha) s
+118 c
+-1 r 101 c
+14 r (an) s
+15 r (attribute:) s
+cmtt10.329 @sf
+338 1707 p (AssociatedDomain) s
+21 r 61 c
+24 r (UCL.AC.UK) s
+cmr10.329 @sf
+224 1823 p (Similarl) s
+-1 r 121 c
+-3 r 44 c
+17 r (an) s
+19 r (RF) s
+67 c
+17 r (822) s
+18 r (mailb) s
+1 r 111 c
+-1 r 120 c
+17 r (attribute) s
+18 r (is) s
+18 r (used) s
+20 r (to) s
+18 r (link) s
+18 r (en) s
+(tries) s
+17 r (of) s
+19 r 80 c
+(erson) s
+224 1880 p (Ob) s
+3 r (ject) s
+14 r (Class) s
+13 r (to) s
+14 r (their) s
+14 r (asso) s
+1 r (ciated) s
+13 r (DNS) s
+14 r (en) s
+(try) s
+-3 r 46 c
+18 r (This) s
+13 r (attribute) s
+13 r (is) s
+14 r (de\014ned) s
+15 r (in) s
+14 r (the) s
+224 1936 p (Cosine) s
+15 r (and) s
+15 r (In) s
+(ternet) s
+15 r (Naming) s
+13 r (Arc) s
+(hitecture) s
+14 r 91 c
+(BHK91) s
+(].) s
+224 2012 p (Con) s
+118 c
+-1 r (ersely) s
+-4 r 44 c
+17 r (there) s
+18 r (are) s
+18 r 112 c
+1 r (oin) s
+(ters) s
+17 r (from) s
+17 r (the) s
+18 r (DNS) s
+18 r (represen) s
+(ted) s
+18 r (tree) s
+18 r (in) s
+(to) s
+16 r (the) s
+19 r (or-) s
+224 2069 p (ganisational) s
+13 r (X.500) s
+14 r (DIT:) s
+cmtt10.329 @sf
+224 2185 p (AssociatedName) s
+22 r (ATTRIBUTE) s
+272 2241 p (WITH) s
+23 r (ATTRIBUTE-SYNTAX) s
+22 r (distinguishedNameS) s
+-1 r (yntax) s
+cmr10.329 @sf
+224 2358 p (This) s
+15 r (attribute) s
+14 r (is) s
+15 r (asso) s
+1 r (ciated) s
+14 r (with) s
+15 r (the) s
+15 r (Domain) s
+13 r (ob) s
+3 r (ject) s
+15 r (class.) s
+224 2434 p (This) s
+12 r (en) s
+(try) s
+11 r (is) s
+12 r (used) s
+13 r (to) s
+12 r (pro) s
+(vide) s
+11 r (link) s
+-2 r (age) s
+11 r (from) s
+11 r (the) s
+13 r (DNS) s
+12 r (X.500) s
+11 r (Hierarc) s
+104 c
+121 c
+10 r (in) s
+(to) s
+10 r (the) s
+224 2490 p (organisational) s
+13 r (X.500) s
+15 r (hierarc) s
+104 c
+-1 r 121 c
+-4 r 46 c
+20 r (Where) s
+16 r (suc) s
+104 c
+15 r (en) s
+(tries) s
+14 r (do) s
+15 r (not) s
+16 r (exist,) s
+15 r (attributes) s
+224 2547 p (in) s
+15 r (the) s
+14 r (DNS) s
+15 r (en) s
+(try) s
+13 r (\(suc) s
+104 c
+14 r (as) s
+14 r (phone) s
+15 r 110 c
+(um) s
+-1 r 98 c
+1 r (er\)) s
+13 r (ma) s
+-1 r 121 c
+12 r 98 c
+1 r 101 c
+16 r (used.) s
+20 r (It) s
+15 r (is) s
+14 r (recomm) s
+-1 r (ended) s
+224 2603 p (that) s
+21 r (informatio) s
+-1 r 110 c
+20 r (is) s
+22 r (not) s
+21 r (duplicated.) s
+40 r (The) s
+22 r (preferred) s
+23 r (setup) s
+22 r (is) s
+21 r (for) s
+21 r (the) s
+22 r (DNS) s
+224 2659 p (attributes) s
+14 r (to) s
+14 r 98 c
+1 r 101 c
+16 r (rather) s
+15 r (sk) s
+(eletal) s
+-1 r 44 c
+13 r (with) s
+15 r 112 c
+1 r (oin) s
+(ters) s
+13 r (in) s
+(to) s
+13 r (the) s
+15 r (organisational) s
+13 r (X.500) s
+224 2716 p (DIT.) s
+224 2792 p 70 c
+-3 r (or) s
+13 r (example,) s
+13 r (the) s
+14 r (domain) s
+13 r (UCL.A) s
+(C.UK) s
+13 r 119 c
+(ould) s
+13 r 98 c
+1 r 101 c
+15 r (represen) s
+(ted) s
+14 r (in) s
+14 r (the) s
+15 r (DIT) s
+14 r (as:) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+1011 r 80 c
+(age) s
+15 r 57 c
+@eop
+10 @bop0
+cmbx10.432 @sf
+[<00007FF800000007FFFF0000001FFFFFC000007FF807F00000FFC000F80003FF00007C0007FE00001E000FFC00000F000FF8
+  000007001FF0000007803FF0000003803FE0000003807FE0000003807FE0000003807FC000000000FFC000000000FFC00000
+  0000FFC000000000FFC000000000FFC000000000FFC000000000FFC000000000FFC000000000FFC000000000FFC000000000
+  FFC0000000007FC0000007807FE0000007807FE0000007803FE000000F803FF000000F801FF000001F800FF800001F800FFC
+  00003F8007FE00007F8003FF0000FF8000FFC003FF80007FF80FFF80001FFFFF8F800007FFFE078000007FF00380> 41 41 -4 0 50] 67 @dc
+[<007FC3FF8001FFF3FF8007FFFBFF8007F03FF8000FE00FF8000FE007F8000FE007F8000FE003F8000FE003F8000FE003F800
+  0FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F8000FE003F800
+  0FE003F8000FE003F8000FE003F8000FE003F800FFE03FF800FFE03FF800FFE03FF800> 33 27 -3 0 38] 117 @dc
+[<0001C000000003E000000003E000000007F000000007F00000000FF80000000FF80000000FF80000001FDC0000001FDC0000
+  003FDE0000003F8E0000007F8F0000007F070000007F07000000FE03800000FE03800001FC01C00001FC01C00003FC01E000
+  03F800E00007F800F00007F000700007F0007000FFFE03FF80FFFE03FF80FFFE03FF80> 33 27 -1 0 36] 118 @dc
+cmr10.329 @sf
+[<01FFE001FFE0001E00001E00001E00001E00001E00001E00FFFFF0FFFFF0E01E00601E00301E00381E00181E000C1E000E1E
+  00061E00031E00039E00019E0000DE0000FE00007E00003E00003E00001E00000E00000E00> 20 29 -1 0 23] 52 @dc
+[<FFFFFFFFFFF0FFFFFFFFFFF0> 44 2 0 -11 45] 124 @dc
+[<1FC0003FF00078FC00FC7C00FC3E00FC3E00FC3E00783E00003E00003E00003E00003E00003E00003E00003E00003E00003E
+  00003E00003E00003E00003E00003E00003E00003E00003E00003E00003E00003E00003E000FFFE00FFFE0> 19 31 -1 0 23] 74 @dc
+10 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmr10.329 @sf
+338 195 p (Domai) s
+-1 r (nCom) s
+-1 r 112 c
+1 r (onen) s
+(t=UCL,) s
+13 r (DomainCo) s
+-1 r (m) s
+-1 r 112 c
+1 r (onen) s
+(t=A) s
+-1 r (C,) s
+338 252 p (Domai) s
+-1 r (nCom) s
+-1 r 112 c
+1 r (onen) s
+(t=UK) s
+224 366 p (This) s
+15 r (en) s
+(try) s
+14 r 119 c
+(ould) s
+13 r (ha) s
+118 c
+101 c
+13 r (in) s
+15 r (it) s
+15 r (an) s
+15 r (Asso) s
+1 r (ciatedName) s
+13 r (attribute) s
+14 r (with) s
+15 r 118 c
+-2 r (alue:) s
+338 480 p (Univ) s
+(ersit) s
+-2 r 121 c
+14 r (College) s
+14 r (London,) s
+15 r (GB) s
+224 595 p (This) s
+14 r (example) s
+12 r (sho) s
+(ws) s
+12 r 97 c
+14 r (simple) s
+12 r (case) s
+14 r (with) s
+13 r (1:1) s
+13 r (link) s
+-2 r (age.) s
+18 r (There) s
+14 r (are) s
+14 r (cases) s
+14 r (where) s
+14 r 97 c
+224 651 p (domain) s
+13 r (migh) s
+-1 r 116 c
+12 r 98 c
+1 r 101 c
+15 r (asso) s
+1 r (ciated) s
+14 r (with) s
+14 r 109 c
+-1 r (ulti) s
+-1 r (ple) s
+13 r (organisatio) s
+-1 r (ns,) s
+13 r (or) s
+13 r (an) s
+15 r (organisatio) s
+-1 r 110 c
+224 707 p (with) s
+15 r 109 c
+-1 r (ulti) s
+-1 r (ple) s
+14 r (domains.) s
+cmbx10.432 @sf
+224 869 p (12) s
+70 r (Conclusions) s
+21 r (and) s
+24 r (prop) s
+2 r (osals) s
+24 r (for) s
+24 r (ev) s
+-3 r (aluation) s
+cmr10.329 @sf
+224 990 p (Exp) s
+1 r (erimen) s
+(ts) s
+12 r (should) s
+14 r 98 c
+1 r 101 c
+15 r (undertak) s
+(en) s
+13 r (to) s
+14 r (determine) s
+13 r (the) s
+14 r (practicalit) s
+-1 r 121 c
+12 r (and) s
+14 r (utilit) s
+121 c
+224 1046 p (of) s
+16 r (this) s
+15 r (sc) s
+(heme,) s
+15 r (in) s
+16 r 97 c
+15 r (pilot) s
+15 r (en) s
+(vironmen) s
+-1 r (t.) s
+20 r 65 c
+16 r 112 c
+1 r (ossible) s
+16 r (approac) s
+104 c
+15 r (to) s
+15 r (this) s
+16 r (exp) s
+1 r (eri-) s
+224 1103 p (men) s
+(tat) s
+-1 r (ion) s
+13 r (is) s
+15 r (describ) s
+1 r (ed) s
+16 r (in) s
+15 r (App) s
+1 r (endix) s
+16 r (A.) s
+224 1179 p (Ob) s
+3 r (ject) s
+21 r (Iden) s
+(ti\014ers) s
+20 r (ha) s
+118 c
+-1 r 101 c
+19 r 98 c
+1 r (een) s
+22 r (assigned) s
+20 r (for) s
+20 r (this) s
+20 r (purp) s
+1 r (ose) s
+21 r (in) s
+20 r (the) s
+21 r (Cosine) s
+20 r (and) s
+224 1235 p (In) s
+(ternet) s
+15 r (Naming) s
+13 r (Arc) s
+(hitecture) s
+14 r 91 c
+(BHK91) s
+(].) s
+cmbx10.432 @sf
+224 1396 p (References) s
+cmr10.329 @sf
+224 1515 p ([BHK91]) s
+32 r 80 c
+-3 r 46 c
+15 r (Bark) s
+(er) s
+16 r (and) s
+17 r (S.E.) s
+16 r (Hardcastle-Kille.) s
+24 r (The) s
+17 r (COSINE) s
+18 r (and) s
+17 r (In) s
+(ternet) s
+429 1571 p (X.500) s
+13 r (sc) s
+(hema.) s
+17 r (Request) s
+16 r (for) s
+14 r (Comm) s
+-1 r (en) s
+-1 r (ts) s
+12 r (RF) s
+67 c
+14 r (1274,) s
+13 r (Departmen) s
+116 c
+12 r (of) s
+429 1628 p (Computer) s
+13 r (Science,) s
+16 r (Univ) s
+(ersit) s
+-1 r 121 c
+13 r (College) s
+14 r (London,) s
+15 r (No) s
+118 c
+(em) s
+-2 r 98 c
+1 r (er) s
+13 r (1991.) s
+224 1718 p ([CCI88]) s
+51 r (The) s
+16 r (Directory) s
+14 r 124 c
+17 r 111 c
+118 c
+-1 r (erview) s
+13 r (of) s
+16 r (concepts,) s
+16 r (mo) s
+1 r (dels) s
+15 r (and) s
+16 r (services,) s
+15 r (De-) s
+429 1775 p (cem) s
+98 c
+1 r (er) s
+13 r (1988.) s
+19 r (CCITT) s
+15 r (X.500) s
+14 r (Series) s
+15 r (Recommendations.) s
+224 1865 p ([Cro82]) s
+59 r (D.H.) s
+21 r (Cro) s
+1 r 99 c
+107 c
+-1 r (er.) s
+37 r (Standard) s
+22 r (of) s
+21 r (the) s
+22 r (format) s
+20 r (of) s
+21 r (ARP) s
+-3 r 65 c
+22 r (in) s
+(ternet) s
+20 r (text) s
+429 1922 p (messages.) s
+34 r (Request) s
+21 r (for) s
+20 r (Comm) s
+-1 r (en) s
+(t) s
+-1 r 115 c
+19 r (822,) s
+20 r (Univ) s
+(ersit) s
+-1 r 121 c
+18 r (of) s
+21 r (Dela) s
+119 c
+-2 r (are,) s
+429 1978 p (August) s
+15 r (1982.) s
+224 2069 p ([HK91]) s
+64 r (S.E.) s
+20 r (Hardcastle-Kille.) s
+35 r (Using) s
+20 r (the) s
+21 r (OSI) s
+21 r (directory) s
+20 r (to) s
+20 r (ac) s
+(hiev) s
+101 c
+18 r (user) s
+429 2125 p (friendly) s
+16 r (naming.) s
+21 r (Request) s
+17 r (for) s
+15 r (Commen) s
+-1 r (ts) s
+14 r (in) s
+16 r (preparation,) s
+15 r (Depart-) s
+429 2182 p (men) s
+116 c
+10 r (of) s
+12 r (Computer) s
+11 r (Science,) s
+13 r (Univ) s
+(ersit) s
+-1 r 121 c
+10 r (College) s
+12 r (London,) s
+13 r (No) s
+118 c
+-1 r (em) s
+-2 r 98 c
+1 r (er) s
+429 2238 p (1991.) s
+224 2329 p ([Lar83]) s
+64 r (J.) s
+14 r (Larmouth.) s
+17 r (JNT) s
+15 r (name) s
+13 r (registration) s
+12 r (tec) s
+(hnical) s
+13 r (guide,) s
+14 r (April) s
+14 r (1983.) s
+224 2419 p ([Lin89]) s
+67 r (J.) s
+14 r (Linn.) s
+20 r (Priv) s
+-2 r (acy) s
+13 r (Enhancemen) s
+116 c
+13 r (for) s
+14 r (In) s
+(ternet) s
+14 r (Electronic) s
+13 r (Mail:) s
+19 r 80 c
+(art) s
+429 2476 p 49 c
+14 r 124 c
+16 r (Message) s
+14 r (Enciphermen) s
+116 c
+13 r (and) s
+15 r (Authen) s
+(tication) s
+13 r (Pro) s
+1 r (cedures.) s
+20 r (Re-) s
+429 2532 p (quest) s
+17 r (for) s
+17 r (Comm) s
+-1 r (en) s
+-1 r (ts) s
+15 r (1113,) s
+17 r (Bolt,) s
+17 r (Beranek,) s
+17 r (and) s
+18 r (Newman,) s
+17 r (August) s
+429 2589 p (1989.) s
+224 2679 p ([Mo) s
+1 r (c87a]) s
+24 r 80 c
+-3 r 46 c
+13 r (Mo) s
+1 r 99 c
+107 c
+-2 r (ap) s
+1 r (etri) s
+-1 r (s.) s
+17 r (Domai) s
+-1 r 110 c
+13 r (names) s
+13 r 45 c
+15 r (concepts) s
+15 r (and) s
+14 r (facilities.) s
+17 r (Request) s
+429 2736 p (for) s
+21 r (Comm) s
+-1 r (en) s
+-1 r (ts) s
+19 r (RF) s
+67 c
+21 r (1034,) s
+21 r (USC/Information) s
+20 r (Sciences) s
+22 r (Institute,) s
+429 2792 p (No) s
+118 c
+-1 r (em) s
+-2 r 98 c
+1 r (er) s
+13 r (1987.) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+986 r 80 c
+(age) s
+16 r (10) s
+@eop
+11 @bop0
+cmbx10.432 @sf
+[<38003C003E001F000F000780038003C001C001C001E000E03FE07FE0FFE0FFE0FFE0FFE0FFC0FFC07F803E00> 11 22 -4 -20 19] 39 @dc
+cmr10.329 @sf
+[<03F8000FFC001E1E003C0F003807807803807803C07003C0F003C0F003C0F003C0F003C0F803C0F80380FC0780FE0F00F7FE
+  00F3FC00F06000700000780000780000380F803C0F801E0F800F0F8007878003FF0000FE00> 18 29 -2 0 23] 54 @dc
+[<0006000000060000000600000006000000060000000600000006000000060000000600000006000000060000000600000006
+  00000006000000060000FFFFFFF0FFFFFFF00006000000060000000600000006000000060000000600000006000000060000
+  00060000000600000006000000060000000600000006000000060000> 28 32 -3 5 35] 43 @dc
+11 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmr10.329 @sf
+224 195 p ([Mo) s
+1 r (c87b]) s
+22 r 80 c
+-3 r 46 c
+17 r (Mo) s
+1 r 99 c
+107 c
+-2 r (a) s
+-1 r 112 c
+1 r (etris.) s
+27 r (Domai) s
+-1 r 110 c
+17 r (names) s
+17 r 45 c
+18 r (implem) s
+-1 r (en) s
+(t) s
+-1 r (ati) s
+-1 r (on) s
+16 r (and) s
+19 r (sp) s
+1 r (eci\014ca-) s
+429 252 p (tion.) s
+32 r (Request) s
+21 r (for) s
+19 r (Comm) s
+-1 r (en) s
+(t) s
+-1 r 115 c
+18 r (RF) s
+67 c
+18 r (1035,) s
+20 r (USC/Informatio) s
+-1 r 110 c
+18 r (Sci-) s
+429 308 p (ences) s
+16 r (Institute,) s
+14 r (No) s
+118 c
+-1 r (em) s
+-2 r 98 c
+1 r (er) s
+14 r (1987.) s
+224 402 p ([Mo) s
+1 r (c89]) s
+47 r 80 c
+-3 r 46 c
+11 r (Mo) s
+1 r 99 c
+107 c
+-2 r (a) s
+-1 r 112 c
+1 r (etris.) s
+13 r (DNS) s
+13 r (enco) s
+1 r (ding) s
+12 r (of) s
+12 r (net) s
+119 c
+(o) s
+-1 r (rk) s
+10 r (names) s
+11 r (and) s
+13 r (other) s
+12 r 116 c
+(yp) s
+1 r (es.) s
+429 458 p (Request) s
+14 r (for) s
+14 r (Comm) s
+-1 r (en) s
+-1 r (ts) s
+12 r (RF) s
+67 c
+13 r (1101,) s
+13 r (USC/Informatio) s
+-1 r 110 c
+13 r (Sciences) s
+15 r (In-) s
+429 515 p (stitute,) s
+14 r (April) s
+14 r (1989.) s
+cmbx10.432 @sf
+224 678 p (13) s
+70 r (Securit) s
+-2 r 121 c
+21 r (Considerations) s
+cmr10.329 @sf
+224 799 p (This) s
+17 r (memo) s
+15 r (do) s
+1 r (es) s
+18 r (not) s
+17 r (directly) s
+17 r (address) s
+18 r (securit) s
+121 c
+16 r (issues.) s
+27 r (Ho) s
+119 c
+-1 r (ev) s
+-1 r (er,) s
+15 r (due) s
+18 r (to) s
+17 r (the) s
+224 855 p (facilities) s
+15 r (of) s
+16 r (X.500,) s
+16 r (this) s
+16 r (prop) s
+1 r (osal) s
+16 r (could) s
+17 r (lead) s
+17 r (to) s
+16 r 97 c
+17 r (more) s
+15 r (secure) s
+17 r 119 c
+97 c
+-1 r 121 c
+15 r (to) s
+16 r (access) s
+224 911 p (and) s
+16 r (manage) s
+13 r (domain) s
+14 r (informat) s
+-1 r (ion.) s
+cmbx10.432 @sf
+224 1074 p (14) s
+70 r (Author's) s
+24 r (Address) s
+cmr10.329 @sf
+338 1194 p (Stev) s
+101 c
+14 r (Hardcastle-Kille) s
+338 1251 p (Departmen) s
+-1 r 116 c
+13 r (of) s
+15 r (Computer) s
+14 r (Science) s
+338 1307 p (Univ) s
+(ersit) s
+-2 r 121 c
+14 r (College) s
+14 r (London) s
+338 1364 p (Go) s
+119 c
+-2 r (er) s
+14 r (Street) s
+338 1420 p 87 c
+(C1E) s
+13 r (6BT) s
+338 1477 p (England) s
+338 1602 p (Phone:) s
+20 r (+44-71-380-7294) s
+338 1728 p (EMail:) s
+18 r (S.Kille@CS.UCL.A) s
+(C.UK) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+986 r 80 c
+(age) s
+16 r (11) s
+@eop
+12 @bop0
+cmbx10.432 @sf
+[<FFFFF80000FFFFF80000FFFFF8000003FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE000000
+  03FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FE00000003FFFFF80003FFFFFF00
+  03FFFFFFC003FE007FE003FE001FF003FE000FF803FE0007FC03FE0007FC03FE0007FE03FE0007FE03FE0007FE03FE0007FE
+  03FE0007FE03FE0007FE03FE0007FE03FE0007FC03FE0007FC03FE000FF803FE001FF003FE007FE0FFFFFFFFC0FFFFFFFF00
+  FFFFFFF800> 39 41 -3 0 47] 80 @dc
+12 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmbx10.432 @sf
+224 195 p 65 c
+69 r 80 c
+-1 r (ossible) s
+20 r (Deplo) s
+-1 r (ym) s
+-2 r (e) s
+-1 r 110 c
+-1 r 116 c
+20 r (Approac) s
+-1 r 104 c
+cmr10.329 @sf
+224 316 p (This) s
+22 r (app) s
+1 r (endix) s
+23 r (notes) s
+22 r 97 c
+22 r 112 c
+1 r (ossible) s
+22 r (approac) s
+104 c
+21 r (to) s
+21 r (deplo) s
+(ying) s
+21 r (an) s
+22 r (exp) s
+1 r (erimen) s
+116 c
+20 r (to) s
+224 373 p (ev) s
+-2 r (aluate) s
+9 r (this) s
+10 r (mec) s
+(hanism) s
+-1 r 46 c
+16 r (The) s
+10 r (follo) s
+(w) s
+-1 r (ing) s
+8 r (comp) s
+1 r (onen) s
+(ts) s
+9 r (of) s
+9 r 97 c
+10 r 112 c
+1 r (ossible) s
+10 r (exp) s
+1 r (erimen) s
+116 c
+224 429 p (are) s
+15 r (noted.) s
+280 550 p (1.) s
+22 r (User) s
+16 r (to) s
+1 r (ol.) s
+22 r (This) s
+16 r (will) s
+15 r (tak) s
+101 c
+15 r 97 c
+15 r (domain) s
+15 r (or) s
+16 r (mailb) s
+1 r 111 c
+-1 r 120 c
+14 r (as) s
+16 r (input.) s
+23 r (This) s
+16 r (will) s
+15 r 98 c
+1 r 101 c
+338 606 p (lo) s
+1 r (ok) s
+(ed) s
+13 r (up) s
+16 r (in) s
+15 r (the) s
+15 r (DIT.) s
+15 r (This) s
+15 r (to) s
+1 r (ol) s
+14 r (should) s
+15 r 98 c
+1 r 101 c
+16 r (capable) s
+15 r (of:) s
+cmsy10.329 @sf
+392 699 p 15 c
+cmr10.329 @sf
+23 r 65 c
+(ttem) s
+-1 r (pting) s
+13 r (to) s
+14 r (correct) s
+15 r (user) s
+15 r (input) s
+cmsy10.329 @sf
+392 771 p 15 c
+cmr10.329 @sf
+23 r (Helping) s
+15 r (bro) s
+(wsing) s
+cmsy10.329 @sf
+392 842 p 15 c
+cmr10.329 @sf
+23 r (Lo) s
+1 r (oking) s
+22 r (up) s
+23 r (informati) s
+-1 r (on) s
+21 r (asso) s
+1 r (ciated) s
+22 r (with) s
+22 r (the) s
+23 r (domain) s
+21 r (\(or) s
+22 r (mail) s
+-1 r 45 c
+438 899 p 98 c
+1 r 111 c
+(x\)) s
+19 r (and) s
+21 r (asso) s
+1 r (ciated) s
+20 r (name,) s
+20 r (in) s
+21 r (particular) s
+19 r (the) s
+21 r (manager) s
+18 r (\(of) s
+20 r 98 c
+1 r (oth) s
+438 955 p (domain) s
+17 r (and) s
+19 r (asso) s
+1 r (ciated) s
+18 r (name\)) s
+18 r (and) s
+19 r (informati) s
+-1 r (on) s
+17 r (on) s
+19 r (the) s
+19 r (manager) s
+438 1012 p (\(e.g.,) s
+13 r (phone) s
+16 r 110 c
+(um) s
+-1 r 98 c
+1 r (er) s
+14 r (and) s
+15 r (mailb) s
+1 r 111 c
+-1 r (x\).) s
+cmsy10.329 @sf
+392 1083 p 15 c
+cmr10.329 @sf
+23 r (Supply) s
+16 r (DNS) s
+15 r (records) s
+cmsy10.329 @sf
+392 1155 p 15 c
+cmr10.329 @sf
+23 r (Handle) s
+17 r (IN-ADDR.ARP) s
+-3 r 65 c
+17 r (in) s
+118 c
+-1 r (erse) s
+15 r (lo) s
+1 r (okups) s
+17 r (if) s
+16 r (supplied) s
+17 r (with) s
+16 r (an) s
+17 r (IP) s
+438 1211 p (Address) s
+cmsy10.329 @sf
+392 1283 p 15 c
+cmr10.329 @sf
+23 r (Lo) s
+1 r (ok) s
+15 r (up) s
+16 r (net) s
+119 c
+-1 r (orks) s
+280 1375 p (2.) s
+22 r 65 c
+13 r (pro) s
+1 r (cedural) s
+14 r (library) s
+12 r (to) s
+13 r (allo) s
+119 c
+11 r (user) s
+13 r (in) s
+(terfaces) s
+12 r (to) s
+13 r (mak) s
+-1 r 101 c
+12 r (easy) s
+13 r (use) s
+14 r (of) s
+13 r (these) s
+338 1432 p (facilities.) s
+280 1524 p (3.) s
+22 r (Zone) s
+14 r (transfer) s
+13 r (to) s
+1 r (ol.) s
+18 r (This) s
+13 r (will) s
+13 r (use) s
+14 r (the) s
+14 r (zone) s
+14 r (transfer) s
+13 r (proto) s
+1 r (col) s
+13 r (to) s
+13 r (transfer) s
+338 1581 p (informat) s
+-1 r (ion) s
+15 r 98 c
+1 r (et) s
+119 c
+-1 r (een) s
+15 r 97 c
+17 r (DSA) s
+16 r (and) s
+17 r (Domain) s
+14 r (Nameserv) s
+(er.) s
+22 r (When) s
+17 r (writing) s
+338 1637 p (to) s
+14 r (the) s
+15 r (DSA,) s
+15 r (attributes) s
+14 r (in) s
+15 r (an) s
+15 r (en) s
+(try) s
+13 r (whic) s
+104 c
+14 r (are) s
+15 r (not) s
+15 r (DNS) s
+15 r (records) s
+14 r (should) s
+338 1694 p (remain) s
+13 r (un) s
+(touc) s
+(hed.) s
+280 1786 p (4.) s
+22 r (Link) s
+-2 r (age) s
+18 r (patc) s
+(hing) s
+17 r (to) s
+1 r (ol.) s
+31 r (When) s
+19 r (the) s
+19 r (organisatio) s
+-1 r (nal) s
+17 r (DIT) s
+19 r (is) s
+18 r (established,) s
+338 1843 p (asso) s
+1 r (ciated) s
+12 r (domain) s
+11 r 112 c
+1 r (oin) s
+(ters) s
+11 r (are) s
+12 r (usually) s
+12 r (inserted.) s
+19 r 65 c
+13 r (to) s
+1 r (ol) s
+11 r (can) s
+13 r 98 c
+1 r 101 c
+13 r (written) s
+338 1899 p (to) s
+14 r (searc) s
+104 c
+14 r (the) s
+16 r (DIT) s
+15 r (and) s
+15 r (insert) s
+15 r (the) s
+15 r (rev) s
+(erse) s
+14 r 112 c
+1 r (oin) s
+(ters.) s
+280 1991 p (5.) s
+22 r (DNS) s
+15 r (Manager) s
+15 r 84 c
+-3 r 111 c
+1 r (ol.) s
+20 r (This) s
+15 r (will) s
+14 r (allo) s
+119 c
+13 r (user) s
+16 r (addition) s
+15 r (of) s
+15 r (additional) s
+14 r (infor-) s
+338 2048 p (matio) s
+-1 r 110 c
+13 r (in) s
+(to) s
+12 r (the) s
+15 r (DNS) s
+14 r (part) s
+14 r (of) s
+14 r (the) s
+15 r (DIT.) s
+14 r 65 c
+14 r (standard) s
+14 r (DUA) s
+14 r (can) s
+15 r (probably) s
+338 2104 p 98 c
+1 r 101 c
+16 r (used) s
+15 r (for) s
+15 r (this.) s
+280 2197 p (6.) s
+22 r (Mailb) s
+1 r 111 c
+-1 r 120 c
+15 r (do) s
+(wnload) s
+14 r (to) s
+1 r (ol.) s
+23 r (This) s
+15 r (will) s
+15 r (allo) s
+119 c
+14 r (do) s
+(wnload) s
+15 r (of) s
+15 r (lo) s
+1 r (cal) s
+16 r (mailb) s
+1 r 111 c
+-1 r (xes,) s
+338 2253 p (with) s
+14 r 112 c
+1 r (oin) s
+(ters) s
+14 r (to) s
+14 r (the) s
+16 r (user) s
+15 r (en) s
+(tries.) s
+280 2346 p (7.) s
+22 r (Em) s
+-1 r (ulati) s
+-1 r (on) s
+12 r (DNS) s
+14 r (Serv) s
+(er,) s
+12 r (using) s
+14 r (the) s
+14 r (Directory) s
+12 r (as) s
+14 r 97 c
+13 r (database.) s
+19 r (The) s
+14 r (serv) s
+(er) s
+338 2402 p (should) s
+14 r (main) s
+-1 r (tai) s
+-1 r 110 c
+13 r 97 c
+14 r 112 c
+1 r (ermanen) s
+116 c
+13 r (connection) s
+14 r (to) s
+14 r (its) s
+14 r (lo) s
+1 r (cal) s
+13 r (DSA.) s
+14 r (As) s
+14 r (there) s
+15 r (is) s
+338 2459 p (no) s
+18 r (OSI) s
+19 r (bind,) s
+19 r (the) s
+18 r (resp) s
+1 r (onse) s
+19 r (of) s
+18 r (this) s
+18 r (serv) s
+(er) s
+16 r (can) s
+19 r 98 c
+1 r 101 c
+19 r (at) s
+17 r (least) s
+18 r (as) s
+18 r (fast) s
+17 r (as) s
+18 r 97 c
+338 2515 p (normal) s
+13 r (DNS) s
+15 r (serv) s
+(er.) s
+19 r (There) s
+15 r (can) s
+15 r 98 c
+1 r 101 c
+16 r 116 c
+119 c
+-1 r 111 c
+13 r 118 c
+-2 r (arian) s
+-1 r (ts) s
+13 r (of) s
+15 r (this) s
+15 r (serv) s
+(er.) s
+357 2607 p (\(a\)) s
+22 r (Using) s
+13 r 97 c
+13 r (lo) s
+1 r (cal) s
+12 r (DSA) s
+13 r (as) s
+13 r 97 c
+13 r (lo) s
+1 r (cal) s
+13 r (database) s
+12 r (but) s
+14 r (using) s
+13 r (DNS) s
+13 r (distributed) s
+438 2664 p (op) s
+1 r (erations.) s
+354 2736 p (\(b\)) s
+23 r (Do) s
+14 r (all) s
+14 r (lo) s
+1 r (okups) s
+14 r (in) s
+15 r (the) s
+14 r (directory) s
+14 r (\(using) s
+15 r (Directory) s
+13 r (Distributed) s
+14 r (Op-) s
+438 2792 p (erations\).) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+986 r 80 c
+(age) s
+16 r (12) s
+@eop
+13 @bop0
+13 @bop1
+cmr12.300 @sf
+224 50 p (RF) s
+67 c
+15 r (1279) s
+267 r (X.500) s
+16 r (and) s
+17 r (Domains) s
+267 r (No) s
+118 c
+-1 r (e) s
+-1 r 109 c
+-1 r 98 c
+1 r (er) s
+14 r (1991) s
+cmr10.329 @sf
+224 195 p (An) s
+19 r (initial) s
+17 r (exp) s
+1 r (erimen) s
+116 c
+16 r (is) s
+18 r (straigh) s
+(t) s
+-1 r (forw) s
+-2 r (ard.) s
+28 r (The) s
+18 r (Zone) s
+19 r 84 c
+-3 r (ransfer) s
+17 r 84 c
+-3 r 111 c
+1 r (ol) s
+17 r (\(3\)) s
+17 r (can) s
+224 252 p 98 c
+1 r 101 c
+14 r (used) s
+15 r (to) s
+13 r (do) s
+(wnload) s
+11 r 97 c
+14 r (large) s
+12 r (part) s
+14 r (of) s
+13 r (the) s
+14 r (DNS) s
+13 r (space) s
+14 r (in) s
+(to) s
+12 r 97 c
+13 r (single) s
+13 r (DSA) s
+14 r (\(there) s
+224 308 p (will) s
+14 r 98 c
+1 r 101 c
+15 r (some) s
+13 r (restrictions,) s
+13 r (as) s
+15 r (parts) s
+14 r (of) s
+14 r (the) s
+15 r (DNS) s
+15 r (hierarc) s
+104 c
+-1 r 121 c
+13 r (do) s
+14 r (not) s
+15 r 112 c
+1 r (ermit) s
+13 r (zone) s
+224 364 p (transfer\).) s
+29 r (This) s
+19 r (can) s
+18 r 98 c
+1 r 101 c
+20 r (used) s
+19 r (rep) s
+1 r (eatedly) s
+19 r (to) s
+18 r (main) s
+-1 r (tai) s
+-1 r 110 c
+17 r (the) s
+19 r (informat) s
+-1 r (ion.) s
+28 r (The) s
+224 421 p (link) s
+-2 r (age) s
+20 r (patc) s
+(hing) s
+20 r (to) s
+1 r (ol) s
+21 r (\(4\)) s
+20 r (can) s
+22 r 98 c
+1 r 101 c
+22 r (used) s
+22 r (to) s
+21 r (put) s
+21 r (in) s
+22 r 112 c
+1 r (oin) s
+(ters) s
+20 r (to) s
+20 r (parts) s
+21 r (of) s
+21 r (the) s
+224 477 p (DIT.) s
+22 r (The) s
+22 r (user) s
+23 r (to) s
+1 r (ol) s
+21 r (can) s
+22 r (then) s
+23 r 98 c
+1 r 101 c
+23 r (used) s
+22 r (\(b) s
+121 c
+21 r (all) s
+21 r (sites) s
+22 r (participation) s
+20 r (the) s
+22 r (the) s
+224 534 p (directory) s
+17 r (pilot\)) s
+15 r (to) s
+17 r (lo) s
+1 r (ok) s
+16 r (up) s
+18 r (domain) s
+15 r (informatio) s
+-1 r (n.) s
+24 r (This) s
+17 r (will) s
+16 r (allo) s
+-1 r 119 c
+15 r (the) s
+17 r (utilit) s
+121 c
+224 590 p (of) s
+21 r (the) s
+21 r (approac) s
+104 c
+19 r (to) s
+21 r 98 c
+1 r 101 c
+21 r (ev) s
+-2 r (aluated.) s
+37 r (The) s
+21 r (manager) s
+19 r (to) s
+1 r (ol) s
+20 r (\(5\)) s
+20 r (will) s
+20 r (allo) s
+-1 r 119 c
+19 r (extra) s
+224 647 p (informati) s
+-1 r (on) s
+13 r (to) s
+15 r 98 c
+1 r 101 c
+16 r (added) s
+16 r (to) s
+14 r (parts) s
+15 r (of) s
+15 r (the) s
+15 r (DNS) s
+15 r (tree.) s
+224 723 p (The) s
+15 r (next) s
+15 r (stage) s
+14 r (will) s
+14 r 98 c
+1 r 101 c
+16 r (to) s
+14 r (distribute) s
+14 r (the) s
+15 r (DNS) s
+15 r (part) s
+14 r (of) s
+15 r (the) s
+15 r (DIT) s
+15 r 111 c
+118 c
+-1 r (er) s
+13 r 109 c
+-1 r (ulti) s
+-1 r (ple) s
+224 779 p (DSAs) s
+15 r (using) s
+15 r (Directory) s
+14 r (distribution) s
+14 r (tec) s
+(hniques.) s
+224 855 p (The) s
+14 r (em) s
+(ula) s
+-1 r (tio) s
+-1 r 110 c
+12 r (DNS) s
+13 r (Serv) s
+(er) s
+13 r (\(7\)) s
+12 r (will) s
+12 r 98 c
+1 r 101 c
+14 r (useful) s
+14 r (to) s
+13 r (ensure) s
+14 r (that) s
+13 r (equiv) s
+-2 r (alen) s
+116 c
+11 r (func-) s
+224 912 p (tionalit) s
+-1 r 121 c
+15 r (is) s
+17 r 98 c
+1 r (eing) s
+17 r (o\013ered) s
+17 r 98 c
+121 c
+16 r (the) s
+18 r (Directory) s
+-3 r 46 c
+23 r (It) s
+18 r (can) s
+17 r (also) s
+16 r 98 c
+1 r 101 c
+18 r (used) s
+18 r (to) s
+17 r (examine) s
+224 968 p 112 c
+1 r (erformance) s
+15 r (di\013erences.) s
+224 1044 p 65 c
+23 r (\014nal) s
+22 r (step) s
+22 r (is) s
+22 r (to) s
+22 r (master) s
+21 r (some) s
+21 r (parts) s
+21 r (of) s
+22 r (the) s
+23 r (DNS) s
+22 r (hierarc) s
+104 c
+121 c
+20 r (in) s
+22 r (the) s
+23 r (DIT.) s
+224 1101 p (Because) s
+17 r (of) s
+17 r (the) s
+16 r (zone) s
+17 r (transfer) s
+16 r (tec) s
+(hnique,) s
+16 r (this) s
+16 r (will) s
+15 r 98 c
+1 r 101 c
+18 r (en) s
+(tirely) s
+14 r (transparen) s
+116 c
+15 r (to) s
+224 1157 p (the) s
+15 r (DNS) s
+16 r (user.) s
+20 r (Managemen) s
+-1 r 116 c
+13 r 98 c
+1 r (ene\014ts) s
+16 r (can) s
+15 r (then) s
+16 r 98 c
+1 r 101 c
+16 r (examined.) s
+cmr12.300 @sf
+224 2916 p (Hardcastle-Kille) s
+986 r 80 c
+(age) s
+16 r (13) s
+@eop
+@end
+

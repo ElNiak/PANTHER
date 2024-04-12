@@ -1,0 +1,283 @@
+
+
+
+
+
+
+Network Working Group                                      H. Alvestrand
+Request for Comments: 1496                                  SINTEF DELAB
+Updates: 1328                                               J. Romaguera
+                                                           NetConsult AG
+                                                               K. Jordan
+                                              Control Data Systems, Inc.
+                                                             August 1993
+
+     Rules for Downgrading Messages from X.400/88 to X.400/84 When
+             MIME Content-Types are Present in the Messages
+
+Status of this Memo
+
+   This RFC specifies an IAB standards track protocol for the Internet
+   community, and requests discussion and suggestions for improvements.
+   Please refer to the current edition of the "IAB Official Protocol
+   Standards" for the standardization state and status of this protocol.
+   Distribution of this memo is unlimited.
+
+Table of Contents
+
+   1.  Introduction ...............................................    1
+   2.  Basic approach .............................................    2
+   3.  Conversion rules ...........................................    3
+   3.1  EBP conversions to Basic ..................................    3
+   3.2  Encapsulation format ......................................    3
+   4.  Implications ...............................................    4
+   5.  Security Considerations ....................................    4
+   6.  Authors' Addresses .........................................    4
+   7.  References .................................................    5
+
+1. Introduction
+
+   Interworking between X.400(88) and MIME is achieved by [4], which
+   complements RFC-1327 [2], which in turn specifies the interworking
+   between X.400(88) and RFC-822 based mail.
+
+   Interworking between X.400(88) and X.400 (84) is achieved by RFC-1328
+   [3]. That document does not describe what to do in the case where
+   body parts arrive at the gateway that cannot be adequately
+   represented in the X.400(84) system.
+
+   This document describes how RFC-1328 must be modified in order to
+   provide adequate support for the scenarios:
+
+      SMTP(MIME) -> X.400(84)
+
+      X.400(84) -> SMTP(MIME)
+
+
+
+Alvestrand, Romaguera & Jordan                                  [Page 1]
+
+RFC 1496                        HARPOON                      August 1993
+
+
+   It replaces chapter 6 of RFC-1328. The rest of RFC-1328 is NOT
+   obsoleted.
+
+   NOTE: A desireable side-effect of HARPOON is that a standardized
+   method for the identification and transmission of multimedia and
+   binary data (like spreadsheets) between X.400/84 UAs is achieved.
+
+   While this method is not compatible with current proprietary
+   approaches, we believe that it requires less invasive changes to
+   current UAs than other possible methods.
+
+   This memo updates RFC 1328.  HARPOON is a pure name, and has no
+   meaning.  Please send comments to the MIME-MHS mailing list
+   <mime-mhs@surnet.nl>.
+
+2.  Basic approach
+
+   The approach is to imagine that the connection X.400(84) <->
+   SMTP(MIME) never happens. This, of course, is an illusion, but can be
+   a very useful illusion.
+
+   All mail will therefore go on one of the paths
+
+      X.400(84) -> X.400(88) -> SMTP(MIME)
+
+      SMTP(MIME) -> X.400(88) -> X.400(84)
+
+   when it goes between a MIME user and an X.400(84) user.
+
+   The approach at the interface between X.400(88) and X.400(84) is:
+
+      o  Convert what you can
+
+      o  Encapsulate what you have to
+
+      o  Never drop a message
+
+   Of course, for X.400/88 body parts that are already defined in
+   X.400/84, no downgrading should be done. In particular, multi-body
+   messages should remain multi-body messages, IA5 messages including
+   IA5 messages encoded as Extended Body Parts) should remain IA5
+   messages, and G3Fax messages should remain G3Fax messages.
+
+
+
+
+
+
+
+
+
+Alvestrand, Romaguera & Jordan                                  [Page 2]
+
+RFC 1496                        HARPOON                      August 1993
+
+
+3.  Conversion rules
+
+3.1.  EBP conversions to Basic
+
+   Some body parts are defined by X.400(88) as having both a Basic form
+   and an Extended form. These are listed in Annex B of X.420.
+
+   For all of these, the transformation from the Extended Body Part to
+   the Basic Body Part takes the form of putting the PARAMETERS and the
+   DATA members together in a SEQUENCE.
+
+   This transformation should be applied by the gateway in order to
+   allow (for example) X.400(88) systems that use the Extended form of
+   the IA5 body part to communicate with X.400(84) systems.
+
+3.2.  Encapsulation format
+
+   For any body part that cannot be used directly in X.400(84), the
+   following IA5Text body part is made:
+
+   -  Content = IA5String
+
+   -  First bytes of content: (the description is in USASCII, with C
+      escape sequences used to represent control characters):
+
+       MIME-version: <version>\r\n
+           Content-type: <the proper MIME content type>\r\n
+         Content-transfer-encoding: <quoted-printable or base64>\r\n
+         <Possibly other Content headings here, terminated by\r\n>
+         \r\n
+
+      <Here follows the bytes of the content, as per [4], encoded in the
+      proper encoding>
+
+   All implementations MUST place the MIME-version: header first in the
+   body part. Headers that are placed by [2] and [4] into other parts of
+   the message MUST NOT be placed in the MIME body part.
+
+   This includes RFC-822 headings carried as heading-extensions, which
+   must be placed in a new IA5 body part starting with the string "RFC-
+   822-HEADERS", as specified in [2], Appendix G.
+
+   Other heading-extensions are still handled as described in chapter 5
+   of RFC 1328: They are dropped.
+
+   Since all X.400(88) body parts can be represented in MIME by using
+   the x400-bp MIME content-type, this conversion will never fail.
+
+
+
+
+Alvestrand, Romaguera & Jordan                                  [Page 3]
+
+RFC 1496                        HARPOON                      August 1993
+
+
+   In the reverse direction, any IA5 body part that starts with the
+   token "MIME-Version:" will be subjected to conversion according to
+   [4] before including the body part into an X.400(88) message.
+
+4.  Implications
+
+   The implications are several:
+
+   - People with X.400(84) readers who have the ability to save messages
+     to file will now be able to save MIME multimedia messages
+
+   - People who can use features like the "Mailcaps" file to identify
+     what to do about a bodypart can now grab implementations of MIME
+     that can run as subprograms and achieve at least some multimedia
+     functionality
+
+5.  Security Considerations
+
+   The security considerations in [1] and [4] (beware of trojans that
+   can hit you if your UA automagically starts programs for you) are now
+   relevant also for X.400(84) systems.
+
+6.  Authors' Addresses
+
+   Harald Tveit Alvestrand
+   SINTEF DELAB
+   N-7034 Trondheim
+   NORWAY
+
+   EMail: Harald.T.Alvestrand@delab.sintef.no
+
+
+   Kevin E. Jordan, ARH215
+   Control Data Systems, Inc.
+   4201 Lexington Avenue N
+   Arden Hills, MN  55126
+   USA
+
+   EMail: Kevin.E.Jordan@mercury.oss.arh.cpg.cdc.com
+
+
+   James A. Romaguera
+   NetConsult AG
+   Mettlendwaldweg 20a
+   3037 Herrenschwanden
+   Switzerland
+
+   EMail: Romaguera@netconsult.ch
+
+
+
+Alvestrand, Romaguera & Jordan                                  [Page 4]
+
+RFC 1496                        HARPOON                      August 1993
+
+
+7.  References
+
+   [1]  Borenstein, N, and N. Freed, "MIME: Mechanisms for Specifying
+        and Describing the Format of Internet Message Bodies", RFC 1341,
+        Bellcore, Innosoft, June 1992.
+
+   [2]  Hardcastle-Kille, S., "Mapping between X.400(1988) / ISO 10021
+        and RFC-822", RFC 1327, University College London, May 1992.
+
+   [3]  Hardcastle-Kille, S., "X.400 1988 to 1984 downgrading", RFC
+        1328, University College London, May 1992.
+
+   [4]  Alvestrand, H., Kille, S., Miles, R., Rose, M., and S. Thompson,
+        "Mapping between X.400 and RFC-822 Message Bodies", RFC 1494,
+        SINTEF DELAB, ISODE Consortium, Soft*Switch, Inc, Dover Beach
+        Consulting, Inc., Soft*Switch, Inc., August 1993.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Alvestrand, Romaguera & Jordan                                  [Page 5]
+

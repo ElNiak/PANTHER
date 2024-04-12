@@ -1,0 +1,507 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                         T. Nadeau
+Request for Comments: 7708                                       Brocade
+Category: Standards Track                                     L. Martini
+ISSN: 2070-1721                                                S. Bryant
+                                                           Cisco Systems
+                                                           November 2015
+
+
+                Using a Generic Associated Channel Label
+    as a Virtual Circuit Connectivity Verification Channel Indicator
+
+Abstract
+
+   The Virtual Circuit Connectivity Verification (VCCV) protocol
+   specified in RFC 5085 provides a control channel (CC) that is
+   associated with a pseudowire (PW).  This document specifies an
+   additional VCCV control channel type to be used with pseudowires that
+   do not use the PW Control Word and that are carried over an MPLS
+   network.  This new VCCV CC type uses the Generic Associated Channel
+   Label defined in RFC 5586 to distinguish VCCV packets from packets
+   carrying user data.  This new VCCV CC type introduces compatibility
+   with the method of MPLS Label Switched Path Operations,
+   Administration, and Maintenance (OAM) identification, particularly in
+   MPLS Transport Profile (MPLS-TP) networks (RFC 5921).
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7708.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Nadeau, et al.               Standards Track                    [Page 1]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Requirements Language . . . . . . . . . . . . . . . . . . . .   3
+   3.  Type 4 MPLS VCCV Control Channel Type . . . . . . . . . . . .   3
+   4.  FAT PWs . . . . . . . . . . . . . . . . . . . . . . . . . . .   4
+   5.  Multi-Segment Pseudowires . . . . . . . . . . . . . . . . . .   5
+   6.  VCCV Capability Advertisement . . . . . . . . . . . . . . . .   5
+   7.  Manageability Considerations  . . . . . . . . . . . . . . . .   6
+   8.  Security Considerations . . . . . . . . . . . . . . . . . . .   6
+   9.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   7
+     9.1.  MPLS VCCV Control Channel (CC) Type 4 . . . . . . . . . .   7
+     9.2.  LDP Status Code . . . . . . . . . . . . . . . . . . . . .   7
+   10. References  . . . . . . . . . . . . . . . . . . . . . . . . .   7
+     10.1.  Normative References . . . . . . . . . . . . . . . . . .   7
+     10.2.  Informative References . . . . . . . . . . . . . . . . .   8
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .   8
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .   9
+
+1.  Introduction
+
+   The Virtual Circuit Connectivity Verification (VCCV) protocol is
+   specified in RFC 5085 [RFC5085].  This document specifies a new VCCV
+   control channel (VCCV CC) type to be used with pseudowires (PWs)
+   carried over an MPLS network that do not use the PW Control Word (CW)
+   [RFC4385].  This new VCCV CC type uses the Generic Associated Channel
+   Label (GAL) [RFC5586] to distinguish VCCV packets from packets
+   carrying user data.  This new VCCV CC type provides compatibility
+   with the method of MPLS Label Switched Path (LSP) Operations,
+   Administration, and Maintenance (OAM) message identification, as used
+   in MPLS Transport Profile (MPLS-TP) networks [RFC5921].
+
+
+
+
+
+Nadeau, et al.               Standards Track                    [Page 2]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+   VCCV currently specifies three CC types.  VCCV CC Type 1 uses the PW
+   Control Word (CW) to distinguish VCCV packets from packets carrying
+   user data.  VCCV CC Types 2 and 3 require IP encapsulation for OAM
+   packets.  This was not an issue when [RFC5085] was designed, but it
+   is in conflict with the design goals of MPLS-TP [RFC5921], which do
+   not otherwise require the availability of IP.  VCCV CC Type 2 is not
+   applicable to Multi-Segment PWs (MS-PWs) [RFC6073].  A MS-PW
+   operating without the CW therefore has to use VCCV CC Type 3, which
+   identifies VCCV packets on the basis of Time to Live (TTL) expiry.
+   Whilst less of an issue with a single segment PW (SS-PW), on an MS-PW
+   this requires accurately setting the TTL for expiry at the egress
+   Terminating Provider Edge (T-PE) [RFC6073].  In the event of an error
+   in the setting of the PW Label Stack Entry (LSE) TTL, VCCV packets
+   will not be received by the Terminating Provider Edge (T-PE) and may
+   leak into the attachment circuit [RFC6073].  The new VCCV CC type
+   defined in this specification addresses these problems for PWs that
+   do not use the CW.
+
+   Note that mandating that PWs use the PW CW is not a viable way to
+   address this issue.  This is because:
+
+   o  PWs without the CW are already widely deployed.
+
+   o  There is a significant deployment of existing hardware that does
+      not support usage of the PW CW for some PW types.
+
+   o  Some operators are concerned that the inclusion of the PW CW will
+      increase the PW packet size.
+
+2.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   [RFC2119].
+
+3.  Type 4 MPLS VCCV Control Channel Type
+
+   When the PW CW is not used, the Type 4 MPLS VCCV Control Channel (CC)
+   type defined in this section MAY be used.  This is referred to as
+   VCCV CC Type 4 throughout the rest of this of this document.  VCCV CC
+   Type 4 uses the encapsulation shown in Figure 1 in which the presence
+   of a GAL at the end of the MPLS label stack indicates that the packet
+   carries a VCCV message.
+
+
+
+
+
+
+
+Nadeau, et al.               Standards Track                    [Page 3]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                            PW LSE                             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           GAL LSE                             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |0 0 0 1|Version|   Reserved    |        Channel Type           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   ~                        VCCV Message Body                      ~
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                                 Figure 1
+
+   The VCCV message body is preceded by a Generic Associated Channel
+   Header, as defined in [RFC5586], in which the Channel Type identifies
+   the type and format of the OAM message carried in the VCCV message
+   body.
+
+   The GAL LSE MUST contain the GAL reserved label as defined in
+   [RFC5586].
+
+   The PW LSE is constructed according to the existing procedures that
+   apply to the type of pseudowire that is in use.
+
+   Where the LSP used by the PW is subject to Equal-Cost Multipath
+   (ECMP) load balancing, a problem arises if any LSR on that LSP treats
+   special-purpose labels as ordinary labels in its ECMP selection
+   method.  In these circumstances, the inclusion of a GAL following the
+   PW LSE can cause the OAM packet to take a different path through the
+   network than the corresponding PW data packets.  If the LSP traverses
+   such equipment and this behaviour is not acceptable, then an
+   alternative VCCV type needs to be used.  The requirement to not
+   include special-purpose labels in the load-balancing decision is
+   described in "MPLS Forwarding Compliance and Performance
+   Requirements" [RFC7325].  For equipment that conforms to this, the
+   VCCV type 4 traffic will follow the corresponding PW data packets.
+
+4.  FAT PWs
+
+   [RFC6391] specifies that when the flow-aware transport (FAT) of
+   pseudowires over an MPLS packet switched network has been signalled
+   or configured, the Flow LSE MUST be present.  It further specifies
+   that "the flow label MUST NOT be an MPLS reserved label (values in
+   the range 0..15) [RFC3032]", and that "If a flow LSE is present, it
+   MUST be checked to determine whether it carries a reserved label.  If
+
+
+
+Nadeau, et al.               Standards Track                    [Page 4]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+   it is a reserved label, the packet is processed according to the
+   rules associated with that reserved label; otherwise, the LSE is
+   discarded."
+
+   This document specifies that if the flow-aware transport of
+   pseudowires over an MPLS packet switched network has been signalled
+   or configured, then the presence of VCCV message is indicated by the
+   use of a GAL in place of the flow LSE.
+
+   This is consistent with [RFC6391], and the packet structure is
+   identical to that shown in Figure 1.
+
+   Flow LSEs are inserted into a PW label stack in order to enable the
+   distribution of the PW traffic among multiple equal-cost MPLS paths.
+   The use of GAL in place of the flow label will cause all OAM packets
+   to take exactly one of the possible paths through the network.  As
+   noted in Section 3, the ECMP selection method may result in the path
+   taken by the OAM packets being different from the path taken by any
+   of the actual traffic flows.  If this is not acceptable, then an
+   alternative VCCV type needs be used.
+
+5.  Multi-Segment Pseudowires
+
+   When using VCCV CC Type 4 for MS-PWs, a PE transmitting the VCCV
+   packet to a Switching PE (S-PE) MUST set the TTL to the appropriate
+   value to expire at that S-PE.  An S-PE that supports this
+   specification MUST inspect PW packets that are received as a result
+   of TTL expiry, and determine whether a GAL follows the PW LSE.  If a
+   GAL is present, the S-PE then processes the VCCV packet.
+
+   An S-PE that does not support this specification would be expected to
+   reject as malformed a VCCV CC Type 4 packet that was received.  This
+   is because the S-PE would expect the PW LSE to be the bottom of stack
+   (the non-FAT case) and for the LSE at the bottom of stack not to be a
+   reserved label (both the FAT and the non-FAT cases).  An S-PE that
+   did not make this reserved label check would then find that the first
+   nibble following the label stack was 0x1 and not the expected start
+   of an IP packet.  Thus, it would be expected to also reject the
+   packet.  This update to the behaviour of S-PEs is therefore backwards
+   compatible.
+
+6.  VCCV Capability Advertisement
+
+   The VCCV capability advertisement MUST match the C-bit setting that
+   is advertised in the PW FEC element [RFC4447].  If the C-bit is set,
+   indicating the use of the PW CW, then VCCV CC Type 4 MUST NOT be
+   advertised.  If the C-bit is not set, indicating that the PW CW is
+   not in use, then equipment supporting this specification MUST
+
+
+
+Nadeau, et al.               Standards Track                    [Page 5]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+   advertise VCCV CC Type 4.  Advertisement of VCCV CC Type 1 and
+   advertisement of VCCV CC Type 4 are therefore mutually exclusive.
+
+   A PE supporting VCCV CC Type 4 MAY advertise other VCCV CC types as
+   defined in [RFC5085] .
+
+   If the remote PE supports VCCV CC Type 4, and the PW CW is not in
+   use, then for cases where multiple CC Types are advertised, the
+   following precedence rules apply when choosing which CC Type to use:
+
+   1.  Type 4: GAL VCCV Control Channel.
+
+   2.  Type 2: MPLS Router Alert Label.
+
+   3.  Type 3: MPLS PW Label with TTL == 1.
+
+   If the remote PE finds that VCCV CC Types 1 and 4 are both
+   advertised, or that C-bit is set and VCCV CC Type 4 is advertised,
+   then it should report the error to the operator through the
+   management interface in use, and send a Label Release Message with a
+   status code "VCCV Type Error".
+
+7.  Manageability Considerations
+
+   Whilst the introduction of this additional VCCV CC type increases the
+   number of VCCV CC types that the operator needs to manage, it
+   addresses the issues with VCCV CC Types 2 and 3 described in
+   Section 1.
+
+   In the event of a misconfiguration of this VCCV CC type, the PW is
+   taken out of service and the operator advised as described in
+   Section 6.
+
+   Attention is drawn to the possible absence of fate sharing between PW
+   data packets and VCCV CC Type 4 packets described in Section 3 and
+   Section 4.
+
+8.  Security Considerations
+
+   This document does not by itself raise any new security
+   considerations beyond those described in [RFC5085] and [RFC6073].
+   [RFC6073] provides detailed operational procedures that can be used
+   to verify the MS-PW connectivity.  In addition, the procedure
+   specified in this document eliminates the possibility of packet
+   leaking that can occur with VCCV Type 3.
+
+
+
+
+
+
+Nadeau, et al.               Standards Track                    [Page 6]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+9.  IANA Considerations
+
+9.1.  MPLS VCCV Control Channel (CC) Type 4
+
+   IANA has assigned a new bit from the MPLS VCCV Control Channel (CC)
+   Types registry in the "Pseudowire Name Spaces (PWE3)" registry in
+   order to identify VCCV type 4.
+
+   MPLS VCCV Control Channel (CC) Types
+
+         Bit (Value)    Description   Reference
+         ============   ===========   ==================
+         Bit 3 (0x08)   Type 4: GAL   RFC 7708
+
+9.2.  LDP Status Code
+
+   IANA has assigned a new Status Code from the "Label Distribution
+   Protocol (LDP) Parameters" registry:
+
+   Status Code Name Space
+         Range/Value  E  Description      Reference
+         ===========  =  ===============  =========
+         0x00000035   0  VCCV Type Error  RFC 7708
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC4385]  Bryant, S., Swallow, G., Martini, L., and D. McPherson,
+              "Pseudowire Emulation Edge-to-Edge (PWE3) Control Word for
+              Use over an MPLS PSN", RFC 4385, DOI 10.17487/RFC4385,
+              February 2006, <http://www.rfc-editor.org/info/rfc4385>.
+
+   [RFC4447]  Martini, L., Ed., Rosen, E., El-Aawar, N., Smith, T., and
+              G. Heron, "Pseudowire Setup and Maintenance Using the
+              Label Distribution Protocol (LDP)", RFC 4447,
+              DOI 10.17487/RFC4447, April 2006,
+              <http://www.rfc-editor.org/info/rfc4447>.
+
+   [RFC5085]  Nadeau, T., Ed. and C. Pignataro, Ed., "Pseudowire Virtual
+              Circuit Connectivity Verification (VCCV): A Control
+              Channel for Pseudowires", RFC 5085, DOI 10.17487/RFC5085,
+              December 2007, <http://www.rfc-editor.org/info/rfc5085>.
+
+
+
+Nadeau, et al.               Standards Track                    [Page 7]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+   [RFC5586]  Bocci, M., Ed., Vigoureux, M., Ed., and S. Bryant, Ed.,
+              "MPLS Generic Associated Channel", RFC 5586,
+              DOI 10.17487/RFC5586, June 2009,
+              <http://www.rfc-editor.org/info/rfc5586>.
+
+   [RFC6073]  Martini, L., Metz, C., Nadeau, T., Bocci, M., and M.
+              Aissaoui, "Segmented Pseudowire", RFC 6073,
+              DOI 10.17487/RFC6073, January 2011,
+              <http://www.rfc-editor.org/info/rfc6073>.
+
+   [RFC6391]  Bryant, S., Ed., Filsfils, C., Drafz, U., Kompella, V.,
+              Regan, J., and S. Amante, "Flow-Aware Transport of
+              Pseudowires over an MPLS Packet Switched Network",
+              RFC 6391, DOI 10.17487/RFC6391, November 2011,
+              <http://www.rfc-editor.org/info/rfc6391>.
+
+10.2.  Informative References
+
+   [RFC5921]  Bocci, M., Ed., Bryant, S., Ed., Frost, D., Ed., Levrau,
+              L., and L. Berger, "A Framework for MPLS in Transport
+              Networks", RFC 5921, DOI 10.17487/RFC5921, July 2010,
+              <http://www.rfc-editor.org/info/rfc5921>.
+
+   [RFC7325]  Villamizar, C., Ed., Kompella, K., Amante, S., Malis, A.,
+              and C. Pignataro, "MPLS Forwarding Compliance and
+              Performance Requirements", RFC 7325, DOI 10.17487/RFC7325,
+              August 2014, <http://www.rfc-editor.org/info/rfc7325>.
+
+Acknowledgments
+
+   The authors wish to thank Alexander (Sasha) Vainshtein for his
+   proposal to make the GAL and Flow labels mutually exclusive.  This
+   proposal led to a significant simplification of this design.  The
+   authors also thank Sasha, Matthew Bocci, Loa Andersson, and Deborah
+   Brungard for their review comments.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Nadeau, et al.               Standards Track                    [Page 8]
+
+RFC 7708                  GAL as a VCCV Channel            November 2015
+
+
+Authors' Addresses
+
+   Thomas D. Nadeau
+   Brocade
+
+   Email: tnadeau@lucidvision.com
+
+
+   Luca Martini
+   Cisco Systems
+
+   Email: lmartini@cisco.com
+
+
+   Stewart Bryant
+   Cisco Systems
+
+   Email: stewart.bryant@gmail.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Nadeau, et al.               Standards Track                    [Page 9]
+

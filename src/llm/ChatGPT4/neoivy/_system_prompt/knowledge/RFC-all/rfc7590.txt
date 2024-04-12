@@ -1,0 +1,507 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                    P. Saint-Andre
+Request for Comments: 7590                                          &yet
+Updates: 6120                                                T. Alkemade
+Category: Standards Track                                      June 2015
+ISSN: 2070-1721
+
+
+              Use of Transport Layer Security (TLS) in the
+           Extensible Messaging and Presence Protocol (XMPP)
+
+Abstract
+
+   This document provides recommendations for the use of Transport Layer
+   Security (TLS) in the Extensible Messaging and Presence Protocol
+   (XMPP).  This document updates RFC 6120.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7590.
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 1]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Terminology . . . . . . . . . . . . . . . . . . . . . . . . .   2
+   3.  Recommendations . . . . . . . . . . . . . . . . . . . . . . .   3
+     3.1.  Support for TLS . . . . . . . . . . . . . . . . . . . . .   3
+     3.2.  Compression . . . . . . . . . . . . . . . . . . . . . . .   3
+     3.3.  Session Resumption  . . . . . . . . . . . . . . . . . . .   3
+     3.4.  Authenticated Connections . . . . . . . . . . . . . . . .   4
+     3.5.  Server Name Indication  . . . . . . . . . . . . . . . . .   5
+     3.6.  Human Factors . . . . . . . . . . . . . . . . . . . . . .   5
+   4.  Security Considerations . . . . . . . . . . . . . . . . . . .   5
+   5.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   6
+     5.1.  Normative References  . . . . . . . . . . . . . . . . . .   6
+     5.2.  Informative References  . . . . . . . . . . . . . . . . .   7
+   Appendix A.  Implementation Notes . . . . . . . . . . . . . . . .   9
+   Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . .   9
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .   9
+
+1.  Introduction
+
+   The Extensible Messaging and Presence Protocol (XMPP) [RFC6120]
+   (along with its precursor, the so-called "Jabber protocol") has used
+   Transport Layer Security (TLS) [RFC5246] (along with its precursor,
+   Secure Sockets Layer or SSL) since 1999.  Both [RFC6120] and its
+   predecessor [RFC3920] provided recommendations regarding the use of
+   TLS in XMPP.  In order to address the evolving threat model on the
+   Internet today, this document provides stronger recommendations.
+
+   In particular, this document updates [RFC6120] by specifying that
+   XMPP implementations and deployments MUST follow the best current
+   practices documented in the "Recommendations for Secure Use of TLS
+   and DTLS" [RFC7525].  This includes stronger recommendations
+   regarding SSL/TLS protocol versions, fallback to lower versions,
+   TLS-layer compression, TLS session resumption, cipher suites, public
+   key lengths, forward secrecy, and other aspects of using TLS with
+   XMPP.
+
+2.  Terminology
+
+   Various security-related terms are to be understood in the sense
+   defined in [RFC4949].
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   [RFC2119].
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 2]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+3.  Recommendations
+
+   The best current practices documented in the "Recommendations for
+   Secure Use of TLS and DTLS" [RFC7525] are included here by reference.
+   Instead of repeating those recommendations here, this document mostly
+   provides supplementary information regarding secure implementation
+   and deployment of XMPP technologies.
+
+3.1.  Support for TLS
+
+   Support for TLS (specifically, the XMPP profile of STARTTLS) is
+   mandatory for XMPP implementations, as already specified in [RFC6120]
+   and its predecessor [RFC3920].
+
+   The server (i.e., the XMPP receiving entity) to which a client or
+   peer server (i.e., the XMPP initiating entity) connects might not
+   offer a stream feature of <starttls xmlns='urn:ietf:params:xml:ns
+   :xmpp-tls'/>.  Although in general this stream feature indicates that
+   the server supports and offers TLS, this stream feature might be
+   stripped out by an attacker (see Section 2.1 of [RFC7457]).
+   Similarly, the <required/> child element of the <starttls/> stream
+   feature is used to indicate that negotiation of TLS is mandatory;
+   however, this could also be stripped out by an attacker.  Therefore,
+   the initiating entity MUST NOT be deterred from attempting TLS
+   negotiation even if the receiving entity does not advertise support
+   for TLS.  Instead, the initiating entity SHOULD (based on local
+   policy) proceed with the stream negotiation and attempt to negotiate
+   TLS.
+
+3.2.  Compression
+
+   XMPP supports an application-layer compression technology [XEP-0138].
+   Although this XMPP extension might have slightly stronger security
+   properties than TLS-layer compression (since it is enabled after
+   Simple Authentication and Security Layer (SASL) authentication, as
+   described in [XEP-0170]), this document neither encourages nor
+   discourages use of XMPP-layer compression.
+
+3.3.  Session Resumption
+
+   To improve the reliability of communications over XMPP, it is common
+   practice for clients and servers to implement the stream management
+   extension [XEP-0198].  Although that specification includes a method
+   for resumption of XMPP streams at the application layer, also using
+   session resumption at the TLS layer further optimizes the overall
+   process of resuming an XMPP session (see [XEP-0198] for detailed
+   information).  Whether or not XEP-0198 is used for application-layer
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 3]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+   session resumption, implementations MUST follow the recommendations
+   provided in [RFC7525] regarding TLS-layer session resumption.
+
+3.4.  Authenticated Connections
+
+   Both the core XMPP specification [RFC6120] and the CertID
+   specification [RFC6125] provide recommendations and requirements for
+   certificate validation in the context of authenticated connections.
+   This document does not supersede those specifications (e.g., it does
+   not modify the recommendations in [RFC6120] regarding the Subject
+   Alternative Names or other certificate details that need to be
+   supported for authentication of XMPP connections using PKIX
+   certificates).
+
+   Wherever possible, it is best to prefer authenticated connections
+   (along with SASL [RFC4422]), as already stated in the core XMPP
+   specification [RFC6120].  In particular:
+
+   o  Clients MUST authenticate servers.
+
+   o  Servers MUST authenticate clients.
+
+   o  Servers SHOULD authenticate other servers.
+
+   This document does not mandate that servers need to authenticate peer
+   servers, although such authentication is strongly preferred.
+   Unfortunately, in multi-tenanted environments it can be extremely
+   difficult to obtain and deploy PKIX certificates with the proper
+   Subject Alternative Names (see [XMPP-DNA] and [PKIX-POSH] for
+   details).  To overcome that difficulty, the Domain Name Associations
+   (DNAs) specification [XMPP-DNA] describes a framework for XMPP server
+   authentication methods, which include not only PKIX but also DNS-
+   Based Authentication of Named Entities (DANE) as defined in
+   [DANE-SRV] and PKIX over Secure HTTP (POSH) as defined in
+   [PKIX-POSH].  These methods can provide a basis for server identity
+   verification when appropriate PKIX certificates cannot be obtained
+   and deployed.
+
+   Given the pervasiveness of eavesdropping [RFC7258], even an encrypted
+   but unauthenticated connection might be better than an unencrypted
+   connection in these scenarios (this is similar to the "better-than-
+   nothing security" approach for IPsec [RFC5386]).  Encrypted but
+   unauthenticated connections include connections negotiated using
+   anonymous Diffie-Hellman mechanisms or using self-signed
+   certificates, among others.  In particular for XMPP server-to-server
+   interactions, it can be reasonable for XMPP server implementations to
+   accept encrypted but unauthenticated connections when Server Dialback
+   keys [XEP-0220] are used; such keys on their own provide only weak
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 4]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+   identity verification (made stronger through the use of DNSSEC
+   [RFC4033]), but this at least enables encryption of server-to-server
+   connections.  The DNA prooftypes mentioned above are intended to
+   mitigate the residual need for encrypted but unauthenticated
+   connections in these scenarios.
+
+3.5.  Server Name Indication
+
+   Although there is no harm in supporting the TLS Server Name
+   Indication (SNI) extension [RFC6066], this is not necessary since the
+   same function is served in XMPP by the 'to' address of the initial
+   stream header as explained in Section 4.7.2 of [RFC6120].
+
+3.6.  Human Factors
+
+   It is strongly encouraged that XMPP clients provide ways for end
+   users (and that XMPP servers provide ways for administrators) to
+   complete the following tasks:
+
+   o  Determine if a given incoming or outgoing XML stream is encrypted
+      using TLS.
+
+   o  Determine the version of TLS used for encryption of a given
+      stream.
+
+   o  If authenticated encryption is used, determine how the connection
+      was authenticated or verified (e.g., via PKI, DANE, POSH, or
+      Server Dialback).
+
+   o  Inspect the certificate offered by an XMPP server.
+
+   o  Determine the cipher suite used to encrypt a connection.
+
+   o  Be warned if the certificate changes for a given server.
+
+4.  Security Considerations
+
+   The use of TLS can help to limit the information available for
+   correlation between the XMPP application layer and the underlying
+   network and transport layers.  As typically deployed, XMPP
+   technologies do not leave application-layer routing data (such as
+   XMPP 'to' and 'from' addresses) at rest on intermediate systems,
+   since there is only one hop between any two given XMPP servers.  As a
+   result, encrypting all hops (sender's client to sender's server,
+   sender's server to recipient's server, and recipient's server to
+   recipient's client) can help to limit the amount of metadata that
+   might leak.
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 5]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+   It is possible that XMPP servers themselves might be compromised.  In
+   that case, per-hop encryption would not protect XMPP communications,
+   and even end-to-end encryption of (parts of) XMPP stanza payloads
+   would leave addressing information and XMPP roster data in the clear.
+   By the same token, it is possible that XMPP clients (or the end-user
+   devices on which such clients are installed) could also be
+   compromised, leaving users utterly at the mercy of an adversary.
+
+   This document and related actions to strengthen the security of the
+   XMPP network are based on the assumption that XMPP servers and
+   clients have not been subject to widespread compromise.  If this
+   assumption is valid, then ubiquitous use of per-hop TLS channel
+   encryption and more significant deployment of end-to-end object
+   encryption technologies will serve to protect XMPP communications to
+   a measurable degree, compared to the alternatives.
+
+   This document covers only communication over the XMPP network and
+   does not take into account gateways to non-XMPP networks.  As an
+   example, for security considerations related to gateways between XMPP
+   and the Session Initiation Protocol (SIP), see [RFC7247] and
+   [RFC7572].
+
+5.  References
+
+5.1.  Normative References
+
+   [RFC2119]   Bradner, S., "Key words for use in RFCs to Indicate
+               Requirement Levels", BCP 14, RFC 2119,
+               DOI 10.17487/RFC2119, March 1997,
+               <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC4949]   Shirey, R., "Internet Security Glossary, Version 2",
+               FYI 36, RFC 4949, DOI 10.17487/RFC4949, August 2007,
+               <http://www.rfc-editor.org/info/rfc4949>.
+
+   [RFC5246]   Dierks, T. and E. Rescorla, "The Transport Layer Security
+               (TLS) Protocol Version 1.2", RFC 5246,
+               DOI 10.17487/RFC5246, August 2008,
+               <http://www.rfc-editor.org/info/rfc5246>.
+
+   [RFC6120]   Saint-Andre, P., "Extensible Messaging and Presence
+               Protocol (XMPP): Core", RFC 6120, DOI 10.17487/RFC6120,
+               March 2011, <http://www.rfc-editor.org/info/rfc6120>.
+
+
+
+
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 6]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+   [RFC6125]   Saint-Andre, P. and J. Hodges, "Representation and
+               Verification of Domain-Based Application Service Identity
+               within Internet Public Key Infrastructure Using X.509
+               (PKIX) Certificates in the Context of Transport Layer
+               Security (TLS)", RFC 6125, DOI 10.17487/RFC6125, March
+               2011, <http://www.rfc-editor.org/info/rfc6125>.
+
+   [RFC7525]   Sheffer, Y., Holz, R., and P. Saint-Andre,
+               "Recommendations for Secure Use of Transport Layer
+               Security (TLS) and Datagram Transport Layer Security
+               (DTLS)", BCP 195, RFC 7525, DOI 10.17487/RFC7525, May
+               2015, <http://www.rfc-editor.org/info/rfc7525>.
+
+5.2.  Informative References
+
+   [DANE-SRV]  Finch, T., Miller, M., and P. Saint-Andre, "Using DNS-
+               Based Authentication of Named Entities (DANE) TLSA
+               records with SRV and MX records.", Work in Progress,
+               draft-ietf-dane-srv-14, April 2015.
+
+   [PKIX-POSH] Miller, M. and P. Saint-Andre, "PKIX over Secure HTTP
+               (POSH)", Work in Progress, draft-ietf-xmpp-posh-04,
+               February 2015.
+
+   [RFC3920]   Saint-Andre, P., Ed., "Extensible Messaging and Presence
+               Protocol (XMPP): Core", RFC 3920, DOI 10.17487/RFC3920,
+               October 2004, <http://www.rfc-editor.org/info/rfc3920>.
+
+   [RFC4033]   Arends, R., Austein, R., Larson, M., Massey, D., and S.
+               Rose, "DNS Security Introduction and Requirements",
+               RFC 4033, DOI 10.17487/RFC4033, March 2005,
+               <http://www.rfc-editor.org/info/rfc4033>.
+
+   [RFC4422]   Melnikov, A., Ed. and K. Zeilenga, Ed., "Simple
+               Authentication and Security Layer (SASL)", RFC 4422,
+               DOI 10.17487/RFC4422, June 2006,
+               <http://www.rfc-editor.org/info/rfc4422>.
+
+   [RFC5386]   Williams, N. and M. Richardson, "Better-Than-Nothing
+               Security: An Unauthenticated Mode of IPsec", RFC 5386,
+               DOI 10.17487/RFC5386, November 2008,
+               <http://www.rfc-editor.org/info/rfc5386>.
+
+   [RFC6066]   Eastlake 3rd, D., "Transport Layer Security (TLS)
+               Extensions: Extension Definitions", RFC 6066,
+               DOI 10.17487/RFC6066, January 2011,
+               <http://www.rfc-editor.org/info/rfc6066>.
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 7]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+   [RFC7247]   Saint-Andre, P., Houri, A., and J. Hildebrand,
+               "Interworking between the Session Initiation Protocol
+               (SIP) and the Extensible Messaging and Presence Protocol
+               (XMPP): Architecture, Addresses, and Error Handling",
+               RFC 7247, DOI 10.17487/RFC7247, May 2014,
+               <http://www.rfc-editor.org/info/rfc7247>.
+
+   [RFC7258]   Farrell, S. and H. Tschofenig, "Pervasive Monitoring Is
+               an Attack", BCP 188, RFC 7258, DOI 10.17487/RFC7258, May
+               2014, <http://www.rfc-editor.org/info/rfc7258>.
+
+   [RFC7457]   Sheffer, Y., Holz, R., and P. Saint-Andre, "Summarizing
+               Known Attacks on Transport Layer Security (TLS) and
+               Datagram TLS (DTLS)", RFC 7457, DOI 10.17487/RFC7457,
+               February 2015, <http://www.rfc-editor.org/info/rfc7457>.
+
+   [RFC7572]   Saint-Andre, P., Houri, A., and J. Hildebrand,
+               "Interworking between the Session Initiation Protocol
+               (SIP) and the Extensible Messaging and Presence Protocol
+               (XMPP): Instant Messaging", RFC 7572,
+               DOI 10.17487/RFC7572, June 2015,
+               <http://www.rfc-editor.org/info/rfc7572>.
+
+   [XEP-0138]  Hildebrand, J. and P. Saint-Andre, "Stream Compression",
+               XSF XEP 0138, May 2009,
+               <http://xmpp.org/extensions/xep-0138.html>.
+
+   [XEP-0170]  Saint-Andre, P., "Recommended Order of Stream Feature
+               Negotiation", XSF XEP 0170, January 2007,
+               <http://xmpp.org/extensions/xep-0170.html>.
+
+   [XEP-0198]  Karneges, J., Saint-Andre, P., Hildebrand, J., Forno, F.,
+               Cridland, D., and M. Wild, "Stream Management", XSF XEP
+               0198, June 2011,
+               <http://xmpp.org/extensions/xep-0198.html>.
+
+   [XEP-0220]  Miller, J., Saint-Andre, P., and P. Hancke, "Server
+               Dialback", XSF XEP 0220, August 2014,
+               <http://xmpp.org/extensions/xep-0220.html>.
+
+   [XMPP-DNA]  Saint-Andre, P. and M. Miller, "Domain Name Associations
+               (DNA) in the Extensible Messaging and Presence Protocol
+               (XMPP)", Work in Progress, draft-ietf-xmpp-dna-10, March
+               2015.
+
+
+
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 8]
+
+RFC 7590                        XMPP TLS                       June 2015
+
+
+Appendix A.  Implementation Notes
+
+   Some governments enforce legislation prohibiting the export of strong
+   cryptographic technologies.  Nothing in this document ought to be
+   taken as advice to violate such prohibitions.
+
+Acknowledgements
+
+   The authors would like to thank the following individuals for their
+   input: Dave Cridland, Philipp Hancke, Olle Johansson, Steve Kille,
+   Tobias Markmann, Matt Miller, and Rene Treffer.
+
+   Roni Even caught several important issues in his review on behalf of
+   the General Area Review Team.
+
+   Ben Campbell, Spencer Dawkins, and Barry Leiba provided helpful input
+   during IESG review.
+
+   Thanks to Leif Johansson and Orit Levin as chairs of the UTA WG, Ben
+   Campbell and Joe Hildebrand as chairs of the XMPP WG, and Stephen
+   Farrell as the sponsoring Area Director.
+
+Authors' Addresses
+
+   Peter Saint-Andre
+   &yet
+
+   EMail: peter@andyet.com
+   URI:   https://andyet.com/
+
+
+   Thijs Alkemade
+
+   EMail: me@thijsalkema.de
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Saint-Andre & Alkemade       Standards Track                    [Page 9]
+

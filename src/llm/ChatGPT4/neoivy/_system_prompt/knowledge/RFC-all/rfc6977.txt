@@ -1,0 +1,731 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                      M. Boucadair
+Request for Comments: 6977                                   X. Pougnard
+Category: Standards Track                                 France Telecom
+ISSN: 2070-1721                                                July 2013
+
+
+          Triggering DHCPv6 Reconfiguration from Relay Agents
+
+Abstract
+
+   This document defines two new DHCPv6 messages: Reconfigure-Request
+   and Reconfigure-Reply.  The Reconfigure-Request message is sent by a
+   DHCPv6 relay agent to notify a DHCPv6 server about a configuration
+   information change, so that the DHCPv6 server can send a Reconfigure
+   message accordingly.  The Reconfigure-Reply message is used by the
+   server to acknowledge the receipt of the Reconfigure-Request message.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6977.
+
+Copyright Notice
+
+   Copyright (c) 2013 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 1]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  Requirements Language . . . . . . . . . . . . . . . . . . . .   3
+   3.  Problem Statement . . . . . . . . . . . . . . . . . . . . . .   3
+   4.  Solution Overview . . . . . . . . . . . . . . . . . . . . . .   4
+   5.  Link Address Option . . . . . . . . . . . . . . . . . . . . .   6
+   6.  Detailed Specification  . . . . . . . . . . . . . . . . . . .   6
+     6.1.  Messages Format . . . . . . . . . . . . . . . . . . . . .   6
+     6.2.  Messages Validation . . . . . . . . . . . . . . . . . . .   7
+       6.2.1.  Reconfigure-Request . . . . . . . . . . . . . . . . .   7
+       6.2.2.  Reconfigure-Reply . . . . . . . . . . . . . . . . . .   7
+     6.3.  Creation and Transmission of a Reconfigure-Request  . . .   7
+     6.4.  Intermediate Relay Agents Behavior  . . . . . . . . . . .   9
+     6.5.  Server Behavior . . . . . . . . . . . . . . . . . . . . .   9
+     6.6.  Receipt of a Reconfigure-Reply  . . . . . . . . . . . . .  10
+   7.  Rate-Limiting Considerations  . . . . . . . . . . . . . . . .  10
+   8.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  11
+   9.  Security Considerations . . . . . . . . . . . . . . . . . . .  11
+   10. Acknowledgements  . . . . . . . . . . . . . . . . . . . . . .  12
+   11. References  . . . . . . . . . . . . . . . . . . . . . . . . .  12
+     11.1.  Normative References . . . . . . . . . . . . . . . . . .  12
+     11.2.  Informative References . . . . . . . . . . . . . . . . .  12
+
+1.  Introduction
+
+   This document specifies two new DHCPv6 messages [RFC3315]:
+   Reconfigure-Request and Reconfigure-Reply.
+
+   Section 3 describes a typical problem scenario encountered that
+   triggers the DHCPv6 server to issue a Reconfigure message when the
+   configuration data is supplied by the relay agent.  This problem may
+   be encountered in other contexts.  It is out of scope of this
+   document to list all these cases.
+
+   Section 4 describes the proposed solution that relies on the use of
+   Reconfigure-Request and Reconfigure-Reply messages.  The Reconfigure-
+   Request message is sent by a DHCPv6 relay agent to notify a DHCPv6
+   server about a configuration-information change, so that the DHCPv6
+   server can send a Reconfigure message accordingly.  The Reconfigure-
+   Reply message is used by the server to acknowledge the receipt of
+   Reconfigure-Request.
+
+   Section 5 specifies the Link Address Option used by the relay agent
+   to indicate the link on which the client is located to the server.
+
+   Section 6 provides the detailed specification of the procedure to
+   trigger Reconfigure messages by DHCPv6 relay agents.
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 2]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+2.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+3.  Problem Statement
+
+   For cases where the DHCPv6 relay agent possesses some information
+   that would be useful to the DHCPv6 client, [RFC6422] specifies a
+   mechanism whereby the DHCPv6 relay agent can provide such information
+   to the DHCPv6 server, which can, in turn, pass this information on to
+   the DHCP client.  This is achieved by use of RSOO (Relay-Supplied
+   Options option), which carries configuration data to the DHCPv6
+   server.  The data conveyed in an RSOO is then sent back by the DHCPv6
+   server to the requesting DHCPv6 client.
+
+   An example of RSOO usage is shown in Figure 1; only a subset of
+   exchanged DHCPv6 and RADIUS messages is represented.  Figure 1 shows
+   a broadband network scenario in which the Network Access Server (NAS)
+   embeds a DHCPv6 relay agent.
+
+      +-------+                   +-------+                    +-------+
+      |DHCPv6 |                   |  NAS  |                    |Radius |
+      |Client |                   |(DHCPv6|                    |Server |
+      |       |                   | Relay)|                    |       |
+      +-------+                   +-------+                    +-------+
+          |                           |                            |
+          |---Solicit---------------->|                            |
+          |                           |---Access-Request---------->|
+                                      |<--Access-Accept------------|
+                                      | (e.g., DS-Lite-Tunnel-Name)|
+                                    ....
+                                      |                        +-------+
+                                      |                        |DHCPv6 |
+                                      |                        |Server |
+                                      |                        |       |
+                                      |                        +-------+
+                                      |                            |
+                                      |---Relay-Forward----------->|
+                                      |  (RSOO(OPTION_AFTR_NAME))  |
+                                      |                            |
+          |                           |<--Relay-Reply--------------|
+          |<--Advertise---------------|  (e.g., OPTION_AFTR_NAME)  |
+          |  (e.g., OPTION_AFTR_NAME) |
+                                     ....
+
+                  Figure 1: An Example of the RSOO Usage
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 3]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+   A configuration change may result in an exchange of CoA (Change-of-
+   Authorization) [RFC5176] messages between the NAS/DHCPv6 relay agent
+   and Dynamic Authorization Client (DAC) server as shown in Figure 2.
+   In this example, the NAS answers with a CoA-Ack message to notify the
+   DAC that the CoA-Request has been successfully handled.
+
+   Note that the change of the configuration in the DHCPv6 relay agent
+   can be triggered by any other out-of-band mechanism.
+
+      +-------+                   +-------+                    +-------+
+      |DHCPv6 |                   |  NAS  |                    |Radius |
+      |Client |                   |(DHCPv6|                    |Server/|
+      |       |                   | Relay)|                    |  DAC  |
+      +-------+                   +-------+                    +-------+
+          |                           |                            |
+                                      |<-----CoA-Request-----------|
+                                      |(e.g., DS-Lite-Tunnel-Name) |
+                                      |------CoA-Ack-------------->|
+                                    ....
+
+                     Figure 2: Change of Configuration
+
+   Whenever the configuration information sent by the DHCPv6 relay agent
+   to the DHCPv6 server changes, the DHCPv6 server has no means of
+   detecting the change so that it can send a Reconfigure message
+   accordingly.  A solution is sketched in Section 4.
+
+4.  Solution Overview
+
+   To solve the problem described in Section 3, this document proposes a
+   new DHCP message called Reconfigure-Request.  In the example depicted
+   in Figure 3, a Reconfigure-Request message is sent by the DHCPv6
+   relay agent to a DHCPv6 server as soon as the configuration data
+   conveyed in an RSOO has changed.  Upon receipt of this message, and
+   if it is configured to support such a mode, the DHCPv6 server must
+   build Reconfigure-Reply and Reconfigure messages.  Reconfigure-Reply
+   is used to acknowledge the receipt of Reconfigure-Request.  The
+   Reconfigure message encapsulated in Relay-Reply is sent to the DHCPv6
+   relay, which in turn will forward the message to the appropriate
+   DHCPv6 client.
+
+   This setup assumes the relay has a record of the client, so that it
+   has enough information to send the Reconfigure-Request message to the
+   server.  How the state is recorded in the relay is out of scope of
+   this document.  For better resilience of the proposed solution, means
+   to recover state in the event of failure (e.g., use of stable
+   storage, DHCPv6 Bulk Leasequery [RFC5460]) need to be supported.
+   These state recovery solutions are not discussed in this document.
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 4]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+      +-------+                   +-------+                    +-------+
+      |DHCPv6 |                   |  NAS  |                    |Radius |
+      |Client |                   |(DHCPv6|                    |Server/|
+      |       |                   | Relay)|                    | DAC   |
+      +-------+                   +-------+                    +-------+
+          |                           |                            |
+                                      |<-----CoA-Request-----------|
+                                      |(e.g., DS-Lite-Tunnel-Name) |
+                                      |                            |
+                                      |------CoA-Ack-------------->|
+                                    ....
+                                      |                        +-------+
+                                      |                        |DHCPv6 |
+                                      |                        |Server |
+                                      |                        |       |
+                                      |                        +-------+
+                                      |                            |
+                                      |---Reconfigure-Request----->|
+                                      |<--Reconfigure-Reply--------|
+                                      |                            |
+          |                           |<--Relay-Reply -------------|
+          |<--Reconfigure-------------|   (Reconfigure)            |
+          |                           |                            |
+                                    ....
+
+              Figure 3: Flow Example with Reconfigure-Request
+
+   The support of Reconfigure-Reply messages simplifies the
+   retransmission procedure of the relay as it provides an explicit
+   indication from the server (see Section 6.3 for more details).  An
+   alternative approach is the relay monitors' Reconfigure messages
+   received from the server to conclude whether or not the Reconfigure-
+   Request was successfully handled.  Nevertheless, this implicit
+   approach may fail to achieve its goals in some cases: for example,
+   the server accepts the request but it delays generating the
+   corresponding Reconfigure messages due to its rate-limiting policies,
+   the request was partially failed for some clients, etc.  To avoid
+   useless reconfigure cycles (e.g., due to the loss of Reconfigure-
+   Reply messages), the approach adopted in this document allows the
+   relay to correct the content of a retransmitted Reconfigure-Request
+   based on some observed events (e.g., the client has retrieved the
+   updated configuration).  If the relay has no client to be
+   reconfigured, it stops sending Reconfigure-Request messages.
+
+   The Reconfigure-Request message can also be used in scenarios other
+   than those that assume the use of RSOO.  It is out of scope of this
+   document to describe all these scenarios.
+
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 5]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+5.  Link Address Option
+
+   Figure 4 shows the format of the Link Address Option.
+
+       0                   1                   2                   3
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |       OPTION_LINK_ADDRESS     |         option-len            |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |                                                               |
+       |                  link-address (IPv6 address)                  |
+       |                                                               |
+       |                                                               |
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+              Figure 4: Message Format of Link Address Option
+
+   The description of the fields are as follows:
+
+      option-code: OPTION_LINK_ADDRESS (80)
+
+      option-len: 16 (octets)
+
+      link-address: An IPv6 address used by the server to identify the
+      link on which the client is located.
+
+   The Link Address Option is used by the relay agent to indicate to the
+   server the link on which the client is located.  The relay agent MUST
+   use a link-address value that is equivalent to the value used when
+   relaying messages from the client to the server.  Two link-address
+   values are said to be equivalent if both values are IPv6 addresses
+   that are on-link for the network link to which the client is
+   connected.
+
+   To defend against poor implementations that do not correctly evaluate
+   equivalence, the relay agent SHOULD use the same value that was sent
+   to the DHCPv6 server when relaying messages from the client to the
+   server, as in Section 20.1.1 of [RFC3315].
+
+6.  Detailed Specification
+
+6.1.  Messages Format
+
+   Two new message type codes are defined:
+
+   o  RECONFIGURE-REQUEST (18)
+
+   o  RECONFIGURE-REPLY (19)
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 6]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+   Reconfigure-Request and Reconfigure-Reply use the same format as
+   defined in Section 6 of [RFC3315].
+
+6.2.  Messages Validation
+
+6.2.1.  Reconfigure-Request
+
+   Clients MUST silently discard any received Reconfigure-Request
+   messages.
+
+   Servers MUST discard any received Reconfigure-Request messages that
+   meet any of the following conditions:
+
+   o  the message does not include a Client Identifier Option [RFC3315].
+
+   o  the message does not include a Link Address Option (Section 5).
+
+   o  the message includes a Server Identifier Option [RFC3315] but the
+      contents of the Server Identifier Option do not match the server's
+      identifier.
+
+6.2.2.  Reconfigure-Reply
+
+   Clients and servers MUST silently discard any received Reconfigure-
+   Reply messages.
+
+   The relay MUST silently discard any received Reconfigure-Reply
+   messages that meet any of the following conditions:
+
+   o  the "transaction-id" field in the message does not match the value
+      used in the original message.
+
+   o  the message does not include a Server Identifier Option.
+
+   o  the message does not include a Status Code Option [RFC3315].
+
+6.3.  Creation and Transmission of a Reconfigure-Request
+
+   For any event (e.g., modification of the configuration information)
+   that requires the server to issue a Reconfigure message, the relay
+   agent determines the client(s) affected by the change and then builds
+   a Reconfigure-Request message: the relay agent sets the "msg-type"
+   field to RECONFIGURE-REQUEST, generates a transaction ID, and inserts
+   it in the "transaction-id" field.
+
+   The relay agent MUST include one or more Client Identifier Options
+   [RFC3315] and a Link Address Option (Section 5) so that the DHCPv6
+
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 7]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+   server can identify the corresponding client and the link on which
+   the client is located.
+
+   The relay agent MAY include a Relay Identifier Option [RFC5460].
+
+   The relay agent MAY supply the updated configuration in the RSOO
+   [RFC6422].  The relay agent MAY supply a Reconfigure Message Option
+   to indicate which form of Reconfigure to use.  The relay agent MAY
+   include any option (e.g., Interface Identifier [RFC3315]) that it
+   might insert when relaying a message received from a client.
+
+   When several clients on the same link are affected by a configuration
+   change, the relay MUST include several Client Identifier Options;
+   each of these options identifies a specific client.  If including the
+   Client Identifier Options of all impacted clients exceeds the maximum
+   message size (see Section 7), the relay MUST generate several
+   Reconfigure-Request messages required to carry all Client Identifier
+   Options.  Rate-limit considerations are discussed in Section 7.
+
+   The relay sets the destination address of the Reconfigure-Request
+   message to the IP address it would have sent a Relay-Forward message
+   (see Section 20 of [RFC3315]).
+
+   In case multiple servers are configured to the relay agent, several
+   Reconfigure-Request messages are to be built.  The behavior of the
+   relay agent to disambiguate responses when multiple servers are
+   configured is implementation specific.  For example, an
+   implementation may generate a distinct "transaction-id" per server
+   while another implementation may use the content of the "transaction-
+   id" field and the Server Identifier Option to disambiguate the
+   responses.
+
+   The relay transmits Reconfigure-Request messages according to
+   Section 14 of [RFC3315], using the following parameters:
+
+     IRT (Initial retransmission time):      1 sec
+     MRT (Maximum retransmission time):     10 secs
+     MRC (Maximum retransmission count):     5
+     MRD (Maximum retransmission duration):  0
+
+   The relay MAY remove clients from the client identifier list in
+   subsequent retransmissions, but MUST NOT add clients to the client
+   identifier list.  This decision is local to the relay (e.g., it may
+   be based on observed events such as one or more clients were
+   reconfigured on their own).
+
+   The relay may receive Reconfigure encapsulated in Relay-Reply before
+   Reconfigure-Reply.  The relay SHOULD NOT interpret it as if the
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 8]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+   Reconfigure-Request was successfully handled by the server.  The
+   relay SHOULD use Reconfigure-Reply, not the Reconfigure message, to
+   determine if the request was successful (see the discussion in
+   Section 4).
+
+6.4.  Intermediate Relay Agents Behavior
+
+   The relay agent MUST be configurable to accept or reject Reconfigure-
+   Request messages received from other relay agents.  If no indication
+   is explicitly configured to the relay, the default behavior is to
+   accept Reconfigure-Request messages.
+
+   If the relay is configured not to allow Reconfigure-Request messages,
+   the relay MUST silently discard any Reconfigure-Request message it
+   receives.  If the relay is configured to accept Reconfigure-Request
+   messages, these messages are relayed as specified in Section 20.1.1
+   of [RFC3315].
+
+6.5.  Server Behavior
+
+   The server MUST be configurable to accept or reject Reconfigure-
+   Request messages.  If no indication is explicitly configured to the
+   server, the default behavior is to reject Reconfigure-Request
+   messages.
+
+   Upon receipt of a valid Reconfigure-Request message from a DHCPv6
+   relay agent (see Section 6.2), the server determines the client(s)
+   for which a Reconfigure message is to be sent.
+
+   The server constructs a Reconfigure-Reply message by setting the
+   "msg-type" field to RECONFIGURE-REPLY and copying the transaction ID
+   from the Reconfigure-Request message into the "transaction-id" field.
+   The server includes its server identifier in a Server Identifier
+   Option.  The server MUST include a Status Code Option [RFC3315]
+   indicating whether the request has been successfully processed,
+   failed, or partially failed.
+
+   o  If the server fails to process the request, the server MUST set
+      the Status Code Option to the appropriate status code (e.g.,
+      UnspecFail, NotAllowed, etc.).  In particular,
+
+      *  UnspecFail MUST be returned if the Reconfigure-Request message
+         is malformed.
+
+      *  NotAllowed MUST be returned if the server is not configured to
+         allow Reconfigure-Request.
+
+
+
+
+
+Boucadair & Pougnard         Standards Track                    [Page 9]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+      *  NotConfigured MUST be returned if the server has no record of
+         the link [RFC5007].
+
+   o  If the Reconfigure-Request is successfully validated, the server
+      MUST return a Status Code Option indicating "Success".  In
+      addition, the server MUST include a list of all the Client
+      Identifier Options of the clients to which Reconfigure messages
+      will not be sent (e.g., the server has no record of the client or
+      the client did not negotiate for Reconfigure support).  Note that
+      this means that "Success" will be returned even if Reconfigure
+      messages will not be sent to any of the clients.
+
+   If RSOO is supplied, the server might use its content to double check
+   whether a Reconfigure is required to be sent to the client.  This
+   assumes the server stored the content of RSOO it used to generate the
+   configuration data sent to requesting clients.
+
+   The server might use the content of the Reconfigure Message Option
+   supplied by the relay agent to determine which form of Reconfigure to
+   use.
+
+   Then, the server MUST follow the procedure defined in Section 19.1 of
+   [RFC3315] to construct a Reconfigure message.
+
+   Rate-limit considerations are discussed in Section 7.
+
+6.6.  Receipt of a Reconfigure-Reply
+
+   Depending on the status code enclosed in a received Reconfigure-Reply
+   message, the relay may decide to terminate the request (e.g.,
+   NotAllowed, NotConfigured, and Success) or try a different corrected
+   Reconfigure-Request (e.g., UnspecFail).
+
+   When multiple servers are configured, the relay should expect to
+   receive several Reconfigure-Reply messages.  As mentioned in
+   Section 6.3, the relay should be able to disambiguate these responses
+   and associate them with a given server.  The relay agent assumes the
+   request is successfully handled for a client if there is at least one
+   Reconfigure-Reply message in which the corresponding Client
+   Identifier Option does not appear.
+
+7.  Rate-Limiting Considerations
+
+   The relay MUST rate-limit Reconfigure-Request messages to be sent to
+   the server.  The relay MUST be configured with required rate-limit
+   parameters.  The maximum Reconfigure-Request packet size SHOULD be
+   configurable and the default value MUST be 1280 octets.
+
+
+
+
+Boucadair & Pougnard         Standards Track                   [Page 10]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+   The server MUST rate-limit Reconfigure messages triggered by
+   Reconfigure-Request messages.  The server MUST be configured with
+   required rate-limit parameters.
+
+8.  IANA Considerations
+
+   IANA has assigned the following new DHCPv6 Message types in the
+   registry maintained in
+   http://www.iana.org/assignments/dhcpv6-parameters:
+
+      RECONFIGURE-REQUEST
+
+      RECONFIGURE-REPLY
+
+   IANA has assigned the following new DHCPv6 Option Codes in the
+   registry maintained in
+   http://www.iana.org/assignments/dhcpv6-parameters:
+
+      OPTION_LINK_ADDRESS
+
+9.  Security Considerations
+
+   Security considerations elaborated in [RFC3315] (in particular
+   Section 21.1) and [RFC6422] must be taken into account.  In addition,
+   DHCPv6 servers MAY be configured to reject relayed Reconfigure-
+   Request messages or restrict relay chaining (see [RFC5007] for more
+   discussion about the rationale of this recommended behavior).
+   Section 6.5 specifies the error code to return when the server is
+   configured to reject Reconfigure-Request messages.
+
+   Relay agents SHOULD implement appropriate means to prevent using
+   Reconfigure-Request messages as a denial-of-service attack on the
+   DHCPv6 servers.
+
+   Because the Reconfigure-Request message provides a mechanism for
+   triggering the DHCPv6 Reconfigure message, and the DHCPv6 Reconfigure
+   message can raise security threats (e.g., to control the timing of a
+   DHCPv6 renewal), the DHCPv6 server MUST have some mechanism for
+   determining that the relay agent is a trusted entity.  DHCPv6 servers
+   and relay agents MUST implement relay message authentication as
+   described in Section 21.1 of [RFC3315].  DHCPv6 servers MAY also
+   implement a control policy based on the content of a received Relay
+   Identifier Option [RFC5460].  Administrators are strongly advised to
+   configure one of these security mechanisms.
+
+   In an environment where the network connecting the relay agent to the
+   DHCPv6 server is physically secure and does not contain devices not
+   controlled by the server administrator, it may be sufficient to trust
+
+
+
+Boucadair & Pougnard         Standards Track                   [Page 11]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+   the Relay Agent Identifier provided by the relay agent.  In networks
+   where the security of the machines with access to the data path is
+   not under the control of the server administrator, IPsec [RFC4301] is
+   necessary to prevent spoofing of Reconfigure-Request messages.
+   DHCPv6 servers MUST silently discard Reconfigure-Request messages
+   originating from unknown relay agents.
+
+10.  Acknowledgements
+
+   Many thanks to R. Maglione, A. Kostur, G. Halwasia, C. Jacquenet, B.
+   Leiba, R. Sparks, A. Farrel, B. Claise, J. Jaeggli, and P. Resnick
+   for the comments and review.
+
+   Special thanks to T. Lemon, B. Volz, and T. Mrugalski who provided a
+   detailed review.
+
+11.  References
+
+11.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3315]  Droms, R., Bound, J., Volz, B., Lemon, T., Perkins, C.,
+              and M. Carney, "Dynamic Host Configuration Protocol for
+              IPv6 (DHCPv6)", RFC 3315, July 2003.
+
+   [RFC6422]  Lemon, T. and Q. Wu, "Relay-Supplied DHCP Options", RFC
+              6422, December 2011.
+
+11.2.  Informative References
+
+   [RFC4301]  Kent, S. and K. Seo, "Security Architecture for the
+              Internet Protocol", RFC 4301, December 2005.
+
+   [RFC5007]  Brzozowski, J., Kinnear, K., Volz, B., and S. Zeng,
+              "DHCPv6 Leasequery", RFC 5007, September 2007.
+
+   [RFC5176]  Chiba, M., Dommety, G., Eklund, M., Mitton, D., and B.
+              Aboba, "Dynamic Authorization Extensions to Remote
+              Authentication Dial In User Service (RADIUS)", RFC 5176,
+              January 2008.
+
+   [RFC5460]  Stapp, M., "DHCPv6 Bulk Leasequery", RFC 5460, February
+              2009.
+
+
+
+
+
+
+Boucadair & Pougnard         Standards Track                   [Page 12]
+
+RFC 6977         DHCPv6 Relay-Triggered Reconfiguration        July 2013
+
+
+Authors' Addresses
+
+   Mohamed Boucadair
+   France Telecom
+   Rennes  35000
+   France
+
+   EMail: mohamed.boucadair@orange.com
+
+
+   Xavier Pougnard
+   France Telecom
+   Lannion
+   France
+
+   EMail: xavier.pougnard@orange.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Boucadair & Pougnard         Standards Track                   [Page 13]
+

@@ -1,0 +1,451 @@
+
+
+
+
+
+
+Network Working Group                                           R. Droms
+Request for Comments: 4014                                 J. Schnizlein
+Category: Standards Track                                  Cisco Systems
+                                                           February 2005
+
+
+          Remote Authentication Dial-In User Service (RADIUS)
+                     Attributes Suboption for the
+              Dynamic Host Configuration Protocol (DHCP)
+                     Relay Agent Information Option
+
+Status of This Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2005).
+
+Abstract
+
+   The RADIUS Attributes suboption enables a network element to pass
+   identification and authorization attributes received during RADIUS
+   authentication to a DHCP server.  When the DHCP server receives a
+   message from a relay agent containing a RADIUS Attributes suboption,
+   it extracts the contents of the suboption and uses that information
+   in selecting configuration parameters for the client.
+
+1.  Introduction and Background
+
+   The RADIUS Attributes suboption for the DHCP Relay Agent option
+   provides a way in which a NAS can pass attributes obtained from a
+   RADIUS server to a DHCP server [1].  IEEE 802.1X [2] is an example of
+   a mechanism through which a NAS such as a switch or a wireless LAN
+   access point can authenticate the identity of the user of a device
+   before providing layer 2 network access with RADIUS as the
+   Authentication Service, as specified in RFC 3580 [8].  In IEEE 802.1X
+   authenticated access, a device must first exchange some
+   authentication credentials with the NAS.  The NAS then supplies these
+   credentials to a RADIUS server, which eventually sends either an
+   Access-Accept or an Access-Reject in response to an Access-Request.
+   The NAS, based on the reply of the RADIUS server, then allows or
+   denies network access to the requesting device.
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 1]
+
+RFC 4014              RADIUS Attributes Suboption          February 2005
+
+
+   Figure 1 summarizes the message exchange among the participants in
+   IEEE 802.1X authentication.
+
+                        +-----------------+
+                        |Device requesting|
+                        | network access  |
+                        +-----------------+
+                         |         ^
+                         |         |
+                        (1) Request for access
+                         |         |
+                         |        (4) Success/Failure
+                         v         |
+                        +-----------------+
+                        |       NAS       |
+                        |(IEEE 802.1X and |
+                        |DHCP relay agent}|
+                        +-----------------+
+                           |     ^
+                           |     |
+                          (2) Request for authentication
+                           |     |
+                           |    (3) Access-Accept/Reject
+                           v     |
+                        +-----------------+
+                        |     RADIUS      |
+                        |     Server      |
+                        +-----------------+
+
+                             Figure 1
+
+   The access device acts as an IEEE 802.1X Authenticator and adds a
+   DHCP relay agent option that includes a RADIUS Attributes suboption
+   to DHCP messages.  At the successful conclusion of IEEE 802.1X
+   authentication, a RADIUS Access-Accept provides attributes for
+   service authorizations to the NAS.  The NAS stores these attributes
+   locally.  When the NAS subsequently relays DHCP messages from the
+   network device, the NAS adds these attributes in a RADIUS Attributes
+   suboption.  The RADIUS Attributes suboption is another suboption of
+   the Relay Agent Information option [5].
+
+   The RADIUS Attributes suboption described in this document is not
+   limited to use in conjunction with IEEE 802.1X and can be used to
+   carry RADIUS attributes obtained by the relay agent for any reason.
+   That is, the option is not limited to use with IEEE 802.1X but is
+   constrained by RADIUS semantics (see Section 4).
+
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 2]
+
+RFC 4014              RADIUS Attributes Suboption          February 2005
+
+
+   The scope of applicability of this specification is such that robust
+   interoperability is only guaranteed for RADIUS service
+   implementations that exist within the same scope as does the DHCP
+   service implementation, i.e., within a single, localized
+   administrative domain.  Global interoperability of this
+   specification, across administrative domains, is not required.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [3].
+
+   Within this specification, the use of the key words "MUST", "MUST
+   NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT",
+   "RECOMMENDED", "MAY", and "OPTIONAL" is with respect to RADIUS
+   clients and servers that implement the optional features of this
+   specification.  The use of these key words does not create any
+   normative requirements outside of that scope, and does not modify the
+   base RADIUS specifications, such as RFC 2865 [4].
+
+2.1.  DHCP Terminology
+
+   The following terms are used as defined in RFC 2131 and RFC 3046:
+   DHCP relay agent, DHCP server, DHCP client.
+
+2.2.  RADIUS Terminology
+
+   The following terms are used in conjunction with RADIUS:
+
+   RADIUS server: A RADIUS server is responsible for receiving user
+      connection requests, authenticating the user, and then returning
+      all configuration information necessary for the client to deliver
+      service to the user.
+
+   Attribute: A Type-Length-Value tuple encapsulating data elements as
+      defined in RFC 2865 [4].
+
+   NAS:  A Network Access Server (NAS) provides access to the network
+      and operates as a client of RADIUS.  The client is responsible for
+      passing user information to designated RADIUS servers and then
+      acting on the response that is returned.  Unlike a traditional
+      dial NAS, the NAS considered here may not have a protocol such as
+      PPP through which it can pass configuration information from the
+      RADIUS attributes to the client.
+
+
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 3]
+
+RFC 4014              RADIUS Attributes Suboption          February 2005
+
+
+2.3.  IEEE 802.1X Terminology
+
+   The following terms are used as defined in the IEEE 802.1X protocol:
+   Authenticator, Supplicant.
+
+3.  RADIUS Attributes Suboption Format
+
+   The RADIUS Attributes suboption is a new suboption for the DHCP Relay
+   Agent option.
+
+   The format of the RADIUS Attributes suboption is as follows:
+
+        SubOpt   Len     RADIUS attributes
+         code
+       +-------+-----+------+------+------+------+--...-+------+
+       |   7   |  N  |  o1  |  o2  |  o3  |  o4  |      |  oN  |
+       +-------+-----+------+------+------+------+--...-+------+
+
+   The RADIUS attributes are encoded according to the encoding rules in
+   RFC 2865, in octets o1...oN.
+
+   The DHCP relay agent truncates the RADIUS attributes to fit in the
+   RADIUS Attributes suboption.
+
+4.  DHCP Relay Agent Behavior
+
+   When the DHCP relay agent receives a DHCP message from the client, it
+   MAY append a DHCP Relay Agent Information option containing the
+   RADIUS Attributes suboption, along with any other suboptions it is
+   configured to supply.  The RADIUS Attributes suboption MUST only
+   contain the attributes provided in the RADIUS Access/Accept message.
+   The DHCP relay agent MUST NOT add more than one RADIUS Attributes
+   suboption in a message.
+
+   The relay agent MUST include the User-Name and Framed-Pool attributes
+   in the RADIUS Attributes suboption, if they are available, and MAY
+   include other attributes.
+
+   To avoid dependencies between the address allocation and other state
+   information between the RADIUS server and the DHCP server, the DHCP
+   relay agent SHOULD include only the attributes in the table below in
+   an instance of the RADIUS Attributes suboption.  The table, based on
+   the analysis in RFC 3580 [8], lists attributes that MAY be included:
+
+
+
+
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 4]
+
+RFC 4014              RADIUS Attributes Suboption          February 2005
+
+
+           #   Attribute
+         ---   ---------
+           1   User-Name (RFC 2865 [3])
+           6   Service-Type (RFC 2865)
+          26   Vendor-Specific (RFC 2865)
+          27   Session-Timeout (RFC 2865)
+          88   Framed-Pool (RFC 2869)
+         100   Framed-IPv6-Pool (RFC 3162 [7])
+
+5.  DHCP Server Behavior
+
+   When the DHCP server receives a message from a relay agent containing
+   a RADIUS Attributes suboption, it extracts the contents of the
+   suboption and uses that information in selecting configuration
+   parameters for the client.  If the relay agent relays RADIUS
+   attributes not included in the table in Section 4, the DHCP server
+   SHOULD ignore them.  If the DHCP server uses attributes not specified
+   here, it might result in side effects not anticipated in the existing
+   RADIUS specifications.
+
+6.  DHCP Client Behavior
+
+   Relay agent options are exchanged only between relay agents and the
+   DHCP server, so DHCP clients are never aware of their use.
+
+7.  Security Considerations
+
+   Message authentication in DHCP for intradomain use where the
+   out-of-band exchange of a shared secret is feasible is defined in RFC
+   3118 [6].  Potential exposures to attack are discussed in section 7
+   of the DHCP protocol specification in RFC 2131 [1].
+
+   The DHCP Relay Agent option depends on a trusted relationship between
+   the DHCP relay agent and the server, as described in section 5 of RFC
+   3046 [5].  Although the introduction of fraudulent relay-agent
+   options can be prevented by a perimeter defense that blocks these
+   options unless the relay agent is trusted, a deeper defense using the
+   authentication option for relay agent options [9] or IPsec [10]
+   SHOULD be deployed as well.
+
+8.  IANA Considerations
+
+   IANA has assigned the value of 7 for the DHCP Relay Agent Information
+   option suboption code for this suboption.  This document does not
+   define any new namespaces or other constants for which IANA must
+   maintain a registry.
+
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 5]
+
+RFC 4014              RADIUS Attributes Suboption          February 2005
+
+
+9.  Acknowledgements
+
+   Expert advice from Bernard Aboba, Paul Funk, David Nelson, Ashwin
+   Palekar, and Greg Weber on avoiding RADIUS entanglements is
+   gratefully acknowledged.
+
+10.  References
+
+10.1.  Normative References
+
+   [1]  Droms, R., "Dynamic Host Configuration Protocol", RFC 2131,
+        March 1997.
+
+   [2]  Institute of Electrical and Electronics Engineers, "Local and
+        Metropolitan Area Networks: Port based Network Access Control",
+        IEEE Standard 802.1X, March 2001.
+
+   [3]  Bradner, S., "Key words for use in RFCs to Indicate Requirement
+        Levels", BCP 14, RFC 2119, March 1997.
+
+   [4]  Rigney, C., Willens, S., Rubens, A., and W. Simpson, "Remote
+        Authentication Dial In User Service (RADIUS)", RFC 2865, June
+        2000.
+
+   [5]  Patrick, M., "DHCP Relay Agent Information Option", RFC 3046,
+        January 2001.
+
+10.2.  Informative References
+
+   [6]  Droms, R. and W. Arbaugh, "Authentication for DHCP Messages",
+        RFC 3118, June 2001.
+
+   [7]  Aboba, B., Zorn, G., and D. Mitton, "RADIUS and IPv6", RFC 3162,
+        August 2001.
+
+   [8]  Congdon, P., Aboba, B., Smith, A., Zorn, G., and J. Roese, "IEEE
+        802.1X Remote Authentication Dial In User Service (RADIUS) Usage
+        Guidelines", RFC 3580, September 2003.
+
+   [9]  Stapp, M. and T. Lemon, "The Authentication Suboption for the
+        DHCP Relay Agent Option", Work in Progress, October 2003.
+
+   [10] Droms, R., "Authentication of DHCP Relay Agent Options Using
+        IPsec", Work in Progress, September 2003.
+
+
+
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 6]
+
+RFC 4014              RADIUS Attributes Suboption          February 2005
+
+
+Authors' Addresses
+
+   Ralph Droms
+   Cisco Systems
+   1414 Massachusetts Avenue
+   Boxborough, MA  01719
+   USA
+
+   EMail: rdroms@cisco.com
+
+
+   John Schnizlein
+   Cisco Systems
+   9123 Loughran Road
+   Fort Washington, MD  20744
+   USA
+
+   EMail: jschnizl@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 7]
+
+RFC 4014              RADIUS Attributes Suboption          February 2005
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2005).
+
+   This document is subject to the rights, licenses and restrictions
+   contained in BCP 78, and except as set forth therein, the authors
+   retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE INTERNET
+   ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
+   INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the IETF's procedures with respect to rights in IETF Documents can
+   be found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at ietf-
+   ipr@ietf.org.
+
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+Droms & Schnizlein          Standards Track                     [Page 8]
+

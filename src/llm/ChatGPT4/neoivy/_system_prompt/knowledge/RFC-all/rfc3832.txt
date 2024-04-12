@@ -1,0 +1,451 @@
+
+
+
+
+
+
+Network Working Group                                            W. Zhao
+Request for Comments: 3832                                H. Schulzrinne
+Category: Experimental                               Columbia University
+                                                              E. Guttman
+                                                        Sun Microsystems
+                                                            C. Bisdikian
+                                                               W. Jerome
+                                                                     IBM
+                                                               July 2004
+
+
+                    Remote Service Discovery in the
+              Service Location Protocol (SLP) via DNS SRV
+
+Status of this Memo
+
+   This memo defines an Experimental Protocol for the Internet
+   community.  It does not specify an Internet standard of any kind.
+   Discussion and suggestions for improvement are requested.
+   Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2004).
+
+Abstract
+
+   Remote service discovery refers to discovering desired services in
+   given remote (i.e., non-local) DNS domains.  This document describes
+   remote service discovery in the Service Location Protocol (SLP) via
+   DNS SRV.  It defines the DNS SRV Resource Records for SLP Directory
+   Agent services, discusses various issues in using SLP and DNS SRV
+   together for remote service discovery, and gives the steps for
+   discovering desired services in remote DNS domains.
+
+1.  Introduction
+
+   This document describes remote service discovery in the Service
+   Location Protocol (SLP) [RFC2608] via DNS SRV [RFC2782].  We consider
+   remote service discovery as discovering desired services in given
+   remote DNS domains, and local service discovery as discovering
+   desired services within the local administrative domain.
+
+   SLP provides a scalable framework for local service discovery and
+   selection.  In SLP, User Agents (UAs) discover desired services in
+   the local administrative domain by querying all Service Agents (SAs)
+   via multicast or querying a Directory Agent (DA) via unicast.  To
+
+
+
+
+Zhao, et al.                  Experimental                      [Page 1]
+
+RFC 3832          Remote Discovery in SLP via DNS SRV          July 2004
+
+
+   query a DA using unicast, a UA needs to first learn about the DA via
+   DHCP, static configuration or multicast (listening for DAAdvert
+   multicast or issuing DA discovery SrvRqst multicast).
+
+   DNS SRV provides good support for remote service discovery.  However,
+   if multiple servers are discovered via DNS SRV for a service, only
+   priority and weight can be used to make a selection.  If additional
+   service properties (such as cost, speed and service quality) need to
+   be considered in the selection process, DNS SRV becomes insufficient.
+
+   We propose that using SLP and DNS SRV together can provide better
+   support for remote service discovery.  First, a UA uses DNS SRV to
+   find SLP DAs at a remote DNS domain.  Then, the UA uses SLP to query
+   one of those DAs to discover desired services.  In this way, we can
+   avoid the limitations in using SLP and DNS SRV separately.  On one
+   hand, without DNS SRV, an SLP UA needs to depend on static
+   configuration to learn about remote DAs because DHCP and multicast DA
+   discovery are not generally applicable beyond the local
+   administrative domain.  On the other hand, without SLP, DNS SRV has
+   limited support for service selection.
+
+   In this document, we first define the DNS SRV Resource Records (RRs)
+   for SLP DA services, which are used to map a given DNS domain to
+   remotely accessible (i.e., accessible from the Internet) DAs in that
+   domain.  Then, we discuss various issues in using SLP and DNS SRV
+   together for remote service discovery.  Finally, we give the steps
+   for discovering services in remote DNS domains.
+
+1.1.  Notation Conventions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in BCP 14, RFC 2119
+   [RFC2119].
+
+2.  The DNS SRV RRs for SLP DA services
+
+   According to RFC 2782 [RFC2782], the DNS SRV RRs for SLP DA services
+   are defined as follows:
+
+   _slpda._Proto.Name TTL Class SRV Priority Weight Port Target
+
+   where "slpda" is the symbolic name for SLP DA services, the Proto
+   field is either "tcp" or "udp", and the Target field is the domain
+   name of an SLP DA.  Please refer to [RFC2782] for detailed
+   explanation of each field in DNS SRV RRs.
+
+
+
+
+
+Zhao, et al.                  Experimental                      [Page 2]
+
+RFC 3832          Remote Discovery in SLP via DNS SRV          July 2004
+
+
+   Next we show an example of using DNS SRV RRs to map a given DNS
+   domain to remotely accessible DAs in that domain.  To discover
+   remotely accessible DAs in a remote domain (say, example.com), a UA
+   makes a DNS query [RFC1034,RFC1035] for QNAME=_slpda._tcp.example.com
+   (or QNAME=_slpda._udp.example.com), QCLASS=IN, and QTYPE=SRV.  Then
+   the UA will receive a list of DNS SRV RRs in a DNS reply, which gives
+   all remotely accessible DAs in the domain example.com, such as:
+
+   ;;                             Priority Weight Port Target
+   _slpda._tcp.example.com IN SRV 0        0      427  da1.example.com
+   _slpda._tcp.example.com IN SRV 0        0      427  da2.example.com
+
+3.  Remote Service Discovery in SLP via DNS SRV
+
+   SLP DAs can be discovered in two ways: (1) using the mechanisms
+   described in RFC 2608, and (2) using DNS SRV RRs as described in this
+   document.  The second approach is useful for UAs to acquire service
+   information for remote DNS domains.  For example, a mobile node
+   visiting a network (without the use of mobile IP) may want to obtain
+   information about services in its home network.
+
+3.1.  The DNS Domain of Interest for Remote Service Discovery
+
+   Using DNS SRV RRs to discover SLP DAs requires knowledge of the
+   domain where SLP DAs are registered.  For remote service discovery,
+   it is assumed that the DNS domain of interest is known via a priori
+   knowledge.  For example, a UA is configured with a domain name or the
+   user provides the domain name manually.
+
+   Note that there is no implied "search order" of DNS domains in
+   finding remote DAs.  For instance, if a UA is looking for remote DAs
+   in the domain foo.bar.example.com, it SHOULD only look for
+   _slp._tcp.foo.bar.example.com (or _slp._udp.foo.bar.example.com), and
+   MUST NOT fall back to look for _slp._tcp.bar.example.com,
+   _slp._tcp.example.com, and so on.
+
+
+3.2.  SLP DAs for Remote Service Discovery
+
+   A UA discovers desired services in a given remote DNS domain by
+   unicasting requests to DAs in that domain.  The UA uses remote DAs
+   according to these prioritized rules: (1) using DAs which it has been
+   configured with, and (2) using DAs which it has discovered via DNS
+   SRV.
+
+
+
+
+
+
+
+Zhao, et al.                  Experimental                      [Page 3]
+
+RFC 3832          Remote Discovery in SLP via DNS SRV          July 2004
+
+
+3.3.  SLP Scopes for Remote Service Discovery
+
+   As SLP scopes are intended to be used only within one administrative
+   domain, they are likely incomprehensible to users outside of the
+   administrative domain.  Thus, any remotely accessible service MUST be
+   registered in the "default" scope, but it MAY be registered in other
+   scopes at the same time.  Similarly, all DAs advertised via DNS SRV
+   MUST serve the "default" scope, but they MAY serve other scopes at
+   the same time.  As a result, users wishing to discover services at a
+   remote DNS domain SHOULD only search the "default" scope.
+
+4.  Steps for Remote Service Discovery
+
+   The steps for a User Agent U to discover desired services in a remote
+   DNS domain D are as follows.
+
+   (1) U makes a DNS query for QNAME=_slpda._tcp.D (or
+       QNAME=_slpda._udp.D), QCLASS=IN, and QTYPE=SRV.  Then, U gets a
+       list of DNS SRV RRs (referred to as L) in a DNS reply, which
+       gives all remotely accessible DAs in D.
+
+   (2) U selects a DA X from L based on the priority and weight
+       information per RFC 2782.
+
+   (3) U queries X in the "default" scope to discover desired services
+       in D.
+
+   Note that the services discovered in the above steps may not
+   necessarily be remotely accessible.
+
+5.  Security Considerations
+
+   To support remote service discovery, a domain exposes its service
+   information to the Internet.  Standard SLP authentication SHOULD be
+   used to protect valuable service information.  First, there is a risk
+   that any SA could advertise any service on a DA accessible from the
+   Internet.  Such a DA SHOULD reject all registrations and
+   deregistrations that cannot be authenticated.  Secondly, to avoid
+   disclosing unintended service information to remote users, a DA
+   accessible from the Internet SHOULD at least authenticate service
+   queries that are not in the "default" scope.  In addition, the
+   security considerations for DNS SRV [RFC2782] apply to this document.
+   Also, the DNS security extensions [RFC 2535] SHOULD be used to
+   provide origin authentication and integrity protection for DNS data.
+
+
+
+
+
+
+
+Zhao, et al.                  Experimental                      [Page 4]
+
+RFC 3832          Remote Discovery in SLP via DNS SRV          July 2004
+
+
+6.  Applicability Statements
+
+   This specification describes remote service discovery in SLP via DNS
+   SRV.  It facilitates discovering services at a remote DNS domain if
+   the domain name is known via a priori knowledge.  However, it does
+   not intend to solve the problem of Internet-wide service discovery.
+
+   Users should be aware of two constraints in using DNS SRV to discover
+   SLP DAs: (1) they SHOULD only use DNS SRV to discover DAs in the
+   "default" scope, and (2) an administrator may choose to register only
+   a subset of all DAs in the "default" scope via DNS SRV.  Thus, to
+   discover local DAs, implementations MUST use the standard SLP
+   mechanisms per RFC 2608.  In addition, implementations supporting
+   this specification MAY use DNS SRV to discover local DAs in the
+   "default" scope.
+
+   As SLP scopes are not intended to be used outside the local
+   administrative domain, all remote service discovery in SLP SHOULD be
+   carried only in the "default" scope.
+
+   Note that the services discovered via DNS SRV and remote SLP DAs may
+   not necessarily be remotely accessible.
+
+7.  IANA Considerations
+
+   In the DNS SRV RRs for SLP DA services, the symbolic name for the
+   Service field is "slpda", supported protocols are "tcp" and "udp".
+   The following values have been registered with IANA:
+
+       Service Field      Protocol Field     Reference
+       -------------      --------------     ---------
+           slpda                tcp          [RFC3832]
+           slpda                udp          [RFC3832]
+
+8.  Acknowledgments
+
+   The authors would like to thank Bernard Aboba, Kevin Arnold, Steven
+   Bellovin, Ted Hardie, James Kempf, Thomas Narten, Erik Nordmark, and
+   Jon Peterson for their valuable comments.
+
+9.  Normative References
+
+   [RFC2608] Guttman, E., Perkins, C., Veizades, J. and M. Day, "Service
+             Location Protocol, Version 2 ", RFC 2608, June 1999.
+
+   [RFC2782] Gulbrandsen, A., Vixie, P. and L. Esibov, "A DNS RR for
+             specifying the location of services (DNS SRV)", RFC 2782,
+             February 2000.
+
+
+
+Zhao, et al.                  Experimental                      [Page 5]
+
+RFC 3832          Remote Discovery in SLP via DNS SRV          July 2004
+
+
+   [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate
+             Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC1034] Mockapetris, P., "Domain names - concepts and facilities",
+             STD 13, RFC 1034, November 1987.
+
+   [RFC1035] Mockapetris, P., "Domain names - implementation and
+             specification", STD 13, RFC 1035, November 1987.
+
+   [RFC2535] Eastlake 3rd, D., "Domain Name System Security Extensions",
+             RFC 2535, March 1999.
+
+10.  Authors' Addresses
+
+   Weibin Zhao
+   Department of Computer Science
+   Columbia University
+   1214 Amsterdam Avenue, MC 0401
+   New York, NY 10027-7003
+
+   EMail: zwb@cs.columbia.edu
+
+
+   Henning Schulzrinne
+   Department of Computer Science
+   Columbia University
+   1214 Amsterdam Avenue, MC 0401
+   New York, NY 10027-7003
+
+   EMail: hgs@cs.columbia.edu
+
+
+   Erik Guttman
+   Sun Microsystems
+   Eichhoelzelstr. 7
+   74915 Waibstadt
+   Germany
+
+   EMail: Erik.Guttman@sun.com
+
+
+
+
+
+
+
+
+
+
+
+
+Zhao, et al.                  Experimental                      [Page 6]
+
+RFC 3832          Remote Discovery in SLP via DNS SRV          July 2004
+
+
+   Dr. Chatschik Bisdikian
+   IBM T. J. Watson Research Center
+   30 Saw Mill River Road, M/S 3S-B34
+   Hawthorne, NY 10532, USA
+
+   Phone: +1 914 784 7439
+   Fax:   +1 914 784 6225
+   EMail: bisdik@us.ibm.com
+
+
+   William F. Jerome
+   IBM Corp.
+   Thomas J. Watson Research Center
+   19 Skyline Drive
+   Hawthorne, NY 10532, USA
+
+   EMail: wfj@us.ibm.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Zhao, et al.                  Experimental                      [Page 7]
+
+RFC 3832          Remote Discovery in SLP via DNS SRV          July 2004
+
+
+11.  Full Copyright Statement
+
+   Copyright (C) The Internet Society (2004).  This document is subject
+   to the rights, licenses and restrictions contained in BCP 78, and
+   except as set forth therein, the authors retain all their rights.
+
+   This document and the information contained herein are provided on an
+   "AS IS" basis and THE CONTRIBUTOR, THE ORGANIZATION HE/SHE REPRESENTS
+   OR IS SPONSORED BY (IF ANY), THE INTERNET SOCIETY AND THE INTERNET
+   ENGINEERING TASK FORCE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE
+   INFORMATION HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED
+   WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Intellectual Property
+
+   The IETF takes no position regarding the validity or scope of any
+   Intellectual Property Rights or other rights that might be claimed to
+   pertain to the implementation or use of the technology described in
+   this document or the extent to which any license under such rights
+   might or might not be available; nor does it represent that it has
+   made any independent effort to identify any such rights.  Information
+   on the procedures with respect to rights in RFC documents can be
+   found in BCP 78 and BCP 79.
+
+   Copies of IPR disclosures made to the IETF Secretariat and any
+   assurances of licenses to be made available, or the result of an
+   attempt made to obtain a general license or permission for the use of
+   such proprietary rights by implementers or users of this
+   specification can be obtained from the IETF on-line IPR repository at
+   http://www.ietf.org/ipr.
+
+   The IETF invites any interested party to bring to its attention any
+   copyrights, patents or patent applications, or other proprietary
+   rights that may cover technology that may be required to implement
+   this standard.  Please address the information to the IETF at ietf-
+   ipr@ietf.org.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+
+
+Zhao, et al.                  Experimental                      [Page 8]
+

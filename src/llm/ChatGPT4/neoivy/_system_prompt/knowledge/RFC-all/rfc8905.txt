@@ -1,0 +1,592 @@
+﻿
+
+
+
+Independent Submission                                           F. Dold
+Request for Comments: 8905                              Taler Systems SA
+Category: Informational                                      C. Grothoff
+ISSN: 2070-1721                      Bern University of Applied Sciences
+                                                            October 2020
+
+
+                  The 'payto' URI Scheme for Payments
+
+Abstract
+
+   This document defines the 'payto' Uniform Resource Identifier (URI)
+   scheme for designating targets for payments.
+
+   A unified URI scheme for all payment target types allows applications
+   to offer user interactions with URIs that represent payment targets,
+   simplifying the introduction of new payment systems and applications.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+   This is a contribution to the RFC Series, independently of any other
+   RFC stream.  The RFC Editor has chosen to publish this document at
+   its discretion and makes no statement about its value for
+   implementation or deployment.  Documents approved for publication by
+   the RFC Editor are not candidates for any level of Internet Standard;
+   see Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8905.
+
+Copyright Notice
+
+   Copyright (c) 2020 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Objective
+     1.2.  Requirements Language
+   2.  Syntax of a 'payto' URI
+   3.  Semantics
+   4.  Examples
+   5.  Generic Options
+   6.  Internationalization and Character Encoding
+   7.  Tracking Payment Target Types
+     7.1.  ACH Bank Account
+     7.2.  Business Identifier Code
+     7.3.  International Bank Account Number
+     7.4.  Unified Payments Interface
+     7.5.  Bitcoin Address
+     7.6.  Interledger Protocol Address
+     7.7.  Void Payment Target
+   8.  Security Considerations
+   9.  IANA Considerations
+   10. Payto Payment Target Types
+   11. References
+     11.1.  Normative References
+     11.2.  Informative References
+   Authors' Addresses
+
+1.  Introduction
+
+   This document defines the 'payto' Uniform Resource Identifier (URI)
+   [RFC3986] scheme for designating transfer form data for payments.
+
+1.1.  Objective
+
+   A 'payto' URI always identifies the target of a payment.  A 'payto'
+   URI consists of a payment target type, a target identifier, and
+   optional parameters such as an amount or a payment reference.
+
+   The interpretation of the target identifier is defined by the payment
+   target type and typically represents either a bank account or an
+   (unsettled) transaction.
+
+   A unified URI scheme for all payment target types allows applications
+   to offer user interactions with URIs that represent payment targets,
+   simplifying the introduction of new payment systems and applications.
+
+1.2.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  Syntax of a 'payto' URI
+
+   This document uses the Augmented Backus-Naur Form (ABNF) of
+   [RFC5234].
+
+     payto-URI = "payto://" authority path-abempty [ "?" opts ]
+     opts = opt *( "&" opt )
+     opt-name = generic-opt / authority-specific-opt
+     opt-value = *pchar
+     opt = opt-name "=" opt-value
+     generic-opt = "amount" / "receiver-name" / "sender-name" /
+                   "message" / "instruction"
+     authority-specific-opt = ALPHA *( ALPHA / DIGIT / "-" / "." )
+     authority = ALPHA *( ALPHA / DIGIT / "-" / "." )
+
+   'path-abempty' is defined in Section 3.3 of [RFC3986].  'pchar' is
+   defined in Appendix A of [RFC3986].
+
+3.  Semantics
+
+   The authority component of a payment URI identifies the payment
+   target type.  The payment target types are defined in the "Payto
+   Payment Target Types" registry (see Section 10).  The path component
+   of the URI identifies the target for a payment as interpreted by the
+   respective payment target type.  The query component of the URI can
+   provide additional parameters for a payment.  Every payment target
+   type SHOULD accept the options defined in generic-opt.  The default
+   operation of applications that invoke a URI with the 'payto' scheme
+   MUST be to launch an application (if available) associated with the
+   payment target type that can initiate a payment.  If multiple
+   handlers are registered for the same payment target type, the user
+   SHOULD be able to choose which application to launch.  This allows
+   users with multiple bank accounts (each accessed via the respective
+   bank's banking application) to choose which account to pay with.  An
+   application SHOULD allow dereferencing a 'payto' URI even if the
+   payment target type of that URI is not registered in the "Payto
+   Payment Target Types" registry.  Details of the payment MUST be taken
+   from the path and options given in the URI.  The user SHOULD be
+   allowed to modify these details before confirming a payment.
+
+4.  Examples
+
+   Valid Example:
+
+   payto://iban/DE75512108001245126199?amount=EUR:200.0&message=hello
+
+   Invalid Example (authority missing):
+
+   payto:iban/12345
+
+5.  Generic Options
+
+   Applications MUST accept URIs with options in any order.  The
+   "amount" option MUST NOT occur more than once.  Other options MAY be
+   allowed multiple times, with further restrictions depending on the
+   payment target type.  The following options SHOULD be understood by
+   every payment target type.
+
+   amount:  The amount to transfer.  The format MUST be:
+
+        amount = currency ":" unit [ "." fraction ]
+        currency = 1*ALPHA
+        unit = 1*(DIGIT / ",")
+        fraction = 1*(DIGIT / ",")
+
+      If a 3-letter 'currency' is used, it MUST be an [ISO4217]
+      alphabetic code.  A payment target type MAY define semantics
+      beyond ISO 4217 for currency codes that are not 3 characters.  The
+      'unit' value MUST be smaller than 2^53.  If present, the
+      'fraction' MUST consist of no more than 8 decimal digits.  The use
+      of commas is optional for readability, and they MUST be ignored.
+
+   receiver-name:  Name of the entity that receives the payment
+      (creditor).  The value of this option MAY be subject to lossy
+      conversion, modification, and truncation (for example, due to line
+      wrapping or character set conversion).
+
+   sender-name:  Name of the entity that makes the payment (debtor).
+      The value of this option MAY be subject to lossy conversion,
+      modification, and truncation (for example, due to line wrapping or
+      character set conversion).
+
+   message:  A short message to identify the purpose of the payment.
+      The value of this option MAY be subject to lossy conversion,
+      modification, and truncation (for example, due to line wrapping or
+      character set conversion).
+
+   instruction:  A short message giving payment reconciliation
+      instructions to the recipient.  An instruction that follows the
+      character set and length limitation defined by the respective
+      payment target type SHOULD NOT be subject to lossy conversion.
+
+6.  Internationalization and Character Encoding
+
+   Various payment systems use restricted character sets.  An
+   application that processes 'payto' URIs MUST convert characters that
+   are not allowed by the respective payment systems into allowable
+   characters using either an encoding or a replacement table.  This
+   conversion process MAY be lossy, except for the instruction field.
+   If the value of the instruction field would be subject to lossy
+   conversion, modification, or truncation, the application SHOULD
+   refuse further processing of the payment until a different value for
+   the instruction is provided.
+
+   To avoid special encoding rules for the payment target identifier,
+   the userinfo component [RFC3986] is disallowed in 'payto' URIs.
+   Instead, the payment target identifier is given as an option, where
+   encoding rules are uniform for all options.
+
+   Defining a generic way of tagging the language of option fields
+   containing natural language text (such as "receiver-name", "sender-
+   name", and "message) is out of the scope of this document, as
+   internationalization must accommodate the restrictions and
+   requirements of the underlying banking system of the payment target
+   type.  The internationalization concerns SHOULD be individually
+   defined by each payment target type.
+
+7.  Tracking Payment Target Types
+
+   A registry of "Payto Payment Target Types" is described in
+   Section 10.  The registration policy for this registry is "First Come
+   First Served", as described in [RFC8126].  When requesting new
+   entries, careful consideration of the following criteria is strongly
+   advised:
+
+   1.  The description clearly defines the syntax and semantics of the
+       payment target and optional parameters if applicable.
+
+   2.  Relevant references are provided if they are available.
+
+   3.  The chosen name is appropriate for the payment target type, does
+       not conflict with well-known payment systems, and avoids
+       potential to confuse users.
+
+   4.  The payment system underlying the payment target type is not
+       fundamentally incompatible with the general options (such as
+       positive decimal amounts) in this specification.
+
+   5.  The payment target type is not a vendor-specific version of a
+       payment target type that could be described more generally by a
+       vendor-neutral payment target type.
+
+   6.  The specification of the new payment target type remains within
+       the scope of payment transfer form data.  In particular,
+       specifying complete invoices is not in scope.  Neither are
+       processing instructions to the payment processor or bank beyond a
+       simple payment.
+
+   7.  The payment target and the options do not contain the payment
+       sender's account details.
+
+   Documents that support requests for new registry entries should
+   provide the following information for each entry:
+
+   Name:  The name of the payment target type (case-insensitive ASCII
+      string, restricted to alphanumeric characters, dots, and dashes).
+
+   Description:  A description of the payment target type, including the
+      semantics of the path in the URI if applicable.
+
+   Example:  At least one example URI to illustrate the payment target
+      type.
+
+   Contact:  The contact information of a person to contact for further
+      information.
+
+   References:  Optionally, references describing the payment target
+      type (such as an RFC) and target-specific options or references
+      describing the payment system underlying the payment target type.
+
+   This document populates the registry with seven entries as follows
+   (see also Section 10).
+
+7.1.  ACH Bank Account
+
+   Name:  ach
+
+   Description:  Automated Clearing House (ACH).  The path consists of
+      two components: the routing number and the account number.
+      Limitations on the length and character set of option values are
+      defined by the implementation of the handler.  Language tagging
+      and internationalization of options are not supported.
+
+   Example:
+      payto://ach/122000661/1234
+
+   Contact:  N/A
+
+   References:  [NACHA], RFC 8905
+
+7.2.  Business Identifier Code
+
+   Name:  bic
+
+   Description:  Business Identifier Code (BIC).  The path consists of
+      just a BIC.  This is used for wire transfers between banks.  The
+      registry for BICs is provided by the Society for Worldwide
+      Interbank Financial Telecommunication (SWIFT).  The path does not
+      allow specifying a bank account number.  Limitations on the length
+      and character set of option values are defined by the
+      implementation of the handler.  Language tagging and
+      internationalization of options are not supported.
+
+   Example:
+      payto://bic/SOGEDEFFXXX
+
+   Contact:  N/A
+
+   References:  [BIC], RFC 8905
+
+7.3.  International Bank Account Number
+
+   Name:  iban
+
+   Description:  International Bank Account Number (IBAN).  Generally,
+      the IBAN allows to unambiguously derive the associated Business
+      Identifier Code (BIC) using a lookup in the respective proprietary
+      translation table.  However, some legacy applications process
+      payments to the same IBAN differently based on the specified BIC.
+      Thus, the path can consist of either a single component (the IBAN)
+      or two components (BIC followed by IBAN).  The "message" option of
+      the 'payto' URI corresponds to the "unstructured remittance
+      information" of Single Euro Payments Area (SEPA) credit transfers
+      and is thus limited to 140 characters with character set
+      limitations that differ according to the countries of the banks
+      and payment processors involved in the payment.  The "instruction"
+      option of the 'payto' URI corresponds to the "end-to-end
+      identifier" of SEPA credit transfers and is thus limited to, at
+      most, 35 characters, which can be alphanumeric or from the allowed
+      set of special characters, i.e., "+?/-:().,'".  Language tagging
+      and internationalization of options are not supported.
+
+   Examples:
+      payto://iban/DE75512108001245126199
+      payto://iban/SOGEDEFFXXX/DE75512108001245126199
+
+   Contact:  N/A
+
+   References:  [ISO20022], RFC 8905
+
+7.4.  Unified Payments Interface
+
+   Name:  upi
+
+   Description:  Unified Payment Interface (UPI).  The path is an
+      account alias.  The amount and receiver-name options are mandatory
+      for this payment target.  Limitations on the length and character
+      set of option values are defined by the implementation of the
+      handler.  Language tags and internationalization of options are
+      not supported.
+
+   Example:
+      payto://upi/alice@example.com?receiver-name=Alice&amount=INR:200
+
+   Contact:  N/A
+
+   References:  [UPILinking], RFC 8905
+
+7.5.  Bitcoin Address
+
+   Name:  bitcoin
+
+   Description:  Bitcoin protocol.  The path is a "bitcoinaddress", as
+      per [BIP0021].  Limitations on the length and character set of
+      option values are defined by the implementation of the handler.
+      Language tags and internationalization of options are not
+      supported.
+
+   Example:
+      payto://bitcoin/12A1MyfXbW6RhdRAZEqofac5jCQQjwEPBu
+
+   Contact:  N/A
+
+   References:  [BIP0021], RFC 8905
+
+7.6.  Interledger Protocol Address
+
+   Name:  ilp
+
+   Description:  Interledger protocol (ILP).  The path is an ILP
+      address, as per [ILP-ADDR].  Limitations on the length and
+      character set of option values are defined by the implementation
+      of the handler.  Language tagging and internationalization of
+      options are not supported.
+
+   Example:
+      payto://ilp/g.acme.bob
+
+   Contact:  N/A
+
+   References:  [ILP-ADDR], RFC 8905
+
+7.7.  Void Payment Target
+
+   Name:  void
+
+   Description:  The "void" payment target type allows specifying the
+      parameters of an out-of-band payment (such as cash or other types
+      of in-person transactions).  The path is optional and interpreted
+      as a comment.  Limitations on the length and character set of
+      option values are defined by the implementation of the handler.
+      Language tags and internationalization of options are not
+      supported.
+
+   Example:
+      payto://void/?amount=EUR:10.5
+
+   Contact:  N/A
+
+   References:  RFC 8905
+
+8.  Security Considerations
+
+   Interactive applications handling the 'payto' URI scheme MUST NOT
+   initiate any financial transactions without prior review and
+   confirmation from the user and MUST take measures to prevent
+   clickjacking [HMW12].
+
+   Unless a 'payto' URI is received over a trusted, authenticated
+   channel, a user might not be able to identify the target of a
+   payment.  In particular, due to homographs [unicode-tr36], a payment
+   target type SHOULD NOT use human-readable names in combination with
+   unicode in the target account specification, as it could give the
+   user the illusion of being able to identify the target account from
+   the URI.
+
+   The authentication/authorization mechanisms and transport security
+   services used to process a payment encoded in a 'payto' URI are
+   handled by the application and are not in scope of this document.
+
+   To avoid unnecessary data collection, payment target types SHOULD NOT
+   include personally identifying information about the sender of a
+   payment that is not essential for an application to conduct a
+   payment.
+
+9.  IANA Considerations
+
+   IANA maintains the "Uniform Resource Identifier (URI) Schemes"
+   registry, which contains an entry for the 'payto' URI scheme as
+   follows.  IANA has updated that entry to reference this document.
+
+   Scheme name:  payto
+
+   Status:  provisional
+
+   URI scheme syntax:  See Section 2 of RFC 8905.
+
+   URI scheme semantics:  See Section 3 of RFC 8905.
+
+   Applications/protocols that use this scheme name:  payto URIs are
+      mainly used by financial software.
+
+   Contact:  Christian Grothoff <grothoff@gnu.org>
+
+   Change controller:  Christian Grothoff <grothoff@gnu.org>
+
+   References:  See Section 11 of RFC 8905.
+
+10.  Payto Payment Target Types
+
+   This document specifies a list of payment target types.  It is
+   possible that future work will need to specify additional payment
+   target types.  The GNUnet Assigned Numbers Authority (GANA) [GANA]
+   operates the "Payto Payment Target Types" registry to track the
+   following information for each payment target type:
+
+   Name:  The name of the payment target type (case-insensitive ASCII
+      string, restricted to alphanumeric characters, dots, and dashes)
+
+   Contact:  The contact information of a person to contact for further
+      information
+
+   References:  Optionally, references describing the payment target
+      type (such as an RFC) and target-specific options or references
+      describing the payment system underlying the payment target type
+
+   The entries in the "Payto Payment Target Types" registry defined in
+   this document are as follows:
+
+                     +=========+=========+===========+
+                     | Name    | Contact | Reference |
+                     +=========+=========+===========+
+                     | ach     | N/A     | RFC 8905  |
+                     +---------+---------+-----------+
+                     | bic     | N/A     | RFC 8905  |
+                     +---------+---------+-----------+
+                     | iban    | N/A     | RFC 8905  |
+                     +---------+---------+-----------+
+                     | upi     | N/A     | RFC 8905  |
+                     +---------+---------+-----------+
+                     | bitcoin | N/A     | RFC 8905  |
+                     +---------+---------+-----------+
+                     | ilp     | N/A     | RFC 8905  |
+                     +---------+---------+-----------+
+                     | void    | N/A     | RFC 8905  |
+                     +---------+---------+-----------+
+
+                                  Table 1
+
+11.  References
+
+11.1.  Normative References
+
+   [ISO20022] International Organization for Standardization, "Financial
+              Services - Universal financial industry message scheme",
+              ISO 20022, May 2013, <https://www.iso.org>.
+
+   [ISO4217]  International Organization for Standardization, "Codes for
+              the representation of currencies", ISO 4217, August 2015,
+              <https://www.iso.org>.
+
+   [NACHA]    Nacha, "2020 Nacha Operating Rules & Guidelines", 2019.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3986]  Berners-Lee, T., Fielding, R., and L. Masinter, "Uniform
+              Resource Identifier (URI): Generic Syntax", STD 66,
+              RFC 3986, DOI 10.17487/RFC3986, January 2005,
+              <https://www.rfc-editor.org/info/rfc3986>.
+
+   [RFC5234]  Crocker, D., Ed. and P. Overell, "Augmented BNF for Syntax
+              Specifications: ABNF", STD 68, RFC 5234,
+              DOI 10.17487/RFC5234, January 2008,
+              <https://www.rfc-editor.org/info/rfc5234>.
+
+   [RFC8126]  Cotton, M., Leiba, B., and T. Narten, "Guidelines for
+              Writing an IANA Considerations Section in RFCs", BCP 26,
+              RFC 8126, DOI 10.17487/RFC8126, June 2017,
+              <https://www.rfc-editor.org/info/rfc8126>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [unicode-tr36]
+              Davis, M., Ed. and M. Suignard, Ed., "Unicode Technical
+              Report #36: Unicode Security Considerations", September
+              2014.
+
+11.2.  Informative References
+
+   [BIC]      International Organization for Standardization, "Banking
+              -- Banking telecommunication messages -- Business
+              identifier code (BIC)", ISO 9362, December 2014,
+              <https://www.iso.org>.
+
+   [BIP0021]  Schneider, N. and M. Corallo, "Bitcoin Improvement
+              Proposal 21", September 2019, <https://en.bitcoin.it/w/
+              index.php?title=BIP_0021&oldid=66778>.
+
+   [GANA]     GNUnet e.V., "GNUnet Assigned Numbers Authority (GANA)",
+              April 2020, <https://gana.gnunet.org/>.
+
+   [HMW12]    Huang, L., Moshchuk, A., Wang, H., Schecter, S., and C.
+              Jackson, "Clickjacking: Attacks and Defenses", 2012,
+              <https://www.usenix.org/system/files/conference/
+              usenixsecurity12/sec12-final39.pdf>.
+
+   [ILP-ADDR] Interledger, "ILP Addresses - v2.0.0",
+              <https://interledger.org/rfcs/0015-ilp-addresses/>.
+
+   [UPILinking]
+              National Payments Corporation of India, "Unified Payment
+              Interface - Common URL Specifications For Deep Linking And
+              Proximity Integration", November 2017,
+              <https://www.npci.org.in/sites/default/files/
+              UPI%20Linking%20Specs_ver%201.6.pdf>.
+
+Authors' Addresses
+
+   Florian Dold
+   Taler Systems SA
+   7, rue de Mondorf
+   L-5421 Erpeldange
+   Luxembourg
+
+   Email: dold@taler.net
+
+
+   Christian Grothoff
+   Bern University of Applied Sciences
+   Quellgasse 21
+   CH-2501 Biel/Bienne
+   Switzerland
+
+   Email: christian.grothoff@bfh.ch

@@ -1,0 +1,175 @@
+#lang ivy1.7
+
+include quic_loss_recovery
+
+# Default limit on the initial bytes in flight as described in Section 7.2.
+function kInitialWindow : stream_pos
+
+# Minimum congestion window in bytes as described in Section 7.2.
+function kMinimumWindow : stream_pos
+
+# Scaling factor applied to reduce the congestion window when a new loss event is detected. Section 7 recommends a value of 0.5.
+function kLossReductionFactor: stream_pos
+
+# Period of time for persistent congestion to be established, specified as a PTO multiplier. Section 7.6 recommends a value of 3.  
+function kPersistentCongestionThreshold : stream_pos
+
+    
+
+# The sender's current maximum payload size. This does not include UDP or IP overhead. 
+# The max datagram size is used for congestion window computations. An endpoint sets 
+# the value of this variable based on its Path Maximum Transmission Unit (PMTU; see Section 14.2 of [QUIC-TRANSPORT]), with a minimum value of 1200 bytes.
+function max_datagram_size : stream_pos
+
+
+# The highest value reported for the ECN-CE counter in the packet number space by the peer in an 
+# ACK frame. This value is used to detect increases in the reported ECN-CE counter.
+function ecn_ce_counters(E:quic_packet_type) : stream_pos
+
+# The sum of the size in bytes of all sent packets that contain at least one ack-eliciting or 
+# PADDING frame and have not been acknowledged or declared lost. 
+# The size does not include IP or UDP overhead, but does include the QUIC header and 
+# Authenticated Encryption with Associated Data (AEAD) overhead. Packets only containing ACK 
+# frames do not count toward bytes_in_flight to ensure congestion control does not impede congestion feedback.
+function bytes_in_flight : stream_pos
+
+# Because both should reduce their congestion windows only once per epoch, QUIC will do it once for every round trip that experiences loss,
+# while TCP may only do it once across multiple round trips.
+# Maximum number of bytes allowed to be in flight
+function congestion_window : stream_pos
+
+# The time the current recovery period started due to the detection of loss or ECN. When a packet sent after this time is 
+# acknowledged, QUIC exits congestion recovery
+function congestion_recovery_start_time : microseconds
+
+# Slow start threshold in bytes. When the congestion window is below ssthresh, the mode is slow start and the 
+# window grows by the number of bytes acknowledged.
+function ssthresh : stream_pos
+
+
+after init {
+    max_datagram_size := 1200;
+    kLossReductionFactor := 2; # 1.5
+    kPersistentCongestionThreshold := 3;
+    kInitialWindow := 10 * max_datagram_size;
+    ssthresh := 0xFFFFFF; # TODO: set to infinity
+    congestion_window := kInitialWindow;
+    ecn_ce_counters(E) := 0;
+}
+
+
+# This is invoked from ProcessECN and OnPacketsLost when a new congestion event is detected. 
+# If not already in recovery, this starts a recovery period and reduces the slow start threshold and congestion window immediately.
+action on_congestion_event(sent_time_of_last_loss:microseconds) = {
+    # No reaction if already in a recovery period.
+    if ~ (sent_time_of_last_loss <= congestion_recovery_start_time) {
+        # Enter recovery period.
+        congestion_recovery_start_time := time_api.c_timer.now_micros;
+        ssthresh := congestion_window / kLossReductionFactor;
+        congestion_window := ssthresh;
+        if congestion_window < kMinimumWindow {
+            congestion_window := kMinimumWindow;
+        }
+        # A packet can be sent to speed up loss recovery.
+        # TODO MaybeSendOnePacket()
+    }
+}
+
+# This is invoked when an ACK frame with an ECN section is received from the peer.
+# action process_ecn(ecn:frame.ack_ecn, pn_space:quic_packet_type) = {
+#     # // If the ECN-CE counter reported by the peer has increased,
+#     # // this could be a new congestion event.
+#     if ecn.ecn_counts > ecn_ce_counters(pn_space) {
+#         ecn_ce_counters(pn_space) := ecn.ecn_counts;
+#         call on_congestion_event(sent_packets_time_sent(pn_space, ecn.largest_acked));
+#     }
+# }
+
+
+# This is invoked from loss detection's OnAckReceived and is supplied with the newly 
+# acked_packets from sent_packets.In congestion avoidance, implementers that use an 
+# integer representation for congestion_window should be careful with division and 
+# can use the alternative approach suggested in Section 2.1 of [RFC3465].
+action on_packets_acked(pn_space:quic_packet_type) = {
+    var idx : stream_pos := 0;
+    while idx < newly_acked_packets_end(pn_space) {
+        call on_packet_acked(newly_acked_packets(pn_space,idx));
+        idx := idx + 1;
+    }
+}
+
+action on_packet_acked(acked_packet:quic_packet) = {
+    if sent_packets_in_flight(acked_packet.ptype,acked_packet.seq_num) {
+        bytes_in_flight := bytes_in_flight - sent_packets_sent_bytes(acked_packet.ptype,acked_packet.seq_num);
+        # Do not increase congestion_window if application
+        # limited or flow control limited.
+        # if (IsAppOrFlowControlLimited())
+        #     return # TODO
+        
+        # Do not increase congestion window in recovery period.
+        if ~(sent_packets_time_sent(acked_packet.ptype,acked_packet.seq_num) <= congestion_recovery_start_time) {
+            # Slow start.
+            if congestion_window < ssthresh {
+                congestion_window := congestion_window + sent_packets_sent_bytes(acked_packet.ptype,acked_packet.seq_num);
+            } else {
+                # Congestion avoidance.
+                congestion_window := congestion_window + max_datagram_size * sent_packets_sent_bytes(acked_packet.ptype,acked_packet.seq_num) / congestion_window;
+            }
+        }
+    }
+}
+
+# This is invoked when DetectAndRemoveLostPackets deems packets lost.
+
+action on_packets_lost(pn_space:quic_packet_type) = {
+    var sent_time_of_last_loss : microseconds := 0;
+    # Remove lost packets from bytes_in_flight.
+    var idx :stream_pos := 0;
+    while idx < lost_packets_end(pn_space) {
+        packets_to_retransmit(pn_space, packets_to_retransmit_end(pn_space)) := lost_packets(pn_space,idx).payload;
+        packets_to_retransmit_end(pn_space) := packets_to_retransmit_end(pn_space) + 1;
+        if sent_packets_in_flight(lost_packets(pn_space,idx).ptype,lost_packets(pn_space,idx).seq_num) {
+            bytes_in_flight := bytes_in_flight - sent_packets_sent_bytes(lost_packets(pn_space,idx).ptype,lost_packets(pn_space,idx).seq_num);
+            if sent_time_of_last_loss < sent_packets_time_sent(lost_packets(pn_space,idx).ptype,lost_packets(pn_space,idx).seq_num) {
+                sent_time_of_last_loss := sent_packets_time_sent(lost_packets(pn_space,idx).ptype,lost_packets(pn_space,idx).seq_num);
+            }
+        }
+        idx := idx + 1;
+    }
+    # Congestion event if in-flight packets were lost
+    if sent_time_of_last_loss ~= 0 {
+        call on_congestion_event(sent_time_of_last_loss);
+    }
+    # Reset the congestion window if the loss of these
+    # packets indicates persistent congestion.
+    # Only consider packets sent after getting an RTT sample.
+    if first_rtt_sample ~= 0 {    # call show_is_sleep_fake_timeout(is_not_sleeping);
+
+        pc_lost_end(pn_space) := 0;
+        idx : stream_pos := 0;
+        while idx < lost_packets_end(pn_space) {
+              if sent_packets_time_sent(lost_packets(pn_space,idx).ptype,lost_packets(pn_space,idx).seq_num) > first_rtt_sample {
+                  pc_lost_end(pn_space) := pc_lost_end(pn_space) + 1;
+              }  
+              idx := idx + 1;
+        }
+        if pc_lost_end(pn_space) >= kPersistentCongestionThreshold {
+            congestion_window := kMinimumWindow;
+            congestion_recovery_start_time := 0;
+        }
+    };
+}
+
+# When Initial or Handshake keys are discarded, packets sent in that space
+# no longer count toward bytes in flight.
+
+action remove_from_bytes_in_flight(pn_space:quic_packet_type) = {
+    var idx :stream_pos := 0;
+    while idx < sent_packets_end(pn_space) {
+        if sent_packets_in_flight(sent_packets(pn_space, idx).ptype, sent_packets(pn_space, idx).seq_num) {
+            bytes_in_flight := bytes_in_flight - sent_packets_sent_bytes(sent_packets(pn_space, idx).ptype, sent_packets(pn_space, idx).seq_num);
+        }
+        idx := idx + 1;
+    }
+}
+

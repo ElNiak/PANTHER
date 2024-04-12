@@ -1,0 +1,619 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                    H. Schulzrinne
+Request for Comments: 5962                                      V. Singh
+Category: Standards Track                            Columbia University
+ISSN: 2070-1721                                            H. Tschofenig
+                                                  Nokia Siemens Networks
+                                                              M. Thomson
+                                                      Andrew Corporation
+                                                          September 2010
+
+
+       Dynamic Extensions to the Presence Information Data Format
+                       Location Object (PIDF-LO)
+
+Abstract
+
+   The Geopriv Location Object introduced by the Presence Information
+   Data Format - Location Object (PIDF-LO), RFC 4119, defines a basic
+   XML format for carrying geographical information of a presentity.
+   This document defines PIDF-LO extensions to convey information about
+   moving objects.  Elements are defined that enable expression of
+   spatial orientation, speed, and heading of the presentity.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc5962.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 1]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+Copyright Notice
+
+   Copyright (c) 2010 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Terminology .....................................................3
+   3. Dynamic Elements ................................................3
+      3.1. Angular Measures and Coordinate Reference Systems ..........5
+   4. Dynamic Feature XML Schema ......................................6
+   5. Security Considerations .........................................7
+   6. IANA Considerations .............................................7
+      6.1. Dynamic Feature Extensions Namespace Registration ..........7
+      6.2. Dynamic Feature Extensions Schema Registration .............8
+   7. Acknowledgements ................................................8
+   8. References ......................................................9
+      8.1. Normative References .......................................9
+      8.2. Informative References .....................................9
+   Appendix A.  Earth Centered, Earth Fixed Direction Vectors ........10
+
+1.  Introduction
+
+   The Presence Information Data Format - Location Object (PIDF-LO) (see
+   RFC 4119 [RFC4119]) provides geographical location of a presentity.
+   This corresponds to a physical location at a given instance of time.
+   RFC 5491 [RFC5491] extends PIDF-LO and provides additional guidelines
+   to implementers.
+
+   This document extends PIDF-LO to convey spatial orientation, speed,
+   and heading of a presentity.  The addition of rate-of-change
+   information to the PIDF-LO enables a range of use cases.  These use
+   cases either use dynamic information directly or use that information
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 2]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+   for smoother tracking of a position over time.  For example, an
+   application that continuously tracks a presentity could use velocity
+   information to extrapolate positions in between times that location
+   information is measured.  A shipping company could directly use speed
+   to monitor delivery truck speed to ensure speed limits are observed.
+
+2.  Terminology
+
+   In this document, the key words "MUST", "MUST NOT", "REQUIRED",
+   "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY",
+   and "OPTIONAL" are to be interpreted as described in RFC 2119
+   [RFC2119].
+
+   This document uses the term "presentity", as defined in RFC 2778
+   [RFC2778], to refer to the device subject to location determination.
+   The similarity to presence concepts and the abstract location privacy
+   architecture, as described in RFC 4079 [RFC4079], led to re-use of
+   the Presence Information Data Format (PIDF) (see RFC 3863 [RFC3863]),
+   and its enhancement for location information (see RFC 4119
+   [RFC4119]).  Note that this document does not differentiate between
+   human and non-human objects, and hence both are in scope.
+
+3.  Dynamic Elements
+
+   This document defines a new element, <Dynamic>, for the conveyance of
+   dynamic information.
+
+   Dynamic information MAY be included without any other location
+   information being present.  When dynamic information is associated
+   with information about the instantaneous position of the presentity,
+   the <Dynamic> element MUST be included in the same <location-info>
+   element as the corresponding geodetic (or civic) location
+   information.
+
+   Dynamic information can be safely ignored by a recipient that does
+   not support this specification.  The <Dynamic> element contains the
+   following components:
+
+   orientation:
+
+      The <orientation> element describes the spatial orientation of the
+      presentity -- the direction that the object is pointing.  For a
+      device, this orientation might depend on the type of device.  See
+      Section 3.1 for details.
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 3]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+   speed:
+
+      Speed is the time rate of change in position of a presentity
+      without regard for direction: the scalar component of velocity.
+      The value for the <speed> element is a measure that is defined in
+      meters per second.
+
+   heading:
+
+      Heading is the directional component of velocity.  See Section 3.1
+      for details.
+
+   Each element can be omitted if no information is available.  In the
+   following example, the presentity is approximately oriented to the
+   North at a slightly elevated angle.  The presentity is travelling
+   24 meters per second to the West:
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <presence
+       xmlns="urn:ietf:params:xml:ns:pidf"
+       xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+       xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+       xmlns:dyn="urn:ietf:params:xml:ns:pidf:geopriv10:dynamic"
+       xmlns:gml="http://www.opengis.net/gml"
+       entity="pres:alice@example.com">
+       <dm:device id="abc123">
+           <gp:geopriv>
+               <gp:location-info>
+                   <dyn:Dynamic>
+                       <dyn:orientation>-3 12</dyn:orientation>
+                       <dyn:speed>24</dyn:speed>
+                       <dyn:heading>278</dyn:heading>
+                   </dyn:Dynamic>
+               </gp:location-info>
+               <gp:usage-rules/>
+               <method>gps</method>
+           </gp:geopriv>
+           <timestamp>2009-06-22T20:57:29Z</timestamp>
+           <dm:deviceID>mac:1234567890ab</dm:deviceID>
+       </dm:device>
+   </presence>
+
+
+
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 4]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+   Another example shows a PIDF-LO document of the presentity
+   alice@example.com on a bike travelling 12 meters per second.  Her
+   position is indicated as a circle.  The values for speed may be used
+   by a receiver to adjust the uncertainty over time.
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <presence
+       xmlns="urn:ietf:params:xml:ns:pidf"
+       xmlns:dm="urn:ietf:params:xml:ns:pidf:data-model"
+       xmlns:gp="urn:ietf:params:xml:ns:pidf:geopriv10"
+       xmlns:dyn="urn:ietf:params:xml:ns:pidf:geopriv10:dynamic"
+       xmlns:gml="http://www.opengis.net/gml"
+       xmlns:gs="http://www.opengis.net/pidflo/1.0"
+       entity="pres:alice@example.com">
+       <dm:device id="abc123">
+           <gp:geopriv>
+               <gp:location-info>
+                   <gs:Circle srsName="urn:ogc:def:crs:EPSG::4326">
+                       <gml:pos>42.5463 -73.2512</gml:pos>
+                       <gs:radius uom="urn:ogc:def:uom:EPSG::9001">
+                           100
+                       </gs:radius>
+                   </gs:Circle>
+                   <dyn:Dynamic>
+                       <dyn:speed>12</dyn:speed>
+                   </dyn:Dynamic>
+               </gp:location-info>
+               <gp:usage-rules/>
+               <method>gps</method>
+           </gp:geopriv>
+           <timestamp>2009-06-22T20:57:29Z</timestamp>
+           <dm:deviceID>mac:1234567890ab</dm:deviceID>
+       </dm:device>
+   </presence>
+
+3.1.  Angular Measures and Coordinate Reference Systems
+
+   [RFC5491] constrains the coordinate reference system (CRS) used in
+   PIDF-LO to World Geodetic System 1984 (WGS 84), using either the two-
+   dimensional (latitude, longitude) CRS identified by
+   "urn:ogc:def:crs:EPSG::4326" or the three-dimensional (latitude,
+   longitude, altitude) CRS identified by "urn:ogc:def:crs:EPSG::4979".
+   Dynamic locations similarly assume that either of these coordinate
+   reference systems will be used.
+
+   The <orientation> and <heading> elements both describe a direction.
+   The <orientation> element describes the "direction of facing"; the
+   <heading> element describes the "direction of travel".  Both measures
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 5]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+   contain one or two angular values that are expressed relative to the
+   current position of the presentity (see Appendix A).  Angular
+   measures are expressed in degrees, and values can be negative.  If
+   two measures are present, the values MUST be separated by whitespace.
+
+   The first measure specifies the horizontal direction from the current
+   position of the presentity to a point that it is pointing towards
+   (for <orientation>) or travelling towards (for <heading>).
+   Horizontal angles are measured from Northing to Easting.  Horizontal
+   angles start from zero when pointing to or travelling towards the
+   North and increase towards the East.
+
+   The second measure, if present, specifies the vertical component of
+   this angle.  This angle is the elevation from the local horizontal
+   plane.  If the second angle value is omitted, the vertical component
+   is unknown.  If only one angle is present, <orientation> describes
+   only the horizontal component.  For <heading>, the associated <speed>
+   measure contains only the horizontal component of speed.
+
+4.  Dynamic Feature XML Schema
+
+   <?xml version="1.0"?>
+   <xs:schema
+       targetNamespace="urn:ietf:params:xml:ns:pidf:geopriv10:dynamic"
+       xmlns:dyn="urn:ietf:params:xml:ns:pidf:geopriv10:dynamic"
+       xmlns:xs="http://www.w3.org/2001/XMLSchema"
+       elementFormDefault="qualified"
+       attributeFormDefault="unqualified">
+
+     <xs:element name="Dynamic" type="dyn:dynamicType"/>
+
+     <xs:complexType name="dynamicType">
+       <xs:complexContent>
+         <xs:restriction base="xs:anyType">
+           <xs:sequence>
+             <xs:element name="orientation" minOccurs="0"
+                         type="dyn:directionType"/>
+             <xs:element name="speed" minOccurs="0"
+                         type="xs:double"/>
+             <xs:element name="heading" minOccurs="0"
+                         type="dyn:directionType"/>
+             <xs:any namespace="##other" processContents="lax"
+                     minOccurs="0" maxOccurs="unbounded"/>
+           </xs:sequence>
+           <xs:anyAttribute namespace="##other" processContents="lax"/>
+         </xs:restriction>
+       </xs:complexContent>
+     </xs:complexType>
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 6]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+     <xs:simpleType name="directionType">
+       <xs:restriction base="dyn:doubleListType">
+         <xs:minLength value="1"/>
+         <xs:maxLength value="2"/>
+       </xs:restriction>
+     </xs:simpleType>
+
+     <xs:simpleType name="doubleListType">
+       <xs:list itemType="xs:double"/>
+     </xs:simpleType>
+
+   </xs:schema>
+
+5.  Security Considerations
+
+   This document defines additional location elements carried by
+   PIDF-LO.  These additional elements provide greater reason to observe
+   the privacy and security considerations described in RFC 4119
+   [RFC4119].  No further privacy or security measures are necessary.
+
+   RFC 4119 points back to RFC 3694 [RFC3694] and RFC 3693 [RFC3693] to
+   describe the threat model and the security requirements imposed on
+   the GEOPRIV architecture for sharing location information as a result
+   of the threat model.  It is important to note that these two
+   documents often refer to threats related to the current location
+   information of a presentity, while this document introduces dynamic
+   information that may be used by attackers to anticipate the future
+   location of a presentity.  While already a series of location
+   snapshots is likely to offer information for guessing the future
+   location of a presentity, it has to be said that including more
+   information in a PIDF-LO does increase the severity of an information
+   leak.  Those who deploy location-based services are in general
+   strongly advised to provide their users with ways to control the
+   distribution of location information to those who have been
+   authorized to see it.
+
+6.  IANA Considerations
+
+   This section registers a new XML namespace (as described in
+   [RFC3688]) and a new XML schema.
+
+6.1.  Dynamic Feature Extensions Namespace Registration
+
+   URI: urn:ietf:params:xml:ns:pidf:geopriv10:dynamic
+
+   Registrant Contact: IETF Geopriv Working Group, Hannes Tschofenig
+      (hannes.tschofenig@gmx.net).
+
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 7]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+   XML:
+
+      BEGIN
+      <?xml version="1.0"?>
+      <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML Basic 1.0//EN"
+        "http://www.w3.org/TR/xhtml-basic/xhtml-basic10.dtd">
+      <html xmlns="http://www.w3.org/1999/xhtml">
+      <head>
+        <title>Dynamic Feature Extensions Namespace</title>
+      </head>
+      <body>
+        <h1>Namespace for Dynamic Feature Extensions to PIDF-LO</h1>
+        <h2>urn:ietf:params:xml:ns:pidf:geopriv10:dynamic</h2>
+      <p>See <a href=
+        "http://www.rfc-editor.org/rfc/rfc5962.txt"> RFC5962</a>.</p>
+      </body>
+      </html>
+      END
+
+6.2.  Dynamic Feature Extensions Schema Registration
+
+   URI: urn:ietf:params:xml:schema:pidf:dynamic
+
+   Registrant Contact: IETF Geopriv Working Group, Hannes Tschofenig
+      (hannes.tschofenig@gmx.net)
+
+   XML: The XML schema registered is contained in Section 4.  Its first
+      line is
+
+   <?xml version="1.0"?>
+
+   and its last line is
+
+   </xs:schema>
+
+7.  Acknowledgements
+
+   We would like to thank Klaus Darilion, Cullen Jennings, Rohan Mahy,
+   Carl Reed, and Brian Rosen for their comments.  Furthermore, we would
+   like to thank Alexey Melnikov, Adrian Farrel, Tim Polk, Dan Romascanu
+   for his IESG review comments, Avshalom Houri for his GenArt review,
+   Hilarie Orman for her SECDIR review, and Joel Jaeggli for his
+   Operations Directorate review.
+
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 8]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC2119]   Bradner, S., "Key words for use in RFCs to Indicate
+               Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3688]   Mealling, M., "The IETF XML Registry", BCP 81, RFC 3688,
+               January 2004.
+
+   [RFC4119]   Peterson, J., "A Presence-based GEOPRIV Location Object
+               Format", RFC 4119, December 2005.
+
+8.2.  Informative References
+
+   [RFC2778]   Day, M., Rosenberg, J., and H. Sugano, "A Model for
+               Presence and Instant Messaging", RFC 2778, February 2000.
+
+   [RFC3693]   Cuellar, J., Morris, J., Mulligan, D., Peterson, J., and
+               J. Polk, "Geopriv Requirements", RFC 3693, February 2004.
+
+   [RFC3694]   Danley, M., Mulligan, D., Morris, J., and J. Peterson,
+               "Threat Analysis of the Geopriv Protocol", RFC 3694,
+               February 2004.
+
+   [RFC3863]   Sugano, H., Fujimoto, S., Klyne, G., Bateman, A., Carr,
+               W., and J. Peterson, "Presence Information Data Format
+               (PIDF)", RFC 3863, August 2004.
+
+   [RFC4079]   Peterson, J., "A Presence Architecture for the
+               Distribution of GEOPRIV Location Objects", RFC 4079,
+               July 2005.
+
+   [RFC5491]   Winterbottom, J., Thomson, M., and H. Tschofenig,
+               "GEOPRIV Presence Information Data Format Location Object
+               (PIDF-LO) Usage Clarification, Considerations, and
+               Recommendations", RFC 5491, March 2009.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                    [Page 9]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+Appendix A.  Earth Centered, Earth Fixed Direction Vectors
+
+   The absolute orientation or heading of a presentity depends on its
+   latitude and longitude.  The following vectors can be used to
+   determine the absolute direction in the WGS 84 Earth Centered, Earth
+   Fixed (X, Y, Z) coordinate space.
+
+   The direction of North as a unit vector in Earth Centered, Earth
+   Fixed (ECEF) coordinates is:
+
+      North = [ -1 * sin(latitude) * cos(longitude),
+                -1 * sin(latitude) * sin(longitude),
+                cos(latitude) ]
+
+   The direction of "up" (the upward normal of the horizontal plane) as
+   a unit vector in ECEF coordinates is:
+
+      Up = [ cos(latitude) * cos(longitude),
+             cos(latitude) * sin(longitude),
+             sin(latitude) ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                   [Page 10]
+
+RFC 5962              Dynamic Extensions to PIDF-LO       September 2010
+
+
+Authors' Addresses
+
+   Henning Schulzrinne
+   Columbia University
+   Department of Computer Science
+   450 Computer Science Building
+   New York, NY  10027
+   US
+
+   Phone: +1 212 939 7004
+   EMail: hgs@cs.columbia.edu
+   URI:   http://www.cs.columbia.edu/
+
+
+   Vishal Singh
+   Columbia University
+   Department of Computer Science
+   450 Computer Science Building
+   New York, NY  10027
+   US
+
+   EMail: vs2140@cs.columbia.edu
+   URI:   http://www.cs.columbia.edu/~vs2140
+
+
+   Hannes Tschofenig
+   Nokia Siemens Networks
+   Linnoitustie 6
+   Espoo  02600
+   Finland
+
+   Phone: +358 (50) 4871445
+   EMail: Hannes.Tschofenig@gmx.net
+   URI:   http://www.tschofenig.priv.at/
+
+
+   Martin Thomson
+   Andrew Corporation
+   Wollongong
+   NSW Australia
+
+   EMail: martin.thomson@andrew.com
+
+
+
+
+
+
+
+
+
+Schulzrinne, et al.          Standards Track                   [Page 11]
+

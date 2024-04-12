@@ -1,0 +1,843 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                 S. Perreault, Ed.
+Request for Comments: 6888                                      Viagenie
+BCP: 127                                                     I. Yamagata
+Updates: 4787                                                S. Miyakawa
+Category: Best Current Practice                       NTT Communications
+ISSN: 2070-1721                                              A. Nakagawa
+                                          Japan Internet Exchange (JPIX)
+                                                               H. Ashida
+                                                           Cisco Systems
+                                                              April 2013
+
+
+           Common Requirements for Carrier-Grade NATs (CGNs)
+
+Abstract
+
+   This document defines common requirements for Carrier-Grade NATs
+   (CGNs).  It updates RFC 4787.
+
+Status of This Memo
+
+   This memo documents an Internet Best Current Practice.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   BCPs is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6888.
+
+Copyright Notice
+
+   Copyright (c) 2013 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 1]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+Table of Contents
+   1. Introduction . . . . . . . . . . . . . . . . . . . . . . . .  2
+   2. Terminology  . . . . . . . . . . . . . . . . . . . . . . . .  3
+   3. Requirements for CGNs  . . . . . . . . . . . . . . . . . . .  4
+   4. Logging  . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+   5. Port Allocation Scheme . . . . . . . . . . . . . . . . . . . 11
+   6. Deployment Considerations  . . . . . . . . . . . . . . . . . 11
+   7. Security Considerations  . . . . . . . . . . . . . . . . . . 12
+   8. Acknowledgements . . . . . . . . . . . . . . . . . . . . . . 12
+   9. References . . . . . . . . . . . . . . . . . . . . . . . . . 12
+      9.1. Normative References  . . . . . . . . . . . . . . . . . 12
+      9.2. Informative Reference . . . . . . . . . . . . . . . . . 13
+
+1.  Introduction
+
+   With the shortage of IPv4 addresses, it is expected that more
+   Internet Service Providers (ISPs) may want to provide a service where
+   a public IPv4 address would be shared by many subscribers.  Each
+   subscriber is assigned a private address, and a Network Address
+   Translator (NAT) [RFC2663] situated in the ISP's network translates
+   the traffic between private and public addresses.  When a second IPv4
+   NAT is located at the customer edge, this results in two layers of
+   NAT.
+
+   This service can conceivably be offered alongside others, such as
+   IPv6 services or regular IPv4 service assigning public addresses to
+   subscribers.  Some ISPs started offering such a service long before
+   there was a shortage of IPv4 addresses, showing that there are
+   driving forces other than the shortage of IPv4 addresses.  One
+   approach to CGN deployment is described in [RFC6264].
+
+   This document describes behavior that is required of those multi-
+   subscriber NATs for interoperability.  It is not an IETF endorsement
+   of CGNs or a real specification for CGNs; rather, it is just a
+   minimal set of requirements that will increase the likelihood of
+   applications working across CGNs.
+
+   Because subscribers do not receive unique IPv4 addresses, Carrier-
+   Grade NATs introduce substantial limitations in communications
+   between subscribers and with the rest of the Internet.  In
+   particular, it is considerably more involved to establish proxy
+   functionality at the border between internal and external realms.
+   Some applications may require substantial enhancements, while some
+   others may not function at all in such an environment.  Please see
+   "Issues with IP Address Sharing" [RFC6269] for details.
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 2]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   This document builds upon previous works describing requirements for
+   generic NATs [RFC4787][RFC5382][RFC5508].  These documents, and their
+   updates if any, still apply in this context.  What follows are
+   additional requirements, to be satisfied on top of previous ones.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+   Readers are expected to be familiar with "Network Address Translation
+   (NAT) Behavioral Requirements for Unicast UDP" [RFC4787] and the
+   terms defined there.  The following additional term is used in this
+   document:
+
+   Carrier-Grade NAT (CGN):  A NAT-based [RFC2663] logical function used
+      to share the same IPv4 address among several subscribers.  A CGN
+      is not managed by the subscribers.
+
+         Note that the term "carrier-grade" has nothing to do with the
+         quality of the NAT; that is left to discretion of implementers.
+         Rather, it is to be understood as a topological qualifier: the
+         NAT is placed in an ISP's network and translates the traffic of
+         potentially many subscribers.  Subscribers have limited or no
+         control over the CGN, whereas they typically have full control
+         over a NAT placed on their premises.
+
+         Note also that the CGN described in this document is IPv4-only.
+         IPv6 address translation is not considered.
+
+         However, the scenario in which the IPv4-only CGN logical
+         function is used may include IPv6 elements.  For example, Dual-
+         Stack Lite (DS-Lite) [RFC6333] uses an IPv4-only CGN logical
+         function in a scenario making use of IPv6 encapsulation.
+         Therefore, this document would also apply to the CGN part of
+         DS-Lite.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 3]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   Figure 1 summarizes a common network topology in which a CGN
+   operates.
+
+                                   .
+                                   :
+                                   |       Internet
+                   ............... | ...................
+                                   |       ISP network
+                   External pool:  |
+                   192.0.2.1/26    |
+                               ++------++  External realm
+                   ........... |  CGN   |...............
+                               ++------++  Internal realm
+                        10.0.0.1 |    |
+                                 |    |
+                                 |    |    ISP network
+                   ............. | .. | ................
+                                 |    |  Customer premises
+                      10.0.0.100 |    | 10.0.0.101
+                         ++------++  ++------++
+                         |  CPE1  |  |  CPE2  |  etc.
+                         ++------++  ++------++
+
+               (IP addresses are only for example purposes)
+
+                      Figure 1: CGN Network Topology
+
+   Another possible topology is one for hotspots, where there is no
+   customer premise or customer premises equipment (CPE), but where a
+   CGN serves a bunch of customers who don't trust each other; hence,
+   fairness is an issue.  One important difference with the previous
+   topology is the absence of a second layer of NAT.  This, however, has
+   no impact on CGN requirements since they are driven by fairness and
+   robustness in the service provided to customers, which applies in
+   both cases.
+
+3.  Requirements for CGNs
+
+   What follows is a list of requirements for CGNs.  They are in
+   addition to those found in other documents such as [RFC4787],
+   [RFC5382], and [RFC5508].
+
+   REQ-1:  If a CGN forwards packets containing a given transport
+      protocol, then it MUST fulfill that transport protocol's
+      behavioral requirements.  Current applicable documents are as
+      follows:
+
+      a.  "NAT Behavioral Requirements for Unicast UDP" [RFC4787]
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 4]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+      b.  "Network Address Translation (NAT) Behavioral Requirements for
+          TCP" [RFC5382]
+
+      c.  "NAT Behavioral Requirements for ICMP" [RFC5508]
+
+      d.  "Network Address Translation (NAT) Behavioral Requirements for
+          the Datagram Congestion Control Protocol (DCCP)" [RFC5597]
+
+      Any future NAT behavioral requirements documents for IPv4
+      transport protocols will impose additional requirements for CGNs
+      on top of those stated here.
+
+   Justification:  It is crucial for CGNs to maximize the set of
+      applications that can function properly across them.  The IETF has
+      documented the best current practices for UDP, TCP, ICMP, and
+      DCCP.
+
+   REQ-2:  A CGN MUST have a default "IP address pooling" behavior of
+      "Paired" (as defined in Section 4.1 of [RFC4787]).  A CGN MAY
+      provide a mechanism for administrators to change this behavior on
+      an application protocol basis.
+
+      *  When multiple overlapping internal IP address ranges share the
+         same external IP address pool (e.g., DS-Lite [RFC6333]), the
+         "IP address pooling" behavior applies to mappings between
+         external IP addresses and internal subscribers rather than
+         between external and internal IP addresses.
+
+   Justification:  This stronger form of REQ-2 from [RFC4787] is
+      justified by the stronger need for not breaking applications that
+      depend on the external address remaining constant.
+
+      Note that this requirement applies regardless of the transport
+      protocol.  In other words, a CGN must use the same external IP
+      address mapping for all sessions associated with the same internal
+      IP address, be they TCP, UDP, ICMP, something else, or a mix of
+      different protocols.
+
+      The justification for allowing other behaviors is to allow the
+      administrator to save external addresses and ports for application
+      protocols that are known to work fine with other behaviors in
+      practice.  However, the default behavior MUST be "Paired".
+
+   REQ-3:  The CGN function SHOULD NOT have any limitations on the size
+      or the contiguity of the external address pool.  In particular,
+      the CGN function MUST be configurable with contiguous or non-
+      contiguous external IPv4 address ranges.
+
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 5]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   Justification:  Given the increasing rarity of IPv4 addresses, it is
+      becoming harder for an operator to provide large contiguous
+      address pools to CGNs.  Additionally, operational flexibility may
+      require non-contiguous address pools for reasons such as
+      differentiated services, routing management, etc.
+
+      The reason for having SHOULD instead of MUST is to account for
+      limitations imposed by available resources as well as constraints
+      imposed for security reasons.
+
+   REQ-4:  A CGN MUST support limiting the number of external ports (or,
+      equivalently, "identifiers" for ICMP) that are assigned per
+      subscriber.
+
+      a.  Per-subscriber limits MUST be configurable by the CGN
+          administrator.
+
+      b.  Per-subscriber limits MAY be configurable independently per
+          transport protocol.
+
+      c.  Additionally, it is RECOMMENDED that the CGN include
+          administrator-adjustable thresholds to prevent a single
+          subscriber from consuming excessive CPU resources from the CGN
+          (e.g., rate-limit the subscriber's creation of new mappings).
+
+   Justification:  A CGN can be considered a network resource that is
+      shared by competing subscribers.  Limiting the number of external
+      ports assigned to each subscriber mitigates the denial-of-service
+      (DoS) attack that a subscriber could launch against other
+      subscribers through the CGN in order to get a larger share of the
+      resource.  It ensures fairness among subscribers.  Limiting the
+      rate of allocation mitigates a similar attack where the CPU is the
+      resource being targeted instead of port numbers.  However, this
+      requirement is not a MUST because it is very hard to explicitly
+      call out all CPU-consuming events.
+
+   REQ-5:  A CGN SHOULD support limiting the amount of state memory
+      allocated per mapping and per subscriber.  This may include
+      limiting the number of sessions, the number of filters, etc.,
+      depending on the NAT implementation.
+
+      a.  Limits SHOULD be configurable by the CGN administrator.
+
+      b.  Additionally, it SHOULD be possible to limit the rate at which
+          memory-consuming state elements are allocated.
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 6]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   Justification:  A NAT needs to keep track of TCP sessions associated
+      with each mapping.  This state consumes resources for which, in
+      the case of a CGN, subscribers may compete.  It is necessary to
+      ensure that each subscriber has access to a fair share of the
+      CGN's resources.  Limiting the rate of allocation is intended to
+      prevent CPU resource exhaustion.  Item "B" is at the SHOULD level
+      to account for the fact that means other than rate limiting may be
+      used to attain the same goal.
+
+   REQ-6:  It MUST be possible to administratively turn off translation
+      for specific destination addresses and/or ports.
+
+   Justification:  It is common for a CGN administrator to provide
+      access for subscribers to servers installed in the ISP's network
+      in the external realm.  When such a server is able to reach the
+      internal realm via normal routing (which is entirely controlled by
+      the ISP), translation is unneeded.  In that case, the CGN may
+      forward packets without modification, thus acting like a plain
+      router.  This may represent an important efficiency gain.
+
+      Figure 2 illustrates this use-case.
+
+                  X1:x1            X1':x1'            X2:x2
+                  +---+from X1:x1  +---+from X1:x1    +---+
+                  | C |  to X2:x2  |   |  to X2:x2    | S |
+                  | l |>>>>>>>>>>>>| C |>>>>>>>>>>>>>>| e |
+                  | i |            | G |              | r |
+                  | e |<<<<<<<<<<<<| N |<<<<<<<<<<<<<<| v |
+                  | n |from X2:x2  |   |from X2:x2    | e |
+                  | t |  to X1:x1  |   |  to X1:x1    | r |
+                  +---+            +---+              +---+
+
+                        Figure 2: CGN Pass-Through
+
+   REQ-7:  It is RECOMMENDED that a CGN use an "endpoint-independent
+      filtering" behavior (as defined in Section 5 of [RFC4787]).  If it
+      is known that "Address-Dependent Filtering" does not cause the
+      application-layer protocol to break (how to determine this is out
+      of scope for this document), then it MAY be used instead.
+
+   Justification:  This is a stronger form of REQ-8 from [RFC4787].
+      This is based on the observation that some games and peer-to-peer
+      applications require EIF for the NAT traversal to work.  In the
+      context of a CGN, it is important to minimize application
+      breakage.
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 7]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   REQ-8:  Once an external port is deallocated, it SHOULD NOT be
+      reallocated to a new mapping until at least 120 seconds have
+      passed, with the exceptions being:
+
+      a.  If the CGN tracks TCP sessions (e.g., with a state machine, as
+          in Section 3.5.2.2 of [RFC6146]), TCP ports MAY be reused
+          immediately.
+
+      b.  If external ports are statically assigned to internal
+          addresses (e.g., address X with port range 1000-1999 is
+          assigned to subscriber A, 2000-2999 to subscriber B, etc.),
+          and the assignment remains constant across state loss, then
+          ports MAY be reused immediately.
+
+      c.  If the allocated external ports used address-dependent or
+          address-and-port-dependent filtering before state loss, they
+          MAY be reused immediately.
+
+      The length of time and the maximum number of ports in this state
+      MUST be configurable by the CGN administrator.
+
+   Justification:  This is necessary in order to prevent collisions
+      between old and new mappings and sessions.  It ensures that all
+      established sessions are broken instead of redirected to a
+      different peer.
+
+      The exceptions are for cases where reusing a port immediately does
+      not create a possibility that packets would be redirected to the
+      wrong peer.  One can imagine other exceptions where mapping
+      collisions are avoided, thus justifying the SHOULD level for this
+      requirement.
+
+      The 120 seconds value corresponds to the Maximum Segment Lifetime
+      (MSL) from [RFC0793].
+
+      Note that this requirement also applies to the case when a CGN
+      loses state (due to a crash, reboot, failover to a cold standby,
+      etc.).  In that case, ports that were in use at the time of state
+      loss SHOULD NOT be reallocated until at least 120 seconds have
+      passed.
+
+   REQ-9:  A CGN MUST implement a protocol giving subscribers explicit
+      control over NAT mappings.  That protocol SHOULD be the Port
+      Control Protocol [RFC6887].
+
+   Justification:  Allowing subscribers to manipulate the NAT state
+      table with PCP greatly increases the likelihood that applications
+      will function properly.
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 8]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+      A study of PCP-less CGN impacts can be found in [NAT444].  Another
+      study considering the effects of PCP on a peer-to-peer file
+      sharing protocol can be found in [BITTORRENT].
+
+   REQ-10: CGN implementers SHOULD make their equipment manageable.
+      Standards-based management using standards such as "Definitions of
+      Managed Objects for NAT" [RFC4008] is RECOMMENDED.
+
+   Justification:  It is anticipated that CGNs will be primarily
+      deployed in ISP networks where the need for management is
+      critical.  This requirement is at the SHOULD level to account for
+      the fact that some CGN operators may not need management
+      functionality.
+
+      Note also that there are efforts within the IETF toward creating a
+      MIB tailored for CGNs (e.g., [NAT-MIB]).
+
+   REQ-11: When a CGN is unable to create a dynamic mapping due to
+      resource constraints or administrative restrictions (i.e.,
+      quotas):
+
+      a.  it MUST drop the original packet;
+
+      b.  it SHOULD send an ICMP Destination Unreachable message with
+          code 1 (Host Unreachable) to the sender;
+
+      c.  it SHOULD send a notification (e.g., SNMP trap) towards a
+          management system (if configured to do so); and
+
+      d.  it MUST NOT delete existing mappings in order to "make room"
+          for the new one.  (This only applies to normal CGN behavior,
+          not to manual operator intervention.)
+
+   Justification:  This is a slightly different form of REQ-8 from
+      [RFC5508].  Code 1 is preferred to code 13 because it is listed as
+      a "soft error" in [RFC1122], which is important because we don't
+      want TCP stacks to abort the connection attempt in this case.  See
+      [RFC5461] for details on TCP's reaction to soft errors.
+
+      Sending ICMP errors and SNMP traps may be rate-limited for
+      security reasons, which is why requirements B and C are SHOULDs,
+      not MUSTs.
+
+      Applications generally handle connection establishment failure
+      better than established connection failure.  This is why dropping
+      the packet initiating the new connection is preferred over
+      deleting existing mappings.  See also the rationale in Section 6
+      of [RFC5508].
+
+
+
+Perreault, et al.         Best Current Practice                 [Page 9]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+4.  Logging
+
+   It may be necessary for CGN administrators to be able to identify a
+   subscriber based on external IPv4 address, port, and timestamp in
+   order to deal with abuse.  When multiple subscribers share a single
+   external address, the source address and port that are visible at the
+   destination host have been translated from the ones originated by the
+   subscriber.
+
+   In order to be able to do this, the CGN would need to log the
+   following information for each mapping created (this list is for
+   informational purposes only and does not constitute a requirement):
+
+   o  transport protocol
+
+   o  subscriber identifier (e.g., internal source address or tunnel
+      endpoint identifier)
+
+   o  external source address
+
+   o  external source port
+
+   o  timestamp
+
+   By "subscriber identifier" we mean information that uniquely
+   identifies a subscriber.  For example, in a traditional NAT scenario,
+   the internal source address would be sufficient.  In the case of DS-
+   Lite, many subscribers share the same internal address and the
+   subscriber identifier is the tunnel endpoint identifier (i.e., the
+   B4's IPv6 address).
+
+   A disadvantage of logging mappings is that CGNs under heavy usage may
+   produce large amounts of logs, which may require large storage
+   volume.
+
+   REQ-12: A CGN SHOULD NOT log destination addresses or ports unless
+      required to do so for administrative reasons.
+
+   Justification:  Destination logging at the CGN creates privacy
+      issues.  Furthermore, readers should be aware of logging
+      recommendations for Internet-facing servers [RFC6302].  With
+      compliant servers, the destination address and port do not need to
+      be logged by the CGN.  This can help reduce the amount of logging.
+
+      This requirement is at the SHOULD level to account for the fact
+      that there may be other reasons for logging destination addresses
+      or ports.  One such reason might be that the remote server is not
+      following [RFC6302].
+
+
+
+Perreault, et al.         Best Current Practice                [Page 10]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+5.  Port Allocation Scheme
+
+   A CGN's port allocation scheme is subject to three competing
+   requirements:
+
+   REQ-13: A CGN's port allocation scheme SHOULD maximize port
+      utilization.
+
+   Justification:  External ports are one of the resources being shared
+      by a CGN.  Efficient management of that resource directly impacts
+      the quality of a subscriber's Internet connection.
+
+      Some schemes are very efficient in their port utilization.  In
+      that sense, they have good scaling properties (nothing is wasted).
+      Others will systematically waste ports.
+
+   REQ-14: A CGN's port allocation scheme SHOULD minimize log volume.
+
+   Justification:  Huge log volumes can be problematic to CGN operators.
+
+      Some schemes create one log entry per mapping.  Others allow
+      multiple mappings to generate a single log entry, which sometimes
+      can be expressed very compactly.  With some schemes, the logging
+      frequency can approach that of DHCP servers.
+
+   REQ-15: A CGN's port allocation scheme SHOULD make it hard for
+      attackers to guess port numbers.
+
+   Justification:  Easily guessed port numbers put subscribers at risk
+      of the attacks described in [RFC6056].
+
+      Some schemes provide very good security in that ports numbers are
+      not easily guessed.  Others provide poor security to subscribers.
+
+   A CGN implementation's choice of port allocation scheme optimizes to
+   satisfy one requirement at the expense of another.  Therefore, these
+   are soft requirements (SHOULD as opposed to MUST).
+
+6.  Deployment Considerations
+
+   Several issues are encountered when CGNs are used [RFC6269].  There
+   is current work in the IETF toward alleviating some of these issues.
+   For example, see [NAT-REVEAL].
+
+
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                [Page 11]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+7.  Security Considerations
+
+   If a malicious subscriber can spoof another subscriber's CPE, it may
+   cause a DoS to that subscriber by creating mappings up to the allowed
+   limit.  An ISP can prevent this with ingress filtering, as described
+   in [RFC2827].
+
+   This document recommends endpoint-independent filtering (EIF) as the
+   default filtering behavior for CGNs.  EIF has security considerations
+   that are discussed in [RFC4787].
+
+   NATs sometimes perform fragment reassembly.  CGNs would do so at
+   presumably high data rates.  Therefore, the reader should be familiar
+   with the potential security issues described in [RFC4963].
+
+8.  Acknowledgements
+
+   Thanks for the input and review by Alexey Melnikov, Arifumi
+   Matsumoto, Barry Leiba, Benson Schliesser, Dai Kuwabara, Dan Wing,
+   Dave Thaler, David Harrington, Francis Dupont, Jean-Francois
+   Tremblay, Joe Touch, Lars Eggert, Kousuke Shishikura, Mohamed
+   Boucadair, Martin Stiemerling, Meng Wei, Nejc Skoberne, Pete Resnick,
+   Reinaldo Penno, Ron Bonica, Sam Hartman, Sean Turner, Senthil
+   Sivakumar, Stephen Farrell, Stewart Bryant, Takanori Mizuguchi,
+   Takeshi Tomochika, Tina Tsou, Tomohiro Fujisaki, Tomohiro Nishitani,
+   Tomoya Yoshida, Wes George, Wesley Eddy, and Yasuhiro Shirasaki.
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4008]  Rohit, R., Srisuresh, P., Raghunarayan, R., Pai, N., and
+              C. Wang, "Definitions of Managed Objects for Network
+              Address Translators (NAT)", RFC 4008, March 2005.
+
+   [RFC4787]  Audet, F. and C. Jennings, "Network Address Translation
+              (NAT) Behavioral Requirements for Unicast UDP", BCP 127,
+              RFC 4787, January 2007.
+
+   [RFC5382]  Guha, S., Biswas, K., Ford, B., Sivakumar, S., and P.
+              Srisuresh, "NAT Behavioral Requirements for TCP", BCP 142,
+              RFC 5382, October 2008.
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                [Page 12]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   [RFC5508]  Srisuresh, P., Ford, B., Sivakumar, S., and S. Guha, "NAT
+              Behavioral Requirements for ICMP", BCP 148, RFC 5508,
+              April 2009.
+
+   [RFC5597]  Denis-Courmont, R., "Network Address Translation (NAT)
+              Behavioral Requirements for the Datagram Congestion
+              Control Protocol", BCP 150, RFC 5597, September 2009.
+
+   [RFC6887]  Wing, D., Ed., Cheshire, S., Boucadair, M., Penno, R., and
+              P.  Selkirk, "Port Control Protocol (PCP)", RFC 6887,
+              April 2013.
+
+9.2.  Informative Reference
+
+   [RFC0793]  Postel, J., "Transmission Control Protocol", STD 7, RFC
+              793, September 1981.
+
+   [RFC1122]  Braden, R., "Requirements for Internet Hosts -
+              Communication Layers", STD 3, RFC 1122, October 1989.
+
+   [RFC2663]  Srisuresh, P. and M. Holdrege, "IP Network Address
+              Translator (NAT) Terminology and Considerations", RFC
+              2663, August 1999.
+
+   [RFC2827]  Ferguson, P. and D. Senie, "Network Ingress Filtering:
+              Defeating Denial of Service Attacks which employ IP Source
+              Address Spoofing", BCP 38, RFC 2827, May 2000.
+
+   [RFC4963]  Heffner, J., Mathis, M., and B. Chandler, "IPv4 Reassembly
+              Errors at High Data Rates", RFC 4963, July 2007.
+
+   [RFC5461]  Gont, F., "TCP's Reaction to Soft Errors", RFC 5461,
+              February 2009.
+
+   [RFC6056]  Larsen, M. and F. Gont, "Recommendations for Transport-
+              Protocol Port Randomization", BCP 156, RFC 6056, January
+              2011.
+
+   [RFC6146]  Bagnulo, M., Matthews, P., and I. van Beijnum, "Stateful
+              NAT64: Network Address and Protocol Translation from IPv6
+              Clients to IPv4 Servers", RFC 6146, April 2011.
+
+   [RFC6264]  Jiang, S., Guo, D., and B. Carpenter, "An Incremental
+              Carrier-Grade NAT (CGN) for IPv6 Transition", RFC 6264,
+              June 2011.
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                [Page 13]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   [RFC6269]  Ford, M., Boucadair, M., Durand, A., Levis, P., and P.
+              Roberts, "Issues with IP Address Sharing", RFC 6269, June
+              2011.
+
+   [RFC6302]  Durand, A., Gashinsky, I., Lee, D., and S. Sheppard,
+              "Logging Recommendations for Internet-Facing Servers", BCP
+              162, RFC 6302, June 2011.
+
+   [RFC6333]  Durand, A., Droms, R., Woodyatt, J., and Y. Lee, "Dual-
+              Stack Lite Broadband Deployments Following IPv4
+              Exhaustion", RFC 6333, August 2011.
+
+   [NAT-MIB]  Perreault, S., Tsou, T., and S. Sivakumar, "Additional
+              Managed Objects for Network Address Translators (NAT)",
+              Work in Progress, February 2013.
+
+   [NAT-REVEAL]
+              Boucadair, M., Touch, J., Levis, P., and R. Penno,
+              "Analysis of Solution Candidates to Reveal a Host
+              Identifier (HOST_ID) in Shared Address Deployments", Work
+              in Progress, April 2013.
+
+   [NAT444]   Donley, C., Ed., Howard, L., Kuarsingh, V., Berg, J., and
+              J. Doshi, "Assessing the Impact of Carrier-Grade NAT on
+              Network Applications", Work in Progress, April 2013.
+
+   [BITTORRENT]
+              Boucadair, M., Zheng, T., Deng, X., and J. Queiroz,
+              "Behavior of BitTorrent service in PCP-enabled networks
+              with Address Sharing", Work in Progress, May 2012.
+
+Authors' Addresses
+
+   Simon Perreault (editor)
+   Viagenie
+   246 Aberdeen
+   Quebec, QC  G1R 2E1
+   Canada
+
+   Phone: +1 418 656 9254
+   EMail: simon.perreault@viagenie.ca
+   URI:   http://www.viagenie.ca
+
+
+
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                [Page 14]
+
+RFC 6888                    CGN Requirements                  April 2013
+
+
+   Ikuhei Yamagata
+   NTT Communications Corporation
+   Gran Park Tower 17F, 3-4-1 Shibaura, Minato-ku
+   Tokyo  108-8118
+   Japan
+
+   Phone: +81 50 3812 4704
+   EMail: ikuhei@nttv6.jp
+
+
+   Shin Miyakawa
+   NTT Communications Corporation
+   Gran Park Tower 17F, 3-4-1 Shibaura, Minato-ku
+   Tokyo  108-8118
+   Japan
+
+   Phone: +81 50 3812 4695
+   EMail: miyakawa@nttv6.jp
+
+
+   Akira Nakagawa
+   Japan Internet Exchange Co., Ltd. (JPIX)
+   Otemachi Building 21F, 1-8-1 Otemachi, Chiyoda-ku
+   Tokyo  100-0004
+   Japan
+
+   Phone: +81 90 9242 2717
+   EMail: a-nakagawa@jpix.ad.jp
+
+
+   Hiroyuki Ashida
+   Cisco Systems
+   Midtown Tower, 9-7-1, Akasaka
+   Minato-Ku, Tokyo  107-6227
+   Japan
+
+   EMail: hiashida@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Perreault, et al.         Best Current Practice                [Page 15]
+

@@ -1,0 +1,1291 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                       L. Ginsberg
+Request for Comments: 7356                                    S. Previdi
+Category: Standards Track                                        Y. Yang
+ISSN: 2070-1721                                            Cisco Systems
+                                                          September 2014
+
+
+              IS-IS Flooding Scope Link State PDUs (LSPs)
+
+Abstract
+
+   Intermediate System to Intermediate System (IS-IS) provides efficient
+   and reliable flooding of information to its peers; however, the
+   current flooding scopes are limited to either area scope or domain
+   scope.  There are existing use cases where support of other flooding
+   scopes is desirable.  This document defines new Protocol Data Units
+   (PDUs) that provide support for new flooding scopes as well as
+   additional space for advertising information targeted for the
+   currently supported flooding scopes.  This document also defines
+   extended Type-Length-Values (TLVs) and sub-TLVs that are encoded
+   using 16-bit fields for Type and Length.
+
+   The protocol extensions defined in this document are not backwards
+   compatible with existing implementations and so must be deployed with
+   care.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7356.
+
+
+
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 1]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+Copyright Notice
+
+   Copyright (c) 2014 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+   This document may contain material from IETF Documents or IETF
+   Contributions published or made publicly available before November
+   10, 2008.  The person(s) controlling the copyright in some of this
+   material may not have granted the IETF Trust the right to allow
+   modifications of such material outside the IETF Standards Process.
+   Without obtaining an adequate license from the person(s) controlling
+   the copyright in such materials, this document may not be modified
+   outside the IETF Standards Process, and derivative works of it may
+   not be created outside the IETF Standards Process, except to format
+   it for publication as an RFC or to translate it into languages other
+   than English.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 2]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+     1.1.  Requirements Language . . . . . . . . . . . . . . . . . .   5
+   2.  Extended TLVs . . . . . . . . . . . . . . . . . . . . . . . .   5
+     2.1.  Use of Extended TLVs and Extended Sub-TLVs  . . . . . . .   5
+     2.2.  Use of Standard Code Points in Extended TLVs and Extended
+           Sub-TLVs  . . . . . . . . . . . . . . . . . . . . . . . .   6
+   3.   Definition of New PDUs . . . . . . . . . . . . . . . . . . .   6
+     3.1.  Flooding Scoped LSP Format  . . . . . . . . . . . . . . .   7
+     3.2.  Flooding Scoped CSNP Format . . . . . . . . . . . . . . .  10
+     3.3.  Flooding Scope PSNP Format  . . . . . . . . . . . . . . .  12
+   4.  Flooding Scope Update Process Operation . . . . . . . . . . .  13
+     4.1.  Scope Types . . . . . . . . . . . . . . . . . . . . . . .  14
+     4.2.  Operation on Point-to-Point Circuits  . . . . . . . . . .  14
+     4.3.  Operation on Broadcast Circuits . . . . . . . . . . . . .  14
+     4.4.  Use of Authentication . . . . . . . . . . . . . . . . . .  15
+     4.5.  Priority Flooding . . . . . . . . . . . . . . . . . . . .  15
+   5.  Deployment Considerations . . . . . . . . . . . . . . . . . .  15
+   6.  Graceful Restart Interactions . . . . . . . . . . . . . . . .  16
+   7.  Multi-instance Interactions . . . . . . . . . . . . . . . . .  16
+   8.  Circuit Scope Flooding  . . . . . . . . . . . . . . . . . . .  16
+   9.  Extending LSP Set Capacity  . . . . . . . . . . . . . . . . .  17
+   10. Domain Scope Flooding . . . . . . . . . . . . . . . . . . . .  18
+   11. Announcing Support for Flooding Scopes  . . . . . . . . . . .  19
+   12. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  20
+   13. Security Considerations . . . . . . . . . . . . . . . . . . .  21
+   14. Acknowledgements  . . . . . . . . . . . . . . . . . . . . . .  21
+   15. References  . . . . . . . . . . . . . . . . . . . . . . . . .  21
+     15.1.  Normative References . . . . . . . . . . . . . . . . . .  21
+     15.2.  Informative References . . . . . . . . . . . . . . . . .  22
+
+1.  Introduction
+
+   The Update Process, as defined by [IS-IS], provides reliable and
+   efficient flooding of information to all routers in a given flooding
+   scope.  Currently, the protocol supports two flooding scopes and
+   associated PDUs.  Level 1 (L1) Link State PDUs (LSPs) are flooded to
+   all routers in an area.  Level 2 (L2) LSPs are flooded to all routers
+   in the Level 2 subdomain.  The basic operation of the Update Process
+   can be applied to any subset of the routers in a given topology so
+   long as that topology is not partitioned.  It is, therefore, possible
+   to introduce new PDUs in support of other flooding scopes and utilize
+   the same Update Process machinery to provide the same reliability and
+   efficiency that the Update Process currently provides for L1 and L2
+   scopes.  This document defines these new PDUs and the modified Update
+   Process rules that are to be used in supporting new flooding scopes.
+
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 3]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+   New deployment cases have introduced the need for reliable and
+   efficient circuit scope flooding.  For example, Appointed Forwarder
+   information, as defined in [RFC7176], needs to be flooded reliably
+   and efficiently to all Routing Bridges (RBridges) on a broadcast
+   circuit.  Currently, only IS-IS Hellos (IIHs) have the matching scope
+   -- but IIHs are unreliable, i.e., individual IIHs may be lost without
+   affecting correct operation of the protocol.  To provide reliability
+   in cases where the set of information to be flooded exceeds the
+   carrying capacity of a single PDU requires sending the information
+   periodically even when no changes in the content have occurred.  When
+   the information content is large, this is inefficient and still does
+   not provide a guarantee of reliability.  This document defines
+   circuit scope flooding in order to provide a solution for such cases.
+
+   Another existing limitation of [IS-IS] is the carrying capacity of an
+   LSP set.  It has been noted in [RFC5311] that the set of LSPs that
+   may be originated by a system at each level is limited to 256 LSPs,
+   and the maximum size of each LSP is limited by the minimum Maximum
+   Transmission Unit (MTU) of any link used to flood LSPs.  [RFC5311]
+   has defined a backwards-compatible protocol extension that can be
+   used to overcome this limitation if needed.  While the [RFC5311]
+   solution is viable, in order to be interoperable with routers that do
+   not support the extension, it imposes some restrictions on what can/
+   cannot be advertised in the Extended LSPs and requires allocation of
+   multiple unique system IDs to a given router.  A more flexible and
+   less constraining solution is possible if interoperability with
+   legacy routers is not a requirement.  By definition, the introduction
+   of new PDUs required to support new flooding scopes is not
+   interoperable with legacy routers.  It is, therefore, possible to
+   simultaneously introduce an alternative solution to the limited LSP
+   set carrying capacity of Level 1 and Level 2 LSPs as part of the
+   extensions defined in this document.  This capability is also defined
+   in this document.
+
+   Standard IS-IS TLVs are encoded using an 8-bit type and an 8-bit
+   length.  In cases where the set of information about a single object
+   exceeds 255 octets, multiple TLVs are required to encode all of the
+   relevant information.  This document introduces extended TLVs and
+   extended sub-TLVs that use a 16-bit Type field and a 16-bit Length
+   field.
+
+   The PDU Type field in the common header for all IS-IS PDUs is a 5-bit
+   field.  Therefore, possible PDU types supported by the protocol are
+   limited to a maximum of 32.  In order to minimize the need to
+   introduce additional PDU types in the future, the new PDUs introduced
+   in this document are defined so as to allow multiple flooding scopes
+   to be associated with the same PDU type.  This means if new flooding
+   scopes are required in the future, the same PDU type can be used.
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 4]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+1.1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+2.  Extended TLVs
+
+   Standard TLVs as defined in [IS-IS] as well as standard sub-TLVs
+   (first introduced in [RFC5305]) have an 8-bit Type field and an
+   eight-bit Length field.  This constrains the information included in
+   a single TLV or sub-TLV to 255 octets.  With the increasing use of
+   sub-TLVs, it becomes more likely that the amount of information about
+   a single object that needs to be advertised may exceed 255 octets.
+   In such cases, the information is encoded in multiple TLVs.  This
+   leads to less efficient encoding since the information that uniquely
+   identifies the object must be repeated in each TLV and requires
+   additional implementation complexity when receiving the information
+   to ensure that all information about the object is correctly
+   collected from the multiple TLVs.
+
+   This document introduces extended TLVs and extended sub-TLVs.  These
+   are encoded using a 16-bit Type field and a 16-bit Length field.
+
+2.1.  Use of Extended TLVs and Extended Sub-TLVs
+
+   The following restrictions apply to the use of extended TLVs and
+   extended sub-TLVs:
+
+   o  Extended TLVs and extended sub-TLVs are permitted only in Flooding
+      Scope PDUs that have a flooding scope designated for their use
+      (defined later in this document)
+
+   o  A given flooding scope supports either the use of standard TLVs
+      and standard sub-TLVs or the use of extended TLVs and extended
+      sub-TLVs, but not both
+
+   o  Extended TLVs and extended sub-TLVs MUST be used together, i.e.,
+      using Standard sub-TLVs within an Extended TLV or using Extended
+      sub-TLVs within a Standard TLV is invalid
+
+   o  If additional levels of TLVs (e.g., sub-sub-TLVs) are introduced
+      in the future, then the size of the Type and Length fields in
+      these new sub-types MUST match the size used in the parent
+
+   o  The 16-bit Type and Length fields are encoded in network byte
+      order
+
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 5]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+   o  Use of extended TLVs and extended sub-TLVs does not alter in any
+      way the maximum size of PDUs that may sent or received
+
+2.2.  Use of Standard Code Points in Extended TLVs and Extended Sub-TLVs
+
+   Standard TLV and standard sub-TLV code points as defined in the IANA
+   "IS-IS TLV Codepoints" registry MAY be used in extended TLVs and
+   extended sub-TLVs.  Encoding is as specified for each of the standard
+   TLVs and standard sub-TLVs with the following differences:
+
+   o  The 8-bit Type field is encoded as an unsigned 16-bit integer
+      where the 8 most significant bits (MSBs) are all 0
+
+   o  The 8-bit Length field is replaced by the 16-bit Length field
+
+   o  The length MAY take on values greater than 255
+
+3.  Definition of New PDUs
+
+   In support of new flooding scopes, the following new PDUs are
+   required:
+
+   o  Flooding Scope LSPs (FS-LSPs)
+
+   o  Flooding Scope Complete Sequence Number PDUs (FS-CSNPs)
+
+   o  Flooding Scope Partial Sequence Number PDUs (FS-PSNPs)
+
+   Each of these PDUs is intentionally defined with a header as similar
+   in format as possible to the corresponding PDU types currently
+   defined in [IS-IS].  Although it might have been possible to
+   eliminate or redefine PDU header fields in a new way, the existing
+   formats are retained in order to allow maximum reuse of existing PDU
+   processing logic in an implementation.
+
+   Note that in the case of all FS PDUs, the Maximum Area Addresses
+   field in the header of the corresponding standard PDU has been
+   replaced with a Scope field.  Therefore, maximum area addresses
+   checks specified in [IS-IS] are not performed on FS PDUs.
+
+
+
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 6]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+3.1.  Flooding Scoped LSP Format
+
+   An FS-LSP has the following format:
+
+                                            No. of octets
+                 +-------------------------+
+                 | Intradomain Routeing    |     1
+                 | Protocol Discriminator  |
+                 +-------------------------+
+                 | Length Indicator        |     1
+                 +-------------------------+
+                 | Version/Protocol ID     |     1
+                 | Extension               |
+                 +-------------------------+
+                 | ID Length               |     1
+                 +-------------------------+
+                 |R|R|R| PDU Type          |     1
+                 +-------------------------+
+                 |  Version                |     1
+                 +-------------------------+
+                 |  Reserved               |     1
+                 +-------------------------+
+                 |P|  Scope                |     1
+                 +-------------------------+
+                 |  PDU Length             |     2
+                 +-------------------------+
+                 |  Remaining Lifetime     |     2
+                 +-------------------------+
+                 |   FS LSP ID             |     ID Length + 2
+                 +-------------------------+
+                 | Sequence Number         |     4
+                 +-------------------------+
+                 | Checksum                |     2
+                 +-------------------------+
+                 |Reserved|LSPDBOL|IS Type |     1
+                 +-------------------------+
+                 : Variable-Length Fields  :     Variable
+                 +-------------------------+
+
+
+      Intradomain Routeing Protocol Discriminator: 0x83 (as defined in
+      [IS-IS]).
+
+      Length Indicator: Length of the fixed header in octets.
+
+      Version/Protocol ID Extension: 1
+
+      ID Length: As defined in [IS-IS].
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 7]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+      PDU Type: 10 - Format as defined in [IS-IS].
+
+      Version: 1
+
+      Reserved: Transmitted as zero, ignored on receipt.
+
+      Scope: Bits 1-7 define the flooding scope.
+
+         The value 0 is reserved and MUST NOT be used.  Received FS-LSPs
+         with a scope of 0 MUST be ignored and MUST NOT be flooded.
+
+         P: Bit 8 - Priority Bit. If set to 1, this LSP SHOULD be
+         flooded at high priority.
+
+         Scopes (1 - 63) are reserved for use with standard TLVs and
+         standard sub-TLVs.
+
+         Scopes (64 - 127) are reserved for use with extended TLVs and
+         extended sub-TLVs.
+
+      PDU Length: Entire length of this PDU, in octets, including the
+      header.
+
+      Remaining Lifetime: Number of seconds before this FS-LSP is
+      considered expired.
+
+      FS LSP ID: The system ID of the source of the FS-LSP.  One of the
+      following two formats is used:
+
+        FS LSP ID Standard Format
+
+                 +-------------------------+
+                 |   Source ID             |     ID Length
+                 +-------------------------+
+                 | Pseudonode ID           |     1
+                 +-------------------------+
+                 | FS LSP Number           |     1
+                 +-------------------------+
+
+
+        FS LSP ID Extended Format
+
+                 +-------------------------+
+                 |   Source ID             |     ID Length
+                 +-------------------------+
+                 | Extended FS LSP Number  |     2
+                 +-------------------------+
+
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 8]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+      Which format is used is specific to the scope and MUST be defined
+      when the specific flooding scope is defined.
+
+      Sequence Number: Sequence number of this FS-LSP.
+
+      Checksum: Checksum of contents of FS-LSP from the Source ID to the
+      end.  Checksum is computed as defined in [IS-IS].
+
+      Reserved/LSPDBOL/IS Type
+
+         Bits 4-8 are reserved, which means they are transmitted as 0
+         and ignored on receipt.
+
+         LSPDBOL: Bit 3 - A value of 0 indicates no FS-LSP Database
+         Overload and a value of 1 indicates that the FS-LSP Database is
+         overloaded.  The overload condition is specific to FS-LSPs with
+         the scope specified in the Scope field.
+
+         IS Type: Bits 1 and 2.  The type of Intermediate System as
+         defined in [IS-IS].
+
+      Variable-length fields that are allowed in an FS-LSP are specific
+      to the defined scope.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                    [Page 9]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+3.2.  Flooding Scoped CSNP Format
+
+   An FS-CSNP has the following format:
+
+                                            No. of octets
+                 +-------------------------+
+                 | Intradomain Routeing    |     1
+                 | Protocol Discriminator  |
+                 +-------------------------+
+                 | Length Indicator        |     1
+                 +-------------------------+
+                 | Version/Protocol ID     |     1
+                 | Extension               |
+                 +-------------------------+
+                 | ID Length               |     1
+                 +-------------------------+
+                 |R|R|R| PDU Type          |     1
+                 +-------------------------+
+                 |  Version                |     1
+                 +-------------------------+
+                 |  Reserved               |     1
+                 +-------------------------+
+                 |R|  Scope                |     1
+                 +-------------------------+
+                 |  PDU Length             |     2
+                 +-------------------------+
+                 |  Source ID              |     ID Length + 1
+                 +-------------------------+
+                 |  Start FS-LSP ID        |     ID Length + 2
+                 +-------------------------+
+                 |  End FS-LSP ID          |     ID Length + 2
+                 +-------------------------+
+                 : Variable-Length Fields  :     Variable
+                 +-------------------------+
+
+
+      Intradomain Routeing Protocol Discriminator: 0x83 (as defined in
+      [IS-IS]).
+
+      Length Indicator: Length of the fixed header in octets.
+
+      Version/Protocol ID Extension: 1
+
+      ID Length: As defined in [IS-IS].
+
+      PDU Type: 11 - Format as defined in [IS-IS].
+
+      Version: 1
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 10]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+      Reserved: Transmitted as zero, ignored on receipt.
+
+      Scope: Bits 1-7 define the flooding scope.
+
+         The value 0 is reserved and MUST NOT be used.  Received FS-
+         CSNPs with a scope of 0 MUST be ignored.
+
+         Bit 8 is Reserved, which means it is transmitted as 0 and
+         ignored on receipt.
+
+         Scopes (1 - 63) are reserved for use with standard TLVs and
+         standard sub-TLVs.
+
+         Scopes (64 - 127) are reserved for use with extended TLV and
+         extended sub-TLVs.
+
+      PDU Length: Entire length of this PDU, in octets, including the
+      header.
+
+      Source ID: The system ID of the Intermediate System (with zero
+      Circuit ID) generating this Sequence Number's PDU.
+
+      Start FS-LSP ID: The FS-LSP ID of the first FS-LSP with the
+      specified scope in the range covered by this FS-CSNP.
+
+      End FS-LSP ID: The FS-LSP ID of the last FS-LSP with the specified
+      scope in the range covered by this FS-CSNP.
+
+      Variable-length fields that are allowed in an FS-CSNP are limited
+      to those TLVs that are supported by standard CSNP.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 11]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+3.3.  Flooding Scope PSNP Format
+
+   An FS-PSNP has the following format:
+
+                                            No. of octets
+                 +-------------------------+
+                 | Intradomain Routeing    |     1
+                 | Protocol Discriminator  |
+                 +-------------------------+
+                 | Length Indicator        |     1
+                 +-------------------------+
+                 | Version/Protocol ID     |     1
+                 | Extension               |
+                 +-------------------------+
+                 | ID Length               |     1
+                 +-------------------------+
+                 |R|R|R| PDU Type          |     1
+                 +-------------------------+
+                 |  Version                |     1
+                 +-------------------------+
+                 |  Reserved               |     1
+                 +-------------------------+
+                 |U|  Scope                |     1
+                 +-------------------------+
+                 |  PDU Length             |     2
+                 +-------------------------+
+                 |  Source ID              |     ID Length + 1
+                 +-------------------------+
+                 : Variable-Length Fields  :     Variable
+                 +-------------------------+
+
+      Intradomain Routeing Protocol Discriminator: 0x83 (as defined in
+      [IS-IS]).
+
+      Length Indicator: Length of the fixed header in octets.
+
+      Version/Protocol ID Extension: 1
+
+      ID Length: As defined in [IS-IS].
+
+      PDU Type: 12 - Format as defined in [IS-IS].
+
+      Version: 1
+
+      Reserved: Transmitted as zero, ignored on receipt.
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 12]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+      Scope: Bits 1-7 define the flooding scope.
+
+         The value 0 is reserved and MUST NOT be used.  Received FS-
+         PSNPs with a scope of 0 MUST be ignored.
+
+         U: Bit 8 - A value of 0 indicates that the specified flooding
+         scope is supported.  A value of 1 indicates that the specified
+         flooding scope is unsupported.  When U = 1, variable-length
+         fields other than authentication MUST NOT be included in the
+         PDU.
+
+         Scopes (1 - 63) are reserved for use with standard TLVs and
+         standard sub-TLVs.
+
+         Scopes (64 - 127) are reserved for use with extended TLVs and
+         extended sub-TLVs.
+
+      PDU Length: Entire length of this PDU, in octets, including the
+      header.
+
+      Source ID: The system ID of the Intermediate System (with zero
+      Circuit ID) generating this Sequence Number's PDU.
+
+      Variable-length fields that are allowed in an FS-PSNP are limited
+      to those TLVs that are supported by standard PSNPs.
+
+4.  Flooding Scope Update Process Operation
+
+   The Update Process, as defined in [IS-IS], maintains a Link State
+   Database (LSDB) for each level supported.  Each level-specific LSDB
+   contains the full set of LSPs generated by all routers operating in
+   that level-specific scope.  The introduction of FS-LSPs creates
+   additional LSDBs (FS-LSDBs) for each additional scope supported.  The
+   set of FS-LSPs in each FS-LSDB consists of all FS-LSPs generated by
+   all routers operating in that scope.  Therefore, there is an
+   additional instance of the Update Process for each supported flooding
+   scope.
+
+   Operation of the scope-specific Update Process follows the Update
+   Process specification in [IS-IS].  The circuit(s) on which FS-LSPs
+   are flooded is limited to those circuits that are participating in
+   the given scope.  Similarly, the sending/receiving of FS-CSNPs and
+   FS-PSNPs is limited to the circuits participating in the given scope.
+
+   Consistent support of a given flooding scope on a circuit by all
+   routers operating on that circuit is required.
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 13]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+4.1.  Scope Types
+
+   A flooding scope may be limited to a single circuit (circuit scope).
+   Circuit scopes may be further limited by level (L1 Circuit Scope / L2
+   Circuit Scope).
+
+   A flooding scope may be limited to all circuits enabled for L1
+   routing (area scope).
+
+   A flooding scope may be limited to all circuits enabled for L2
+   routing (L2 subdomain scope).
+
+   Additional scopes may be defined that include all circuits enabled
+   for either L1 or L2 routing (domain scope).
+
+4.2.  Operation on Point-to-Point Circuits
+
+   When a new adjacency is formed, synchronization of all FS-LSDBs
+   supported on that circuit is required; therefore, FS-CSNPs for all
+   supported scopes MUST be sent when a new adjacency reaches the UP
+   state.  The Send Receive Message (SRM) bit MUST be set for all
+   FS-LSPs associated with the scopes supported on that circuit.
+   Receipt of an FS-PSNP with the U bit equal to 1 indicates that the
+   neighbor does not support that scope (although it does support FS
+   PDUs).  This MUST cause the SRM bit to be cleared for all FS-LSPs
+   with the matching scope, which are currently marked for flooding on
+   that circuit.
+
+4.3.  Operation on Broadcast Circuits
+
+   FS PDUs are sent to the same destination address(es) as standard PDUs
+   for the given protocol instance.  For specification of the defined
+   destination addresses, consult [IS-IS], [IEEEaq], [RFC6822], and
+   [RFC6325].
+
+   The Designated Intermediate System (DIS) for a broadcast circuit has
+   the responsibility to generate periodic scope-specific FS-CSNPs for
+   all supported scopes.  A scope-specific DIS is NOT elected as all
+   routers on a circuit MUST support a consistent set of flooding
+   scopes.
+
+   It is possible that a scope may be defined that is not level
+   specific.  In such a case, the DIS for each level enabled on a
+   broadcast circuit MUST independently send FS PDUs for that scope to
+   the appropriate level-specific destination address.  This may result
+   in redundant flooding of FS-LSPs for that scope.
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 14]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+4.4.  Use of Authentication
+
+   Authentication TLVs MAY be included in FS PDUs.  When authentication
+   is in use, the scope is first used to select the authentication
+   configuration that is applicable.  The authentication check is then
+   performed as normal.  Although scope-specific authentication MAY be
+   used, sharing of authentication among multiple scopes and/or with the
+   standard LSPs/CSNPs/PSNPs is considered sufficient.
+
+4.5.  Priority Flooding
+
+   When the FS LSP ID Extended format is used, the set of LSPs generated
+   by an IS may be quite large.  It may be useful to identify those LSPs
+   in the set that contain information of higher priority.  Such LSPs
+   will have the P bit set to 1 in the Scope field in the LSP header.
+   Such LSPs SHOULD be flooded at a higher priority than LSPs with the P
+   bit set to 0.  This is a suggested behavior on the part of the
+   originator of the LSP.  When an LSP is purged, the original state of
+   the P bit MUST be preserved.
+
+5.  Deployment Considerations
+
+   Introduction of new PDU types is incompatible with legacy
+   implementations.  Legacy implementations do not support the
+   FS-specific Update process(es) and, therefore, flooding of the
+   FS-LSPs throughout the defined scope is unreliable when not all
+   routers in the defined scope support FS PDUs.  Further, legacy
+   implementations will likely treat the reception of an FS PDU as an
+   error.  Even when all routers in a given scope support FS PDUs, if
+   not all routers in the flooding domain for a given scope support that
+   scope, then flooding of the FS-LSPs may be compromised.  When
+   deploying a new flooding scope, correct operation therefore requires
+   that both FS PDUs and the new scope be supported by all routers in
+   the flooding domain of the new scope.
+
+   The U bit in FS-PSNPs provides a means to suppress retransmissions of
+   unsupported scopes.  Routers that support FS PDUs SHOULD support the
+   sending of PSNPs with the U bit equal to 1 when an FS-LSP is received
+   with a scope that is unsupported.  Routers that support FS PDUs
+   SHOULD trigger management notifications when FS PDUs are received for
+   unsupported scopes and when PSNPs with the U bit equal to 1 are
+   received.
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 15]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+6.  Graceful Restart Interactions
+
+   [RFC5306] defines protocol extensions in support of graceful restart
+   of a routing instance.  Synchronization of all supported FS-LSDBs is
+   required in order for database synchronization to be complete.  This
+   involves the use of additional T2 timers.  Receipt of a PSNP with the
+   U bit equal to 1 will cause FS-LSDB synchronization with that
+   neighbor to be considered complete for that scope.  See [RFC5306] for
+   further details.
+
+7.  Multi-instance Interactions
+
+   In cases where FS-PDUs are associated with a non-zero instance, the
+   use of Instance Identifier TLVs (IID-TLVs) in FS-PDUs follows the
+   rules for use in LSPs, CSNPs, and PSNPs as defined in [RFC6822].
+
+8.  Circuit Scope Flooding
+
+   This document defines four circuit scope flooding identifiers:
+
+   o  Level 1 Circuit Scope (L1CS) -- this uses standard TLVs and
+      standard sub-TLVs
+
+   o  Level 2 Circuit Scope (L2CS) -- this uses standard TLVs and
+      standard sub-TLVs
+
+   o  Extended Level 1 Circuit Scope (E-L1CS) -- this uses extended TLVs
+      and extended sub-TLVs
+
+   o  Extended Level 2 Circuit Scope (E-L2CS) -- this uses extended TLVs
+      and extended sub-TLVs
+
+   FS-LSPs with the Scope field set to one of these values contain
+   information specific to the circuit on which they are flooded.  When
+   received, such FS-LSPs MUST NOT be flooded on any other circuit.  The
+   FS LSP ID Extended format is used in these PDUs.  The FS-LSDB
+   associated with circuit scope FS-LSPs consists of the set of FS-LSPs
+   that both have matching circuit scopes and are transmitted (locally
+   generated) or received on a specific circuit.
+
+   The set of TLVs that may be included in such FS-LSPs is specific to
+   the given use case and is outside the scope of this document.
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 16]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+9.  Extending LSP Set Capacity
+
+   The need for additional space in the set of LSPs generated by a
+   single IS has been articulated in [RFC5311].  When legacy
+   interoperability is not a requirement, the use of FS-LSPs meets that
+   need without requiring the assignment of alias system-ids to a single
+   IS.  Four flooding scopes are defined for this purpose:
+
+   o  Level 1 Flooding Scope (L1FS) -- this uses standard TLVs and
+      standard sub-TLVs
+
+   o  Level 2 Flooding Scope (L2FS) -- this uses standard TLVs and
+      standard sub-TLVs
+
+   o  Extended Level 1 Flooding Scope (E-L1FS) -- this uses extended
+      TLVs and extended sub-TLVs
+
+   o  Extended Level 2 Flooding Scope (E-L2FS) -- this uses extended
+      TLVs and extended sub-TLVs
+
+   L1FS and E-L1FS LSPs are flooded on all L1 circuits.  L2FS and E-L2FS
+   LSPs are flooded on all L2 circuits.
+
+   The FS LSP ID Extended format is used in these PDUs.  This provides
+   64 K of additional LSPs that may be generated by a single system at
+   each level.
+
+   LxFS and E-LxFS LSPs are used by the level-specific Decision Process
+   (defined in [IS-IS]) in the same manner as standard LSPs (i.e., as
+   additional information sourced by the same IS) subject to the
+   following restrictions:
+
+   o  A valid version of standard LSP #0 from the same IS at the
+      corresponding level MUST be present in the LSDB in order for the
+      LxFS/E-LxFS set to be usable.
+
+   o  Information in an LxFS of E-LxFS LSP (e.g., IS-Neighbor
+      information) that supports using the originating IS as a transit
+      node MUST NOT be used when the Overload bit is set in the
+      corresponding standard LSP #0.
+
+   o  TLVs that are restricted to standard LSP #0 MUST NOT appear in
+      LxFS LSPs.
+
+   There are no further restrictions as to what TLVs may be advertised
+   in FS-LSPs.
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 17]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+10.  Domain Scope Flooding
+
+   Existing support for flooding information throughout a domain (i.e.,
+   to L1 routers in all areas as well as to routers in the Level 2
+   subdomain) requires the use of leaking procedures between levels.
+   For further details, see [RFC4971].  This is sufficient when the data
+   being flooded throughout the domain consists of individual TLVs.  If
+   it is desired to retain the identity of the originating IS for the
+   complete contents of a PDU, then support for flooding the unchanged
+   PDU is desirable.  This document, therefore, defines two flooding
+   scopes in support of domain flooding.  FS-LSPs with this scope MUST
+   be flooded on all circuits regardless of what level(s) is supported
+   on that circuit.
+
+   o  Domain Flooding Scope (DFS) -- this uses standard TLVs and
+      standard sub-TLVs
+
+   o  Extended Domain Flooding Scope (E-DFS) -- this uses extended TLVs
+      and extended sub-TLVs
+
+   The FS LSP ID Extended format is used in these PDUs.
+
+   Use of information in FS-LSPs for a given scope depends on
+   determining the reachability to the IS originating the FS-LSP.  This
+   presents challenges for FS-LSPs with domain scopes because no single
+   IS has the full view of the topology across all areas.  It is,
+   therefore, necessary for the originator of domain scope DSFS and
+   E-DSFS LSPs to advertise an identifier that will allow an IS who
+   receives such an FS-LSP to determine whether the source of the FS-LSP
+   is currently reachable.  The identifier required depends on what
+   "address-families" are being advertised.
+
+   When IS-IS is deployed in support of Layer 3 routing for IPv4 and/or
+   IPv6, then FS-LSP #0 with domain scope MUST include at least one of
+   the following TLVs:
+
+   o  IPv4 Traffic Engineering Router ID (TLV 134)
+
+   o  IPv6 Traffic Engineering Router ID (TLV 140)
+
+   When IS-IS is deployed in support of Layer 2 routing, current
+   standards (e.g., [RFC6325]) only support a single area.  Therefore,
+   domain scope is not yet applicable.  When the Layer 2 standards are
+   updated to include multi-area support, the identifiers that can be
+   used to support inter-area reachability will be defined -- at which
+   point the use of domain scope for Layer 2 can be fully defined.
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 18]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+11.  Announcing Support for Flooding Scopes
+
+   Announcements of support for flooding scope may be useful in
+   validating that full support has been deployed and/or in isolating
+   the reasons for incomplete flooding of FS-LSPs for a given scope.
+
+   ISs supporting FS-PDUs MAY announce supported scopes in IIH PDUs.  To
+   do so, a new TLV is defined.
+
+   Scope Flooding Support
+   Type:   243
+   Length: 1 - 127
+   Value
+                                    No. of octets
+          +----------------------+
+          |R| Supported Scope    |   1
+          +----------------------+
+          :                      :
+          +----------------------+
+          |R| Supported Scope    |   1
+          +----------------------+
+
+       A list of the circuit scopes supported on this circuit and other
+       non-circuit-flooding scopes supported.
+
+       R bit MUST be 0 and is ignored on receipt.
+
+       In a Point-to-Point IIH, L1, L2, domain, and all circuit scopes
+       MAY be advertised.
+
+       In Level 1 LAN IIHs, L1, domain, and L1 Circuit Scopes MAY be
+       advertised.  L2 Scopes and L2 Circuit Scopes MUST NOT be
+       advertised.
+
+       In Level 2 LAN IIHs, L2, domain, and L2 Circuit Scopes MAY be
+       advertised.  L1 Scopes and L1 Circuit Scopes MUST NOT be
+       advertised.
+
+   Information in this TLV MUST NOT be considered in adjacency
+   formation.
+
+   Whether information in this TLV is used to determine when FS-LSPs
+   associated with a locally supported scope are flooded is an
+   implementation choice.
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 19]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+12.  IANA Considerations
+
+   This document includes the definition of three new PDU types that are
+   reflected in the "IS-IS PDU Registry".
+
+    Value  Description
+    ----  ---------------------
+     10    FS-LSP
+     11    FS-CSNP
+     12    FS-PSNP
+
+   A new IANA registry has been created to control the assignment of
+   scope identifiers in FS-PDUs.  The registration procedure is "Expert
+   Review" as defined in [RFC5226].  The registry name is "LSP Flooding
+   Scope Identifier Registry".  A scope identifier is a number from
+   1-127, inclusive.  Values 1 - 63 are reserved for PDUs that use
+   standard TLVs and standard sub-TLVs.  Values 64 - 127 are reserved
+   for PDUs that use extended TLVs and extended sub-TLVs.  The list of
+   Hello PDUs in which support for a given scope MAY be announced (using
+   Scope Flooding Support TLV) is specified for each defined scope.
+
+   The following scope identifiers are defined by this document.
+
+                                       FS LSP ID Format/ IIH Announce
+  Value Description                    TLV Format        P2P L1LAN L2LAN
+  ----- ------------------------------ ----------------- ---------------
+  1     Level 1 Circuit Flooding Scope Extended/Standard  Y    Y     N
+  2     Level 2 Circuit Flooding Scope Extended/Standard  Y    N     Y
+  3     Level 1 Flooding Scope         Extended/Standard  Y    Y     N
+  4     Level 2 Flooding Scope         Extended/Standard  Y    N     Y
+  5     Domain Flooding Scope          Extended/Standard  Y    Y     Y
+  (6-63)Unassigned
+
+  64    Level 1 Circuit Flooding Scope Extended/Extended  Y    Y     N
+  65    Level 2 Circuit Flooding Scope Extended/Extended  Y    N     Y
+  66    Level 1 Flooding Scope         Extended/Extended  Y    Y     N
+  67    Level 2 Flooding Scope         Extended/Extended  Y    N     Y
+  68    Domain Flooding Scope          Extended/Extended  Y    Y     Y
+  (69-127) Unassigned
+
+   The definition of a new IS-IS TLV is reflected in the "IS-IS TLV
+   Codepoints" registry:
+
+   Value  Name                       IIH LSP SNP Purge
+   ----  ------------                --- --- --- -----
+   243   Scope Flooding Support       Y   N   N    N
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 20]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+   The IANA "IS-IS TLV Codepoints" registry has been extended to allow
+   definition of codepoints less than or equal to 65535.  Codepoints
+   greater than 255 can only be used in PDUs designated to support
+   extended TLVs.  This registry has also been updated to point to this
+   document as a reference (in addition to [RFC3563] and [RFC6233]).
+
+13.  Security Considerations
+
+   Security concerns for IS-IS are addressed in [IS-IS], [RFC5304], and
+   [RFC5310].
+
+   The new PDUs introduced are subject to the same security issues
+   associated with their standard LSP/CSNP/PSNP counterparts.  To the
+   extent that additional PDUs represent additional load for routers in
+   the network, this increases the opportunity for denial-of-service
+   attacks.
+
+14.  Acknowledgements
+
+   The authors wish to thank Ayan Banerjee, Donald Eastlake, Hannes
+   Gredler, and Mike Shand for their comments.
+
+15.  References
+
+15.1.  Normative References
+
+   [IEEEaq]   IEEE, "Standard for Local and metropolitan area networks
+              -- Media Access Control (MAC) Bridges and Virtual Bridged
+              Local Area Networks -- Amendment 20: Shortest Path
+              Bridging", IEEE Std 802.1aq-2012, June 2012.
+
+   [IS-IS]    ISO/IEC 10589:2002, Second Edition, "Information
+              technology -- Telecommunications and information exchange
+              between systems -- Intermediate System to Intermediate
+              System intradomain routeing information exchange protocol
+              for use in conjunction with the protocol for providing the
+              connectionless-mode network service (ISO 8473)", 2002.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC4971]  Vasseur, JP., Shen, N., and R. Aggarwal, "Intermediate
+              System to Intermediate System (IS-IS) Extensions for
+              Advertising Router Information", RFC 4971, July 2007.
+
+   [RFC5226]  Narten, T. and H. Alvestrand, "Guidelines for Writing an
+              IANA Considerations Section in RFCs", BCP 26, RFC 5226,
+              May 2008.
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 21]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+   [RFC5304]  Li, T. and R. Atkinson, "IS-IS Cryptographic
+              Authentication", RFC 5304, October 2008.
+
+   [RFC5305]  Li, T. and H. Smit, "IS-IS Extensions for Traffic
+              Engineering", RFC 5305, October 2008.
+
+   [RFC5306]  Shand, M. and L. Ginsberg, "Restart Signaling for IS-IS",
+              RFC 5306, October 2008.
+
+   [RFC5310]  Bhatia, M., Manral, V., Li, T., Atkinson, R., White, R.,
+              and M. Fanto, "IS-IS Generic Cryptographic
+              Authentication", RFC 5310, February 2009.
+
+   [RFC6822]  Previdi, S., Ginsberg, L., Shand, M., Roy, A., and D.
+              Ward, "IS-IS Multi-Instance", RFC 6822, December 2012.
+
+15.2.  Informative References
+
+   [RFC3563]  Zinin, A., "Cooperative Agreement Between the ISOC/IETF
+              and ISO/IEC Joint Technical Committee 1/Sub Committee 6
+              (JTC1/SC6) on IS-IS Routing Protocol Development", RFC
+              3563, July 2003.
+
+   [RFC5311]  McPherson, D., Ginsberg, L., Previdi, S., and M. Shand,
+              "Simplified Extension of Link State PDU (LSP) Space for
+              IS-IS", RFC 5311, February 2009.
+
+   [RFC6233]  Li, T. and L. Ginsberg, "IS-IS Registry Extension for
+              Purges", RFC 6233, May 2011.
+
+   [RFC6325]  Perlman, R., Eastlake, D., Dutt, D., Gai, S., and A.
+              Ghanwani, "Routing Bridges (RBridges): Base Protocol
+              Specification", RFC 6325, July 2011.
+
+   [RFC7176]  Eastlake, D., Senevirathne, T., Ghanwani, A., Dutt, D.,
+              and A. Banerjee, "Transparent Interconnection of Lots of
+              Links (TRILL) Use of IS-IS", RFC 7176, May 2014.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 22]
+
+RFC 7356                IS-IS Flooding Scope LSPs         September 2014
+
+
+Authors' Addresses
+
+   Les Ginsberg
+   Cisco Systems
+   510 McCarthy Blvd.
+   Milpitas, CA  95035
+   USA
+
+   EMail: ginsberg@cisco.com
+
+
+   Stefano Previdi
+   Cisco Systems
+   Via Del Serafico 200
+   Rome  0144
+   Italy
+
+   EMail: sprevidi@cisco.com
+
+
+   Yi Yang
+   Cisco Systems
+   7100-9 Kit Creek Road
+   Research Triangle Park, NC  27709-4987
+   USA
+
+   EMail: yiya@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Ginsberg, et al.             Standards Track                   [Page 23]
+

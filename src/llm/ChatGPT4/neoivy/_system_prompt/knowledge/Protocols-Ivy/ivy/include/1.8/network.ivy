@@ -1,0 +1,386 @@
+#lang ivy
+
+
+include collections
+include udp_impl
+include tcp_serdes
+include serdes
+
+global {
+
+    object udp = {
+
+        object endpoint = {
+            type this = struct {
+                addr : ip.addr,
+                port : ip.port
+            }
+        }
+
+        action to_ip_endpoint(id:endpoint) returns (res:ip.endpoint) = {
+            res.addr := id.addr;
+            res.port := id.port;
+            res.protocol := ip.udp;
+        }
+
+        action from_ip_endpoint(id:ip.endpoint) returns (res:endpoint) = {
+            res.addr := id.addr;
+            res.port := id.port;
+        }
+
+        type host = {me}
+
+        module net_serdes(msg_t,ser,des) = {
+
+            module socket = {
+
+                parameter id : udp.endpoint
+                attribute id.global_parameter = true    
+
+                action send(dst : udp.endpoint, msg : msg_t)
+                action recv(src : udp.endpoint, msg : msg_t)
+
+                implementation {
+
+                    instance intf : udp_impl(udp.host,msg_t,ser,des)
+                    var sock :intf.socket
+
+                    after init {
+                        sock := intf.open(udp.me,udp.to_ip_endpoint(id));
+                    }
+
+                    implement send {
+                        call intf.send(udp.me,sock,udp.to_ip_endpoint(dst),msg);
+                    }
+
+                    implement intf.recv(h:udp.host, s:intf.socket, src:ip.endpoint, msg:msg_t) {
+                        call recv(udp.from_ip_endpoint(src), msg:msg_t);
+                    }
+                }
+            }
+
+            trusted isolate iso = this
+
+            attribute test = impl
+        }
+
+        module net(msg_t) = {
+            instantiate net_serdes(msg_t,std_serdes.serializer,std_serdes.deserializer)
+        }
+    }
+
+
+    object tcp = {
+
+        object endpoint = {
+            type this = struct {
+                addr : ip.addr,
+                port : ip.port
+            }
+        }
+
+        module net(msg_t) = {
+
+            specification {
+
+                alias tag = index
+                relation sent(S:tcp.endpoint,D:tcp.endpoint,T:tag,M:msg_t)
+                function head(S:tcp.endpoint,D:tcp.endpoint) : tag
+                function tail(S:tcp.endpoint,D:tcp.endpoint) : tag
+                    after init {
+                        sent(X,Y,T,M) := false;
+                        head(X,Y) := 0:index;
+                        tail(X,Y) := 0;
+                    }
+            }
+            
+            module socket = {
+
+                parameter id : tcp.endpoint
+                attribute id.global_parameter = true    
+
+                action send(dst : tcp.endpoint, msg : msg_t)
+                action recv(src : tcp.endpoint, msg : msg_t)
+
+                specification {
+
+                    before send {
+                        net.sent(id,dst,net.head(id,dst),msg) := true;
+                        net.head(id,dst) := index.next(net.head(id,dst));
+                    }
+                    before recv {
+                        assume net.tail(src,id) < net.head(src,id);
+                        assume net.sent(src,id,net.tail(src,id),msg);
+                        net.tail(src,id) := index.next(net.tail(src,id));
+                    }
+
+                    invariant net.tail(X,Y) <= net.head(X,Y)
+                    invariant net.sent(X,Y,T,M1) & net.sent(X,Y,T,M2) -> M1 = M2
+                }
+
+                implementation {
+
+                    instance intf : tcp_serdes(tcp.endpoint,msg_t)
+                    var sock :intf.socket
+                    relation connected_to(X:tcp.endpoint)
+                    function dst_socket(X:tcp.endpoint) : intf.socket
+                    function socket_src(X:intf.socket) : tcp.endpoint
+                    
+                    after init {
+                        sock := intf.open(id);
+                    }
+
+                    implement send {
+                        if ~connected_to(dst) {
+                            var dst_sock := intf.connect(id,dst);
+                            dst_socket(dst) := dst_sock;
+                            connected_to(dst) := true;
+                        }
+                        var ok := intf.send(dst_socket(dst),msg);
+                        # If send fails, it means the TCP connection
+                        # closed. We can't recover from this because
+                        # we don't know which messages were received,
+                        # so we can't maintain message order.
+                    }
+
+                    implement intf.accept(s:intf.socket, src:tcp.endpoint) { 
+                        socket_src(s) := src;
+                    }
+
+                    implement intf.recv(s:intf.socket, msg:msg_t) {
+                        call recv(socket_src(s), msg:msg_t);
+                    }
+                }
+                trusted isolate iso = this
+                
+                attribute test = impl
+            }
+
+            trusted isolate iso = this
+
+            attribute test = impl
+        }
+
+    }
+
+    object tcp_ordered = {
+
+        module net(msg_t) = {
+
+            alias endpoint = tcp.endpoint
+
+            specification {
+                relation sent(S:tcp.endpoint,D:tcp.endpoint,M:msg_t)
+            }
+            
+            module socket = {
+
+                parameter id : tcp.endpoint
+                attribute id.global_parameter = true    
+
+                action send(dst : tcp.endpoint, msg : msg_t)
+                action recv(src : tcp.endpoint, msg : msg_t)
+
+                specification {
+
+                    after init {
+                        net.sent(X,Y,M) := false;
+                    }
+                    
+                    before send {
+                        require net.sent(id,dst,M) -> M < msg;
+                    }
+                    after send {
+                        net.sent(id,dst,msg) := true;
+                    }
+                    before recv {
+                        require net.sent(src,id,msg);
+                        require net.sent(src,id,M) -> msg <= M;
+                    }
+                    after recv {
+                        net.sent(src,id,msg) := false;
+                    }
+                }
+
+                implementation {
+
+                    instance intf : tcp_serdes(tcp.endpoint,msg_t)
+                    var sock :intf.socket
+                    relation connected_to(X:tcp.endpoint)
+                    function dst_socket(X:tcp.endpoint) : intf.socket
+                    function socket_src(X:intf.socket) : tcp.endpoint
+                    
+                    after init {
+                        sock := intf.open(id);
+                    }
+
+                    implement send {
+                        if ~connected_to(dst) {
+                            var dst_sock := intf.connect(dst);
+                            dst_socket(dst) := dst_sock;
+                            connected_to(dst) := true;
+                        }
+                        var ok := intf.send(dst_socket(dst),msg);
+                        # If send fails, it means the TCP connection
+                        # closed. We can't recover from this because
+                        # we don't know which messages were received,
+                        # so we can't maintain message order.
+                    }
+
+                    implement intf.accept(s:intf.socket, src:tcp.endpoint) { 
+                        socket_src(s) := src;
+                    }
+
+                    implement intf.recv(s:intf.socket, msg:msg_t) {
+                        call recv(socket_src(s), msg:msg_t);
+                    }
+                }
+                trusted isolate iso = this
+                
+                attribute test = impl
+            }
+
+            trusted isolate iso = this
+
+            attribute test = impl
+        }
+
+    }
+
+    # This is a model of tcp that is useful for testing. It uses
+    # queues to store channel messages, which is much easier for the
+    # test generator to handle than the relational model above.
+
+    object tcp_test = {
+
+        module net(msg_t) = {
+
+            specification {
+                instance msgvec : vector(msg_t)
+                relation sent(S:tcp.endpoint,D:tcp.endpoint,M:msg_t)
+                function queue(S:tcp.endpoint,D:tcp.endpoint) : msgvec
+                function len(S:tcp.endpoint,D:tcp.endpoint) : index
+                after init {
+                    len(S,D) := 0;
+                }
+            }
+            
+            module socket = {
+
+                parameter id : tcp.endpoint
+                attribute id.global_parameter = true    
+
+                action send(dst : tcp.endpoint, msg : msg_t)
+                export action recv(src : tcp.endpoint, msg : msg_t)
+
+                specification {
+
+                    after send {
+                        var thing := net.queue(id,dst);
+                        net.queue(id,dst) := thing.append(msg);
+                        var tmp2 := net.queue(id,dst);
+                        net.len(id,dst) := tmp2.end;
+                        net.sent(id,dst,msg) := true;
+                    }
+                    before recv {
+                        require net.len(src,id) > 0;
+                        var thing := net.queue(src,id);
+                        require msg = thing.value(0);
+                    }
+                    after recv {
+                        var thing := net.queue(src,id);
+                        net.queue(src,id) := thing.segment(1,thing.end);
+                        var thing2 := net.queue(src,id);
+                        net.len(src,id) := thing2.end;
+                    }
+                }
+                implementation {
+
+                    instance intf : tcp_serdes(tcp.endpoint,msg_t)
+                    var sock :intf.socket
+                    relation connected_to(X:tcp.endpoint)
+                    function dst_socket(X:tcp.endpoint) : intf.socket
+                    function socket_src(X:intf.socket) : tcp.endpoint
+                    
+                    after init {
+                        sock := intf.open(id);
+                    }
+
+                    implement send {
+                        if ~connected_to(dst) {
+                            var dst_sock := intf.connect(id,dst);
+                            dst_socket(dst) := dst_sock;
+                            connected_to(dst) := true;
+                        }
+                        var ok := intf.send(dst_socket(dst),msg);
+                        # If send fails, it means the TCP connection
+                        # closed. We can't recover from this because
+                        # we don't know which messages were received,
+                        # so we can't maintain message order.
+                    }
+
+                    implement intf.accept(s:intf.socket, src:tcp.endpoint) { 
+                        socket_src(s) := src;
+                    }
+
+                    implement intf.recv(s:intf.socket, msg:msg_t) {
+                        call recv(socket_src(s), msg:msg_t);
+                    }
+                }
+                trusted isolate iso = this
+            }
+            trusted isolate iso = this
+
+        }
+    }
+
+    # This is a model of tcp that is useful for finite-state model echecking. It uses
+    # queues of bounded size to store channel messages. The model *assumes* that the bounded
+    # queue does not overflow. That means that behaviors in which the number of messages in the
+    # channel exceed the queue size are effectively ignored. 
+
+    object tcp_bounded = {
+
+        module net(msg_t,max) = {
+
+            specification {
+                type len_t = {0..max}
+                function queue(S:tcp.endpoint,D:tcp.endpoint,P:len_t) : msg_t
+                function len(S:tcp.endpoint,D:tcp.endpoint) : len_t
+                after init {
+                    len(S,D) := 0;
+                }
+            }
+            
+            module socket = {
+
+                parameter id : tcp.endpoint
+                attribute id.global_parameter = true    
+
+                action send(dst : tcp.endpoint, msg : msg_t)
+                export action recv(src : tcp.endpoint, msg : msg_t)
+
+                specification {
+
+                    after send {
+                        var pos := net.len(id,dst);
+                        assume pos < max;  # unsound!
+                        net.queue(id,dst,pos) := msg;
+                        net.len(id,dst) := pos + 1;
+                    }
+                    before recv {
+                        require net.len(src,id) > 0;
+                        require msg = net.queue(src,id,0);
+                    }
+                    after recv {
+                        net.queue(src,id,P) := net.queue(src,id,P+1);
+                        net.len(src,id) := net.len(src,id) - 1;
+                    }
+                }
+                trusted isolate iso = this
+            }
+            trusted isolate iso = this
+        }
+    }
+
+}

@@ -1,0 +1,109 @@
+#lang ivy1.7
+
+include order
+include quic_infer
+include file
+include ivy_quic_shim_client
+include quic_locale
+include ivy_quic_client_behavior
+
+#
+# We fix the initial transport parameters here. TODO: In principle these
+# parameters should be selected randomly by some event.
+#
+
+action make_transport_parameters returns (tp:quic_transport_parameters) = {
+    var imsdbl : initial_max_stream_data_bidi_local;
+    imsdbl.stream_pos_32 := max_stream_data;
+    var imd : initial_max_data;
+    imd.stream_pos_32 := random_stream_pos(1,0xFFFFFFF);
+    var it : max_idle_timeout;
+    it.seconds_16 := random_microsecs(0,0xFFFFFFF);
+    var imsdbr : initial_max_stream_data_bidi_remote;
+    imsdbr.stream_pos_32 := max_stream_data;
+    var imsdu : initial_max_stream_data_uni;
+    imsdu.stream_pos_32 := random_stream_pos(1,0xFFFFFFF);
+    tp.transport_parameters := tp.transport_parameters.append(imsdbl);
+    tp.transport_parameters := tp.transport_parameters.append(imd);
+    tp.transport_parameters := tp.transport_parameters.append(it);
+    tp.transport_parameters := tp.transport_parameters.append(imsdbr);
+    tp.transport_parameters := tp.transport_parameters.append(imsdu);
+    var icid : initial_source_connection_id; #TODO update v29
+    icid.scid := the_cid;
+    tp.transport_parameters := tp.transport_parameters.append(icid);
+
+    var no_migration : disable_active_migration; #TODO update v29
+    #tp.transport_parameters := tp.transport_parameters.append(no_migration);
+
+    var max_streams_bidi : initial_max_stream_id_bidi; #TODO update v29
+    max_streams_bidi.stream_id_16 := random_stream_id(4,0xFFFFFFF);
+    tp.transport_parameters := tp.transport_parameters.append(max_streams_bidi);
+
+   # An endpoint MUST NOT send a parameter more than once in a given
+   # transport parameters extension.  An endpoint SHOULD treat receipt of
+   # duplicate transport parameters as a connection error of type
+   # TRANSPORT_PARAMETER_ERROR.
+    var icid2 : initial_source_connection_id; #TODO update v29
+    icid2.scid := 0;
+    tp.transport_parameters := tp.transport_parameters.append(icid2);
+}
+
+after init {
+    sock := net.open(endpoint_id.client,client.ep);
+    sock_alt := net.open(endpoint_id.client_alt,client_alt);
+    sock_vn := sock; # net.open(endpoint_id.client_vn,client_vn);
+    client.set_tls_id(0);
+    second_client.set_tls_id(0); # TODO to avoid error
+    server.set_tls_id(1);
+    var extns := tls_extensions.empty;
+    extns := extns.append(make_transport_parameters);
+    call tls_api.upper.create(0,false,extns);  # false means this instance of tls is not a server
+}
+
+# Generate connection_close frames only for the environment process(es).
+#
+# Note: requiring the `err_code` is zero on non-generated frames means that
+# we stop the test if the peer reports a protocol error. 
+
+before frame.connection_close.handle(f:frame.connection_close,scid:cid,dcid:cid) {
+    if _generating {
+        require scid = the_cid;
+    } else {
+        require is_transport_parameter_error
+    }
+}
+
+# Generate application_close frames only for the environment process(es).
+
+before frame.application_close.handle(f:frame.application_close,scid:cid,dcid:cid) {
+    if _generating {
+        require scid = the_cid;
+    }
+}
+
+export frame.ack.handle
+export frame.stream.handle
+export frame.crypto.handle
+export frame.path_response.handle
+export packet_event
+export client_send_event
+export tls_recv_event
+#export frame.new_connection_id.handle
+#export frame.retire_connection_id.handle
+#export frame.rst_stream.handle
+#export frame.max_stream_id.handle
+#export frame.connection_close.handle
+#export frame.max_stream_data.handle
+
+# Final check
+#
+# When the test is complete, the tester calls the special action `_finalize`.
+# We use this action to make some heuristic checks, for example that some
+# data was actually received from the server. We can add advice to this
+# action with additional checks.
+
+export action _finalize = {
+    # chris TODO 
+    require is_transport_parameter_error | ~handshake_done_send;
+}
+

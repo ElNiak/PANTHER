@@ -1,0 +1,843 @@
+
+
+
+
+
+
+Network Working Group                                        B. Haberman
+Request for Comments: 3019                               Nortel Networks
+Category: Standards Track                                    R. Worzella
+                                                                     IBM
+                                                            January 2001
+
+
+             IP Version 6 Management Information Base for
+               The Multicast Listener Discovery Protocol
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2001).  All Rights Reserved.
+
+
+Abstract
+
+   This document defines a portion of the Management Information Base
+   (MIB) for use with network management protocols in Internet Protocol
+   Version 6 internets.  Specifically, this document is the MIB module
+   that defines managed objects for implementations of the Multicast
+   Listener Discovery Protocol [RFC2710].
+
+Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+1. The SNMP Management Framework
+
+   The SNMP Management Framework presently consists of five major
+   components:
+
+   An overall architecture, described in RFC 2571 [RFC2571].
+
+   Mechanisms for describing and naming objects and events for the
+   purpose of management.  The first version of this Structure of
+   Management Information (SMI) is called SMIv1 and described in STD 16,
+
+
+
+
+Haberman & Worzella         Standards Track                     [Page 1]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+   RFC 1155 [RFC1155], STD 16, RFC 1212 [RFC1212] and RFC 1215
+   [RFC1215].  The second version, called SMIv2, is described in STD 58,
+   RFC 2578 [RFC2578], STD 58, RFC 2579 [RFC2579] and STD 58, RFC 2580
+   [RFC2580].
+
+   Message protocols for transferring management information.  The first
+   version of the SNMP message protocol is called SNMPv1 and described
+   in STD 15, RFC 1157 [RFC1157].  A second version of the SNMP message
+   protocol, which is not an Internet standards track protocol, is
+   called SNMPv2c and described in RFC 1901 [RFC1901] and RFC 1906
+   [RFC1906].  The third version of the message protocol is called
+   SNMPv3 and described in RFC 1906 [RFC1906], RFC 2572 [RFC2572] and
+   RFC 2574 [RFC2574].
+
+   Protocol operations for accessing management information.  The first
+   set of protocol operations and associated PDU formats is described in
+   STD 15, RFC 1157 [RFC1157].  A second set of protocol operations and
+   associated PDU formats is described in RFC 1905 [RFC1905].
+
+   A set of fundamental applications described in RFC 2573 [RFC2573] and
+   the view-based access control mechanism described in RFC 2575
+   [RFC2575].
+
+   A more detailed introduction to the current SNMP Management Framework
+   can be found in RFC 2570 [RFC2570].
+
+   Managed objects are accessed via a virtual information store, termed
+   the Management Information Base or MIB.  Objects in the MIB are
+   defined using the mechanisms defined in the SMI.
+
+   This memo specifies a MIB module that is compliant to the SMIv2.  A
+   MIB conforming to the SMIv1 can be produced through the appropriate
+   translations.  The resulting translated MIB must be semantically
+   equivalent, except where objects or events are omitted because no
+   translation is possible (use of Counter64).  Some machine-readable
+   information in SMIv2 will be converted into textual descriptions in
+   SMIv1 during the translation process.  However, this loss of
+   machine-readable information is not considered to change the
+   semantics of the MIB.
+
+2. Overview
+
+   This MIB module contains two tables:
+
+      1. The MLD Interface Table, which contains one row for each
+         interface on which MLD is enabled.
+
+
+
+
+
+Haberman & Worzella         Standards Track                     [Page 2]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+      2. The MLD Cache Table which contains one row for each IPv6
+         Multicast group for which there are members on a particular
+         interface.
+
+   Both tables are intended to be implemented by hosts and routers. Some
+   objects in each table apply to routers only.
+
+3. Definitions
+
+   IPV6-MLD-MIB DEFINITIONS ::= BEGIN
+
+   IMPORTS
+       MODULE-IDENTITY, OBJECT-TYPE, Counter32, Gauge32,
+       Unsigned32, TimeTicks, mib-2     FROM SNMPv2-SMI
+       RowStatus, TruthValue            FROM SNMPv2-TC
+       InetAddressIPv6             FROM INET-ADDRESS-MIB
+       InterfaceIndex, InterfaceIndexOrZero
+                                            FROM IF-MIB
+       MODULE-COMPLIANCE, OBJECT-GROUP  FROM SNMPv2-CONF;
+
+
+   mldMIB MODULE-IDENTITY
+       LAST-UPDATED "200101250000Z" -- 25 Jan 2001
+       ORGANIZATION "IETF IPNGWG Working Group."
+       CONTACT-INFO
+               " Brian Haberman
+                 Nortel Networks
+                 4309 Emperor Blvd.
+                 Durham, NC  27703
+                 USA
+
+                 Phone: +1 919 992 4439
+                 e-mail: haberman@nortelnetworks.com"
+       DESCRIPTION
+               "The MIB module for MLD Management."
+       REVISION "200101250000Z" -- 25 Jan 2001
+       DESCRIPTION
+               "Initial version, published as RFC 3019."
+       ::= { mib-2 91 }
+
+
+   mldMIBObjects     OBJECT IDENTIFIER ::= { mldMIB 1 }
+   --
+   --  The MLD Interface Table
+   --
+
+   mldInterfaceTable OBJECT-TYPE
+       SYNTAX     SEQUENCE OF MldInterfaceEntry
+
+
+
+Haberman & Worzella         Standards Track                     [Page 3]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+       MAX-ACCESS not-accessible
+       STATUS     current
+       DESCRIPTION
+                "The (conceptual) table listing the interfaces on which
+                MLD is enabled."
+       ::= { mldMIBObjects 1 }
+
+   mldInterfaceEntry OBJECT-TYPE
+       SYNTAX     MldInterfaceEntry
+       MAX-ACCESS not-accessible
+       STATUS     current
+       DESCRIPTION
+               "An entry (conceptual row) representing an interface on
+               which MLD is enabled."
+       INDEX      { mldInterfaceIfIndex }
+       ::= { mldInterfaceTable 1 }
+
+   MldInterfaceEntry ::= SEQUENCE {
+       mldInterfaceIfIndex               InterfaceIndex,
+       mldInterfaceQueryInterval         Unsigned32,
+       mldInterfaceStatus                RowStatus,
+       mldInterfaceVersion               Unsigned32,
+       mldInterfaceQuerier               InetAddressIPv6,
+       mldInterfaceQueryMaxResponseDelay Unsigned32,
+       mldInterfaceJoins                 Counter32,
+       mldInterfaceGroups                Gauge32,
+       mldInterfaceRobustness            Unsigned32,
+       mldInterfaceLastListenQueryIntvl  Unsigned32,
+       mldInterfaceProxyIfIndex          InterfaceIndexOrZero,
+       mldInterfaceQuerierUpTime         TimeTicks,
+       mldInterfaceQuerierExpiryTime     TimeTicks
+   }
+
+   mldInterfaceIfIndex OBJECT-TYPE
+
+       SYNTAX     InterfaceIndex
+       MAX-ACCESS not-accessible
+       STATUS     current
+       DESCRIPTION
+               "The internetwork-layer interface value of the interface
+               for which MLD is enabled."
+       ::= { mldInterfaceEntry 1 }
+
+   mldInterfaceQueryInterval OBJECT-TYPE
+       SYNTAX     Unsigned32
+       UNITS      "seconds"
+       MAX-ACCESS read-create
+       STATUS     current
+
+
+
+Haberman & Worzella         Standards Track                     [Page 4]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+       DESCRIPTION
+               "The frequency at which MLD Host-Query packets are
+               transmitted on this interface."
+       DEFVAL     { 125 }
+       ::= { mldInterfaceEntry 2 }
+
+   mldInterfaceStatus OBJECT-TYPE
+       SYNTAX     RowStatus
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+                "The activation of a row enables MLD on the interface.
+                The destruction of a row disables MLD on the interface."
+       ::= { mldInterfaceEntry 3 }
+
+   mldInterfaceVersion OBJECT-TYPE
+       SYNTAX     Unsigned32
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+                "The version of MLD which is running on this interface.
+                This object is a place holder to allow for new versions
+                of MLD to be introduced.  Version 1 of MLD is defined
+                in RFC 2710."
+       DEFVAL     { 1 }
+       ::= { mldInterfaceEntry 4 }
+
+   mldInterfaceQuerier OBJECT-TYPE
+       SYNTAX     InetAddressIPv6 (SIZE (16))
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+                "The address of the MLD Querier on the IPv6 subnet to
+                which this interface is attached."
+       ::= { mldInterfaceEntry 5 }
+
+   mldInterfaceQueryMaxResponseDelay OBJECT-TYPE
+       SYNTAX     Unsigned32
+       UNITS      "seconds"
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+               "The maximum query response time advertised in MLD
+               queries on this interface."
+       DEFVAL     { 10 }
+       ::= { mldInterfaceEntry 6 }
+
+   mldInterfaceJoins OBJECT-TYPE
+
+
+
+Haberman & Worzella         Standards Track                     [Page 5]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+       SYNTAX     Counter32
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+               "The number of times a group membership has been added on
+               this interface; that is, the number of times an entry for
+               this interface has been added to the Cache Table.  This
+               object gives an indication of the amount of MLD activity
+               over time."
+       ::= { mldInterfaceEntry 7 }
+
+   mldInterfaceGroups OBJECT-TYPE
+       SYNTAX     Gauge32
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+               "The current number of entries for this interface in the
+               Cache Table."
+       ::= { mldInterfaceEntry 8 }
+
+   mldInterfaceRobustness OBJECT-TYPE
+       SYNTAX     Unsigned32
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+               "The Robustness Variable allows tuning for the expected
+               packet loss on a subnet.  If a subnet is expected to be
+               lossy, the Robustness Variable may be increased.  MLD is
+               robust to (Robustness Variable-1) packet losses.  The
+               discussion of the Robustness Variable is in Section 7.1
+               of RFC 2710."
+       DEFVAL     { 2 }
+       ::= { mldInterfaceEntry 9 }
+
+   mldInterfaceLastListenQueryIntvl OBJECT-TYPE
+       SYNTAX     Unsigned32
+       UNITS      "seconds"
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+                "The Last Member Query Interval is the Max Response
+                Delay inserted into Group-Specific Queries sent in
+                response to Leave Group messages, and is also the amount
+                of time between Group-Specific Query messages.  This
+                value may be tuned to modify the leave latency of the
+                network.  A reduced value results in reduced time to
+                detect the loss of the last member of a group."
+       DEFVAL     { 1 }
+
+
+
+Haberman & Worzella         Standards Track                     [Page 6]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+       ::= { mldInterfaceEntry 10 }
+
+   mldInterfaceProxyIfIndex OBJECT-TYPE
+       SYNTAX     InterfaceIndexOrZero
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+                "Some devices implement a form of MLD proxying whereby
+                memberships learned on the interface represented by this
+                row, cause MLD Multicast Listener Reports to be sent on
+                the internetwork-layer interface identified by this
+                object.  Such a device would implement mldRouterMIBGroup
+                only on its router interfaces (those interfaces with
+                non-zero mldInterfaceProxyIfIndex).  Typically, the
+                value of this object is 0, indicating that no proxying
+                is being done."
+       DEFVAL     { 0 }
+       ::= { mldInterfaceEntry 11 }
+
+   mldInterfaceQuerierUpTime OBJECT-TYPE
+       SYNTAX     TimeTicks
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+               "The time since mldInterfaceQuerier was last changed."
+       ::= { mldInterfaceEntry 12 }
+
+   mldInterfaceQuerierExpiryTime OBJECT-TYPE
+       SYNTAX     TimeTicks
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+               "The time remaining before the Other Querier Present
+               Timer expires.  If the local system is the querier,
+               the value of this object is zero."
+       ::= { mldInterfaceEntry 13 }
+
+
+   --
+   --  The MLD Cache Table
+   --
+
+   mldCacheTable OBJECT-TYPE
+       SYNTAX     SEQUENCE OF MldCacheEntry
+       MAX-ACCESS not-accessible
+       STATUS     current
+       DESCRIPTION
+                "The (conceptual) table listing the IPv6 multicast
+
+
+
+Haberman & Worzella         Standards Track                     [Page 7]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+                groups for which there are members on a particular
+                interface."
+       ::= { mldMIBObjects 2 }
+
+   mldCacheEntry OBJECT-TYPE
+       SYNTAX     MldCacheEntry
+       MAX-ACCESS not-accessible
+       STATUS     current
+       DESCRIPTION
+               "An entry (conceptual row) in the mldCacheTable."
+       INDEX      { mldCacheAddress, mldCacheIfIndex }
+       ::= { mldCacheTable 1 }
+
+   MldCacheEntry ::= SEQUENCE {
+       mldCacheAddress         InetAddressIPv6,
+       mldCacheIfIndex            InterfaceIndex,
+       mldCacheSelf               TruthValue,
+       mldCacheLastReporter   InetAddressIPv6,
+       mldCacheUpTime             TimeTicks,
+       mldCacheExpiryTime         TimeTicks,
+       mldCacheStatus             RowStatus
+   }
+
+   mldCacheAddress OBJECT-TYPE
+       SYNTAX     InetAddressIPv6 (SIZE (16))
+       MAX-ACCESS not-accessible
+       STATUS     current
+       DESCRIPTION
+               "The IPv6 multicast group address for which this entry
+               contains information."
+       ::= { mldCacheEntry 1 }
+
+   mldCacheIfIndex OBJECT-TYPE
+       SYNTAX     InterfaceIndex
+       MAX-ACCESS not-accessible
+       STATUS     current
+       DESCRIPTION
+                "The internetwork-layer interface for which this entry
+                contains information for an IPv6 multicast group
+                address."
+       ::= { mldCacheEntry 2 }
+
+   mldCacheSelf OBJECT-TYPE
+       SYNTAX     TruthValue
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+               "An indication of whether the local system is a member of
+
+
+
+Haberman & Worzella         Standards Track                     [Page 8]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+               this group address on this interface."
+       DEFVAL     { true }
+       ::= { mldCacheEntry 3 }
+
+   mldCacheLastReporter OBJECT-TYPE
+       SYNTAX     InetAddressIPv6 (SIZE (16))
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+                "The IPv6 address of the source of the last membership
+                report received for this IPv6 Multicast group address on
+                this interface.  If no membership report has been
+                received, this object has the value 0::0."
+       ::= { mldCacheEntry 4 }
+
+   mldCacheUpTime OBJECT-TYPE
+       SYNTAX     TimeTicks
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+               "The time elapsed since this entry was created."
+       ::= { mldCacheEntry 5 }
+
+   mldCacheExpiryTime OBJECT-TYPE
+       SYNTAX     TimeTicks
+       MAX-ACCESS read-only
+       STATUS     current
+       DESCRIPTION
+                "The minimum amount of time remaining before this entry
+                will be aged out.  A value of 0 indicates that the entry
+                is only present because mldCacheSelf is true and that if
+                the router left the group, this entry would be aged out
+                immediately.  Note that some implementations may process
+                Membership Reports from the local system in the same way
+                as reports from other hosts, so a value of 0 is not
+                required."
+       ::= { mldCacheEntry 6 }
+
+   mldCacheStatus OBJECT-TYPE
+       SYNTAX     RowStatus
+       MAX-ACCESS read-create
+       STATUS     current
+       DESCRIPTION
+               "The status of this row, by which new entries may be
+               created, or existing entries deleted from this table."
+       ::= { mldCacheEntry 7 }
+
+
+
+
+
+Haberman & Worzella         Standards Track                     [Page 9]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+   -- conformance information
+
+   mldMIBConformance
+                  OBJECT IDENTIFIER ::= { mldMIB 2 }
+   mldMIBCompliances
+                  OBJECT IDENTIFIER ::= { mldMIBConformance 1 }
+   mldMIBGroups
+                  OBJECT IDENTIFIER ::= { mldMIBConformance 2 }
+
+
+   -- compliance statements
+
+   mldHostMIBCompliance MODULE-COMPLIANCE
+       STATUS  current
+       DESCRIPTION
+               "The compliance statement for hosts running MLD and
+               implementing the MLD MIB."
+       MODULE  -- this module
+       MANDATORY-GROUPS { mldBaseMIBGroup,
+                          mldHostMIBGroup
+                        }
+
+       OBJECT     mldInterfaceStatus
+       MIN-ACCESS read-only
+       DESCRIPTION
+                "Write access is not required."
+
+       ::= { mldMIBCompliances 1 }
+
+   mldRouterMIBCompliance MODULE-COMPLIANCE
+       STATUS  current
+       DESCRIPTION
+               "The compliance statement for routers running MLD and
+               implementing the MLD MIB."
+       MODULE  -- this module
+       MANDATORY-GROUPS { mldBaseMIBGroup,
+                          mldRouterMIBGroup
+                        }
+
+       OBJECT     mldInterfaceStatus
+       MIN-ACCESS read-only
+       DESCRIPTION
+                "Write access is not required."
+
+       ::= { mldMIBCompliances 2 }
+
+
+   -- units of conformance
+
+
+
+Haberman & Worzella         Standards Track                    [Page 10]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+
+   mldBaseMIBGroup OBJECT-GROUP
+       OBJECTS { mldCacheSelf,
+                 mldCacheStatus, mldInterfaceStatus
+               }
+       STATUS  current
+       DESCRIPTION
+               "The basic collection of objects providing management of
+               MLD.  The mldBaseMIBGroup is designed to allow for the
+               manager creation and deletion of MLD cache entries."
+       ::= { mldMIBGroups 1 }
+
+   mldRouterMIBGroup OBJECT-GROUP
+       OBJECTS { mldCacheUpTime, mldCacheExpiryTime,
+                 mldInterfaceQueryInterval,
+                 mldInterfaceJoins, mldInterfaceGroups,
+                 mldCacheLastReporter,
+                 mldInterfaceQuerierUpTime,
+                 mldInterfaceQuerierExpiryTime,
+                 mldInterfaceQuerier,
+                 mldInterfaceVersion,
+                 mldInterfaceQueryMaxResponseDelay,
+                 mldInterfaceRobustness,
+                 mldInterfaceLastListenQueryIntvl
+               }
+       STATUS  current
+       DESCRIPTION
+               "A collection of additional objects for management of MLD
+               in routers."
+       ::= { mldMIBGroups 2 }
+
+
+   mldHostMIBGroup OBJECT-GROUP
+       OBJECTS { mldInterfaceQuerier
+               }
+       STATUS  current
+       DESCRIPTION
+               "A collection of additional objects for management of MLD
+               in hosts."
+       ::= { mldMIBGroups 3 }
+
+
+   mldProxyMIBGroup OBJECT-GROUP
+       OBJECTS { mldInterfaceProxyIfIndex }
+       STATUS  current
+       DESCRIPTION
+               "A collection of additional objects for management of MLD
+               proxy devices."
+
+
+
+Haberman & Worzella         Standards Track                    [Page 11]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+       ::= { mldMIBGroups 4 }
+
+   END
+
+Security Considerations
+
+   This MIB contains readable objects whose values provide information
+   related to multicast sessions.  Some of these objects could contain
+   sensitive information.  In particular, the mldCacheSelf and
+   mldCacheLastReporter could be used to identify machines which are
+   listening to a given group address.  There are also a number of
+   objects that have a MAX-ACCESS clause of read-write and/or read-
+   create, which allow an administrator to configure MLD in the router.
+
+   While unauthorized access to the readable objects is relatively
+   innocuous, unauthorized access to the write-able objects could cause
+   a denial of service.  Hence, the support of SET operations in a non-
+   secure environment without proper protection can have a negative
+   effect on network operations.
+
+   SNMPv1 by itself is such an insecure environment.  Even if the
+   network itself is secure (for example by using IPSec), even then,
+   there is no control as to who on the network is allowed to access and
+   SET (change/create/delete) the objects in this MIB.
+
+   It is recommended that the implementers consider the security
+   features as provided by the SNMPv3 framework.  Specifically, the use
+   of the User-based Security Model RFC 2574 [RFC2574] and the View-
+   based Access Control Model RFC 2575 [RFC2575] is recommended.
+
+   It is then a customer/user responsibility to ensure that the SNMP
+   entity giving access to this MIB, is properly configured to give
+   access to those objects only to those principals (users) that have
+   legitimate rights to access them.
+
+Acknowledgements
+
+   This MIB module is based on the IGMP MIB authored by Keith
+   McCloghrie, Dino Farinacci, and Dave Thaler.  It was updated based on
+   feedback from the IPNGWG working group, Bert Wijnen, Peder Norgaard,
+   and extensive comments from Juergen Schoenwaelder.
+
+
+
+
+
+
+
+
+
+
+Haberman & Worzella         Standards Track                    [Page 12]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+References
+
+   [RFC2710] Deering, S., Fenner, W. and B. Haberman, "Multicast
+             Listener Discovery (MLD) for IPv6", RFC 2710, October 1999.
+
+   [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate
+             Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC2571] Harrington, D., Presuhn, R. and B. Wijnen, "An Architecture
+             for Describing SNMP Management Frameworks", RFC 2571, April
+             1999.
+
+   [RFC1155] Rose, M. and K. McCloghrie, "Structure and Identification
+             of Management Information for TCP/IP-based Internets", STD
+             16, RFC 1155, May 1990.
+
+   [RFC1212] Rose, M. and K. McCloghrie, "Concise MIB Definitions", STD
+             16, RFC 1212, March 1991.
+
+   [RFC1215] Rose, M., "A Convention for Defining Traps for use with the
+             SNMP", RFC 1215, March 1991.
+
+   [RFC2578] McCloghrie, K., Perkins, D., Schoenwaelder, J., Case, J.,
+             Rose, M. and S. Waldbusser, "Structure of Management
+             Information Version 2 (SMIv2)", STD 58, RFC 2578, April
+             1999.
+
+   [RFC2579] McCloghrie, K., Perkins, D., Schoenwaelder, J., Case, J.,
+             Rose, M. and S. Waldbusser, "Textual Conventions for
+             SMIv2", STD 58, RFC 2579, April 1999.
+
+   [RFC2580] McCloghrie, K., Perkins, D., Schoenwaelder, J., Case, J.,
+             Rose, M. and S. Waldbusser, "Conformance Statements for
+             SMIv2", STD 58, RFC 2580, April 1999.
+
+   [RFC1157] Case, J., Fedor, M., Schoffstall, M. and J. Davin, "Simple
+             Network Management Protocol", STD 15, RFC 1157, May 1990.
+
+   [RFC1901] Case, J., McCloghrie, K., Rose, M. and S. Waldbusser,
+             "Introduction to Community-based SNMPv2", RFC 1901, January
+             1996.
+
+   [RFC1906] Case, J., McCloghrie, K., Rose, M. and S. Waldbusser,
+             "Transport Mappings for Version 2 of the Simple Network
+             Management Protocol (SNMPv2)", RFC 1906, January 1996.
+
+
+
+
+
+
+Haberman & Worzella         Standards Track                    [Page 13]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+   [RFC2572] Case, J., Harrington D., Presuhn R. and B. Wijnen, "Message
+             Processing and Dispatching for the Simple Network
+             Management Protocol (SNMP)", RFC 2572, April 1999.
+
+   [RFC2574] Blumenthal, U. and B. Wijnen, "User-based Security Model
+             (USM) for version 3 of the Simple Network Management
+             Protocol (SNMPv3)", RFC 2574, April 1999.
+
+   [RFC1905] Case, J., McCloghrie, K., Rose, M. and S. Waldbusser,
+             "Protocol Operations for Version 2 of the Simple Network
+             Management Protocol (SNMPv2)", RFC 1905, January 1996.
+
+   [RFC2573] Levi, D., Meyer, P. and B. Stewart, "SNMPv3 Applications",
+             RFC 2573, April 1999.
+
+   [RFC2575] Wijnen, B., Presuhn, R. and K. McCloghrie, "View-based
+             Access Control Model (VACM) for the Simple Network
+             Management Protocol (SNMP)", RFC 2575, April 1999.
+
+   [RFC2570] Case, J., Mundy, R., Partain, D. and B. Stewart,
+             "Introduction to Version 3 of the Internet-standard Network
+             Management Framework", RFC 2570, April 1999.
+
+Authors' Addresses
+
+   Brian Haberman
+   Nortel Networks
+   4309 Emperor Blvd.
+   Suite 200
+   Durham, NC  27703
+   USA
+
+   Phone: +1-919-992-4439
+   EMail: haberman@nortelnetworks.com
+
+
+   Randy Worzella
+   IBM Corporation
+   800 Park Office Drive
+   Research Triangle Park, NC  27709
+   USA
+
+   Phone: +1-919-254-2202
+   EMail: worzella@us.ibm.com
+
+
+
+
+
+
+
+Haberman & Worzella         Standards Track                    [Page 14]
+
+RFC 3019                      MIB for MLD                   January 2001
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2001).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the Internet Society or other
+   Internet organizations, except as needed for the purpose of
+   developing Internet standards in which case the procedures for
+   copyrights defined in the Internet Standards process must be
+   followed, or as required to translate it into languages other than
+   English.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by the Internet Society or its successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and THE INTERNET SOCIETY AND THE INTERNET ENGINEERING
+   TASK FORCE DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Haberman & Worzella         Standards Track                    [Page 15]
+

@@ -1,0 +1,395 @@
+
+
+
+
+
+
+Independent Submission                                         R. Hinden
+Request for Comments: 6921                          Check Point Software
+Category: Informational                                     1 April 2013
+ISSN: 2070-1721
+
+
+    Design Considerations for Faster-Than-Light (FTL) Communication
+
+Abstract
+
+   We are approaching the time when we will be able to communicate
+   faster than the speed of light.  It is well known that as we approach
+   the speed of light, time slows down.  Logically, it is reasonable to
+   assume that as we go faster than the speed of light, time will
+   reverse.  The major consequence of this for Internet protocols is
+   that packets will arrive before they are sent.  This will have a
+   major impact on the way we design Internet protocols.  This paper
+   outlines some of the issues and suggests some directions for
+   additional analysis of these issues.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+   This is a contribution to the RFC Series, independently of any other
+   RFC stream.  The RFC Editor has chosen to publish this document at
+   its discretion and makes no statement about its value for
+   implementation or deployment.  Documents approved for publication by
+   the RFC Editor are not a candidate for any level of Internet
+   Standard; see Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc6921.
+
+Copyright Notice
+
+   Copyright (c) 2013 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.
+
+
+
+
+Hinden                        Informational                     [Page 1]
+
+RFC 6921       Design Considerations for FTL Communication  1 April 2013
+
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . . . 2
+   2.  Protocol Design Considerations for FTL Communication  . . . . . 3
+     2.1.  Related Issues  . . . . . . . . . . . . . . . . . . . . . . 4
+   3.  FTL Communication Research  . . . . . . . . . . . . . . . . . . 5
+   4.  IETF Recommendations  . . . . . . . . . . . . . . . . . . . . . 5
+   5.  Security Considerations . . . . . . . . . . . . . . . . . . . . 6
+   6.  Acknowledgements  . . . . . . . . . . . . . . . . . . . . . . . 6
+   7.  References  . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+     7.1.  Normative References  . . . . . . . . . . . . . . . . . . . 6
+     7.2.  Informative References  . . . . . . . . . . . . . . . . . . 6
+
+1.  Introduction
+
+   We are approaching the time when we will be able to communicate
+   faster than the speed of light.  It is well known that as we approach
+   the speed of light, time slows down.  Logically, it is reasonable to
+   assume that as we go faster than the speed of light, time will
+   reverse.  The major consequence of this for Internet protocols is
+   that packets will arrive before they are sent.  This will have a
+   major impact on the way we design Internet protocols.  This paper
+   outlines some of the issues and suggests some directions for
+   additional analysis of these issues.
+
+   There is a lot of discussion in the physics community about faster-
+   than-light travel and communication.  In fact, it even has a well
+   known acronym "FTL".  This acronym will be used in the remainder of
+   this document.
+
+   FTL issues have been discussed in the scientific literature for a
+   long time.  For example, it was discussed in 1917 in the section
+   "Velocities Greater than that of Light" on page 54 of "The Theory of
+   the Relativity of Motion" [Tolman].  A good overall description of
+   the effects of FTL communication can be found in [Goldberg].
+
+   [Ardavan] describes a "polarization synchrontron", which pushes radio
+   waves faster than the speed of light.  In the paper, the author
+   explains:
+
+      ...though no superluminal source of electromagnetic fields can be
+      point-like, there are no physical principles preventing extended
+      faster-than-light sources.  The coordinated motion of aggregates
+      of subluminally-moving charged particles can give rise to
+      macroscopic polarization currents whose distribution patterns move
+      superluminally.  Further relevant progress occurred with the
+      theoretical prediction that extended sources that move faster than
+      their own waves could be responsible for the extreme properties of
+
+
+
+Hinden                        Informational                     [Page 2]
+
+RFC 6921       Design Considerations for FTL Communication  1 April 2013
+
+
+      both the electromagnetic emission from pulsars (rapidly spinning,
+      magnetized neutron stars) and the acoustic emission by supersonic
+      rotors and propellers.
+
+   This may be a viable approach for transmitting data FTL.
+
+2.  Protocol Design Considerations for FTL Communication
+
+   Most, if not all, Internet protocols were designed with the basic
+   assumption that the sender would transmit the packet before the
+   receiver received it.  For example, in the Transmission Control
+   Protocol (TCP) [RFC0793], protocol activity is shown in timing
+   diagrams such as Figure 7:
+
+       TCP A                                                TCP B
+
+   1.  CLOSED                                               LISTEN
+
+   2.  SYN-SENT    --> <SEQ=100><CTL=SYN>               --> SYN-RECEIVED
+
+   3.  ESTABLISHED <-- <SEQ=300><ACK=101><CTL=SYN,ACK>  <-- SYN-RECEIVED
+
+   4.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK>       --> ESTABLISHED
+
+   5.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK><DATA> --> ESTABLISHED
+
+           Basic 3-Way Handshake for Connection Synchronization
+
+                            Figure 7 of RFC 793
+
+   In an FTL communication environment, this assumption is no longer
+   true, because TCP B will receive the first SYN before TCP A
+   transmitted it.  For example, the first part of a TCP 3-way handshake
+   in an FTL environment will look like:
+
+       TCP A                                                TCP B
+
+   1.  CLOSED                                               LISTEN
+
+   2.                  <SEQ=100><CTL=SYN>               --> SYN-RECEIVED
+
+   3.  SYN-SENT    --> <SEQ=100><CTL=SYN>
+
+   The exact operation will depend on the difference between the
+   backward time (i.e., from the future to the past) and the processing
+   time to process a packet.  If the processing time is greater than the
+   backward time shift, then even though the packets are received out of
+   order, TCP should still work due to the TCP symmetrical 3-way
+
+
+
+Hinden                        Informational                     [Page 3]
+
+RFC 6921       Design Considerations for FTL Communication  1 April 2013
+
+
+   handshake mechanism.  If the processing time is smaller than the
+   backward time shift, then it gets much harder, as many packets will
+   be received before they are sent.  The faster the communication is
+   above the speed of light, the more severe the problem becomes.
+
+   Assuming the first case where the processing time is equivalent or
+   larger than the backward time shift (i.e., after an exchange of
+   packets the backward time offset is canceled out), the TCP 3-way
+   handshake in an FTL environment would look like:
+
+       TCP A                                                TCP B
+
+   1.  CLOSED                                               LISTEN
+
+   2.                  <SEQ=100><CTL=SYN>               --> SYN-RECEIVED
+
+   3.  SYN-SENT    --> <SEQ=100><CTL=SYN>
+
+   4.  ESTABLISHED <-- <SEQ=300><ACK=101><CTL=SYN,ACK>      SYN-RECEIVED
+
+   5.  ESTABLISHED     <SEQ=300><ACK=101><CTL=SYN,ACK>  <-- SYN-RECEIVED
+
+   6.  ESTABLISHED     <SEQ=101><ACK=301><CTL=ACK>      --> ESTABLISHED
+
+   7.  ESTABLISHED --> <SEQ=101><ACK=301><CTL=ACK>          ESTABLISHED
+
+   It shows remarkable forethought by the inventors of the TCP protocol
+   that the 3-way handshake works in an FTL communication environment.
+   This is due to the symmetrical nature of the 3-way handshake and its
+   ability to deal with dropped packets.  It should be possible to use
+   dropped packets as a way to mimic an FTL communication environment.
+   In fact, this may provide a good vehicle to analyze and test
+   protocols to see how they will work in an FTL communication
+   environment.
+
+2.1.  Related Issues
+
+   Additional work is needed to think about protocol design
+   considerations when the backward time shift is much greater than the
+   processing time.  This would create challenges where it would be
+   necessary to have received all of the data before the connection
+   could be established.  This is left to future researchers.  In
+   practical terms, this scenario isn't likely to happen for a long
+   time.  That said, FTL communication might lead to FTL travel, where
+   we can travel into the past.  It may be necessary to start working on
+   this yesterday.
+
+
+
+
+
+Hinden                        Informational                     [Page 4]
+
+RFC 6921       Design Considerations for FTL Communication  1 April 2013
+
+
+   There is a large amount of work that has been done in a related area,
+   Delay-Tolerant Networks.  For example, [RFC4838] defines an
+   architecture for Delay-Tolerant Networks.  An FTL communication
+   environment is similar to Delay-Tolerant Networks with the major
+   difference that the packets arrive at the destination with a negative
+   delay.  Documents that will need review include "A One-way Delay
+   Metric for IPPM" [RFC2679] and "A Delay Bound alternative revision of
+   RFC 2598" [RFC3248].
+
+   Congestion control algorithms will also need serious review --
+   specifically, how to handle negative round-trip time (RTT) on TCP
+   congestion control or the corner case where the RTT comes out at
+   exactly zero.  Do any of the control equations include a divide-by-
+   RTT or sqrt(RTT)?  It should also be noted that there may be the
+   possibility for significant advancements in congestion algorithms
+   given the properties of FTL communication.  Specifically, it maybe
+   possible to stop network congestion before it starts.  This could be
+   an important new approach for congestion control researchers.
+
+3.  FTL Communication Research
+
+   FTL communication has great potential for the networking research
+   community.  It is clearly an exciting area for new research and
+   considerable time could be spent working on it.  It is very important
+   that we fully understand all of its aspects before we know how to
+   achieve FTL communication.  Funding agencies should take this into
+   account when allocating money and make sure that all new research
+   projects look at FTL communication environments.
+
+4.  IETF Recommendations
+
+   The Internet Engineering Steering Group (IESG), which is the part of
+   Internet Engineering Task Force (IETF) that manages the standards
+   process, has area reviews as part of its review process.  For
+   example, the Security area reviews proposed protocols for security
+   issues.  The IETF Chair also has a General area that does overall
+   reviews.
+
+   The author recommends that the IETF create a new review group to
+   evaluate all new Internet protocols to verify that FTL communication
+   has been taken into consideration in the design of the protocol.
+   This would be similar to what is done to make sure that new Internet
+   protocols are secure or are designed to run over IPv4 and IPv6.  As
+   we look forward to FTL communication, it is critical that all
+   Internet protocols are designed to work in this environment.
+
+
+
+
+
+
+Hinden                        Informational                     [Page 5]
+
+RFC 6921       Design Considerations for FTL Communication  1 April 2013
+
+
+   Further, the author recommends that the IESG start a review process
+   to do a detailed analysis of all existing Internet protocols to make
+   sure they have been designed to work in FTL communication
+   environments.  For protocols that do not work in this environment,
+   the IESG should add work items to exiting working group charters or
+   charter new working groups to update these protocols so that they
+   will work in FTL communication environments.
+
+5.  Security Considerations
+
+   It is early to fully understand security issues relating to FTL
+   communication.  The main issue is likely to be related to the
+   characteristic of FTL communication that the receiver will receive a
+   packet before it is sent.  Many exploits are likely to be written to
+   take advantage of this property.  Also, given the number of exploits
+   that are being discovered that don't have any protections available,
+   it may be that the malware community is already taking advantage of
+   the properties of FTL communication.
+
+6.  Acknowledgements
+
+   Valuable comments and support were provided by Brian Carpenter and
+   Rodney Van Meter.
+
+7.  References
+
+7.1.  Normative References
+
+   [RFC0793]   Postel, J., "Transmission Control Protocol", STD 7, RFC
+               793, September 1981.
+
+7.2.  Informative References
+
+   [Ardavan]   Ardavan, A., Singleton, J., Ardavan, H., Fopma, J.,
+               Hallida, D., and W. Hayes, "Experimental demonstration of
+               a new radiation mechanism: emission by an oscillating,
+               accelerated, superluminal polarization current", eprint
+               arXiv:physics/0405062, May 2004.
+
+   [Goldberg]  Goldberg, D., "Do faster than light neutrinos let you
+               change the past?", October 2011, <http://io9.com/5846519/
+               do-faster-than-light-neutrinos-let-you-change-the-past>.
+
+   [RFC2679]   Almes, G., Kalidindi, S., and M. Zekauskas, "A One-way
+               Delay Metric for IPPM", RFC 2679, September 1999.
+
+
+
+
+
+
+Hinden                        Informational                     [Page 6]
+
+RFC 6921       Design Considerations for FTL Communication  1 April 2013
+
+
+   [RFC3248]   Armitage, G., Carpenter, B., Casati, A., Crowcroft, J.,
+               Halpern, J., Kumar, B., and J. Schnizlein, "A Delay Bound
+               alternative revision of RFC 2598", RFC 3248, March 2002.
+
+   [RFC4838]   Cerf, V., Burleigh, S., Hooke, A., Torgerson, L., Durst,
+               R., Scott, K., Fall, K., and H. Weiss, "Delay-Tolerant
+               Networking Architecture", RFC 4838, April 2007.
+
+   [Tolman]    Tolman, R., "The Theory of the Relativity of Motion",
+               Berkeley: University of California Press, 1917.
+
+Author's Address
+
+   Robert M. Hinden
+   Check Point Software
+   959 Skyway Road
+   Suite 300
+   San Carlos, CA  94070
+   USA
+
+   EMail: bob.hinden@gmail.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Hinden                        Informational                     [Page 7]
+

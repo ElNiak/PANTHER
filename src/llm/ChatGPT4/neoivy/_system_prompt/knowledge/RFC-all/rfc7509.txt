@@ -1,0 +1,619 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                          R. Huang
+Request for Comments: 7509                                        Huawei
+Category: Standards Track                                       V. Singh
+ISSN: 2070-1721                                         Aalto University
+                                                                May 2015
+
+
+            RTP Control Protocol (RTCP) Extended Report (XR)
+                   for Post-Repair Loss Count Metrics
+
+Abstract
+
+   This document defines an RTP Control Protocol (RTCP) Extended Report
+   (XR) block that allows reporting of a post-repair loss count metric
+   for a range of RTP applications.  In addition, another metric,
+   repaired loss count, is also introduced in this report block for
+   calculating the pre-repair loss count when needed, so that the RTP
+   sender or a third-party entity is able to evaluate the effectiveness
+   of the repair methods used by the system.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc7509.
+
+Copyright Notice
+
+   Copyright (c) 2015 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+Singh & Huang                Standards Track                    [Page 1]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+Table of Contents
+
+   1. Introduction ....................................................2
+   2. Terminology .....................................................3
+   3. Post-Repair Loss Count Metrics Report Block .....................3
+      3.1. Report Block Structure .....................................4
+      3.2. Example Usage ..............................................5
+   4. SDP Signaling ...................................................6
+      4.1. SDP rtcp-xr-attrib Attribute Extension .....................6
+      4.2. Offer/Answer Usage .........................................7
+   5. Security Considerations .........................................7
+   6. IANA Considerations .............................................7
+      6.1. New RTCP XR Block Type Value ...............................7
+      6.2. New RTCP XR SDP Parameter ..................................7
+      6.3. Contact Information for Registrations ......................7
+   7. References ......................................................8
+      7.1. Normative References .......................................8
+      7.2. Informative References .....................................9
+   Appendix A. Metrics Represented Using the Template from RFC 6390 ..10
+   Acknowledgments ...................................................11
+   Authors' Addresses ................................................11
+
+1.  Introduction
+
+   RTCP Sender Reports (SRs) / Receiver Reports (RRs) [RFC3550] contain
+   some rough statistics about the data received from the particular
+   source indicated in that block.  One of them is the cumulative number
+   of packets lost, which is called the pre-repair loss metric in this
+   document.  This metric conveys information regarding the total number
+   of RTP data packets that have been lost since the beginning of the
+   RTP session.
+
+   However, this metric is measured on the media stream before any loss-
+   repair mechanism, e.g., retransmission [RFC4588] or Forward Error
+   Correction (FEC) [RFC5109], is applied.  Using a repair mechanism
+   usually results in recovering some or all of the lost packets.  The
+   recovery process does not reduce the values reported by the two loss
+   metrics in RTCP RR [RFC3550] -- namely, the fraction lost and the
+   cumulative loss.  Hence, the sending endpoint cannot infer the
+   performance of the repair mechanism based on the aforementioned
+   metrics in [RFC3550].
+
+   Consequently, [RFC5725] specifies a post-repair loss Run-Length
+   Encoding (RLE) XR report block to address this issue.  The sending
+   endpoint is able to infer which packets were repaired from the RLE
+   report block, but the reporting overhead for the packet-by-packet
+   report block is higher compared to other report blocks.
+
+
+
+
+Singh & Huang                Standards Track                    [Page 2]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+   When applications use multiple XR blocks, the endpoints may require
+   more concise reporting to save bandwidth.  This document defines a
+   new XR block type to augment those defined in [RFC3611] and
+   complement the report block defined in [RFC5725] for use in a range
+   of RTP applications.  This new block type reports the post-repair
+   loss count metric, which records the number of primary source RTP
+   packets that are still lost after applying one or more loss-repair
+   mechanisms.  In addition, another metric, repaired loss count, is
+   also introduced in this report block for calculating the pre-repair
+   loss count during this range, so that the RTP sender or a third-party
+   entity is able to evaluate the effectiveness of the repair methods
+   used by the system.  The metrics defined in this document are packet
+   level rather than slice/picture level; this means the partial
+   recovery of a packet will not be regarded as a repaired packet.
+
+   The metrics defined in this document belong to the class of
+   transport-related metrics defined in [RFC6792] and are specified in
+   accordance with the guidelines in [RFC6390] and [RFC6792].  These
+   metrics are applicable to any RTP application, especially those that
+   use loss-repair mechanisms.
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [KEYWORDS].
+
+   primary source RTP packet: The original RTP packet sent from the RTP
+      sender for the first time.  A lost primary source RTP packet may
+      be repaired by some other RTP packets used in repair mechanisms
+      like FEC or retransmission.
+
+3.  Post-Repair Loss Count Metrics Report Block
+
+   This block reports the number of packets lost after applying repair
+   mechanisms (e.g., FEC).  It complements the RTCP XR metrics defined
+   in [RFC5725].  As noted in [RFC5725], ambiguity may occur when
+   comparing this metric with a pre-repair loss metric reported in an
+   RTCP SR/RR, i.e., some packets were not repaired in the current RTCP
+   interval, but they may be repaired later.  Therefore, this block uses
+   a begin sequence number and an end sequence number to explicitly
+   indicate the actual sequence number range reported by this RTCP XR.
+   Accordingly, only packets that have no further chance of being
+   repaired and that have been repaired are included in this report
+   block.
+
+
+
+
+
+
+Singh & Huang                Standards Track                    [Page 3]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+3.1.  Report Block Structure
+
+   The Post-Repair Loss Count Metrics Report Block has the following
+   format:
+
+      0               1               2               3               4
+      0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |     BT=33     |   Reserved    |      Block length = 4         |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |                       SSRC of Source                          |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |       begin_seq               |          end_seq              |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |  Post-repair loss count       |     Repaired loss count       |
+      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   Block Type (BT): 8 bits
+
+      A Post-Repair Loss Count Metrics Report Block is identified by the
+      constant 33.
+
+   Reserved: 8 bits
+
+      These bits are reserved for future use.  They MUST be set to zero
+      by senders and ignored by receivers (see Section 4.2 of
+      [RFC6709]).
+
+   Block length: 16 bits
+
+      This field is in accordance with the definition in [RFC3611].  In
+      this report block, it MUST be set to 4.  The block MUST be
+      discarded if the block length is set to a different value.
+
+   SSRC of source: 32 bits
+
+      As defined in Section 4.1 of [RFC3611].
+
+   begin_seq: 16 bits
+
+      The first sequence number that this block reports on.  It can
+      remain fixed when calculating metrics over several RTCP reporting
+      intervals.
+
+   end_seq: 16 bits
+
+      The last sequence number that this block reports on plus one.
+
+
+
+
+Singh & Huang                Standards Track                    [Page 4]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+   Post-repair loss count: 16 bits
+
+      Total number of packets finally lost after applying one or more
+      loss-repair methods, e.g., FEC and/or retransmission, during the
+      actual sequence number range indicated by begin_seq and end_seq.
+      This metric MUST NOT count the lost packets for which repair might
+      still be possible.  Note that this metric MUST measure only
+      primary source RTP packets.
+
+   Repaired loss count: 16 bits
+
+      Total number of packets fully repaired after applying one or more
+      loss-repair methods, e.g., FEC and/or retransmission, during the
+      actual sequence number range indicated by begin_seq and end_seq.
+      Note that this metric MUST measure only primary source RTP
+      packets.
+
+3.2  Example Usage
+
+   The metrics defined in this report block are all measured at the RTP
+   receiver.  However, the receiving endpoint can report the metrics in
+   two different ways:
+
+   1) Cumulative report
+
+   In this case, implementations may set begin_seq to the first packet
+   in the RTP session, and it will remain fixed across all reports.
+   Hence, the "Post-repair loss count" and "Repaired loss count",
+   respectively, will correspond to "Cumulative post-repair loss count"
+   and "Cumulative repaired loss count" in this case.  These cumulative
+   metrics when combined with the cumulative loss metrics reported in an
+   RTCP RR (pre-repair) assist in calculating the "Still-to-be-repaired
+   lost packets":
+
+      Still-to-be-repaired lost packets =
+            Cumulative number of packets lost -
+            Cumulative post-repair loss count -
+            Cumulative repaired loss count
+
+   2) Interval report
+
+   Some implementations may align the begin_seq and end_seq number with
+   the highest sequence numbers of consecutive RTCP RRs (RTCP interval).
+   This is NOT RECOMMENDED as packets that are not yet repaired in this
+   current RTCP interval and may be repaired in the subsequent intervals
+   will not be reported.  An interval report is illustrated in the
+   following example:
+
+
+
+
+Singh & Huang                Standards Track                    [Page 5]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+      Interval A: The extended highest sequence number received in RTCP
+                  RR is 20.  Begin_seq is 10 and end_seq is 20.
+
+      Interval B: The extended highest sequence number received in RTCP
+                  RR is 30.  Begin_seq is 20 and end_seq is 30.
+
+   If packets 17 and 19 are lost and not yet repaired in interval A and
+   subsequently repaired in interval B, they will not be reported
+   because their sequence numbers do not belong in interval B.
+   Therefore, if implementations want these packets to be reported as
+   repaired, they MUST NOT align the begin_seq and end_seq to the RTCP
+   intervals.
+
+   Alternatively, implementations may choose the begin_seq and end_seq
+   numbers that cover several RTCP intervals.  Additionally, the
+   reported range of sequence numbers may overlap with the previous
+   report blocks, so that the packets that were not yet repaired in one
+   interval, but were subsequently repaired or deemed unrepairable, were
+   reported in subsequent intervals.
+
+   In this case, the "Cumulative number of packets lost" cannot be
+   easily compared with the post-repair metrics.  However, the sending
+   endpoint can calculate the efficiency of the error resilience
+   algorithm using the post-repair and repaired loss count,
+   respectively.
+
+4.  SDP Signaling
+
+   [RFC3611] defines the use of SDP (Session Description Protocol) for
+   signaling the use of RTCP XR blocks.  However, XR blocks MAY be used
+   without prior signaling (see Section 5 of [RFC3611]).
+
+4.1.  SDP rtcp-xr-attrib Attribute Extension
+
+   This session augments the SDP attribute "rtcp-xr" defined in Section
+   5.1 of [RFC3611] by providing an additional value of "xr-format" to
+   signal the use of the report block defined in this document.  The
+   ABNF [RFC5234] syntax is as follows.
+
+   xr-format =/ xr-prlr-block
+
+   xr-prlr-block = "post-repair-loss-count"
+
+
+
+
+
+
+
+
+
+Singh & Huang                Standards Track                    [Page 6]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+4.2.  Offer/Answer Usage
+
+   When SDP is used in offer/answer context, the SDP Offer/Answer usage
+   defined in [RFC3611] for the unilateral "rtcp-xr" attribute
+   parameters applies.  For detailed usage of Offer/Answer for
+   unilateral parameters, refer to Section 5.2 of [RFC3611].
+
+5.  Security Considerations
+
+   This proposed RTCP XR block introduces no new security considerations
+   beyond those described in [RFC3611].  This block does not provide
+   per-packet statistics, so the risk to confidentiality documented in
+   Section 7, paragraph 3 of [RFC3611] does not apply.
+
+   An attacker may put incorrect information in the Post-Repair Loss
+   Count reports, which will affect the performance of loss-repair
+   mechanisms.  Implementers should consider the guidance in [RFC7202]
+   for using appropriate security mechanisms, i.e., where security is a
+   concern, the implementation should apply encryption and
+   authentication to the report block.  For example, this can be
+   achieved by using the AVPF profile together with the Secure RTP
+   profile as defined in [RFC3711]; an appropriate combination of the
+   two profiles (an "SAVPF") is specified in [RFC5124].  However, other
+   mechanisms also exist (documented in [RFC7201]) and might be more
+   suitable.
+
+6.  IANA Considerations
+
+   New block types for RTCP XR are subject to IANA registration.  For
+   general guidelines on IANA considerations for RTCP XR, refer to
+   [RFC3611].
+
+6.1.  New RTCP XR Block Type Value
+
+   This document assigns the block type value 33 in the IANA "RTP
+   Control Protocol Extended Reports (RTCP XR) Block Type Registry" to
+   the "Post-Repair Loss Count Metrics Report Block".
+
+6.2.  New RTCP XR SDP Parameter
+
+   This document also registers a new parameter "post-repair-loss-count"
+   in the "RTP Control Protocol Extended Reports (RTCP XR) Session
+   Description Protocol (SDP) Parameters Registry".
+
+6.3.  Contact Information for Registrations
+
+   The contact information for the registrations is:
+      RAI Area Directors <rai-ads@ietf.org>
+
+
+
+Singh & Huang                Standards Track                    [Page 7]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+7.  References
+
+7.1.  Normative References
+
+   [KEYWORDS] Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <http://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3550]  Schulzrinne, H., Casner, S., Frederick, R., and V.
+              Jacobson, "RTP: A Transport Protocol for Real-Time
+              Applications", STD 64, RFC 3550, DOI 10.17487/RFC3550,
+              July 2003, <http://www.rfc-editor.org/info/rfc3550>.
+
+   [RFC3611]  Friedman, T., Ed., Caceres, R., Ed., and A. Clark, Ed.,
+              "RTP Control Protocol Extended Reports (RTCP XR)",
+              RFC 3611, DOI 10.17487/RFC3611, November 2003,
+              <http://www.rfc-editor.org/info/rfc3611>.
+
+   [RFC3711]  Baugher, M., McGrew, D., Naslund, M., Carrara, E., and K.
+              Norrman, "The Secure Real-time Transport Protocol (SRTP)",
+              RFC 3711, DOI 10.17487/RFC3711, March 2004,
+              <http://www.rfc-editor.org/info/rfc3711>.
+
+   [RFC5124]  Ott, J. and E. Carrara, "Extended Secure RTP Profile for
+              Real-time Transport Control Protocol (RTCP)-Based Feedback
+              (RTP/SAVPF)", RFC 5124, DOI 10.17487/RFC5124, February
+              2008, <http://www.rfc-editor.org/info/rfc5124>.
+
+   [RFC5234]  Crocker, D., Ed., and P. Overell, "Augmented BNF for
+              Syntax Specifications: ABNF", STD 68, RFC 5234,
+              DOI 10.17487/RFC5234, January 2008,
+              <http://www.rfc-editor.org/info/rfc5234>.
+
+   [RFC5725]  Begen, A., Hsu, D., and M. Lague, "Post-Repair Loss RLE
+              Report Block Type for RTP Control Protocol (RTCP) Extended
+              Reports (XRs)", RFC 5725, DOI 10.17487/RFC5725, February
+              2010, <http://www.rfc-editor.org/info/rfc5725>.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh & Huang                Standards Track                    [Page 8]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+7.2.  Informative References
+
+   [RFC4588]  Rey, J., Leon, D., Miyazaki, A., Varsa, V., and R.
+              Hakenberg, "RTP Retransmission Payload Format", RFC 4588,
+              DOI 10.17487/RFC4588, July 2006,
+              <http://www.rfc-editor.org/info/rfc4588>.
+
+   [RFC5109]  Li, A., Ed., "RTP Payload Format for Generic Forward Error
+              Correction", RFC 5109, DOI 10.17487/RFC5109, December
+              2007, <http://www.rfc-editor.org/info/rfc5109>.
+
+   [RFC6390]  Clark, A. and B. Claise, "Guidelines for Considering New
+              Performance Metric Development", BCP 170, RFC 6390,
+              DOI 10.17487/RFC6390, October 2011,
+              <http://www.rfc-editor.org/info/rfc6390>.
+
+   [RFC6709]  Carpenter, B., Aboba, B., Ed., and S. Cheshire, "Design
+              Considerations for Protocol Extensions", RFC 6709, DOI
+              10.17487/RFC6709, September 2012,
+              <http://www.rfc-editor.org/info/rfc6709>.
+
+   [RFC6792]  Wu, Q., Ed., Hunt, G., and P. Arden, "Guidelines for Use
+              of the RTP Monitoring Framework", RFC 6792,
+              DOI 10.17487/RFC6792, November 2012,
+              <http://www.rfc-editor.org/info/rfc6792>.
+
+   [RFC7201]  Westerlund, M. and C. Perkins, "Options for Securing RTP
+              Sessions", RFC 7201, DOI 10.17487/RFC7201, April 2014,
+              <http://www.rfc-editor.org/info/rfc7201>.
+
+   [RFC7202]  Perkins, C. and M. Westerlund, "Securing the RTP
+              Framework: Why RTP Does Not Mandate a Single Media
+              Security Solution", RFC 7202, DOI 10.17487/RFC7202, April
+              2014, <http://www.rfc-editor.org/info/rfc7202>.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh & Huang                Standards Track                    [Page 9]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+Appendix A.  Metrics Represented Using the Template from RFC 6390
+
+   a.  Post-Repair RTP Packet Loss Count Metric
+
+       *  Metric Name: Post-Repair RTP Packet Loss Count Metric.
+
+       *  Metric Description: Total number of RTP packets still lost
+          after loss-repair methods are applied.
+
+       *  Method of Measurement or Calculation: See the "Post-repair
+          loss count" definition in Section 3.1.  It is directly
+          measured and must be measured for the primary source RTP
+          packets with no further chance of repair.
+
+       *  Units of Measurement: This metric is expressed as a 16-bit
+          unsigned integer value giving the number of RTP packets.
+
+       *  Measurement Point(s) with Potential Measurement Domain: It is
+          measured at the receiving end of the RTP stream.
+
+       *  Measurement Timing: This metric relies on the sequence number
+          interval to determine measurement timing.  See the Cumulative
+          and Interval reports defined in Section 3.2.
+
+       *  Use and Applications: These metrics are applicable to any RTP
+          application, especially those that use loss-repair mechanisms.
+          See Section 1 for details.
+
+       *  Reporting Model: See RFC 3611.
+
+   b. Repaired RTP Packet Loss Count Metric
+
+       *  Metric Name: Repaired RTP Packet Count Metric.
+
+       *  Metric Description: The number of RTP packets lost but
+          repaired after applying loss-repair methods.
+
+       *  Method of Measurement or Calculation: See the "Repaired loss
+          count" in Section 3.1.  It is directly measured and must be
+          measured for the primary source RTP packets with no further
+          chance of repair.
+
+       *  Units of Measurement: This metric is expressed as a 16-bit
+          unsigned integer value giving the number of RTP packets.
+
+       *  Measurement Point(s) with Potential Measurement Domain: It is
+          measured at the receiving end of the RTP stream.
+
+
+
+
+Singh & Huang                Standards Track                   [Page 10]
+
+RFC 7509             Post-Repair Non-RLE Loss Count             May 2015
+
+
+       *  Measurement Timing: This metric relies on the sequence number
+          interval to determine measurement timing.  See the Cumulative
+          and Interval reports defined in Section 3.2.
+
+       *  Use and Applications: These metrics are applicable to any RTP
+          application, especially those that use loss-repair mechanisms.
+          See Section 1 for details.
+
+       *  Reporting Model: See RFC 3611.
+
+Acknowledgments
+
+   The authors would like to thank Roni Even, Colin Perkins, and Qin Wu
+   for giving valuable comments and suggestions.
+
+Authors' Addresses
+
+   Rachel Huang
+   Huawei
+   101 Software Avenue, Yuhua District
+   Nanjing 210012
+   China
+
+   EMail: rachel.huang@huawei.com
+
+
+   Varun Singh
+   Aalto University
+   School of Electrical Engineering
+   Otakaari 5 A
+   Espoo, FIN  02150
+   Finland
+
+   EMail: varun@comnet.tkk.fi
+   URI:   http://www.netlab.tkk.fi/~varun/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Singh & Huang                Standards Track                   [Page 11]
+

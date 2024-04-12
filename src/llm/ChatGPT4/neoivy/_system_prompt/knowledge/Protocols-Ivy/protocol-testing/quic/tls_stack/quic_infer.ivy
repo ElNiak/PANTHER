@@ -1,0 +1,209 @@
+#lang ivy1.7
+
+#
+# Ghost event inference
+# ---------------------
+#
+# As an aid in monitoring QUIC packet streams, this section provides
+# actions for inferring unobserved ghost events from QUIC packet
+# events.
+
+# From a QUIC packet event, infer unobserved TLS events
+
+#
+# TODO: as of version 11, each role has its own cid, so connections
+# are not renamed at the clinet side on a server hello. This code
+# is commented and should be removed [1].
+#
+
+# TODO 
+
+import action show_generating(b:bool)
+
+
+action infer_tls_events(src:ip.endpoint,dst:ip.endpoint,pkt:quic_packet) = {
+    #call infer_tls;
+    # Stream frames on id 0 indicate that a `tls_send_event` has occurred.
+    # TODO: ignore duplicate frames.
+
+    var scid := pkt.src_cid;
+    var dcid := pkt.dst_cid;
+    var sq   := pkt.seq_num;
+
+    call show_seqnum(sq);
+
+    # On short headers, the scid is not given, so we use the recorded value
+
+    if ~pkt.long {
+        scid := connected_to(dcid)
+    };
+
+    # If this is an initial client request, we infer the nonce choice
+
+    if pkt.ptype = quic_packet_type.initial & ~conn_seen(dcid) & ~negocation_of_version(src) &  ~version_negociated {
+        nonce_cid(scid) := dcid;
+    };
+
+    if pkt.ptype = quic_packet_type.initial & (retry_sent(scid) | version_negociated | negocation_of_version(src)) {
+        nonce_cid(scid) := dcid;
+        conn_seen(dcid) := false;
+        # nonce_cid(pkt.dst_cid) := pkt.src_cid;
+        # call show_cid(pkt.src_cid);
+        # call show_cid(pkt.dst_cid);
+    };
+
+    var e := pkt.ptype;
+    
+    call set_encryption_level(src,scid,e);
+
+    # infer sender of packet has established keys for the packet
+
+    call tls_keys_established_event(scid,e);
+
+    # Infer an app_server_open_event.
+    if conn_requested(dst,src,dcid) & ~connected(dcid) & ~connected(scid) { # & ~negocation_of_version &  ~version_negociated 
+        call app_server_open_event(src,dst,scid,dcid);
+    };
+    # call show_generating(_generating);
+    var idx := pkt.payload.begin;
+    while idx < pkt.payload.end {
+        var f := pkt.payload.value(idx);
+        if some(cf:frame.crypto) f *> cf {
+            # call show_biatch_2(dst);
+            call tls_send_event(src,dst,scid,dcid,cf.data,cf.offset,e,src_tls_id(src));
+        };
+        if some(sf:frame.stream) f *> sf {
+                # require sf.offset <= stream_app_data_end(dcid,sf.id);  # TODO: deal with gaps in stream
+                # var data := sf.data.segment(stream_app_data_end(dcid,sf.id) - sf.offset,sf.data.end);
+            call app_server_open_event_1rtt(src,dst,scid,dcid);    
+            call app_send_event(src,dst,dcid,sf.id,sf.data,sf.offset,sf.fin)
+        };
+        #if some(pf:frame.padding) f *> pf {
+            # do nothing
+        #} else {
+        call infer_frame(scid,dcid,f);
+        #};
+        call f.handle(scid,dcid,e,sq);
+        idx := idx.next
+    }
+}
+
+import action show_biatch_2(src:ip.endpoint)
+
+action infer_tls_events_vn(src:ip.endpoint,dst:ip.endpoint,pkt:quic_packet_vn) = {
+    # Stream frames on id 0 indicate that a `tls_send_event` has occurred.
+    # TODO: ignore duplicate frames.
+
+    var scid := pkt.src_cid;
+    var dcid := pkt.dst_cid;
+
+    # If this is an initial client request, we infer the nonce choice
+
+    if pkt.ptype = quic_packet_type.version_negociation  { #& ~conn_seen(dcid)
+        nonce_cid(scid) := dcid;
+    };
+
+    # var e := quic_packet_type.initial;
+    
+    # call set_encryption_level(src,scid,e);
+
+    # infer sender of packet has established keys for the packet
+
+    # call tls_keys_established_event(scid,e);
+
+    # Infer an app_server_open_event.
+    if conn_requested(dst,src,dcid) & ~connected(dcid) & ~connected(scid) {
+        call app_server_open_event_vn(src,dst,scid,dcid);
+        call app_server_open_event(src,dst,scid,dcid);
+    };
+}
+
+action infer_tls_events_retry(src:ip.endpoint,dst:ip.endpoint,pkt:quic_packet_retry) = {
+
+    # Stream frames on id 0 indicate that a `tls_send_event` has occurred.
+    # TODO: ignore duplicate frames.
+
+    var scid := pkt.src_cid;
+    var dcid := pkt.dst_cid;
+    
+    # If this is an initial client request, we infer the nonce choice
+
+    if pkt.ptype = quic_packet_type.retry {  #& ~conn_seen(dcid)
+        nonce_cid(scid) := dcid;
+    };
+
+    # var e := quic_packet_type.initial;
+    
+    # call set_encryption_level(src,scid,e);
+
+    # infer sender of packet has established keys for the packet
+
+    # call tls_keys_established_event(scid,e);
+
+    # Infer an app_server_open_event.
+    if conn_requested(dst,src,dcid) & ~connected(dcid) & ~connected(scid) {
+         call app_server_open_event_retry(src,dst,scid,dcid);
+         call app_server_open_event(src,dst,scid,dcid);
+    };
+}
+
+action infer_tls_events_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:quic_packet_0rtt) = {
+
+    # Stream frames on id 0 indicate that a `tls_send_event` has occurred.
+    # TODO: ignore duplicate frames.
+
+    var scid := pkt.src_cid;
+    var dcid := pkt.dst_cid;
+    var sq   := pkt.seq_num;
+
+    # If this is an initial client request, we infer the nonce choice
+
+    if pkt.ptype = quic_packet_type.zero_rtt {  #& ~conn_seen(dcid)
+        nonce_cid(scid) := dcid;
+    };
+
+    var e := quic_packet_type.zero_rtt;
+    
+    call set_encryption_level(src,scid,e);
+
+    # infer sender of packet has established keys for the packet
+
+    call tls_keys_established_event(scid,e);
+
+    # Infer an app_server_open_event.
+    if conn_requested(dst,src,dcid) & ~connected(dcid) & ~connected(scid) {
+         call app_server_open_event_0rtt(src,dst,scid,dcid);
+         call app_server_open_event(src,dst,scid,dcid);
+    };
+
+    var idx := pkt.payload.begin;
+    while idx < pkt.payload.end {
+        var f := pkt.payload.value(idx);
+        # if some(cf:frame.crypto) f *> cf {
+        #     call tls_send_event(src,dst,scid,dcid,cf.data,cf.offset,e)
+        # };
+        if some(sf:frame.stream) f *> sf {
+            # require sf.offset <= stream_app_data_end(dcid,sf.id);  # TODO: deal with gaps in stream
+            # var data := sf.data.segment(stream_app_data_end(dcid,sf.id) - sf.offset,sf.data.end);
+            call app_server_open_event_0rtt(src,dst,scid,dcid);
+            call app_send_event(src,dst,dcid,sf.id,sf.data,sf.offset,sf.fin)
+        };
+        #if some(pf:frame.padding) f *> pf {
+            # do nothing
+        #} else {
+            call infer_frame(scid,dcid,f);
+        #};
+        call f.handle(scid,dcid,e,sq);
+        idx := idx.next
+    }
+}
+
+
+
+import action infer_tls
+import action app_server_open_event_1rtt(src:ip.endpoint,dst:ip.endpoint,scid:cid,dcid:cid)
+import action app_server_open_event_0rtt(src:ip.endpoint,dst:ip.endpoint,scid:cid,dcid:cid)
+import action app_server_open_event_retry(src:ip.endpoint,dst:ip.endpoint,scid:cid,dcid:cid)
+import action app_server_open_event_vn(src:ip.endpoint,dst:ip.endpoint,scid:cid,dcid:cid)
+import action infer_frame(scid:cid,dcid:cid,f:frame)
+

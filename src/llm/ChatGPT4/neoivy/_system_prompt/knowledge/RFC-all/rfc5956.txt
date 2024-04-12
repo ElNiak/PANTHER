@@ -1,0 +1,787 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                          A. Begen
+Request for Comments: 5956                                         Cisco
+Obsoletes: 4756                                           September 2010
+Category: Standards Track
+ISSN: 2070-1721
+
+
+              Forward Error Correction Grouping Semantics
+                  in the Session Description Protocol
+
+Abstract
+
+   This document defines the semantics for grouping the associated
+   source and FEC-based (Forward Error Correction) repair flows in the
+   Session Description Protocol (SDP).  The semantics defined in this
+   document are to be used with the SDP Grouping Framework (RFC 5888).
+   These semantics allow the description of grouping relationships
+   between the source and repair flows when one or more source and/or
+   repair flows are associated in the same group, and they provide
+   support for additive repair flows.  SSRC-level (Synchronization
+   Source) grouping semantics are also defined in this document for
+   Real-time Transport Protocol (RTP) streams using SSRC multiplexing.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc5956.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Begen                        Standards Track                    [Page 1]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+Copyright Notice
+
+   Copyright (c) 2010 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1. Introduction ....................................................3
+   2. Requirements Notation ...........................................5
+   3. Requirements and Changes from RFC 4756 ..........................5
+      3.1. FEC Grouping Requirements ..................................5
+      3.2. Source and Repair Flow Associations ........................6
+      3.3. Support for Additivity .....................................6
+   4. FEC Grouping ....................................................7
+      4.1. "FEC-FR" Grouping Semantics ................................7
+      4.2. SDP Example ................................................7
+      4.3. FEC Grouping for SSRC-Multiplexed RTP Streams ..............9
+      4.4. "FEC" Grouping Semantics ..................................10
+      4.5. SDP Offer/Answer Model and RFC 4756
+           Backward-Compatibility Considerations .....................11
+   5. Security Considerations ........................................12
+   6. IANA Considerations ............................................12
+   7. Acknowledgments ................................................13
+   8. References .....................................................13
+      8.1. Normative References ......................................13
+      8.2. Informative References ....................................14
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Begen                        Standards Track                    [Page 2]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+1.  Introduction
+
+   Any application that needs a reliable transmission over an unreliable
+   packet network has to cope with packet losses.  Forward Error
+   Correction (FEC) is an effective approach that improves the
+   reliability of the transmission, particularly in multicast and
+   broadcast applications where the feedback from the receiver(s) is
+   potentially limited.
+
+   In a nutshell, FEC groups source packets into blocks and applies
+   protection to generate a desired number of repair packets.  These
+   repair packets may be sent on demand or independently of any receiver
+   feedback.  The choice depends on the FEC scheme, the packet loss
+   characteristics of the underlying network, the transport scheme
+   (e.g., unicast, multicast, and broadcast), and the application.  At
+   the receiver side, lost packets can be recovered by erasure decoding,
+   provided that a sufficient number of source and repair packets have
+   been received.
+
+   For example, one of the most basic FEC schemes is the parity codes,
+   where an exclusive OR (XOR) operation is applied to a group of
+   packets (i.e., source block) to generate a single repair packet.  At
+   the receiver side, this scheme provides a full recovery if only one
+   packet is lost within the source block and the repair packet is
+   received.  There are various other ways of generating repair packets,
+   possibly with different loss-recovery capabilities.
+
+   The FEC Framework [FEC-FRAMEWK] outlines a general framework for
+   using FEC codes in multimedia applications that stream audio, video,
+   or other types of multimedia content.  The FEC Framework
+   specification states that source and repair packets must be carried
+   in different streams, which are referred to as the source and repair
+   flows, respectively.  At the receiver side, the receivers should know
+   which flows are the source flows and which ones are the repair flows.
+   The receivers should also know the exact association of the source
+   and repair flows so that they can use the correct data to repair the
+   original content in case there is a packet loss.  SDP [RFC4566] uses
+   [RFC5888] and this RFC for this purpose.
+
+   In order to provide applications more flexibility, the FEC Framework
+   [FEC-FRAMEWK] allows a source flow to be protected by multiple FEC
+   schemes, each of which requires an instance of the FEC Framework.
+   Thus, multiple instances of the FEC Framework may exist at the sender
+   and the receiver(s).  Furthermore, within a single FEC Framework
+   instance, multiple source flows may be grouped and protected by one
+   or more repair flows.
+
+
+
+
+
+Begen                        Standards Track                    [Page 3]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+   The FEC Framework requires the source and repair packets to be
+   carried in different streams.  When the Real-time Transport Protocol
+   (RTP) [RFC3550] is used to carry the source and repair streams, the
+   FEC Framework recommends that each stream be carried in its own RTP
+   session.  This provides flexibility in using FEC in a backward-
+   compatible manner.  However, in some scenarios, it may be desirable
+   for a single RTP session to carry multiple RTP streams via
+   Synchronization Source (SSRC) multiplexing in order to reduce the
+   port usage.  For such scenarios, appropriate grouping semantics are
+   also required.
+
+   A basic example scenario is shown in Figure 1.  Here, the source flow
+   S1 is protected by the repair flow R1.  Also, the source flows S1 and
+   S2 are grouped and protected together by the repair flow R2.
+
+               SOURCE FLOWS             | FEC FRAMEWORK INSTANCE #1
+             | S1: Source Flow |--------| R1: Repair Flow
+         +---|
+         |   | S2: Source Flow
+         |
+         +______________________________| FEC FRAMEWORK INSTANCE #2
+                                        | R2: Repair Flow
+
+   Figure 1: Example scenario with two FEC Framework instances where R1
+            protects S1 and R2 protects the group of S1 and S2
+
+   Grouping source flows before applying FEC protection may allow us to
+   achieve a better coding performance.  As a typical scenario, suppose
+   that source flows S1 and S2 in Figure 1 correspond to the base and
+   enhancement layers in a layered video content, respectively.  The
+   repair flow R2 protects the combination of the base and enhancement
+   layers for the receivers that receive both layers, whereas the repair
+   flow R1 protects the base layer only, for the receivers that want the
+   base layer only or that receive both layers but prefer FEC protection
+   for the base layer only due to a bandwidth or any other limitation.
+
+   The grouping semantics defined in this document offer the flexibility
+   to determine how source streams are grouped together prior to
+   applying FEC protection.  However, not all FEC schemes may support
+   the full range of the possible scenarios (e.g., when the source
+   streams carry different top-level media types such as audio and
+   video).
+
+   Using multiple FEC Framework instances for a single source flow
+   provides flexibility to the receivers.  An example scenario is
+   sketched in Figure 2.  Different instances may offer repair flows
+   that are generated by different FEC schemes, and receivers choose to
+   receive the appropriate repair flow(s) that they can support and
+
+
+
+Begen                        Standards Track                    [Page 4]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+   decode.  Alternatively, different instances (whether or not they use
+   the same FEC scheme) may use larger and smaller source block sizes,
+   which accommodate the receivers that have looser and tighter latency
+   requirements, respectively.  In addition, different instances may
+   also provide FEC protection at different redundancy levels.  This is
+   particularly useful in multicast scenarios where different receivers
+   may experience different packet loss rates and each receiver can
+   choose the repair flow that is tailored to its needs.
+
+           SOURCE FLOWS              | FEC FRAMEWORK INSTANCE #1
+           S3: Source Flow |---------| R3: Repair Flow
+                           |
+                           |---------| FEC FRAMEWORK INSTANCE #2
+                                     | R4: Repair Flow
+
+     Figure 2: Example scenario with two FEC Framework instances, each
+       with a single repair flow protecting the same source flow S3
+
+2.  Requirements Notation
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [RFC2119].
+
+3.  Requirements and Changes from RFC 4756
+
+3.1.  FEC Grouping Requirements
+
+   As illustrated in the introduction and based on the FEC Framework
+   [FEC-FRAMEWK], the SDP grouping semantics for FEC must support the
+   ability to indicate that:
+
+   1.  A given source flow is protected by multiple different FEC
+       schemes.
+
+   2.  Multiple repair flows are associated with a given FEC scheme.
+
+   3.  Multiple source flows are grouped prior to applying FEC
+       protection.
+
+   4.  One or more repair flows protect a group of source flows.
+
+
+
+
+
+
+
+
+
+
+Begen                        Standards Track                    [Page 5]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+3.2.  Source and Repair Flow Associations
+
+   The FEC grouping semantics defined in this document and the SDP
+   "group" attribute defined in [RFC5888] are used to associate source
+   and repair flows.  This document also specifies how the "group"
+   attribute is used to group multiple repair flows with one or more
+   source flows.
+
+   Note that [RFC5888] obsoleted [RFC3388] to allow an "m" line
+   identified by its "mid" attribute to appear in more than one
+   "a=group" line using the same semantics.  With this change and the
+   definitions contained in this document of the FEC grouping semantics,
+   a sender can indicate the specific associations between the source
+   and repair flows, and a receiver can determine which repair flow(s)
+   protect which source flow(s).
+
+   This document defines the FEC grouping semantics and obsoletes
+   [RFC4756].  Implementations compliant with this document MUST use the
+   semantics introduced in Sections 4.1 and 4.3.  In addition to
+   complying with the requirements defined in Sections 4.1 and 4.3,
+   implementations are RECOMMENDED to support the "FEC" semantics
+   specified in Section 4.4 for backward-compatibility reasons in
+   scenarios described in Section 4.5.
+
+3.3.  Support for Additivity
+
+   The FEC Framework [FEC-FRAMEWK] describes support for additive repair
+   flows.  Additivity among the repair flows means that multiple repair
+   flows may be decoded jointly to improve the recovery chances of the
+   missing packets in a single or the same set of source flows.
+   Additive repair flows can be generated by the same FEC scheme or
+   different FEC schemes.
+
+   For example, in Figure 3, the repair flows R5 and R6 may be additive
+   within the FEC Framework instance #1.  Alternatively, all three
+   repair flows R5, R6, and R7 could be additive, too.
+
+           SOURCE FLOWS              | FEC FRAMEWORK INSTANCE #1
+           S4: Source Flow |---------| R5: Repair Flow
+                           |         | R6: Repair Flow
+                           |
+                           |---------| FEC FRAMEWORK INSTANCE #2
+                                     | R7: Repair Flow
+
+   Figure 3: Example scenario with two FEC Framework instances where two
+    repair flows in the first instance and a single repair flow in the
+              second instance protect the same source flow S4
+
+
+
+
+Begen                        Standards Track                    [Page 6]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+   This document defines the mechanisms to support additive repair flows
+   that were not included in [RFC4756].
+
+4.  FEC Grouping
+
+4.1.  "FEC-FR" Grouping Semantics
+
+   Each "a=group" line is used to indicate an association relationship
+   between the source and repair flows.  The flows included in one
+   "a=group" line are called an FEC group.  If there is more than one
+   repair flow included in an FEC group, these repair flows MUST be
+   considered to be additive.  Repair flows that are not additive MUST
+   be indicated in separate FEC groups.  However, if two (or more)
+   repair flows are additive in an FEC group, it does not necessarily
+   mean that these repair flows will also be additive in any other FEC
+   group.  Generally, in order to express multiple relations between the
+   source and repair flows, each source and repair flow MAY appear in
+   more than one FEC group.
+
+   Using the framework in [RFC5888], this document defines "FEC-FR" as
+   the grouping semantics to indicate support for the FEC Framework
+   features.
+
+   The "a=group:FEC-FR" semantics MUST be used to associate the source
+   and repair flows except when the source and repair flows are
+   specified in the same media description, i.e., in the same "m" line
+   (see Section 4.3).  Note that additivity is not necessarily a
+   transitive relationship.  Thus, each set of additive repair flows
+   MUST be stated explicitly in SDP, as illustrated in the example
+   below.
+
+4.2.  SDP Example
+
+   For the scenario sketched in Figure 1, we need to write the following
+   SDP:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Begen                        Standards Track                    [Page 7]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+        v=0
+        o=ali 1122334455 1122334466 IN IP4 fec.example.com
+        s=FEC Grouping Semantics
+        t=0 0
+        a=group:FEC-FR S1 R1
+        a=group:FEC-FR S1 S2 R2
+        m=video 30000 RTP/AVP 100
+        c=IN IP4 233.252.0.1/127
+        a=rtpmap:100 MP2T/90000
+        a=mid:S1
+        m=video 30000 RTP/AVP 101
+        c=IN IP4 233.252.0.2/127
+        a=rtpmap:101 MP2T/90000
+        a=mid:S2
+        m=application 30000 RTP/AVP 110
+        c=IN IP4 233.252.0.3/127
+        a=rtpmap:110 1d-interleaved-parityfec/90000
+        a=fmtp:110 L=5; D=10; repair-window=200000
+        a=mid:R1
+        m=application 30000 RTP/AVP 111
+        c=IN IP4 233.252.0.4/127
+        a=rtpmap:111 1d-interleaved-parityfec/90000
+        a=fmtp:111 L=10; D=10; repair-window=400000
+        a=mid:R2
+
+   In this example, the source and repair flows are carried in their own
+   RTP sessions, and the grouping is achieved through the
+   "a=group:FEC-FR" lines.
+
+   For the additivity example, let us consider the scenario sketched in
+   Figure 3.  Suppose that repair flows R5 and R6 are additive but
+   repair flow R7 is not additive with any of the other repair flows.
+   In this case, we must write
+
+        a=group:FEC-FR S4 R5 R6
+        a=group:FEC-FR S4 R7
+
+   If none of the repair flows is additive, we must write
+
+        a=group:FEC-FR S4 R5
+        a=group:FEC-FR S4 R6
+        a=group:FEC-FR S4 R7
+
+
+
+
+
+
+
+
+
+Begen                        Standards Track                    [Page 8]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+4.3.  FEC Grouping for SSRC-Multiplexed RTP Streams
+
+   [RFC5576] defines an SDP media-level attribute, called "ssrc-group",
+   for grouping the RTP streams that are SSRC multiplexed and carried in
+   the same RTP session.  The grouping is based on the Synchronization
+   Source (SSRC) identifiers.  Since SSRC-multiplexed RTP streams are
+   defined in the same "m" line, the "group" attribute cannot be used.
+
+   This section specifies how FEC is applied to source and repair flows
+   for SSRC-multiplexed streams using the "ssrc-group" attribute
+   [RFC5576].  This section also specifies how the additivity of the
+   repair flows is expressed for the SSRC-multiplexed streams.
+
+   The semantics of "FEC-FR" for the "ssrc-group" attribute are the same
+   as those defined for the "group" attribute, except that the SSRC
+   identifiers are used to designate the FEC grouping associations:
+   a=ssrc-group:FEC-FR *(SP ssrc-id) [RFC5576].
+
+   The SSRC identifiers for the RTP streams that are carried in the same
+   RTP session MUST be unique per [RFC3550].  However, the SSRC
+   identifiers are not guaranteed to be unique among different RTP
+   sessions.  Thus, the "ssrc-group" attribute MUST only be used at the
+   media level [RFC5576].
+
+   Let us consider the following scenario where there are two source
+   flows (e.g., one video and one audio) and a single repair flow that
+   protects only one of the source flows (e.g., video).  Suppose that
+   all these flows are separate RTP streams that are SSRC multiplexed in
+   the same RTP session.
+
+                  SOURCE FLOWS             | FEC FRAMEWORK INSTANCE #1
+                  S5: Source Flow |--------| R8: Repair Flow
+                  S6: Source Flow
+
+    Figure 4: Example scenario with one FEC Framework instance where a
+         single repair flow protects only one of the source flows
+
+   The following SDP describes the scenario sketched in Figure 4.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Begen                        Standards Track                    [Page 9]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+        v=0
+        o=ali 1122334455 1122334466 IN IP4 fec.example.com
+        s=FEC Grouping Semantics for SSRC Multiplexing
+        t=0 0
+        m=video 30000 RTP/AVP 100 101 110
+        c=IN IP4 233.252.0.1/127
+        a=rtpmap:100 JPEG/90000
+        a=rtpmap:101 L16/32000/2
+        a=rtpmap:110 1d-interleaved-parityfec/90000
+        a=fmtp:110 L=5; D=10; repair-window=200000
+        a=ssrc:1000 cname:fec@example.com
+        a=ssrc:1010 cname:fec@example.com
+        a=ssrc:2110 cname:fec@example.com
+        a=ssrc-group:FEC-FR 1000 2110
+        a=mid:Group1
+
+   Note that in actual use, SSRC values, which are random 32-bit
+   numbers, may be much larger than the ones shown in this example.
+   Also, note that before receiving an RTP packet for each stream, the
+   receiver cannot know which SSRC identifier is associated with which
+   payload type.
+
+   The additivity of the repair flows is handled in the same way as
+   described in Section 4.2.  In other words, the repair flows that are
+   included in an "a=ssrc-group" line MUST be additive.  Repair flows
+   that are not additive MUST be indicated in separate "a=ssrc-group"
+   lines.
+
+4.4.  "FEC" Grouping Semantics
+
+   This document deprecates the usage of the "FEC" semantics.  Sessions
+   negotiated between two endpoints implementing this specification MUST
+   use the "FEC-FR" semantics and not the "FEC" semantics.  Section 4.5
+   details how an implementation supporting this specification detects
+   peers that do not support this specification (based on their SDP
+   answer to the initial offer).  When this occurs, the offering
+   implementation SHOULD initiate a new offer using the "FEC" semantics
+   as defined in this section.
+
+   The "FEC" grouping semantics had been originally introduced in
+   [RFC4756].  The "FEC" semantics used the "a=group" line from
+   [RFC3388] to form an FEC group to indicate the association
+   relationship between the source and repair flows.
+
+   In the "FEC" semantics, a source or repair flow can only appear in a
+   single "a=group:FEC" line.  Thus, all the source and repair flows
+   that are somehow related to each other have to be listed in the same
+   "a=group:FEC" line.  For example, for the scenario sketched in
+
+
+
+Begen                        Standards Track                   [Page 10]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+   Figure 1, we have to write "a=group:FEC S1 S2 R1 R2" regardless of
+   which repair flows protect which particular source flows.  Similarly,
+   for the scenario sketched in Figure 3, we have to write "a=group:FEC
+   S4 R5 R6 R7" regardless of which repair flows are additive.  However,
+   the interpretation of these lines would be ambiguous.
+
+   In certain simple scenarios, such as where there is one source flow
+   and one repair flow, these limitations may not be a concern.  In
+   Offer/Answer model scenarios, when the "FEC-FR" semantics are not
+   understood by the answerer, the "FEC" semantics can be offered, as
+   long as the "FEC" semantics provide an exact association among the
+   source and repair flows and do not create any ambiguity.  See
+   Section 4.5 for details.
+
+4.5.  SDP Offer/Answer Model and RFC 4756 Backward-Compatibility
+      Considerations
+
+   When offering FEC grouping using SDP in an Offer/Answer model
+   [RFC3264], the following considerations apply.
+
+   A node that is receiving an offer from a sender may or may not
+   understand line grouping.  It is also possible that the node
+   understands line grouping but it does not understand the "FEC-FR"
+   semantics.  From the viewpoint of the sender of the offer, these
+   cases are indistinguishable.
+
+   Implementations are RECOMMENDED to support the "FEC" semantics
+   specified in Section 4.4 for backward-compatibility reasons.  If the
+   sender of the offer supports the "FEC" semantics, it SHOULD fall back
+   to using the "FEC" semantics when the "FEC-FR" semantics are not
+   understood by the node.
+
+   When a node is offered a session with the "FEC-FR" grouping
+   semantics, but it does not support line grouping or the FEC grouping
+   semantics, as per [RFC5888], the node responds to the offer with one
+   of the following:
+
+   o  An answer that ignores the grouping attribute.
+
+      In this case, if the original sender of the offer
+
+      *  supports the "FEC" semantics described in Section 4.4, it MUST
+         first check whether or not using the "FEC" semantics will
+         create any ambiguity.  If using the "FEC" semantics still
+         provides an exact association among the source and repair
+         flows, the sender SHOULD send a new offer using the "FEC"
+         semantics.  However, if an exact association cannot be
+         described, it MUST send a new offer without FEC.
+
+
+
+Begen                        Standards Track                   [Page 11]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+      *  does not support the "FEC" semantics described in Section 4.4,
+         it MUST send a new offer without FEC.
+
+   o  A refusal to the request (e.g., 488 Not Acceptable Here or 606 Not
+      Acceptable in SIP).
+
+      In this case, if the original sender of the offer
+
+      *  supports the "FEC" semantics and still wishes to establish the
+         session, it MUST first check whether or not using the "FEC"
+         semantics will create any ambiguity.  If using the "FEC"
+         semantics still provides an exact association among the source
+         and repair flows, the sender SHOULD send a new offer using the
+         "FEC" semantics.  However, if an exact association cannot be
+         described, it SHOULD send a new offer without FEC.
+
+      *  does not support the "FEC" semantics described in Section 4.4,
+         it SHOULD send a new offer without FEC.
+
+   In both cases described above, when the sender of the offer sends a
+   new offer with the "FEC" semantics, and the node understands it, the
+   session will be established, and the rules pertaining to the "FEC"
+   semantics will apply.
+
+   As specified in [RFC5888], if the node does not understand the "FEC"
+   semantics, it responds to the offer with either (1) an answer that
+   ignores the grouping attribute or (2) a refusal to the request.  In
+   the first case, the sender must send a new offer without FEC.  In the
+   second case, if the sender still wishes to establish the session, it
+   should retry the request with an offer without FEC.
+
+5.  Security Considerations
+
+   There is a weak threat for the receiver that the FEC grouping can be
+   modified to indicate FEC relationships that do not exist.  Such
+   attacks may result in failure of FEC to protect, and/or to mishandle,
+   other media payload streams.  The receiver SHOULD do an integrity
+   check on SDP and follow the security considerations of SDP [RFC4566]
+   to trust only SDP from trusted sources.
+
+6.  IANA Considerations
+
+   This document registers the following semantics with IANA in the
+   "Semantics for the "group" SDP Attribute" registry under SDP
+   Parameters:
+
+
+
+
+
+
+Begen                        Standards Track                   [Page 12]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+   Semantics                              Token   Reference
+   -------------------------------------  ------  ---------
+   Forward Error Correction (Deprecated)  FEC     [RFC5956]
+   Forward Error Correction FR            FEC-FR  [RFC5956]
+
+   This document also registers the following semantics with IANA in the
+   "Semantics for the "ssrc-group" SDP Attribute" registry under SDP
+   Parameters:
+
+   Token    Semantics                      Reference
+   -------  -----------------------------  ---------
+   FEC-FR   Forward Error Correction FR    [RFC5956]
+
+7.  Acknowledgments
+
+   Some parts of this document are based on [RFC4756].  Thus, the author
+   would like to thank those who contributed to [RFC4756].  Also, thanks
+   to Jonathan Lennox, who has contributed to Section 4.3; and
+   Jean-Francois Mule, who has reviewed this document in great detail
+   and suggested text edits.
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC2119]      Bradner, S., "Key words for use in RFCs to Indicate
+                  Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC3264]      Rosenberg, J. and H. Schulzrinne, "An Offer/Answer
+                  Model with Session Description Protocol (SDP)",
+                  RFC 3264, June 2002.
+
+   [RFC3550]      Schulzrinne, H., Casner, S., Frederick, R., and V.
+                  Jacobson, "RTP: A Transport Protocol for Real-Time
+                  Applications", STD 64, RFC 3550, July 2003.
+
+   [RFC4566]      Handley, M., Jacobson, V., and C. Perkins, "SDP:
+                  Session Description Protocol", RFC 4566, July 2006.
+
+   [RFC5576]      Lennox, J., Ott, J., and T. Schierl, "Source-Specific
+                  Media Attributes in the Session Description Protocol
+                  (SDP)", RFC 5576, June 2009.
+
+   [RFC5888]      Camarillo, G. and H. Schulzrinne, "The Session
+                  Description Protocol (SDP) Grouping Framework",
+                  RFC 5888, June 2010.
+
+
+
+
+
+Begen                        Standards Track                   [Page 13]
+
+RFC 5956              FEC Grouping Semantics in SDP       September 2010
+
+
+8.2.  Informative References
+
+   [FEC-FRAMEWK]  Watson, M., "Forward Error Correction (FEC)
+                  Framework", Work in Progress, September 2010.
+
+   [RFC3388]      Camarillo, G., Eriksson, G., Holler, J., and H.
+                  Schulzrinne, "Grouping of Media Lines in the Session
+                  Description Protocol (SDP)", RFC 3388, December 2002.
+
+   [RFC4756]      Li, A., "Forward Error Correction Grouping Semantics
+                  in Session Description Protocol", RFC 4756,
+                  November 2006.
+
+Author's Address
+
+   Ali Begen
+   Cisco
+   181 Bay Street
+   Toronto, ON  M5J 2T3
+   Canada
+
+   EMail:  abegen@cisco.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Begen                        Standards Track                   [Page 14]
+

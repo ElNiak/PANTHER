@@ -1,0 +1,572 @@
+﻿
+
+
+
+Internet Engineering Task Force (IETF)                            Y. Lee
+Request for Comments: 9358                           Samsung Electronics
+Category: Standards Track                                       H. Zheng
+ISSN: 2070-1721                                      Huawei Technologies
+                                                           D. Ceccarelli
+                                                           Cisco Systems
+                                                           February 2023
+
+
+ Path Computation Element Communication Protocol (PCEP) Extensions for
+  Establishing Relationships between Sets of Label Switched Paths and
+                            Virtual Networks
+
+Abstract
+
+   This document describes how to extend the Path Computation Element
+   Communication Protocol (PCEP) association mechanism introduced by RFC
+   8697 to further associate sets of Label Switched Paths (LSPs) with a
+   higher-level structure such as a Virtual Network (VN) requested by a
+   customer or application.  This extended association mechanism can be
+   used to facilitate control of a VN using the PCE architecture.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9358.
+
+Copyright Notice
+
+   Copyright (c) 2023 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Revised BSD License text as described in Section 4.e of the
+   Trust Legal Provisions and are provided without warranty as described
+   in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+   3.  Operation Overview
+   4.  Extensions to PCEP
+   5.  Security Considerations
+   6.  IANA Considerations
+     6.1.  ASSOCIATION Object Type Indicator
+     6.2.  PCEP TLV Type Indicator
+     6.3.  PCEP Error
+   7.  Manageability Considerations
+     7.1.  Control of Function and Policy
+     7.2.  Information and Data Models
+     7.3.  Liveness Detection and Monitoring
+     7.4.  Verification of Correct Operations
+     7.5.  Requirements on Other Protocols
+     7.6.  Impact on Network Operations
+   8.  References
+     8.1.  Normative References
+     8.2.  Informative References
+   Contributors
+   Authors' Addresses
+
+1.  Introduction
+
+   The Path Computation Element Communication Protocol (PCEP) provides
+   mechanisms for Path Computation Elements (PCEs) to perform path
+   computations in response to requests from Path Computation Clients
+   (PCCs) [RFC5440].
+
+   [RFC8051] describes general considerations for a stateful PCE
+   deployment and examines its applicability and benefits as well as its
+   challenges and limitations through a number of use cases.  [RFC8231]
+   describes a set of extensions to PCEP to provide stateful control.
+   For its computations, a stateful PCE has access to not only the
+   information carried by the network's Interior Gateway Protocol (IGP)
+   but also the set of active paths and their reserved resources.  The
+   additional state allows the PCE to compute constrained paths while
+   considering individual Label Switched Paths (LSPs) and their
+   interactions.
+
+   [RFC8281] describes the setup, maintenance, and teardown of PCE-
+   initiated LSPs under the stateful PCE model.
+
+   [RFC8697] introduces a generic mechanism to create a grouping of
+   LSPs.  This grouping can then be used to define associations between
+   sets of LSPs or between a set of LSPs and a set of attributes.
+
+   [RFC8453] introduces a framework for Abstraction and Control of TE
+   Networks (ACTN) and describes various VN operations initiated by a
+   customer or application.  A VN is a customer view of the TE network.
+   Depending on the agreement between client and provider, various VN
+   operations and VN views are possible.
+
+   [RFC8637] examines the PCE and ACTN architectures and describes how
+   the PCE architecture is applicable to ACTN.  [RFC6805] and [RFC8751]
+   describe a hierarchy of stateful PCEs with the parent PCE
+   coordinating multi-domain path computation functions between child
+   PCEs, thus making it the base for PCE applicability for ACTN.  As
+   [RFC8751] explains, in the context of ACTN, the child PCE is
+   identified with the Provisioning Network Controller (PNC), and the
+   parent PCE is identified with the Multi-Domain Service Coordinator
+   (MDSC).
+
+   In this context, there is a need to associate a set of LSPs with a VN
+   "construct" to facilitate VN operations in the PCE architecture.
+   This association allows a PCE to identify which LSPs belong to a
+   certain VN.  The PCE could then use this association to optimize all
+   LSPs belonging to the VN at once.  The PCE could further take VN-
+   specific actions on the LSPs, such as relaxing constraints, taking
+   policy actions, setting default behavior, etc.
+
+   This document specifies a PCEP extension to associate a set of LSPs
+   based on their VN.
+
+2.  Terminology
+
+   This document uses terminology from [RFC4655], [RFC5440], [RFC6805],
+   [RFC8231], and [RFC8453].
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  Operation Overview
+
+   As per [RFC8697], LSPs are associated with other LSPs with which they
+   interact by adding them to a common association group.
+
+   An association group based on VN is useful for various optimizations
+   that should be applied by considering all the LSPs in the
+   association.  This includes, but is not limited to, the following:
+
+   Path Computation:  When computing a path for an LSP, it is useful to
+      analyze the impact of this LSP on the other LSPs belonging to the
+      same VN.  The aim would be to optimize all LSPs belonging to the
+      VN rather than a single LSP.  Also, the optimization criteria
+      (such as minimizing the load of the most loaded link (MLL)
+      [RFC5541]) could be applied for all the LSPs belonging to the VN
+      identified by the VN association.
+
+   Path Reoptimization:  The PCE would like to use advanced path
+      computation algorithms and optimization techniques that consider
+      all the LSPs belonging to a VN and optimize them all together
+      during the path reoptimization.
+
+   In this document, we define a new association group called the "VN
+   Association Group (VNAG)".  This grouping is used to define the
+   association between a set of LSPs and a VN.
+
+   The ASSOCIATION object contains a field to identify the type of
+   association, and this document defines a new Association Type value
+   of 7 to indicate that the association is a "VN Association".  The
+   Association Identifier in the ASSOCIATION object is the VNAG
+   Identifier and is handled in the same way as the generic Association
+   Identifier defined in [RFC8697].
+
+   In this document, "VNAG object" refers to an ASSOCIATION object with
+   the Association Type set to "VN Association" (7).
+
+   Local policies on the PCE define the computational and optimization
+   behavior for the LSPs in the VN.  An LSP MUST NOT belong to more than
+   one VNAG.  If an implementation encounters more than one VNAG object
+   in a PCEP message, it MUST process the first occurrence, and it MUST
+   ignore the others.
+
+   [RFC8697] specifies the mechanism by which a PCEP speaker can
+   advertise which Association Types it supports.  This is done using
+   the ASSOC-Type-List TLV carried within an OPEN object.  A PCEP
+   speaker MUST include the VN Association Type (7) in the ASSOC-Type-
+   List TLV before using the VNAG object in a PCEP message.  As per
+   [RFC8697], if the implementation does not support the VN Association
+   Type, it will return a PCErr message with Error-Type=26 (Association
+   Error) and Error-value=1 (Association Type is not supported).
+
+   The Association Identifiers (VNAG IDs) for this Association Type are
+   dynamic in nature and created by the parent PCE (MDSC) based on the
+   VN operations for the LSPs belonging to the same VN.  Operator
+   configuration of VNAG IDs is not supported, so there is no need for
+   an Operator-configured Association Range to be set.  Thus, the VN
+   Association Type (7) MUST NOT be present in the Operator-configured
+   Association Range TLV if that TLV is present in the OPEN object.  If
+   an implementation encounters the VN Association Type (7) in an
+   Operator-configured Association Range TLV, it MUST ignore the
+   associated Start-Assoc-ID and Range values.
+
+   This association is useful in a PCEP session between a parent PCE
+   (MDSC) and a child PCE (PNC).  When computing the path, the child PCE
+   (PNC) refers to the VN association in the request from the parent PCE
+   (MDSC) and maps the VN to the associated LSPs and network resources.
+   From the perspective of the parent PCE, it receives a VN creation
+   request from its customer, with the VN uniquely identified by the
+   association parameters (Section 6.1.4 of [RFC8697]) in the VNAG or
+   the Virtual Network Identifier encoded in the VIRTUAL-NETWORK-TLV.
+   This VN may comprise multiple LSPs in the network in a single domain
+   or across multiple domains.  The parent PCE sends a PCInitiate
+   message with this association information in the VNAG object.  This
+   in effect binds an LSP that is to be instantiated at the child PCE
+   with the VN.  The VN association information MUST be included as a
+   part of the first PCRpt message.  Figure 1 shows an example of a
+   typical VN operation using PCEP.  It is worth noting that in a multi-
+   domain scenario, the different domains are controlled by different
+   child PCEs.  In order to set up the cross-domain tunnel, multiple
+   segments need to be stitched by the border nodes in each domain that
+   receive the instruction from their child PCE (PNC).
+
+                             ******
+                   ..........*MDSC*..............................
+                .            ****** ..                   MPI    .
+             .                .        .                        .
+          .                   .          .   PCInitiate LSPx    .
+        .                    .             .   with VNAG        .
+       .                    .                .                  .
+      .                    .                  .                 .
+     .                    .                    .                .
+     v                    v                    v                .
+   ******               ******               ******             .
+   *PNC1*               *PNC2*               *PNC4*             .
+   ******               ******               ******             .
+   +---------------+    +---------------+    +---------------+  .
+   |               |----|               |----|              C|  .
+   |               |    |               |    |               |  .
+   |DOMAIN 1       |----|DOMAIN 2       |----|DOMAIN 4       |  .
+   +---------------+    +---------------+    +---------------+  .
+                                            /                   .
+                       ******              /                    .
+                       *PNC3*<............/......................
+                       ******            /
+                       +---------------+/
+                       |               |
+                       |               |
+                       |DOMAIN 3       |
+                       +---------------+
+
+   MDSC -> parent PCE
+   PNC  -> child  PCE
+   MPI  -> PCEP
+
+       Figure 1: Example of VN Operations in H-PCE (Hierarchical PCE)
+                                Architecture
+
+   Whenever changes occur with the instantiated LSP in a domain network,
+   the domain child PCE reports the changes using a PCRpt message in
+   which the VNAG object indicates the relationship between the LSP and
+   the VN.
+
+   Whenever an update occurs with VNs in the parent PCE (due to the
+   customer's request), the parent PCE sends a PCUpd message to inform
+   each affected child PCE of this change.
+
+4.  Extensions to PCEP
+
+   The VNAG uses the generic ASSOCIATION object [RFC8697].
+
+   This document defines one new mandatory TLV called the "VIRTUAL-
+   NETWORK-TLV".  Optionally, the new TLV can be jointly used with the
+   existing VENDOR-INFORMATION-TLV specified in [RFC7470] as described
+   below:
+
+   VIRTUAL-NETWORK-TLV:  Used to communicate the Virtual Network
+      Identifier.
+
+   VENDOR-INFORMATION-TLV:  Used to communicate arbitrary vendor-
+      specific behavioral information, as described in [RFC7470].
+
+   The format of the VIRTUAL-NETWORK-TLV is as follows.
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |           Type=65             |            Length             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   //                   Virtual Network Identifier                //
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+                Figure 2: Format of the VIRTUAL-NETWORK-TLV
+
+   Type (16 bits):  65
+
+   Length (16 bits):  Indicates the length of the value portion of the
+      TLV in octets and MUST be greater than 0.  The TLV MUST be zero-
+      padded so that the TLV is 4-octet aligned.
+
+   Virtual Network Identifier (variable):  A symbolic name for the VN
+      that uniquely identifies the VN.  It SHOULD be a string of
+      printable ASCII [RFC0020] characters (i.e., 0x20 to 0x7E), without
+      a NULL terminator.  The Virtual Network Identifier is a human-
+      readable string that identifies a VN.  It can be specified with
+      the association information, which may be conveyed in a VENDOR-
+      INFORMATION-TLV.  An implementation uses the Virtual Network
+      Identifier to maintain a mapping to the VNAG and the LSPs
+      associated with the VN.  The Virtual Network Identifier MAY be
+      specified by the customer, set via an operator policy, or auto-
+      generated by the PCEP speaker.
+
+   The VIRTUAL-NETWORK-TLV MUST be included in VNAG object.  If a PCEP
+   speaker receives the VNAG object without the VIRTUAL-NETWORK-TLV, it
+   MUST send a PCErr message with Error-Type=6 (Mandatory Object
+   missing) and Error-value=18 (VIRTUAL-NETWORK-TLV missing) and close
+   the session.
+
+   The format of VENDOR-INFORMATION-TLV is defined in [RFC7470].
+
+   If a PCEP speaker receives a VNAG object with a TLV that violates the
+   rules specified in this document, the PCEP speaker MUST send a PCErr
+   message with Error-Type=10 (Reception of an invalid object) and
+   Error-value=11 (Malformed object) and MUST close the PCEP session.
+
+5.  Security Considerations
+
+   The security considerations described in [RFC5440], [RFC8231], and
+   [RFC8281] apply to the extensions defined in this document as well.
+
+   This document introduces the VN Association Type (7) for the
+   ASSOCIATION object.  Additional security considerations related to
+   LSP associations due to a malicious PCEP speaker are described in
+   [RFC8697] and apply to the VN Association Type.  Hence, securing the
+   PCEP session using Transport Layer Security (TLS) [RFC8253] is
+   RECOMMENDED.
+
+6.  IANA Considerations
+
+6.1.  ASSOCIATION Object Type Indicator
+
+   IANA has assigned the following new value in the "ASSOCIATION Type
+   Field" subregistry within the "Path Computation Element Protocol
+   (PCEP) Numbers" registry:
+
+   +=======+================+===========+
+   | Value | Name           | Reference |
+   +=======+================+===========+
+   | 7     | VN Association | RFC 9358  |
+   +-------+----------------+-----------+
+
+                  Table 1
+
+6.2.  PCEP TLV Type Indicator
+
+   IANA has assigned the following new value in the "PCEP TLV Type
+   Indicators" subregistry within the "Path Computation Element Protocol
+   (PCEP) Numbers" registry:
+
+   +=======+=====================+===========+
+   | Value | Name                | Reference |
+   +=======+=====================+===========+
+   | 65    | VIRTUAL-NETWORK-TLV | RFC 9358  |
+   +-------+---------------------+-----------+
+
+                     Table 2
+
+6.3.  PCEP Error
+
+   IANA has allocated the following new error value in the "PCEP-ERROR
+   Object Error Types and Values" subregistry within the "Path
+   Computation Element Protocol (PCEP) Numbers" registry:
+
+   +============+================+=====================+===========+
+   | Error-Type | Meaning        | Error-value         | Reference |
+   +============+================+=====================+===========+
+   | 6          | Mandatory      | 18: VIRTUAL-        | RFC 9358  |
+   |            | Object missing | NETWORK-TLV missing |           |
+   +------------+----------------+---------------------+-----------+
+
+                                Table 3
+
+7.  Manageability Considerations
+
+7.1.  Control of Function and Policy
+
+   An operator MUST be allowed to mark LSPs that belong to the same VN.
+   This could also be done automatically based on the VN configuration.
+
+7.2.  Information and Data Models
+
+   The PCEP YANG module [PCE-PCEP-YANG] should support the association
+   between LSPs including VN association.
+
+7.3.  Liveness Detection and Monitoring
+
+   Mechanisms defined in this document do not imply any new liveness
+   detection and monitoring requirements in addition to those already
+   listed in [RFC5440].
+
+7.4.  Verification of Correct Operations
+
+   Mechanisms defined in this document do not imply any new operation
+   verification requirements in addition to those already listed in
+   [RFC5440].
+
+7.5.  Requirements on Other Protocols
+
+   Mechanisms defined in this document do not imply any new requirements
+   on other protocols.
+
+7.6.  Impact on Network Operations
+
+   [RFC8637] describes the network operations when PCE is used for VN
+   operations.  Section 3 further specifies the operations when VN
+   associations are used.
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC0020]  Cerf, V., "ASCII format for network interchange", STD 80,
+              RFC 20, DOI 10.17487/RFC0020, October 1969,
+              <https://www.rfc-editor.org/info/rfc20>.
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC5440]  Vasseur, JP., Ed. and JL. Le Roux, Ed., "Path Computation
+              Element (PCE) Communication Protocol (PCEP)", RFC 5440,
+              DOI 10.17487/RFC5440, March 2009,
+              <https://www.rfc-editor.org/info/rfc5440>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8231]  Crabbe, E., Minei, I., Medved, J., and R. Varga, "Path
+              Computation Element Communication Protocol (PCEP)
+              Extensions for Stateful PCE", RFC 8231,
+              DOI 10.17487/RFC8231, September 2017,
+              <https://www.rfc-editor.org/info/rfc8231>.
+
+   [RFC8253]  Lopez, D., Gonzalez de Dios, O., Wu, Q., and D. Dhody,
+              "PCEPS: Usage of TLS to Provide a Secure Transport for the
+              Path Computation Element Communication Protocol (PCEP)",
+              RFC 8253, DOI 10.17487/RFC8253, October 2017,
+              <https://www.rfc-editor.org/info/rfc8253>.
+
+   [RFC8281]  Crabbe, E., Minei, I., Sivabalan, S., and R. Varga, "Path
+              Computation Element Communication Protocol (PCEP)
+              Extensions for PCE-Initiated LSP Setup in a Stateful PCE
+              Model", RFC 8281, DOI 10.17487/RFC8281, December 2017,
+              <https://www.rfc-editor.org/info/rfc8281>.
+
+   [RFC8697]  Minei, I., Crabbe, E., Sivabalan, S., Ananthakrishnan, H.,
+              Dhody, D., and Y. Tanaka, "Path Computation Element
+              Communication Protocol (PCEP) Extensions for Establishing
+              Relationships between Sets of Label Switched Paths
+              (LSPs)", RFC 8697, DOI 10.17487/RFC8697, January 2020,
+              <https://www.rfc-editor.org/info/rfc8697>.
+
+8.2.  Informative References
+
+   [PCE-PCEP-YANG]
+              Dhody, D., Ed., Beeram, V., Hardwick, J., and J. Tantsura,
+              "A YANG Data Model for Path Computation Element
+              Communications Protocol (PCEP)", Work in Progress,
+              Internet-Draft, draft-ietf-pce-pcep-yang-20, 23 October
+              2022, <https://datatracker.ietf.org/doc/html/draft-ietf-
+              pce-pcep-yang-20>.
+
+   [RFC4655]  Farrel, A., Vasseur, J.-P., and J. Ash, "A Path
+              Computation Element (PCE)-Based Architecture", RFC 4655,
+              DOI 10.17487/RFC4655, August 2006,
+              <https://www.rfc-editor.org/info/rfc4655>.
+
+   [RFC5541]  Le Roux, JL., Vasseur, JP., and Y. Lee, "Encoding of
+              Objective Functions in the Path Computation Element
+              Communication Protocol (PCEP)", RFC 5541,
+              DOI 10.17487/RFC5541, June 2009,
+              <https://www.rfc-editor.org/info/rfc5541>.
+
+   [RFC6805]  King, D., Ed. and A. Farrel, Ed., "The Application of the
+              Path Computation Element Architecture to the Determination
+              of a Sequence of Domains in MPLS and GMPLS", RFC 6805,
+              DOI 10.17487/RFC6805, November 2012,
+              <https://www.rfc-editor.org/info/rfc6805>.
+
+   [RFC7470]  Zhang, F. and A. Farrel, "Conveying Vendor-Specific
+              Constraints in the Path Computation Element Communication
+              Protocol", RFC 7470, DOI 10.17487/RFC7470, March 2015,
+              <https://www.rfc-editor.org/info/rfc7470>.
+
+   [RFC8051]  Zhang, X., Ed. and I. Minei, Ed., "Applicability of a
+              Stateful Path Computation Element (PCE)", RFC 8051,
+              DOI 10.17487/RFC8051, January 2017,
+              <https://www.rfc-editor.org/info/rfc8051>.
+
+   [RFC8453]  Ceccarelli, D., Ed. and Y. Lee, Ed., "Framework for
+              Abstraction and Control of TE Networks (ACTN)", RFC 8453,
+              DOI 10.17487/RFC8453, August 2018,
+              <https://www.rfc-editor.org/info/rfc8453>.
+
+   [RFC8637]  Dhody, D., Lee, Y., and D. Ceccarelli, "Applicability of
+              the Path Computation Element (PCE) to the Abstraction and
+              Control of TE Networks (ACTN)", RFC 8637,
+              DOI 10.17487/RFC8637, July 2019,
+              <https://www.rfc-editor.org/info/rfc8637>.
+
+   [RFC8751]  Dhody, D., Lee, Y., Ceccarelli, D., Shin, J., and D. King,
+              "Hierarchical Stateful Path Computation Element (PCE)",
+              RFC 8751, DOI 10.17487/RFC8751, March 2020,
+              <https://www.rfc-editor.org/info/rfc8751>.
+
+Contributors
+
+   Dhruv Dhody
+   Huawei Technologies
+   Divyashree Technopark, Whitefield
+   Bangalore 560066
+   Karnataka
+   India
+   Email: dhruv.ietf@gmail.com
+
+
+   Qin Wu
+   Huawei Technologies
+   China
+   Email: bill.wu@huawei.com
+
+
+   Xian Zhang
+   Huawei Technologies
+   China
+   Email: zhang.xian@huawei.com
+
+
+   Adrian Farrel
+   Old Dog Consulting
+   Email: adrian@olddog.co.uk
+
+
+Authors' Addresses
+
+   Young Lee
+   Samsung Electronics
+   Seoul
+   Republic of Korea
+   Email: younglee.tx@gmail.com
+
+
+   Haomian Zheng
+   Huawei Technologies
+   H1, Huawei Xiliu Beipo Village Songshan Lake
+   Dongguan
+   Guangdong, 523808
+   China
+   Email: zhenghaomian@huawei.com
+
+
+   Daniele Ceccarelli
+   Cisco Systems
+   Torshamnsgatan,48
+   Stockholm
+   Sweden
+   Email: daniele.ietf@gmail.com

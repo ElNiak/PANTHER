@@ -1,0 +1,843 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                       M. Reynolds
+Request for Comments: 8209                                          IPSw
+Updates: 6487                                                  S. Turner
+Category: Standards Track                                          sn3rd
+ISSN: 2070-1721                                                  S. Kent
+                                                                     BBN
+                                                          September 2017
+
+
+               A Profile for BGPsec Router Certificates,
+        Certificate Revocation Lists, and Certification Requests
+
+Abstract
+
+   This document defines a standard profile for X.509 certificates used
+   to enable validation of Autonomous System (AS) paths in the Border
+   Gateway Protocol (BGP), as part of an extension to that protocol
+   known as BGPsec.  BGP is the standard for inter-domain routing in the
+   Internet; it is the "glue" that holds the Internet together.  BGPsec
+   is being developed as one component of a solution that addresses the
+   requirement to provide security for BGP.  The goal of BGPsec is to
+   provide full AS path validation based on the use of strong
+   cryptographic primitives.  The end entity (EE) certificates specified
+   by this profile are issued to routers within an AS.  Each of these
+   certificates is issued under a Resource Public Key Infrastructure
+   (RPKI) Certification Authority (CA) certificate.  These CA
+   certificates and EE certificates both contain the AS Resource
+   extension.  An EE certificate of this type asserts that the router or
+   routers holding the corresponding private key are authorized to emit
+   secure route advertisements on behalf of the AS(es) specified in the
+   certificate.  This document also profiles the format of certification
+   requests and specifies Relying Party (RP) certificate path validation
+   procedures for these EE certificates.  This document extends the
+   RPKI; therefore, this document updates the RPKI Resource Certificates
+   Profile (RFC 6487).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 1]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8209.
+
+Copyright Notice
+
+   Copyright (c) 2017 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 2]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+Table of Contents
+
+   1. Introduction ....................................................3
+      1.1. Terminology ................................................4
+   2. Describing Resources in Certificates ............................4
+   3. Updates to RFC 6487 .............................................6
+      3.1. BGPsec Router Certificate Fields ...........................6
+           3.1.1. Subject .............................................6
+           3.1.2. Subject Public Key Info .............................6
+           3.1.3. BGPsec Router Certificate Version 3
+                  Extension Fields ....................................6
+                  3.1.3.1. Basic Constraints ..........................6
+                  3.1.3.2. Extended Key Usage .........................6
+                  3.1.3.3. Subject Information Access .................7
+                  3.1.3.4. IP Resources ...............................7
+                  3.1.3.5. AS Resources ...............................7
+      3.2. BGPsec Router Certificate Request Profile ..................7
+      3.3. BGPsec Router Certificate Validation .......................8
+      3.4. Router Certificates and Signing Functions in the RPKI ......8
+   4. Design Notes ....................................................9
+   5. Implementation Considerations ...................................9
+   6. Security Considerations ........................................10
+   7. IANA Considerations ............................................10
+   8. References .....................................................11
+      8.1. Normative References ......................................11
+      8.2. Informative References ....................................12
+   Appendix A. ASN.1 Module ..........................................14
+   Acknowledgements ..................................................15
+   Authors' Addresses ................................................15
+
+1.  Introduction
+
+   This document defines a profile for X.509 end entity (EE)
+   certificates [RFC5280] for use in the context of certification of
+   Autonomous System (AS) paths in the BGPsec protocol.  Such
+   certificates are termed "BGPsec Router Certificates".  The holder of
+   the private key associated with a BGPsec Router Certificate is
+   authorized to send secure route advertisements (BGPsec UPDATEs) on
+   behalf of the AS(es) named in the certificate.  A router holding the
+   private key is authorized to send route advertisements (to its peers)
+   identifying the router's AS number (ASN) as the source of the
+   advertisements.  A key property provided by BGPsec is that every AS
+   along the AS path can verify that the other ASes along the path have
+   authorized the advertisement of the given route (to the next AS along
+   the AS path).
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 3]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+   This document is a profile of [RFC6487], which is a profile of
+   [RFC5280]; thus, this document updates [RFC6487].  It establishes
+   requirements imposed on a Resource Certificate that is used as a
+   BGPsec Router Certificate, i.e., it defines constraints for
+   certificate fields and extensions for the certificate to be valid in
+   this context.  This document also profiles the certification requests
+   used to acquire BGPsec Router Certificates.  Finally, this document
+   specifies the Relying Party (RP) certificate path validation
+   procedures for these certificates.
+
+1.1.  Terminology
+
+   It is assumed that the reader is familiar with the terms and concepts
+   described in "A Profile for X.509 PKIX Resource Certificates"
+   [RFC6487], "BGPsec Protocol Specification" [RFC8205], "A Border
+   Gateway Protocol 4 (BGP-4)" [RFC4271], "BGP Security Vulnerabilities
+   Analysis" [RFC4272], "Considerations in Validating the Path in BGP"
+   [RFC5123], and "Capabilities Advertisement with BGP-4" [RFC5492].
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  Describing Resources in Certificates
+
+   Figure 1 depicts some of the entities in the Resource Public Key
+   Infrastructure (RPKI) and some of the products generated by RPKI
+   entities.  IANA issues a Certification Authority (CA) certificate to
+   each Regional Internet Registry (RIR).  The RIR in turn issues a
+   CA certificate to an Internet Service Provider (ISP).  The ISP
+   in turn issues EE certificates to itself to enable verification of
+   signatures on RPKI signed objects.  The CA also generates Certificate
+   Revocation Lists (CRLs).  These CA and EE certificates are referred
+   to as "Resource Certificates" and are profiled in [RFC6487].
+   [RFC6480] envisioned using Resource Certificates to enable
+   verification of manifests [RFC6486] and Route Origin Authorizations
+   (ROAs) [RFC6482].  ROAs and manifests include the Resource
+   Certificates used to verify them.
+
+
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 4]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+                +---------+   +------+
+                | CA Cert |---| IANA |
+                +---------+   +------+
+                         \
+                      +---------+   +-----+
+                      | CA Cert |---| RIR |
+                      +---------+   +-----+
+                              \
+                             +---------+   +-----+
+                             | CA Cert |---| ISP |
+                             +---------+   +-----+
+                              / |            | |
+                   +-----+   /  |            | |   +-----+
+                   | CRL |--+   |            | +---| ROA |
+                   +-----+      |            |     +-----+
+                                |            |   +----------+
+                       +----+   |            +---| Manifest |
+                     +-| EE |---+                +----------+
+                     | +----+
+                     +-----+
+
+                                 Figure 1
+
+   This document defines another type of Resource Certificate, which is
+   referred to as a "BGPsec Router Certificate".  The purpose of this
+   certificate is explained in Section 1 and falls within the scope of
+   appropriate uses defined within [RFC6484].  The issuance of BGPsec
+   Router Certificates has minimal impact on RPKI CAs because the RPKI
+   CA certificate and CRL profile remain unchanged (i.e., they are as
+   specified in [RFC6487]).  Further, the algorithms used to generate
+   RPKI CA certificates that issue the BGPsec Router Certificates and
+   the CRLs necessary to check the validity of the BGPsec Router
+   Certificates remain unchanged (i.e., they are as specified in
+   [RFC7935]).  The only impact is that RPKI CAs will need to be able to
+   process a profiled certificate request (see Section 3.2) signed with
+   algorithms found in [RFC8208].  BGPsec Router Certificates are used
+   only to verify the signature on the BGPsec certificate request (only
+   CAs process these) and the signature on a BGPsec UPDATE message
+   [RFC8205] (only BGPsec routers process these); BGPsec Router
+   Certificates are not used to process manifests and ROAs or verify
+   signatures on Certificates or CRLs.
+
+   This document enumerates only the differences between this profile
+   and the profile in [RFC6487].  Note that BGPsec Router Certificates
+   are EE certificates, and as such there is no impact on the algorithm
+   agility procedure described in [RFC6916].
+
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 5]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+3.  Updates to RFC 6487
+
+3.1.  BGPsec Router Certificate Fields
+
+   A BGPsec Router Certificate is consistent with the profile in
+   [RFC6487] as modified by the specifications in this section.  As
+   such, it is a valid X.509 public key certificate and consistent with
+   the PKIX profile [RFC5280].  The differences between this profile and
+   the profile in [RFC6487] are specified in this section.
+
+3.1.1.  Subject
+
+   Encoding options for the common name that are supported are
+   printableString and UTF8String.  For BGPsec Router Certificates, it
+   is RECOMMENDED that the common name attribute contain the literal
+   string "ROUTER-" followed by the 32-bit ASN [RFC3779] encoded as
+   eight hexadecimal digits and that the serial number attribute contain
+   the 32-bit BGP Identifier [RFC4271] (i.e., the router ID) encoded as
+   eight hexadecimal digits.  If there is more than one ASN, the choice
+   of which to include in the common name is at the discretion of the
+   Issuer.  If the same certificate is issued to more than one router
+   (and hence the private key is shared among these routers), the choice
+   of the router ID used in this name is at the discretion of the
+   Issuer.
+
+3.1.2.  Subject Public Key Info
+
+   Refer to Section 3.1 of [RFC8208].
+
+3.1.3.  BGPsec Router Certificate Version 3 Extension Fields
+
+3.1.3.1.  Basic Constraints
+
+   BGPsec speakers are EEs; therefore, the Basic Constraints extension
+   must not be present, as per [RFC6487].
+
+3.1.3.2.  Extended Key Usage
+
+   BGPsec Router Certificates MUST include the Extended Key Usage (EKU)
+   extension.  As specified in [RFC6487], this extension must not be
+   marked critical.  This document defines one EKU for BGPsec Router
+   Certificates:
+
+     id-kp OBJECT IDENTIFIER ::=
+        { iso(1) identified-organization(3) dod(6) internet(1)
+          security(5) mechanisms(5) pkix(7) kp(3) }
+
+     id-kp-bgpsec-router OBJECT IDENTIFIER ::= { id-kp 30 }
+
+
+
+Reynolds, et al.             Standards Track                    [Page 6]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+   A BGPsec router MUST require the EKU extension be present in a BGPsec
+   Router Certificate it receives.  If multiple KeyPurposeId values are
+   included, the BGPsec routers need not recognize all of them, as long
+   as the required KeyPurposeId value is present.  BGPsec routers MUST
+   reject certificates that do not contain the BGPsec Router EKU even if
+   they include the anyExtendedKeyUsage OID defined in [RFC5280].
+
+3.1.3.3.  Subject Information Access
+
+   This extension is not used in BGPsec Router Certificates.  It MUST be
+   omitted.
+
+3.1.3.4.  IP Resources
+
+   This extension is not used in BGPsec Router Certificates.  It MUST be
+   omitted.
+
+3.1.3.5.  AS Resources
+
+   Each BGPsec Router Certificate MUST include the AS Resources
+   extension, as specified in Section 4.8.11 of [RFC6487].  The
+   AS Resources extension MUST include one or more ASNs, and the
+   "inherit" element MUST NOT be specified.
+
+3.2.  BGPsec Router Certificate Request Profile
+
+   Refer to Section 6 of [RFC6487].  The only differences between this
+   profile and the profile in [RFC6487] are as follows:
+
+   o  The Basic Constraints extension:
+
+      If included, the CA MUST NOT honor the cA boolean if set to TRUE.
+
+   o  The EKU extension:
+
+      If included, id-kp-bgpsec-router MUST be present (see
+      Section 3.1.3.2).  If included, the CA MUST honor the request for
+      id-kp-bgpsec-router.
+
+   o  The Subject Information Access (SIA) extension:
+
+      If included, the CA MUST NOT honor the request to include the
+      extension.
+
+   o  The SubjectPublicKeyInfo field is specified in [RFC8208].
+
+   o  The request is signed with the algorithms specified in [RFC8208].
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 7]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+3.3.  BGPsec Router Certificate Validation
+
+   The validation procedure used for BGPsec Router Certificates is
+   identical to the validation procedure described in Section 7 of
+   [RFC6487] (and any RFC that updates that procedure), as modified
+   below.  For example, in step 3 (of the criteria listed in Section 7.2
+   of [RFC6487]), "The certificate contains all fields that MUST be
+   present" refers to the fields that are required by this
+   specification.
+
+   The differences are as follows:
+
+   o  BGPsec Router Certificates MUST include the BGPsec Router EKU
+      defined in Section 3.1.3.2.
+
+   o  BGPsec Router Certificates MUST NOT include the SIA extension.
+
+   o  BGPsec Router Certificates MUST NOT include the IP Resources
+      extension.
+
+   o  BGPsec Router Certificates MUST include the AS Resources
+      extension.
+
+   o  BGPsec Router Certificates MUST include the subjectPublicKeyInfo
+      field described in [RFC8208].
+
+   NOTE: BGPsec RPs will need to support the algorithms in [RFC8208],
+   which are used to validate BGPsec signatures, as well as the
+   algorithms in [RFC7935], which are needed to validate signatures on
+   BGPsec certificates, RPKI CA certificates, and RPKI CRLs.
+
+3.4.  Router Certificates and Signing Functions in the RPKI
+
+   As described in Section 1, the primary function of BGPsec Router
+   Certificates in the RPKI is for use in the context of certification
+   of AS paths in the BGPsec protocol.
+
+   The private key associated with a router EE certificate may be used
+   multiple times in generating signatures in multiple instances of the
+   BGPsec_PATH attribute Signature Segments [RFC8205].  That is, the
+   BGPsec Router Certificate is used to validate multiple signatures.
+
+   BGPsec Router Certificates are stored in the issuing CA's repository,
+   where a repository following [RFC6481] MUST use a .cer filename
+   extension for the certificate file.
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 8]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+4.  Design Notes
+
+   The BGPsec Router Certificate profile is based on the Resource
+   Certificate profile as specified in [RFC6487].  As a result, many of
+   the design choices herein are a reflection of the design choices that
+   were taken in that prior work.  The reader is referred to [RFC6484]
+   for a fuller discussion of those choices.
+
+   CAs are required by the Certificate Policy (CP) [RFC6484] to issue
+   properly formed BGPsec Router Certificates regardless of what is
+   present in the certificate request, so there is some flexibility
+   permitted in the certificate requests:
+
+   o  BGPsec Router Certificates are always EE certificates; therefore,
+      requests to issue a CA certificate result in EE certificates;
+
+   o  BGPsec Router Certificates are always EE certificates; therefore,
+      requests for Key Usage extension values keyCertSign and cRLSign
+      result in certificates with neither of these values;
+
+   o  BGPsec Router Certificates always include the BGPsec Router EKU
+      value; therefore, requests without the value result in
+      certificates with the value; and,
+
+   o  BGPsec Router Certificates never include the SIA extension;
+      therefore, requests with this extension result in certificates
+      without the extension.
+
+   Note that this behavior is similar to the CA including the
+   AS Resources extension in issued BGPsec Router Certificates, despite
+   the fact that it is not present in the request.
+
+5.  Implementation Considerations
+
+   This document permits the operator to include a list of ASNs in a
+   BGPsec Router Certificate.  In that case, the router certificate
+   would become invalid if any one of the ASNs is removed from any
+   superior CA certificate along the path to a trust anchor.  Operators
+   could choose to avoid this possibility by issuing a separate BGPsec
+   Router Certificate for each distinct ASN, so that the router
+   certificates for ASNs that are retained in the superior CA
+   certificate would remain valid.
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                    [Page 9]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+6.  Security Considerations
+
+   The security considerations of [RFC6487] apply.
+
+   A BGPsec Router Certificate will fail RPKI validation as defined in
+   [RFC6487] because the cryptographic algorithms used are different.
+   Consequently, an RP needs to identify the EKU to determine the
+   appropriate Validation constraint.
+
+   A BGPsec Router Certificate is an extension of the RPKI [RFC6480] to
+   encompass routers.  It is a building block of BGPsec and is used to
+   validate signatures on BGPsec Signature Segment origination of
+   signed path segments [RFC8205].  Thus, its essential security
+   function is the secure binding of one or more ASNs to a public key,
+   consistent with the RPKI allocation/assignment hierarchy.
+
+   Hash functions [RFC8208] are used when generating the two key
+   identifier extensions (i.e., Subject Key Identifier and Issuer Key
+   Identifier) included in BGPsec certificates.  However, as noted in
+   [RFC6818], collision resistance is not a required property of one-way
+   hash functions when used to generate key identifiers.  Regardless,
+   hash collisions are unlikely, but they are possible, and if detected
+   an operator should be alerted.  A Subject Key Identifier collision
+   might cause the incorrect certificate to be selected from the cache,
+   resulting in a failed signature validation.
+
+7.  IANA Considerations
+
+   This document makes use of two OIDs in the SMI registry for PKIX.
+   One is for the ASN.1 module [X680] [X690] in Appendix A, and it comes
+   from the "SMI Security for PKIX Module Identifier" IANA registry
+   (id-mod-bgpsec-eku).  The other is for the BGPsec Router EKU defined
+   in Section 3.1.3.2 and Appendix A, and it comes from the "SMI
+   Security for PKIX Extended Key Purpose" IANA registry
+   (id-kp-bgpsec-router).  These OIDs were assigned before management of
+   the PKIX Arc was handed to IANA.  The references in those registries
+   have been updated to point to this document.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                   [Page 10]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+8.  References
+
+8.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC3779]  Lynn, C., Kent, S., and K. Seo, "X.509 Extensions for
+              IP Addresses and AS Identifiers", RFC 3779,
+              DOI 10.17487/RFC3779, June 2004,
+              <https://www.rfc-editor.org/info/rfc3779>.
+
+   [RFC4271]  Rekhter, Y., Ed., Li, T., Ed., and S. Hares, Ed., "A
+              Border Gateway Protocol 4 (BGP-4)", RFC 4271,
+              DOI 10.17487/RFC4271, January 2006,
+              <https://www.rfc-editor.org/info/rfc4271>.
+
+   [RFC5280]  Cooper, D., Santesson, S., Farrell, S., Boeyen, S.,
+              Housley, R., and W. Polk, "Internet X.509 Public Key
+              Infrastructure Certificate and Certificate Revocation List
+              (CRL) Profile", RFC 5280, DOI 10.17487/RFC5280, May 2008,
+              <https://www.rfc-editor.org/info/rfc5280>.
+
+   [RFC6481]  Huston, G., Loomans, R., and G. Michaelson, "A Profile for
+              Resource Certificate Repository Structure", RFC 6481,
+              DOI 10.17487/RFC6481, February 2012,
+              <https://www.rfc-editor.org/info/rfc6481>.
+
+   [RFC6486]  Austein, R., Huston, G., Kent, S., and M. Lepinski,
+              "Manifests for the Resource Public Key Infrastructure
+              (RPKI)", RFC 6486, DOI 10.17487/RFC6486, February 2012,
+              <https://www.rfc-editor.org/info/rfc6486>.
+
+   [RFC6487]  Huston, G., Michaelson, G., and R. Loomans, "A Profile for
+              X.509 PKIX Resource Certificates", RFC 6487,
+              DOI 10.17487/RFC6487, February 2012,
+              <https://www.rfc-editor.org/info/rfc6487>.
+
+   [RFC7935]  Huston, G. and G. Michaelson, Ed., "The Profile for
+              Algorithms and Key Sizes for Use in the Resource Public
+              Key Infrastructure", RFC 7935, DOI 10.17487/RFC7935,
+              August 2016, <https://www.rfc-editor.org/info/rfc7935>.
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                   [Page 11]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in
+              RFC 2119 Key Words", BCP 14, RFC 8174,
+              DOI 10.17487/RFC8174, May 2017,
+              <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8205]  Lepinski, M., Ed., and K. Sriram, Ed., "BGPsec Protocol
+              Specification", RFC 8205, DOI 10.17487/RFC8205,
+              September 2017,
+              <https://www.rfc-editor.org/info/rfc8205>.
+
+   [RFC8208]  Turner, S. and O. Borchert, "BGP Algorithms, Key Formats,
+              and Signature Formats", RFC 8208, DOI 10.17487/RFC8208,
+              September 2017,
+              <https://www.rfc-editor.org/info/rfc8208>.
+
+   [X680]     ITU-T, "Information technology - Abstract Syntax
+              Notation One (ASN.1): Specification of basic notation",
+              ITU-T Recommendation X.680, ISO/IEC 8824-1, August 2015,
+              <https://www.itu.int/rec/T-REC-X.680/en>.
+
+   [X690]     ITU-T, "Information technology - ASN.1 encoding rules:
+              Specification of Basic Encoding Rules (BER), Canonical
+              Encoding Rules (CER) and Distinguished Encoding Rules
+              (DER)", ITU-T Recommendation X.690, ISO/IEC 8825-1,
+              August 2015, <https://www.itu.int/rec/T-REC-X.690/en>.
+
+8.2.  Informative References
+
+   [RFC4272]  Murphy, S., "BGP Security Vulnerabilities Analysis",
+              RFC 4272, DOI 10.17487/RFC4272, January 2006,
+              <https://www.rfc-editor.org/info/rfc4272>.
+
+   [RFC5123]  White, R. and B. Akyol, "Considerations in Validating the
+              Path in BGP", RFC 5123, DOI 10.17487/RFC5123,
+              February 2008, <https://www.rfc-editor.org/info/rfc5123>.
+
+   [RFC5492]  Scudder, J. and R. Chandra, "Capabilities Advertisement
+              with BGP-4", RFC 5492, DOI 10.17487/RFC5492,
+              February 2009, <https://www.rfc-editor.org/info/rfc5492>.
+
+   [RFC6480]  Lepinski, M. and S. Kent, "An Infrastructure to Support
+              Secure Internet Routing", RFC 6480, DOI 10.17487/RFC6480,
+              February 2012, <https://www.rfc-editor.org/info/rfc6480>.
+
+   [RFC6482]  Lepinski, M., Kent, S., and D. Kong, "A Profile for Route
+              Origin Authorizations (ROAs)", RFC 6482,
+              DOI 10.17487/RFC6482, February 2012,
+              <https://www.rfc-editor.org/info/rfc6482>.
+
+
+
+Reynolds, et al.             Standards Track                   [Page 12]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+   [RFC6484]  Kent, S., Kong, D., Seo, K., and R. Watro, "Certificate
+              Policy (CP) for the Resource Public Key Infrastructure
+              (RPKI)", BCP 173, RFC 6484, DOI 10.17487/RFC6484,
+              February 2012, <https://www.rfc-editor.org/info/rfc6484>.
+
+   [RFC6818]  Yee, P., "Updates to the Internet X.509 Public Key
+              Infrastructure Certificate and Certificate Revocation List
+              (CRL) Profile", RFC 6818, DOI 10.17487/RFC6818,
+              January 2013, <https://www.rfc-editor.org/info/rfc6818>.
+
+   [RFC6916]  Gagliano, R., Kent, S., and S. Turner, "Algorithm Agility
+              Procedure for the Resource Public Key Infrastructure
+              (RPKI)", BCP 182, RFC 6916, DOI 10.17487/RFC6916,
+              April 2013, <https://www.rfc-editor.org/info/rfc6916>.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                   [Page 13]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+Appendix A.  ASN.1 Module
+
+   BGPSECEKU { iso(1) identified-organization(3) dod(6) internet(1)
+     security(5) mechanisms(5) pkix(7) id-mod(0) id-mod-bgpsec-eku(84) }
+
+     DEFINITIONS EXPLICIT TAGS ::=
+
+     BEGIN
+
+     -- EXPORTS ALL --
+
+     -- IMPORTS NOTHING --
+
+     -- OID Arc --
+
+     id-kp  OBJECT IDENTIFIER  ::= {
+       iso(1) identified-organization(3) dod(6) internet(1)
+       security(5) mechanisms(5) pkix(7) kp(3) }
+
+     -- BGPsec Router Extended Key Usage --
+
+     id-kp-bgpsec-router OBJECT IDENTIFIER ::= { id-kp 30 }
+
+     END
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                   [Page 14]
+
+RFC 8209                BGPsec Router PKI Profile         September 2017
+
+
+Acknowledgements
+
+   We would like to thank Geoff Huston, George Michaelson, and Robert
+   Loomans for their work on [RFC6487], which this work is based on.  In
+   addition, the efforts of Matt Lepinski were instrumental in preparing
+   this work.  Additionally, we'd like to thank Rob Austein, Roque
+   Gagliano, Richard Hansen, Geoff Huston, David Mandelberg, Sandra
+   Murphy, and Sam Weiler for their reviews and comments.
+
+Authors' Addresses
+
+   Mark Reynolds
+   Island Peak Software
+   328 Virginia Road
+   Concord, MA  01742
+   United States of America
+
+   Email: mcr@islandpeaksoftware.com
+
+
+   Sean Turner
+   sn3rd
+
+   Email: sean@sn3rd.com
+
+
+   Stephen Kent
+   Raytheon BBN Technologies
+   10 Moulton St.
+   Cambridge, MA  02138
+   United States of America
+
+   Email: kent@alum.mit.edu
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Reynolds, et al.             Standards Track                   [Page 15]
+

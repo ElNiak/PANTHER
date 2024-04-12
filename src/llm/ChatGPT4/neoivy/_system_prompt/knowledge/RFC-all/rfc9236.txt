@@ -1,0 +1,600 @@
+﻿
+
+
+
+Internet Research Task Force (IRTF)                              J. Hong
+Request for Comments: 9236                                        T. You
+Category: Informational                                             ETRI
+ISSN: 2070-1721                                                 V. Kafle
+                                                                    NICT
+                                                              April 2022
+
+
+  Architectural Considerations of Information-Centric Networking (ICN)
+                    Using a Name Resolution Service
+
+Abstract
+
+   This document describes architectural considerations and implications
+   related to the use of a Name Resolution Service (NRS) in Information-
+   Centric Networking (ICN).  It explains how the ICN architecture can
+   change when an NRS is utilized and how its use influences the ICN
+   routing system.  This document is a product of the Information-
+   Centric Networking Research Group (ICNRG).
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+   This document is a product of the Internet Research Task Force
+   (IRTF).  The IRTF publishes the results of Internet-related research
+   and development activities.  These results might not be suitable for
+   deployment.  This RFC represents the consensus of the Information-
+   Centric Networking Research Group of the Internet Research Task Force
+   (IRTF).  Documents approved for publication by the IRSG are not
+   candidates for any level of Internet Standard; see Section 2 of RFC
+   7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc9236.
+
+Copyright Notice
+
+   Copyright (c) 2022 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.
+
+Table of Contents
+
+   1.  Introduction
+   2.  Terminology
+   3.  Background
+   4.  Implications of an NRS in ICN
+   5.  ICN Architectural Considerations for NRS
+     5.1.  Name Mapping Records Registration, Resolution, and Update
+     5.2.  Protocols and Semantics
+     5.3.  Routing System
+   6.  Conclusion
+   7.  IANA Considerations
+   8.  Security Considerations
+   9.  References
+     9.1.  Normative References
+     9.2.  Informative References
+   Acknowledgements
+   Authors' Addresses
+
+1.  Introduction
+
+   Information-Centric Networking (ICN) is an approach to evolving the
+   Internet infrastructure to provide direct access to Named Data
+   Objects (NDOs) by names.  In two common ICN architectures, Named Data
+   Networking (NDN) [NDN] and Content-Centric Networking (CCNx) [CCNx],
+   the name of an NDO is used directly to route a request to retrieve
+   the data object.  Such direct name-based routing has inherent
+   challenges in enabling a globally scalable routing system,
+   accommodating producer mobility, and supporting off-path caching.
+   These specific issues are discussed in detail in Section 3.  In order
+   to address these challenges, a Name Resolution Service (NRS) has been
+   utilized in the literature as well as the proposals of several ICN
+   projects [Afanasyev] [Zhang2] [Ravindran] [SAIL] [MF] [Bayhan].
+
+   This document describes the potential changes in the ICN architecture
+   caused by the introduction of an NRS and the corresponding
+   implication to the ICN routing system.  It also describes ICN
+   architectural considerations for the integration of an NRS.  The
+   scope of this document includes considerations from the perspective
+   of an ICN architecture and routing system when using an NRS in ICN.
+   A description of the NRS itself is provided in the companion NRS
+   design considerations document [RFC9138], which provides the NRS
+   approaches, functions, and design considerations.
+
+   This document represents the consensus of the Information-Centric
+   Networking Research Group (ICNRG).  It has been reviewed extensively
+   by the Research Group (RG) members who are actively involved in the
+   research and development of the technology covered by this document.
+   It is not an IETF product and is not a standard.
+
+2.  Terminology
+
+   Name Resolution Service (NRS):  An NRS in ICN is defined as a service
+      that provides the function of translating a content name or a data
+      object name into some other information such as a routable prefix,
+      a locator, an off-path-cache pointer, or an alias name that is
+      more amenable than the input name to forwarding the object request
+      toward the target destination storing the NDO [RFC9138].  An NRS
+      is most likely implemented through the use of a distributed
+      mapping database system.  The Domain Name System (DNS) may be used
+      as an NRS.  However, in this case, the requirements of frequent
+      updates of NRS records due to the creations of a lot of new NDOs
+      and changes in their locations in the network need to be
+      considered.
+
+   NRS server:  An NRS comprises the distributed NRS servers storing the
+      mapping records in their databases.  NRS servers store and
+      maintain the mapping records that keep the mappings of content or
+      object name to some other information that is used for forwarding
+      the content request or the content itself.
+
+   NRS resolver:  The client-side function of an NRS is called an NRS
+      resolver.  The NRS resolver is responsible for initiating name
+      resolution request queries that ultimately lead to a name
+      resolution of the target data objects.  NRS resolvers can be
+      located in the consumer (or client) nodes and/or ICN routers.  An
+      NRS resolver may also cache the mapping records obtained through
+      the name resolution for later usage.
+
+   Name registration:  In order to populate the NRS, the content names
+      and their mapping records must be registered in the NRS system by
+      a publisher who has access rights to at least one authoritative
+      NRS server or by a producer who generates named data objects.  The
+      records contain the mapping of an object name to some information
+      such as other alias names, routable prefixes, and locators, which
+      are used for forwarding the content request.  Thus, a publisher or
+      producer of content creates an NRS registration request and sends
+      it to an NRS server.  On registration, the NRS server stores (or
+      updates) the name mapping record in the database and sends an
+      acknowledgement back to the producer or publisher that made the
+      registration request.
+
+   Name resolution:  Name resolution is the main function of the NRS
+      system.  It is performed by an NRS resolver, which can be deployed
+      on a consumer node or an ICN router.  Resolvers are responsible
+      for either returning a cached mapping record (whose lifetime has
+      not expired) or alternatively sending a name resolution request
+      toward an NRS server.  The NRS server searches for the content
+      name in its mapping record database and, if found, retrieves the
+      mapping record and returns it in a name resolution response
+      message to the NRS resolver.
+
+   NRS node:  NRS servers are also referred to as NRS nodes that
+      maintain the name records.  The terms are used interchangeably.
+
+   NRS client:  A node that uses the NRS is called an NRS client.  Any
+      node that initiates a name registration, resolution, or update
+      procedure is an NRS client; that is, NRS resolvers, ICN client
+      nodes, ICN routers, or producers can be NRS clients.
+
+3.  Background
+
+   A pure name-based routing approach in ICN has inherent challenges in
+   enabling a globally scalable routing system, accommodating producer
+   mobility, and supporting off-path caching.  In order to address these
+   challenges, an NRS has been utilized in proposals and literature of
+   several ICN projects as follows:
+
+   Routing scalability:  In ICN, application names identifying content
+      are intended to be used directly for packet delivery, so ICN
+      routers run a name-based routing protocol to build name-based
+      routing and forwarding tables.  Similar to the scalability
+      challenge of IP routing, if non-aggregatable name prefixes are
+      injected into the Default Route Free Zone (DFZ) of ICN routers,
+      they would be driving the uncontrolled growth of the DFZ routing
+      table size.  Thus, providing the level of indirection enabled by
+      an NRS in ICN can be an approach to keeping the routing table size
+      under control.  The NRS system resolves name prefixes that do not
+      exist in the DFZ forwarding table into globally routable prefixes
+      such as the one proposed in NDN [Afanasyev].  Another approach
+      dealing with routing scalability is the Multi-level Distributed
+      Hash Table (MDHT) used in NetInf [Dannewitz].  It provides name-
+      based anycast routing that can support a non-hierarchical
+      namespace and can be adopted on a global scale [Dannewitz2].
+
+   Producer mobility:  In ICN, if a producer moves into a different name
+      domain that uses a different name prefix, the request for a
+      content produced by the moving producer with the origin content
+      name must be forwarded to the moving producer's new location.
+      Especially in a hierarchical naming scheme, producer mobility
+      support is much harder than in a flat naming scheme since the
+      routing tables in a broader area need to be updated to track the
+      producer movement.  Therefore, various ICN architectures such as
+      NetInf [Dannewitz] and MobilityFirst [MF] have adopted NRS systems
+      to tackle the issues of producers whose location changes.
+
+   Off-path caching:  In-network caching is a common feature of an ICN
+      architecture.  Caching approaches can be categorized into on-path
+      caching and off-path caching, according to the location of caches
+      in relation to the forwarding path from the original content store
+      to a consumer.  Off-path caching, sometimes also referred to as
+      content replication or content storing, aims to replicate a Named
+      Data Object in various locations within a network in order to
+      increase the availability of content, reduce access latency, or
+      both.  These caching locations may not be lying along the content
+      forwarding path.  Thus, finding off-path cached content requires
+      more complex forwarding procedures if a pure name-based routing is
+      employed.  In order to support access to off-path caches, the
+      locations of replicas are usually advertised into a name-based
+      routing system or into an NRS as described in [Bayhan].
+
+   This document discusses architectural considerations and implications
+   of ICN when an NRS is utilized to solve such challenges facing a
+   name-based routing in ICN.
+
+4.  Implications of an NRS in ICN
+
+   An NRS is not a mandatory part of an ICN architecture, as the
+   majority of ICN architectures uses name-based routing that avoids the
+   need for a name resolution procedure.  Therefore, the utilization of
+   an NRS in an ICN architecture changes some architectural aspects at
+   least with respect to forwarding procedures, latency, and security,
+   as discussed below:
+
+   Forwarding procedure:  When an NRS is included in an ICN
+      architecture, the name resolution procedure has to be included in
+      the ICN overall routing and forwarding architectural procedures.
+      To integrate an NRS into an ICN architecture, there are certain
+      things that have to be decided and specified such as where, when,
+      and how the name resolution task is performed.
+
+   Latency:  When an NRS is included in an ICN architecture, additional
+      latency introduced by the name resolution process is incurred by
+      the routing and forwarding system.  Although the latency due to
+      the name resolution is added, the total latency of individual
+      requests being served could be lower if the nearest copies or off-
+      path caches can be located by the NRS lookup procedure.
+      Additionally, there might be a favorable trade-off between the
+      name resolution latency and inter-domain traffic reduction by
+      finding the nearest off-path cached copy of the content.  Finding
+      the nearest cache holding the content might significantly reduce
+      the content discovery as well as delivery latency.
+
+   Security:  When any new component such as an NRS is introduced in the
+      ICN architecture, the attack surface may increase.  Protection of
+      the NRS system itself against attacks such as Distributed Denial
+      of Service (DDoS) and spoofing or alteration of name mapping
+      records and related signaling messages may be challenging.
+
+5.  ICN Architectural Considerations for NRS
+
+   This section discusses the various items that can be considered from
+   the perspective of ICN architecture when employing an NRS system.
+   These items are related to the registration, resolution, and update
+   of name mapping records, protocols and messages, and integration with
+   the routing system.
+
+5.1.  Name Mapping Records Registration, Resolution, and Update
+
+   When an NRS is integrated in ICN architecture, the functions related
+   to the registration, resolution, and update of name mapping records
+   have to be considered.  The NRS nodes maintain the name mapping
+   records and may exist as an overlay network over the ICN routers,
+   that is, they communicate to each other through ICN routers.
+   Figure 1 shows the NRS nodes and NRS clients connected through an
+   underlying network.  The NRS nodes should be deployed in such a
+   manner that an NRS node is always available at a short distance from
+   an NRS client so that communication latency for the name registration
+   and resolution requested by the NRS client remains very low.  The
+   name registration, name resolution, and name record update procedures
+   are briefly discussed below.
+
+                  +------------+             +------------+
+                  |  NRS Node  |             |  NRS Node  |
+                  +------------+             +------------+
+                        |                          |
+                        |                          |
+     +------------+     |                          |     +------------+
+     | NRS Client |--------------------------------------| NRS Client |
+     +------------+         underlying network           +------------+
+
+          Figure 1: NRS Nodes and NRS Clients Connected through an
+                             Underlying Network
+
+
+   Name registration:  Name registration is performed by the producer
+      (as an NRS client) when it creates a new content.  When a producer
+      creates content and assigns a name from its name prefix space to
+      the content, the producer performs the name registration in an NRS
+      node.  Name registration may be performed by an ICN router when
+      the ICN architecture supports off-path caching or cooperative
+      caching since involving an NRS may be a good idea for off-path
+      caching.  The ICN routers with forwarder caches do not require
+      name registration for their cached content because they lie on the
+      path toward an upstream content store or producer.  They will be
+      hit when a future request is forwarded to the content producer by
+      an ICN router lying downstream toward the ICN client node.
+      However, ICN routers performing off-path caching of content must
+      invoke the name registration procedure so that other ICN routers
+      can depend on name resolutions to know about the off-path cache
+      locations.  If a content gets cached in many off-path ICN routers,
+      all of them may register the same content names in the same NRS
+      node, resulting in multiple registration actions.  In this case,
+      the NRS node adds the new location of the content to the name
+      record together with the previous locations.  In this way, each of
+      the name records stored in the NRS node may contain multiple
+      locations of the content.  Assigning validity time or a lifetime
+      of each mapping record may be considered especially for the off-
+      path caching content and managing mobility.
+
+   Name resolution:  Name resolution is performed by an NRS client to
+      obtain the name record from an NRS node by sending a name
+      resolution request message and getting a response containing the
+      record.  In the name-based ICN routing context, the name
+      resolution is needed by any ICN router whose forwarding
+      information base (FIB) does not contain the requested name prefix.
+      Name resolution may also be performed by the consumer (especially
+      in the case where the consumer is multihomed) to forward the
+      content request in a better direction so that it obtains the
+      content from the nearest cache.  If the consumer is single homed,
+      it may not bother to perform name resolution, instead depending on
+      either straightforward name-based routing or name resolution by an
+      upstream ICN router.  In this case, the consumer creates the
+      content request packet containing the content name and forwards to
+      the nearest ICN router.  The ICN router checks its FIB table to
+      see where to forward the content request.  If the ICN router fails
+      to identify whether the requested content is reachable, it
+      performs name resolution to obtain the name mapping record and
+      adds this information to its FIB.  The ICN router may also perform
+      name resolution even before the arrival of a content request to
+      use the name mapping record to configure its FIB.
+
+   Name record update:  Name record update is carried out when a content
+      name mapping record changes, e.g., the content is not available in
+      one or more of the previous locations.  The name record update
+      includes the substitution and deletion of the name mapping
+      records.  The name record update may take place explicitly by the
+      exchange of name record update messages or implicitly when a
+      timeout occurs and a name record is deemed to be invalid.  The
+      implicit update is possible when each record is accompanied by a
+      lifetime value.  The lifetime can be renewed only by the
+      authoritative producer or node.  The cached mapping records get
+      erased after the lifetime expires unless a lifetime extension
+      indication is obtained from the authoritative producer.
+
+5.2.  Protocols and Semantics
+
+   In order to develop an NRS system within a local ICN network domain
+   or global ICN network domain, new protocols and semantics must be
+   designed and implemented to manage and resolve names among different
+   namespaces.
+
+   One way of implementing an NRS for CCNx is by extending the basic TLV
+   format and semantics [RFC8569] [RFC8609].  For instance, name
+   resolution and response messages can be implemented by defining new
+   type fields in the Interest and Content Object messages [CCNxNRS].
+   By leveraging the existing CCNx Interest and Content Object packets
+   for name resolution and registration, the NRS system can be deployed
+   with a few ICN protocol changes.  However, because of confining the
+   changes to the basic ICN protocol and semantics, the NRS system may
+   not be able to exploit more flexible and scalable designs.
+
+   On the other hand, an NRS system can be designed independently with
+   its own protocol and semantics like the NRS system described in
+   [Hong].  For instance, the NRS protocol and messages can be
+   implemented by using a RESTful API, and the NRS can be operated as an
+   application protocol independent of the rest of the ICN protocol.
+
+5.3.  Routing System
+
+   An NRS reduces the routing complexity of ICN architecture compared to
+   pure name-based routing.  It does so by permitting the routing system
+   to update the routing table on demand with the help of name records
+   obtained from NRS.  The routing system therefore needs to make name
+   resolution requests and process the information returned, such as a
+   prefix, a locator, an off-path-cache pointer, or an alias name,
+   obtained from the name resolution.
+
+   No matter what kind of information is obtained from the name
+   resolution, as long as it is in the form of a name, the content
+   request message in the routing system may be reformatted with the
+   obtained information.  In this case, the content name requested
+   originally by a consumer needs to be involved in the reformatted
+   content request to check the integrity of the binding between the
+   name and the requested content.  In other words, the information
+   obtained from the name resolution is used to forward the content
+   request, and the original content name requested by a consumer is
+   used to identify the content.  Alternatively, the resolved
+   information may be used to build the routing table.
+
+   The information obtained from name resolution may not be in the form
+   of a name.  For example, it may identify tunnel endpoints by IP
+   address and instead be used to construct an IP protocol tunnel
+   through which to forward the content request.
+
+6.  Conclusion
+
+   A Name Resolution Service (NRS) is not a mandatory part in an ICN
+   architecture, as the majority of ICN architectures use name-based
+   routing that does not employ a name resolution procedure.  However,
+   such name-based routing in ICN has inherent challenges in enabling a
+   globally scalable routing system, accommodating producer mobility,
+   and supporting off-path caching.  In order to address these
+   challenges, an NRS system has been introduced in several ICN
+   projects.  Therefore, this document describes how the ICN
+   architecture changes when an NRS is utilized and how this affects the
+   ICN routing system.
+
+   The document defines a few terminologies related to an NRS and
+   explains some inherent challenges of pure name-based routing in ICN
+   such as routing scalability, producer mobility, and off-path caching.
+   This document describes how the ICN architecture would change with
+   respect to procedures, latency, and security when an NRS is utilized.
+   According to the ICN architectural changes, this document describes
+   ICN architectural considerations for NRS such as the functions
+   related to the registration, resolution and update of name mapping
+   records, protocols and semantics to implement an NRS system, and the
+   routing system involving the name resolution.
+
+7.  IANA Considerations
+
+   This document has no IANA actions.
+
+8.  Security Considerations
+
+   When any new component such as an NRS is introduced in the ICN
+   architecture, the attack surface increases.  The related security
+   vulnerability issues are discussed below:
+
+   Namespace security:  In order to deploy an NRS system in ICN
+      architecture, ICN namespaces, which may be assigned by
+      authoritative entities, must be securely mapped to the content
+      publishers and securely managed by them.  According to the ICN
+      research challenges [RFC7927], a new namespace can also provide an
+      integrity verification function to authenticate its publisher.
+      The issues of namespace authentication and the mapping among
+      different namespaces require further investigation.
+
+   NRS system security:  An NRS requires the deployment of new entities
+      (e.g., NRS servers) to build distributed and scalable NRS systems.
+      Thus, the entities, e.g., an NRS server maintaining a mapping
+      database, could be the focus of attacks by receiving malicious
+      requests from innumerable adversaries comprising of Denial-of-
+      Service or Distributed-Denial-of-Service attacks.  In addition,
+      NRS clients in general must trust the NRS nodes in other network
+      domains to some degree, and communication among them must also be
+      protected securely to prevent malicious entities from
+      participating in this communication.  The history of name
+      resolution data requires to be stored and analyzed as in passive
+      DNS to uncover potential security incidents or discover malicious
+      infrastructures.
+
+   NRS protocol and message security:  In an NRS system, the protocols
+      to generate, transmit, and receive NRS messages related to the
+      name registration, resolution, and record update should be
+      protected by proper security mechanisms.  Proper security measures
+      must be provided so that only legitimate nodes can initiate and
+      read NRS messages.  These messages must be secured by integrity
+      protection and authentication mechanisms so that unauthorized
+      parties cannot manipulate them when being forwarded through the
+      network.  Security measures to encrypt these messages should also
+      be developed to thwart all threats to both security and privacy.
+      Numerous problems similar to the security issues of an IP network
+      and DNS can affect the overall ICN architecture.  The DNS QNAME
+      minimization type of approach would be suitable for preserving
+      privacy in the name resolution process.  Therefore, security
+      mechanisms such as accessibility, authentication, etc., for the
+      NRS system [RFC9138] should be considered to protect not only the
+      NRS system but also the ICN architecture overall.
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC7927]  Kutscher, D., Ed., Eum, S., Pentikousis, K., Psaras, I.,
+              Corujo, D., Saucez, D., Schmidt, T., and M. Waehlisch,
+              "Information-Centric Networking (ICN) Research
+              Challenges", RFC 7927, DOI 10.17487/RFC7927, July 2016,
+              <https://www.rfc-editor.org/info/rfc7927>.
+
+   [RFC8569]  Mosko, M., Solis, I., and C. Wood, "Content-Centric
+              Networking (CCNx) Semantics", RFC 8569,
+              DOI 10.17487/RFC8569, July 2019,
+              <https://www.rfc-editor.org/info/rfc8569>.
+
+   [RFC8609]  Mosko, M., Solis, I., and C. Wood, "Content-Centric
+              Networking (CCNx) Messages in TLV Format", RFC 8609,
+              DOI 10.17487/RFC8609, July 2019,
+              <https://www.rfc-editor.org/info/rfc8609>.
+
+   [RFC9138]  Hong, J., You, T., Dong, L., Westphal, C., and B. Ohlman,
+              "Design Considerations for Name Resolution Service in
+              Information-Centric Networking (ICN)", RFC 9138,
+              DOI 10.17487/RFC9138, December 2021,
+              <https://www.rfc-editor.org/info/rfc9138>.
+
+9.2.  Informative References
+
+   [Afanasyev]
+              Afanasyev, A., Yi, C., Wang, L., Zhang, B., and L. Zhang,
+              "SNAMP: Secure namespace mapping to scale NDN forwarding",
+              2015 IEEE Conference on Computer Communications Workshops
+              (INFOCOM WKSHPS), DOI 10.1109/INFCOMW.2015.7179398, April
+              2015, <https://doi.org/10.1109/INFCOMW.2015.7179398>.
+
+   [Bayhan]   Bayhan, S., Ott, J., Kangasharju, J., Sathiaseelan, A.,
+              and J. Crowcroft, "On Content Indexing for Off-Path
+              Caching in Information-Centric Networks", ACM ICN,
+              DOI 10.1145/2984356.2984372, September 2016,
+              <https://doi.org/10.1145/2984356.2984372>.
+
+   [CCNx]     "Cicn", <https://wiki.fd.io/view/Cicn>.
+
+   [CCNxNRS]  Hong, J., You, T., and Y. Hong, "CCNx Extension for Name
+              Resolution Service", Work in Progress, Internet-Draft,
+              draft-hong-icnrg-ccnx-nrs-02, 2 July 2018,
+              <https://datatracker.ietf.org/doc/html/draft-hong-icnrg-
+              ccnx-nrs-02>.
+
+   [Dannewitz]
+              Dannewitz, C., Kutscher, D., Ohlman, B., Farrell, S.,
+              Ahlgren, B., and H. Karl, "Network of Information (NetInf)
+              - An information-centric networking architecture",
+              Computer Communications vol. 36, issue 7,
+              DOI 10.1016/j.comcom.2013.01.009, April 2013,
+              <https://doi.org/10.1016/j.comcom.2013.01.009>.
+
+   [Dannewitz2]
+              Dannewitz, C., D'Ambrosio, M., and V. Vercellone,
+              "Hierarchical DHT-based name resolution for information-
+              centric networks", Computer Communications vol. 36, issue
+              7, DOI 10.1016/j.comcom.2013.01.014, April 2013,
+              <https://doi.org/10.1016/j.comcom.2013.01.014>.
+
+   [Hong]     Hong, J., Chun, W., and H. Jung, "Demonstrating a Scalable
+              Name Resolution System for Information-Centric
+              Networking", ACM ICN, DOI 10.1145/2810156.2812617,
+              September 2015, <https://doi.org/10.1145/2810156.2812617>.
+
+   [MF]       Future Internet Architecture (FIA), "MobilityFirst",
+              <http://mobilityfirst.cs.umass.edu/>.
+
+   [NDN]      NDN, "Named Data Networking", September 2010,
+              <https://www.named-data.net>.
+
+   [Ravindran]
+              Ravindran, R., Chakraborti, A., and A. Azgin, "Forwarding
+              Label support in CCN Protocol", Work in Progress,
+              Internet-Draft, draft-ravi-icnrg-ccn-forwarding-label-02,
+              5 March 2018, <https://datatracker.ietf.org/doc/html/
+              draft-ravi-icnrg-ccn-forwarding-label-02>.
+
+   [SAIL]     "Scalable and Adaptive Internet Solutions (SAIL)",
+              <https://www.sail-project.eu/>.
+
+   [Zhang2]   Zhang, Y., Afanasyev, A., Burke, J., and L. Zhang, "A
+              Survey of Mobility Support in Named Data Networking",
+              Named Data Networking, Workshop on Name-Oriented Mobility:
+              Architecture, Algorithms and Applications (NOM), April
+              2016.
+
+Acknowledgements
+
+   The authors would like to thank Dave Oran (ICNRG Co-chair) for very
+   useful reviews and comments, which helped to immeasurably improve
+   this document.
+
+Authors' Addresses
+
+   Jungha Hong
+   ETRI
+   Yuseung-Gu
+   218 Gajeong-ro
+   Daejeon
+   34129
+   Republic of Korea
+   Email: jhong@etri.re.kr
+
+
+   Tae-Wan You
+   ETRI
+   Yuseung-Gu
+   218 Gajeong-ro
+   Daejeon
+   34129
+   Republic of Korea
+   Email: twyou@etri.re.kr
+
+
+   Ved Kafle
+   NICT
+   Koganei
+   4-2-1 Nukui-Kitamachi, Tokyo
+   184-8795
+   Japan
+   Email: kafle@nict.go.jp

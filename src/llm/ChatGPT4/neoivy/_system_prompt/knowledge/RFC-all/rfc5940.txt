@@ -1,0 +1,507 @@
+
+
+
+
+
+
+Internet Engineering Task Force (IETF)                         S. Turner
+Request for Comments: 5940                                          IECA
+Category: Standards Track                                     R. Housley
+ISSN: 2070-1721                                           Vigil Security
+                                                             August 2010
+
+
+             Additional Cryptographic Message Syntax (CMS)
+                     Revocation Information Choices
+
+Abstract
+
+   The Cryptographic Message Syntax (CMS) allows revocation information
+   to be conveyed as part of the SignedData, EnvelopedData,
+   AuthenticatedData, and AuthEnvelopedData content types.  The
+   preferred format for revocation information is the Certificate
+   Revocation List (CRL), but an extension mechanism supports other
+   revocation information formats.  This document defines two additional
+   revocation information formats for Online Certificate Status Protocol
+   (OCSP) responses and Server-Based Certificate Validation Protocol
+   (SCVP) requests and responses.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 5741.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   http://www.rfc-editor.org/info/rfc5940.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Turner & Housley             Standards Track                    [Page 1]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+Copyright Notice
+
+   Copyright (c) 2010 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (http://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+1.  Introduction
+
+   The RevocationInfoChoices type defined in [CMS] provides a set of
+   revocation status information alternatives, which allows revocation
+   information to be conveyed as part of the SignedData, EnvelopedData,
+   AuthenticatedData, and AuthEnvelopedData content types.  The intent
+   is to provide information sufficient to determine whether the
+   certificates and attribute certificates carried elsewhere in the CMS-
+   protected content have been revoked.  There may be more revocation
+   status information than necessary or there may be less revocation
+   status information than necessary.
+
+   X.509 Certificate Revocation Lists (CRLs) [PROFILE] are the primary
+   source of revocation status information, but any other revocation
+   information format can be supported.  This document specifies two
+   other formats: Online Certificate Status Protocol (OCSP) responses
+   [OCSP] and Server-Based Certificate Validation Protocol (SCVP)
+   requests and responses [SCVP].
+
+   Section 2 discusses the RevocationInformation structure.  Section 3
+   defines a mechanism to carry OCSP responses.  Section 4 defines a
+   mechanism to carry SCVP requests and responses.  Appendix A provides
+   the normative ASN.1 syntax for the two mechanisms.
+
+1.1.  Requirements Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in [WORDS].
+
+
+
+
+
+
+
+Turner & Housley             Standards Track                    [Page 2]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+2.  Revocation Information
+
+   For convenience, the ASN.1 definition of the RevocationInfoChoices
+   type from [CMS] is repeated here:
+
+   RevocationInfoChoices ::= SET OF RevocationInfoChoice
+
+   RevocationInfoChoice ::= CHOICE {
+     crl        CertificateList,
+     other  [1] IMPLICIT OtherRevocationInfoFormat }
+
+   OtherRevocationInfoFormat ::= SEQUENCE {
+     otherRevInfoFormat  OBJECT IDENTIFIER,
+     otherRevInfo        ANY DEFINED BY otherRevInfoFormat }
+
+   The other CHOICE MUST be used to convey OCSP responses, SCVP
+   requests, and SCVP responses.
+
+   This document defines the id-ri arc under which the revocation
+   information formats are defined.  The id-ri object identifier is:
+
+   id-ri OBJECT IDENTIFIER ::= { iso(1) identified-organization(3)
+     dod(6) internet(1) security(5) mechanisms(5) pkix(7) ri(16) }
+
+   NOTE: Numbers 1 and 3 were assigned to CRL and Delta CRL.  These two
+   numbers are not used because these formats use the
+   RevocationInfoChoice crl CHOICE when included in CMS [CMS].
+
+3.  OCSP Response
+
+   To carry an OCSP response, the otherRevInfoFormat is set to
+   id-ri-ocsp-response, which has the following ASN.1 definition:
+
+   id-ri-ocsp-response OBJECT IDENTIFIER ::= { id-ri 2 }
+
+   In this case, otherRevInfo MUST carry the OCSP response using the
+   OCSPResponse type defined in [OCSP].  The responseStatus field MUST
+   be successful and the responseBytes field MUST be present.
+
+4.  SCVP Request and Response
+
+   Unlike OSCP, SCVP permits unprotected and protected responses, where
+   protected responses can be digitally signed or include message
+   authentication codes.  While this provides more flexibility, it
+   complicates implementations when an SCVP response can be validated by
+   entities other than the entity that generated the SCVP request.  If a
+   lower layer provides authentication and integrity for the client-
+   server interaction and the response is not protected, then a third
+
+
+
+Turner & Housley             Standards Track                    [Page 3]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+   party cannot validate the response because there is no way to know
+   that the response was returned over a protected connection.  If a
+   message authentication code is used, then the third party will be
+   unable to validate the message authentication code because it does
+   not possess the necessary private key.  For these reasons, SCVP
+   responses sent to a third party MUST be signed by the SCVP server so
+   that the third party can validate them.
+
+   SCVP response validation requires matching it to the SCVP request.
+   This means that the SCVP request MUST always be included with the
+   response.  SCVP permits the client to retain the response, and SCVP
+   permits the request to be returned in the response (in the requestReq
+   field).  The request need not be protected for matching to be
+   performed; nonces and certIds can be checked.
+
+   To carry the SCVP request and response, the otherRevInfoFormat is set
+   to id-ri-scvp, which has the following ASN.1 definition:
+
+   id-ri-scvp OBJECT IDENTIFIER ::= { id-ri 4 }
+
+   In this case, the otherRevInfo MUST carry both the SCVP request and
+   response with the following structure:
+
+   SCVPReqRes ::= SEQUENCE {
+     request  [0] EXPLICIT ContentInfo OPTIONAL,
+     response     ContentInfo }
+
+   The SCVPReqRes has the following fields:
+
+   o request contains the SCVP request.  It contains the unprotected
+     request, authenticated request, or the signed request.  The request
+     MUST be present if the response does not include the requestRef
+     fullRequest field.
+
+   o response contains the SCVP response.  It MUST contain the signed
+     response.  Additionally, the responseStatus MUST be okay.
+     Unprotected and authenticated responses MUST NOT be included.
+
+5.  Security Considerations
+
+   The security considerations of [CMS], [CMS-ASN], [OCSP], [SCVP], and
+   [PROFILE-ASN] apply.
+
+   To locally store unprotected or authenticated SCVP responses, a
+   client can encapsulate the unprotected or authenticated SCVP response
+   in a SignedData.  It is a matter of local policy whether these SCVP
+   responses that are encapsulated and signed by the client are
+   considered valid by another entity.
+
+
+
+Turner & Housley             Standards Track                    [Page 4]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+6.  IANA Considerations
+
+   This document makes use of object identifiers.  These object
+   identifiers are defined in an arc delegated by IANA to the PKIX
+   Working Group.  When the PKIX Working Group closes, this arc and its
+   registration procedures will be transferred to IANA.  No further
+   action by IANA is necessary for this document or any anticipated
+   updates.
+
+7.  References
+
+7.1.  Normative References
+
+   [CMS]     Housley, R., "Cryptographic Message Syntax (CMS)", RFC
+             5652, September 2009.
+
+   [CMS-ASN] Hoffman, P. and J. Schaad, "New ASN.1 Modules for
+             Cryptographic Message Syntax (CMS) and S/MIME", RFC 5911,
+             June 2010.
+
+   [OCSP]    Myers, M., Ankney, R., Malpani, A., Galperin, S., and C.
+             Adams, "X.509 Internet Public Key Infrastructure Online
+             Certificate Status Protocol - OCSP", RFC 2560, June 1999.
+
+   [PROFILE-ASN]
+             Hoffman, P. and J. Schaad, "New ASN.1 Modules for the
+             Public Key Infrastructure Using X.509 (PKIX)", RFC 5912,
+             June 2010.
+
+   [SCVP]    Freeman, T., Housley, R., Malpani, A., Cooper, D., and W.
+             Polk, "Server-Based Certificate Validation Protocol
+             (SCVP)", RFC 5055, December 2007.
+
+   [WORDS]   Bradner, S., "Key words for use in RFCs to Indicate
+             Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [X.680]   ITU-T Recommendation X.680 (2002) | ISO/IEC 8824- 1:2002.
+             Information Technology - Abstract Syntax Notation One.
+
+   [X.681]   ITU-T Recommendation X.681 (2002) | ISO/IEC 8824- 2:2002.
+             Information Technology - Abstract Syntax Notation One:
+             Information Object Specification.
+
+   [X.682]   ITU-T Recommendation X.682 (2002) | ISO/IEC 8824- 3:2002.
+             Information Technology - Abstract Syntax Notation One:
+             Constraint Specification.
+
+
+
+
+
+Turner & Housley             Standards Track                    [Page 5]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+   [X.683]   ITU-T Recommendation X.683 (2002) | ISO/IEC 8824- 4:2002.
+             Information Technology - Abstract Syntax Notation One:
+             Parameterization of ASN.1 Specifications, 2002.
+
+7.2.  Informative References
+
+   [PROFILE] Cooper, D., Santesson, S., Farrell, S., Boeyen, S.,
+             Housley, R., and W. Polk, "Internet X.509 Public Key
+             Infrastructure Certificate and Certificate Revocation List
+             (CRL) Profile", RFC 5280, May 2008.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Turner & Housley             Standards Track                    [Page 6]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+Appendix A.  ASN.1 Modules
+
+   Appendix A.1 provides the normative ASN.1 definitions for the
+   structures described in this specification using ASN.1 as defined in
+   [X.680] for compilers that support the 1988 ASN.1.
+
+   Appendix A.2 provides informative ASN.1 definitions for the
+   structures described in this specification using ASN.1 as defined in
+   [X.680], [X.681], [X.682], and [X.683] for compilers that support the
+   2002 ASN.1. This appendix contains the same information as Appendix
+   A.1 in a more recent (and precise) ASN.1 notation, however Appendix
+   A.1 takes precedence in case of conflict.
+
+A.1.  1988 ASN.1 Module
+
+   CMS-Other-RIs-2009-88
+     { iso(1) identified-organization(3) dod(6) internet(1) security(5)
+       mechanisms(5) pkix(7) id-mod(0) id-mod-cms-otherRIs-2009-88(63)
+     }
+
+   DEFINITIONS IMPLICIT TAGS ::=
+
+   BEGIN
+
+   -- EXPORTS ALL
+   IMPORTS
+
+   -- FROM CMS [CMS]
+
+   ContentInfo
+     FROM CryptographicMessageSyntax2004
+     { iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-9(9)
+       smime(16) modules(0) cms-2004(24) }
+
+   ;
+
+   id-ri OBJECT IDENTIFIER ::= { iso(1) identified-organization(3)
+     dod(6) internet(1) security(5) mechanisms(5) pkix(7) ri(16) }
+
+   -- RevocationInfoChoice for OCSP response
+   -- OID included in otherRevInfoFormat
+   -- signed OCSP response included in otherRevInfo
+
+   id-ri-ocsp-response OBJECT IDENTIFIER ::= { id-ri 2 }
+
+   -- RevocationInfoChoice for SCVP response
+   -- OID included in otherRevInfoFormat
+   -- SCVPReqRes included in otherRevInfo
+
+
+
+Turner & Housley             Standards Track                    [Page 7]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+   id-ri-scvp OBJECT IDENTIFIER ::= { id-ri 4 }
+
+   SCVPReqRes ::= SEQUENCE {
+     request  [0] EXPLICIT ContentInfo OPTIONAL,
+     response     ContentInfo }
+
+   END
+
+A.2.  2002 ASN.1 Module
+
+   CMS-Other-RIs-2009-02
+     { iso(1) identified-organization(3) dod(6) internet(1) security(5)
+       mechanisms(5) pkix(7) id-mod(0) id-mod-cms-otherRIs-2009-93(64)
+     }
+
+   DEFINITIONS IMPLICIT TAGS ::=
+
+   BEGIN
+
+   -- EXPORT ALL
+   IMPORTS
+
+   -- FROM [PROFILE-ASN]
+
+   OCSPResponse
+     FROM OCSP-2009
+     { iso(1) identified-organization(3) dod(6) internet(1) security(5)
+       mechanisms(5) pkix(7) id-mod(0) id-mod-ocsp-02(48) }
+
+   -- FROM [CMS-ASN]
+
+   ContentInfo, OTHER-REVOK-INFO
+     FROM CryptographicMessageSyntax-2009
+       { iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs-9(9)
+         smime(16) modules(0) id-mod-cms-2004-02(41) }
+
+   ;
+
+   -- Defines OCSP and SCVP formats for RevocationInfoChoice
+
+   SupportedOtherRevokInfo OTHER-REVOK-INFO ::= {
+     ri-ocsp-response |
+     ri-scvp,
+     ... }
+
+   ri-ocsp-response OTHER-REVOK-INFO ::= {
+     OCSPResponse IDENTIFIED BY id-ri-ocsp-response }
+
+
+
+
+Turner & Housley             Standards Track                    [Page 8]
+
+RFC 5940      Additional CMS Revocation Information Choices  August 2010
+
+
+   id-ri OBJECT IDENTIFIER ::= { iso(1) identified-organization(3)
+     dod(6) internet(1) security(5) mechanisms(5) pkix(7) ri(16) }
+
+   id-ri-ocsp-response OBJECT IDENTIFIER ::= { id-ri 2 }
+
+   ri-scvp OTHER-REVOK-INFO ::= {
+     SCVPReqRes IDENTIFIED BY id-ri-scvp }
+
+   id-ri-scvp OBJECT IDENTIFIER ::= { id-ri 4 }
+
+   SCVPReqRes ::= SEQUENCE {
+     request  [0] EXPLICIT ContentInfo OPTIONAL,
+     response     ContentInfo }
+
+   END
+
+Authors' Addresses
+
+   Sean Turner
+   IECA, Inc.
+   3057 Nutley Street, Suite 106
+   Fairfax, VA 22031
+   USA
+
+   EMail: turners@ieca.com
+
+
+   Russ Housley
+   Vigil Security, LLC
+   918 Spring Knoll Drive
+   Herndon, VA 20170
+   USA
+
+   EMail: housley@vigilsec.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Turner & Housley             Standards Track                    [Page 9]
+

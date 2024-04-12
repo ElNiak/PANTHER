@@ -1,0 +1,339 @@
+
+
+
+
+
+
+Network Working Group                                            M. Rose
+Request for Comments: 1569                  Dover Beach Consulting, Inc.
+Category: Informational                                     January 1994
+
+
+           Principles of Operation for the TPC.INT Subdomain:
+                  Radio Paging -- Technical Procedures
+
+Status of this Memo
+
+   This memo provides information for the Internet community.  This memo
+   does not specify an Internet standard of any kind.  Distribution of
+   this memo is unlimited.
+
+Table of Contents
+
+   1. Introduction ................................................    1
+   2. Naming, Addressing, and Routing .............................    2
+   2.1 Addressing .................................................    2
+   2.2 Routing ....................................................    3
+   3. Procedure ...................................................    3
+   3.1 MAILing versus SENDing .....................................    4
+   3.2 Latency ....................................................    4
+   4. Usage Examples ..............................................    5
+   4.1 MIME-based .................................................    5
+   4.2 Non-MIME ...................................................    5
+   5. Security Considerations .....................................    6
+   6. Acknowledgements ............................................    6
+   7. References ..................................................    6
+   8. Author's Address ............................................    6
+
+1.  Introduction
+
+   As an adjunct to the usual, two-way electronic mail service, it is at
+   times useful to employ a one-way text notification service, called
+   radio paging.  This memo describes a technique for radio paging using
+   the Internet mail infrastructure.  In particular, this memo focuses
+   on the case in which radio pagers are identified via the
+   international telephone network.
+
+   The technique described by this memo, mapping telephone numbers to
+   domain names, is derived from the TPC.INT subdomain.  Consult RFC
+   1530, "Principles of Operation for the TPC.INT Subdomain: General
+   Principles and Policy" for overview information.
+
+
+
+
+
+
+
+Rose                                                            [Page 1]
+
+RFC 1569          Radio Paging -- Technical Procedures      January 1994
+
+
+2.  Naming, Addressing, and Routing
+
+   A radio pager is identified by a telephone number, e.g.,
+
+     +1 415 940 8776
+
+   where "+1" indicates the IDDD country code, and the remaining string
+   is a telephone number within that country.
+
+2.1.  Addressing
+
+   This number is used to construct the address of a radio pager server,
+   which forms the recipient address for the message, e.g., one of:
+
+     pager-alpha@6.7.7.8.0.4.9.5.1.4.1.tpc.int
+     pager-numeric@6.7.7.8.0.4.9.5.1.4.1.tpc.int
+
+   where the domain-part is constructed by reversing the telephone
+   number, converting each digit to a domain-label, and being placed
+   under "tpc.int." (The telephone number must not include any
+   international access codes.)
+
+   In addition, addresses of the form
+
+     pager.ATOM@6.7.7.8.0.4.9.5.1.4.1.tpc.int
+     pager-alpha.ATOM@6.7.7.8.0.4.9.5.1.4.1.tpc.int
+     pager-numeric.ATOM@6.7.7.8.0.4.9.5.1.4.1.tpc.int
+
+   where "ATOM" is an (optional) RFC 822 atom [1], are reserved for
+   future use.  Note that the mailbox syntax is purposefully restricted
+   in the interests of pragmatism.  To paraphrase RFC 822, an atom is
+   defined as:
+
+     atom    = 1*atomchar
+
+     atomchar=   <any upper or lowercase alphabetic character
+                  (A-Z a-z)>
+               / <any digit (0-9)>
+               / "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+"
+               / "-" / "/" / "=" / "?" / "^" / "_" / "`" / "{"
+               / "|" / "}" / "~"
+
+   Finally, note that some Internet mail software (especially gateways
+   from outside the Internet) impose stringent limitations on the size
+   of a mailbox-string.  Thus, originating user agents should take care
+   in limiting the local-part to no more than 70 or so characters.
+
+
+
+
+
+Rose                                                            [Page 2]
+
+RFC 1569          Radio Paging -- Technical Procedures      January 1994
+
+
+2.2.  Routing
+
+   The message is routed in exactly the same fashion as all other
+   electronic mail, i.e., using the MX algorithm [2].  Since a radio
+   pager server might be able to access many radio pagers, the
+   wildcarding facilities of the DNS [3,4] are used accordingly.  For
+   example, if a radio pager server residing at "dbc.mtview.ca.us" is
+   willing to access any radio pager with a telephone number prefix of
+
+     +1 415 940
+
+   then this resource record might be present
+
+     *.0.4.9.5.1.4.1.tpc.int.    IN MX 10 dbc.mtview.ca.us.
+
+   Naturally, if several radio pager servers were willing to access any
+   radio pager in that prefix, multiple MX resource records would be
+   present.
+
+   It should be noted that the presence of a wildcard RR which matches a
+   radio pager server's address does not imply that the corresponding
+   telephone number is valid, or, if valid, that a radio pager is
+   identified by the phone number.  Rather, the presence of a wildcard
+   RR indicates that a radio pager server is willing to attempt access.
+
+3.  Procedure
+
+   When information is to be sent to a radio pager, the user application
+   constructs an RFC 822 message, containing a "Message-ID" field and a
+   textual content (e.g., a "text/plain" content [5]).
+
+   The message is then sent to the radio pager server's electronic mail
+   address.
+
+   The radio pager server begins by looking at the local part of the
+   address.  If the local-part is the literal string "pager-alpha" then
+   this indicates that the recipient is using an alpha-numeric pager.
+   The radio pager server consults a local database to determine how to
+   send the page based on the domain-part.  This local knowledge
+   includes information about the protocol used to talk to the paging
+   network and the access number.  As such, a radio pager server will
+   register itself in the DNS as providing service only to those phone
+   numbers for which it has such knowledge.
+
+   Otherwise, if the local-part is the literal string "pager-numeric"
+   then this indicates that the recipient is using a numeric pager.  The
+   radio pager server may consult a local database to determine how to
+   send the page based on the domain-part; or, it may dial the number
+
+
+
+Rose                                                            [Page 3]
+
+RFC 1569          Radio Paging -- Technical Procedures      January 1994
+
+
+   specified in the domain-part directly.
+
+   For alpha-numeric pagers, the radio pager server determines which
+   information found in the headers and body of the message are used
+   when constructing the paging message.  For example, some radio pager
+   servers might choose to examine the "To" and "Subject" fields, in
+   addition to the body, whilst other radio pager servers might choose
+   to simply send the body verbatim.
+
+   For numeric pagers, the radio pager server sends only the body, which
+   must consistent solely of digits.
+
+3.1.  MAILing versus SENDing
+
+   An SMTP client communicating with a radio pager server may use
+   attempt either the MAIL or SEND command.  The radio pager server MUST
+   support the MAIL command, and MAY support any of the SEND, SOML, or
+   SAML commands.
+
+   If the MAIL command is used, then a positive completion reply to both
+   the RCPT and DATA commands indicates, at a minimum, that the message
+   has been queued for transmission into the radio paging network for
+   the recipient, but is at least queued for transmission into the radio
+   paging network.
+
+   If the SEND command is used, then a positive completion reply to both
+   the RCPT and DATA commands indicates that the message has been
+   accepted by the radio paging network for delivery to the recipient.
+
+   If the SOML or SAML command is used, then a positive completion reply
+   to both the RCPT and DATA commands indicates that the message may
+   have been accepted by the radio paging network for delivery to the
+   recipient.
+
+3.2.  Latency
+
+   Although the Internet electronic mail service tends to perform
+   delivery in a timely and reliable manner, some paging services will
+   wish to provide a higher degree of assurance to their clients, in
+   particular guaranteeing that a positive reply code means that the
+   page has been sent on the radio network.  For such requirements, the
+   primary constraints are server implementation and client/server
+   network connectivity.
+
+   A client that uses the SEND or SAML commands is explicitly requesting
+   real-time transmission on the radio network and is requiring that the
+   server reply code will carry a statement of success or failure about
+   that transmission.
+
+
+
+Rose                                                            [Page 4]
+
+RFC 1569          Radio Paging -- Technical Procedures      January 1994
+
+
+   The IP level of the Internet performs datagram store-and-forward
+   service, but gives the end system hosts the appearance of direct
+   connectivity, by virtue of allowing interactive service.  The
+   Internet electronic mail service adds another layer of store-and-
+   forward indirection, so that messages may go through any number of
+   relays (and/or gateways).  This may introduce arbitrarily large
+   delays of minutes, hours, or days.
+
+   A client that configures their Internet attachment to permit "direct"
+   SMTP connectivity to a pager server will be able to submit paging
+   requests to the server directly, without additional SMTP-relaying.
+   That is, transmission from paging client to paging server will be one
+   "SMTP-hop"only.  This will eliminate any possibility of non-
+   deterministic delay by the Internet itself.
+
+   The combination of configuring paging server and paging client to
+   allow direct IP/SMTP-level interaction and ensuring that they use
+   SEND or SAML commands only will mean that a client receiving a
+   positive reply from the server is assured that the page has been sent
+   on the radio network.
+
+4.  Usage Examples
+
+4.1.  MIME-based
+
+     To: pager-alpha@6.7.7.8.0.4.9.5.1.4.1.tpc.int
+     cc: Marshall Rose <mrose@dbc.mtview.ca.us>
+     From: Carl Malamud <carl@malamud.com>
+     Date: Thu, 22 Jul 1993 08:38:00 -0800
+     Subject: First example, for an alphanumeric pager
+     Message-ID: <19930908220700.1@malamud.com>
+     MIME-Version: 1.0
+     Content-Type: text/plain; charset=us-ascii
+
+     A brief textual message.
+
+4.2.  Non-MIME
+
+     To: pager-numeric@6.7.7.8.0.4.9.5.1.4.1.tpc.int
+     cc: Marshall Rose <mrose@dbc.mtview.ca.us>
+     From: Carl Malamud <carl@malamud.com>
+     Date: Thu, 22 Jul 1993 08:38:00 -0800
+     Subject: Second example, for a numeric pager
+     Message-ID: <19930908220700.2@malamud.com>
+
+     2026282044
+
+
+
+
+
+Rose                                                            [Page 5]
+
+RFC 1569          Radio Paging -- Technical Procedures      January 1994
+
+
+5.  Security Considerations
+
+   Internet mail may be subject to monitoring by third parties, and in
+   particular, message relays.
+
+6.  Acknowledgements
+
+   This document was motivated by "Simple Network Paging Protocol -
+   Version 1", by Allen Gwinn of Southern Methodist University.
+
+   David H. Crocker and Carl Malamud also provided substantive comments.
+
+7.  References
+
+   [1] Crocker, D., "Standard for the Format of ARPA Internet Text
+       Messages", STD 11, RFC 822, University of Delaware, August 1982.
+
+   [2] Partridge, C., "Mail Routing and the Domain System", STD 14, RFC
+       974, BBN, January 1986.
+
+   [3] Mockapetris, P., "Domain Names -- Concepts and Facilities", STD
+       13, RFC 1034, Information Sciences Institute, November 1987.
+
+   [4] Mockapetris, P., "Domain Names -- Implementation and
+       Specification", STD 13, RFC 1035, Information Sciences Institute,
+       November 1987.
+
+   [5] Borenstein, N., and N. Freed, "MIME (Multipurpose Internet Mail
+       Extensions) Part One: Mechanisms for Specifying and Describing
+       the Format of Internet Message Bodies", RFC 1521, Bellcore,
+       Innosoft, September 1993.
+
+8.  Author's Address
+
+   Marshall T. Rose
+   Dover Beach Consulting, Inc.
+   420 Whisman Court
+   Mountain View, CA  94043-2186
+   US
+
+   Phone: +1 415 968 1052
+   Fax:   +1 415 968 2510
+   EMail: mrose@dbc.mtview.ca.us
+
+
+
+
+
+
+
+
+Rose                                                            [Page 6]
+
