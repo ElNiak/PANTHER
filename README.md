@@ -15,6 +15,7 @@ PFV supports multiple protocols. Add new protocol specifications in the `protoco
 For now the following protocols are supported:
 - [X] QUIC
 - [X] MiniP
+- [X] APT (Advanced Persistent Threat)
 - [ ] BGP
 - [ ] CoAP
 
