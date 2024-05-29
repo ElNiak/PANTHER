@@ -32,8 +32,22 @@ setup(name='ivy-webapp',
           "requests",
           "Flask-Cors==3.0.10",
           "npf-web-extension",
-          'execnet'
+          'execnet', 
+          'pytest',
+          "pexpect",
+          "chardet",
+          "gperf",
+          "pandas",
+          "scandir",
+          "ply",
+          "PyQt5",
+          "plantuml",
+          "pygraphviz",
+          "requests",
+          "scapy",
+          "importlib_metadata",
+          "pytracemalloc",
           #"pytracemalloc==0.9.1"
           ],
-      
+
       zip_safe=False)

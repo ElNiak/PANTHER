@@ -42,15 +42,7 @@ install:
 	cd src/Protocols-Ivy/; git fetch; git checkout development-formal-attacks
 	cd src/Protocols-Ivy; git submodule update --init --recursive
 	cd src/Protocols-Ivy; git submodule update --recursive
-    # Create necessary directories and files for QUIC, MiniP, and CoAP protocol testing
-	cd src/Protocols-Ivy; mkdir -p doc/examples/quic/build; mkdir -p doc/examples/quic/test/temp
-	cd src/Protocols-Ivy; mkdir -p protocol-testing/quic/build; mkdir -p protocol-testing/quic/test/temp; touch protocol-testing/quic/test/temp/data.csv
-	cd src/Protocols-Ivy; mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
-	cd src/Protocols-Ivy; mkdir -p protocol-testing/coap/build; mkdir -p protocol-testing/coap/test/temp; touch protocol-testing/coap/test/temp/data.csv
-	cd src/Protocols-Ivy; mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
-	cd src/Protocols-Ivy; mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/apt/test/temp; touch protocol-testing/apt/test/temp/data.csv
-    # Perform additional setup and build Docker containers
-	make checkout-git
+    make checkout-git
 	make build-docker-compose-full
 
 # Check out specific commits of submodules for consistency
