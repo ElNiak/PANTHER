@@ -15,9 +15,19 @@ PFV supports multiple protocols. Add new protocol specifications in the `protoco
 For now the following protocols are supported:
 - [X] QUIC
 - [X] MiniP
-- [X] APT (Advanced Persistent Threat)
 - [ ] BGP
 - [ ] CoAP
+
+### :heavy_plus_sign: Multi-Implementation Support
+
+PFV supports multiple implementations. Add new implementations in the `implementations` directory, following the existing structure.
+
+### :heavy_plus_sign: Advanced Persistent Threat
+
+PFV can be used to simulate advanced persistent threats (APTs) in network protocols. By leveraging the Shadow network simulator, PFV can model and analyze the behavior of APTs in a controlled environment, providing valuable insights into potential vulnerabilities and attack vectors.
+
+- [X] QUIC
+- [X] MiniP
 
 ---
 
