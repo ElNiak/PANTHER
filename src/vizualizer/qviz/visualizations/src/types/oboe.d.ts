@@ -1,1 +1,0 @@
-declare module "oboe"; // because TypeScript cannot figure this out for itself... DX indeed
