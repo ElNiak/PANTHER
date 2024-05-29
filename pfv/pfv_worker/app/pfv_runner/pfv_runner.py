@@ -167,9 +167,9 @@ class Runner:
     def save_shadow_res(self, test, i, pcap_name,run_id):
         if self.config["net_parameters"].getboolean("shadow"):
             self.log.info("Save shadow res:")
-            self.log.info("mv /PFV/shadow.data/ "+self.config["global_parameters"]["dir"]+str(run_id))
-            os.system("mv /PFV/shadow.data/ "+self.config["global_parameters"]["dir"]+str(run_id))
-            os.system("mv /PFV/shadow.log "+self.config["global_parameters"]["dir"]+str(run_id)+"/shadow.log")
+            self.log.info("mv /app/shadow.data/ "+self.config["global_parameters"]["dir"]+str(run_id))
+            os.system("mv /app/shadow.data/ "+self.config["global_parameters"]["dir"]+str(run_id))
+            os.system("mv /app/shadow.log "+self.config["global_parameters"]["dir"]+str(run_id)+"/shadow.log")
             os.system("rm "+ pcap_name)
             os.system("cp "+self.config["global_parameters"]["dir"]+str(run_id) +"/shadow.data/hosts/client/eth0.pcap "+pcap_name)
             if "client" in test.mode: # TODO

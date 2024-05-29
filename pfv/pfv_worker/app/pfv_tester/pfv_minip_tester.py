@@ -77,11 +77,11 @@ class MiniPIvyTest(IvyTest):
         for env_var in ENV_VAR:
             print(env_var, ENV_VAR[env_var])
         if "client_test" in self.name:
-            file = "/PFV/shadow_client_test.yml"
-            file_temp = "/PFV/shadow_client_test_template.yml"
+            file = "/app/shadow_client_test.yml"
+            file_temp = "/app/shadow_client_test_template.yml"
         else:
-            file = "/PFV/shadow_server_test.yml"
-            file_temp = "/PFV/shadow_server_test_template.yml"
+            file = "/app/shadow_server_test.yml"
+            file_temp = "/app/shadow_server_test_template.yml"
         with open(file_temp, "r") as f:
             content = f.read() # todo replace
         with open(file, "w") as f:
@@ -96,11 +96,11 @@ class MiniPIvyTest(IvyTest):
             self.log.info(content)
             print(content)
             f.write(content)
-        os.chdir("/PFV")
-        self.log.info("rm -r /PFV/shadow.data/ ")
-        print("rm -r /PFV/shadow.data/ ")
-        os.system("rm -r /PFV/shadow.data/ ")
-        os.system("rm  /PFV/shadow.log ")
+        os.chdir("/app")
+        self.log.info("rm -r /app/shadow.data/ ")
+        print("rm -r /app/shadow.data/ ")
+        os.system("rm -r /app/shadow.data/ ")
+        os.system("rm  /app/shadow.log ")
         self.log.info("command: shadow " + file + " > shadow.log")
         print("command: shadow " + file + " > shadow.log")
                         

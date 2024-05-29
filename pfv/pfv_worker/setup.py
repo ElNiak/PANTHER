@@ -1,4 +1,4 @@
-# /PFV/setup.py
+# /app/setup.py
 from setuptools import setup, find_packages
 
 setup(
@@ -17,7 +17,8 @@ setup(
         'pygraphviz',
         'requests',
         'scapy',
-        'importlib_metadata'
+        'importlib_metadata',
+        "progressbar2"
     ],
     entry_points={
         'console_scripts': [

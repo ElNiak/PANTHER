@@ -2,9 +2,9 @@ import os
 
 SOURCE_DIR =  os.getcwd()
 IMPLEM_DIR =  SOURCE_DIR + '/implementations/$PROT-implementations/'
-RESULT_DIR =  SOURCE_DIR + '/Protocols-Ivy/protocol-testing/$PROT/test/' 
-IVY_DIR    =  SOURCE_DIR + '/Protocols-Ivy/'
-MODEL_DIR  =  SOURCE_DIR + '/Protocols-Ivy/protocol-testing/'
+RESULT_DIR =  SOURCE_DIR + '/pfv-ivy/protocol-testing/$PROT/test/' 
+IVY_DIR    =  SOURCE_DIR + '/pfv-ivy/'
+MODEL_DIR  =  SOURCE_DIR + '/pfv-ivy/protocol-testing/'
 
 
 ENV_VAR = {
@@ -20,18 +20,18 @@ ENV_VAR = {
 
 P_ENV_VAR = {
     "quic":{
-        "ZRTT_SSLKEYLOGFILE": SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/last_tls_key.txt",
-        "RETRY_TOKEN_FILE": SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/last_retry_token.txt",
-        "NEW_TOKEN_FILE": SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/last_new_token.txt",
-        "ENCRYPT_TICKET_FILE": SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/last_encrypt_session_ticket.txt",
-        "SESSION_TICKET_FILE": SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/last_session_ticket_cb.txt",
-        "SAVED_PACKET": SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/saved_packet.txt",
-        "initial_max_stream_id_bidi":  SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/initial_max_stream_id_bidi.txt",
-        "active_connection_id_limit":  SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/active_connection_id_limit.txt",
-        "initial_max_stream_data_bidi_local":  SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt",
-        "initial_max_stream_data_bidi_remote":  SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt",
-        "initial_max_stream_data_uni":  SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/initial_max_stream_data_uni.txt",   
-        "initial_max_data":  SOURCE_DIR + "/Protocols-Ivy/doc/examples/quic/initial_max_data.txt",
+        "ZRTT_SSLKEYLOGFILE": SOURCE_DIR + "/pfv-ivy/doc/examples/quic/last_tls_key.txt",
+        "RETRY_TOKEN_FILE": SOURCE_DIR + "/pfv-ivy/doc/examples/quic/last_retry_token.txt",
+        "NEW_TOKEN_FILE": SOURCE_DIR + "/pfv-ivy/doc/examples/quic/last_new_token.txt",
+        "ENCRYPT_TICKET_FILE": SOURCE_DIR + "/pfv-ivy/doc/examples/quic/last_encrypt_session_ticket.txt",
+        "SESSION_TICKET_FILE": SOURCE_DIR + "/pfv-ivy/doc/examples/quic/last_session_ticket_cb.txt",
+        "SAVED_PACKET": SOURCE_DIR + "/pfv-ivy/doc/examples/quic/saved_packet.txt",
+        "initial_max_stream_id_bidi":  SOURCE_DIR + "/pfv-ivy/doc/examples/quic/initial_max_stream_id_bidi.txt",
+        "active_connection_id_limit":  SOURCE_DIR + "/pfv-ivy/doc/examples/quic/active_connection_id_limit.txt",
+        "initial_max_stream_data_bidi_local":  SOURCE_DIR + "/pfv-ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt",
+        "initial_max_stream_data_bidi_remote":  SOURCE_DIR + "/pfv-ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt",
+        "initial_max_stream_data_uni":  SOURCE_DIR + "/pfv-ivy/doc/examples/quic/initial_max_stream_data_uni.txt",   
+        "initial_max_data":  SOURCE_DIR + "/pfv-ivy/doc/examples/quic/initial_max_data.txt",
         "INITIAL_VERSION":"1",
     },
     "bgp": {

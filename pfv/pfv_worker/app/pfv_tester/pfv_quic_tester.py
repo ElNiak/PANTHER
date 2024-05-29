@@ -70,9 +70,9 @@ class QUICIvyTest(IvyTest):
                 "picoquic":'./picoquicdemo -l "n" -D -L -q '+SOURCE_DIR +'/qlog/picoquic -r',
                 "picoquic-vuln":'./picoquicdemo -l - -D -L -r',                
                 "aioquic":'python3.9 examples/http3_server.py --quic-log '+SOURCE_DIR +'/qlogs/aioquic --certificate '+SOURCE_DIR +'/implementations/quic-implementations/aioquic/tests/ssl_cert.pem --private-key '+SOURCE_DIR +'/implementations/quic-implementations/aioquic/tests/ssl_key.pem  -v --retry --host 127.0.0.1 --port 4443 -l '+SOURCE_DIR +'/tls-keys/secret.log' ,
-                "quiche":'cargo run --bin quiche-server --  --cert '+ SOURCE_DIR +'/Protocols-Ivy/doc/examples/quic/cert.pem --early-data --dump-packets '+SOURCE_DIR +'/qlogs/quiche/dump_packet.txt --key '+SOURCE_DIR +'/Protocols-Ivy/doc/examples/quic/priv.key --listen 127.0.0.1:4443',
-                "quinn":'cargo run -vv --example server '+SOURCE_DIR +'/Protocols-Ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443',
-                "quic-go":'./server -c '+SOURCE_DIR +'/Protocols-Ivy/doc/examples/quic/cert.pem -k '+SOURCE_DIR +'/Protocols-Ivy/doc/examples/quic/priv.key -r -p 4443 127.0.0.1',
+                "quiche":'cargo run --bin quiche-server --  --cert '+ SOURCE_DIR +'/pfv-ivy/doc/examples/quic/cert.pem --early-data --dump-packets '+SOURCE_DIR +'/qlogs/quiche/dump_packet.txt --key '+SOURCE_DIR +'/pfv-ivy/doc/examples/quic/priv.key --listen 127.0.0.1:4443',
+                "quinn":'cargo run -vv --example server '+SOURCE_DIR +'/pfv-ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443',
+                "quic-go":'./server -c '+SOURCE_DIR +'/pfv-ivy/doc/examples/quic/cert.pem -k '+SOURCE_DIR +'/pfv-ivy/doc/examples/quic/priv.key -r -p 4443 127.0.0.1',
                 "mvfst": "./echo -mode=server -host=127.0.0.1 -port=4443  -v=10 -pr=true"
             },
             "quic_client_test_version_negociation":{
@@ -209,11 +209,11 @@ class QUICIvyTest(IvyTest):
         for env_var in ENV_VAR:
             print(env_var, ENV_VAR[env_var])
         if "client_test" in self.name:
-            file = "/PFV/shadow_client_test.yml"
-            file_temp = "/PFV/shadow_client_test_template.yml"
+            file = "/app/shadow_client_test.yml"
+            file_temp = "/app/shadow_client_test_template.yml"
         else:
-            file = "/PFV/shadow_server_test.yml"
-            file_temp = "/PFV/shadow_server_test_template.yml"
+            file = "/app/shadow_server_test.yml"
+            file_temp = "/app/shadow_server_test_template.yml"
         with open(file_temp, "r") as f:
             content = f.read() # todo replace
         with open(file, "w") as f:
@@ -232,11 +232,11 @@ class QUICIvyTest(IvyTest):
             self.log.info(content)
             print(content)
             f.write(content)
-        os.chdir("/PFV")
-        self.log.info("rm -r /PFV/shadow.data/ ")
-        print("rm -r /PFV/shadow.data/ ")
-        os.system("rm -r /PFV/shadow.data/ ")
-        os.system("rm  /PFV/shadow.log ")
+        os.chdir("/app")
+        self.log.info("rm -r /app/shadow.data/ ")
+        print("rm -r /app/shadow.data/ ")
+        os.system("rm -r /app/shadow.data/ ")
+        os.system("rm  /app/shadow.log ")
         self.log.info("command: RUST_BACKTRACE=1 shadow " + file + " > shadow.log")
         print("command: RUST_BACKTRACE=1 shadow " + file + " > shadow.log")
                         

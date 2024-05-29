@@ -16,7 +16,7 @@ class PFVClient:
     
     def __init__(self,dir_path=None):
         PFVClient.dir_path         = dir_path
-        PFVClient.ivy_include_path = dir_path + "/Protocols-Ivy/ivy/include/1.7/"
+        PFVClient.ivy_include_path = dir_path + "/pfv-ivy/ivy/include/1.7/"
                 
         # Setup configuration
         PFVClient.config = configparser.ConfigParser(allow_no_value=True)

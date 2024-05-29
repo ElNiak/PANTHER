@@ -29,19 +29,16 @@ from pfv_utils.pfv_constant import *
 from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 from pfv import *
 
-
-
 DEBUG = True
 
 class PFVServer:
     ROOTPATH = os.getcwd()
-    app = Flask(__name__, static_folder=ROOTPATH + '/webapp/static/')
+    app = Flask(__name__, static_folder=ROOTPATH + '/app/static/')
     app.secret_key = 'super secret key' # TODO
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['SESSION_PERMANENT'] = False
-    app.config['APPLICATION_ROOT'] = ROOTPATH + '/webapp/templates/'
+    app.config['APPLICATION_ROOT'] = ROOTPATH + '/app/templates/'
     app.debug = True
-    
     # enable CORS
     CORS(app, resources={r'/*': {'origins': '*'}})
 
@@ -51,7 +48,7 @@ class PFVServer:
                 default_settings = default_config.read()
                 configfile.write(default_settings)
         PFVServer.dir_path         = dir_path
-        PFVServer.ivy_include_path = dir_path + "/Protocols-Ivy/ivy/include/1.7/"
+        PFVServer.ivy_include_path = dir_path + "/pfv-ivy/ivy/include/1.7/"
                 
         # Setup configuration
         PFVServer.config = PFVServer.setup_config()
@@ -105,6 +102,8 @@ class PFVServer:
         return config
     
     def setup_protocol_parameters(protocol, dir_path, init=True):
+        
+        # TODO use client to get these information
         PFVServer.tests = {}
         PFVServer.implems = {}
         protocol_conf = configparser.ConfigParser(allow_no_value=True)
@@ -116,10 +115,10 @@ class PFVServer:
             protocol_conf.read('configs/'+protocol+'/default_'+protocol+'_config.ini')
         else:
             protocol_conf.read('configs/'+protocol+'/'+protocol+'_config.ini')
-        PFVServer.ivy_model_path = dir_path + "/Protocols-Ivy/protocol-testing/" + protocol
-        PFVServer.ivy_test_path = dir_path  + "/Protocols-Ivy/protocol-testing/"+ protocol +"/tests/"
-        PFVServer.ivy_temps_path = dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/test/temp/"
-        PFVServer.local_path = os.environ["ROOT_PATH"] + "/Protocols-Ivy/protocol-testing/"+ protocol +"/test/temp/"
+        PFVServer.ivy_model_path = dir_path + "/pfv-ivy/protocol-testing/" + protocol
+        PFVServer.ivy_test_path  = dir_path + "/pfv-ivy/protocol-testing/" + protocol +"/tests/"
+        PFVServer.ivy_temps_path = dir_path + "/pfv-ivy/protocol-testing/ "+ protocol +"/test/temp/"
+        PFVServer.local_path = os.environ["ROOT_PATH"] + "/pfv-ivy/protocol-testing/"+ protocol +"/test/temp/"
         for cate in protocol_conf.keys():
             if "test" in cate:
                 PFVServer.tests[cate] = []

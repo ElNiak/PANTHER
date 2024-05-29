@@ -3,7 +3,6 @@ import codecs
 import os
 import platform
 
-
 # Get the long description from the README file
 here = os.path.abspath(os.path.dirname(__file__))
 try:
@@ -40,14 +39,12 @@ setup(name='ivy-webapp',
           "pandas",
           "scandir",
           "ply",
-          "PyQt5",
+          # "PyQt5",
           "plantuml",
           "pygraphviz",
-          "requests",
           "scapy",
           "importlib_metadata",
-          "pytracemalloc",
+          # "pytracemalloc",
           #"pytracemalloc==0.9.1"
           ],
-
       zip_safe=False)

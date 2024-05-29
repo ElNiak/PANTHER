@@ -69,7 +69,7 @@ for fol in subfolders:
                                     match = "mvfst"
                                 elif "quant" in content:
                                     match = "quant"
-                                elif "quinn" in content or "Running `target/debug/examples/server /Protocols-Ivy/doc/examples/quic/" in content:
+                                elif "quinn" in content or "Running `target/debug/examples/server /pfv-ivy/doc/examples/quic/" in content:
                                     match = "quinn"
                                 elif "quiche" in content:
                                     match = "quiche"
