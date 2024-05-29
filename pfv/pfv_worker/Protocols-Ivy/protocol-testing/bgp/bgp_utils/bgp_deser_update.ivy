@@ -1,0 +1,441 @@
+#lang ivy1.7
+
+# a fake deserializer for BGP
+
+object bgp_deser_update = {}
+
+<<< member
+
+    class `bgp_deser_update`;
+
+>>>
+
+<<< impl
+
+    class `bgp_deser_update` : public ivy_binary_deser_128 {
+        enum bgp_state {bgp_s_wr_len,
+              bgp_s_wr,
+              bgp_s_wr_l,
+              bgp_s_wr_prefix,
+              bgp_s_path_len,
+              bgp_s_path_attr,
+              bgp_s_path_attr_len,
+
+
+              bgp_s_path_attr_origin,
+              bgp_s_path_attr_as_path,
+              
+              bgp_s_path_attr_as_path_segment_type,
+              bgp_s_path_attr_as_path_segment_len,
+              bgp_s_path_attr_as_path_segment_value,
+
+              bgp_s_path_attr_next_hop,
+              bgp_s_path_attr_multi_exit_disc,
+              bgp_s_path_attr_local_pref,
+              bgp_s_path_attr_atomic_aggregate,
+              bgp_s_path_attr_aggregator,
+              bgp_s_path_attr_aggregator_ip_addr,
+
+              bgp_s_net_info,
+              bgp_s_net_info_pref} state;
+        
+        int token_length = 4;
+        long path_attr_type;
+        int fence=0;
+        int current_bgp_size = 0;
+        int payload_length = 12;
+
+        int withdraw_routes_len = 0;
+        int route_prefix_len = 0;
+        int total_path_attr_len = 0;
+        int segment_len = 0;
+        int route_prefix_len_2 = 0;
+        int attr_len = 0;
+
+        bool optional_bit = false; //first order bit
+        bool transitive_bit = false; //second order bit
+        bool partial_bit = false; //third order bit
+        bool extended_length_bit = false; //fourth order bit
+        
+        int debug = 0;
+
+        int next_state = 0;
+
+
+    public:
+        bgp_deser_update(const std::vector<char> &inp) : ivy_binary_deser_128(inp),state(bgp_s_wr_len) {
+        }
+        virtual void  get(int128_t &res) {
+            switch (state) {
+            case bgp_s_wr_len:
+            {
+                std::cerr << "bgp_s_wr_len 1\n";
+                getn(res,2);
+                withdraw_routes_len = res;
+                std::cerr << "withdraw_routes_len = " << withdraw_routes_len << "\n";
+                state = bgp_s_wr_l;
+            }
+            break;
+            case bgp_s_wr_l:
+            {
+                std::cerr << "bgp_s_wr_l 1\n";
+                getn(res,1);
+                route_prefix_len = res;
+                std::cerr << "route_prefix_len = " << route_prefix_len << "\n";
+                state = bgp_s_wr_prefix;
+            }
+            break;
+            case bgp_s_wr_prefix:
+            {
+                std::cerr << "bgp_s_wr_prefix 1\n";
+                getn(res,1);
+            }
+            break;
+            case bgp_s_wr:
+            {
+                std::cerr << "bgp_s_wr 1\n";
+                getn(res,1);
+                std::cerr << "payload_length = " << payload_length << "\n";
+                //state = bgp_s_path_len;
+            }
+            break;
+            case bgp_s_path_len:
+            {
+                std::cerr << "bgp_s_path_len 1\n";
+                getn(res,2);
+                total_path_attr_len = res;
+                state = bgp_s_path_attr;
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            }
+            break;
+            case bgp_s_path_attr:
+            {
+                std::cerr << "bgp_s_path_attr 1\n";
+            }
+            break;
+            case bgp_s_path_attr_len:
+            {
+                int128_t len_res;
+                std::cerr << "bgp_s_path_attr_len 1\n";
+                int get = 1;
+                if(extended_length_bit)
+                    get = 2;
+                ivy_binary_deser_128::getn(len_res,get);
+                attr_len = len_res;
+                total_path_attr_len -= get;
+                std::cerr << "attr_len = " << attr_len << "\n";
+
+                state = (enum bgp_state) next_state;
+                std::cerr << "state = " << state << "\n";
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            }
+            break;
+            case bgp_s_path_attr_origin:
+            {
+                std::cerr << "bgp_s_path_attr_origin 1\n";
+                getn(res,1);
+                total_path_attr_len -= 1;
+                debug = res;
+                std::cerr << "debug = " << debug << "\n";
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            };
+            break;
+            case bgp_s_path_attr_as_path:
+            {
+                std::cerr << "bgp_s_path_attr_as_path 1\n";
+                state = bgp_s_path_attr_as_path_segment_type;
+            };
+            break;
+            case bgp_s_path_attr_as_path_segment_len:
+            {
+                std::cerr << "bgp_s_path_attr_as_path_segment_len 1\n";
+                getn(res,1);
+                segment_len = res;
+                total_path_attr_len -= 1;
+                attr_len -= 1;
+                state = bgp_s_path_attr_as_path_segment_value;
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            };
+            break;
+            case bgp_s_path_attr_as_path_segment_type:
+            {
+                std::cerr << "bgp_s_path_attr_as_path_segment_type 1\n";
+                getn(res,1);
+                total_path_attr_len -= 1;
+                attr_len -= 1;
+                state = bgp_s_path_attr_as_path_segment_len;
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            };
+            break;
+            case bgp_s_path_attr_as_path_segment_value:
+            {
+                std::cerr << "bgp_s_path_attr_as_path_segment_value 1\n";
+                getn(res,2);
+                total_path_attr_len -= 2;
+                attr_len -= 2;
+            };
+            break;
+            case bgp_s_path_attr_next_hop:
+            {
+                std::cerr << "bgp_s_path_attr_next_hop 1\n";
+                getn(res,4);
+                total_path_attr_len -= 4;
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            };
+            break;
+            case bgp_s_path_attr_multi_exit_disc:
+            {
+                std::cerr << "bgp_s_path_attr_multi_exit_disc 1\n";
+                getn(res,4);
+                total_path_attr_len -= 4;
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            };
+            break;
+            case bgp_s_path_attr_local_pref:
+            {
+                std::cerr << "bgp_s_path_attr_local_pref 1\n";
+                getn(res,4);
+                total_path_attr_len -= 4;
+            };
+            break;
+            case bgp_s_path_attr_atomic_aggregate:
+            {
+                std::cerr << "bgp_s_path_attr_atomic_aggregate 1\n";    
+            };
+            break;
+            case bgp_s_path_attr_aggregator:
+            {
+                std::cerr << "bgp_s_path_attr_aggregator 1\n";
+                getn(res,2);
+                total_path_attr_len -= 2;
+                state = bgp_s_path_attr_aggregator_ip_addr;
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+            };
+            break;
+            case bgp_s_path_attr_aggregator_ip_addr:
+            {
+                std::cerr << "bgp_s_path_attr_aggregator_ip_addr 1\n";
+                getn(res,4);
+                total_path_attr_len -= 4;
+            };
+            break;
+            case bgp_s_net_info:
+            {
+                std::cerr << "bgp_s_net_info 1\n";
+                getn(res,1);
+                route_prefix_len_2 = res;
+                state = bgp_s_net_info_pref;
+                std::cerr << "route_prefix_len_2 = " << route_prefix_len_2 << "\n";
+            }
+            break;
+            case bgp_s_net_info_pref:
+            {
+                std::cerr << "bgp_s_net_info_pref 1\n";
+                if(route_prefix_len_2-1 > 0)
+                getn(res,1);
+                route_prefix_len_2 -= 8; //todo prefix is ip prefix, here we only support multiple of 8
+            }
+            break;
+            default:
+                std::cerr << "bgp_deser_update 3\n";  
+                throw deser_err();
+            }
+        }
+
+
+        //Function that return true if the i bit of the byte is 1
+        bool checkBit(int byte, int i) {
+            // Shift 1 to the i-th position and perform bitwise AND with the byte
+            // If the result is non-zero, then the i-th bit is 1, otherwise, it's 0
+            return (byte & (1 << i)) != 0;
+        }
+
+        int128_t reverse_bytes(int128_t bytes)
+        {
+            int128_t aux = 0;
+            uint8_t byte;
+            int i;
+
+            for(i = 0; i < 128; i+=8)
+            {
+                byte = (bytes >> i) & 0xff;
+                aux |= byte << (128 - 8 - i);
+            }
+            return aux;
+        }
+
+        int reverse_bytes_int(int bytes)
+        {
+            return ((bytes >> 24) & 0xFF) |
+           ((bytes >> 8) & 0xFF00) |
+           ((bytes << 8) & 0xFF0000) |
+           ((bytes << 24) & 0xFF000000);
+        }
+
+        virtual int open_tag(const std::vector<std::string> &tags) {
+             if (state == bgp_s_path_attr) {
+                int128_t ft_flag;
+                getn(ft_flag,1); // could be bigger
+                int flag = ft_flag;
+                std::cerr << "recv flag = " << flag << "\n";
+                optional_bit = checkBit(flag, 7);
+                transitive_bit = checkBit(flag, 6);
+                partial_bit = checkBit(flag, 5);
+                extended_length_bit = checkBit(flag, 4);
+                std::cerr << "optional_bit = " << optional_bit << "\n";
+                std::cerr << "transitive_bit = " << transitive_bit << "\n";
+                std::cerr << "partial_bit = " << partial_bit << "\n";
+                std::cerr << "extended_length_bit = " << extended_length_bit << "\n";
+
+            
+                total_path_attr_len -= 1;
+                int128_t ft;
+                getn(ft,1); // could be bigger
+                //long long ft;
+                //ivy_binary_deser::getn(ft,1); // could be bigger
+                //total_path_attr_len -= 1;
+                int128_t len_res;
+                std::cerr << "bgp_s_path_attr_len 1\n";
+                int get = 1;
+                if(extended_length_bit)
+                    get = 2;
+                getn(len_res,get);
+                attr_len = len_res;
+                std::cerr << "attr_len = " << attr_len << "\n";
+                //attr_len = reverse_bytes_int(attr_len);
+                total_path_attr_len -= 1;
+                std::cerr << "attr_len = " << attr_len << "\n";
+
+
+                /* 
+                TODO we should get varint and then parse in consequence like in tls_deser_ser 
+                */
+                std::cerr << "total_path_attr_len = " << total_path_attr_len << "\n";
+                path_attr_type = ft;
+                //state = bgp_s_path_attr_len;
+                std::cerr << "recv path_attr_type = " << path_attr_type << "\n";
+                if (path_attr_type == 0x01) {
+                    //total_path_attr_len -= 1;
+                    state =  bgp_s_path_attr_origin;
+                    
+                    std::cerr << "state = " << bgp_s_path_attr_origin << "\n";
+                    std::cerr << "state = " << state << "\n";
+                    return 0;
+                }
+                if (path_attr_type == 0x02) { //JF
+                    //total_path_attr_len -= 1;
+                    state =  bgp_s_path_attr_as_path_segment_type; // bgp_s_path_attr_as_path;
+                    return 1;
+                }
+                if (path_attr_type == 0x03) {
+                    //total_path_attr_len -= 1;
+                    state =  bgp_s_path_attr_next_hop;
+                    return 2;
+                }
+                if (path_attr_type == 0x04) {
+                    //total_path_attr_len -= 1;
+                    state =  bgp_s_path_attr_multi_exit_disc;
+                    return 3;
+                }
+                if (path_attr_type == 0x05) {
+                    //total_path_attr_len -= 1;
+                    state =  bgp_s_path_attr_local_pref;  // stream_blocked equivalent to this
+                    return 4;
+                }
+                if (path_attr_type == 0x06) {
+                    //total_path_attr_len -= 1;
+                    state =  bgp_s_path_attr_atomic_aggregate;
+                    return 5;
+                }
+                if (path_attr_type == 0x07) {  // new token frame
+                    //total_path_attr_len -= 1;
+                    state =  bgp_s_path_attr_aggregator;  // new token equivalent to this
+                    return 6;
+                }
+                //std::cerr << "saw tag " << ft << "\n";  
+            }
+            std::cerr << "state          = " << state << "\n";  
+            std::cerr << "bgp_deser_update 2\n";  
+            throw deser_err();
+        }
+
+        virtual bool open_list_elem() {
+            std::cerr << "open_list_elem tag\n";
+            if (state == bgp_s_path_attr_as_path_segment_type) {
+                std::cerr << "bgp_s_path_attr_as_path bgp_deser_update 2\n";  
+                return attr_len > 0;
+            }
+            if (state == bgp_s_wr_l) {
+                std::cerr << "bgp_s_wr_l bgp_deser_update 2\n";  
+                return withdraw_routes_len > 0;
+            }
+            if (state == bgp_s_wr_prefix) {
+                std::cerr << "bgp_s_wr_prefix bgp_deser_update 2\n";  
+                route_prefix_len -= 1;
+                withdraw_routes_len -= 1;
+                return route_prefix_len > 0;
+            }
+            //return more(1);
+            if ( state == bgp_s_path_attr) {
+                std::cerr << "bgp_s_path_attr bgp_deser_update 2\n";
+                std::cerr <<   total_path_attr_len << "\n";
+                if(total_path_attr_len-1 <= 0) state = bgp_s_net_info;
+                return total_path_attr_len-->0;
+            }
+            if(state == bgp_s_path_attr_as_path_segment_value){
+                std::cerr << "bgp_s_path_attr_as_path_segment_value bgp_deser_update 2\n"; 
+                total_path_attr_len -= 1;
+                return segment_len-->0;
+            }
+            if(state == bgp_s_net_info_pref || state == bgp_s_net_info) {
+                std::cerr << "bgp_s_net_info_pref bgp_deser_update 2\n";  
+                return route_prefix_len_2 > 0;
+            }
+                
+            std::cerr << "bgp_deser_update 1\n";  
+            throw deser_err();
+        }
+
+        void open_list() {
+        }
+        void close_list() {
+            std::cerr << "closing list\n";
+            if (state == bgp_s_wr_l) {
+                state = bgp_s_path_len;
+            }
+            if (state == bgp_s_wr_prefix) {
+                if (route_prefix_len == 0) {
+                    if(withdraw_routes_len == 0){
+                        state = bgp_s_path_len;
+                    }
+                    else{
+                        state = bgp_s_wr_l;
+                    }
+                }
+            }
+            if(state == bgp_s_path_attr_as_path_segment_value){
+                std::cerr << "state == bgp_s_path_attr_as_path_segment_value "<< segment_len << " " << total_path_attr_len <<"\n";
+                if (segment_len <= 0) {
+                    if(total_path_attr_len == 0){ //TODO
+                        state = bgp_s_net_info;
+                    }
+                    else{
+                        state = bgp_s_path_attr_as_path_segment_value;
+                    }
+                }
+            }
+        }
+        void close_list_elem() {}
+
+        virtual void close_tag() {
+            std::cerr << "closing tag\n";
+            if(state == bgp_s_net_info_pref)
+            state = bgp_s_net_info_pref;
+            else
+            state = bgp_s_path_attr;
+        }
+
+        ~bgp_deser_update(){}
+    };
+
+>>>

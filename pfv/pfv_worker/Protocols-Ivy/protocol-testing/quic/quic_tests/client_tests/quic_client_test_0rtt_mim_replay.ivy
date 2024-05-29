@@ -1,0 +1,207 @@
+#lang ivy1.7
+
+include order
+include quic_connection
+include quic_infer
+include file
+include ivy_quic_shim_server
+include ivy_quic_shim_mim
+include quic_locale
+include random_value
+# include ivy_quic_mim
+include ivy_quic_server_behavior
+include ivy_quic_mim_behavior
+
+
+# NB: need bigger timeout (at least 90 sec)
+
+after init {
+    client_port_vn := 4986;
+    client_alt := endpoint_id_addr(endpoint_id.client_alt);
+    client_vn := endpoint_id_addr(endpoint_id.client_vn);
+    ## call mim_agent.configure_NAT_attack_in(server.ep.port);
+}
+
+after init {
+    # server_port := 4444;
+    # server_port_alt := 4444;
+    # the_cid := 0x1; # zero length => 0x1 mvfst and other 0x0
+    zero_rtt_allowed := true;
+    zero_rtt_client_test := true;
+    save_packet := true;
+    mim_agent.enc_level_ppkt_to_be_forge := quic_packet_type.zero_rtt;
+}
+
+after init {
+    initial_max_stream_data_uni_server_0rtt := 5000;
+    initial_max_stream_data_bidi_remote_server_0rtt := 5000;
+    initial_max_data_server_0rtt := 5000;
+    initial_max_stream_data_bidi_local_server_0rtt := 5000;
+    initial_max_stream_id_bidi_server_0rtt := 200;
+    active_connection_id_limit_server_0rtt := 200;
+}
+
+include ivy_quic_server_0rtt_tp
+
+var server_scid  : cid
+var server_dcid  : cid
+
+# Restrict generation to packets from the designated client endpoints
+# to the server endpoint.
+
+before packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:quic_packet) {
+    if _generating {
+        #require ~negocation_of_version(src);
+        require client.ep.addr ~= 0;  # must have a client address to send to
+        require src = server.ep;
+        require dst = client.ep;
+        require pkt.token.end = 0; # [1]
+        require connected(pkt.src_cid);
+    	require pkt.long -> pkt.pversion = initial_version;  #version 29
+	    call show_version(initial_version);
+    } 
+    else {
+        if pkt.ptype = quic_packet_type.initial {
+            server_scid := pkt.src_cid;
+            server_dcid := pkt.dst_cid;
+        };
+	    require pkt.long -> (pkt.pversion = 0xff00001d | pkt.pversion = 0xfaceb002 | pkt.pversion = 0xff000022 | pkt.pversion = 0x00000001);  #version 29
+	    if pkt.long {
+	    	initial_version := pkt.pversion;
+	    };
+	    call show_version(initial_version);
+    }
+}
+
+before packet_event_vn(src:ip.endpoint,dst:ip.endpoint,pkt:quic_packet_vn) {
+    if _generating {
+        #require initial_version ~= 0x00000001; 
+        require negocation_of_version(dst);
+        require client.ep.addr ~= 0;  # must have a client address to send to
+        # require dst = client.ep;
+        forged_packet_send := true;
+        require (src = server.ep & dst = client.ep); #| (src = server.ep & dst = mim_agent.ep); # Either we manually forge version negociation
+        require pkt.dst_cid = client_initial_scid;
+        require pkt.src_cid = client_initial_dcid;
+        require pkt.pversion = 0x00000000;  #version 0
+        pkt.supported_version := supported_versions_bv;
+        #pkt.supported_version := versions_bv.empty;
+        #pkt.supported_version := pkt.supported_version.append(0x00000001);
+    } 
+}
+
+before forward_packet_to_client_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    if _generating {
+        require mim_client_target.ep.addr ~= 0;  # must have a client address to send to
+        #require;
+        require src = mim_agent.ep_out;
+        require dst = mim_client_target.ep;
+        require pkt = mim_agent.ppkt_to_be_forwarded_to_client;
+        #require pkt = mim_agent.ppkt_to_be_forwarded_to_server; # TODO put relation ?
+    } 
+}
+
+before forward_packet_to_server_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    if _generating {
+        require mim_client_target.ep.addr ~= 0;  # must have a client address to send to
+        #require;
+        require src = mim_agent.ep_out;
+        require dst = mim_server_target.ep;
+        require pkt = mim_agent.ppkt_to_be_forwarded_to_server;        #require ;
+        #require ;
+        #require pkt = mim_agent.ppkt_to_be_forwarded_to_server; # TODO put relation ?
+    } 
+}
+
+before replay_packet_to_server_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    if _generating {
+        require mim_client_target.ep.addr ~= 0;  # must have a client address to send to
+        #require;
+        require src = mim_agent.ep_out;
+        require dst = mim_server_target.ep;
+        require pkt = mim_agent.ppkt_to_be_replayed_to_server;        #require ;
+        #require ;
+        #require pkt = mim_agent.ppkt_to_be_forwarded_to_server; # TODO put relation ?
+    } 
+}
+
+# Event of MiM Agent -> TODO put that more clearly
+# before modify_protected_packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_protected_quic_packet) {
+#     if _generating {
+#         #require initial_version ~= 0x00000001; 
+#         require negocation_of_version(dst);
+#         require client.ep.addr ~= 0;  # must have a client address to send to
+#         # require dst = client.ep;
+#         forged_packet_send := true;
+#         require (src = mim_agent.ep_out & dst = client.ep); #| (src = server.ep & dst = mim_agent.ep); # Either we manually forge version negociation
+#         require pkt.dst_cid = client_initial_scid;
+#         require pkt.src_cid = client_initial_dcid;
+#         require pkt.pversion = 0x00000000;  #version 0
+#         pkt.supported_version := supported_versions_bv;
+#         #pkt.supported_version := versions_bv.empty;
+#         #pkt.supported_version := pkt.supported_version.append(0x00000001);
+#     } 
+# }
+
+# The actions listed below will be generated by the mirror.
+#
+# Note: some of these are commented out. They are added in other files
+# that include this one.
+
+export frame.ack.handle
+export frame.stream.handle
+export frame.crypto.handle
+export frame.path_response.handle
+export frame.handshake_done.handle
+export packet_event
+export packet_event_vn
+export client_send_event
+export tls_recv_event
+#export frame.new_connection_id.handle
+#export frame.retire_connection_id.handle
+#export frame.rst_stream.handle
+#export frame.max_stream_id.handle
+#export frame.connection_close.handle
+#export frame.max_stream_data.handle
+
+#export forged_packet_event_vn
+#export forward_packet_to_client_event
+#export forward_packet_to_server_event
+export replay_packet_to_server_event
+
+#export modify_protected_packet_event # used when forwarding packet and modifying them 
+
+# export frame.max_streams.handle
+# export frame.max_stream_data.handle
+# export frame.max_data.handle
+# #export frame.stream_blocked.handle
+# export frame.rst_stream.handle
+# attribute frame.rst_stream.handle.weight = "0.02"
+# attribute frame.max_streams.handle.weight = "0.02"
+# attribute frame.max_stream_data.handle.weight = "0.02"
+# attribute frame.max_data.handle.weight = "0.02"
+
+
+# export frame.connection_close.handle
+# attribute frame.connection_close.handle.weight = "0.02"
+
+#export frame.application_close.handle
+#attribute frame.application_close.handle.weight = "0.02"
+
+# export frame.stop_sending.handle
+
+
+# Final check
+#
+# When the test is complete, the tester calls the special action `_finalize`.
+# We use this action to make some heuristic checks, for example that some
+# data was actually received from the server. We can add advice to this
+# action with additional checks.
+
+export action _finalize = {
+    # chris TODO 
+    require conn_total_data(the_cid) > 0; # == 
+    call mim_agent.reset_NAT;
+}
+
+

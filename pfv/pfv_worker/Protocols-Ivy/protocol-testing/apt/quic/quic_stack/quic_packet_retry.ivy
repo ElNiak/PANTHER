@@ -1,0 +1,271 @@
+#lang ivy1.7
+
+include quic_types
+include quic_transport_error_code
+include quic_frame
+include quic_packet
+include quic_transport_parameters
+include ip
+include quic_fsm_sending
+include quic_fsm_receiving
+include byte_stream
+
+# The packet protocol
+#
+# The packet protocol has several funcitons including establishing
+# connections and loss detection. Packets carry frames whihc implement
+# many other funcition of QUIC.
+#
+# QUIC Packets
+# ------------
+
+# This section defines the QUIC packet datatype. Packets are the basic
+# unit of communication between endpoints. A packet may be encoded in
+# either the long or the short format. There are packet types:
+# `initial`, `handshake`, `zero_rtt` and `one_rtt`. The `zero_rtt`
+# type is encoded in the short format, while others are encoded in the
+# long format.  Packets have associated source cid (long format only)
+# and destination cid, protocol version (long format only), and a
+# packet sequence number. An initial packet also has a *retry token*, which
+# is a (possibly empty) sequence of bytes.  The *payload* of the
+# packet consists of a sequence of *frames* (see quic_frame.ivy).
+
+# TODO: retry and one_rtt packet types
+
+# ### Packet
+
+# The type `packet.quic_packet` represents packet. 
+
+# The fields are:
+#
+# - *ptype*: the packet type [2]
+# - *pversion*: the protocol version, if long format, else 0 [3]
+# - *dst_cid*: the destination cid [4]
+# - *src_cid*: the source cid, if long format, else 0  [5]
+# - *token*: the retry token (see section 4.4.1)  [6]
+# - *seq_num*: the packet sequence number  [7]
+# - *payload*: the payload, a sequence of frames  [8]
+
+interpret itoken -> longbv[1][13][16]
+
+object packet = {
+    ...
+    object quic_packet_retry = {
+        variant this of packet = struct {
+            ptype : quic_packet_type, # [2]
+            pversion : version, # [3]
+            dst_cid : cid, # [4]
+            src_cid : cid, # [5]
+            token : stream_data, # [6] TODO props
+            integrity_token : itoken # [6] 16 bytes
+        }
+
+        instance idx : unbounded_sequence
+        instance arr : array(idx,this)
+
+        #Hamid
+        instance retired_cids : array(idx, cid_seq)
+        #Hamid
+
+        action long(pkt:this) returns(res:bool) = {
+            res := pkt.ptype ~= quic_packet_type.one_rtt;
+        }
+    }
+}
+
+# Note: Short header are considered to have scid of 0 so it is quite important to use this value
+
+# Packet protocol events
+# -----------------------
+
+# The packet event
+# ================
+#
+# This event corresponds to transmission of a QUIC packet.
+#
+# Parameters
+# ----------
+#
+# - `src`: the source endpoint
+# - `dst`: the destination endpoint
+# - `pkt` : the packet contents
+
+action packet_event_retry(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_retry) = {}
+
+# Packet protocol state
+# ---------------------
+
+# This section defines the history variables that track the state of
+# the packet protocol. Some of these variables are shared between
+# protocol layers, so that the allowed interleavings of events at
+# different layers can be specified.
+#
+
+# Packet protocol state
+# ---------------------
+
+# Packet event specification
+# --------------------------
+
+# A packet event represents the transmision of a QUIC packet `pkt`
+# from source endpoint `src` to a QUIC destination endpoint `dst`
+# containing a sequence of queued frames.
+#
+# ### Requirements
+#
+# - The packet payload may not be empty [7].
+#
+#   An endpoint MUST treat the following as a connection error of type
+#   TRANSPORT_PARAMETER_ERROR or PROTOCOL_VIOLATION:
+#   *  absence of the retry_source_connection_id transport parameter from
+#      the server after receiving a Retry packet, [1]
+#   *  presence of the retry_source_connection_id transport parameter
+#      when no Retry packet was received, or [3]
+#   *  a mismatch between values received from a peer in these transport
+#      parameters and the value sent in the corresponding Destination or
+#      Source Connection ID fields of Initial packets. [2]
+#   If a zero-length connection ID is selected, the corresponding
+#   transport parameter is included with a zero-length value.
+
+# A server MUST NOT send more than one Retry
+#    packet in response to a single UDP datagram.
+
+# Upon first receiving an Initial or Retry packet from the server, the
+#    client uses the Source Connection ID supplied by the server as the
+#    Destination Connection ID for subsequent packets, including any 0-RTT
+#    packets.  This means that a client might have to change the
+#    connection ID it sets in the Destination Connection ID field twice
+#    during connection establishment: once in response to a Retry, and
+#    once in response to an Initial packet from the server.  Once a client
+#    has received a valid Initial packet from the server, it MUST discard
+#    any subsequent packet it receives with a different Source Connection
+#    ID.
+
+#    A server MAY send Retry packets in response to Initial and 0-RTT
+#    packets.  A server can either discard or buffer 0-RTT packets that it
+#    receives.  A server can send multiple Retry packets as it receives
+#    Initial or 0-RTT packets.  A server MUST NOT send more than one Retry
+#    packet in response to a single UDP datagram.
+
+# A client MUST discard a Retry packet with a zero-length
+#    Retry Token field. 
+
+#    A Retry packet does not include a packet number and cannot be
+#    explicitly acknowledged by a client. TODO
+
+import action show_iretryb(v:stream_data)
+import action show_iretry(v:itoken)
+
+#### Retry config
+
+relation retry_sent(C:cid)
+relation retry_recv(C:cid)
+relation token_saved
+relation zero_length_token
+relation retry_response(C:cid)
+relation retry_client_test
+function retry_token(C:cid) : stream_data
+var header_retry : stream_pos
+
+after init {
+    zero_length_token := false;
+    token_saved := true;
+    retry_sent(C) := false;
+    retry_recv(C) := false;
+    retry_response(C) := false;
+    header_retry := 0xF6;
+    retry_client_test := false;
+}
+
+
+around packet_event_retry(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_retry) {    
+    # Extract the source and destination cid's and packet number from the packet.
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid;
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+
+    if src = client_alt | dst = client_alt {
+	    migration_done := true;
+	    #call net.close(endpoint_id.client,sock);	# destroy connection ?
+    };
+
+    if ~ _generating  { # TODO refactor with client test 
+        var expected_itoken := prot.retry_integrity_tag(8,server_cid,
+                                           pkt.pversion,
+                                           scid_size_pos(true),dcid,
+                                           dcid_size_pos(true),scid,
+                                           pkt.token, 
+                                           last_pkt_num(scid,quic_packet_type.initial),
+                                           header_retry,
+                                           token_saved);
+
+        require bytes_to_itoken(expected_itoken) = pkt.integrity_token;
+    };
+    # Similarly, an endpoint MUST NOT reuse a connection ID when sending to
+    # more than one destination address.  
+        
+    # The destination cid must represent an existing connection,
+    # except in the case of a client initial packet, when the
+    # destination cid may be the nonce cid chosen by the client for
+    # the given source cid.
+
+    require pkt.ptype = quic_packet_type.retry; # & is_client(scid) & dcid = nonce_cid(scid);
+    ...
+
+    # Here, we have the updates to the packet protocol state.
+
+    # TEMPORARY: The following are repeated because currently locals defined in
+    # the "before" section cannot be accessed in the "after" section.
+
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid;
+
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+
+    # TODO: the following should not be here
+
+    retry_token(scid) := pkt.token;
+
+    if ~_generating {
+        conn_requested(src,dst,scid) := false;
+        conn_requested(src,dst,dcid) := false;
+        connected(dcid) := false;
+        connected(scid) := false;
+        conn_seen(dcid) := false;
+        conn_seen(scid) := false;
+        
+        require ~retry_recv(dcid);
+        retry_recv(dcid) := true;   
+        server_cid := scid; # 0x1;
+
+        connected(the_cid)    := false;
+        connected(server_cid) := false;
+        conn_seen(server_cid) := false;
+        conn_seen(the_cid)    := false;
+        client_initial_rcid   := scid;
+
+        var extns := tls_extensions.empty;
+        extns := extns.append(make_transport_parameters);
+        call tls_api.upper.destroy(0);
+        call tls_api.upper.create(0,false,extns);  # false means this instance of tls is not a server
+        conn_requested(dst,src,the_cid) := true;
+
+    } else {
+        retry_sent(scid) := true;
+        retry_response(scid) := true;
+        initial_keys_set(scid) := false;
+        tp_client_set := false;
+        conn_requested(src,dst,dcid) := false;
+        conn_requested(src,dst,the_cid) := false;
+        conn_seen(dcid) := false;
+        conn_seen(the_cid) := false;
+        call tls_api.upper.destroy(src_tls_id(src)); # not totally freeing all parameter
+    };
+}
+
+
+

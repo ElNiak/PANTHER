@@ -1,0 +1,33 @@
+include quic_frame
+
+object quic_frame = {
+    ...
+
+    # (0xtbd) 
+    object malicious_frame = {
+        # unknown_frame  quic_frame frames are a varianquic_framequic_frame and contains nothing
+        variant this of quic_frame = struct {
+            data: stream_data
+        }
+    } 
+}
+
+object quic_frame = {
+    ...
+    object malicious_frame = {
+        ...
+        action handle(f:quic_frame.malicious_frame,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num)
+
+	around handle {
+            require tls_handshake_finished;
+
+            require connected(dcid) & connected_to(dcid) = scid;
+            require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+            require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+            require ~conn_closed(scid);  # [8]
+            require conn_seen(scid);  # [9]
+	        ...
+            call enqueue_frame(scid,f,e,false,seq_num);
+        }
+    }
+}

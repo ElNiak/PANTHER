@@ -1,0 +1,77 @@
+#lang ivy1.7
+
+include coap_types
+include coap_message_method
+
+# Description: Defines the CoAP message format, including headers, payload, 
+# and options.
+
+#     0                   1                   2                   3
+#     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+#    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#    |Ver| T |  TKL  |      Code     |          Message ID           |
+#    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#    |   Token (if any, TKL bytes) ...
+#    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#    |   Options (if any) ...
+#    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#    |1 1 1 1 1 1 1 1|    Payload (if any) ...
+#    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+#                          Figure 7: Message Format
+
+object coap_message_type = {
+    type this = {
+        CON,
+        NON,
+        ACK,
+        RST
+    }
+}
+
+object coap_message = {
+    type this = struct {
+        ## header
+        version    : stream_pos,         # [1] 2-bit unsigned integer
+        mtype      : coap_message_type,  # [2] 2-bit unsigned integer: Confirmable (0), Non-confirmable (1), Acknowledgement (2), or Reset (3)
+        token_len  : stream_pos,         # [3] 4-bit unsigned integer
+        code       : coap_code,          # [4] 8-bit unsigned integer, split into a 3-bit class
+        message_id : id,                 # [5] 16-bit unsigned integer in network byte order
+        ## end header
+        token      : stream_data,        # [6] variable-length [0-8] bytes
+        options    : coap_option.arr,    # [7]
+        payload    : message_method.arr  # [8]
+    }
+
+    instance idx : unbounded_sequence
+    instance arr : array(idx, this) 
+}
+
+relation reliable_transmission(I:id)
+relation is_ack_msg(I:id)
+relation is_rst_msg(I:id)
+function retransmission_count(I:id) : stream_pos
+function max_retransmit(I:id) : stream_pos
+relation valid_msg_id(I:id)
+
+after init {
+    reliable_transmission(I) := false;
+    is_ack_msg(I)            := false;
+    is_rst_msg(I)            := false;
+    retransmission_count(I)  := 0;
+    valid_msg_id(I)          := true;
+    max_retransmit(I)        := 4;
+}
+
+# Define coap_type, coap_code, coap_option, and other types as needed
+
+action coap_message_event(src:ip.endpoint,dst:ip.endpoint,pkt:coap_message) = {}
+
+around coap_message_event(src:ip.endpoint,dst:ip.endpoint,pkt:coap_message) = {
+    # Each message contains a Message ID used to detect duplicates and for optional reliability
+    # 16-bit size enables up to about 250 messages per second from one endpoint to another with default protocol parameters.
+
+
+    ...
+
+}

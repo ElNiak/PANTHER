@@ -1,0 +1,158 @@
+#lang ivy1.7
+
+include byte_stream
+include ip
+
+include bgp_time
+include deserializer
+
+include serdes
+include bgp_deser
+include bgp_ser
+include bgp_deser_open
+include bgp_ser_open
+include bgp_deser_keepalive
+include bgp_ser_keepalive
+include bgp_deser_notification
+include bgp_ser_notification
+include bgp_deser_update
+include bgp_ser_update
+include bgp_prot_deser_ser
+include bgp_protection
+
+instance bm : bgp_messages
+
+include bgp_error_code
+include bgp_autonomous_system
+include bgp_speaker
+include ivy_bgp_speaker
+include ivy_bgp_speaker_behavior
+include bgp_network
+
+include bgp_type # should be change
+include bgp_application
+include bgp_community
+include bgp_header_message
+include bgp_keepalive_message
+include bgp_notification_message
+include bgp_update_message
+include bgp_open_message
+
+relation isup(A:ip.addr)
+function getsock(A:ip.addr) : net.socket
+relation pend(A:ip.addr)
+
+# after init {
+#     isup(A) := false;
+#     pend(A) := false;
+# }
+
+implement net.connected(src:bgp_id, s:net.socket) {
+    call show_connected(src,s);
+    # if some(other:ip.addr) pend(other) & getsock(other) = s {
+    pend(bgpid_to_other_endpoint(src)) := false;
+    isup(bgpid_to_other_endpoint(src)) := true;
+    isup(bgpid_to_endpoint(src))       := true;
+    # }
+}
+
+import action show_connected(src:bgp_id, s:net.socket)
+
+# implement net.send(dst:ip.addr,v:pkt) {
+#     if ~isup(dst) {
+#         if ~pend(dst) {
+#             sock(dst) := net.connect(self,dst);
+#             pend(dst) := true
+#         }
+#     } else {
+#         var ok := tcp.send(self,sock(dst),v);
+#         if ~ok {
+#             call tcp.close(self,sock(dst));
+#             sock(dst) := net.connect(self,dst);
+#             isup(dst) := false;
+#             pend(dst) := true
+#         }
+#     }
+# }
+
+implement net.accept(src:bgp_id,s:net.socket,other:bgp_id) {
+    # we ignore accept events
+    call show_tcp_accepted;
+}
+
+import action show_tcp_accepted
+
+implement net.recv(src:bgp_id, s:net.socket, pkts:bm.arr) {
+    call bgp_ivy_instance.behavior(s,src,pkts); # TODO manage multiple speakers
+}
+
+import action undefined_host_error(host:endpoint_id, s:net.socket, src:bgp_id)
+
+function header_payload : stream_data
+function header_length  : stream_pos
+function header_type    : bgp_message_type
+
+after bgp_header_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_header_message){
+    if _generating {
+        var spkt := bgp_message_serdes.to_bytes(bgp_message);
+        var pkts := bm.arr.empty;
+        pkts := pkts.append(spkt);
+        var ok := net.send(src,endpoint_to_socket(src),dst,pkts);
+        header_payload := stream_data.empty;
+        #sheader_payload.end := 0;
+        header_length  := 0;
+        call send_bgp_header_message(src,dst,bgp_message);
+    }
+}
+
+import action send_bgp_header_message(src:bgp_id,dst:bgp_id,bgp_message:bgp_header_message)
+
+after bgp_open_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_open_message){
+    if _generating {
+        var spkt := bgp_open_message_serdes.to_bytes(bgp_message);
+        header_payload := spkt;
+        call send_bgp_open_message(src,dst,bgp_message);
+    }
+}
+
+import action send_bgp_open_message(src:bgp_id,dst:bgp_id,bgp_message:bgp_open_message)
+
+after bgp_update_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_update_message){
+    if _generating {
+        var spkt := bgp_update_message_serdes.to_bytes(bgp_message);
+        header_payload := spkt;
+        call send_bgp_update_message(src,dst,bgp_message);
+    }
+    bgp_update_event := false;
+}
+
+import action send_bgp_update_message(src:bgp_id,dst:bgp_id,bgp_message:bgp_update_message)
+
+after bgp_keepalive_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_keepalive_message){
+    if _generating {
+        var spkt := bgp_keepalive_message_serdes.to_bytes(bgp_message);
+        header_payload := spkt;
+        call send_bgp_keepalive_message(src,dst,bgp_message);
+    }
+}
+
+import action send_bgp_keepalive_message(src:bgp_id,dst:bgp_id,bgp_message:bgp_keepalive_message)
+
+after bgp_notification_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_notification_message){
+    if _generating {
+        var spkt := bgp_notification_message_serdes.to_bytes(bgp_message);
+        header_payload := spkt;
+        call send_bgp_notification_message(src,dst,bgp_message);
+    }
+}
+
+import action send_bgp_notification_message(src:bgp_id,dst:bgp_id,bgp_message:bgp_notification_message)
+
+
+import action show_connected_open(b:bool)
+
+instance bgp_message_serdes              : serdes(bgp_header_message,stream_data,bgp_ser,bgp_deser)
+instance bgp_open_message_serdes         : serdes(bgp_open_message,stream_data,bgp_ser_open,bgp_deser_open)
+instance bgp_update_message_serdes       : serdes(bgp_update_message,stream_data,bgp_ser_update,bgp_deser_update)
+instance bgp_keepalive_message_serdes    : serdes(bgp_keepalive_message,stream_data,bgp_ser_keepalive,bgp_deser_keepalive)
+instance bgp_notification_message_serdes : serdes(bgp_notification_message,stream_data,bgp_ser_notification,bgp_deser_notification)

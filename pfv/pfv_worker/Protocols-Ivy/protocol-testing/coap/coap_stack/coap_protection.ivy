@@ -1,0 +1,94 @@
+#lang ivy1.7
+
+include serdes
+include collections
+
+# Datagram Transport Layer Security (DTLS)
+# https://www.rfc-editor.org/rfc/rfc6347
+# https://github.com/nodertc/dtls-native
+# https://github.com/rbit/pydtls
+# https://github.com/pion/dtls
+# https://github.com/wolfSSL/wolfssl-examples/tree/master/dtls
+
+module coap_protection(tls_id, tls) = {
+
+    instance idx : unbounded_sequence
+    instance arr : array(idx,stream_data)
+
+    type header_info = struct {
+        version    : stream_pos,         # [1]
+        mtype      : coap_type,          # [2]
+        token_len  : stream_pos,         # [3]
+        code       : coap_code,          # [4]
+        message_id : wostream_posrd,     # [5]
+        token      : stream_data,        # [6]
+        options    : coap_option.arr,    # [7]
+        payload    : stream_data         # [8]
+    }
+
+    action encrypt(c:tls_id,seq:pkt_num,pkt:stream_data) returns (pkt:stream_data) 
+    action decrypt(c:tls_id,seq:pkt_num,pkt:stream_data) returns (res:tls.decrypt_result)
+    
+}
+
+object coap_prot_ser = {}
+
+<<< member
+
+    class `coap_prot_ser`;
+
+>>>
+
+<<< impl
+
+    class `coap_prot_ser` : public ivy_binary_ser_128 {
+    public:
+
+        void open_list(int) {
+        }
+
+        virtual void  set(int128_t res) {
+            setn(res,1);
+        }    
+    };
+
+>>>
+
+object coap_prot_deser = {}
+
+<<< member
+
+    class `ping_prot_deser`;
+
+>>>
+
+<<< impl
+
+    class `coap_prot_deser` : public ivy_binary_deser_128 {
+        int data_remaining;
+    public:
+        coap_prot_deser(const std::vector<char> &inp) : ivy_binary_deser_128(inp) {
+            data_remaining = inp.size();
+        }
+
+        void  get(int128_t &res) {
+            getn(res,1);
+        }    
+
+        unsigned char peek(unsigned p) {
+            return more(p-pos+1) ? inp[p] : 0;
+        }
+            
+        void open_list() {
+            return;
+        }
+
+        bool open_list_elem() {
+            bool res = data_remaining-- >= 0;
+            return res;
+        }
+        void close_list_elem() {
+        }
+    };
+
+>>>

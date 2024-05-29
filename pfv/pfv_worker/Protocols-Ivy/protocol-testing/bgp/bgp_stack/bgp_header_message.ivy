@@ -1,0 +1,106 @@
+#lang ivy1.7
+
+
+#  Each message has a fixed-size header.  There may or may not be a data
+#    portion following the header, depending on the message type.  The
+#    layout of these fields is shown below:
+
+#       0                   1                   2                   3
+#       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+#       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#       |                                                               |
+#       +                                                               +
+#       |                                                               |
+#       +                                                               +
+#       |                           Marker                              |
+#       +                                                               +
+#       |                                                               |
+#       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#       |          Length               |      Type     |
+#       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+#       Marker:
+
+#          This 16-octet field is included for compatibility; it MUST be
+#          set to all ones.
+
+#       Length:
+
+#          This 2-octet unsigned integer indicates the total length of the
+#          message, including the header in octets.  Thus, it allows one
+#          to locate the (Marker field of the) next message in the TCP
+#          stream.  The value of the Length field MUST always be at least
+#          19 and no greater than 4096, and MAY be further constrained,
+#          depending on the message type.  "padding" of extra data after
+#          the message is not allowed.  Therefore, the Length field MUST
+#          have the smallest value required, given the rest of the
+#          message.
+
+#       Type:
+
+#          This 1-octet unsigned integer indicates the type code of the
+#          message.  This document defines the following type codes:
+
+#                               1 - OPEN
+#                               2 - UPDATE
+#                               3 - NOTIFICATION
+#                               4 - KEEPALIVE
+
+#          [RFC2918] defines one more type code.
+
+
+object bgp_header_message = {
+    type this = struct {
+        marker: marker_id,         
+        length: stream_pos,
+        bgp_type : bgp_message_type,
+        payload: stream_data
+    }
+}
+
+action bgp_header_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_header_message) = {}
+
+around bgp_header_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_header_message) {
+    require isup(bgpid_to_endpoint(src));
+    ...
+    require isup(bgpid_to_endpoint(src));
+    if ~_generating {
+        if bgp_message.bgp_type = bgp_message_type.open_mess {
+            var open_mess := bgp_open_message_serdes.from_bytes(bgp_message.payload);
+            call recv_bgp_open_message(src,dst, open_mess,bgp_message);
+            header_type := bgp_message_type.open_mess;
+            call bgp_open_message_event(src, dst, open_mess);
+        } else if bgp_message.bgp_type = bgp_message_type.update_mess {
+            var update_mess := bgp_update_message_serdes.from_bytes(bgp_message.payload);
+            call recv_bgp_update_message(src,dst,update_mess,bgp_message);
+            header_type := bgp_message_type.update_mess;
+            var idx := update_mess.path_attrs.begin;
+            while idx < update_mess.path_attrs.end {
+                var f := update_mess.path_attrs.value(idx);
+                call infer_path_attr(src,dst,f);
+                call f.handle(src,dst);
+                idx := idx.next
+            }
+            call bgp_update_message_event(src, dst, update_mess);
+        } else if bgp_message.bgp_type = bgp_message_type.notification_mess {
+            var notification_mess := bgp_notification_message_serdes.from_bytes(bgp_message.payload);
+            call recv_bgp_notification_message(src,dst,notification_mess,bgp_message);
+            header_type := bgp_message_type.notification_mess;
+            call bgp_notification_message_event(src, dst, notification_mess);
+        } else if bgp_message.bgp_type = bgp_message_type.keepalive_mess {
+            var keepalive_mess := bgp_keepalive_message_serdes.from_bytes(bgp_message.payload);
+            call recv_bgp_keepalive_message(src,dst, keepalive_mess,bgp_message);
+            header_type := bgp_message_type.keepalive_mess;
+            call bgp_keepalive_message_event(src, dst, keepalive_mess);
+        } else {
+            call unknown_bgp_message(src, dst, bgp_message);
+        };
+    }
+}
+
+import action unknown_bgp_message(src:bgp_id, dst:bgp_id, head : bgp_header_message) 
+import action recv_bgp_open_message(src:bgp_id, dst:bgp_id, mess:bgp_open_message, header:bgp_header_message)
+import action recv_bgp_update_message(src:bgp_id, dst:bgp_id, mess:bgp_update_message, header:bgp_header_message)
+import action recv_bgp_notification_message(src:bgp_id, dst:bgp_id, mess:bgp_notification_message, header:bgp_header_message)
+import action recv_bgp_keepalive_message(src:bgp_id, dst:bgp_id, mess:bgp_keepalive_message, header:bgp_header_message)
+import action infer_path_attr(scid:bgp_id,dcid:bgp_id,f:path_attr)

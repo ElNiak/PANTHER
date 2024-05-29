@@ -1,0 +1,1118 @@
+#lang ivy1.7
+
+include quic_locale
+include quic_network_controler
+
+object endpoint_id = {
+    type this = {client, client_alt, client_vn, server, server_alt, mim, victim, client_server, attacker}
+}
+
+# We use this type as a host id. There are two client host ids so we
+# can model migration.
+
+action endpoint_id_addr(ep_id : endpoint_id) returns (ep:ip.endpoint) = {
+    ep.protocol := ip.udp;
+    ep.addr := server_addr if ep_id = endpoint_id.server | ep_id = endpoint_id.server_alt  
+                    else (mim_addr if ep_id = endpoint_id.mim
+                    else client_addr);   # the loop-back addr
+    ep.port := client_port if ep_id = endpoint_id.client
+               else (mim_port_in if ep_id = endpoint_id.mim # TODO 
+               else (victim_port if ep_id = endpoint_id.victim # TODO 
+               else (client_port_alt if ep_id = endpoint_id.client_alt
+               else (client_port_vn if ep_id = endpoint_id.client_vn
+               else (server_port_alt if ep_id = endpoint_id.server_alt
+               else server_port)))));
+}
+
+object quic_endpoint = {
+    type this
+
+    module client_ep(address:ip.addr,port:ip.port) = { 
+        variant this of quic_endpoint = struct { }
+        individual ep        : ip.endpoint
+        individual tls_id    : tls_api.id
+        individual enc_level : quic_packet_type
+        individual lost_pkt_num : pkt_num
+
+        after init {
+            enc_level := quic_packet_type.initial;
+            ep.protocol := ip.udp;
+            ep.addr := address;
+            ep.port := port;
+            if ep.addr = 0x7f000001 | is_mim { # TODO is_mim not used
+                ep.interface := ip.lo;
+            } else {
+                ep.interface := ip.ivy;
+            }
+        }
+        
+        action set_ep(e:ip.endpoint) = {
+            ep := e;
+        }
+
+        action set_tls_id(e:tls_api.id) = {
+            tls_id := e;
+        }
+
+        action behavior(host:endpoint_id, s:net.socket, src:ip.endpoint, pkts:prot.arr) = {
+            var dst := socket_endpoint(host,s);  # because net API doesn't tell us the dst
+            var idx := pkts.begin;
+            var past_data : stream_data := stream_data.empty;
+            while idx < pkts.end {
+                var ppkt := pkts.value(idx);
+                var tls_id := src_tls_id(dst); # todo multiple
+                var header := ppkt.value(0);
+                var hdr_type : type_bits := bfe[0][6](ppkt.value(0));
+                var tt := bvand(hdr_type,0x30);
+                var is_long : bool := bvand(0x80,header) ~= 0;
+                
+                var version := ppkt.segment(1,1+4);
+                var bversion := bytes_to_version(version);
+                
+                var ptype : byte := bvand(0x30,header);
+
+                if (bversion = 0 & is_long) | version_not_found(src) { 
+                    # for server test, for version_negociation
+                    # 1000 0000 == version_negociation
+                    past_data := past_data.extend(ppkt);
+                    call tls_client_version_response(src,dst,past_data);
+                } 
+                else if (tt = 0x30 & is_long) & ~(bversion = 0)  {
+                    #for server test, Retry packet
+                    call tls_client_retry_response(src,dst,ppkt);
+                } 
+                # else if is_pad { #is_pad | is_rand_pad
+                #     call padding_packet_event(src,dst,ppkt); # For quic-go and quand  client
+                # } 
+                else { 
+                    var rnum := reference_pkt_num(ppkt,true);
+                    call show_rnum(rnum);
+                    # if rnum = lost_pkt_num {
+                    #     call on_purpose_lost_packet_event(host,src,dst,last_zrtt_pkt);
+                    # } else {
+                        var res := prot.decrypt(tls_id,rnum,ppkt);
+                        var dcil : stream_pos := bfe[0][7](ppkt.value(5));
+                        var ikm := cid_to_bytes(0,1); # dcid
+                        if(~dcil = 0) {
+                            client_initial_dcil := dcil;
+                            ikm := ppkt.segment(6,6+dcil); # dcid
+                        };
+                        var dcid : cid := bytes_to_cid(ikm);
+                        total_data_received := total_data_received + ppkt.size;
+                        # if total_data_received > 3 * total_data_sent { # Only for server
+                        #     call show_data_received(total_data_received);
+                        #     call show_data_sent(total_data_sent);
+                        #     if ~address_validated {
+                        #         anti_amplification_limit_reached := true;
+                        #     } else {
+                        #         anti_amplification_limit_reached := false;
+                        #     }
+                        # };
+                        call on_datagram_received(dst, dcid, ppkt);
+                        if res.ok {
+                            var is_pad := is_padding_packet(res.payload); # For picoquic  client
+                            if is_pad { #is_pad | is_rand_pad
+                                call padding_packet_event(host,src,dst,ppkt);
+                            } else {
+                                call clear_packet(src,dst,rnum,res.data);
+                                var pkt := pkt_serdes.from_bytes(res.data);
+                                pkt.seq_num := prot.correct_pnum(rnum,pkt.seq_num,prot.get_pnum_len(res.data));
+                                # if pkt.seq_num = lost_pkt_num {
+                                #     call on_purpose_lost_packet_event(host,src,dst,last_zrtt_pkt);
+                                # } else {
+                                    call recv_packet(host,src,dst,pkt);
+                                    call infer_tls_events(src,dst,pkt);   # infer any TLS events on server side
+                                    call packet_event(src,dst,pkt);       # also an inferred event
+                                    call on_packet_received(src,dst,pkt,last_datagram_received_size);
+                                # };
+                            };
+                        } else {
+                            call undecryptable_packet_event(host,src,dst,ppkt);
+                        };
+                    # };
+                };
+                idx := idx.next;
+            };
+            version_not_found(src) := false;
+            call show_last_datagram_size(last_datagram_received_size);
+            if ~first_datagram_received & host = endpoint_id.server { # for client tests
+                require last_datagram_received_size + 8 > 1200; # 8 is for UDP datagram header
+                first_datagram_received := true;
+            };
+            last_datagram_received_size := 0;
+        }
+        import action show_data_received(s:stream_pos)
+        import action show_data_sent(s:stream_pos)
+        import action show_rnum(s:pkt_num)
+    }
+
+    # TODO 
+    module clients_ep(address:ip.addr,port:ip.port,nc: client.idx) = { # Fix to multiple clients
+        variant this of quic_endpoint = struct { }
+
+        object client = {
+            type this = struct {
+                ep        : ip.endpoint,
+                tls_id    : tls_api.id,
+                enc_level : quic_packet_type
+            }
+            instance idx : unbounded_sequence
+            instance arr : array(idx,this)
+
+            # Useless for now
+            action set_ep(p:this,e:ip.endpoint)
+            action set_tls_id(p:this,e:tls_api.id)
+        }
+        
+        individual clients : client.arr
+
+        after init {
+            var cdx : client.idx := 0;
+            var last_cid := the_cid;
+            # clients := client.arr.empty;
+            var idx_port : ip.port := 0;
+            while cdx < nc {
+                var cc : client;
+                cc.enc_level := quic_packet_type.initial;
+                cc.ep.protocol := ip.udp;
+                cc.ep.addr := address;
+                cc.ep.port := port + (2*(idx_port+1));
+                clients := clients.append(cc);
+                the_cids := the_cids.append(last_cid);
+                last_cid := double_cid(last_cid);
+                cdx := cdx.next;
+                idx_port := idx_port + 1;
+            }
+        }
+        
+        action set_ep(e:ip.endpoint,n:client.idx) = {
+            clients.value(n).ep := e;
+        }
+
+        action set_tls_id(e:tls_api.id,n:client.idx) = {
+            clients.value(n).tls_id := e;
+        }
+
+        action src_tls_id(src:ip.endpoint) returns (tls_id:tls_api.id) = {
+            var cdx : client.idx := 0;
+            while cdx < nc {
+                if src = clients.value(cdx).ep {
+                    tls_id := clients.value(cdx).tls_id;
+                }
+                cdx := cdx.next;
+            }
+        }
+
+        action init_tls_ids = {
+            var cdx : client.idx := 0;
+            var ti  : tls_api.id := 0;
+            while cdx < nc {
+                clients.value(cdx).tls_id := ti;
+                cdx := cdx.next;
+                ti := ti + 1;
+            }
+        }
+    }
+
+    module server_ep(address:ip.addr,port:ip.port) = { 
+        variant this of quic_endpoint = struct { }
+        individual ep        : ip.endpoint
+        individual tls_id    : tls_api.id
+        individual enc_level : quic_packet_type
+        individual lost_pkt_num : pkt_num
+        # }
+
+        after init {
+            enc_level := quic_packet_type.initial;
+            ep.protocol := ip.udp;
+            ep.addr := address;
+            ep.port := port;
+            if ep.addr = 0x7f000001 | is_mim {
+                ep.interface := ip.lo;
+            } else {
+                ep.interface := ip.ivy;
+            }
+            lost_pkt_num := 0xa; # 0xFFFFFF; # means we do not loss packet on purposes
+        }
+        
+        action set_ep(e:ip.endpoint) = {
+            ep := e;
+        }
+
+        action set_tls_id(e:tls_api.id) = {
+            tls_id := e;
+        }
+
+        action behavior(host:endpoint_id, s:net.socket, src:ip.endpoint, pkts:prot.arr) = {
+            var dst := socket_endpoint(host,s);  # because net API doesn't tell us the dst
+            var idx := pkts.begin;
+            while idx < pkts.end {
+                var ppkt := pkts.value(idx);
+                var tls_id := src_tls_id(dst); # todo multiple
+                var header := ppkt.value(0);
+                var hdr_type : type_bits := bfe[0][6](ppkt.value(0));
+                var tt := bvand(hdr_type,0x30);
+                var is_long : bool := bvand(0x80,header) ~= 0;
+                var version := ppkt.segment(1,1+4);
+                var bversion := bytes_to_version(version);
+                var ptype : byte := bvand(0x30,header);
+                if zrtt_pkt_set & ~zrtt_pkt_process {
+                    zrtt_pkt_process := true;
+                    var rnum := reference_pkt_num(last_zrtt_pkt,true);
+                    call show_rnum(rnum);
+                    # if rnum = lost_pkt_num {
+                    #     call on_purpose_lost_packet_event(host,src,dst,last_zrtt_pkt); # TODO bug never called
+                    # } else {
+                        var res := prot.decrypt(tls_id,rnum,last_zrtt_pkt);
+                        var dcil : stream_pos := bfe[0][7](ppkt.value(5));
+                        var ikm := cid_to_bytes(0,1); # dcid
+                        if(~dcil = 0) {
+                            client_initial_dcil := dcil;
+                            ikm := ppkt.segment(6,6+dcil); # dcid
+                        };
+                        var dcid : cid := bytes_to_cid(ikm);
+                        total_data_received := total_data_received + ppkt.size;
+                        if total_data_received > 3 * total_data_sent {
+                            call show_data_received(total_data_received);
+                            call show_data_sent(total_data_sent);
+                            if ~address_validated {
+                                anti_amplification_limit_reached := true;
+                            } else {
+                                anti_amplification_limit_reached := false;
+                            }
+                        };
+                        call on_datagram_received(dst, dcid, ppkt);
+                        # call set_loss_detection_timer(dst, dcid);
+                        # if loss_detection_timer < time_api.c_timer.now_micros {
+                        #     call on_loss_detection_timeout();
+                        # };
+                        if res.ok {
+                            if ~(bversion = 0) {
+                                #for client test, 0rtt packet
+                                call tls_client_0rtt_response(src,dst,res.data);
+                            };
+                        } else {
+                            call undecryptable_packet_event(host,src,dst,last_zrtt_pkt);
+                        };
+                    # }
+                };
+                if bvand(ppkt.value(0),0xf0) = 0xc0 {
+                    # for client test
+                    call tls_client_initial_response(src,dst,ppkt)
+                };
+                var rnum := reference_pkt_num(ppkt,true);
+                # call show_rnum(rnum);
+                # if rnum = lost_pkt_num {
+                #     call on_purpose_lost_packet_event(host,src,dst,last_zrtt_pkt);
+                # } else {
+                    var res := prot.decrypt(tls_id,rnum,ppkt);
+                    var dcil : stream_pos := bfe[0][7](ppkt.value(5));
+                    var ikm := cid_to_bytes(0,1); # dcid
+                    if(~dcil = 0) {
+                        client_initial_dcil := dcil;
+                        ikm := ppkt.segment(6,6+dcil); # dcid
+                    };
+                    var dcid : cid := bytes_to_cid(ikm);
+                    total_data_received := total_data_received + ppkt.size;
+                    if total_data_received > 3 * total_data_sent {
+                        call show_data_received(total_data_received);
+                        call show_data_sent(total_data_sent);
+                        if ~address_validated {
+                            anti_amplification_limit_reached := true;
+                        } else {
+                            anti_amplification_limit_reached := false;
+                        }
+                    };
+                    call on_datagram_received(dst, dcid, ppkt);
+                    if res.ok {
+                        var is_pad := is_padding_packet(res.payload); # For picoquic  client
+                        if is_pad { #is_pad | is_rand_pad
+                            call padding_packet_event(host,src,dst,ppkt);
+                        } else if tt = 0x10  & ~(bversion = 0) {
+                            #for client test, 0rtt packet
+                            call tls_client_0rtt_response(src,dst,res.data);
+                        } else {
+                            call clear_packet(src,dst,rnum,res.data);
+                            var pkt := pkt_serdes.from_bytes(res.data);
+                            pkt.seq_num := prot.correct_pnum(rnum,pkt.seq_num,prot.get_pnum_len(res.data));
+                            # if pkt.seq_num = lost_pkt_num {
+                            #     call on_purpose_lost_packet_event(host,src,dst,last_zrtt_pkt);
+                            # } else {
+                                call recv_packet(host,src,dst,pkt);
+                                call infer_tls_events(src,dst,pkt);   # infer any TLS events on server side
+                                call packet_event(src,dst,pkt);       # also an inferred event
+                                call on_packet_received(src,dst,pkt,last_datagram_received_size);
+                                if nclients > 1 {
+                                    var cdx := the_cids.begin;
+                                    while cdx < the_cids.end {
+                                        var tcid := the_cids.value(cdx);
+                                        if bvand(ppkt.value(0),0xf0) = 0xc0 & ~connected(tcid) { 
+                                            # for client test
+                                            call app_server_open_event(dst,src,tcid,pkt.src_cid);  # [1]
+                                        };
+                                        cdx := cdx.next;
+                                    }
+                                } else {
+                                    if bvand(ppkt.value(0),0xf0) = 0xc0 & ~connected(the_cid) { 
+                                        # for client test
+                                        call app_server_open_event(dst,src,the_cid,pkt.src_cid);  # [1]
+                                    };
+                                };
+                            # };
+                        };
+                    } else {
+                        call undecryptable_packet_event(host,src,dst,ppkt);
+                    };
+               # };
+                idx := idx.next;
+            };
+            version_not_found(src) := false;
+            call show_last_datagram_size(last_datagram_received_size);
+            if ~first_datagram_received { # for client tests
+                #require last_datagram_received_size + 8 > 1200; # 8 is for UDP datagram header TODO
+                first_datagram_received := true;
+            };
+            last_datagram_received_size := 0;
+        }
+        import action show_data_received(s:stream_pos)
+        import action show_data_sent(s:stream_pos)
+        import action show_rnum(s:pkt_num)
+    }
+
+    # TODO 
+    module servers_ep(address:ip.addr,port:ip.port,nc: server.idx) = { # Fix to multiple clients
+        variant this of quic_endpoint = struct { }
+
+        object server = {
+            type this = struct {
+                ep        : ip.endpoint,
+                tls_id    : tls_api.id,
+                enc_level : quic_packet_type
+            }
+            instance idx : unbounded_sequence
+            instance arr : array(idx,this)
+
+            # Useless for now
+            action set_ep(p:this,e:ip.endpoint)
+            action set_tls_id(p:this,e:tls_api.id)
+        }
+        
+        individual servers : server.arr
+
+        after init {
+            var cdx : server.idx := 0;
+            # var last_cid := the_cid;
+            # clients := client.arr.empty;
+            var idx_port : ip.port := 0;
+            while cdx < nc {
+                var cc : server;
+                cc.enc_level := quic_packet_type.initial;
+                cc.ep.protocol := ip.udp;
+                cc.ep.addr := address;
+                cc.ep.port := port + (2*(idx_port+1));
+                servers := servers.append(cc);
+                # the_cids := the_cids.append(last_cid);
+                # last_cid := double_cid(last_cid);
+                cdx := cdx.next;
+                idx_port := idx_port + 1;
+            }
+        }
+        
+        action set_ep(e:ip.endpoint,n:server.idx) = {
+            servers.value(n).ep := e;
+        }
+
+        action set_tls_id(e:tls_api.id,n:server.idx) = {
+            servers.value(n).tls_id := e;
+        }
+
+        action src_tls_id(src:ip.endpoint) returns (tls_id:tls_api.id) = {
+            var cdx : server.idx := 0;
+            while cdx < nc {
+                if src = servers.value(cdx).ep {
+                    tls_id := servers.value(cdx).tls_id;
+                }
+                cdx := cdx.next;
+            }
+        }
+
+        action init_tls_ids = {
+            var cdx : server.idx := 0;
+            var ti  : tls_api.id := 0;
+            while cdx < nc {
+                servers.value(cdx).tls_id := ti;
+                cdx := cdx.next;
+                ti := ti + 1;
+            }
+        }
+    }
+
+    module client_server_ep(address:ip.addr,port:ip.port, oport:ip.port) = { 
+        variant this of quic_endpoint = struct { }
+        
+        individual ep_in        : ip.endpoint
+        individual ep_out       : ip.endpoint
+        individual tls_id_server    : tls_api.id
+        individual tls_id_client    : tls_api.id
+        individual enc_level : quic_packet_type
+    
+        individual init_cids : bool # TODO remove
+
+        after init {
+            enc_level := quic_packet_type.initial;
+            ep_in.protocol := ip.udp;
+            ep_in.addr := address;
+            ep_in.port := port;
+            
+            ep_out.protocol := ip.udp;
+            ep_out.addr := address;
+            ep_out.port := oport;
+        }
+        
+        action set_ep(e:ip.endpoint) = {
+            ep_in := e; # TODO
+        }
+
+        action set_tls_id(e:tls_api.id,ee:tls_api.id) = {
+            tls_id_server := ee;
+            tls_id_client := e;
+        }
+
+        action behavior(host:endpoint_id, s:net.socket, src:ip.endpoint, pkts:prot.arr) = {
+            var dst := socket_endpoint(host,s);  # because net API doesn't tell us the dst socket_endpoint_mim
+            var idx := pkts.begin;
+            # TODO should not be here
+
+            while idx < pkts.end {
+                var ppkt := pkts.value(idx);
+                var tls_id := src_tls_id(dst); # todo multiple
+                var header := ppkt.value(0);
+                var hdr_type : type_bits := bfe[0][6](ppkt.value(0));
+                var tt := bvand(hdr_type,0x30);
+                var is_long : bool := bvand(0x80,header) ~= 0;
+                
+                var version := ppkt.segment(1,1+4);
+                var bversion := bytes_to_version(version);
+                
+                var ptype : byte := bvand(0x30,header);
+                idx := idx.next; 
+            };
+        }
+    }
+
+    module mim_ep(address:ip.addr,port:ip.port, oport:ip.port) = { 
+        variant this of quic_endpoint = struct { }
+        
+        individual ep_in        : ip.endpoint
+        individual ep_out       : ip.endpoint
+        individual tls_id    : tls_api.id
+        individual enc_level : quic_packet_type
+        individual nat_configured : bool
+        individual ppkt_saved_b : bool
+        individual ppkt_saved : stream_data
+        
+        individual ppkt_to_be_replayed_to_server : forged_pkts
+        function ppkt_to_be_forwarded_to_server(C:stream_pos) : forged_pkts
+        individual cppkt_forwarded_to_server : stream_pos
+        individual last_cppkt_forwarded_to_server : stream_pos
+
+        individual force_client_forward : bool  # useless for now
+        function ppkt_to_be_forwarded_to_client(C:stream_pos) : forged_pkts
+        individual cppkt_forwarded_to_client : stream_pos
+        individual last_cppkt_forwarded_to_client : stream_pos
+
+        individual force_server_forward : bool
+        
+        individual forward_turn : bool
+        individual forward_turn_count : stream_pos
+        
+        individual ppkt_to_be_reflected_to_victim : forged_pkts
+    
+        individual ppkt_to_be_forge : stream_data
+        individual ppkt_to_be_forge_parsed : forged_protected_quic_packet
+        individual enc_level_ppkt_to_be_forge : quic_packet_type
+
+        individual init_cids : bool # TODO remove
+
+        individual wait_forward : bool # TODO remove
+
+        function max_retransmit(E:quic_packet_type,S:ip.endpoint) : stream_pos
+
+
+        after init {
+            enc_level := quic_packet_type.initial;
+            ep_in.protocol := ip.udp;
+            ep_in.addr := address;
+            ep_in.port := port;
+            ep_in.interface := ip.lo;
+            
+            ep_out.protocol := ip.udp;
+            ep_out.addr := address;
+            ep_out.port := oport;
+            if ep_out.addr = 0x7f000001 {
+                ep_out.interface := ip.lo;
+            } else {
+                ep_out.interface := ip.ivy;
+            }
+            
+            nat_configured := false;
+            ppkt_saved_b := false;
+            init_cids := false;
+
+            force_client_forward := false;
+            force_server_forward := false;
+
+            max_retransmit(E,S) := 0;
+
+            # ppkt_to_be_forwarded_to_server(C) := forged_pkts.empty;
+            # ppkt_to_be_forwarded_to_client(C) := forged_pkts.empty;
+            # Allow to keep coalesced packed
+            cppkt_forwarded_to_server := 0;
+            cppkt_forwarded_to_client := 0;
+            last_cppkt_forwarded_to_server := 0;
+            last_cppkt_forwarded_to_client := 0;
+
+            forward_turn := false;
+            forward_turn_count := 0;
+            
+            wait_forward := true;
+            
+            ppkt_to_be_forge := stream_data.empty;
+            enc_level_ppkt_to_be_forge := quic_packet_type.initial;
+        }
+        
+        action set_ep(e:ip.endpoint) = {
+            ep_in := e; # TODO
+        }
+
+        action set_tls_id(e:tls_api.id) = {
+            tls_id := e;
+        }
+
+        action behavior(host:endpoint_id, s:net.socket, src:ip.endpoint, pkts:prot.arr) = {
+            var dst := socket_endpoint_mim(host,s,src);  # because net API doesn't tell us the dst socket_endpoint_mim
+            var idx := pkts.begin;
+            # TODO should not be here
+
+            if ~nat_configured {
+                #call configure_NAT_attack_out_trick(src);
+                #call configure_NAT_attack_out_localhost(src.port);
+                nat_configured := true;
+                mim_client_target.set_ep(src); # Like initial connection from client 
+                mim_server_target.set_ep(dst);
+                #mim_server_target.ep.interface := ip.ivy;
+                if sock_mim_client = 0 {
+                    fake_client.set_ep(mim_client_target.ep);
+                    fake_client.ep.interface := ip.lo;
+                    # TODO only for server tests
+                    sock_mim_client := net.listen(endpoint_id.mim,fake_client.ep);
+                }; 
+            } 
+
+            #require ppkt_to_be_forwarded_to_server.end = 0;
+            #require ppkt_to_be_forwarded_to_client.end = 0;
+
+            while idx < pkts.end {
+                var ppkt := pkts.value(idx);
+                var tls_id := src_tls_id(dst); # todo multiple
+                var header := ppkt.value(0);
+                var hdr_type : type_bits := bfe[0][6](ppkt.value(0));
+                var tt := bvand(hdr_type,0x30);
+                var is_long : bool := bvand(0x80,header) ~= 0;
+                
+                var version := ppkt.segment(1,1+4);
+                var bversion := bytes_to_version(version);
+                
+                var ptype : byte := bvand(0x30,header);
+
+                call recv_packet_mim(host,src,dst,ppkt);
+
+                # Either we modify initial packet version and provoc VN
+                # Either we manually forge version negociation packet
+                var rppkt := ppkt;
+
+
+                # if modify_packets {
+                #     rppkt := modify_packet(ppkt); 
+                # };
+
+                if forward_packets { # To server
+                    # call forward_packet_to(rppkt,host,s,src,dst);
+                    # call forward_packet_to_client_event(src,dst,rppkt);       # also an inferred event
+                    if src = mim_client_target.ep {
+                        # We do that to avoid forwarding all request from very fast client 
+                        var pkt_type : quic_packet_type := quic_packet_type.initial;
+                        if is_long {
+                            if bvand(ppkt.value(0),0xf0) = 0xc0 {
+                                pkt_type := quic_packet_type.initial;
+                                #max_retransmit(pkt_type,src) := max_retransmit(pkt_type,src) + 1;
+                            } else if (bversion = 0) | version_not_found(src) { 
+                                pkt_type := quic_packet_type.version_negociation;
+                            } else if tt = 0x30 & ~(bversion = 0)  {
+                                pkt_type := quic_packet_type.retry;
+                                # wait_forward := false;
+                            } else if tt = 0x10  & ~(bversion = 0) {
+                                pkt_type := quic_packet_type.zero_rtt;
+                                # wait_forward := false;
+                            } else {
+                                pkt_type := quic_packet_type.handshake;
+                                # wait_forward := false;
+                                #max_retransmit(pkt_type,src) := max_retransmit(pkt_type,src) + 1;
+                            } 
+                        } else {
+                            pkt_type := quic_packet_type.one_rtt;
+                            # wait_forward := false;
+                        }
+                        
+                        if (pkt_type = enc_level_ppkt_to_be_forge | pkt_type = quic_packet_type.initial) & save_packet { #  & ~ppkt_saved_b
+                            call save_packets(ppkt); # For replayed pre_shared_key
+                            ppkt_to_be_replayed_to_server := ppkt_to_be_replayed_to_server.append(ppkt); # For replayed 0rtt packet directly e.g
+                            ppkt_saved_b := true;
+                        };
+
+                        # if pkt_type = enc_level_ppkt_to_be_forge & is_long {
+                        #     ppkt_to_be_forge := rppkt;
+                        #     ppkt_to_be_forge_parsed := forged_protected_pkt_serdes.from_bytes(ppkt_to_be_forge);
+                        #     call recv_protected_packet_mim(host,src,dst,ppkt_to_be_forge_parsed);
+                        # }
+                        #max_retransmit(pkt_type,src) := max_retransmit(pkt_type,src) + 1;
+                        #if max_retransmit(pkt_type,src) <= 2 {
+                        ppkt_to_be_forwarded_to_server(cppkt_forwarded_to_server) := ppkt_to_be_forwarded_to_server(cppkt_forwarded_to_server).append(rppkt);
+                        # force_client_forward := true;
+                        # } else {
+                        #     ppkt_to_be_forwarded_to_server := forged_pkts.empty;
+                        #     force_client_forward := false;
+                        # }
+                    } else if src = mim_server_target.ep {
+                        var pkt_type : quic_packet_type := quic_packet_type.initial;
+                        if is_long {
+                            if bvand(ppkt.value(0),0xf0) = 0xc0 {
+                                pkt_type := quic_packet_type.initial;
+                                #max_retransmit(pkt_type,src) := max_retransmit(pkt_type,src) + 1;
+                            } else if (bversion = 0) | version_not_found(src) { 
+                                pkt_type := quic_packet_type.version_negociation;
+                            } else if tt = 0x30 & ~(bversion = 0)  {
+                                pkt_type := quic_packet_type.retry;
+                                wait_forward := false;
+                            } else if tt = 0x10  & ~(bversion = 0) {
+                                pkt_type := quic_packet_type.zero_rtt;
+                                wait_forward := false;
+                            } else {
+                                pkt_type := quic_packet_type.handshake;
+                                wait_forward := false;
+                                #max_retransmit(pkt_type,src) := max_retransmit(pkt_type,src) + 1;
+                            } 
+                        } else {
+                            pkt_type := quic_packet_type.one_rtt;
+                            wait_forward := false;
+                        }
+                        ppkt_to_be_forwarded_to_client(cppkt_forwarded_to_client) := ppkt_to_be_forwarded_to_client(cppkt_forwarded_to_client).append(rppkt);
+                        # force_server_forward := true;
+                    }
+                };
+                
+                if forward_packets_victim {
+                    var ddst := victim_agent.ep;
+                    #call forward_packet_to(rppkt,host,s,src,ddst);
+                    ppkt_to_be_reflected_to_victim := ppkt_to_be_reflected_to_victim.append(rppkt);
+                    call reflection_packets(rppkt,0);
+                };
+
+                if replay_packets { # To server
+                    call forward_packet_to(ppkt_saved,host,s,src,dst);
+                };
+
+                # TODO add specific mim action/relation for more clarety
+                # negocation_of_version(src) := true;
+
+                if ~init_cids { # Needed for generation of forged VN packets
+                    var dcil : stream_pos := bfe[0][7](ppkt.value(5));
+                    var ikm := cid_to_bytes(0,1); # dcid
+                    if(~dcil = 0) {
+                        client_initial_dcil := dcil;
+                        ikm := ppkt.segment(6,6+dcil); # dcid
+                    };
+                    var scil : stream_pos := bfe[0][7](ppkt.value(6+dcil));
+                    var skm := cid_to_bytes(0,1); # scid
+                    if(~scil = 0) {
+                        client_initial_scil := scil;
+                        client_non_zero_scil := true;	
+                        skm := ppkt.segment(6+dcil+1,6+dcil+1+scil); # scid
+                    };
+                    client_initial_dcid := bytes_to_cid(ikm);
+                    client_initial_scid := bytes_to_cid(skm); # skm
+                    call export_length_cid_mim(dcil,scil);
+                    init_cids := true;
+                };
+                
+                idx := idx.next; 
+            };
+
+            if forward_packets & keep_coalesed { # To server
+                # call forward_packet_to(rppkt,host,s,src,dst);
+                # call forward_packet_to_client_event(src,dst,rppkt);       # also an inferred event
+                if src = mim_client_target.ep {
+                    # ppkt_to_be_forwarded_to_server := pkts;
+                    cppkt_forwarded_to_server := cppkt_forwarded_to_server + 1;
+                } else if src = mim_server_target.ep {
+                    # ppkt_to_be_forwarded_to_client := pkts;
+                    cppkt_forwarded_to_client := cppkt_forwarded_to_client + 1;
+                };
+            };
+
+            #forward_turn := true;
+        }
+
+        action forward_packet_to(ppkt:stream_data,host:endpoint_id, s:net.socket, src:ip.endpoint, dst:ip.endpoint) = {
+            # forward packet
+            var pkts_mim := prot.arr.empty;
+            pkts_mim := pkts_mim.append(ppkt);
+            call net.send(endpoint_id.mim,endpoint_to_socket(src),dst,pkts_mim);
+        }
+
+        action replay_packet(ppkt:stream_data,host:endpoint_id, s:net.socket, src:ip.endpoint) = {
+            # replay packet
+            var dst := socket_endpoint(host,s);
+            var pkts_mim := prot.arr.empty;
+            pkts_mim := pkts_mim.append(ppkt);
+            call net.send(endpoint_id.mim,endpoint_to_socket(src),dst,pkts_mim);
+        }
+
+        # TODO use serializer
+        action modify_packet(ppkt:stream_data) returns(rppkt:stream_data) =  {
+            #var version := bytes_to_version(spkt.segment(1,5));
+            var tppkt := ppkt;
+            tppkt := tppkt.set(1,0xff);
+            tppkt := tppkt.set(2,0x00);
+            tppkt := tppkt.set(3,0x00);
+            tppkt := tppkt.set(4,0x1d);
+            rppkt := tppkt;
+        }
+
+        # TODO add dynamic condition to save packets
+        action save_packets(ppkt:stream_data) = {
+            # TODO if saved_packet_type ...
+            #ppkt_saved := ppkt;
+            <<<
+            const char * session_file = getenv("SAVED_PACKET");
+            std::cerr << "SAVED_PACKET 5b " << ppkt.size() << "\n";
+            FILE *fp;
+            if(session_file != NULL) {
+                fp = fopen(session_file,"w");
+                for(int j = 0; j < ppkt.size(); j++) {
+                    fprintf(fp, "%02x",  ppkt[j]); //length field
+                }
+                fclose(fp);
+            }        
+            >>>
+        }
+
+        action get_saved_packets returns(ppkt:stream_data) = {
+            # TODO if saved_packet_type ...
+            #ppkt_saved := ppkt;
+            <<<
+            const char * session_file = getenv("SAVED_PACKET");
+            std::cerr << "SAVED_PACKET 5b " << session_file<< "\n";
+            FILE *fp;
+            if(session_file != NULL) {
+                fp = fopen(session_file,"r");
+                read = getline(&line, &len, fp);
+                fclose(fp);
+                bool is_error = false;
+                if(line != NULL) { 
+                    std::cerr << "SAVED_PACKET 1 " << line << std::endl;
+                    int hex_len = strlen(line);
+                    std::cerr << "SAVED_PACKET hex_len " << hex_len << std::endl;
+                    uint8_t secret[hex_len/2];
+                    for (int j = 0; j < hex_len/2; j++) {
+                        int a = ws_xton(line[j*2]);
+                        int b = ws_xton(line[j*2 + 1]);
+                        if (a == -1 || b == -1) {
+                            is_error = true;
+                            std::cerr << "a ERROR " << line[j*2] << std::endl;
+                            std::cerr << "b ERROR " << line[j*2 + 1] << std::endl;
+                            std::cerr << "SAVED_PACKET ERROR " << std::endl;
+                            break;
+                        }
+                        secret[j] = a << 4 | b;
+                    }  
+                    std::cerr << "SAVED_PACKET TEST_ST 2 " << secret << std::endl;
+                    for(int i = 0; i < hex_len/2 && !is_error; i++)
+                        ppkt.push_back(secret[i]);
+                }
+            }        
+            >>>
+        }
+
+        action reflection_packets(ppkt:stream_data,dst_port:ip.port) = {
+            # spoof source ip/port
+            # TODO: we should modify the packet directly, however we only see the QUIC packet and thus this 
+            # is impossible for now to do so 
+            # Instead: we send with victim ep so it simulate the ip spoofing
+            # forward to server
+            var dst := server.ep;
+            var pkts_mim := prot.arr.empty;
+            pkts_mim := pkts_mim.append(ppkt);
+            call net.send(endpoint_id.victim,sock_victim,dst,pkts_mim);
+        }
+
+        # TODO more flexible -> in test configuration phase ?
+        action configure_NAT_attack_in(server_ep:ip.port) = {
+            <<< 
+                //  -o lo
+                std::string command = "sudo iptables -t nat -A OUTPUT -d 10.0.2.1 -p udp --dport " + std::to_string(server_ep) + ":" + std::to_string(server_ep) + " ! --sport 4430:4440 -j DNAT --to-destination 10.0.3.1:4440 >/dev/null 2>&1"; 
+                int n = command.length();
+            
+                // declaring character array
+                char command_array[n + 1];
+            
+                // copying the contents of the
+                // string to char array
+                strcpy(command_array, command.c_str());
+
+                int cr = system(command_array);
+            >>>
+        }
+
+        action configure_NAT_attack_out_trick(dst:ip.endpoint) = {
+            # <<<
+            #     /**
+            #         Not working in localhost but should be ok in private adress TODO
+            #             -> To simulate that we set: sock_mim_client = sock (from server) to simulate NAT
+            #     */
+            #     const char * command = "sudo iptables -t nat -A POSTROUTING -o lo -d 127.0.0.1 -p udp --sport 4439:4439 -j SNAT --to-source 127.0.0.1:4443"; //  # error in localhost
+            #     int cr = system( command );
+            # >>>
+            sock_mim_client := sock; 
+        }
+
+        # OK for localhost but not for private adress
+        action configure_NAT_attack_out_localhost(dst:ip.port) = {
+            <<<
+                /**
+                    Not working in localhost but should be ok in private adress TODO
+                        -> To simulate that we set: sock_mim_client = sock (from server) to simulate NAT
+                */
+                // -o lo
+                std::string command = "sudo iptables -t nat -A POSTROUTING -d 10.0.3.1 -p udp --sport 4439:4439 -j SNAT --to-source 10.0.1.1:" + std::to_string(dst); //  # error in localhost
+                int n = command.length();
+
+                // declaring character array
+                char command_array[n + 1];
+            
+                // copying the contents of the
+                // string to char array
+                strcpy(command_array, command.c_str());
+
+                int cr = system(command_array);
+            >>>
+        }
+
+         action configure_NAT_attack_out(dst:ip.port) = {
+            <<<
+                /**
+                    Not working in localhost but should be ok in private adress TODO
+                        -> To simulate that we set: sock_mim_client = sock (from server) to simulate NAT
+                */
+                // -o lo
+                std::string command = "sudo iptables -t nat -A POSTROUTING -d 10.0.3.1 -p udp --sport 4439:4439 -j SNAT --to-source 10.0.1.1:" + std::to_string(dst); //  # error in localhost
+                int n = command.length();
+
+                // declaring character array
+                char command_array[n + 1];
+            
+                // copying the contents of the
+                // string to char array
+                strcpy(command_array, command.c_str());
+
+                int cr = system(command_array);
+            >>>
+        }
+
+
+        action reset_NAT = {
+            <<<
+                const char * command = "sudo iptables -t nat -L -n -v;sudo iptables -t nat -F >/dev/null 2>&1"; 
+                int cr = system( command );
+            >>>
+        }
+    }
+
+
+    module attacker_ep(address:ip.addr,port:ip.port) = { 
+        variant this of quic_endpoint = struct { }
+        individual ep        : ip.endpoint
+        individual tls_id    : tls_api.id
+        individual enc_level : quic_packet_type
+
+        after init {
+            enc_level := quic_packet_type.initial;
+            ep.protocol := ip.udp;
+            ep.addr := address;
+            ep.port := port;
+        }
+        
+        action set_ep(e:ip.endpoint) = {
+            ep := e;
+        }
+
+        action set_tls_id(e:tls_api.id) = {
+            tls_id := e;
+        }
+
+        action behavior(host:endpoint_id, s:net.socket, src:ip.endpoint, pkts:prot.arr) = {
+            var dst := socket_endpoint(host,s);  # because net API doesn't tell us the dst
+            var idx := pkts.begin;
+            var past_data : stream_data := stream_data.empty;
+            while idx < pkts.end {
+                var ppkt := pkts.value(idx);
+                var tls_id := src_tls_id(dst); # todo multiple
+                var header := ppkt.value(0);
+                var hdr_type : type_bits := bfe[0][6](ppkt.value(0));
+                var tt := bvand(hdr_type,0x30);
+                var is_long : bool := bvand(0x80,header) ~= 0;
+                
+                var version := ppkt.segment(1,1+4);
+                var bversion := bytes_to_version(version);
+                
+                var ptype : byte := bvand(0x30,header);
+
+                if (bversion = 0 & is_long) | version_not_found(src) { 
+                    # for server test, for version_negociation
+                    # 1000 0000 == version_negociation
+                    past_data := past_data.extend(ppkt);
+                    call tls_client_version_response(src,dst,past_data);
+                } 
+                else if tt = 0x30 & ~(bversion = 0)  {
+                    #for server test, Retry packet
+                    call tls_client_retry_response(src,dst,ppkt);
+                } 
+                # else if is_pad { #is_pad | is_rand_pad
+                #     call padding_packet_event(src,dst,ppkt); # For quic-go and quand  client
+                # } 
+                else { 
+                    var rnum := reference_pkt_num(ppkt,true);
+                    var res := prot.decrypt(tls_id,rnum,ppkt);
+                    if res.ok {
+                        var is_pad := is_padding_packet(res.payload); # For picoquic  client
+                        if is_pad { #is_pad | is_rand_pad
+                            call padding_packet_event(host,src,dst,ppkt);
+                        } else {
+                            var pkt := pkt_serdes.from_bytes(res.data);
+                            pkt.seq_num := prot.correct_pnum(rnum,pkt.seq_num,prot.get_pnum_len(res.data));
+                            call recv_packet(host,src,dst,pkt);
+                            call infer_tls_events(src,dst,pkt);   # infer any TLS events on server side
+                            call packet_event(src,dst,pkt);       # also an inferred event
+                        };
+                    } else {
+                        call undecryptable_packet_event(host,src,dst,ppkt);
+                    };
+                };
+                idx := idx.next;
+            };
+            version_not_found(src) := false;
+            call show_last_datagram_size(last_datagram_received_size);
+            if ~first_datagram_received & host = endpoint_id.server { # for client tests
+                require last_datagram_received_size + 8 > 1200; # 8 is for UDP datagram header
+                first_datagram_received := true;
+            };
+            last_datagram_received_size := 0;
+        }
+
+        action configure_NAT_attack_in_spoof(server_ep:ip.port,victim_ep:ip.port) = {
+            <<<
+                // should use postrouting
+                std::string command = "sudo iptables -t nat -A OUTPUT -o lo -d 127.0.0.1 -p udp --dport " + std::to_string(server_ep) + ":" + std::to_string(server_ep) + " -j DNAT --to-destination 127.0.0.1:"+ std::to_string(victim_ep) +">/dev/null 2>&1"; 
+                int n = command.length();
+                std::cerr << "configure_NAT_attack_in_spoof " << command << "\n";
+                // declaring character array
+                char command_array[n + 1];
+            
+                // copying the contents of the
+                // string to char array
+                strcpy(command_array, command.c_str());
+
+                int cr = system(command_array);
+            >>>
+        }
+
+        action configure_NAT_attack_in_spoof_hack(server_ep:ip.port,victim_ep:ip.port) = {
+            sock_attacker := sock_victim; 
+        }
+        
+        action reset_NAT = {
+            <<<
+                const char * command = "sudo iptables -t nat -L -n -v;sudo iptables -t nat -F >/dev/null 2>&1"; 
+                int cr = system( command );
+            >>>
+        }
+    }
+
+    
+    module cnc_ep(address:ip.addr, port: ip.port) = {
+        
+    }
+
+    module bot_ep(address:ip.addr, port:ip.port) = {
+
+    }
+
+    module victim_ep(address:ip.addr,port:ip.port) = { 
+        variant this of quic_endpoint = struct { }
+        
+        individual ep         : ip.endpoint
+        individual tls_id     : tls_api.id
+        individual enc_level  : quic_packet_type
+        individual ppkt_recvd : forged_pkts
+
+        after init {
+            enc_level := quic_packet_type.initial;
+            ep.protocol := ip.udp;
+            ep.addr := address;
+            ep.port := port;
+            ppkt_recvd := forged_pkts.empty;
+        }
+        
+        action set_ep(e:ip.endpoint) = {
+            ep := e;
+        }
+
+        action set_tls_id(e:tls_api.id) = {
+            tls_id := e;
+        }
+
+        action setup_socket = {
+            # TODO
+        }
+
+        action behavior(host:endpoint_id, s:net.socket, src:ip.endpoint, pkts:prot.arr) = {
+            var dst := socket_endpoint(host,s);  # because net API doesn't tell us the dst
+            var idx := pkts.begin;
+            while idx < pkts.end {
+                var ppkt := pkts.value(idx);
+                var tls_id := src_tls_id(dst); # todo multiple
+                var header := ppkt.value(0);
+                var hdr_type : type_bits := bfe[0][6](ppkt.value(0));
+                var tt := bvand(hdr_type,0x30);
+                var is_long : bool := bvand(0x80,header) ~= 0;
+                
+                var version := ppkt.segment(1,1+4);
+                var bversion := bytes_to_version(version);
+                
+                var ptype : byte := bvand(0x30,header);
+
+                call recv_packet_victim(host,src,dst,ppkt);
+                ppkt_recvd := ppkt_recvd.append(ppkt);
+                idx := idx.next;
+            };
+        }
+    }
+}
+
+action double_cid(c:cid) returns(res:cid) = {
+    <<<
+    res.val = c.val * 2;
+    >>>
+}
+
+import action show_endpoint(e:quic_endpoint)

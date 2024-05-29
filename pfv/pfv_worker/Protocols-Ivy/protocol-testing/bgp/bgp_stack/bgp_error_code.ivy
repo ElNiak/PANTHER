@@ -1,0 +1,99 @@
+#lang ivy1.7
+
+type err_code
+type err_subcode
+
+object bgp_message_type = {
+    type this = {not_a_mess, open_mess, update_mess, notification_mess, keepalive_mess} 
+}
+
+object bgp_error_code = {
+    type this = {not_a_mess, header_mess_error, open_mess_error, update_mess_error, hold_timer_expire, fsm_error, cease_error} 
+}
+
+object bgp_header_error_subcode = {
+    type this  = {not_a_mess, connection_not_synchronized, bad_message_length, bad_message_type} 
+}
+
+object bgp_open_error_subcode = {
+    type this  = {not_a_mess, unsupported_version_number, bad_peer_as, bad_bgp_identifier, unsupported_optional_parameter, unacceptable_hold_time, unsupported_capability} 
+}
+
+object bgp_update_error_subcode = {
+    type this  = {not_a_mess, malformed_attribute_list, unrecognized_well_known_attribute, missing_well_known_attribute, attribute_flags_error, attribute_length_error, invalid_origin_attribute, as_routing_loop, invalid_next_hop_attribute, optional_attribute_error, invalid_network_field, malformed_as_path} 
+}
+
+object bgp_error_subcode = {
+    type this
+
+    object type_bgp_header_error_subcode = {
+        variant this of bgp_error_subcode  = struct {
+            code: bgp_header_error_subcode
+        }
+    }
+
+    object type_bgp_open_error_subcode = {
+       variant this of bgp_error_subcode  = struct {
+            code: bgp_open_error_subcode
+        }
+    }
+
+    object type_bgp_update_error_subcode = {
+        variant this of bgp_error_subcode  = struct {
+            code: bgp_update_error_subcode
+        }
+    }
+
+}
+
+
+object bgp_error_subcode = {
+    ...
+    action handle(f:this, src:bgp_id, dst:bgp_id) = {
+        require false; # this generic action should never be called
+    }
+}
+
+function queued_suberror(C:bgp_id) : bgp_error_subcode
+
+object bgp_error_subcode = {
+    ...
+    object type_bgp_header_error_subcode = {
+        ...
+        action handle(f:bgp_error_subcode.type_bgp_header_error_subcode, src:bgp_id, dst:bgp_id)
+
+        around handle {
+            require open_message_recv(src) & open_message_recv(dst);
+            ...
+            queued_suberror(src) := f;
+        }
+    }
+}
+
+object bgp_error_subcode = {
+    ...
+    object type_bgp_open_error_subcode = {
+        ...
+        action handle(f:bgp_error_subcode.type_bgp_open_error_subcode, src:bgp_id, dst:bgp_id)
+
+        around handle {
+            require open_message_recv(src) & open_message_recv(dst);
+            ...
+            queued_suberror(src) := f;
+        }
+    }
+}
+
+object bgp_error_subcode = {
+    ...
+    object type_bgp_update_error_subcode = {
+        ...
+        action handle(f:bgp_error_subcode.type_bgp_update_error_subcode, src:bgp_id, dst:bgp_id)
+
+        around handle {
+            require open_message_recv(src) & open_message_recv(dst);
+            ...
+            queued_suberror(src) := f;
+        }
+    }
+}

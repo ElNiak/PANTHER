@@ -1,0 +1,390 @@
+#lang ivy1.7
+
+include quic_types
+include quic_transport_error_code
+include quic_frame
+include quic_packet
+include quic_transport_parameters
+include ip
+include quic_fsm_sending
+include quic_fsm_receiving
+include byte_stream
+
+# The packet protocol
+#
+# The packet protocol has several funcitons including establishing
+# connections and loss detection. Packets carry frames whihc implement
+# many other funcition of QUIC.
+#
+# QUIC Packets
+# ------------
+
+# This section defines the QUIC packet datatype. Packets are the basic
+# unit of communication between endpoints. A packet may be encoded in
+# either the long or the short format. There are packet types:
+# `initial`, `handshake`, `zero_rtt` and `one_rtt`. The `zero_rtt`
+# type is encoded in the short format, while others are encoded in the
+# long format.  Packets have associated source cid (long format only)
+# and destination cid, protocol version (long format only), and a
+# packet sequence number. An initial packet also has a *retry token*, which
+# is a (possibly empty) sequence of bytes.  The *payload* of the
+# packet consists of a sequence of *frames* (see quic_frame.ivy).
+
+# TODO: retry and one_rtt packet types
+
+# ### Packet
+
+# The type `packet.quic_packet` represents packet. 
+
+# The fields are:
+#
+# - *ptype*: the packet type [2]
+# - *pversion*: the protocol version, if long format, else 0 [3]
+# - *dst_cid*: the destination cid [4]
+# - *src_cid*: the source cid, if long format, else 0  [5]
+# - *token*: the retry token (see section 4.4.1)  [6]
+# - *seq_num*: the packet sequence number  [7]
+# - *payload*: the payload, a sequence of frames  [8]
+
+object packet = {
+    # coalesed
+    ...
+
+    object quic_packet_coal_0rtt = {
+        variant this of packet = struct {
+            # Initial packet
+            ptype_i : quic_packet_type, # [2]
+            pversion_i : version, # [3]
+            dst_cid_i : cid, # [4]
+            src_cid_i : cid, # [5]
+            token_i : stream_data, # [6]
+            seq_num_i : pkt_num, # [7]
+            payload_i : quic_frame.arr, # [8]
+            # 0rtt packet
+            ptype : quic_packet_type, # [2]
+            pversion : version, # [3]
+            dst_cid : cid, # [4]
+            src_cid : cid, # [5]
+            seq_num : pkt_num, # [7]
+            payload : quic_frame.arr # [8]
+        }
+
+        instance idx : unbounded_sequence
+        instance arr : array(idx,this)
+
+        #Hamid
+        instance retired_cids : array(idx, cid_seq)
+        #Hamid
+
+        action long(pkt:this) returns(res:bool) = {
+            res := pkt.ptype ~= quic_packet_type.one_rtt;
+        }
+    }
+}
+
+# Note: Short header are considered to have scid of 0 so it is quite important to use this value
+
+# Packet protocol events
+# -----------------------
+
+# The packet event
+# ================
+#
+# This event corresponds to transmission of a QUIC packet.
+#
+# Parameters
+# ----------
+#
+# - `src`: the source endpoint
+# - `dst`: the destination endpoint
+# - `pkt` : the packet contents
+
+action packet_event_coal_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_coal_0rtt) = {}
+
+# Packet protocol state
+# ---------------------
+
+# This section defines the history variables that track the state of
+# the packet protocol. Some of these variables are shared between
+# protocol layers, so that the allowed interleavings of events at
+# different layers can be specified.
+#
+
+# Packet protocol state
+# ---------------------
+
+# Packet event specification [A]
+# --------------------------
+
+# 0RTT-Packet event specification [B]
+# --------------------------
+
+
+around packet_event_coal_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_coal_0rtt) {    
+    # Extract the source and destination cid's and packet number from the packet.
+
+    require pkt.src_cid = pkt.src_cid_i; #[B:2]
+    require pkt.dst_cid = pkt.dst_cid_i;
+    require pkt.seq_num = pkt.seq_num_i;
+    
+    var dcid_i := pkt.dst_cid_i;
+    var scid_i := pkt.src_cid_i;
+    if cid_mapped(dcid_i) {
+	    dcid_i := cid_to_aid(dcid_i);
+    };
+
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid;
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+
+    if src = client_alt | dst = client_alt {
+	    migration_done := true;
+	    #call net.close(endpoint_id.client,sock);	# destroy connection ?
+    };
+
+    require pkt.token_i.end ~= 0 -> (pkt.ptype_i = quic_packet_type.initial & retry_recv(dcid_i));
+
+    # TEMPORARY: Do not allow zero_rtt packets
+
+    require pkt.ptype_i ~= quic_packet_type.zero_rtt;
+
+    require connected(dcid_i) |
+        pkt.ptype_i = quic_packet_type.initial
+        & is_client(scid_i)
+        & dcid_i = nonce_cid(scid_i);
+
+    if pkt.long {
+        require connected(dcid_i) -> connected_to(dcid_i) = scid_i;
+    }
+    else {
+        scid_i := connected_to(dcid_i);
+    };
+
+    require pkt.ptype_i = queued_level(scid_i);
+
+    if  _generating {
+        require pkt.seq_num_i <= last_pkt_num(scid_i,pkt.ptype_i) + 0x15;
+    	require pkt.seq_num_i > last_pkt_num(scid_i,pkt.ptype_i);
+        require pkt.seq_num =  pkt.seq_num_i;
+    };
+    require ~sent_pkt(scid_i,pkt.ptype_i,pkt.seq_num_i);  # [4]
+    sent_pkt(scid_i,pkt.ptype_i,pkt.seq_num_i) := true;  # [1]
+
+    require num_queued_frames(scid_i) > 0;  # [7]
+
+    # The payload must exactly match the queued frames.
+
+    require pkt.payload_i = queued_frames(scid_i);
+
+    # TEMPORARY: don't allow client migration during handshake
+
+    require conn_seen(scid_i) & pkt.long & is_client(scid_i) -> conn_requested(src,dst,scid_i);
+
+    require  conn_seen(dcid_i) -> hi_non_probing_endpoint(dcid_i,dst);  # [10]
+
+    # TEMPORARY: do not apply ack-only rule to generated packets
+    # This can be removed when we have a quic_frame queue per encryption level
+
+    #call show_ack_credit(scid, ack_credit(scid), queued_ack_eliciting(scid), queued_non_ack(scid), pkt.seq_num);
+    require ~_generating & ~queued_non_ack(scid_i) -> ack_credit(scid_i) > 0;  # [5]
+
+    if conn_draining(scid_i) {
+        require ~draining_pkt_sent(scid_i) & queued_close(scid_i);
+    };
+
+    # =================================================
+
+    #require pkt.ptype = queued_level(scid);
+    #require queued_level(scid) = quic_packet_type.zero_rtt;
+    require pkt.ptype = quic_packet_type.zero_rtt;
+    #established_1rtt_keys(scid) := true;
+
+    var type_app := quic_packet_type.one_rtt;
+    require ~sent_pkt(scid,type_app,pkt.seq_num);  # [4]
+    sent_pkt(scid,type_app,pkt.seq_num) := true;  # [1]
+
+
+    #require pkt.ptype = quic_packet_type.one_rtt;
+    #queued_level_rtt(scid) := quic_packet_type.zero_rtt;
+
+    require num_queued_frames_rtt(scid) > 0;  # [7]
+
+    # The payload must exactly match the queued frames.
+
+    require pkt.payload = queued_frames_rtt(scid);
+
+    #require pkt.ptype = quic_packet_type.zero_rtt | pkt.ptype = quic_packet_type.one_rtt; # tODO
+    require connected(dcid) -> connected_to(dcid) = scid;
+    require conn_seen(scid) & pkt.long & is_client(scid) -> conn_requested(src,dst,scid);
+
+    # Packet must be sent to the endpoint from which the highest numbered
+    # packet has been received. ~queued_challenge(dcid) & 
+    # call show_probing(dcid ,hi_non_probing(dcid));
+    # require  conn_seen(dcid) -> hi_non_probing_endpoint(dcid,dst);  # [10]
+
+
+    # QUESTION: THis sentence is from draft-18 section 13.1: "An
+    #   endpoint MUST NOT send a packet containing only an ACK quic_frame
+    #   in response to a packet containing only ACK or PADDING frames,
+    #   even if there are packet gaps which precede the received
+    #   packet." Do we interpret this to mean that an ack-only packet
+    #   cannot ack *only* ack-only packets?  Or that an ack-only
+    #   packet cannot ack *any* ack-only packets?
+
+    ...
+
+    # Here, we have the updates to the packet protocol state.
+
+    # TEMPORARY: The following are repeated because currently locals defined in
+    # the "before" section cannot be accessed in the "after" section.
+
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid if pkt.long else connected_to(dcid);
+
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+
+    var dcid_i := pkt.dst_cid_i;
+    var scid_i := pkt.src_cid_i if pkt.long else connected_to(dcid_i);
+
+    if cid_mapped(dcid_i) {
+	    dcid_i := cid_to_aid(dcid_i);
+    };
+
+    # Record the packet number as latest seen
+
+    last_pkt_num(scid_i,pkt.ptype_i) := pkt.seq_num_i;
+    last_pkt_num(scid,pkt.ptype) := pkt.seq_num;
+
+    # TODO: the following should not be here
+
+    if pkt.ptype = quic_packet_type.zero_rtt & ~_generating {
+        conn_requested(src,dst,scid) := false;
+        conn_requested(src,dst,dcid) := false;
+        connected(dcid) :=  false;
+        connected(scid) :=  false;
+        
+        conn_seen(dcid) := false;
+        conn_seen(scid) := false;
+        conn_seen(server_cid) := false;
+        conn_seen(the_cid) := false;
+
+        # the_cid := server_cid; # 0x0;
+        # server_cid := scid; # 0x1;
+
+        connected(the_cid) :=  false;
+        connected(server_cid) :=  false;
+
+        var extns := tls_extensions.empty;
+        extns := extns.append(make_transport_parameters);
+        call tls_api.upper.create(0,true,extns);  # false means this instance of tls is not a server
+        #call show_initial_request_retry;
+        #call tls_client_initial_request(src,dst,server_cid,final_version); #TODO 
+        #call tls_client_initial_response(src,dst,spkt);
+        conn_requested(src,dst,the_cid) := true;
+    };
+
+    zero_rtt_sent := true;
+
+    queued_frames_rtt(scid) := quic_frame.arr.empty;
+    queued_non_probing(scid) := false;
+    queued_non_ack(scid) := false;
+    queued_close(scid) := false;
+    num_queued_frames_rtt(scid) := 0;
+#Hamid
+    queued_ack_eliciting(scid) := false;
+#Hamid
+# =============================================================
+    if pkt.ptype_i = quic_packet_type.initial {
+        initial_token := pkt.token_i;
+        # An initial packet with an unseen destination cid is a connection request.
+        if ~conn_seen(dcid_i) {#TODO
+            #call show_initial_request_initial;
+            call tls_client_initial_request(src,dst,dcid_i,pkt.pversion_i,0);
+            conn_requested(src,dst,scid_i) := true;
+        };
+        cid_to_token(dcid_i) := pkt.token_i;
+    };
+
+    #conn_seen(scid_i) := true;  # [1]
+
+    # Update the ack credits. A non-ack packet sent to a destination
+    # increases the destination's ack credit. An ack packet decreases
+    # the sender's ack credit.
+
+#Hamid
+
+#    if queued_non_ack(scid) {
+#	ack_credit(dcid) := ack_credit(dcid) + 1;
+#    } else {
+#	ack_credit(scid) := ack_credit(scid) - 1;
+#    };
+
+    if queued_ack_eliciting(scid_i) {
+       ack_credit(dcid) := ack_credit(dcid) + 1;
+    };
+    if ~queued_non_ack(scid_i) {
+       ack_credit(scid_i) := ack_credit(scid_i) - 1;
+    };
+
+#Hamid
+
+    # If this is a non-probing packet, update the highest non-probing
+    # packet number seen on from this aid.
+    # QUESTION: what if two different paths send the same packet number?
+    # QUESTION: how do you compare packet numbers with different encryption levels?
+
+    if queued_non_probing(scid_i) {
+        if pkt.ptype_i = quic_packet_type.one_rtt {
+            if pkt.seq_num_i >= hi_non_probing(scid_i) {
+                hi_non_probing(scid_i) := pkt.seq_num_i;
+                hi_non_probing_endpoint(scid_i,src) := true;
+            }
+        } else {
+            hi_non_probing_endpoint(scid_i,src) := true;
+        }
+    };
+
+    # If the packet contains a close quic_frame, then set `pkt_has_close`
+
+    if queued_close(scid_i) {
+        pkt_has_close(scid_i,pkt.ptype_i,pkt.seq_num_i) := true;
+    };
+
+    # If the sender is in the draining state, this is the draining packet.
+
+    if conn_draining(scid_i) {
+        draining_pkt_sent(scid_i) := true
+    };
+
+    # [11] In test directly now
+    #if pkt.ptype = quic_packet_type.initial {
+    #    require ~_generating & ~(pkt.token.end = 0) -> is_invalid_token;
+    #};
+
+
+    if pkt.ptype_i = quic_packet_type.initial & ~first_initial_send & zero_rtt_allowed {
+        first_initial_send := true;
+        #queued_level(the_cid) := quic_packet_type.zero_rtt;
+    } else {
+        first_initial_send := false;
+    };
+    #call show_connected(connected(the_cid), connected_to(the_cid));
+
+    # The queued frames are deleted
+    
+    queued_frames(scid_i) := quic_frame.arr.empty;
+    queued_non_probing(scid_i) := false;
+    queued_non_ack(scid_i) := false;
+    queued_close(scid_i) := false;
+    num_queued_frames(scid_i) := 0;
+#Hamid
+    queued_ack_eliciting(scid_i) := false;
+#Hamid
+}
+
+
+

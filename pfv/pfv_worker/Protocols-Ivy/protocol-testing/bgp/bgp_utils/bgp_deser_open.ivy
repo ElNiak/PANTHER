@@ -1,0 +1,182 @@
+#lang ivy1.7
+
+# a fake deserializer for BGP
+
+object bgp_deser_open = {}
+
+<<< member
+
+    class `bgp_deser_open`;
+
+>>>
+
+<<< impl
+
+    class `bgp_deser_open` : public ivy_binary_deser_128 {
+        enum {bgp_s_version,
+              bgp_s_myas,
+              bgp_s_time,
+              bgp_s_id,
+              bgp_s_optlen,
+              bgp_s_opt,
+              bgp_s_opt_val,
+              bgp_s_opt_len} state;
+        int token_length = 4;
+        long opt_type;
+        long opt_len;
+        int fence=0;
+        int current_bgp_size = 0;
+        int payload_length = 0;
+
+    public:
+        bgp_deser_open(const std::vector<char> &inp) : ivy_binary_deser_128(inp),state(bgp_s_version) {
+        }
+        virtual void  get(int128_t &res) {
+            switch (state) {
+            case bgp_s_version:
+            {
+                std::cerr << "bgp_s_version 1\n";
+                getn(res,1);
+                state = bgp_s_myas;
+            }
+            break;
+            case bgp_s_myas:
+            {
+                std::cerr << "bgp_s_myas 1\n";
+                getn(res,2);
+                state = bgp_s_time;
+                std::cerr << "bgp_s_myas " << state << "\n";
+            }
+            break;
+            case bgp_s_time:
+            {
+                std::cerr << "bgp_s_time 1\n";
+                getn(res,2);
+                state = bgp_s_id;
+                std::cerr << "bgp_s_time " << state << "\n";
+            }
+            break;
+            case bgp_s_id:
+            {
+                std::cerr << "bgp_s_id 1\n";
+                getn(res,4);
+                state = bgp_s_optlen;
+                std::cerr << "bgp_s_id " << state << "\n";
+            }
+            break;
+            case bgp_s_optlen:
+            {
+                std::cerr << "bgp_s_optlen 1\n";
+                getn(res,1);
+                payload_length = res;
+                std::cerr << "payload_length = " << payload_length << "\n";
+                state = bgp_s_opt;
+            }
+            break;
+            case bgp_s_opt:
+            {
+                std::cerr << "bgp_s_opt 1\n";
+                getn(res,1);
+                payload_length -= 1;
+                state = bgp_s_opt_len;
+            }
+            break;
+            case bgp_s_opt_len:
+            {
+                std::cerr << "bgp_s_opt_len 1\n";
+                getn(res,1);
+                payload_length -= 1;
+                opt_len = res;
+                state = bgp_s_opt_val;
+
+            }
+            break;
+            case bgp_s_opt_val:
+            {
+                std::cerr << "bgp_s_opt_val 1\n";
+                getn(res,1);
+                payload_length -= 1;
+            }
+            break;
+            default:
+                std::cerr << "bgp_deser_open 3\n";  
+                throw deser_err();
+            }
+        }
+
+
+        int128_t reverse_bytes(int128_t bytes)
+        {
+            int128_t aux = 0;
+            uint8_t byte;
+            int i;
+
+            for(i = 0; i < 128; i+=8)
+            {
+                byte = (bytes >> i) & 0xff;
+                aux |= byte << (128 - 8 - i);
+            }
+            return aux;
+        }
+
+        virtual int open_tag(const std::vector<std::string> &tags) {
+            if (state == bgp_s_opt) {
+                int128_t ft;
+                ivy_binary_deser_128::getn(ft,1); // could be bigger
+                opt_type = ft;
+                int128_t ftl;
+                ivy_binary_deser_128::getn(ftl,1); // could be bigger
+                opt_len = ftl;
+                std::cerr << "recv param = " << opt_type << "\n";
+                std::cerr << "recv param len = " << opt_len << "\n";
+                state = bgp_s_opt_len;
+                //std::cerr << "saw tag " << ft << "\n";  
+            }
+            std::cerr << "state          = " << state << "\n";  
+            std::cerr << "bgp_deser_open 2\n";  
+            throw deser_err();
+        }
+
+        virtual bool open_list_elem() {
+            if (state == bgp_s_opt) {
+                std::cerr << "bgp_s_opt bgp_deser_open 2\n";  
+                //state = bgp_s_time;
+                return payload_length-- > 0;
+            }
+                //return more(1);
+            if ( state == bgp_s_opt_val) {
+                std::cerr << "bgp_s_version bgp_deser_open 3\n";  
+                if (opt_len == 0) {
+                    //state = bgp_s_time;
+                    return false;
+                }
+                opt_len -= 1;
+                payload_length -= 1;
+                return true;
+            }  
+            std::cerr << "bgp_deser_open 1\n";  
+            throw deser_err();
+        }
+
+        void open_list() {
+        }
+        void close_list() {
+            if (state == bgp_s_opt) {
+                state = bgp_s_version;
+            } else if (state == bgp_s_opt_val) {
+                state = bgp_s_opt;
+            } else {
+                std::cerr << "bgp_deser_open 4\n";  
+                throw deser_err();
+            }
+        }
+        void close_list_elem() {}
+
+        virtual void close_tag() {
+            state = bgp_s_opt;
+        }
+
+        ~bgp_deser_open(){}
+    };
+
+>>>

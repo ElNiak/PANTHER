@@ -1,0 +1,104 @@
+#lang ivy1.7
+
+include order
+include quic_connection
+include quic_infer
+include file
+include ivy_quic_shim_client
+include ivy_quic_shim_mim
+include quic_locale
+include random_value
+# include ivy_quic_mim
+
+# # TODO useless for now
+# instance tls_extensions : vector(tls.extension)
+# instance tls_hand_extensions : vector(tls.handshake)
+include ivy_quic_client_behavior
+include ivy_quic_client_standard_tp
+
+include ivy_quic_mim_behavior
+
+
+# NB: need bigger timeout (at least 90 sec)
+
+after init {
+    is_mim_standalone := true;
+    client_port_vn := 4986;
+    client_alt := endpoint_id_addr(endpoint_id.client_alt);
+    client_vn := endpoint_id_addr(endpoint_id.client_vn);
+    # call mim_agent.configure_NAT_attack_in(server.ep.port);
+}
+
+# action make_transport_parameters returns (tp:quic_transport_parameters) = {
+#     var imsdbl : initial_max_stream_data_bidi_local;
+#     imsdbl.stream_pos_32 := random_stream_pos(1,0xFFFFFFF);
+#     var imd : initial_max_data;
+#     imd.stream_pos_32 := random_stream_pos(1,0xFFFFFFF);
+#     var it : max_idle_timeout;
+#     it.seconds_16 := random_microsecs(0,0xFFFFFFF);
+#     var imsdbr : initial_max_stream_data_bidi_remote;
+#     imsdbr.stream_pos_32 := random_stream_pos(1,0xFFFFFFF);
+#     var imsdu : initial_max_stream_data_uni;
+#     imsdu.stream_pos_32 := random_stream_pos(1,0xFFFFFFF);
+#     tp.transport_parameters := tp.transport_parameters.append(imsdbl);
+#     tp.transport_parameters := tp.transport_parameters.append(imd);
+#     tp.transport_parameters := tp.transport_parameters.append(it);
+#     tp.transport_parameters := tp.transport_parameters.append(imsdbr);
+#     tp.transport_parameters := tp.transport_parameters.append(imsdu);
+#     # TEMPORARY: a missing numeric parameter should be treated as zero,
+#     # but some clients don't handle this correctly, so we put all parameters in.
+#     # Remove the following to test this client behavior.
+#     var imsib : initial_max_stream_id_bidi;
+#     imsib.stream_id_16 := initial_max_streams_bidi;
+#     tp.transport_parameters := tp.transport_parameters.append(imsib);
+    
+#     #if client_non_zero_scil {
+#     var icid : initial_source_connection_id; #update v29
+#     icid.scid := the_cid;
+#     tp.transport_parameters := tp.transport_parameters.append(icid);
+#     #};
+#     var odci : original_destination_connection_id; #update v29
+#     odci.dcid := client_initial_dcid;
+#     tp.transport_parameters := tp.transport_parameters.append(odci);
+# }
+
+
+before forward_packet_to_client_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    if _generating {
+        require mim_client_target.ep.addr ~= 0;  # must have a client address to send to
+        require src = mim_agent.ep_out;
+        require dst = mim_client_target.ep;
+        require pkt = mim_agent.ppkt_to_be_forwarded_to_client;
+        # require pkt = mim_agent.ppkt_to_be_forwarded_to_server; # TODO put relation ?
+    } 
+}
+
+before forward_packet_to_server_event(src:ip.endpoint,dst:ip.endpoint,pkt:forged_pkts) {
+    if _generating {
+        require mim_server_target.ep.addr ~= 0;  # must have a client address to send to
+        require src = mim_agent.ep_out;
+        require dst = mim_server_target.ep;
+        require pkt = mim_agent.ppkt_to_be_forwarded_to_server;        
+        # require pkt = mim_agent.ppkt_to_be_forwarded_to_server; # TODO put relation ?
+    } 
+}
+
+
+export forward_packet_to_client_event
+export forward_packet_to_server_event
+
+
+# Final check
+#
+# When the test is complete, the tester calls the special action `_finalize`.
+# We use this action to make some heuristic checks, for example that some
+# data was actually received from the server. We can add advice to this
+# action with additional checks.
+
+export action _finalize = {
+    # chris TODO 
+    require conn_total_data(the_cid) > 0; # == 
+    call mim_agent.reset_NAT;
+}
+
+

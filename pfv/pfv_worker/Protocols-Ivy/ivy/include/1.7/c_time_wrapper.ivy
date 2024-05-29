@@ -1,0 +1,495 @@
+#lang ivy1.7
+
+# https://gist.github.com/arxeiss/540e975b96b0d2c70c2be96a28da07e9
+
+# This is an implementation of the generic TimeMeasurement interface.
+# The parameters are:
+# TODO
+#
+
+module c_time_wrapper(timer) = {
+
+	object measures = {}          # struct holding the measures
+
+	<<< header
+
+	#include "time.h"
+	#include <sys/time.h>
+	#include <unordered_map>
+
+	class CTimeMeasuring;
+
+	>>>
+
+
+	<<< impl
+
+		struct CTimeMeasuring {
+			%`timer.start` start;
+			%`timer.timeout` timeout;
+			%`timer.now_micros` now_micros;
+			%`timer.now_millis` now_millis;
+			%`timer.now_micros_last_bp` now_micros_last_bp;
+			%`timer.now_millis_last_bp` now_millis_last_bp;
+		CTimeMeasuring(
+			const %`timer.start` start,
+			const %`timer.timeout` timeout,
+			const %`timer.now_micros` now_micros,
+			const %`timer.now_millis` now_millis,
+			const %`timer.now_micros_last_bp` now_micros_last_bp,
+			const %`timer.now_millis_last_bp` now_millis_last_bp
+		)
+		: start(start), timeout(timeout), now_micros(now_micros), now_millis(now_millis), now_micros_last_bp(now_micros_last_bp), now_millis_last_bp(now_millis_last_bp) {}
+		};
+
+		std::string last_bp_ms = "0";
+		std::string last_bp_micro = "0";
+		bool started = false;
+		struct timeval start;
+
+		unsigned long  long fake_sleep_ms_duration = 0;
+		unsigned long  long fake_sleep_ms_start = 0; //seems to have bug with breakpoint
+
+		std::unordered_map<std::string, unsigned long  long> breakpoints_ms = std::unordered_map<std::string, unsigned long  long>();
+		std::unordered_map<std::string, unsigned long  long> breakpoints_sec = std::unordered_map<std::string, unsigned long  long>();
+
+		bool startMeasuring() {
+			if (!started)
+			{
+				gettimeofday(&start, NULL);
+				started = true;
+				return true;
+			}
+			return false;
+		}
+
+		bool insertBreakpoint(std::string name) {
+			if (breakpoints_ms.count(name) == 0)
+			{
+				struct timeval now;
+				gettimeofday(&now, NULL);
+				std::cerr << "insertBreakpoint: name = " << name <<  std::endl;
+				std::cerr << "insertBreakpoint: now.tv_sec = " << now.tv_sec<<  std::endl;
+				std::cerr << "insertBreakpoint: now.tv_usec = " << now.tv_usec<<  std::endl;
+				breakpoints_ms[name]  = now.tv_usec;
+				breakpoints_sec[name] = now.tv_sec;
+				return true;
+			}
+			std::cerr << "insertBreakpoint: name false = " << name <<  std::endl;
+			unsigned long  long end_ms = breakpoints_ms[name];
+			std::cerr << "insertBreakpoint: end_ms false = " << end_ms <<  std::endl;
+			std::cerr << "insertBreakpoint: breakpoints_ms.count(name) false = " << breakpoints_ms.count(name) <<  std::endl;
+			return false;
+		}
+
+		unsigned long  long  getTimeFromBeginning(bool microSeconds = false) {
+			struct timeval now;
+			gettimeofday(&now, NULL);
+			if (!started)
+			{
+				return -1;
+			}
+			if (microSeconds)
+			{	
+				unsigned long seconds  = now.tv_sec  - start.tv_sec;
+    			unsigned long useconds = now.tv_usec - start.tv_usec;
+				unsigned long mtime = 1000000 * seconds + useconds;
+				return mtime;
+			}
+			return (now.tv_sec*1000LL + now.tv_usec/1000) - (start.tv_sec*1000LL + start.tv_usec/1000);
+		}
+
+		unsigned long  long  getTimeFromBreakpoint(std::string breakpoint, bool microSeconds = false) {
+			struct timeval now;
+			gettimeofday(&now, NULL);
+
+			unsigned long  long end_ms = breakpoints_ms[breakpoint];
+			unsigned long  long end_sec = breakpoints_sec[breakpoint];
+			
+			if (!started || breakpoints_ms.count(breakpoint) == 0)
+			{
+				return -1;
+			}
+			if (microSeconds)
+			{
+				unsigned long seconds  = now.tv_sec  - end_sec;
+    			unsigned long useconds = now.tv_usec - end_ms;
+				unsigned long mtime = 1000000 * seconds + useconds;
+				return mtime;
+			}
+			std::cerr << "getTimeFromBreakpoint: breakpoint  = " << breakpoint <<  std::endl;
+			std::cerr << "getTimeFromBreakpoint: now.tv_usec = " << now.tv_usec <<  std::endl;
+			//std::cerr << "getTimeFromBreakpoint: end = " << end <<  std::endl;
+			std::cerr << "getTimeFromBreakpoint: end.tv_usec = " << end_ms<<  std::endl;
+			return (now.tv_sec*1000LL + now.tv_usec/1000) - (end_sec*1000LL + end_ms/1000);
+		}
+
+		int msleep(long msec)
+		{
+			struct timespec ts;
+			int res;
+
+			if (msec < 0)
+			{
+				errno = EINVAL;
+				return -1;
+			}
+
+			ts.tv_sec = msec / 1000;
+			ts.tv_nsec = (msec % 1000) * 1000000;
+
+			do {
+				res = nanosleep(&ts, &ts);
+			} while (res && errno == EINTR);
+
+			return res;
+		}
+
+
+		// Function to handle the timer expiration and send SIGUSR1
+		void timer_handler(int signum) {
+			if (signum == SIGALRM) {
+				// Timeout occurred; send SIGUSR1
+				std::cerr <<  "Timeout occurred. Sending SIGUSR1...\n";
+				kill(getpid(), SIGUSR1);
+			} else {
+				std::cerr << "Received signal "<< signum << "\n";
+				// Handle other signals as needed
+			}
+		}
+
+		void timer_handler_generate(int signum) {
+			if (signum == SIGALRM) {
+				// Timeout occurred; send SIGUSR1
+				std::cerr <<  "Timeout occurred. Sending SIGUSR3...\n";
+				//kill(getpid(), SIGUSR1);
+				//kill(getpid(), SIGUSR3);
+				sigqueue(getpid(), SIGUSR3, sigdata); //not implemented in shadow
+			} else { 
+				std::cerr << "Received signal "<< signum << "\n";
+				// Handle other signals as needed
+			}
+		}
+
+	>>>
+
+	<<< member
+
+	struct timeval start;
+	std::unordered_map<std::string, struct timeval> breakpoints;
+	CTimeMeasuring * `measures`;
+
+	>>>
+
+	<<< init
+
+		`measures` = new CTimeMeasuring(`timer.start`, `timer.timeout`, `timer.now_micros`, `timer.now_millis`, `timer.now_micros_last_bp`, `timer.now_millis_last_bp`);
+
+	>>>
+	# TODO probably, we will need some type of fingerprinting here to make sure that the time syscall are those we want in shadow
+	
+	object impl = {
+
+		implement start { # timer.start ??
+			<<<
+			std::cerr << "C time = start" << std::endl;
+			startMeasuring();
+			insertBreakpoint(last_bp_ms);
+			insertBreakpoint(last_bp_micro);
+			>>>
+		}
+
+		implement timeout {
+			<<<
+			if(started)
+			{
+				started = false;
+				std::cerr << "C time = timeout - timer started" << std::endl;
+			}
+			else 
+			{
+				std::cerr << "C time = timeout - timer not started" << std::endl;
+			}
+			
+			>>>
+		}
+
+		implement now_micros returns (i:microseconds) {
+			<<<
+			std::cerr << "C time = now_micros" << std::endl;
+			if(started) {
+				unsigned long  long  time = getTimeFromBeginning(true);
+				std::cerr << "C time = now_micros - timer started" << std::endl;
+				std::cerr << "C time = now_micros - time = " << time << std::endl;
+				i = time;
+			}
+			else {
+				std::cerr << "C time = now_micros - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		implement now_millis returns (i:milliseconds) {
+			<<<
+			std::cerr << "C time = now_millis" << std::endl;
+			if(started) {
+				unsigned long  long  time = getTimeFromBeginning(false);
+				std::cerr << "C time = now_millis - timer started" << std::endl;
+				std::cerr << "C time = now_millis - time = " << time << std::endl;
+				i = time;
+			} 
+			else {
+				std::cerr << "C time = now_millis - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		implement now_micros_last_bp returns (i:microseconds) {
+			<<<
+			std::cerr << "C time = now_micros_last_bp" << std::endl;
+			if(started) {
+				unsigned long  long  time = getTimeFromBreakpoint(last_bp_micro,true);
+				std::cerr << "C time = now_micros_last_bp - timer started" << std::endl;
+				std::cerr << "C time = now_micros_last_bp - time = " << time << std::endl;
+				int int_last_bp = stoi(last_bp_micro);
+				/*if(int_last_bp == 0) {
+					i = 0;
+				} else {*/
+				i = time;
+				//}
+				int_last_bp++;
+				last_bp_micro = std::to_string(int_last_bp);
+				insertBreakpoint(last_bp_micro);
+				
+			}
+			else {
+				std::cerr << "C time = now_micros_last_bp - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		implement now_millis_last_bp returns (i:milliseconds) {
+			<<<
+			std::cerr << "C time = now_millis_last_bp" << std::endl;
+			if(started) {
+				unsigned long  long  time = getTimeFromBreakpoint(last_bp_ms,false);
+				std::cerr << "C time = now_millis_last_bp - timer started" << std::endl;
+				std::cerr << "C time = now_millis_last_bp - time = " << time << std::endl;
+				int int_last_bp = stoi(last_bp_ms);
+				/*if(int_last_bp == 0) {
+					i = 0;
+				} else {*/
+				i = time;
+				//}
+				int_last_bp++;
+				last_bp_ms = std::to_string(int_last_bp);
+				insertBreakpoint(last_bp_ms);
+			} 
+			else {
+				std::cerr << "C time = now_millis_last_bp - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		implement sleep(i:milliseconds) {
+			<<<
+			msleep(i);
+			>>>
+		}
+
+		implement sleep_fake(i:milliseconds)returns (r:milliseconds) {
+			<<<
+			if(started) {
+				const char * s = "fake_sleep";
+				fake_sleep_ms_duration = i;
+				unsigned long  long  time = getTimeFromBeginning(false);
+				fake_sleep_ms_start = time;
+				std::cerr << "C time = sleep_fake - timer started" << std::endl;
+				std::cerr << "C time = sleep_fake - time = " << time << std::endl;
+				std::cerr << "C time = sleep_fake - fake_sleep_ms_duration = " << fake_sleep_ms_duration << std::endl;
+				//unsigned long  long  time_fb = getTimeFromBreakpoint(std::string(s),false);
+				//std::cerr << "C time = sleep_fake - time_fb = " << time_fb << std::endl;
+				insertBreakpoint(std::string(s));
+				unsigned long  long  time_fb2 = getTimeFromBreakpoint(std::string(s),false);
+				std::cerr << "C time = sleep_fake - time_fb2 = " << time_fb2 << std::endl;
+				
+				r = time;
+			} 
+			else {
+				std::cerr << "C time = sleep_fake - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+
+		implement sleep_signal(i:milliseconds)returns (r:milliseconds) {
+			<<<
+			if(started) {
+				sigset_t sigs;
+				sigemptyset(&sigs);
+				sigaddset(&sigs, SIGUSR2);
+				sigset_t sigs2;
+				sigemptyset(&sigs);
+				sigaddset(&sigs2, SIGUSR1);
+				// struct timespec timeout = { .tv_sec = i/1000 };
+				// sigprocmask(SIG_BLOCK, &sigs, NULL);
+
+				// Send SIGUSR2
+				kill(getpid(), SIGUSR2);
+
+				//sigtimedwait(&sigs, NULL, &timeout);
+
+				// Set up a signal handler for SIGALRM
+				struct sigaction sa;
+				sa.sa_handler = timer_handler;
+				sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+				sigemptyset(&sa.sa_mask);
+
+				if (sigaction(SIGALRM, &sa, NULL) == -1) {
+					perror("sigaction");
+					return 1;
+				}
+
+				// Set up a timer to expire in milliseconds (e.g., 1000 milliseconds or 1 second)
+				struct itimerval timer;
+				timer.it_value.tv_sec = i/1000;           // Initial timer value seconds
+				timer.it_value.tv_usec = 0; //i * 1000;    // Initial timer value microseconds (1000 milliseconds)
+				timer.it_interval.tv_sec = 0;        // Interval timer value seconds (0 for a one-shot timer)
+				timer.it_interval.tv_usec = 0;       // Interval timer value microseconds
+
+				if (setitimer(ITIMER_REAL, &timer, NULL) == -1) {
+					perror("setitimer");
+					return 1;
+				}
+				std::cerr << "C time = sleep_signal - i = " << i << std::endl;
+				
+				r = i;
+			} 
+			else {
+				std::cerr << "C time = sleep_signal - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		implement sleep_signal_and_generate(i:milliseconds)returns (r:milliseconds) {
+			<<<
+			if(started) {
+				sigset_t sigs;
+				sigemptyset(&sigs);
+				sigaddset(&sigs, SIGUSR2);
+				sigset_t sigs2;
+				sigemptyset(&sigs);
+				sigaddset(&sigs2, SIGUSR1);
+				// struct timespec timeout = { .tv_sec = i/1000 };
+				// sigprocmask(SIG_BLOCK, &sigs, NULL);
+
+				// Send SIGUSR2
+				kill(getpid(), SIGUSR2);
+
+				//sigtimedwait(&sigs, NULL, &timeout);
+
+				// Set up a signal handler for SIGALRM
+				struct sigaction sa;
+				sa.sa_handler = timer_handler_generate;
+				sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+				sigemptyset(&sa.sa_mask);
+
+				if (sigaction(SIGALRM, &sa, NULL) == -1) {
+					perror("sigaction");
+					return 1;
+				}
+
+				// Set up a timer to expire in milliseconds (e.g., 1000 milliseconds or 1 second)
+				struct itimerval timer;
+				timer.it_value.tv_sec = i/1000;           // Initial timer value seconds
+				timer.it_value.tv_usec = 0; //i * 1000;    // Initial timer value microseconds (1000 milliseconds)
+				timer.it_interval.tv_sec = 0;        // Interval timer value seconds (0 for a one-shot timer)
+				timer.it_interval.tv_usec = 0;       // Interval timer value microseconds
+
+				if (setitimer(ITIMER_REAL, &timer, NULL) == -1) {
+					perror("setitimer");
+					return 1;
+				}
+				std::cerr << "C time = sleep_signal - i = " << i << std::endl;
+				
+				r = i;
+			} 
+			else {
+				std::cerr << "C time = sleep_signal - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		implement non_blocking_sleep_signal_and_generate(i:milliseconds)returns (r:milliseconds) {
+			<<<
+			if(started) {
+				// Set up a signal handler for SIGALRM
+				struct sigaction sa;
+				sa.sa_handler = timer_handler_generate;
+				sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+				sigemptyset(&sa.sa_mask);
+
+				if (sigaction(SIGALRM, &sa, NULL) == -1) {
+					perror("sigaction");
+					return 1;
+				}
+
+				// Set up a timer to expire in milliseconds (e.g., 1000 milliseconds or 1 second)
+				struct itimerval timer;
+				timer.it_value.tv_sec = i/1000;           // Initial timer value seconds
+				timer.it_value.tv_usec = 0; //i * 1000;    // Initial timer value microseconds (1000 milliseconds)
+				timer.it_interval.tv_sec = 0;        // Interval timer value seconds (0 for a one-shot timer)
+				timer.it_interval.tv_usec = 0;       // Interval timer value microseconds
+
+				if (setitimer(ITIMER_REAL, &timer, NULL) == -1) {
+					perror("setitimer");
+					return 1;
+				}
+				std::cerr << "C time = sleep_signal - i = " << i << std::endl;
+				
+				r = i;
+			} 
+			else {
+				std::cerr << "C time = sleep_signal - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		implement is_sleep_fake_timeout returns (b:bool) {
+			<<<
+			if(started) {
+				if(fake_sleep_ms_duration == 0)
+				{
+					b = true;
+				} 
+				else {
+					const char * s = "fake_sleep";
+					unsigned long  long  time_now = getTimeFromBeginning(false);
+					unsigned long  long  time = getTimeFromBreakpoint(std::string(s),false);
+					std::cerr << "C time = is_sleep_fake_timeout - timer started" << std::endl;
+					std::cerr << "C time = is_sleep_fake_timeout - time = " << time << std::endl;
+					//std::cerr << "C time = is_sleep_fake_timeout - time_now - time = " << time_now - time << std::endl;
+					std::cerr << "C time = is_sleep_fake_timeout - fake_sleep_ms_duration = " << fake_sleep_ms_duration << std::endl;
+					if(fake_sleep_ms_duration <= time) {
+						std::cerr << "C time = is_sleep_fake_timeout - true = " << std::endl;
+						b = true;
+					}
+					else {
+						std::cerr << "C time = is_sleep_fake_timeout - false = " << std::endl;
+						b = false;
+					}
+				}
+			} 
+			else {
+				std::cerr << "C time = is_sleep_fake_timeout - timer not started" << std::endl;
+			}
+			>>>
+		}
+
+		trusted isolate iso = this
+
+    	attribute test = impl
+
+	}
+
+}

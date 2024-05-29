@@ -1,0 +1,183 @@
+#lang ivy1.7
+# #### ack_frequency event
+# TODO
+# ack_frequency frames    Delaying acknowledgements as much as possible reduces both work done
+#   by the endpoints and network load.  An endpoint's loss detection and
+#   congestion control mechanisms however need to be tolerant of this
+#   delay at the peer.  An endpoint signals its tolerance to its peer
+#   using an ACK_FREQUENCY quic_frame, shown below:
+
+# The min_ack_delay transport parameter is a unilateral indication of support for receiving 
+# ACK_FREQUENCY frames. If an endpoint sends the transport parameter, the peer is allowed to 
+# send ACK_FREQUENCY frames independent of whether it also sends the min_ack_delay transport 
+# parameter or not.
+
+import action is_min_ack_set(b:bool)
+
+var force_immediate_ack : bool
+var force_ack_frequency : bool
+
+# When the number of in-flight ack-eliciting packets is larger than the 
+# ACK-Eliciting Threshold, an endpoint can expect that the peer will not 
+# need to wait for its max_ack_delay period before sending an acknowledgement. 
+# In such cases, the endpoint MAY therefore exclude the peer's 'max_ack_delay' 
+# from its PTO calculation. When Ignore Order is enabled and loss causes the peer
+# to not receive enough packets to trigger an immediate acknowledgement, the receiver
+# will wait 'max_ack_delay', increasing the chances of a premature PTO. Therefore, if 
+# Ignore Order is enabled, the PTO MUST be larger than the peer's 'max_ack_delay'
+
+# TODO error in picoquic
+#  if ((bytes = picoquic_parse_ack_frequency_frame(bytes, bytes_max, &seq, &packets, &microsec, &ignore_order, &reordering_threshold)) != NULL){
+#     if (!cnx->is_ack_frequency_negotiated ||
+#         microsec < cnx->local_parameters.min_ack_delay ||
+#         packets == 0 ||
+#         ignore_order > 1) {
+#         picoquic_connection_error(cnx, PICOQUIC_TRANSPORT_FRAME_FORMAT_ERROR,
+#             picoquic_frame_type_ack_frequency);
+#         bytes = NULL;
+#     }
+#  }
+
+relation ack_frequency_pending
+
+object quic_frame = {
+    ...
+    
+    # (0xaf) 
+    # https://tools.ietf.org/html/draft-iyengar-quic-delayed-ack-02
+    object ack_frequency = { # TODO could be moved BUT need to refactor the deser/ser in csq 
+        # ACK_FREQUENCY  quic_frame frames are a varianquic_framequic_frame and contains nothing
+		# 1 byte quic_frame to increase the size of a packet
+         variant this of quic_frame = struct {
+			seq_num                     : pkt_num,     # the sequence number 
+            ack_eliciting_threshold     : stream_pos,  #maximum number of ack-eliciting packets after which the receiver sends an acknowledgement.
+            request_max_ack_delay       : microseconds,
+            reordering_threshold        : stream_pos
+         }
+    } 
+
+    # (0xac) 
+    object immediate_ack = {
+        # IMMEDIATE_ACK  quic_frame frames are a varianquic_framequic_frame and contains nothing
+		# 1 byte quic_frame to increase the size of a packet
+         variant this of quic_frame = struct {
+         }
+    } 
+}
+
+after init {
+    ack_frequency_pending := false;
+}
+
+import action ack_freq_generated
+
+object quic_frame = { ...
+    object ack_frequency = { ...
+        action handle(f:quic_frame.ack_frequency,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num)
+	around handle {
+            if _generating {
+                require ~ack_frequency_pending;
+                call ack_freq_generated;
+                num_ack_eliciting_pkt := 0;
+                num_ack_pkt := 0;
+            }
+            require connected(dcid) & connected_to(dcid) = scid;
+            require e = quic_packet_type.one_rtt & established_1rtt_keys(scid);
+            require (num_queued_frames(scid) > 0) -> e = queued_level(scid);
+            require e ~= quic_packet_type.zero_rtt;
+            var tp  := trans_params(dcid);
+            var tp2 := trans_params(scid);
+            require  min_ack_delay.is_set(tp) | max_ack_delay.is_set(tp2);
+            var ignore_order := (f.reordering_threshold = 0);
+            var min : microseconds := min_ack_delay.value(trans_params(dcid)).exponent_8;
+            if _generating {
+                require f.ack_eliciting_threshold = 4;
+            } else{
+                require f.ack_eliciting_threshold > 0; # >= should be but picoquic bug with that
+            }
+            require f.request_max_ack_delay >= min;  # picoquic error
+            #require f.reordering_threshold = 1 | f.reordering_threshold = 0;
+            require f.reordering_threshold >= 0;
+            if first_ack_freq_received {
+                require f.seq_num = 0;
+                first_ack_freq_received := false;
+                last_ack_freq_seq(dcid) := f.seq_num;
+            } else {
+                if _generating {
+                    require f.seq_num > last_ack_freq_seq(dcid);
+                } 
+            };
+            ...
+            if _generating {
+                last_ack_freq_seq(dcid) := f.seq_num;
+                ack_eliciting_threshold_val(dcid) := f.ack_eliciting_threshold;
+                ack_out_of_order_val(dcid) := f.reordering_threshold;
+                # On receiving a valid value in this field, the endpoint MUST 
+                # update its max_ack_delay to the value provided by the peer.
+                max_ack_delay_tp :=  f.request_max_ack_delay
+            } else {
+                if f.seq_num <= last_ack_freq_seq(dcid) {
+                    # duplicate
+                } else {
+                    last_ack_freq_seq(dcid) := f.seq_num;
+                    ack_eliciting_threshold_val(dcid) := f.ack_eliciting_threshold;
+                    ack_out_of_order_val(dcid) := f.reordering_threshold;
+                    # On receiving a valid value in this field, the endpoint MUST 
+                    # update its max_ack_delay to the value provided by the peer.
+                    max_ack_delay_tp :=  f.request_max_ack_delay
+                }
+            }
+            ack_frequency_pending := true;
+            force_ack_frequency := false;
+            call enqueue_frame(scid,f,e,false,seq_num);
+        }
+    }
+}
+
+# #### immediate_ack event
+# A sender can use an ACK_FREQUENCY quic_frame to reduce the number of 
+# acknowledgements sent by a receiver, but doing so increases the
+#  likelihood that time-sensitive feedback is delayed as well. 
+#  For example, as described in Section 8.3, delaying acknowledgements 
+#  can increase the time it takes for a sender to detect packet loss. 
+#  Sending an IMMEDIATE_ACK quic_frame can help mitigate this problem.
+
+# An IMMEDIATE_ACK quic_frame can be useful in other situations as well. 
+# For example, if a sender wants an immediate RTT measurement or 
+# if a sender wants to establish receiver liveness as quickly as possible. 
+# PING frames (Section 19.2 of [QUIC-TRANSPORT]) are ack-eliciting, but 
+# if a PING quic_frame is sent without an IMMEDIATE_ACK quic_frame, the receiver might 
+# not immediately send an ACK based on its local ACK strategy.
+
+# By definition IMMEDIATE_ACK frames are ack-eliciting. An endpoint 
+# SHOULD send a packet containing an ACK quic_frame immediately upon receiving 
+# an IMMEDIATE_ACK quic_frame. An endpoint MAY delay sending an ACK quic_frame despite 
+# receiving an IMMEDIATE_ACK quic_frame. For example, an endpoint might do this if 
+# a large number of received packets contain an IMMEDIATE_ACK or if the endpoint is 
+# under heavy load.
+
+object quic_frame = { ...
+    object immediate_ack = { ...
+        action handle(f:quic_frame.immediate_ack,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num)
+	around handle {      
+            require connected(dcid) & connected_to(dcid) = scid;
+            require e = quic_packet_type.one_rtt & established_1rtt_keys(scid);
+            require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+            var tp := trans_params(dcid);
+            require  min_ack_delay.is_set(tp);
+            ...
+            force_immediate_ack := false;
+            call enqueue_frame(scid,f,e,false,seq_num);
+        }
+    }
+}
+
+
+#  An endpoint's min_ack_delay MUST NOT be greater than the its
+#  max_ack_delay. 
+
+action min_ack_delay_check(dcid:cid) returns (ok:bool) = {
+    ok := false;
+    var tp := trans_params(dcid);
+    ok := min_ack_delay.value(tp).exponent_8  < milliseconds_to_microseconds(max_ack_delay.value(tp).exponent_8); # * 1000
+}

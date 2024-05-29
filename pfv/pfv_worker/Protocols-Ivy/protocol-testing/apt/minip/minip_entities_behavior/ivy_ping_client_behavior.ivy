@@ -1,0 +1,77 @@
+#lang ivy1.7
+
+include order
+include ping_file
+
+action endpoint_to_pid(src:ip.endpoint) returns (pid:endpoint_id) = {
+    if src = client.ep {
+        pid := endpoint_id.client;
+    } 
+}
+
+action socket_endpoint(host:endpoint_id,s:net.socket) returns (src:ip.endpoint) = {
+    src := client.ep
+}
+
+action endpoint_to_socket(src:ip.endpoint) returns (socket:net.socket) = {
+    if src = client.ep {
+        socket := sock;
+    } 
+}
+
+action tls_id_to_src(tls_id:tls_api.id) returns (src:ip.endpoint) = {
+    src := client.ep if tls_id = client.tls_id  else server.ep;
+}
+
+action tls_id_to_dst(tls_id:tls_api.id) returns (dst:ip.endpoint) = {
+    dst := server.ep if tls_id = client.tls_id else client.ep;
+}
+
+action dst_is_generated(dst:ip.endpoint) returns (res:bool) = {
+    res := dst = client.ep;
+}
+
+action dst_tls_id(dst:ip.endpoint) returns (tls_id:tls_api.id) = {
+    tls_id := client.tls_id;
+}
+
+action src_tls_id(src:ip.endpoint) returns (tls_id:tls_api.id) = {
+    tls_id := client.tls_id;
+}
+
+# --------------------------------------------------------------------------
+
+var http_request : stream_data
+instance http_request_file : binary_input_file(stream_data,cid)
+
+after init {
+    http_request := http_request_file.read;
+}
+
+before ping_packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:packet.ping_packet) {
+    if _generating {
+        require src = client.ep;
+        require dst = server.ep;
+    }
+}
+
+
+action client_send_event(src:ip.endpoint, dst:ip.endpoint, end : stream_pos)
+
+around client_send_event {
+    require src = client.ep;
+    require dst = server.ep;
+    require ping_length = packet.ping_packet_end;
+    require ping_length < end & end <= http_request.end;
+    ...
+    while end < http_request.end & http_request.value(end) ~= 10 {
+        end := end.next
+    };
+    if end < http_request.end {
+        end := end.next
+    };
+    var data := http_request.segment(ping_length,end);
+    call app_send_event(src,dst,data,ping_length,true);
+}
+
+attribute radix=16       # print in hex

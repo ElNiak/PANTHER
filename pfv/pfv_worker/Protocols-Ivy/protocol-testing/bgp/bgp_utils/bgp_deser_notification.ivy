@@ -1,0 +1,153 @@
+#lang ivy1.7
+
+# a fake deserializer for BGP
+
+object bgp_deser_notification = {}
+
+<<< member
+
+    class `bgp_deser_notification`;
+
+>>>
+
+<<< impl
+
+    class `bgp_deser_notification` : public ivy_binary_deser_128 {
+        enum {bgp_s_error_code,
+              bgp_s_error_subcode,
+              bgp_s_payload} state;
+        int token_length = 4;
+        long frame_type;
+        int fence=0;
+        int current_bgp_size = 0;
+        int payload_length = 0;
+        int error_code = 0;
+
+    public:
+        bgp_deser_notification(const std::vector<char> &inp) : ivy_binary_deser_128(inp),state(bgp_s_error_code) {
+        }
+        virtual void  get(int128_t &res) {
+            switch (state) {
+            case bgp_s_error_code:
+            {
+                std::cerr << "bgp_s_error_code 1\n";
+                getn(res,1);
+                error_code = res;
+                state = bgp_s_error_subcode;
+            }
+            break;
+            case bgp_s_error_subcode:
+            {
+                std::cerr << "bgp_s_error_subcode 1\n";
+                getn(res,1);
+                state = bgp_s_payload;
+            }
+            break;
+            case bgp_s_payload:
+            {
+                std::cerr << "bgp_s_payload 1\n";
+                getn(res,1);
+            }
+            break;
+            default:
+                std::cerr << "bgp_deser_notification 3\n";  
+                throw deser_err();
+            }
+        }
+
+
+        int128_t reverse_bytes(int128_t bytes)
+        {
+            int128_t aux = 0;
+            uint8_t byte;
+            int i;
+
+            for(i = 0; i < 128; i+=8)
+            {
+                byte = (bytes >> i) & 0xff;
+                aux |= byte << (128 - 8 - i);
+            }
+            return aux;
+        }
+
+        virtual int open_tag(const std::vector<std::string> &tags) {
+            if (state == bgp_s_error_subcode) {
+                int128_t ft;
+                ivy_binary_deser_128::getn(ft,1); // could be bigger
+                frame_type = ft;
+                std::cerr << "recv frame_type = " << frame_type << "\n";
+                //std::cerr << "saw tag " << ft << "\n";
+                if (error_code == 1) {
+                    state =  bgp_s_error_subcode;
+                    if (frame_type == 0x1) {
+                        return 0;
+                    } else if (frame_type == 0x2) {
+                        return 1;
+                    } else if (frame_type == 0x3) {
+                        return 2;
+                    }
+
+                } else if (error_code == 2) {
+                    state =  bgp_s_error_subcode;
+                    if (frame_type == 0x1) {
+                        return 0;
+                    } else if (frame_type == 0x2) {
+                        return 1;
+                    } else if (frame_type == 0x3) {
+                        return 2;
+                    }
+                } else if (error_code == 3) {
+                    state =  bgp_s_error_subcode;
+                    if (frame_type == 0x1) {
+                        return 0;
+                    } else if (frame_type == 0x2) {
+                        return 1;
+                    } else if (frame_type == 0x3) {
+                        return 2;
+                    }
+                }
+            }
+            std::cerr << "state          = " << state << "\n";  
+            std::cerr << "bgp_deser_notification 2\n";  
+            throw deser_err();
+        }
+
+        virtual bool open_list_elem() {
+            if (state == bgp_s_payload) {
+                std::cerr << "bgp_s_payload bgp_deser_notification 2\n";  
+                //state = bgp_s_time;
+                return payload_length-- > 0;
+            }
+                //return more(1);
+           /* if ( state == bgp_s_error_subcode || state == bgp_s_error_code) {
+                 std::cerr << "bgp_s_error_code bgp_deser_notification 2\n";  
+                if (current_bgp_size == 5) {
+                    //state = bgp_s_time;
+                    return false;
+                }
+                current_bgp_size += 1;
+                payload_length -= 1;
+                return true;
+            }*/
+                
+            std::cerr << "bgp_deser_notification 1\n";  
+            throw deser_err();
+        }
+
+        void open_list() {
+        }
+        void close_list() {
+            if (state == bgp_s_payload) {
+                state = bgp_s_error_code;
+            }
+        }
+        void close_list_elem() {}
+
+        virtual void close_tag() {
+            state = bgp_s_payload;
+        }
+
+        ~bgp_deser_notification(){}
+    };
+
+>>>

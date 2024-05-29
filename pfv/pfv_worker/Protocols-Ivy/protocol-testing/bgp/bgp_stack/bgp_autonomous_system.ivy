@@ -1,0 +1,44 @@
+#lang ivy1.7
+
+#    Autonomous System (AS)
+#       The classic definition of an Autonomous System is a set of routers
+#       under a single technical administration, using an interior gateway
+#       protocol (IGP) and common metrics to determine how to route
+#       packets within the AS, and using an inter-AS routing protocol to
+#       determine how to route packets to other ASes.  Since this classic
+#       definition was developed, it has become common for a single AS to
+#       use several IGPs and, sometimes, several sets of metrics within an
+#       AS.  The use of the term Autonomous System stresses the fact that,
+#       even when multiple IGPs and metrics are used, the administration
+#       of an AS appears to other ASes to have a single coherent interior
+#       routing plan, and presents a consistent picture of the
+#       destinations that are reachable through it.
+
+object autonomous_system = {
+    type this = struct {
+        id:as_number
+    }
+    instance idx : unbounded_sequence
+    instance arr : array(idx,this) 
+}
+
+
+action as_event(src:bgp_id, dst:bgp_id, as: autonomous_system) = {}
+action as_path_event(src:bgp_id,dst:bgp_id,ases:autonomous_system.arr) = {}
+
+before as_event(src:bgp_id,dst:bgp_id,as:autonomous_system) {
+    require as.id = speaker_impl_as | as.id = speaker_as;
+    require open_message_recv(src) & open_message_recv(dst);
+    call show_connected_open(open_message_recv(src));
+    call show_connected_open(open_message_recv(dst));
+}
+
+around as_path_event(src:bgp_id,dst:bgp_id,ases:autonomous_system.arr) {
+    #  require queued_segment_type(src, num_queued_as_path(src)) = 
+    require open_message_recv(src) & open_message_recv(dst);
+    require bgp_update_event;
+    require num_queued_segment_value(src, num_queued_as_path(src)) = ases.end;
+    require queued_segment_value(src, num_queued_as_path(src)) = ases;
+    ...
+    num_queued_as_path(src) := num_queued_as_path(src) + 1;
+}

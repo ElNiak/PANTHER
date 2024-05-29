@@ -1,0 +1,252 @@
+version: "3.7"
+networks:
+  net:
+    external: True
+    ipam:
+          driver: default
+          config:
+              - subnet: "172.27.1.0/24"
+              # - gateway: "172.27.1.1"
+services:
+  ivy-standalone:
+    hostname: ivy-webapp
+    container_name: ivy-webapp
+    image: "ivy-webapp:latest"
+    command: bash -c "python3 pfv.py --getstats --update_ivy --webapp --compile  --docker"
+    ports:
+      - "49150:80"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ${PWD}/src/pfv/pfv.py:/PFV/pfv.py
+      - ${PWD}/src/pfv/pfv_utils/:/PFV/pfv_utils/
+      - ${PWD}/src/pfv/pfv_runner/:/PFV/pfv_runner/
+      - ${PWD}/src/pfv/pfv_tester/:/PFV/pfv_tester/
+      - ${PWD}/src/pfv/ivy_utils/:/PFV/ivy_utils/
+      - ${PWD}/src/pfv/pfv_stats/:/PFV/pfv_stats/
+      - ${PWD}/src/pfv/logger/:/PFV/logger/
+      - ${PWD}/src/pfv/argument_parser/:/PFV/argument_parser/
+      - ${PWD}/src/pfv/configs/:/PFV/configs/
+      - ${PWD}/src/webapp/:/PFV/webapp
+      - ${PWD}/src/webapp/utils/:/PFV/webapp/utils/
+      - ${PWD}/src/webapp/pfv_server.py:/PFV/webapp/pfv_server.py
+      - ${PWD}/src/webapp/res/cytoscape_config.json:/tmp/cytoscape_config.json
+      - ${PWD}/src/webapp/res/ivy_show_output.txt:/tmp/ivy_show_output.txt
+      - ${PWD}/src/webapp/res/cytoscape_model.json:/tmp/cytoscape_model.json
+      - ${PWD}/src/webapp/res/sample_model.json:/tmp/sample_model.json
+      - ${PWD}/src/webapp/res/sample.json:/tmp/sample.json
+      - ${PWD}/src/Protocols-Ivy/protocol-testing/:/PFV/Protocols-Ivy/protocol-testing/
+    networks:
+      net:
+        ipv4_address:  172.27.1.10
+    privileged: true
+    environment:
+      - ROOT_PATH=${PWD} # TODO remove eventually
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=~/.Xauthority
+    restart: always
+    
+  
+  #################################################
+  # Implementations workers
+  #################################################
+
+  picoquic-shadow-ivy:
+    hostname: picoquic-shadow-ivy
+    container_name: picoquic-shadow-ivy
+    image: "picoquic-shadow-ivy:latest"
+    command: python3 pfv.py --update_ivy --getstats --worker --compile  --docker
+    ports:
+      - "49156:80"
+    volumes:
+      - ${PWD}/src/webapp/pfv_client.py:/PFV/webapp/pfv_client.py
+      - ${PWD}/src/pfv/pfv.py:/PFV/pfv.py
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/topo.gml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/shadow_client_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test.yml:/PFV/shadow_server_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test_template.yml:/PFV/shadow_client_test_template.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test_template.yml:/PFV/shadow_server_test_template.yml
+      - ${PWD}/data/tls-keys:/PFV/tls-keys
+      - ${PWD}/data/tickets:/PFV/tickets
+      - ${PWD}/data/qlogs:/PFV/qlogs
+      - ${PWD}/src/pfv/pfv_utils/:/PFV/pfv_utils/
+      - ${PWD}/src/pfv/pfv_stats/:/PFV/pfv_stats/
+      - ${PWD}/src/pfv/pfv_runner/:/PFV/pfv_runner/
+      - ${PWD}/src/pfv/pfv_tester/:/PFV/pfv_tester/
+      - ${PWD}/src/pfv/ivy_utils/:/PFV/ivy_utils/
+      - ${PWD}/src/pfv/logger/:/PFV/logger/
+      - ${PWD}/src/pfv/argument_parser/:/PFV/argument_parser/
+      - ${PWD}/src/pfv/configs/:/PFV/configs/
+      - ${PWD}/src/Protocols-Ivy/protocol-testing/:/PFV/Protocols-Ivy/protocol-testing/
+      - ${PWD}/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic
+      # - ${PWD}/src/Protocols-Ivy/ivy/ivy_to_cpp.py:/PFV/Protocols-Ivy/ivy/ivy_to_cpp.py
+      # - ${PWD}/src/Protocols-Ivy/ivy/ivy_cpp_types.py:/PFV/Protocols-Ivy/ivy/ivy_cpp_types.py
+      - ${PWD}/src/Protocols-Ivy/ivy/:/PFV/Protocols-Ivy/ivy/
+      - ${PWD}/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    networks:
+      net:
+        ipv4_address: 172.27.1.3
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - NET_ADMIN
+    tmpfs:
+      - /dev/shm:rw,nosuid,nodev,exec,size=1024g
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=~/.Xauthority
+      - ROOT_PATH=${PWD} # TODO remove eventually
+      - MPLBACKEND='Agg'
+    restart: always
+    devices:
+      - /dev/dri:/dev/dri
+    depends_on:
+      - ivy-standalone
+
+  picoquic-ivy:
+    hostname: picoquic-ivy
+    container_name: picoquic-ivy
+    image: "picoquic-ivy:latest"
+    command: python3 pfv.py --update_ivy --getstats --worker --compile  --docker
+    ports:
+      - "49157:80"
+    volumes:
+      - ${PWD}/src/webapp/pfv_client.py:/PFV/webapp/pfv_client.py
+      - ${PWD}/src/pfv/pfv.py:/PFV/pfv.py
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/topo.gml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/shadow_client_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test.yml:/PFV/shadow_server_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test_template.yml:/PFV/shadow_client_test_template.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test_template.yml:/PFV/shadow_server_test_template.yml
+      - ${PWD}/data/tls-keys:/PFV/tls-keys
+      - ${PWD}/data/tickets:/PFV/tickets
+      - ${PWD}/data/qlogs:/PFV/qlogs
+      - ${PWD}/src/pfv/pfv_utils/:/PFV/pfv_utils/
+      - ${PWD}/src/pfv/pfv_stats/:/PFV/pfv_stats/
+      - ${PWD}/src/pfv/pfv_runner/:/PFV/pfv_runner/
+      - ${PWD}/src/pfv/pfv_tester/:/PFV/pfv_tester/
+      - ${PWD}/src/pfv/ivy_utils/:/PFV/ivy_utils/
+      - ${PWD}/src/pfv/logger/:/PFV/logger/
+      - ${PWD}/src/pfv/argument_parser/:/PFV/argument_parser/
+      - ${PWD}/src/pfv/configs/:/PFV/configs/
+      - ${PWD}/src/Protocols-Ivy/protocol-testing/:/PFV/Protocols-Ivy/protocol-testing/
+      - ${PWD}/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic
+      # - ${PWD}/src/Protocols-Ivy/ivy/ivy_to_cpp.py:/PFV/Protocols-Ivy/ivy/ivy_to_cpp.py
+      # - ${PWD}/src/Protocols-Ivy/ivy/ivy_cpp_types.py:/PFV/Protocols-Ivy/ivy/ivy_cpp_types.py
+      - ${PWD}/src/Protocols-Ivy/ivy/:/PFV/Protocols-Ivy/ivy/
+      - ${PWD}/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    networks:
+      net:
+        ipv4_address: 172.27.1.4
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - NET_ADMIN
+    tmpfs:
+      - /dev/shm:rw,nosuid,nodev,exec,size=1024g
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=~/.Xauthority
+      - ROOT_PATH=${PWD} # TODO remove eventually
+      - MPLBACKEND='Agg'
+    restart: always
+    devices:
+      - /dev/dri:/dev/dri
+    depends_on:
+      - ivy-standalone
+
+  ping-pong:
+    hostname: ping-pong-ivy
+    container_name: ping-pong-ivy
+    image: "ping-pong-ivy:latest"
+    command: python3 pfv.py --update_ivy --getstats --worker --compile  --docker
+    ports:
+      - "49161:80"
+    volumes:
+      - ${PWD}/src/pfv/pfv.py:/PFV/pfv.py
+      - ${PWD}/src/webapp/pfv_client.py:/PFV/webapp/pfv_client.py
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/topo.gml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/shadow_client_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test.yml:/PFV/shadow_server_test.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_client_test_template.yml:/PFV/shadow_client_test_template.yml
+      - ${PWD}/src/pfv/res/shadow/shadow_server_test_template.yml:/PFV/shadow_server_test_template.yml
+      - ${PWD}/data/tls-keys:/PFV/tls-keys
+      - ${PWD}/data/tickets:/PFV/tickets
+      - ${PWD}/data/qlogs:/PFV/qlogs
+      - ${PWD}/src/pfv/pfv_stats/:/PFV/pfv_stats/
+      - ${PWD}/src/pfv/pfv_utils/:/PFV/pfv_utils/
+      - ${PWD}/src/pfv/pfv_runner/:/PFV/pfv_runner/
+      - ${PWD}/src/pfv/pfv_tester/:/PFV/pfv_tester/
+      - ${PWD}/src/pfv/ivy_utils/:/PFV/ivy_utils/
+      - ${PWD}/src/pfv/logger/:/PFV/logger/
+      - ${PWD}/src/pfv/argument_parser/:/PFV/argument_parser/
+      - ${PWD}/src/pfv/configs/:/PFV/configs/
+      - ${PWD}/src/Protocols-Ivy/protocol-testing/:/PFV/Protocols-Ivy/protocol-testing/
+      - ${PWD}/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic
+      # - ${PWD}/src/Protocols-Ivy/ivy/ivy_to_cpp.py:/PFV/Protocols-Ivy/ivy/ivy_to_cpp.py
+      # - ${PWD}/src/Protocols-Ivy/ivy/ivy_cpp_types.py:/PFV/Protocols-Ivy/ivy/ivy_cpp_types.py
+      - ${PWD}/src/Protocols-Ivy/ivy/:/PFV/Protocols-Ivy/ivy/
+      - ${PWD}/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    networks:
+      net:
+        ipv4_address: 172.27.1.5
+    privileged: true
+    security_opt:
+      - seccomp:unconfined
+    cap_add:
+      - NET_ADMIN
+    tmpfs:
+      - /dev/shm:rw,nosuid,nodev,exec,size=1024g
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=~/.Xauthority
+      - ROOT_PATH=${PWD} # TODO remove eventually
+      - MPLBACKEND='Agg'
+    restart: always
+    devices:
+      - /dev/dri:/dev/dri
+    depends_on:
+      - ivy-standalone
+ 
+  #################################################
+  # PlantUML -> useless still only png or svg -> not dynamic
+  #################################################
+
+  # plantuml-server:
+  #   image: jgraph/plantuml-server
+  #   expose:
+  #     - "8080"
+  #   networks:
+  #     net
+  #   volumes:
+  #     - ./plantUML/fonts:/usr/share/fonts/drawio
+  
+  # image-export:
+  #   image: jgraph/export-server
+  #   expose:
+  #     - "8000"
+  #   networks:
+  #     net
+  #   volumes:
+  #     - ./plantUML/fonts:/usr/share/fonts/drawio
+
+  # drawio:
+  #   image: jgraph/drawio
+  #   ports:
+  #     - "8443:8443"
+  #     - "8080:8080"
+  #   depends_on:
+  #     - plantuml-server
+  #     - image-export
+  #   networks:
+  #     net
+  #   volumes:
+  #     - ./plantUML/PostConfig.js:/usr/local/tomcat/webapps/draw/js/PostConfig.js
+  #     - ./plantUML/PreConfig.js:/usr/local/tomcat/webapps/draw/js/PreConfig.js
+  #   environment:
+  #     - PLANTUML_URL=http://plantuml-server:8080/
+  #     - EXPORT_URL=http://image-export:8000/

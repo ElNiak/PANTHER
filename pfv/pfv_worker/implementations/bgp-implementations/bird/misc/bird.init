@@ -1,0 +1,97 @@
+#! /bin/sh
+#
+# bird         Starts the Internet Routing Daemon.
+#
+# Author:      Ondrej Feela Filip, <feela@network.cz>
+#
+# chkconfig: - 32 75
+# description: Internet routing daemon supporting IPv4 routing protocols:
+#              BGP4, RIPv2 and OSPFv2.
+#
+# processname: bird
+# config: /etc/bird.conf
+
+
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+[ -f /etc/sysconfig/network ] || exit 0
+
+. /etc/sysconfig/network
+
+BIRD4="yes"
+BIRD6="yes"
+
+BIRD4ARGS=
+BIRD6ARGS=
+
+[ -f /etc/bird.conf ] || BIRD4="no"
+[ -f /usr/sbin/bird ] || BIRD4="no"
+[ "${NETWORKING}" = "yes" ] || BIRD4="no"
+
+[ -f /etc/bird6.conf ] || BIRD6="no"
+[ -f /usr/sbin/bird6 ] || BIRD6="no"
+[ "${NETWORKING_IPV6}" = "yes" ] || BIRD6="no"
+
+[ -e /etc/sysconfig/bird ] && . /etc/sysconfig/bird
+
+RETVAL=0
+
+# See how we were called.
+case "$1" in
+  start)
+	if [ "$BIRD4" = "yes" ]
+	then
+		echo -n "Starting BIRD for IPv4: "
+		daemon bird ${BIRD4ARGS}
+		RETVAL=$?
+		echo
+		[ $RETVAL -eq 0 ] && touch /var/lock/subsys/bird
+	fi
+	if [ "$BIRD6" = "yes" ]
+	then
+		echo -n "Starting BIRD for IPv6: "
+		daemon bird6 ${BIRD6ARGS}
+		RETVAL=$?
+		echo
+		[ $RETVAL -eq 0 ] && touch /var/lock/subsys/bird6
+	fi
+	;;
+  stop)
+	echo -n "Stopping BIRD for IPv4: "
+	killproc bird
+	RETVAL=$?
+	echo
+	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/bird
+
+	echo -n "Stopping BIRD for IPv6: "
+	killproc bird6
+	RETVAL=$?
+	echo
+	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/bird6
+	;;
+  status)
+	status bird
+	status bird6
+	RETVAL=$?
+	;;
+  restart)
+  	$0 stop
+	$0 start
+	RETVAL=$?
+	;;
+  reload)
+	killproc bird -HUP
+ 	RETVAL=$?
+	echo
+	echo -n "Reloading BIRD for IPv6: "
+	killproc bird6 -HUP
+	RETVAL=$?
+	echo
+	;;
+  *)
+	echo "Usage: bird.init {start|stop|status|restart|reload}"
+	exit 1
+esac
+
+exit $RETVAL

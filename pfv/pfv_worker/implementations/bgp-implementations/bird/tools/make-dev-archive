@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# This a modified version of gendist script which generates development
+# archive (tarball) without docs from current sources.
+
+BIRD_VERSION=`grep 'BIRD_VERSION \"' sysdep/config.h | sed '/BIRD_VERSION/!d;s/^.*"\(.*\)"$/\1/'`
+# differentiate dev tarballs from upstream ones
+GIT_HASH=$(git rev-parse --short HEAD )
+TIMESTAMP=$(date -u +'%s' 2>/dev/null)
+VERSION=$BIRD_VERSION.$TIMESTAMP.$GIT_HASH
+
+REL=bird-$VERSION
+T=/tmp/bird
+
+set -e
+
+# prepare output dir
+rm -rf $T/$REL $T/$REL.tar.gz
+mkdir -p $T
+
+echo Building $REL
+git archive --format=tar --prefix=$REL/ HEAD | (cd $T && tar xf -)
+echo Running autoreconf
+( cd $T/$REL ; autoreconf ; rm -rf autom4te*cache )
+echo Generating ChangeLog
+git log >$T/$REL/ChangeLog
+rm -f $T/$REL/bird.conf*
+rm -rf $T/$REL/misc $T/$REL/doc/slides $T/$REL/doc/slt2001 $T/$REL/doc/old
+( cd $T ; tar czf $REL.tar.gz $REL )
+rm -rf $T/$REL
+
+echo $T/$REL.tar.gz

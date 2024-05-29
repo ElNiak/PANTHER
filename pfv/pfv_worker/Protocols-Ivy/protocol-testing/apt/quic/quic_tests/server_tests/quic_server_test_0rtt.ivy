@@ -1,0 +1,271 @@
+#lang ivy1.7
+
+include order
+include quic_infer
+include file
+include ivy_quic_shim_client
+include quic_locale
+include ivy_quic_client_behavior
+
+#
+# We fix the initial transport parameters here. TODO: In principle these
+# parameters should be selected randomly by some event.
+#
+
+# after init { # TODO 
+#     the_cid := 0x1; # 0x0;
+#     server_cid := 0x2; # 0x1;
+# }
+
+after init {
+    initial_max_stream_data_uni_server_0rtt := tls_api.upper.get_initial_max_stream_data_uni();
+    initial_max_stream_data_bidi_remote_server_0rtt := tls_api.upper.get_initial_max_stream_data_bidi_remote();
+    initial_max_data_server_0rtt := tls_api.upper.get_initial_max_data();
+    initial_max_stream_data_bidi_local_server_0rtt := tls_api.upper.get_initial_max_stream_data_bidi_local();
+    initial_max_stream_id_bidi_server_0rtt := tls_api.upper.get_initial_max_stream_id_bidi();
+    active_connection_id_limit_server_0rtt := tls_api.upper.get_active_connection_id_limit();
+}
+
+include ivy_quic_client_0rtt_tp
+
+
+# This creates the sockets and also a TLS instance to be used by `the_cid`.
+# TODO: the TLS instance should be created dynamically when the application
+# layer creates a connection. 
+
+after init {
+    sock := net.open(endpoint_id.client,client.ep);
+    sock_alt := net.open(endpoint_id.client_alt,client_alt);
+    sock_vn := sock; #net.open(endpoint_id.client_vn,client_vn);
+    client.set_tls_id(0);
+    second_client.set_tls_id(0); # TODO to avoid error
+    server.set_tls_id(1);
+    var extns := tls_extensions.empty;
+    var hand_extns := tls_hand_extensions.empty;
+    extns := extns.append(make_transport_parameters);
+    #hand_extns := hand_extns.append(make_tls_new_session_ticket);
+    #extns := extns.append(make_transport_parameters);
+    call tls_api.upper.create_0rtt(0,false,extns,hand_extns);  # false means this instance of tls is not a server
+}
+
+after init {
+    allowed_migration := false;
+    zero_rtt_allowed := true;
+}
+
+before packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet) {
+    if _generating {
+        require zero_rtt_sent;
+        var tp := trans_params(the_cid);
+        if version_negociated {
+            require src = client_vn;
+        } else {
+            if ~disable_active_migration.is_set(tp) & allowed_migration {
+                if ~migration_done | allowed_multiple_migration { 
+                    # only one migration
+                    require src = client.ep | src = client_alt;
+                } else {
+                    require src = client_alt;
+                }
+            } else {
+                require src = client.ep;
+            }
+        };
+        require dst = server.ep;
+        require pkt.token.end = 0; 
+    };
+    if final_version = 0x00000000 {
+        #require pkt.long -> pkt.pversion = 0x00000001  #version 29
+        #require pkt.long -> pkt.pversion = 0xff000020  #version 32
+        #require pkt.long -> pkt.pversion = 0xff00001e  #version 30
+        require pkt.long -> pkt.pversion = initial_version  #version 30
+    } else {
+        require pkt.long -> pkt.pversion = final_version
+    };
+}
+
+before packet_event_coal_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_coal_0rtt) {
+    if _generating {
+        #require established_0rtt_keys(the_cid); # := true;
+        #require pkt.ptype ~= quic_packet_type.initial;
+        #require pkt.ptype ~= quic_packet_type.handshake;
+        established_0rtt_keys(the_cid) := true;
+        require ~zero_rtt_sent;
+        var tp := trans_params(the_cid);
+        if version_negociated {
+            require src = client_vn;
+        } else {
+            if ~disable_active_migration.is_set(tp) & allowed_migration {
+                if ~migration_done | allowed_multiple_migration { 
+                    # only one migration
+                    require src = client.ep | src = client_alt;
+                } else {
+                    require src = client_alt;
+                }
+            } else {
+                require src = client.ep;
+            }
+        };
+        require dst = server.ep;
+        require pkt.token_i.end = 0; 
+    };
+    if final_version = 0x00000000 {
+        #require pkt.long -> pkt.pversion = 0x00000001  #version 29
+        #require pkt.long -> pkt.pversion = 0xff000020  #version 32
+        #require pkt.long -> pkt.pversion = 0xff00001e  #version 30
+        require pkt.long -> pkt.pversion = initial_version;  #version 30
+        require pkt.long -> pkt.pversion_i = initial_version;  #version 30
+    } else {
+        require pkt.long -> pkt.pversion = final_version;
+        require pkt.long -> pkt.pversion_i = final_version;
+    };
+}
+
+# The protocol specification describes all the events occurring the
+# system at all protocol layers. When constructing the test mirror,
+# however, we need to generate only events that are outputs of the
+# environment. Ivy doesn't have any built-in mechanism to do this,
+# so we have to add a constraint to every generated action. 
+#
+# We also add other pre-conditions to the actions to try to restrict
+# them to relevant parameter values. 
+#
+# To restrict the generated events, we use the built-in predicate
+# "_generating" that is true if this is a generated event.
+#
+# This is the mirror constraint for the stream quic_frame protocol. We add
+# some requirements to make the tests more interesting. In particular,
+# we don't want the tester to produce lots of tiny frames (or empty
+# ones) so we require that a stream quic_frame send all of the available
+# stream data. 
+#
+# TODO: We reuquire tje `off` and `len` bits to be true. Maybe these should
+# determined in the low-level packet encoding stage.
+
+after init {
+    zero_rtt_server_test := true 
+}
+
+before quic_frame.stream.handquic_framequic_frame.stream,scid:cid,dcid:cid,e:quic_packet_type) {
+    if _generating {
+        require scid = the_cid;
+        #require (connected(the_cid) & dcid = connected_to(the_cid)) | (e = quic_packet_type.zero_rtt  & established_0rtt_keys(the_cid)); # TODO
+        require f.len & f.off; 
+        require f.length > 0;
+        require f.offset = stream_length(dcid,f.id);
+        require f.length = (stream_app_data_end(dcid,f.id)) - f.offset;
+    };
+
+}
+
+
+# Generate connection_close frames only for the environment process(es).
+#
+# Note: requiring the `err_code` is zero on non-generated frames means that
+# we stop the test if the peer reports a protocol error. 
+
+before quic_frame.connection_close.handquic_framequic_frame.connection_close,scid:cid,dcid:cid) {
+    if _generating {
+        require conn_total_data(the_cid) > 100; # tricks
+        require last_pkt_num(the_cid,quic_packet_type.one_rtt) > 5;
+        require scid = the_cid;
+        require f.err_code = 0;
+    } else {
+        require is_no_error;
+        call _finalize;
+    }
+}
+
+# Generate application_close frames only for the environment process(es).
+
+before quic_frame.application_close.handquic_framequic_frame.application_close,scid:cid,dcid:cid) {
+    if _generating {
+        require scid = the_cid;
+    } else {
+        require is_no_error;
+        call _finalize;
+    }
+}
+
+around client_send_event {
+    require s = current_stream;
+    var tp := trans_params(the_cid);
+
+    if version_negociated {
+        require src = client_vn;
+    } else {
+        if ~disable_active_migration.is_set(tp) {
+            if ~migration_done | allowed_multiple_migration  { #only one migration
+                require src = client.ep | src = client_alt;
+            } else {
+                require src = client_alt;
+            }
+        } else {
+            require src = client.ep;
+        }
+    };
+
+    require dst = server.ep;
+
+    if zero_rtt_sent {
+        require (connected(the_cid) & dcid = connected_to(the_cid));
+    } else {
+        require  dcid ~= the_cid;
+        #dcid := 2;
+        #require dcid ~= the_cid;
+    };
+
+    #require (connected(the_cid) & dcid = connected_to(the_cid)) | ~zero_rtt_sent;
+    require stream_length(dcid,s) = stream_app_data_end(dcid,s);
+    require stream_length(dcid,s) < end & end <= http_request.end;
+    require current_stream < 60;
+    ...
+    while end < http_request.end & http_request.value(end) ~= 10 {
+        end := end.next
+    };
+    if end < http_request.end {
+        end := end.next
+    };
+    var data := http_request.segment(stream_length(dcid,s),end);
+#    call app_send_event(src,dst,dcid,s,data,end = http_request.end);
+    call app_send_event(src,dst,dcid,s,data,stream_length(dcid,s),true);
+    current_stream := current_stream + 4;
+}
+
+# The actions listed below will be generated by the mirror.
+#
+# Note: some of these are commented out. They are added in other files
+# that include this one.
+
+export quic_frame.ack.handle
+export quic_frame.stream.handle
+export quic_frame.crypto.handle
+export quic_frame.path_response.handle
+export packet_event
+export packet_event_coal_0rtt
+export client_send_event
+export tls_recv_event
+#export quic_frame.new_connection_id.handle
+#export quic_frame.retire_connection_id.handle
+#export quic_frame.rst_stream.handle
+#export quic_frame.max_stream_id.handle
+export quic_frame.connection_close.handle
+#export quic_frame.max_stream_data.handle
+#export quic_frame.max_data.handle
+attribute quic_frame.crypto.handle.weight = "5"
+attribute quic_frame.path_response.handle.weight = "5"
+
+# Final check
+#
+# When the test is complete, the tester calls the special action `_finalize`.
+# We use this action to make some heuristic checks, for example that some
+# data was actually received from the server. We can add advice to this
+# action with additional checks.
+
+export action _finalize = {
+    # chris TODO 
+    require is_no_error;
+    require conn_total_data(the_cid) > 0;
+    require tls_handshake_finished;
+}
+

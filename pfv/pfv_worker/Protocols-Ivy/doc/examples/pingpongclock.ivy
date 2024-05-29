@@ -1,0 +1,116 @@
+#lang ivy1.7
+
+isolate clock = {
+    type this
+    action incr(inp:this) returns (out:this)
+
+    specification {
+        property [transitivity] X:this < Y & Y < Z -> X < Z
+        property [antisymmetry] ~(X:this < Y & Y < X)
+
+        after incr {
+            ensure inp < out
+        }
+    }
+
+    implementation {
+        interpret clock -> int
+
+        implement incr {
+	    out := inp + 1
+        }
+    }
+}
+
+isolate intf = {
+
+    action ping(x:clock)
+    action pong(x:clock)
+
+    specification {
+
+        type side_t = {left,right}
+        individual side : side_t
+        individual time : clock
+
+        after init {
+            side := left;
+            time := 0
+        }
+
+        before ping {
+            require side = left & time < x;
+            side := right;
+            time := x
+        }
+
+        before pong {
+            require side = right & time < x;
+            side := left;
+            time := x
+        }
+    }
+}
+
+
+isolate left_player = {
+
+    implementation {
+        individual ball : bool
+        individual time : clock
+        after init {
+            ball := true;
+            time := 0
+        }
+
+        action hit = {
+            if ball {
+                call intf.ping(clock.incr(time));
+                ball := false
+            }
+        }
+
+        implement intf.pong {
+            ball := true;
+            time := x
+        }
+    }
+
+    private {
+        invariant ball -> (intf.side = intf.left & intf.time <= time)
+    }
+}
+with intf, clock
+
+
+isolate right_player = {
+    
+    implementation {
+        individual ball : bool
+        individual time : clock
+        after init {
+            ball := false
+        }
+        
+        action hit = {
+            if ball {
+                call intf.pong(clock.incr(time));
+                ball := false
+            }
+        }
+        
+        implement intf.ping {
+            ball := true;
+            time := x
+        }
+    }
+
+    private {
+        invariant ball -> (intf.side = intf.right & intf.time <= time)
+    }
+}
+with intf, clock
+
+export left_player.hit
+export right_player.hit
+

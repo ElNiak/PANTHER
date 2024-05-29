@@ -1,0 +1,406 @@
+#lang ivy1.7
+
+include quic_types
+include quic_transport_error_code
+include quic_frame
+include quic_packet
+include quic_transport_parameters
+include ip
+include quic_fsm_sending
+include quic_fsm_receiving
+include byte_stream
+
+# The packet protocol
+#
+# The packet protocol has several funcitons including establishing
+# connections and loss detection. Packets carry frames whihc implement
+# many other funcition of QUIC.
+#
+# QUIC Packets
+# ------------
+
+# This section defines the QUIC packet datatype. Packets are the basic
+# unit of communication between endpoints. A packet may be encoded in
+# either the long or the short format. There are packet types:
+# `initial`, `handshake`, `zero_rtt` and `one_rtt`. The `zero_rtt`
+# type is encoded in the short format, while others are encoded in the
+# long format.  Packets have associated source cid (long format only)
+# and destination cid, protocol version (long format only), and a
+# packet sequence number. An initial packet also has a *retry token*, which
+# is a (possibly empty) sequence of bytes.  The *payload* of the
+# packet consists of a sequence of *frames* (see quic_frame.ivy).
+
+# TODO: retry and one_rtt packet types
+
+# ### Packet
+
+# The type `packet.quic_packet` represents packet. 
+
+# The fields are:
+#
+# - *ptype*: the packet type [2]
+# - *pversion*: the protocol version, if long format, else 0 [3]
+# - *dst_cid*: the destination cid [4]
+# - *src_cid*: the source cid, if long format, else 0  [5]
+# - *token*: the retry token (see section 4.4.1)  [6]
+# - *seq_num*: the packet sequence number  [7]
+# - *payload*: the payload, a sequence of frames  [8]
+
+object packet = {
+   ...
+
+    object replayed_quic_packet_0rtt = {
+        variant this of packet = struct {
+            # 0rtt packet
+            ptype : quic_packet_type, # [2]
+            pversion : version, # [3]
+            dst_cid : cid, # [4]
+            src_cid : cid, # [5]
+            seq_num : pkt_num, # [7]
+            payload : quic_frame.arr # [8]
+        }
+
+        instance idx : unbounded_sequence
+        instance arr : array(idx,this)
+
+        #Hamid
+        instance retired_cids : array(idx, cid_seq)
+        #Hamid
+
+        action long(pkt:this) returns(res:bool) = {
+            res := pkt.ptype ~= quic_packet_type.one_rtt;
+        }
+    }
+}
+
+# Note: Short header are considered to have scid of 0 so it is quite important to use this value
+
+# Packet protocol events
+# -----------------------
+
+# The packet event
+# ================
+#
+# This event corresponds to transmission of a QUIC packet.
+#
+# Parameters
+# ----------
+#
+# - `src`: the source endpoint
+# - `dst`: the destination endpoint
+# - `pkt` : the packet contents
+
+action replayed_packet_event_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:packet.replayed_quic_packet_0rtt) = {}
+
+# Packet protocol state
+# ---------------------
+
+# This section defines the history variables that track the state of
+# the packet protocol. Some of these variables are shared between
+# protocol layers, so that the allowed interleavings of events at
+# different layers can be specified.
+#
+
+# Packet protocol state
+# ---------------------
+
+# Packet event specification
+# --------------------------
+
+# A packet event represents the transmision of a QUIC packet `pkt`
+# from source endpoint `src` to a QUIC destination endpoint `dst`
+# containing a sequence of queued frames.
+#
+# ### Requirements
+#
+# - The packet payload may not be empty [7].
+#
+# - A sender may not re-use a packet number on a given connection [4].
+#
+# - A packet containing only ack frames and padding is *ack-only*.
+#   For a given cid, the number of ack-only packets sent from src to dst
+#   must not be greater than the number of non-ack-only packets sent
+#   from dst to src [5].
+
+
+# ### Effects
+#
+# - The `conn_seen` and `sent_pkt` relations are updated to reflect
+#   the observed packet [1].
+# - The `last_pkt_num` function is updated to indicate the observed
+#   packets as most recent for the packet's source and cid.
+
+#   An endpoint MUST treat the following as a connection error of type
+#   TRANSPORT_PARAMETER_ERROR or PROTOCOL_VIOLATION:
+#   *  absence of the retry_source_connection_id transport parameter from
+#      the server after receiving a Retry packet, [1]
+#   *  presence of the retry_source_connection_id transport parameter
+#      when no Retry packet was received, or [3]
+#   *  a mismatch between values received from a peer in these transport
+#      parameters and the value sent in the corresponding Destination or
+#      Source Connection ID fields of Initial packets. [2]
+#   If a zero-length connection ID is selected, the corresponding
+#   transport parameter is included with a zero-length value.
+
+#    When implementing the client role, applications need to be able to:
+#    *  open a connection, which begins the exchange described in
+#       Section 7;
+#    *  enable 0-RTT when available; and
+#    *  be informed when 0-RTT has been accepted or rejected by a server.
+
+#    The first flight of 0-RTT packets use the same Destination Connection
+#    ID and Source Connection ID values as the client's first Initial
+#    packet. [2]
+
+#    Both endpoints **store the value of the server transport parameters**
+#    from a connection and apply them to any 0-RTT packets that are sent
+#    in subsequent connections to that peer, except for transport
+#    parameters that are explicitly excluded.  Remembered transport
+#    parameters apply to the new connection until the handshake completes
+#    and the client starts sending 1-RTT packets.  Once the handshake
+#    completes, the client uses the transport parameters established in
+#    the handshake. 
+#    A client that attempts to send 0-RTT data MUST remember all other
+#    transport parameters used by the server.  The server can remember
+#    these transport parameters, or store an integrity-protected copy of
+#    the values in the ticket and recover the information when accepting
+#    0-RTT data.  A server uses the transport parameters in determining
+#    whether to accept 0-RTT data.
+#    If 0-RTT data is accepted by the server, the server MUST NOT reduce
+#    any limits or alter any values that might be violated by the client
+#    with its 0-RTT data.  ***In particular, a server that accepts 0-RTT data
+#    MUST NOT set values for the following parameters (Section 18.2) that
+#    are smaller than the remembered value of the parameters.*** [6]
+
+# QUESTION: Is it:
+#           must not set value for following "transport parameters"  
+    #           Thus, the new TP will always be >=  old TP
+    #           This would be because new connection data is also counter with 
+    #           initial 0rtt data
+#
+#           or "parameters" in internal state of programs
+    #           Thus, new TP can be <,> or =. In this case this simply mean it 
+    #           remembers the values and apply them on 0rtt data
+    #           This would mean that 0rtt data size is not counted in max data
+
+#    *  active_connection_id_limit
+#    *  initial_max_data
+#    *  initial_max_stream_data_bidi_local
+#    *  initial_max_stream_data_bidi_remote
+#    *  initial_max_stream_data_uni
+#    *  initial_max_streams_bidi
+#    *  initial_max_streams_uni
+#    A server MUST either reject 0-RTT data (how to know ??) or abort a handshake if the
+#    implied values for transport parameters cannot be supported.  [7]
+
+#    When sending frames in 0-RTT packets, a client MUST only use
+#    remembered transport parameters; importantly, it MUST NOT use updated
+#    values that it learns from the server's updated transport parameters
+#    or from frames received in 1-RTT packets.  ***Updated values of
+#    transport parameters from the handshake apply only to 1-RTT packets.***
+#    For instance, flow control limits from remembered transport
+#    parameters apply to all 0-RTT packets even if those values are
+#    increased by the handshake or by frames sent in 1-RTT packets.  A
+#    server **MAY** treat use of updated transport parameters in 0-RTT as a
+#    connection error of type PROTOCOL_VIOLATION.
+
+# Address validation is especially important with 0-RTT because a server
+#    potentially sends a significant amount of data to a client in
+#    response to 0-RTT data.
+#    The server uses the NEW_TOKEN quic_frame Section 19.7 to provide the
+#    client with an address validation token that can be used to validate
+#    future connections.
+
+#    Packets that a client sends with 0-RTT packet protection MUST be
+#    acknowledged by the server in packets protected by 1-RTT keys.  This
+#    can mean that the client is unable to use these acknowledgments if
+#    the server cryptographic handshake messages are delayed or lost.
+#    Note that the same limitation applies to other data sent by the
+#    server protected by the 1-RTT keys. [10]
+#    A client only receives acknowledgments for its 0-RTT packets once the
+#    handshake is complete.  Consequently, a server might expect 0-RTT
+#    packets to start with a packet number of 0.  Therefore, in
+#    determining the length of the packet number encoding for 0-RTT
+#    packets, a client MUST assume that all packets up to the current
+#    packet number are in flight, starting from a packet number of 0.
+#    Thus, 0-RTT packets could need to use a longer packet number
+#    encoding.
+
+#    A client MUST NOT send 0-RTT packets once it starts processing 1-RTT
+#    packets from the server.  This means that 0-RTT packets cannot
+#    contain any response to frames from 1-RTT packets.  For instance, a
+#    client cannot send an ACK quic_frame in a 0-RTT packet, because that can
+#    only acknowledge a 1-RTT packet.  An acknowledgment for a 1-RTT
+#    packet MUST be carried in a 1-RTT packet.
+#
+# ### Notes
+#
+# - In the low-level packet encoding, the packet number may be encoded using
+#   a small number of bytes, in a way that loses information.
+#   At this layer of the protocol, however, the packets contain the original full
+#   packet number.
+#
+# - On seeing a packet form a new address with the highest packect
+#   number see thus far, the server detects migration of the
+#   client. It begins sending packets to this address and initiates
+#   path validation for this address. Until path validation succeeds,
+#   the server limits data sent to the new address. Currently we
+#   cannot specify this limit because we don't know the byte size of
+#   packets or the timings of packets. 
+
+# 0-RTT allows application data to be sent by a
+#    client before receiving any response from the server.  However, 0-RTT
+#    lacks certain key security guarantees.  In particular, there is no
+#    protection against replay attacks in 0-RTT; see [QUIC-TLS].
+
+# A client that sends CONNECTION_CLOSE in a 0-RTT packet cannot be
+#       assured of the server has accepted 0-RTT and so sending a
+#       CONNECTION_CLOSE quic_frame in an Initial packet makes it more likely
+#       that the server can receive the close signal, even if the
+#       application error code might not be received.
+
+# With VN:
+#    A server MAY limit the number of Version Negotiation packets it
+#    sends.  For instance, a server that is able to recognize packets as
+#    0-RTT might choose not to send Version Negotiation packets in
+#    response to 0-RTT packets with the expectation that it will
+#    eventually receive an Initial packet.
+
+# Liveness
+
+#    If the packet is a 0-RTT packet, the server MAY buffer a limited
+#    number of these packets in anticipation of a late-arriving Initial
+#    packet.  Clients are not able to send Handshake packets prior to
+#    receiving a server response, so servers SHOULD ignore any such
+#    packets.
+
+
+after init {
+}
+
+around replayed_packet_event_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:packet.replayed_quic_packet_0rtt) {    
+    # Extract the source and destination cid's and packet number from the packet.
+    
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid;
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+
+    if src = client_alt | dst = client_alt {
+	    migration_done := true;
+	    #call net.close(endpoint_id.client,sock);	# destroy connection ?
+    };
+
+    # =================================================
+
+    #require pkt.ptype = queued_level(scid);
+    #require queued_level(scid) = quic_packet_type.zero_rtt;
+    require pkt.ptype = quic_packet_type.zero_rtt;
+    #established_1rtt_keys(scid) := true;
+
+    # 0-RTT and 1-RTT belongs to application PN space
+    # TODO make more elegant
+    var pn_app_space := quic_packet_type.one_rtt; 
+    require ~sent_pkt(scid,pn_app_space,pkt.seq_num);  # [4]
+    sent_pkt(scid,pn_app_space,pkt.seq_num) := true;   # [1]
+
+
+    require scid = initial_scid & dcid = initial_dcid; # [2]
+
+    #require pkt.ptype = quic_packet_type.one_rtt;
+    #queued_level_rtt(scid) := quic_packet_type.zero_rtt;
+
+    require num_queued_frames_rtt(scid) > 0;  # [7]
+
+    # The payload must exactly match the queued frames.
+
+    require pkt.payload = queued_frames_rtt(scid);
+
+  
+    # Similarly, an endpoint MUST NOT reuse a connection ID when sending to
+    # more than one destination address.  
+    
+
+    # require retry_source_connection_id.is_set(trans_params(dcid));
+    
+    # The destination cid must represent an existing connection,
+    # except in the case of a client initial packet, when the
+    # destination cid may be the nonce cid chosen by the client for
+    # the given source cid.
+
+    #require pkt.ptype = quic_packet_type.retry & is_client(scid) & dcid = nonce_cid(scid);
+
+    #call show_pstats(scid,pkt.ptype,pkt.seq_num);
+    #call show_pstats(scid,queued_level(scid),pkt.seq_num);
+
+    # The packet type must match the encryption level of the queued
+    # frames at the source. 
+
+
+    #require pkt.ptype = quic_packet_type.zero_rtt | pkt.ptype = quic_packet_type.one_rtt; # tODO
+    require connected(dcid) -> connected_to(dcid) = scid;
+    require conn_seen(scid) & pkt.long & is_client(scid) -> conn_requested(src,dst,scid);
+
+    # Packet must be sent to the endpoint from which the highest numbered
+    # packet has been received. ~queued_challenge(dcid) & 
+    # call show_probing(dcid ,hi_non_probing(dcid));
+    # require  conn_seen(dcid) -> hi_non_probing_endpoint(dcid,dst);  # [10]
+
+
+    # QUESTION: THis sentence is from draft-18 section 13.1: "An
+    #   endpoint MUST NOT send a packet containing only an ACK quic_frame
+    #   in response to a packet containing only ACK or PADDING frames,
+    #   even if there are packet gaps which precede the received
+    #   packet." Do we interpret this to mean that an ack-only packet
+    #   cannot ack *only* ack-only packets?  Or that an ack-only
+    #   packet cannot ack *any* ack-only packets?
+
+    ...
+
+    # Here, we have the updates to the packet protocol state.
+
+    # TEMPORARY: The following are repeated because currently locals defined in
+    # the "before" section cannot be accessed in the "after" section.
+
+    var dcid := pkt.dst_cid;
+    var scid := pkt.src_cid if pkt.long else connected_to(dcid);
+
+    if cid_mapped(dcid) {
+	    dcid := cid_to_aid(dcid);
+    };
+
+    if queued_ack_eliciting(scid) {
+       ack_credit(dcid) := ack_credit(dcid) + 1;
+    };
+    if ~queued_non_ack(scid) {
+       ack_credit(scid) := ack_credit(scid) - 1;
+    };
+
+
+    # Record the packet number as latest seen
+
+    last_pkt_num(scid,pkt.ptype) := pkt.seq_num;
+    # TODO: the following should not be here
+
+    if pkt.ptype = quic_packet_type.zero_rtt & ~_generating {
+        connected(the_cid) := true;
+        connected(scid) := true;
+        connected_to(the_cid) := scid;
+        connected_to(scid) := the_cid;
+    };
+
+    zero_rtt_sent := true;
+
+    queued_frames_rtt(scid) := quic_frame.arr.empty;
+    queued_non_probing(scid) := false;
+    queued_non_ack(scid) := false;
+    queued_close(scid) := false;
+    num_queued_frames_rtt(scid) := 0;
+#Hamid
+    queued_ack_eliciting(scid) := false;
+#Hamid
+}
+
+
+

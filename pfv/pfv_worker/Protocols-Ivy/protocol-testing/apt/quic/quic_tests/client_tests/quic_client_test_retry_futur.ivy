@@ -1,0 +1,166 @@
+#lang ivy1.7
+
+include order
+include quic_infer
+include file
+include ivy_quic_shim_server
+include quic_locale
+include ivy_quic_server_behavior
+
+# TODO 
+# The client MUST NOT use
+#    the token provided in a Retry for future connections.  Servers MAY
+#    discard any Initial packet that does not carry the expected token.
+
+
+after init {
+    client_initial_rcid := 0x5;
+    retry_client_test := true;
+}
+
+action make_transport_parameters returns (tp:quic_transport_parameters) = {
+    var imsdbl : initial_max_stream_data_bidi_local;
+    imsdbl.stream_pos_32 := max_stream_data;
+    var imd : initial_max_data;
+    imd.stream_pos_32 := random_stream_pos(0,0xFFFFFFF);
+    var it : max_idle_timeout;
+    it.seconds_16 := random_microsecs(0,0xFFFFFFF);
+    var imsdbr : initial_max_stream_data_bidi_remote;
+    imsdbr.stream_pos_32 := max_stream_data;
+    var imsdu : initial_max_stream_data_uni;
+    imsdu.stream_pos_32 := random_stream_pos(1,0xFFFFFFF);
+
+    tp.transport_parameters := tp.transport_parameters.append(imsdbl);
+    tp.transport_parameters := tp.transport_parameters.append(imd);
+    tp.transport_parameters := tp.transport_parameters.append(it);
+    tp.transport_parameters := tp.transport_parameters.append(imsdbr);
+    tp.transport_parameters := tp.transport_parameters.append(imsdu);
+    # TEMPORARY: a missing numeric parameter should be treated as zero,
+    # but some clients don't handle this correctly, so we put all parameters in.
+    # Remove the following to test this client behavior.
+    var imsib : initial_max_stream_id_bidi;
+    imsib.stream_id_16 := initial_max_streams_bidi;
+    tp.transport_parameters := tp.transport_parameters.append(imsib);
+
+    var icid : initial_source_connection_id; #update v29
+    icid.scid := the_cid; #client_initial_scid; #the_cid
+    tp.transport_parameters := tp.transport_parameters.append(icid);
+
+    var odci : original_destination_connection_id; #update v29
+    odci.dcid := client_initial_dcid ;# the_cid; # client_initial_dcid;
+    tp.transport_parameters := tp.transport_parameters.append(odci);
+
+    var retry : retry_source_connection_id; #TODO update v29
+    retry.rcid := client_initial_rcid; # TODO
+    tp.transport_parameters := tp.transport_parameters.append(retry);
+}
+
+#
+# Restrict generation to packets from the designated client endpoints
+# to the server endpoint.
+
+before packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet) {
+    if _generating {
+        require pkt.ptype = quic_packet_type.initial -> retry_response(client_initial_rcid); #  pkt.ptype = quic_packet_type.initial -> retry_response retry_sent &  
+        require client.ep.addr ~= 0;  # must have a client address to send to
+        require src = server.ep;
+        require dst = client.ep;
+        require pkt.token.end = 0; # [1]
+        require connected(pkt.src_cid);
+    	require pkt.long -> pkt.pversion = initial_version;  #version 29
+	    #call show_version(initial_version);
+    } 
+    else {
+	    require pkt.long -> (pkt.pversion = 0x00000001 | pkt.pversion = 0xfaceb002);  #version 29
+	    if pkt.long {
+	    	initial_version := pkt.pversion;
+	    };
+
+        if ~retry_sent(client_initial_rcid) { # TODO
+            conn_requested(src,dst,pkt.src_cid) := false;
+            conn_requested(src,dst,pkt.dst_cid) := false;
+            conn_seen(pkt.src_cid) := false;
+            conn_seen(pkt.dst_cid) := false;
+            connected(pkt.src_cid) := false;
+            connected(pkt.dst_cid) := false;
+        } else {
+            require pkt.ptype = quic_packet_type.initial -> pkt.token = retry_token(client_initial_rcid);
+        };
+
+	    #call show_version(initial_version);
+    }
+}
+
+before packet_event_retry(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_retry) {
+    if _generating {
+        require ~retry_sent(client_initial_rcid);
+        require client.ep.addr ~= 0;  # must have a client address to send to
+        require src = server.ep;
+        require dst = client.ep;
+        #require pkt.dst_cid = client_initial_scid;
+        require pkt.dst_cid = client_initial_scid;
+        #require pkt.src_cid = 0x5;
+        pkt.src_cid := client_initial_rcid;
+        #require ~connected(pkt.dst_cid);
+        require pkt.pversion = initial_version;
+        require pkt.token.end < 50 & pkt.token.end > 1; 
+        var rt := prot.retry_integrity_tag(client_initial_dcil,client_initial_dcid,
+                                           initial_version,
+                                           client_initial_scil,client_initial_scid,
+                                           0x8,pkt.src_cid,
+                                           pkt.token, 
+                                           last_pkt_num(pkt.dst_cid,quic_packet_type.initial),
+                                           0xF6,false);
+
+        pkt.integrity_token := bytes_to_itoken(rt); # [1]
+    } 
+}
+
+
+import action show_version_retry(v:version)
+import action show_token_retry(v:stream_data)
+
+# The actions listed below will be generated by the mirror.
+#
+# Note: some of these are commented out. They are added in other files
+# that include this one.
+
+export quic_frame.ack.handle
+export quic_frame.stream.handle
+export quic_frame.crypto.handle
+export quic_frame.path_response.handle
+export quic_frame.handshake_done.handle
+export packet_event
+export packet_event_retry
+export client_send_event
+export tls_recv_event
+#export quic_frame.new_connection_id.handle
+#export quic_frame.retire_connection_id.handle
+#export quic_frame.rst_stream.handle
+#export quic_frame.max_stream_id.handle
+#export quic_frame.connection_close.handle
+#export quic_frame.max_stream_data.handle
+
+export quic_frame.max_streams.handle
+export quic_frame.max_stream_data.handle
+export quic_frame.max_data.handle
+#export quic_frame.stream_blocked.handle
+#export quic_frame.rst_stream.handle
+#attribute quic_frame.rst_stream.handle.weight = "0.02"
+attribute quic_frame.max_streams.handle.weight = "0.02"
+attribute quic_frame.max_stream_data.handle.weight = "0.02"
+attribute quic_frame.max_data.handle.weight = "0.02"
+
+# Final check
+#
+# When the test is complete, the tester calls the special action `_finalize`.
+# We use this action to make some heuristic checks, for example that some
+# data was actually received from the server. We can add advice to this
+# action with additional checks.
+
+export action _finalize = {
+    # chris TODO 
+    require conn_total_data(the_cid) > 0;
+}
+
+

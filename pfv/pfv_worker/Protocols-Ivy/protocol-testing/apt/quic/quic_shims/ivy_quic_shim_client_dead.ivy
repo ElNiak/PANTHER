@@ -1,0 +1,104 @@
+#lang ivy1.7
+
+include quic_shim
+
+# The QUIC test shim
+# ------------------
+
+
+# Packet event shim
+# -----------------
+#
+# When a packet even is generated, we encode the packet contents and
+# route it to the network. The encoding involves serializing the packet
+# to its byte-level representation, and then applying protection.
+#
+# TODO: We do not actually generate protection layer events. Instead,
+# whenever a generated packet event occurs, we deterministically
+# serialize and encrypt the packet for transmission. This is not quite sound,
+# since in fact there are a few choices to be made in the encoding (such
+# as the number of bytes in the sequence number encoding) and these choices
+# should in principle be randomized. We have not done this, however, since we
+# are more interested in the higher-layer aspects of the protocol.
+#
+# TODO: We don't coalesce multiple packets into a datagram. To do
+# this, we could enqueue packets (as frames are enqueued) and then
+# randomly choose the moment to encode them.
+#
+# Note: To encode the packet, we need a reference sequence number,
+# which is the sequence number of the most recently transmitted packet
+# on the same connection. This information is obtained from the protocol
+# state by the procedure `reference_pkt_num`.
+#
+# Note: We assume the each endpoint the tester can transmit on has been
+# mapped to an open socket. This map is provided by `endpoint_to_socket`.
+#
+
+after packet_event(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet) {
+    is_not_sleeping := time_api.c_timer.is_sleep_fake_timeout;
+    if _generating & is_not_sleeping {  # & ~conn_closed(pkt.the_cid) # TODO
+        var spkt := pkt_serdes.to_bytes(pkt);
+        var rnum := reference_pkt_num(spkt,false);
+        var tls_id := src_tls_id(src);
+        var ppkt := prot.encrypt(tls_id,rnum,spkt);
+        var pkts := prot.arr.empty;
+        pkts := pkts.append(ppkt);
+        call on_packet_sent(src,dst,pkt, ppkt.size);
+        total_data_sent := total_data_sent + ppkt.size;
+        # call show_current_time(time_api.c_timer.now_micros_last_bp);
+        call net.send(endpoint_to_pid(src),endpoint_to_socket(src),dst,pkts);
+    }
+}
+
+after packet_event_vn(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_vn) {
+    if _generating {  # & ~conn_closed(pkt.the_cid)
+        var spkt := pkt_serdes_vn.to_bytes(pkt);
+        # var rnum := reference_pkt_num(spkt,false);
+        # var tls_id := dst_tls_id(dst);
+        # var ppkt := prot.encrypt(tls_id,rnum,spkt); # no encryption ?
+        var pkts := prot.arr.empty;
+        pkts := pkts.append(spkt);
+        total_data_sent := total_data_sent + spkt.size;
+        call net.send(endpoint_to_pid(src),endpoint_to_socket(src),dst,pkts);
+    }
+}
+
+after packet_event_retry(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_retry) {
+    if _generating {  # & ~conn_closed(pkt.the_cid)
+        var spkt := pkt_serdes_retry.to_bytes(pkt);
+        var pkts := prot.arr.empty;
+        pkts := pkts.append(spkt);
+        total_data_sent := total_data_sent + spkt.size;
+        call net.send(endpoint_to_pid(src),endpoint_to_socket(src),dst,pkts);
+    }
+}
+
+after packet_event_coal_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_coal_0rtt) {
+    if _generating {  # & ~conn_closed(pkt.the_cid)
+        var spkt := pkt_serdes_0rtt_coal.to_bytes(pkt);
+        var pkts := prot.arr.empty;
+        var tls_id := src_tls_id(src);
+        var rnum := reference_pkt_num(spkt,false);
+        var ppkt := prot.encrypt_rtt(tls_id,rnum,spkt);
+        pkts := pkts.append(ppkt);
+        total_data_sent := total_data_sent + ppkt.size;
+        call net.send(endpoint_to_pid(src),endpoint_to_socket(src),dst,pkts);
+        zero_rtt_sent := true;
+    }
+}
+
+
+after packet_event_0rtt(src:ip.endpoint,dst:ip.endpoint,pkt:packet.quic_packet_0rtt) {
+    if _generating {  # & ~conn_closed(pkt.the_cid)
+        var spkt := pkt_serdes_0rtt.to_bytes(pkt);
+        var pkts := prot.arr.empty;
+        var tls_id := src_tls_id(src);
+        var rnum := reference_pkt_num(spkt,false);
+        var ppkt := prot.encrypt_rtt(tls_id,rnum,spkt);
+        pkts := pkts.append(ppkt);
+        total_data_sent := total_data_sent + ppkt.size;
+        call net.send(endpoint_to_pid(src),endpoint_to_socket(src),dst,pkts);
+        zero_rtt_sent := true;
+    }
+}
+

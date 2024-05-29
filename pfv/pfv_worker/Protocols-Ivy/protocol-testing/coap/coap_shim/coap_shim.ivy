@@ -1,0 +1,68 @@
+#lang ivy1.7
+
+# Global CoAP Protocol Implementation
+include coap_connection
+include coap_ser
+include coap_deser
+include coap_time
+include coap_protection
+
+include udp_impl
+include ip
+include serdes
+
+instance prot : coap_protection(tls_api.id, tls_api.upper)
+
+include coap_endpoint
+include coap_locale
+
+include ivv_coap_server
+include ivy_coap_client
+
+# State variables and instances
+var current_request  : coap_message
+var current_response : coap_message
+var awaiting_response: bool
+
+# Initialize state
+after init {
+    awaiting_response := false
+}
+
+implement net.recv(host:endpoint_id, s: net.socket, src:ip.endpoint, pkts: prot.arr) {
+    if host = endpoint_id.server {
+        call server.behavior(host, s, src, pkts);
+    } 
+    else host = endpoint_id.client {
+        call client.behavior(host, s, src, pkts);
+    } 
+    else {
+        call undefined_host_error(host,s,src);
+    };
+}
+
+import action recv_msg(host:endpoint_id,src:ip.endpoint,dst:ip.endpoint,pkt:quic_packet)
+import action undecryptable_packet_event(host:endpoint_id,src:ip.endpoint,dst:ip.endpoint,pkt:stream_data)
+import action undefined_host_error(host:endpoint_id, s:net.socket, src:ip.endpoint)
+
+# Network Interaction
+action receive_data(data:byte.arr) = {
+    # Deserialize data and forward to appropriate endpoint
+}
+
+action send_data(data:byte.arr) = {
+    # Serialize data and send over the network
+}
+
+# Security event shims
+# --------------------
+
+implement tls_api.lower.send(tls_id:tls_api.id, bytes:stream_data, lev:tls_api.lower.level) {
+    # TODO
+}
+
+implement tls_api.upper.keys_established(tls_id:tls_api.id,lev:tls_api.upper.level) {
+    # TODO
+}
+
+instance msg_serdes : serdes(coap_message, stream_data, coap_ser, coap_deser)

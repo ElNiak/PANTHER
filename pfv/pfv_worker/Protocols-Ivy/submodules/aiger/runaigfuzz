@@ -1,0 +1,84 @@
+#!/bin/sh
+opts=""
+cmd=""
+ign=no
+aig=/tmp/runaigfuzz-$$.aig
+sol=/tmp/runaigfuzz-$$.sol
+die () { 
+  echo "*** runaigfuzz: $*" 1>&2
+  exit 1
+}
+while [ $# -gt 0 ]
+do
+  case "$1" in
+    -h)
+cat<<EOF
+usage: runaigfuzz [-h][-m][-s][-c][-i] <cmd> [<cmdopt> ...]
+
+  -h  print this command line option summary
+  -i  ignore valid output (0 10 20) and skip simulation
+
+  -[acmslSLbj12]   see 'aigfuzz -h'
+EOF
+      exit 0
+      ;;
+    -i) ign=yes;;
+    -m|-s|-c|-a|-c|-m|-s|-l|-S|-L|-b|-j|-1|-2) opts="$opts $1";;
+    -*) die "invalid option '$1'";;
+    *) cmd=$*; break;;
+  esac
+  shift
+done
+[ x"$cmd" = x ] && die "missing command"
+trap "rm -f $aig $sol; exit 1" 2 11 15
+cnt=0
+while true
+do
+  echo -n "$cnt"
+  rm -f $aig
+  aigfuzz $opts > $aig
+  seed="`aiginfo $aig|awk '/^seed/{print $2}'`"
+  echo -n " $seed"
+  header="`head -1 $aig`"
+  echo -n " $header"
+  bug=bug-$seed.aig
+  red=red-$seed.aig
+  rm -f $sol
+  $cmd $aig > $sol 2>/dev/null
+  res=$?
+  echo -n " exit $res"
+  case $res in
+    0|10|20)
+      case $ign in
+        yes) sim=no;;
+	no) sim=yes;;
+      esac
+      ;;
+    *)
+      cp $aig $bug
+      echo -n " $bug"
+      aigdd $bug $red $cmd
+      echo -n " $red"
+      echo " `head -1 $red`"
+      sim=no
+      ;;
+  esac
+  if [ $sim = yes ]
+  then
+    aigsim -2 -w -c $aig $sol 1>/dev/null 2>/dev/null
+    tmp=$?
+    echo -n " aigsim $tmp"
+    if [ $tmp = 1 ]
+    then
+      cp $aig $bug
+      echo -n " $bug"
+      aigdd $bug $red runaigmcncheck $cmd
+      echo -n " $red"
+      echo " `head -1 $red`"
+    fi
+  fi
+  echo -n "\r"
+  echo -n "                                                               "
+  echo -n "\r"
+  cnt=`expr $cnt + 1`
+done

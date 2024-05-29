@@ -1,0 +1,54 @@
+/*
+ *	BIRD -- *BSD Kernel Route Syncer
+ *
+ *	(c) 2004 Ondrej Filip <feela@network.cz>
+ *
+ *	Can be freely distributed and used under the terms of the GNU GPL.
+ */
+
+#ifndef _BIRD_KRT_SYS_H_
+#define _BIRD_KRT_SYS_H_
+
+struct birdsock;
+
+/* Kernel interfaces */
+
+struct kif_params {
+};
+
+struct kif_state {
+};
+
+
+static inline void kif_sys_init(struct kif_proto *p UNUSED) { }
+static inline int kif_sys_reconfigure(struct kif_proto *p UNUSED, struct kif_config *n UNUSED, struct kif_config *o UNUSED) { return 1; }
+
+static inline void kif_sys_preconfig(struct config *c UNUSED) { }
+static inline void kif_sys_postconfig(struct kif_config *c UNUSED) { }
+static inline void kif_sys_init_config(struct kif_config *c UNUSED) { }
+static inline void kif_sys_copy_config(struct kif_config *d UNUSED, struct kif_config *s UNUSED) { }
+
+
+/* Kernel routes */
+
+extern uint krt_max_tables;
+extern const uint krt_max_metric;
+
+struct krt_params {
+  int table_id;				/* Kernel table ID we sync with */
+  u32 metric;				/* Kernel metric used for all routes */
+};
+
+struct krt_state {
+  struct birdsock *sk;
+};
+
+
+static inline void krt_sys_io_init(void) { }
+static inline void krt_sys_init(struct krt_proto *p UNUSED) { }
+static inline void krt_sys_postconfig(struct krt_config *x UNUSED) { }
+
+static inline int krt_sys_get_attr(const eattr *a UNUSED, byte *buf UNUSED, int buflen UNUSED) { return GA_UNKNOWN; }
+
+
+#endif

@@ -1,0 +1,151 @@
+#lang ivy1.7
+
+include order
+include bgp_infer
+include file
+include random_value
+
+action endpoint_to_pid(src:bgp_id) returns (pid:endpoint_id) = {
+    pid := endpoint_id.speaker;
+}
+
+action socket_endpoint(s:net.socket) returns (src:bgp_id) = {
+    src := bgp_impl_instance.bgpid;
+}
+
+action bgpid_to_endpoint(src:bgp_id) returns (pid:ip.addr) = {
+    if src = bgp_ivy_instance.bgpid {
+        pid := bgp_ivy_instance.ep.addr;
+    } else {
+        pid := bgp_impl_instance.ep.addr;
+    }
+}
+
+action bgpid_to_other_endpoint(src:bgp_id) returns (pid:ip.addr) = {
+    if src = bgp_ivy_instance.bgpid {
+        pid := bgp_impl_instance.ep.addr;
+    } else {
+        pid := bgp_ivy_instance.ep.addr;
+    }
+}
+
+action bgpid_to_other_bgpid(src:bgp_id) returns (pid:bgp_id) = {
+    if src = bgp_ivy_instance.bgpid {
+        pid := bgp_impl_instance.bgpid;
+    } else {
+        pid := bgp_ivy_instance.bgpid;
+    }
+}
+
+
+action endpoint_to_socket(src:bgp_id) returns (socket:net.socket) = {
+    if src ~= bgp_ivy_instance.bgpid {
+        socket := getsock(bgp_ivy_instance.ep.addr);
+    } else {
+        socket := getsock(bgp_impl_instance.ep.addr);
+    }
+}
+
+action dst_is_generated(dst:bgp_id) returns (res:bool) = {
+    res := dst = bgp_ivy_instance.bgpid;
+}
+
+
+before bgp_header_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_header_message){
+    if _generating {
+        # TODO make more general
+        require src = bgp_ivy_instance.bgpid;
+        require dst = bgp_impl_instance.bgpid;
+        require header_length > 0;
+        require header_payload.end > 0;
+        # 0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff
+        # require bgp_message.marker = 0xffffffffffffffff;
+        bgp_message.marker := 0xffffffffffffffff; #0xffffffffffffffffffffffffffffffff;
+        require bgp_message.bgp_type = header_type;
+        require bgp_message.length = header_length;
+        require bgp_message.payload = header_payload;
+    }
+}
+
+before bgp_open_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_open_message){
+    if _generating {
+        header_type   := bgp_message_type.open_mess;
+        require header_length = 0;
+        require src = bgp_ivy_instance.bgpid; # TODO message is not sent
+        require dst = bgp_impl_instance.bgpid;
+        require header_payload.end = 0;
+        require bgp_message.pversion = 4;
+        require bgp_message.my_as_number = bgp_ivy_instance.bas_number;
+        require bgp_message.hold_time = 180;
+        require bgp_message.bgp_identifier = bgp_ivy_instance.bgpid;
+        require bgp_message.opt_parm_len = queued_opt_param_len;
+        require bgp_message.opt_params = queued_opt_param;
+        header_length := 29;
+    }
+}
+
+before bgp_update_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_update_message){
+    if _generating {
+        require header_length = 0;
+        require src = bgp_ivy_instance.bgpid;
+        require dst = bgp_impl_instance.bgpid;
+        require header_payload.end = 0;
+        require bgp_message.withdraw_routes_len = 0;
+        require bgp_message.withdraw_routes = withdraw_route.arr.empty;
+        header_type   := bgp_message_type.update_mess;
+        header_length := 19 + path_attr_size(src) + 1 + 2 + 4
+        # require total_path_attr_len
+    }
+}
+
+before bgp_keepalive_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_keepalive_message){
+    if _generating {
+        require header_length = 0;
+        require src = bgp_ivy_instance.bgpid;
+        require dst = bgp_impl_instance.bgpid;
+        require header_payload.end = 0;
+        header_type   := bgp_message_type.keepalive_mess;
+        header_length := 19;
+
+    }
+}
+
+before bgp_notification_message_event(src:bgp_id,dst:bgp_id,bgp_message:bgp_notification_message){
+    if _generating {
+        require header_length = 0;
+        require src = bgp_ivy_instance.bgpid; # TODO message is not sent
+        require dst = bgp_impl_instance.bgpid;
+        require header_payload.end = 0;
+        require bgp_message.data = stream_data.empty;
+        header_type   := bgp_message_type.notification_mess;
+        header_length := 21;
+    }
+}
+
+
+action speaker_send_event(src:bgp_id, dst:bgp_id, end : stream_pos)
+
+around speaker_send_event {
+    require src = bgp_ivy_instance.bgpid;
+    require dst = bgp_impl_instance.bgpid;
+    # require bgp_length = ping_packet_end;
+    # require bgp_length < end & end <= http_response.end;
+    ...
+    require dst = bgp_impl_instance.bgpid;
+    # while end < http_response.end & http_response.value(end) ~= 10 {
+    #     end := end.next
+    # };
+    # if end < http_response.end {
+    #     end := end.next
+    # };
+    # var data := http_response.segment(bgp_length,end);
+    # call app_send_event(src,dst,data,bgp_length,true);
+}
+
+attribute radix=16       # print in hex
+
+interpret version -> bv[32]
+
+attribute path_attr.idx.cardinality = 1
+attribute path_attr.as_path.as_path_segment.idx.cardinality = 1
+attribute stream_pos.cardinality = 4

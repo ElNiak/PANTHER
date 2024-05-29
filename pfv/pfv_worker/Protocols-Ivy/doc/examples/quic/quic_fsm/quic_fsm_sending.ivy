@@ -1,0 +1,196 @@
+#lang ivy1.7
+
+include quic_types
+
+# https://tools.ietf.org/html/draft-ietf-quic-transport-29#page-15
+
+# Since we want to represent the sending FSM of the tested implementation,
+# we will use these relations when WE receive frame infering the state
+# of the opponant.
+
+# - For each stream id S, `sending_ready(S)`
+#   indicates that a stream has been create by the sender. 
+# => not testable since we only receive its frame
+
+relation sending_ready(S:stream_id)
+
+# - For stream id S, `sending_send(S)` indicates that for
+#   the stream id S, we received either a STREAM frame, either
+#   a STREAM_DATA_BLOCKED or that a bidirectional stream is 
+#   open
+# => meaning =  we received STREAM or STREAM_DATA_BLOCKED frame
+
+relation sending_send(S:stream_id)
+
+# - For stream id S, `sending_dataSent(S)` indicates that
+#   the stream on stream id S is finished by sender (that is, a
+#   FIN frame has been sent). (stream_finished)
+# => meaning =  we received STREAM+FIN bit
+#,P:pkt_num
+
+relation sending_dataSent(S:stream_id)
+
+# - For stream id S, `sending_dataRecvd(S)` indicates that
+#   the stream id S is finished and that all the ack has been received
+# => meaning = [no retransmission of the STREAM or STREAM_DATA_BLOCKED frames
+#              we represent retransmission by receiving twice packet with same 
+#              pkt_num => we should know the pkt_num of the frames],
+#              we send ack for the packet number
+
+relation sending_dataRecvd(S:stream_id)
+
+# - For each  stream id S, `sending_resetSent(S)` indicates that
+#   the stream transmitted by sender on stream id S is reset (that is, a
+#   RESET_STREAM frame has been sent). (stream_reset)
+# => meaning = we received RESET_STREAM
+#,P:pkt_num
+
+relation sending_resetSent(S:stream_id)
+
+# - For stream id S, `sending_resetRecvd(S)` indicates that
+#   the stream id S is reset and that the RST ack has been received
+# => meaning = [no retransmission of RST frame or] we send ack for 
+#              corresponding packet/frame = liveness
+
+relation sending_resetRecvd(S:stream_id)
+
+
+# lastest_stream_id_sender(P) contains a list of stream_id that appear 
+# in a given packet_number P, allow us to track which packet are acked
+instance idx_s : unbounded_sequence
+instance arr_streamid_s : array(idx_s,stream_id)
+function lastest_stream_id_sender(P:pkt_num) : this.arr_streamid_s
+
+# lastest_pkt_num_sender contains a list of pkt_num that appear 
+# in a given execution, allow us to track which packet are sent(received)
+instance jdx_s : unbounded_sequence
+instance arr_pkt_num_s : array(jdx_s,pkt_num)
+function lastest_pkt_num_sender : this.arr_pkt_num_s
+
+# Initial state
+# -------------
+
+after init {
+    sending_ready(S)      := true;
+    sending_send(S)       := false;
+    sending_dataSent(S)   := false;
+    sending_dataRecvd(S)  := false;
+    sending_resetSent(S)  := false;
+    sending_resetRecvd(S) := false;
+}
+
+action handle_sending_send(id:stream_id,seq:pkt_num) = {
+    # put implication (->) instead of if ?
+    if ~stream_frame_restransmitted(id) & ~sdb_frame_restransmitted(id) {
+        # possible source state/transition
+        # require sending_ready(id) | sending_send(id);
+        # set of non allowed state (useless ?) ~sending_send(id) & => problem with restransmion
+        # require  ~sending_dataSent(id) & ~sending_dataRecvd(id) & ~sending_resetSent(id) & ~sending_resetRecvd(id);
+        sending_ready(id) := false;
+        sending_send(id)  := true;
+        #call show_fsm_sending_send_event;
+        #call show_sending_fsm_event(sending_ready(id), sending_send(id), sending_dataSent(id), sending_dataRecvd(id), sending_resetSent(id), sending_resetRecvd(id));
+    };
+    # We need to record last seq num
+    lastest_stream_id_sender(seq) := lastest_stream_id_sender(seq).append(id);
+    lastest_pkt_num_sender := lastest_pkt_num_sender.append(seq);
+}
+
+action handle_sending_dataSent(id:stream_id,seq:pkt_num) = {
+    if ~stream_frame_restransmitted(id) {
+        # possible source state/transition
+        # require sending_send(id) | sending_dataSent(id);
+        # set of non allowed state  ~sending_dataSent(id) &
+        #require  ~sending_dataRecvd(id) & ~sending_resetSent(id) & ~sending_resetRecvd(id);
+        sending_send(id) := false;
+        sending_dataSent(id) := true;
+        #call show_fsm_sending_dataSent_event;
+        #call show_sending_fsm_event(sending_ready(id), sending_send(id), sending_dataSent(id), sending_dataRecvd(id), sending_resetSent(id), sending_resetRecvd(id));
+    };
+    # We need to record last seq num
+    lastest_stream_id_sender(seq) := lastest_stream_id_sender(seq).append(id);
+    lastest_pkt_num_sender := lastest_pkt_num_sender.append(seq);
+}
+
+action handle_sending_dataRecvd(id:stream_id) = {
+    # possible source state/transition
+    #  require sending_dataSent(id) | sending_dataRecvd(id);
+    # set of non allowed state  ~sending_dataRecvd(id) &
+    # require  ~sending_send(id) & ~sending_resetSent(id) & ~sending_resetRecvd(id);
+    sending_dataSent(id)  := false;
+    sending_ready(id) := true; # needed ?
+    sending_dataRecvd(id) := true;
+    #call show_fsm_sending_dataRecvd_event;
+    #call show_sending_fsm_event(sending_ready(id), sending_send(id), sending_dataSent(id), sending_dataRecvd(id), sending_resetSent(id), sending_resetRecvd(id));
+}
+
+action handle_sending_resetSent(id:stream_id,seq:pkt_num) = {
+    if ~reset_frame_restransmitted(id) {
+        # possible source state/transition
+        # require sending_dataSent(id) | sending_send(id) | sending_ready(id) | sending_resetSent(id);
+        # set of non allowed state & ~sending_resetSent(id)
+        # require  ~sending_dataRecvd(id) & ~sending_resetRecvd(id);
+        sending_ready(id) := false;
+        sending_dataSent(id) := false;
+        sending_send(id) := false;
+        sending_resetSent(id) :=  true;
+        #call show_fsm_sending_resetSent_event;
+        #call show_sending_fsm_event(sending_ready(id), sending_send(id), sending_dataSent(id), sending_dataRecvd(id), sending_resetSent(id), sending_resetRecvd(id));
+    };
+    lastest_stream_id_sender(seq) := lastest_stream_id_sender(seq).append(id);
+    lastest_pkt_num_sender := lastest_pkt_num_sender.append(seq);
+}
+
+action handle_sending_resetRecvd(id:stream_id) = {
+    # possible source state/transition
+    # require sending_resetSent(id) | sending_resetRecvd(id);
+    # set of non allowed state & ~sending_resetRecvd(id)
+    # require  ~sending_send(id) & ~sending_dataSent(id);
+    sending_resetSent(id) := false;
+    sending_ready(id) := true;
+    sending_resetRecvd(id) := true;
+    #call show_fsm_sending_resetRecvd_event;
+    #call show_sending_fsm_event(sending_ready(id), sending_send(id), sending_dataSent(id), sending_dataRecvd(id), sending_resetSent(id), sending_resetRecvd(id));
+}
+
+# check if same stream_id twice, add not _generating when calling these
+
+# ====================================================================
+# Auxilary functions
+#=====================================================================
+
+#param unused
+action handle_sending_ack(largest_acked:pkt_num) = {
+    var jdx_s : jdx_s := 0;
+    while jdx_s < lastest_pkt_num_sender.end {
+        var seq := lastest_pkt_num_sender.value(jdx_s);
+        var idx_s : idx_s := 0;
+        while seq <= largest_acked & idx_s < lastest_stream_id_sender(seq).end {
+            var sid := lastest_stream_id_sender(seq).value(idx_s);
+            if sending_resetSent(sid) { 
+                call handle_sending_resetRecvd(sid);
+            } else if sending_dataSent(sid) {
+                call handle_sending_dataRecvd(sid);
+            };
+            idx_s := idx_s.next;
+        };
+        jdx_s := jdx_s.next;
+    };
+}
+
+
+import action show_sending_fsm_event(sending_ready:bool,sending_send:bool,
+                                     sending_dataSent:bool,sending_dataRecvd:bool,
+                                     sending_resetSent:bool,sending_resetRecvd:bool)
+
+import action show_fsm_sending_ready_event
+
+import action show_fsm_sending_send_event
+
+import action show_fsm_sending_dataSent_event
+
+import action show_fsm_sending_dataRecvd_event
+
+import action show_fsm_sending_resetSent_event
+
+import action show_fsm_sending_resetRecvd_event

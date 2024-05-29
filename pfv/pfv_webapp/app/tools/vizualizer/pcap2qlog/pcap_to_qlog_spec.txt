@@ -1,0 +1,126 @@
+
+{
+ "quic_version": "0xff00000b",
+ "qlog_version": "0.1",
+ "vantagepoint": "NETWORK",
+ "connectionid": "9e:f8:43:3b:05:5c:c3:6e:2d:81:31:31:9b:55:32:8b:16", 
+ "starttime": 1524571067.892647585,
+ "fields": 
+    ["time","category",  	"type",            "trigger",         "data"], 
+ "events": [
+	[0,		"CONNECTIVITY", "NEW_CONNECTION",  "LINE",			  {"ip_version": 4, "srcip": "127.0.0.1", "dstip": "127.0.0.1", "srcport": 12456, "dstport": 4433}],
+	
+	[0,		"SECURITY",		"KEY_UPDATE",	   "KEYLOG",		  {"CLIENT_EARLY_ENCRYPT": abcdefabcdef, "SERVER_HANDSHAKE_ENCRYPT": abcdefabcdef, ...],
+	
+	[15,	"TRANSPORT",	"PACKET_RX",	   "LINE"			  {
+		"raw_encrypted": "9c3f19b02d98d8ef1b564ae6a5d4b9a59550627c31c226f632a2aa3c117c7243f00f2f7b534d6ff35742e429b2f9c4bc66319a89eb6dbdc9cc84bbb40560ccca6d3b90...",
+		
+		"header": { 
+			"form": "long",
+			"type": "initial",
+			"version": "0xff00000b",
+			"scil": 14,
+			"dcil": 15,
+			"dcid": "e3b392f86ffcab1bb28c97157d07692f169f",
+			"scid": "9ef8433b055cc36e2d8131319b55328b16",
+			"payload_length": 1280,
+			"packet_number": 0
+		},
+		"frames" : [
+			{
+				"type": "CRYPTO",
+				"length": 360,
+				#... other fields directly copied over without extraneous prefixes  
+				"raw": "160301011b010001170303c8b38100267e126813531310afab6da3cf092da15c67dce07323591830b7c7e200000813011302130300ff010000e60"
+			}
+		]
+	}],
+	
+	[16,	"TRANSPORT",	"NEW_TRANSPORT_PARAMETERS",	   "PACKET_RX",		{
+		"parameters"
+	
+	}],
+	
+	[30,	"TRANSPORT",	"PACKET_RX",	   "LINE"			  {
+		"raw_encrypted": "9c3f19b02d98d8ef1b564ae6a5d4b9a59550627c31c226f632a2aa3c117c7243f00f2f7b534d6ff35742e429b2f9c4bc66319a89eb6dbdc9cc84bbb40560ccca6d3b90...",
+		
+		"header": { 
+			"form": "short",
+			"dcid": "e3b392f86ffcab1bb28c97157d07692f169f",
+			"payload_length": 1280,
+			"packet_number": 12
+		},
+		"frames" : [
+			{
+				"type": "CRYPTO",
+				"length": 400,
+				#... other fields directly copied over without extraneous prefixes (e.g., quic.frame_type.crypto.crypto_data becomes data)
+				"raw": "193870301011b010001170303c8b38100267e126813531310afab6da3cf092da15c67dce07323591830b7c7e200000813011302130300ff010000e60"
+			}
+		]
+	}]
+ ]}
+
+ 
+ 
+# header 
+"quic_version": `SELECT packet WHERE payload CONTAINS client initial SORT BY time DESC LIMIT 1`.header.version # DESC because version negotiation
+"vantagepoint" "CLIENT" | "SERVER" | "NETWORK", # set manually, unable to determine for pcaps 
+ "connectionid": `SELECT packet WHERE payload CONTAINS client initial SORT BY time ASC LIMIT 1`.scid, #TODO: decide if we should log client scid, because it can change when sending multiple initials and depends on which one server chooses. Maybe just go for server scid? but can't that also change? look up! 
+ "starttime": `frame.time_epoch`,  
+
+ 
+# is always the first event 
+cat: CONNECTIVITY
+evt: NEW_CONNECTION
+trigger: LINE
+data {ipversion, src, dst, port, port}
+	# fill stuff from packet[0].ip data. For now: assume this doesn't change 
+
+
+# TLS keys needed by wireshark 
+# https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob;f=epan/dissectors/packet-tls-utils.c;h=6e274ddda41358f2af49b3cca301c019a0a70e88;hb=HEAD
+# what is logged in ngtcp2
+# https://github.com/ngtcp2/ngtcp2/blob/draft-15/examples/keylog.cc
+
+# voeg decryption keys toe vanuit de log file: qlog heeft all-in-one 
+cat: TLS
+evt: KEY_UPDATE
+trigger: KEYLOG
+data {
+	type: CLIENT_EARLY_ENCRYPT |
+			SERVER_HANDSHAKE_ENCRYPT | SERVER_HANDSHAKE_DECRYPT | CLIENT_HANDSHAKE_ENCRYPT | CLIENT_HANDSHAKE_DECRYPT |
+			SERVER_PROTECTED_ENCRYPT | SERVER_PROTECTED_DECRYPT | CLIENT_PROTECTED_ENCRYPT | CLIENT_PROTECTED_DECRYPT 
+	key: "value"
+}
+
+time: value (frame.time_relative) #cast to int in ms accuracy // see also https://www.wireshark.org/docs/wsug_html_chunked/ChWorkTimeFormatsSection.html
+cat: "TRANSPORT"
+evt: "PACKET_RX"
+trigger: "LINE"
+data: 
+{
+	raw_encrypted : "hex of full encrypted packet" (quic.initial_payload) (only if logging level >= "raw")
+	header: { 
+		form: "long" | "short", (quic.header_form) 
+		type: "initial" | "retry" | "handshake" | "0RTT" (quic.long.packet_type)  (not present if form == "short")
+		version: "version" (not present if form == "short")
+		scil: value, (not present if form == "short")
+		dcil: value, (not present if form == "short")
+		scid: value, (not present if form == "short")
+		dcid: value, 
+		payload_length: value, (quic.payload_length if form == "long", length(quic.protected_payload) if form == "short")
+		packet_number: "value"  (quic.packet_number_full) 
+	},
+	frames : [
+		{
+			type: "CRYPTO" | "STREAM" | ... (see spec for all possible values and how they map to integers in pcap)
+			length: (probably need to calculate this yourself from a payload field, is not included in the wire image itself)
+			other fields can just be copied over in full here for now
+			raw: "hex of full frame"  (only if logging level >= "raw")
+		}
+	]
+}
+
+
+

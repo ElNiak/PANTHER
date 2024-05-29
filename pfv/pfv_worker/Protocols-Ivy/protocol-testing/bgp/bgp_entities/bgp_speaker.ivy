@@ -1,0 +1,60 @@
+#lang ivy1.7
+
+include bgp_type
+
+object endpoint_id = {
+    type this = {speaker}
+}
+
+#    BGP speaker
+#       A router that implements BGP.
+
+object bgp_speaker = {
+
+    type this
+
+    module speaker(address: ip.addr, id: bgp_id, as: as_number) = {
+        variant this of bgp_speaker = struct { }
+
+        individual ep        : ip.endpoint
+        individual bgpid     : bgp_id
+        individual bas_number : as_number
+        # individual mode : 
+
+        after init {
+            ep.protocol := ip.tcp;
+            ep.addr := address;
+            ep.port := 179;
+            bgpid := id;
+            bas_number := as;
+            
+            if ep.addr = 0x7f000001 { 
+                ep.interface := ip.lo;
+            } else {
+                ep.interface := ip.ivy;
+            }
+        }
+
+        action set_ep(e:ip.endpoint) = {
+            ep := e;
+        }
+
+        action behavior(s:net.socket, src:bgp_id, pkts:bm.arr) = {
+            var dst := socket_endpoint(s);  # because net API doesn't tell us the dst
+            var idx := pkts.begin;
+            while idx < pkts.end {
+                var ppkt := pkts.value(idx);
+                # Do some stuff
+                call show_packet(s, src, dst, ppkt);
+                call is_generating(_generating);
+                var pkt := bgp_message_serdes.from_bytes(ppkt);
+                call bgp_header_message_event(dst, src, pkt);
+                idx := idx.next;
+            };
+        }
+
+        import action show_packet(s:net.socket, src:bgp_id, dst:bgp_id, ppkt:stream_data)
+        import action is_generating(b:bool)
+    }
+
+}

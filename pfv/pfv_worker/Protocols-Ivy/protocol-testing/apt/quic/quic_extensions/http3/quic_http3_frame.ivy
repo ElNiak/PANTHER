@@ -1,0 +1,236 @@
+#lang ivy1.7
+
+# https://datatracker.ietf.org/doc/html/rfc9114
+
+# HTTP frames are carried on QUIC streams
+
+# Frame 	Control Stream 	Request Stream 	Push Stream 	Section
+# DATA 	No 	Yes 	Yes 	Section 7.2.1
+# HEADERS 	No 	Yes 	Yes 	Section 7.2.2
+# CANCEL_PUSH 	Yes 	No 	No 	Section 7.2.3
+# SETTINGS 	Yes (1) 	No 	No 	Section 7.2.4
+# PUSH_PROMISE 	No 	Yes 	No 	Section 7.2.5
+# GOAWAY 	Yes 	No 	No 	Section 7.2.6
+# MAX_PUSH_ID 	Yes 	No 	No 	Section 7.2.7
+# Reserved 	Yes 	Yes 	Yes 	Section 7.2.8
+
+object http3_frame = { 
+    type this
+    # Type (i) = 0x00,
+    object data = {
+        variant this of http3_frame = struct {
+            data : stream_data
+        }
+    }
+
+    # Type (i) = 0x01,
+    object headers = {
+        variant this of http3_frame = struct {
+            encoded_field_Section : stream_data
+        }
+    }
+
+    # Type (i) = 0x03,
+    object cancel_push = {
+        variant this of http3_frame = struct {
+            push_id : stream_data
+        }
+    }
+
+    # Type (i) = 0x04,
+    object settings = {
+
+        object setting = {
+            # SETTINGS_MAX_FIELD_SECTION_SIZE (0x06): The default value is unlimited. See Section 4.2.2 for usage.
+            variant this of setting = struct {
+                identifier : stream_data
+                value : stream_data
+            }
+            instance idx : unbounded_sequence
+            instance arr : array(idx,setting)
+        }
+
+        variant this of http3_frame = struct {
+            settings : setting.arr
+        }
+    }
+
+    # Type (i) = 0x05,
+    object push_promise = {
+        variant this of http3_frame = struct {
+            push_id : stream_data
+            encoded_field_section : stream_data
+        }
+    }
+
+    # Type (i) = 0x07,
+    object goaway = {
+        variant this of http3_frame = struct {
+            stream_id : stream_data
+            error_code : stream_data
+            reason : stream_data
+        }
+    }
+
+    # Type (i) = 0x0D,
+    object max_push_id = {
+        variant this of http3_frame = struct {
+            push_id : stream_data
+        }
+    }
+
+    instance idx : unbounded_sequence
+    instance arr : array(idx,this)
+}
+
+object http3_frame = {
+    ...
+    action handle(f:this,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        # is_not_sleeping := time_api.c_timer.is_sleep_fake_timeout;
+        # require (~is_not_sleeping -> ~_generating);
+        # require (_generating -> is_not_sleeping);
+        
+        require false; # this generic action should never be called
+    }
+}
+
+#
+# DATA 
+#
+
+object http3_frame = {
+    ...
+    action handle(f:http3_frame.data,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        require tls_handshake_finished;
+
+        require connected(dcid) & connected_to(dcid) = scid;
+        require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+        require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+        require ~conn_closed(scid);  # [8]
+        require conn_seen(scid);  # [9]
+        ...
+        call enqueue_http3_frame(scid,f,e,false,seq_num);
+    }
+}
+
+#
+# HEADERS
+#
+
+object http3_frame = {
+    ...
+    action handle(f:http3_frame.headers,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        require tls_handshake_finished;
+
+        require connected(dcid) & connected_to(dcid) = scid;
+        require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+        require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+        require ~conn_closed(scid);  # [8]
+        require conn_seen(scid);  # [9]
+        ...
+        call enqueue_http3_frame(scid,f,e,false,seq_num);
+    }
+}
+
+#
+# CANCEL_PUSH
+#
+
+object http3_frame = {
+    ...
+    action handle(f:http3_frame.cancel_push,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        require tls_handshake_finished;
+
+        require connected(dcid) & connected_to(dcid) = scid;
+        require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+        require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+        require ~conn_closed(scid);  # [8]
+        require conn_seen(scid);  # [9]
+        ...
+        call enqueue_http3_frame(scid,f,e,false,seq_num);
+    }
+}
+
+#
+# SETTINGS
+#
+
+object http3_frame = {
+    ...
+    action handle(f:http3_frame.settings,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        require tls_handshake_finished;
+
+        require connected(dcid) & connected_to(dcid) = scid;
+        require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+        require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+        require ~conn_closed(scid);  # [8]
+        require conn_seen(scid);  # [9]
+        ...
+        call enqueue_http3_frame(scid,f,e,false,seq_num);
+    }
+}
+
+#
+# PUSH_PROMISE
+#
+
+object http3_frame = {
+    ...
+    action handle(f:http3_frame.push_promise,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        require tls_handshake_finished;
+
+        require connected(dcid) & connected_to(dcid) = scid;
+        require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+        require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+        require ~conn_closed(scid);  # [8]
+        require conn_seen(scid);  # [9]
+        ...
+        call enqueue_http3_frame(scid,f,e,false,seq_num);
+    }
+}
+
+#
+# GOAWAY
+#
+
+object http3_frame = {
+    ...
+    action handle(f:http3_frame.goaway,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        require tls_handshake_finished;
+
+        require connected(dcid) & connected_to(dcid) = scid;
+        require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+        require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+        require ~conn_closed(scid);  # [8]
+        require conn_seen(scid);  # [9]
+        ...
+        call enqueue_http3_frame(scid,f,e,false,seq_num);
+    }
+}
+
+#
+# MAX_PUSH_ID
+#
+
+object http3_frame = {
+    ...
+    action handle(f:http3_frame.max_push_id,scid:cid,dcid:cid,e:quic_packet_type,seq_num:pkt_num) = {
+        require tls_handshake_finished;
+
+        require connected(dcid) & connected_to(dcid) = scid;
+        require (e = quic_packet_type.one_rtt) & established_1rtt_keys(scid); # | e = quic_packet_type.zero_rtt  | e = quic_packet_type.zero_rtt & established_0rtt_keys(scid) 
+        require num_queued_frames(scid) > 0 -> e = queued_level(scid);
+        require ~conn_closed(scid);  # [8]
+        require conn_seen(scid);  # [9]
+        ...
+        call enqueue_http3_frame(scid,f,e,false,seq_num);
+    }
+}
+
+#
+# Reserved
+#²
+
+action enqueue_http3_frame(scid:cid,f:http3_frame,level:quic_packet_type,ack:bool,seq_num:pkt_num) = {
+    require false; # this generic action should never be called
+}
