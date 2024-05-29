@@ -189,6 +189,7 @@ class PFVServer:
         return "ok"
     
     def get_args():
+        # TODO refactor
         PFVServer.choices_args = {}
         args_parser = ArgumentParserRunner().parser
         args_list = [{}]

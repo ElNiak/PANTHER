@@ -39,7 +39,7 @@ install:
 	git submodule update --init --recursive
 	git submodule update --recursive
     # Checkout specific branches and set up directories for QUIC protocol examples and testing
-	cd src/Protocols-Ivy/; git fetch; git checkout master
+	cd src/Protocols-Ivy/; git fetch; git checkout development-formal-attacks
 	cd src/Protocols-Ivy; git submodule update --init --recursive
 	cd src/Protocols-Ivy; git submodule update --recursive
     # Create necessary directories and files for QUIC, MiniP, and CoAP protocol testing
@@ -101,9 +101,8 @@ build-docker-impem:
 build-docker-impem-standalone:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --network=host --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
-	docker build --network=host --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
-	docker build --network=host -t ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=ivy .
-	docker build --network=host --rm -t ivy-picotls-standalone -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy-picotls .
+	docker build --network=host --rm -t ivy -f src/containers/Dockerfile.ivy_webapp .
+	docker build --network=host --rm -t ivy-webapp -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy .
 
 # Build Docker images for protocol testing with Shadow
 # TODO use docker-compose build command
@@ -113,7 +112,7 @@ build-docker-compose:
 	IMPLEM="picoquic-shadow" make build-docker-impem
 	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
 	# IMPLEM="picoquic-old-shadow" make build-docker-impem
-	# IMPLEM="picoquic" make build-docker-impem
+	IMPLEM="picoquic" make build-docker-impem
 	# IMPLEM="picoquic-shadow-bad" make build-docker-impem
 	# IMPLEM="quant" make build-docker-impem
     # MiniP
@@ -136,7 +135,7 @@ build-docker-compose-full:
 	# IMPLEM="picoquic-old-shadow" make build-docker-impem
 	# IMPLEM="picoquic-shadow-bad" make build-docker-impem
 	# IMPLEM="picoquic-no-retransmission-shadow" make build-docker-impem
-	IMPLEM="picoquic" make build-docker-impem
+	# IMPLEM="picoquic" make build-docker-impem
 	# IMPLEM="quant" make build-docker-impem
     # MiniP
 	IMPLEM="ping-pong" make build-docker-impem
@@ -147,7 +146,7 @@ build-docker-compose-full:
     # BGP 
     # ...
     # QUIC tools
-	make build-docker-visualizer
+	# make build-docker-visualizer # TODO upgrade nodejs
 	make build-docker-impem-standalone
 
 ###################################################################################################
@@ -161,7 +160,7 @@ compose:
     # Set up host permissions and launch Docker Compose
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	xhost +
-	docker-compose up -d
+	docker compose up -d
     # Update host settings for network testing
 	cd src/pfv/scripts/hosts/; bash update_etc_hosts.sh
 

@@ -46,6 +46,8 @@ class PFV:
         self.current_protocol = ""
         self.config = self.setup_config()
         self.log.info("SELECTED PROTOCOL: " + self.current_protocol)
+        self.is_apt = self.config["global_parameters"].getboolean("apt")
+        self.log.info("Advanced Persistent Threat: " + str(self.is_apt))
         self.protocol_conf = self.setup_protocol_parameters(self.current_protocol,SOURCE_DIR)
         self.log.info("END SETUP PROTOCOL PARAMETERS")
         
@@ -86,18 +88,31 @@ class PFV:
 
         protocol_conf.read('configs/'+protocol+'/'+protocol+'_config.ini')
         # TODO change var name at the end
-        self.ivy_model_path = dir_path + "/Protocols-Ivy/protocol-testing/" + protocol
-        self.config.set('global_parameters', "tests_dir", dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/"+protocol +"_tests/")
-        self.config.set('global_parameters', "dir"      , dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/test/temp/")
-        self.config.set('global_parameters', "build_dir", dir_path + "/Protocols-Ivy/protocol-testing/"+ protocol +"/build/")
+        if  self.is_apt:
+            self.ivy_model_path = dir_path + "/Protocols-Ivy/protocol-testing/apt/"
+            self.config.set('global_parameters', "tests_dir", dir_path + "/Protocols-Ivy/protocol-testing/apt/apt_tests/")
+            self.config.set('global_parameters', "dir"      , dir_path + "/Protocols-Ivy/protocol-testing/apt/test/temp/")
+            self.config.set('global_parameters', "build_dir", dir_path + "/Protocols-Ivy/protocol-testing/apt/build/")
+        else:
+            self.ivy_model_path = dir_path + "/Protocols-Ivy/protocol-testing/" + protocol
+            self.config.set('global_parameters', "tests_dir", dir_path + "/Protocols-Ivy/protocol-testing/apt/"+ protocol +"/"+protocol +"_tests/")
+            self.config.set('global_parameters', "dir"      , dir_path + "/Protocols-Ivy/protocol-testing/apt/"+ protocol +"/test/temp/")
+            self.config.set('global_parameters', "build_dir", dir_path + "/Protocols-Ivy/protocol-testing/apt/"+ protocol +"/build/")
+        
+        self.log.info("Protocol: " + protocol)
         for cate in protocol_conf.keys():
             if "test" in cate:
+                self.log.info("Current category: " + cate)
                 self.tests[cate] = []
                 for test in protocol_conf[cate]:
+                    self.log.info("Current test: " + test)
                     if protocol_conf[cate].getboolean(test):
+                        self.log.info("Adding test: " + test)
                         self.tests[cate].append(test)
+        
         implem_config_path_server = 'configs/'+protocol+'/implem-server'
         implem_config_path_client = 'configs/'+protocol+'/implem-client'
+        
         for file_path in os.listdir(implem_config_path_server):
             # check if current file_path is a file
             if os.path.isfile(os.path.join(implem_config_path_server, file_path)):
@@ -155,7 +170,7 @@ class PFV:
                 subprocess.Popen("sudo /bin/cp "+ file +" /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
                                                     shell=True, executable="/bin/bash").wait()
         if self.config["verified_protocol"].getboolean("quic"):
-            subprocess.Popen("sudo /bin/cp "+ self.ivy_model_path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
+            subprocess.Popen("sudo /bin/cp "+ (self.ivy_model_path if not self.is_apt else self.ivy_model_path + "/quic") + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
                                                         shell=True, executable="/bin/bash").wait()
         
     def remove_includes(self):
@@ -168,7 +183,7 @@ class PFV:
         self.included_files = list()   
 
     def build_tests(self,test_to_do={}):
-        self.log.info(" " + str(len(test_to_do)))
+        self.log.info("Number of test to compile: " + str(len(test_to_do)))
         self.log.info(test_to_do)
         assert len(test_to_do) > 0
         self.available_modes = test_to_do.keys()
@@ -343,13 +358,13 @@ class PFV:
         exit(0)
 
 def main():
-    experiments = PFV()
-    if experiments.args.webapp:
+    experiments = ArgumentParserRunner().parse_arguments()
+    if experiments.webapp:
         from webapp.pfv_server import PFVServer
         app = PFVServer(SOURCE_DIR)
         app.run()
         sys.exit(app.exec_())
-    elif experiments.args.worker:
+    elif experiments.worker:
         from webapp.pfv_client import PFVClient
         app = PFVClient(SOURCE_DIR)
         app.run()

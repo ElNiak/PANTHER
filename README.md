@@ -177,7 +177,7 @@ First go to: `http://172.27.1.10/index.html`
 
 1. **Choose Protocol**: Start by selecting the protocol (QUIC, MINIP, BGP) you want to test.
 
-![Choose Protocol](res/2.png)
+![Choose Protocol](readme-res/2.png)
 
 2. **Set Network Type**: Opt for localhost, vnet, or shadow based on your network testing environment.
 
@@ -185,25 +185,25 @@ First go to: `http://172.27.1.10/index.html`
 
 4. **Debugging Options**: Toggle performance and memory profiling tools like gperf, gdb, and memprof as needed.
 
-![Set Global parameters](res/1.png)
+![Set Global parameters](readme-res/1.png)
 
 5. **Adjust Test Settings**: Customize Shadow parameters such as loss, jitter, and latency for simulation accuracy.
 
-![Adjust Test Settings](res/3.png)
+![Adjust Test Settings](readme-res/3.png)
 
 6. **Protocol custom configuration**: Set the number of requests, initial version, number of clients, and ALPN for, e.g QUIC tests.
 
-![QUIC Verification](res/4.png)
+![QUIC Verification](readme-res/4.png)
 
 7. **Select Tests**: Choose from server, client, and MIM tests to target specific aspects of the QUIC protocol.
 
-![Select Tests](res/5.png)
+![Select Tests](readme-res/5.png)
 
 8. **Implementation Testing**: Pick the QUIC implementation you want to test from the available options.
 
 9. **Start Experiments**: Hit 'Start Experiments' to begin the testing process with your configured settings.
 
-![Implementation Testing](res/6.png)
+![Implementation Testing](readme-res/6.png)
 
 **Running the Tests**:
 
@@ -430,7 +430,7 @@ PFV/
 
 | Docker Compose Architecture | Docker Container Internal Architecture |
 |:---------------------------:|:--------------------------------------:|
-| ![Docker Compose Architecture](res/DALL·E%202024-01-05%2006.59.32%20-%20A%20diagram%20illustrating%20the%20architecture%20of%20a%20Docker%20Compose%20setup%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20It%20shows%20various%20Docker%20contain.png) | ![Docker Container Internal Architecture](res/DALL·E%202024-01-05%2007.00.02%20-%20An%20internal%20architecture%20diagram%20of%20a%20Docker%20container%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20The%20diagram%20should%20show%20the%20layering%20of%20co.png) |
+| ![Docker Compose Architecture](readme-res/DALL·E%202024-01-05%2006.59.32%20-%20A%20diagram%20illustrating%20the%20architecture%20of%20a%20Docker%20Compose%20setup%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20It%20shows%20various%20Docker%20contain.png) | ![Docker Container Internal Architecture](readme-res/DALL·E%202024-01-05%2007.00.02%20-%20An%20internal%20architecture%20diagram%20of%20a%20Docker%20container%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20The%20diagram%20should%20show%20the%20layering%20of%20co.png) |
 
 </details>
 
