@@ -33,6 +33,8 @@ PFV can be used to simulate advanced persistent threats (APTs) in network protoc
 
 ## :wrench: Installation 
 
+Note, before implementation were added as submodule. Now we only consider Docker containers installation. (To be updated)
+
 <details>
 <summary>Click to expand</summary>
 

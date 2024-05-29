@@ -20,7 +20,7 @@ import os
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path.insert(0, os.path.abspath('.'))
 
-import build
+import pfv.build as build
 build.run()
 
 # -- General configuration ------------------------------------------------

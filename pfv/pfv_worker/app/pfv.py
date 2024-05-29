@@ -360,12 +360,12 @@ class PFV:
 def main():
     experiments = ArgumentParserRunner().parse_arguments()
     if experiments.webapp:
-        from webapp.pfv_server import PFVServer
+        from pfv_webapp.pfv_server import PFVServer
         app = PFVServer(SOURCE_DIR)
         app.run()
         sys.exit(app.exec_())
     elif experiments.worker:
-        from webapp.pfv_client import PFVClient
+        from pfv.pfv_worker.app.pfv_client import PFVClient
         app = PFVClient(SOURCE_DIR)
         app.run()
         sys.exit(app.exec_())

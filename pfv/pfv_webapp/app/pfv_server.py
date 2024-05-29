@@ -24,7 +24,7 @@ from npf_web_extension.app import export
 import configparser
 import argparse
 
-from webapp.utils.cytoscape_generator import *
+from pfv_webapp.utils.cytoscape_generator import *
 from pfv_utils.pfv_constant import *
 from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 from pfv import *

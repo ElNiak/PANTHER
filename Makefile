@@ -48,6 +48,7 @@ install:
 	cd src/Protocols-Ivy; mkdir -p protocol-testing/minip/build; mkdir -p protocol-testing/minip/test/temp; touch protocol-testing/minip/test/temp/data.csv
 	cd src/Protocols-Ivy; mkdir -p protocol-testing/coap/build; mkdir -p protocol-testing/coap/test/temp; touch protocol-testing/coap/test/temp/data.csv
 	cd src/Protocols-Ivy; mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/bgp/test/temp; touch protocol-testing/bgp/test/temp/data.csv
+	cd src/Protocols-Ivy; mkdir -p protocol-testing/bgp/build; mkdir -p protocol-testing/apt/test/temp; touch protocol-testing/apt/test/temp/data.csv
     # Perform additional setup and build Docker containers
 	make checkout-git
 	make build-docker-compose-full
@@ -57,9 +58,6 @@ checkout-git:
     # Specific commits are checked out for each submodule to ensure consistency and reproducibility
 	cd src/Protocols-Ivy/submodules/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
     # QUIC implementations
-	cd pfv/pfv_worker/implementations/quic-implementations/aioquic/;git checkout d272be10b93b09b75325b139090007dae16b9f16
-	cd pfv/pfv_worker/implementations/quic-implementations/boringssl/; git checkout a9670a8b476470e6f874fef3554e8059683e1413; git submodule init; git submodule update
-	cd pfv/pfv_worker/implementations/quic-implementations/lsquic/; git checkout 0a4f8953dc92dd3085e48ed90f293f052cff8427; 
 	cd pfv/pfv_worker/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 
 	cd pfv/pfv_worker/implementations/quic-implementations/quant/; git checkout 9e309c05f79fb6aa3889dcf7df60b550249d2a2a;  git submodule update --init --recursive
 	cd pfv/pfv_worker/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 

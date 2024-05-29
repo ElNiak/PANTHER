@@ -1,0 +1,46 @@
+ARG image
+
+FROM $image:latest
+
+# ADD pfv/pfv_worker/implementations/quic-implementations/aioquic /PFV/implementations/quic-implementations/aioquic
+RUN git clone https://github.com/aiortc/aioquic.git; cd aioquic; git checkout d272be10b93b09b75325b139090007dae16b9f16
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+WORKDIR /PFV/implementations/quic-implementations/aioquic/
+# RUN git checkout d272be10b93b09b75325b139090007dae16b9f16 # RFC9000
+
+WORKDIR /PFV
+
+# https://stackoverflow.com/questions/29905909/pip-install-e-packages-dont-appear-in-docker 
+
+ENV PYTHONPATH="${PYTHONPATH}:/PFV/implementations/quic-implementations/aioquic/src/"
+# RUN source $HOME/.cargo/env
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# TODO improve
+
+RUN apt install --yes software-properties-common
+RUN add-apt-repository --yes ppa:deadsnakes/ppa
+RUN apt install --yes python3.9
+RUN apt install --yes python3.9-distutils
+RUN apt install --yes python3.9-dev
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+RUN python3.9 get-pip.py
+
+RUN cd /PFV/implementations/quic-implementations/aioquic; \
+    python3.9 -m pip install --upgrade pip setuptools wheel; \
+    python3.9 -m pip install --upgrade distlib; \
+    python3.9 -m pip install werkzeug==2.0.3; \
+    python3.9 -m pip install --upgrade launchpadlib; \
+    python3.9 -m pip install --upgrade cryptography; \
+    python3.9 -m pip install --upgrade cffi; \
+    python3.9 -m pip install setuptools-rust; \
+    python3.9 -m pip install -e .; \
+    python3.9 -m pip install aiofiles asgiref dnslib httpbin starlette wsproto; 
+
+RUN rm /PFV/implementations/quic-implementations/aioquic/examples/http3_client.py # TODO check
+COPY src/containers/res/aioquic/rfc9000/http3_client.py /PFV/implementations/quic-implementations/aioquic/examples/http3_client.py
+
+WORKDIR /PFV
+
