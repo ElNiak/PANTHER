@@ -10,6 +10,8 @@ import logging
 import click
 import json
 
+import yaml
+
 logging.basicConfig(level=logging.DEBUG)
 
 def log_docker_output(generator, task_name: str = 'docker command execution') -> None:
@@ -136,7 +138,9 @@ def start_tool(config):
     create_docker_network()
     execute_command("sudo chown -R $USER:$GROUPS $PWD/pfv/pfv_worker/pfv-ivy/")
     execute_command("xhost +")
-    execute_command("docker-compose up -d")
+    yaml_path = update_docker_compose(config)
+    execute_command(f"cat {yaml_path}")
+    execute_command(f"docker compose -f {yaml_path} up -d")
     
     containers = {
         'ivy-webapp': 'ivy-webapp',
@@ -150,6 +154,59 @@ def start_tool(config):
                 append_to_hosts_file(entry)
         else:
             print(f"Container '{container_name}' does not exist.")
+
+def update_docker_compose(config, yaml_path='pfv/docker-compose.yml'):
+    with open(yaml_path, 'r') as file:
+        # save backup version
+        shutil.copyfile(yaml_path, f"{yaml_path}.bak")
+        docker_compose = yaml.safe_load(file)
+
+    base_ip = [172, 27, 1, 11]
+    base_port = 49160
+    
+    for implem, should_build in config['implems'].items():
+        if should_build.lower() == 'true':
+            service_name = f"{implem}-ivy"
+            if service_name not in docker_compose['services']:
+                
+                base_ip[-1] += 1
+                base_port += 1
+                ipv4_address = '.'.join(map(str, base_ip))
+                port = base_port
+                
+                docker_compose['services'][service_name] = {
+                    'hostname': service_name,
+                    'container_name': service_name,
+                    'image': f"{service_name}:latest",
+                    'command': 'python3 pfv_client.py',
+                    'ports': [f"{port}:80"],
+                    'volumes': [
+                        '/tmp/.X11-unix:/tmp/.X11-unix',
+                        '${PWD}/pfv/pfv_worker/app/:/app/',
+                        '${PWD}/pfv/pfv_worker/app/pfv-ivy/protocol-testing/:/app/pfv-ivy/protocol-testing/',
+                        '${PWD}/pfv/pfv_worker/app/pfv-ivy/ivy/:/app/pfv-ivy/ivy/',
+                        '${PWD}/pfv/output/tls-keys:/app/tls-keys',
+                        '${PWD}/pfv/output/tickets:/app/tickets',
+                        '${PWD}/pfv/output/qlogs:/app/qlogs'
+                    ],
+                    'networks': {'net': {'ipv4_address': ipv4_address}},
+                    'privileged': True,
+                    'environment': [
+                        'DISPLAY=${DISPLAY}',
+                        'XAUTHORITY=~/.Xauthority',
+                        'ROOT_PATH=${PWD}',
+                        'MPLBACKEND="Agg"'
+                    ],
+                    'restart': 'always',
+                    'depends_on': ['ivy-webapp']
+                }
+
+    with open(yaml_path, 'w') as file:
+        yaml.safe_dump(docker_compose, file)
+
+    logging.info("Docker Compose configuration updated successfully.")
+    return yaml_path
+
 
 def install_tool(config, branch=None):
     # Pre-installation commands
@@ -185,6 +242,8 @@ def install_tool(config, branch=None):
 
     if config['modules'].getboolean('build_visualizer'):
         build_docker_visualizer()
+        
+    update_docker_compose(config)
 
 
 def clean_tool(config):
@@ -253,7 +312,6 @@ def build_implem(implem,config):
                                                        tag="shadow-ivy", rm=True, network_mode="host")
         log_docker_output(log_generator, "Building Docker image shadow-ivy")
         shadow_tag = "shadow-ivy"
-        final_tag = f"{tag}-shadow-ivy"
     
     # Build the picotls image
     build_args = {"image": shadow_tag} if shadow_tag else  {"image":"ivy"}
@@ -268,12 +326,13 @@ def build_implem(implem,config):
     logging.debug(f"Building Docker image {tag} from tag {build_args}")
     image_obj, log_generator = client.images.build(path=path, dockerfile=dockerfile, 
                                                    tag=tag, rm=True, network_mode="host", buildargs=build_args)
-    log_docker_output(log_generator, f"Building Docker image {tag}")
     
+    log_docker_output(log_generator, f"Building Docker image {tag}")
     # Build the final implementation-ivy image
     build_args = {"image": tag}
     logging.debug(f"Building Docker image {final_tag} from tag {build_args}")
-    image_obj, log_generator = client.images.build(path="pfv/pfv_worker/", dockerfile="Dockerfile.ivy_2", tag=final_tag, rm=True, network_mode="host", buildargs=build_args)
+    image_obj, log_generator = client.images.build(path="pfv/pfv_worker/", dockerfile="Dockerfile.ivy_2",
+                                                   tag=final_tag, rm=True, network_mode="host", buildargs=build_args)
     log_docker_output(log_generator, f"Building Docker image {final_tag}")
 
 
@@ -325,7 +384,36 @@ def start_bash_container(implem):
         print(f"Started container {container.id} ({container_name})")
     except Exception as e:
         print(f"Error starting the container: {e}")
-        
+
+from termcolor import colored, cprint
+import terminal_banner
+import sys
+import os
+os.system('clear')
+banner = ("""
+                
+                ░▒▓███████▓▒░░▒▓████████▓▒░▒▓█▓▒░░▒▓█▓▒░ 
+                ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░ 
+                ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░       ░▒▓█▓▒▒▓█▓▒░  
+                ░▒▓███████▓▒░░▒▓██████▓▒░  ░▒▓█▓▒▒▓█▓▒░  
+                ░▒▓█▓▒░      ░▒▓█▓▒░        ░▒▓█▓▓█▓▒░   
+                ░▒▓█▓▒░      ░▒▓█▓▒░        ░▒▓█▓▓█▓▒░   
+                ░▒▓█▓▒░      ░▒▓█▓▒░         ░▒▓██▓▒░    
+                                                    
+                                                    
+                            Made with ❤️ 
+                For the Community, By the Community   
+
+                ###################################
+       
+                        Made by ElNiak
+        linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+                Github - https://github.com/elniak
+                                                                                      
+""")
+banner_terminal = terminal_banner.Banner(banner)
+cprint(banner_terminal , 'green', file=sys.stderr)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Manage PFV Tool')
     parser.add_argument('--config', type=str, required=True,  help='Path to the configuration file')
