@@ -26,7 +26,9 @@ setup(name='pfv',
       setup_requires=['wheel'], # "importlib-metadata", ,"importlib_metadata"
       install_requires=[
           'docker',
-          'click'
+          'click',
+          'termcolor',
+          'terminal_banner'
           ],
 
       zip_safe=False)

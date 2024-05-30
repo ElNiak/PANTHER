@@ -17,6 +17,8 @@ setup(
         'pygraphviz',
         'requests',
         'scapy',
+        'termcolor',
+        'terminal_banner'
         #'importlib_metadata'
         # "progressbar2"
     ],

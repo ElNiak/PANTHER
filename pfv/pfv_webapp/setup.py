@@ -44,6 +44,8 @@ setup(name='ivy-webapp',
           "pygraphviz",
           "scapy",
           "importlib_metadata",
+          'termcolor',
+          'terminal_banner'
           # "pytracemalloc",
           #"pytracemalloc==0.9.1"
           ],

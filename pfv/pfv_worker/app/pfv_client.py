@@ -1,3 +1,4 @@
+import sys
 from flask import Flask, request, jsonify
 import requests
 import argparse
@@ -98,3 +99,49 @@ class PFVClient:
 
     def run(self):
         PFVClient.app.run(host='0.0.0.0', port=80, use_reloader=True)
+
+
+from termcolor import colored, cprint
+import terminal_banner
+import sys
+import os
+os.system('clear')
+banner = ("""
+                
+                ░▒▓███████▓▒░░▒▓████████▓▒░▒▓█▓▒░░▒▓█▓▒░ 
+                ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░ 
+                ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░       ░▒▓█▓▒▒▓█▓▒░  
+                ░▒▓███████▓▒░░▒▓██████▓▒░  ░▒▓█▓▒▒▓█▓▒░  
+                ░▒▓█▓▒░      ░▒▓█▓▒░        ░▒▓█▓▓█▓▒░   
+                ░▒▓█▓▒░      ░▒▓█▓▒░        ░▒▓█▓▓█▓▒░   
+                ░▒▓█▓▒░      ░▒▓█▓▒░         ░▒▓██▓▒░    
+                                                    
+                                                    
+                            Made with ❤️ 
+                For the Community, By the Community   
+
+                ###################################
+       
+                        Made by ElNiak
+        linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+                Github - https://github.com/elniak
+                                                                                      
+""")
+banner_terminal = terminal_banner.Banner(banner)
+cprint(banner_terminal , 'green', file=sys.stderr)
+     
+def main():
+    app = PFVClient(SOURCE_DIR)
+    app.run()
+    sys.exit(app.exec_())
+
+if __name__ == "__main__":    
+    try:
+        main()
+    except Exception as e:
+        print(e)
+    finally:
+        sys.stdout.close()
+        sys.stderr.close() 
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__       

@@ -359,18 +359,7 @@ class PFV:
 
 def main():
     experiments = ArgumentParserRunner().parse_arguments()
-    if experiments.webapp:
-        from pfv_webapp.pfv_server import PFVServer
-        app = PFVServer(SOURCE_DIR)
-        app.run()
-        sys.exit(app.exec_())
-    elif experiments.worker:
-        from pfv.pfv_worker.app.pfv_client import PFVClient
-        app = PFVClient(SOURCE_DIR)
-        app.run()
-        sys.exit(app.exec_())
-    else:
-        experiments.launch_experiments()
+    experiments.launch_experiments()
 
 if __name__ == "__main__":    
     try:

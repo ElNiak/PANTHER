@@ -27,13 +27,15 @@ import argparse
 from pfv_webapp.utils.cytoscape_generator import *
 from pfv_utils.pfv_constant import *
 from argument_parser.ArgumentParserRunner import ArgumentParserRunner
-from pfv import *
+import sys
+
+SOURCE_DIR = os.getcwd()
 
 DEBUG = True
 
 class PFVServer:
     ROOTPATH = os.getcwd()
-    app = Flask(__name__, static_folder=ROOTPATH + '/app/static/')
+    app = Flask(__name__, static_folder= ROOTPATH + '/app/static/')
     app.secret_key = 'super secret key' # TODO
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['SESSION_PERMANENT'] = False
@@ -787,4 +789,50 @@ class PFVServer:
 
     def run(self):
         PFVServer.app.run(host='0.0.0.0', port=80, use_reloader=True, threaded=True)  #, processes=4
-        
+
+
+from termcolor import colored, cprint
+import terminal_banner
+import sys
+import os
+os.system('clear')
+banner = ("""
+                
+                ░▒▓███████▓▒░░▒▓████████▓▒░▒▓█▓▒░░▒▓█▓▒░ 
+                ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░      ░▒▓█▓▒░░▒▓█▓▒░ 
+                ░▒▓█▓▒░░▒▓█▓▒░▒▓█▓▒░       ░▒▓█▓▒▒▓█▓▒░  
+                ░▒▓███████▓▒░░▒▓██████▓▒░  ░▒▓█▓▒▒▓█▓▒░  
+                ░▒▓█▓▒░      ░▒▓█▓▒░        ░▒▓█▓▓█▓▒░   
+                ░▒▓█▓▒░      ░▒▓█▓▒░        ░▒▓█▓▓█▓▒░   
+                ░▒▓█▓▒░      ░▒▓█▓▒░         ░▒▓██▓▒░    
+                                                    
+                                                    
+                            Made with ❤️ 
+                For the Community, By the Community   
+
+                ###################################
+       
+                        Made by ElNiak
+        linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+                Github - https://github.com/elniak
+                                                                                      
+""")
+banner_terminal = terminal_banner.Banner(banner)
+cprint(banner_terminal , 'green', file=sys.stderr)
+     
+def main():
+    app = PFVServer(SOURCE_DIR)
+    app.run()
+    sys.exit(app.exec_())
+    
+if __name__ == "__main__":    
+    try:
+        main()
+    except Exception as e:
+        print(e)
+    finally:
+        sys.stdout.close()
+        sys.stderr.close() 
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__       
+
