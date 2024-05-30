@@ -17,8 +17,8 @@ setup(
         'pygraphviz',
         'requests',
         'scapy',
-        'importlib_metadata',
-        "progressbar2"
+        #'importlib_metadata'
+        # "progressbar2"
     ],
     entry_points={
         'console_scripts': [
