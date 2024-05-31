@@ -9,7 +9,7 @@ from docker.errors import NotFound
 import logging
 import click
 import json
-
+import time
 import yaml
 
 logging.basicConfig(level=logging.DEBUG)
@@ -148,6 +148,7 @@ def start_tool(config):
     }
     for container_name, host_entry in containers.items():
         if container_exists(client, container_name):
+            monitor_docker_usage(container_name, interval=10, duration=-1)
             ip_address = get_container_ip(client, container_name)
             if ip_address:
                 entry = f"{ip_address} {host_entry}\n"
@@ -155,6 +156,43 @@ def start_tool(config):
         else:
             print(f"Container '{container_name}' does not exist.")
 
+def monitor_docker_usage(container_name, interval=1.0, duration=10.0):
+    """
+    Monitor the CPU and memory usage of a Docker container.
+    
+    :param container_name: Name or ID of the Docker container to monitor
+    :param interval: Time interval (in seconds) between checks
+    :param duration: Total duration (in seconds) to monitor
+    """
+    client = docker.from_env()
+
+    try:
+        container = client.containers.get(container_name)
+    except docker.errors.NotFound:
+        print(f"No container found with name or ID {container_name}")
+        return
+
+    start_time = time.time()
+    duration_condition = (time.time() - start_time) < duration if duration > 0 else True
+    while duration_condition:
+        try:
+            stats = container.stats(stream=False)
+            cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+            system_cpu_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+            number_cpus = len(stats['cpu_stats']['cpu_usage']['percpu_usage'])
+            cpu_usage = (cpu_delta / system_cpu_delta) * number_cpus * 100.0
+
+            memory_usage = stats['memory_stats']['usage'] / (1024 * 1024)  # Convert to MB
+            memory_limit = stats['memory_stats']['limit'] / (1024 * 1024)  # Convert to MB
+            memory_percentage = (memory_usage / memory_limit) * 100.0
+
+            logging.info(f"Time: {time.time() - start_time:.2f}s, CPU Usage: {cpu_usage:.2f}%, Memory Usage: {memory_usage:.2f}MB ({memory_percentage:.2f}%)")
+        except docker.errors.APIError as e:
+            logging.info(f"An error occurred: {e}")
+            break
+
+        time.sleep(interval)
+        
 def update_docker_compose(config, yaml_path='pfv/docker-compose.yml'):
     with open(yaml_path, 'r') as file:
         # save backup version
@@ -163,12 +201,14 @@ def update_docker_compose(config, yaml_path='pfv/docker-compose.yml'):
 
     base_ip = [172, 27, 1, 11]
     base_port = 49160
-    
+    defined_services = set()
+    defined_services.add('ivy-webapp')
     for implem, should_build in config['implems'].items():
         if should_build.lower() == 'true':
-            service_name = f"{implem}-ivy"
+            updated_name = implem.split("_",1)[-1].replace("_","-")
+            service_name = f"{updated_name}-ivy"
+            defined_services.add(service_name)
             if service_name not in docker_compose['services']:
-                
                 base_ip[-1] += 1
                 base_port += 1
                 ipv4_address = '.'.join(map(str, base_ip))
@@ -201,6 +241,11 @@ def update_docker_compose(config, yaml_path='pfv/docker-compose.yml'):
                     'depends_on': ['ivy-webapp']
                 }
 
+    # Remove services not defined in config
+    services_to_remove = set(docker_compose['services'].keys()) - defined_services
+    for service in services_to_remove:
+        del docker_compose['services'][service]
+        
     with open(yaml_path, 'w') as file:
         yaml.safe_dump(docker_compose, file)
 
@@ -306,6 +351,7 @@ def build_implem(implem,config):
     # Check if shadow build is needed
     shadow_tag = None
     final_tag = f"{tag}-ivy"
+    final_tag = final_tag.split("_",1)[-1].replace("_","-")
     if config["modules"]['build_shadow'].lower() == 'true' and "shadow" in implem:
         logging.debug("Building Docker image shadow-ivy")
         image_obj, log_generator = client.images.build(path="pfv/pfv_worker/", dockerfile="Dockerfile.shadow", 

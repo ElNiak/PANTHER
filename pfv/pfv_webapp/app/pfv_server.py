@@ -23,11 +23,13 @@ import pandas as pd
 from npf_web_extension.app import export
 import configparser
 import argparse
+import sys
 
 from pfv_webapp.utils.cytoscape_generator import *
 from pfv_utils.pfv_constant import *
+from pfv_utils.pfv_config import get_experiment_config, restore_config
+
 from argument_parser.ArgumentParserRunner import ArgumentParserRunner
-import sys
 
 SOURCE_DIR = os.getcwd()
 
@@ -36,41 +38,41 @@ DEBUG = True
 class PFVServer:
     ROOTPATH = os.getcwd()
     app = Flask(__name__, static_folder= ROOTPATH + '/app/static/')
-    app.secret_key = 'super secret key' # TODO
+    app.secret_key = 'super secret key'  # TODO
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['SESSION_PERMANENT'] = False
     app.config['APPLICATION_ROOT'] = ROOTPATH + '/app/templates/'
     app.debug = True
-    # enable CORS
     CORS(app, resources={r'/*': {'origins': '*'}})
 
     def __init__(self,dir_path=None):
-        with open('configs/config.ini', 'w') as configfile:
-            with open('configs/default_config.ini', "r") as default_config:
-                default_settings = default_config.read()
-                configfile.write(default_settings)
-        PFVServer.dir_path         = dir_path
-        PFVServer.ivy_include_path = dir_path + "/pfv-ivy/ivy/include/1.7/"
-                
+        restore_config()
+        
         # Setup configuration
-        PFVServer.config = PFVServer.setup_config()
-        PFVServer.enable_impems = {}
-        PFVServer.protocol_conf = PFVServer.setup_protocol_parameters(PFVServer.current_protocol,dir_path)
-
-        PFVServer.total_exp_in_dir = len(os.listdir(PFVServer.ivy_temps_path)) - 2
-        PFVServer.current_exp_path = PFVServer.ivy_temps_path + str(PFVServer.total_exp_in_dir)
-        PFVServer.local_exp_path   = PFVServer.local_path + str(PFVServer.total_exp_in_dir)
+        PFVServer.current_protocol, PFVServer.tests_enabled, PFVServer.conf_implementation_enable, PFVServer.implementation_enable, PFVServer.protocol_model_path, \
+            PFVServer.protocol_results_path, PFVServer.protocol_test_path, PFVServer.config, PFVServer.protocol_conf = get_experiment_config(None, True, True)
         
-        PFVServer.current_tests = []
-        PFVServer.implems_used = []
+        # count number of directories in PFVServer.protocol_results_path
+        PFVServer.total_exp_in_dir = 0
+        with os.scandir(PFVServer.protocol_results_path) as entries:
+            PFVServer.total_exp_in_dir = sum(1 for entry in entries if entry.is_dir())
         
-        PFVServer.total_exp = 0
-        PFVServer.current_count = 0
-        PFVServer.started_exp = False
-        PFVServer.current_implem = None
+        PFVServer.current_exp_path = os.path.join(PFVServer.protocol_results_path, str(PFVServer.total_exp_in_dir))
         
+        # Experiment parameters
+        PFVServer.tests_requested = []
+        PFVServer.implementation_requested    = []
+        PFVServer.experiment_iteration         = 0
+        PFVServer.experiment_current_iteration = 0
+        PFVServer.is_experiment_started        = False
+        
+        # Automatic GUI
         PFVServer.choices_args = {}
         
+        PFVServer.get_quic_vizualier()
+        
+       
+    def  get_quic_vizualier():
         # Get QUIC visualizer service (TODO move)
         try:
             hostname = socket.gethostname()
@@ -81,74 +83,8 @@ class PFVServer:
         except:
             PFVServer.local_ip = ""
             PFVServer.vizualiser_ip = ""
-            PFVServer.app.logger.info("No visualizer found")
-                        
-    def setup_config(init=True, protocol=None):
-        config = configparser.ConfigParser(allow_no_value=True)
-        if init:
-            config.read('configs/default_config.ini')
-        else:
-            config.read('configs/config.ini')
-        
-        PFVServer.key_path = SOURCE_DIR + "/tls-keys/"
-        PFVServer.implems = {}
-        PFVServer.current_protocol =  ""
-        PFVServer.supported_protocols = config["verified_protocol"].keys()
-        if init:
-            for p in config["verified_protocol"].keys():
-                if config["verified_protocol"].getboolean(p):
-                    PFVServer.current_protocol = p
-                    break
-        else:
-            PFVServer.current_protocol = protocol
-        return config
-    
-    def setup_protocol_parameters(protocol, dir_path, init=True):
-        
-        # TODO use client to get these information
-        PFVServer.tests = {}
-        PFVServer.implems = {}
-        protocol_conf = configparser.ConfigParser(allow_no_value=True)
-        for envar in P_ENV_VAR[protocol]:
-            os.environ[envar] = P_ENV_VAR[protocol][envar]
-            # os.environ['INITIAL_VERSION'] = str(self.args.initial_version)
-            # ENV_VAR["INITIAL_VERSION"] = str(self.args.initial_version)
-        if init:
-            protocol_conf.read('configs/'+protocol+'/default_'+protocol+'_config.ini')
-        else:
-            protocol_conf.read('configs/'+protocol+'/'+protocol+'_config.ini')
-        PFVServer.ivy_model_path = dir_path + "/pfv-ivy/protocol-testing/" + protocol
-        PFVServer.ivy_test_path  = dir_path + "/pfv-ivy/protocol-testing/" + protocol +"/tests/"
-        PFVServer.ivy_temps_path = dir_path + "/pfv-ivy/protocol-testing/ "+ protocol +"/test/temp/"
-        PFVServer.local_path = os.environ["ROOT_PATH"] + "/pfv-ivy/protocol-testing/"+ protocol +"/test/temp/"
-        for cate in protocol_conf.keys():
-            if "test" in cate:
-                PFVServer.tests[cate] = []
-                for test in protocol_conf[cate]:
-                    PFVServer.tests[cate].append(test)
-        implem_config_path_server = 'configs/'+protocol+'/implem-server'
-        implem_config_path_client = 'configs/'+protocol+'/implem-client'
-        for file_path in os.listdir(implem_config_path_server):
-            # check if current file_path is a file
-            # TODO check if enable in global config
-            if os.path.isfile(os.path.join(implem_config_path_server, file_path)):
-                implem_name = file_path.replace(".ini","") 
-                implem_conf_server = configparser.ConfigParser(allow_no_value=True)
-                implem_conf_server.read(os.path.join(implem_config_path_server, file_path))
-                implem_conf_client = configparser.ConfigParser(allow_no_value=True)
-                implem_conf_client.read(os.path.join(implem_config_path_client, file_path))
-                PFVServer.implems[implem_name] = [implem_conf_server, implem_conf_client]
-        global_conf_file = "configs/global-conf.ini"
-        global_config    = configparser.ConfigParser(allow_no_value=True)
-        global_config.read(global_conf_file)
-        for key in global_config:
-            if "implementations" in key:
-                implem = key.replace("-implementations","")
-                for i in global_config[key]:
-                    PFVServer.enable_impems[i] = global_config[key].getboolean(i)
-        return protocol_conf
-        
-    
+            PFVServer.app.logger.info("No visualizer found") 
+                            
     @app.after_request
     def add_header(r):
         """
@@ -176,20 +112,27 @@ class PFVServer:
     
     @app.route('/progress', methods = ['GET'])
     def progress():
-        return "None" if not PFVServer.started_exp else str(PFVServer.current_count)
+        # TODO
+        return "None" if not PFVServer.is_experiment_started \
+            else str(PFVServer.experiment_current_iteration)
 
     
     @app.route('/update-count', methods = ['GET'])
     def update_count():
-        PFVServer.current_count += 1
-        if PFVServer.started_exp:
-            if PFVServer.current_count == PFVServer.total_exp:
-                PFVServer.started_exp   = False
-                PFVServer.current_count = 0
-                PFVServer.total_exp     = 0
-        return "ok"
+        if PFVServer.is_experiment_started:
+            PFVServer.experiment_current_iteration += 1
+            if PFVServer.experiment_current_iteration == PFVServer.experiment_iteration:
+                PFVServer.is_experiment_started   = False
+                PFVServer.experiment_current_iteration = 0
+                PFVServer.experiment_iteration     = 0
+        return "ok" # TODO
     
     def get_args():
+        """_summary_
+        Get list of argument for automatic GUI generation
+        Returns:
+            _type_: _description_
+        """
         # TODO refactor
         PFVServer.choices_args = {}
         args_parser = ArgumentParserRunner().parser
@@ -262,155 +205,158 @@ class PFVServer:
         prot_arg = args_list
         return json_arg, prot_arg
     
-    def start_exp(exp_args, prot_args):
-        for impl in PFVServer.implems_used:
-            PFVServer.app.logger.info(impl)
-            # TODO send directly parsed args of implem from here ?
-            # for key,value in PFVServer.implems[impl].items():
-            #     if key in exp_args:
-            #         exp_args[key] = value
-            #     else:
-            #         exp_args[key] = value
-            req = {
-                "args": exp_args,
-                "prot_args": prot_args,
-                "protocol": PFVServer.current_protocol,
-                "implementation": impl,
-                "tests": PFVServer.current_tests,
-            }
-            response = requests.post('http://'+impl+'-ivy:80/run-exp', json=req)
-            PFVServer.app.logger.info(str(response.content))
-            
-            while PFVServer.current_count < PFVServer.total_exp/len(PFVServer.implems_used):
-                # wait
-                time.sleep(10)
-                print("wait")
-                print(PFVServer.current_count)
-                print(PFVServer.total_exp/len(PFVServer.implems_used))
-            print("finish")
+    def start_exp(experiment_arguments, protocol_arguments, sequencial_test=True):
+        # TODO add paramater to ask if we keep previous config for next run 
+        
+        if sequencial_test:
+            for impl in PFVServer.implementation_requested:
+                PFVServer.app.logger.info("Starting experiment for implementation " + impl)
+                req = {
+                    "args": experiment_arguments,
+                    "protocol_arguments": protocol_arguments,
+                    "protocol": PFVServer.current_protocol,
+                    "implementation": impl,
+                    "tests_requested": PFVServer.tests_requested,
+                }
+                PFVServer.app.logger.info("with parameters: " + str(req))
+                response = requests.post('http://'+impl+'-ivy:80/run-exp', json=req)
+                
+                PFVServer.app.logger.info("Experimented status: " + str(response.content))
+                
+                while PFVServer.experiment_current_iteration < PFVServer.experiment_iteration/len(PFVServer.implementation_requested):
+                    time.sleep(10)
+                    PFVServer.app.logger.info("Waiting")
+                    PFVServer.app.logger.info(PFVServer.experiment_current_iteration)
+                    PFVServer.app.logger.info(PFVServer.experiment_iteration/len(PFVServer.implementation_requested))
+                PFVServer.app.logger.info("Ending experiment for implementation " + impl)
+        else:
+            # TODO multi test 
+            # Need to avoid shared configuration file
+            pass    
     
-    
+    def change_current_protocol(protocol):
+        PFVServer.app.logger.info("Selected Protocol change -> change GUI")
+                
+        PFVServer.current_protocol = protocol
+        
+        json_arg, prot_arg = PFVServer.get_args()
+        
+        if DEBUG:
+            PFVServer.app.logger.info("JSON arguments availables:")
+            for elem in json_arg:
+                PFVServer.app.logger.info(elem)
+            PFVServer.app.logger.info("PROTOCOL arguments availables:")
+            for elem in prot_arg:
+                PFVServer.app.logger.info(elem)
+                
     @app.route('/index.html', methods = ['GET', 'POST'])
     def serve_index():
         """
         It creates a folder for the project, and then calls the upload function
         :return: the upload function.
         """
-        print(PFVServer.current_protocol)
-        json_arg, prot_arg = PFVServer.get_args()
-        PFVServer.app.logger.info("JSON ARG")
-        for elem in json_arg:
-            PFVServer.app.logger.info(elem)
-        PFVServer.app.logger.info("PROTOCOL ARG")
-        for elem in prot_arg:
-            PFVServer.app.logger.info(elem)
+        PFVServer.app.logger.info("Protocols under test: " + PFVServer.current_protocol)
+
+        if DEBUG:
+            json_arg, prot_arg = PFVServer.get_args()
+            PFVServer.app.logger.info("JSON arguments availables:")
+            for elem in json_arg:
+                PFVServer.app.logger.info(elem)
+            PFVServer.app.logger.info("PROTOCOL arguments availables:")
+            for elem in prot_arg:
+                PFVServer.app.logger.info(elem)
                 
         if request.method == 'POST': 
             # TODO link json_arg and prot_arg to config so we can restore old config
             # TODO fix problem with alpn & initial version
             if request.args.get('prot', '') and request.args.get('prot', '') in PFVServer.supported_protocols:
-                PFVServer.current_protocol = request.args.get('prot', '')
-                json_arg, prot_arg = PFVServer.get_args()
-                PFVServer.app.logger.info("JSON ARG")
-                for elem in json_arg:
-                    PFVServer.app.logger.info(elem)
-                PFVServer.app.logger.info("PROTOCOL ARG")
-                for elem in prot_arg:
-                    PFVServer.app.logger.info(elem)
-                PFVServer.config        = PFVServer.setup_config(False, PFVServer.current_protocol)
-                PFVServer.protocol_conf = PFVServer.setup_protocol_parameters(PFVServer.current_protocol,PFVServer.dir_path,False)
-            else:
-                PFVServer.config        = PFVServer.setup_config(False,PFVServer.current_protocol)
-                PFVServer.protocol_conf = PFVServer.setup_protocol_parameters(PFVServer.current_protocol,PFVServer.dir_path,False)
+                # The Selected Protocol change -> change GUI
+                PFVServer.change_current_protocol(request.args.get('prot', ''))
+            
+            PFVServer.current_protocol, PFVServer.tests_enabled, PFVServer.conf_implementation_enable, PFVServer.implementation_enable, PFVServer.protocol_model_path, \
+                PFVServer.protocol_results_path, PFVServer.protocol_test_path, PFVServer.config, PFVServer.protocol_conf = get_experiment_config(PFVServer.current_protocol, False, False)
+
             # TODO implem progress, avoid to use post if experience already launched
             # TODO force to select at least one test and one implem
+            PFVServer.app.logger.info("Form in POST request:")
             PFVServer.app.logger.info(request.form)
+            if DEBUG:
+                for c in request.form: 
+                    for elem in request.form.getlist(c):
+                        PFVServer.app.logger.info(elem)
+                
+            PFVServer.implementation_requested = []
+            experiment_arguments               = {}
+            protocol_arguments                 = {}
+            PFVServer.tests_requested          = []
             
-            for c in request.form: 
-                for elem in request.form.getlist(c):
-                    PFVServer.app.logger.info(elem)
-            
-            PFVServer.implems_used = []
-            exp_args = {}
-            prot_args = {}
-            PFVServer.current_tests = []
-            arguments = dict(request.form)
+            arguments  = dict(request.form)
             exp_number = 1
             for key,value in arguments.items():
                 if (key,value) == ('boundary', 'experiment separation'):
                     exp_number += 1
-                elif key in PFVServer.implems.keys() and value == 'true':
-                    PFVServer.implems_used.append(key)
+                elif key in PFVServer.implementation_requested.keys() and value == 'true':
+                    PFVServer.implementation_requested.append(key)
                 elif 'test' in key and value == 'true':
-                    PFVServer.current_tests.append(key)
-                elif value != "": # value != "false" and 
+                    PFVServer.tests_requested.append(key)
+                elif value != "":
                     if key in PFVServer.choices_args:
                         print(PFVServer.choices_args[key])
                         value = str(PFVServer.choices_args[key][int(value)-1])
                     if exp_number == 1:
-                        exp_args[key] = value
+                        experiment_arguments[key] = value
                     elif exp_number == 2:
-                        prot_args[key] = value
+                        protocol_arguments[key]   = value
             
-            PFVServer.app.logger.info(str(exp_args))
-            PFVServer.app.logger.info(str(prot_args))
-            PFVServer.app.logger.info(str(PFVServer.current_tests))
-            PFVServer.started_exp = True
-            PFVServer.total_exp = len(PFVServer.implems_used) * len(PFVServer.current_tests) * int(exp_args["iter"])
+            PFVServer.app.logger.info("Experiment arguments: "+ str(experiment_arguments))
+            PFVServer.app.logger.info("Protocol arguments: "+str(protocol_arguments))
+            PFVServer.app.logger.info("Experiment tests requested: "+str(PFVServer.tests_requested))
             
-            thread = threading.Thread(target=PFVServer.start_exp, args=([exp_args, prot_args])) 
+            PFVServer.is_experiment_started = True
+            PFVServer.experiment_iteration  = len(PFVServer.implementation_requested) * len(PFVServer.tests_requested) * int(experiment_arguments["iter"])
+            
+            thread = threading.Thread(target=PFVServer.start_exp, args=([experiment_arguments, protocol_arguments])) 
             thread.daemon = True
             thread.start()
             
             return render_template('index.html', 
-                                json_arg=json_arg,
-                                prot_arg=prot_arg,
-                                enable_impems=PFVServer.enable_impems,
-                                base_conf=PFVServer.config,
-                                protocol_conf=PFVServer.protocol_conf,
-                                supported_protocols=PFVServer.supported_protocols,
-                                current_protocol= PFVServer.current_protocol,
-                                tests=PFVServer.tests, 
-                                nb_exp=PFVServer.total_exp_in_dir, 
-                                implems=PFVServer.implems,
-                                progress=PFVServer.current_count,
-                                iteration=PFVServer.total_exp) # TODO 0rtt
-        else:
-            
+                                    json_arg=json_arg,
+                                    prot_arg=prot_arg,
+                                    implementation_enable=PFVServer.implementation_enable,
+                                    base_conf=PFVServer.config,
+                                    protocol_conf=PFVServer.protocol_conf,
+                                    supported_protocols=PFVServer.supported_protocols,
+                                    current_protocol= PFVServer.current_protocol,
+                                    tests_requested=PFVServer.tests_requested, 
+                                    nb_exp=PFVServer.total_exp_in_dir, 
+                                    implementation_requested=PFVServer.implementation_requested,
+                                    progress=PFVServer.experiment_current_iteration,
+                                    iteration=PFVServer.experiment_iteration)
+        else:       
             if request.args.get('prot', '') and request.args.get('prot', '') in PFVServer.supported_protocols:
-                PFVServer.current_protocol = request.args.get('prot', '')
-                json_arg, prot_arg = PFVServer.get_args()
-                PFVServer.app.logger.info("JSON ARG")
-                for elem in json_arg:
-                    PFVServer.app.logger.info(elem)
-                PFVServer.app.logger.info("PROTOCOL ARG")
-                for elem in prot_arg:
-                    PFVServer.app.logger.info(elem)
-                PFVServer.config           = PFVServer.setup_config(False, PFVServer.current_protocol)
-                PFVServer.protocol_conf    = PFVServer.setup_protocol_parameters(PFVServer.current_protocol,PFVServer.dir_path,False)
+                PFVServer.change_current_protocol(request.args.get('prot', '')
+                                                  )
+            PFVServer.current_protocol, PFVServer.tests_enabled, PFVServer.conf_implementation_enable, PFVServer.implementation_enable, PFVServer.protocol_model_path, \
+                PFVServer.protocol_results_path, PFVServer.protocol_test_path, PFVServer.config, PFVServer.protocol_conf = get_experiment_config(PFVServer.current_protocol, False, False)
                 
-            if PFVServer.implems_used is not None:
-                ln = len(PFVServer.implems_used)
-            else:
-                ln = 0 
                             
             return render_template('index.html', 
-                                json_arg=json_arg,
-                                prot_arg=prot_arg,
-                                enable_impems=PFVServer.enable_impems,
-                                base_conf=PFVServer.config,
-                                supported_protocols=PFVServer.supported_protocols,
-                                current_protocol= PFVServer.current_protocol,
-                                protocol_conf=PFVServer.protocol_conf,
-                                tests=PFVServer.tests, 
-                                nb_exp=PFVServer.total_exp_in_dir, 
-                                implems=PFVServer.implems,
-                                progress=PFVServer.current_count, #PFVServer.experiments.count_1,
-                                iteration=PFVServer.total_exp)
+                                    json_arg=json_arg,
+                                    prot_arg=prot_arg,
+                                    implementation_enable=PFVServer.implementation_enable,
+                                    base_conf=PFVServer.config,
+                                    supported_protocols=PFVServer.supported_protocols,
+                                    current_protocol= PFVServer.current_protocol,
+                                    protocol_conf=PFVServer.protocol_conf,
+                                    tests_requested=PFVServer.tests_requested, 
+                                    nb_exp=PFVServer.total_exp_in_dir, 
+                                    implementation_requested=PFVServer.implementation_requested,
+                                    progress=PFVServer.experiment_current_iteration, #PFVServer.experiments.count_1,
+                                    iteration=PFVServer.experiment_iteration)
             
     @app.route('/directory/<int:directory>/file/<path:file>')
     def send_file(directory,file):
-        return send_from_directory(PFVServer.ivy_temps_path + str(directory), file)
+        return send_from_directory(PFVServer.protocol_results_path + str(directory), file)
     
     @app.route('/key/<string:implem>')
     def send_key(implem):
@@ -423,13 +369,15 @@ class PFVServer:
         It creates a folder for the project, and then calls the upload function
         :return: the upload function.
         """
-        PFVServer.app.logger.info(PFVServer.ivy_temps_path)
-        PFVServer.app.logger.info(os.listdir(PFVServer.ivy_temps_path))
-        PFVServer.total_exp_in_dir = len(os.listdir(PFVServer.ivy_temps_path)) - 3 #2
+        PFVServer.app.logger.info("Current Protocol Tests output folder: "+PFVServer.protocol_results_path)
+        PFVServer.app.logger.info(os.listdir(PFVServer.protocol_results_path))
+        
+        with os.scandir(PFVServer.protocol_results_path) as entries:
+            PFVServer.total_exp_in_dir = sum(1 for entry in entries if entry.is_dir())
         
         
         default_page = 0
-        page = request.args.get('page', default_page)
+        page         = request.args.get('page', default_page)
         try:
             page = page.number
         except:
@@ -451,7 +399,7 @@ class PFVServer:
         except EmptyPage:
             items_page = paginator.page(paginator.num_pages)
             
-        df_csv = pd.read_csv(PFVServer.ivy_temps_path + 'data.csv').set_index('Run')
+        df_csv = pd.read_csv(PFVServer.protocol_results_path + 'data.csv').set_index('Run')
         PFVServer.app.logger.info(PFVServer.total_exp_in_dir-int(page))
         
         result_row = df_csv.iloc[-1]
@@ -495,8 +443,7 @@ class PFVServer:
         summary["nb_pkt"] = result_row["NbPktSend"]
         summary["initial_version"] = result_row["initial_version"]
     
-        PFVServer.current_exp_path = PFVServer.ivy_temps_path + str(PFVServer.total_exp_in_dir-int(page))
-        PFVServer.local_exp_path = PFVServer.local_path + str(PFVServer.total_exp_in_dir-int(page))
+        PFVServer.current_exp_path = PFVServer.protocol_results_path + str(PFVServer.total_exp_in_dir-int(page))
         exp_dir = os.listdir(PFVServer.current_exp_path)
         ivy_stderr = "No output"
         ivy_stdout = "No output"
@@ -612,12 +559,12 @@ class PFVServer:
         It creates a folder for the project, and then calls the upload function
         :return: the upload function.
         """
-        PFVServer.total_exp_in_dir = len(os.listdir(PFVServer.ivy_temps_path)) - 2
+        PFVServer.total_exp_in_dir = len(os.listdir(PFVServer.protocol_results_path)) - 2
         
         PFVServer.app.logger.info(request.form)
         
         summary = {}
-        df_csv = pd.read_csv(PFVServer.ivy_temps_path + 'data.csv',parse_dates=['date'])
+        df_csv = pd.read_csv(PFVServer.protocol_results_path + 'data.csv',parse_dates=['date'])
         
         df_simplify_date = df_csv
         df_simplify_date['date'] = df_csv['date'].dt.strftime('%d/%m/%Y')
@@ -737,18 +684,18 @@ class PFVServer:
              
             
         return render_template('result-global.html', 
-                           nb_exp=PFVServer.total_exp_in_dir,
-                           current_exp=PFVServer.current_exp_path,
-                           summary=summary,
-                           csv_text=csv_text,
-                           tests=PFVServer.tests, 
-                           client_tests=PFVServer.client_tests,
-                           implems=PFVServer.implems,
-                           min_date=None,
-                           max_date=None,
-                           df_nb_date=df_nb_date,
-                           df_dates=list(df_dates),
-                           df_csv_content=df_csv_content)
+                                nb_exp=PFVServer.total_exp_in_dir,
+                                current_exp=PFVServer.current_exp_path,
+                                summary=summary,
+                                csv_text=csv_text,
+                                tests_requested=PFVServer.tests_requested, 
+                                client_tests=PFVServer.client_tests,
+                                implementation_requested=PFVServer.implementation_requested,
+                                min_date=None,
+                                max_date=None,
+                                df_nb_date=df_nb_date,
+                                df_dates=list(df_dates),
+                                df_csv_content=df_csv_content)
 
     def get_attack_model(self, attack_model):
         """
@@ -783,7 +730,7 @@ class PFVServer:
         """
         # PFVServer.experiments.update_includes_ptls()
         # PFVServer.experiments.update_includes()
-        setup_quic_model(PFVServer.ivy_test_path)
+        setup_quic_model(PFVServer.protocol_test_path)
         setup_cytoscape()
         return render_template('creator.html')
 

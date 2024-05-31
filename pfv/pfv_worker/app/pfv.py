@@ -7,6 +7,7 @@ import configparser
 import os
 
 from pfv_utils.pfv_constant import *
+from pfv_utils.pfv_config import *
 
 from pfv_runner.pfv_quic_runner import QUICRunner
 from pfv_runner.pfv_minip_runner import MiniPRunner
@@ -20,7 +21,7 @@ DEBUG = True
 class PFV:
     def __init__(self):    
         # Setup cargo
-        subprocess.Popen("source $HOME/.cargo/env",shell=True, executable="/bin/bash").wait() # TODO source
+        subprocess.Popen("",shell=True, executable="/bin/bash").wait() # TODO source
 
         # Setup logger
         self.log = logging.getLogger("pfv")
@@ -36,102 +37,39 @@ class PFV:
         # Setup environment variables
         for env_var in ENV_VAR:
             os.environ[env_var] = str(ENV_VAR[env_var])
-            self.log.info("ENV_VAR="+ env_var)
-            self.log.info("ENV_VAL="+ str(ENV_VAR[env_var]))
-        
-        self.ivy_include_path = SOURCE_DIR + "/pfv-ivy/ivy/include/1.7/"
-                
+            if DEBUG:
+                self.log.info("ENV_VAR="+ env_var)
+                self.log.info("ENV_VAL="+ str(ENV_VAR[env_var]))
+                        
         # Setup configuration
-        self.log.info("START SETUP CONFIGURATION")
-        self.current_protocol = ""
-        self.config = self.setup_config()
-        self.log.info("SELECTED PROTOCOL: " + self.current_protocol)
+        self.log.info("Getting Experiment configuration:")
+        self.current_protocol, self.tests_enabled, self.conf_implementation_enable, self.implementation_enable, self.protocol_model_path, \
+            self.protocol_results_path, self.protocol_test_path, self.config, self.protocol_conf = get_experiment_config(None, False, False)
+        
+        self.log.info("Selected protocol: " + self.current_protocol)
+        
         self.is_apt = self.config["global_parameters"].getboolean("apt")
         self.log.info("Advanced Persistent Threat: " + str(self.is_apt))
-        self.protocol_conf = self.setup_protocol_parameters(self.current_protocol,SOURCE_DIR)
-        self.log.info("END SETUP PROTOCOL PARAMETERS")
-        
-        self.total_exp_in_dir = len(os.listdir(self.config["global_parameters"]["dir"])) - 2
-        self.current_exp_path = self.config["global_parameters"]["dir"] + str(self.total_exp_in_dir)
                 
-        self.current_count = 0
-        self.current_implem = None
-        self.available_modes = []
-        
+        with os.scandir(self.protocol_results_path) as entries:
+            self.total_exp_in_dir = sum(1 for entry in entries if entry.is_dir())        
+        self.current_exp_path = os.path.join(self.protocol_results_path, str(self.total_exp_in_dir))
+                
+        self.available_test_modes = []
         self.included_files = list()
 
         if self.config["debug_parameters"].getboolean("memprof"):
             self.memory_snapshots = []
             
-    def setup_config(self, init=False, protocol=None):
-        config = configparser.ConfigParser(allow_no_value=True)
-        config.read('configs/config.ini')
-            
-        self.key_path = SOURCE_DIR + "/tls-keys/"
-        self.implems = {}
-        self.current_protocol =  ""
-        self.supported_protocols = config["verified_protocol"].keys()
-        for p in config["verified_protocol"].keys():
-            if config["verified_protocol"].getboolean(p):
-                self.current_protocol = p
-                break
-        return config
-    
-    def setup_protocol_parameters(self,protocol, dir_path, init=False):
-        self.tests = {}
-        self.implems = {}
-        protocol_conf = configparser.ConfigParser(allow_no_value=True)
-        for envar in P_ENV_VAR[protocol]:
-            os.environ[envar] = P_ENV_VAR[protocol][envar]
-            self.log.info("ENV_VAR="+ envar)
-            self.log.info("ENV_VAL="+  P_ENV_VAR[protocol][envar])
 
-        protocol_conf.read('configs/'+protocol+'/'+protocol+'_config.ini')
-        # TODO change var name at the end
-        if  self.is_apt:
-            self.ivy_model_path = dir_path + "/pfv-ivy/protocol-testing/apt/"
-            self.config.set('global_parameters', "tests_dir", dir_path + "/pfv-ivy/protocol-testing/apt/apt_tests/")
-            self.config.set('global_parameters', "dir"      , dir_path + "/pfv-ivy/protocol-testing/apt/test/temp/")
-            self.config.set('global_parameters', "build_dir", dir_path + "/pfv-ivy/protocol-testing/apt/build/")
-        else:
-            self.ivy_model_path = dir_path + "/pfv-ivy/protocol-testing/" + protocol
-            self.config.set('global_parameters', "tests_dir", dir_path + "/pfv-ivy/protocol-testing/apt/"+ protocol +"/"+protocol +"_tests/")
-            self.config.set('global_parameters', "dir"      , dir_path + "/pfv-ivy/protocol-testing/apt/"+ protocol +"/test/temp/")
-            self.config.set('global_parameters', "build_dir", dir_path + "/pfv-ivy/protocol-testing/apt/"+ protocol +"/build/")
-        
-        self.log.info("Protocol: " + protocol)
-        for cate in protocol_conf.keys():
-            if "test" in cate:
-                self.log.info("Current category: " + cate)
-                self.tests[cate] = []
-                for test in protocol_conf[cate]:
-                    self.log.info("Current test: " + test)
-                    if protocol_conf[cate].getboolean(test):
-                        self.log.info("Adding test: " + test)
-                        self.tests[cate].append(test)
-        
-        implem_config_path_server = 'configs/'+protocol+'/implem-server'
-        implem_config_path_client = 'configs/'+protocol+'/implem-client'
-        
-        for file_path in os.listdir(implem_config_path_server):
-            # check if current file_path is a file
-            if os.path.isfile(os.path.join(implem_config_path_server, file_path)):
-                implem_name = file_path.replace(".ini","") 
-                implem_conf_server = configparser.ConfigParser(allow_no_value=True)
-                implem_conf_server.read(os.path.join(implem_config_path_server, file_path))
-                implem_conf_client = configparser.ConfigParser(allow_no_value=True)
-                implem_conf_client.read(os.path.join(implem_config_path_client, file_path))
-                self.implems[implem_name] = [implem_conf_server, implem_conf_client]
-        return protocol_conf
-    
-    def update_ivy(self):
+    def update_ivy_model(self):
         # Note we use subprocess in order to get sudo rights
         os.chdir(SOURCE_DIR + "/pfv-ivy/")
         os.system("sudo python2.7 setup.py install")
         os.system("sudo cp lib/libz3.so submodules/z3/build/python/z3")
         # TODO extract variable for path -> put in module path
-        self.log.info("Update \"include\" path of python with updated version of the TLS project from \n\t"+self.ivy_include_path)
-        files = [os.path.join(self.ivy_include_path, f) for f in os.listdir(self.ivy_include_path) if os.path.isfile(os.path.join(self.ivy_include_path, f)) and f.endswith(".ivy")]
+        self.log.info("Update \"include\" path of python with updated version of the TLS project from \n\t"+IVY_INCLUDE_PATH)
+        files = [os.path.join(IVY_INCLUDE_PATH, f) for f in os.listdir(IVY_INCLUDE_PATH) if os.path.isfile(os.path.join(IVY_INCLUDE_PATH, f)) and f.endswith(".ivy")]
         self.log.info("Copying file to /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/")
         for file in files:
             self.log.info(" " + file)
@@ -186,9 +124,9 @@ class PFV:
         self.log.info("Number of test to compile: " + str(len(test_to_do)))
         self.log.info(test_to_do)
         assert len(test_to_do) > 0
-        self.available_modes = test_to_do.keys()
-        self.log.info(self.available_modes)
-        for mode in self.available_modes:
+        self.available_test_modes = test_to_do.keys()
+        self.log.info(self.available_test_modes)
+        for mode in self.available_test_modes:
             for file in test_to_do[mode]:
                 if mode in file: # TODO more beautiful
                     self.log.info("chdir in " + self.config["global_parameters"]["tests_dir"] + mode+ "s")
@@ -261,7 +199,7 @@ class PFV:
             tracemalloc.start()
             
         if self.config["global_parameters"].getboolean("update_ivy"):
-            self.update_ivy()
+            self.update_ivy_model()
         self.setup_ivy_model()
             
         # Set environement-specific env var

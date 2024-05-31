@@ -8,6 +8,7 @@ import os
 import socket
 
 from pfv_utils.pfv_constant import *
+from pfv_utils.pfv_config import get_experiment_config, restore_config, update_config, update_protocol_config
 from pfv import *
 
 class PFVClient:
@@ -15,64 +16,28 @@ class PFVClient:
     app.debug = True
     thread = None
     
-    def __init__(self,dir_path=None):
-        PFVClient.dir_path         = dir_path
-        PFVClient.ivy_include_path = dir_path + "/pfv-ivy/ivy/include/1.7/"
-                
-        # Setup configuration
-        PFVClient.config = configparser.ConfigParser(allow_no_value=True)
-        PFVClient.config.read('configs/config.ini')
+    def __init__(self,dir_path=None):                
+        pass
 
     #Parse the parameters received in the request and launch the SCDG
     @app.route('/run-exp', methods=['POST'])
-    def run_scdg():
+    def run_experiment():
         #Modify config file with the args provided in web app
         user_data = request.json
         os.chdir(SOURCE_DIR)
-        print(user_data)
-        current_protocol = user_data['protocol']
-        exp_args = user_data['args']
-        net_args = ""
-        for arg in exp_args:
-            if arg in PFVClient.config['global_parameters']:
-                PFVClient.config.set('global_parameters', arg, exp_args[arg])
-            if arg in PFVClient.config['debug_parameters']:
-                PFVClient.config.set('debug_parameters', arg, exp_args[arg])
-            if arg == "net_parameters":
-                net_args = exp_args[arg]
-            if arg in PFVClient.config['shadow_parameters']:
-                PFVClient.config.set('shadow_parameters', arg, exp_args[arg])
-                
-        for arg in PFVClient.config['net_parameters']:
-            print(net_args)
-            print(arg)
-            if arg in net_args:
-                PFVClient.config.set('net_parameters', arg, "true")
-            else:
-                PFVClient.config.set('net_parameters', arg, "false")
+        PFVClient.app.logger.info("Request to start experiment with parameters:")
+        PFVClient.app.logger.info(user_data)
         
-        for arg in PFVClient.config['verified_protocol']:
-            if current_protocol == arg:
-                PFVClient.config.set('verified_protocol', arg, "true")
-            else:
-                PFVClient.config.set('verified_protocol', arg, "false")
-                
-        with open('configs/config.ini', 'w') as configfile:
-            PFVClient.config.write(configfile)
+        current_protocol = user_data['protocol']
+        exp_args         = user_data['args']
+        net_args         = ""
+
+        update_config(exp_args, current_protocol)
             
         current_tests = user_data['tests']
-        prot_args = user_data['prot_args']
-        protocol_conf = configparser.ConfigParser(allow_no_value=True)
-        protocol_conf.read('configs/'+current_protocol+'/'+current_protocol+'_config.ini')
-        for arg in prot_args:
-            if arg in protocol_conf[current_protocol+'_parameters']:
-                protocol_conf.set(current_protocol+'_parameters', arg, prot_args[arg])
-        for test_type in protocol_conf.sections():
-            for test in current_tests:
-                if test_type in test:
-                    protocol_conf.set(test_type, test, "true")
-        with open('configs/'+current_protocol+'/'+current_protocol+'_config.ini', 'w') as configfile:
-            protocol_conf.write(configfile)
+        prot_args     = user_data['prot_args']
+        
+        update_protocol_config(prot_args, current_protocol, current_tests)
 
         tool = PFV()
         try:
