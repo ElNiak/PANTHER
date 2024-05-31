@@ -2,7 +2,7 @@
 
 * Rename gits
 
-## PFV
+## PANTHER
 
 * refactor
 
@@ -19,7 +19,7 @@
     * Add envariable to config file and automatise
 
 
-## PFV webapp
+## PANTHER webapp
 
 * refactor /creator with accordingly -> to allow and adapt multiple protocol
 

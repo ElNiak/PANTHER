@@ -50,10 +50,10 @@ checkout-git:
     # Specific commits are checked out for each submodule to ensure consistency and reproducibility
 	cd src/Protocols-Ivy/submodules/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
     # QUIC implementations
-	cd pfv/pfv_worker/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 
-	cd pfv/pfv_worker/implementations/quic-implementations/quant/; git checkout 9e309c05f79fb6aa3889dcf7df60b550249d2a2a;  git submodule update --init --recursive
-	cd pfv/pfv_worker/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 
-	cd pfv/pfv_worker/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76; 
+	cd panther/panther_worker/app/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 
+	cd panther/panther_worker/app/implementations/quic-implementations/quant/; git checkout 9e309c05f79fb6aa3889dcf7df60b550249d2a2a;  git submodule update --init --recursive
+	cd panther/panther_worker/app/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 
+	cd panther/panther_worker/app/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76; 
 
 ###################################################################################################
 # Side tools building COMMANDS
@@ -92,7 +92,7 @@ build-docker-impem-standalone:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
 	docker build --network=host --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
 	docker build --network=host --rm -t ivy -f src/containers/Dockerfile.ivy_webapp .
-	docker build --network=host --rm -t ivy-webapp -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy .
+	docker build --network=host --rm -t panther-webapp -f src/containers/Dockerfile.ivy_2 --build-arg image=ivy .
 
 # Build Docker images for protocol testing with Shadow
 # TODO use docker-compose build command
@@ -152,16 +152,16 @@ compose:
 	xhost +
 	docker compose up -d
     # Update host settings for network testing
-	cd src/pfv/scripts/hosts/; bash update_etc_hosts.sh
+	cd src/panther/scripts/hosts/; bash update_etc_hosts.sh
 
 # Start a Docker container for interactive Bash access
 # Example: IMPLEM="picoquic" make start-bash
 start-bash:
     # Run a Docker container with increased memory limits and volume mounts
 	docker run --privileged --cpus="$(NPROC).0" --memory="10g" --memory-reservation="9.5g" \
-               -v $(PWD)/tls-keys:/PFV/tls-keys \
-               -v $(PWD)/tickets:/PFV/tickets \
-               -v $(PWD)/qlogs:/PFV/qlogs \
-               -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
-               -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
+               -v $(PWD)/tls-keys:/PANTHER/tls-keys \
+               -v $(PWD)/tickets:/PANTHER/tickets \
+               -v $(PWD)/qlogs:/PANTHER/qlogs \
+               -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PANTHER/Protocols-Ivy/doc/examples/quic \
+               -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PANTHER/Protocols-Ivy/ivy/include/1.7 \
                -it $(IMPLEM)-ivy bash

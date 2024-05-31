@@ -42,16 +42,16 @@ compose:
 	xhost +
 	docker compose up -d
     # Update host settings for network testing
-	cd src/pfv/scripts/hosts/; bash update_etc_hosts.sh
+	cd src/panther/scripts/hosts/; bash update_etc_hosts.sh
 
 # Start a Docker container for interactive Bash access
 # Example: IMPLEM="picoquic" make start-bash
 start-bash:
     # Run a Docker container with increased memory limits and volume mounts
 	docker run --privileged --cpus="$(NPROC).0" --memory="10g" --memory-reservation="9.5g" \
-               -v $(PWD)/tls-keys:/PFV/tls-keys \
-               -v $(PWD)/tickets:/PFV/tickets \
-               -v $(PWD)/qlogs:/PFV/qlogs \
-               -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic \
-               -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7 \
+               -v $(PWD)/tls-keys:/PANTHER/tls-keys \
+               -v $(PWD)/tickets:/PANTHER/tickets \
+               -v $(PWD)/qlogs:/PANTHER/qlogs \
+               -v $(PWD)/src/Protocols-Ivy/doc/examples/quic:/PANTHER/Protocols-Ivy/doc/examples/quic \
+               -v $(PWD)/src/Protocols-Ivy/ivy/include/1.7:/PANTHER/Protocols-Ivy/ivy/include/1.7 \
                -it $(IMPLEM)-ivy bash

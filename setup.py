@@ -14,9 +14,9 @@ except:
 
 # TODO test if good
 
-setup(name='pfv',
+setup(name='panther',
       version='0.1',
-      description='pfv',
+      description='panther',
       long_description=long_description,
       #url='https://github.com/csvl/SEMA-ToolChain/tree/production',
       author='ElNiak from UCLouvain',
