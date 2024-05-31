@@ -6,6 +6,12 @@ setup(
     version='1.0',
     packages=find_packages(),
     install_requires=[
+        'flask', # malwexp
+        "flask_session",
+        "django",
+        "requests",
+        "Flask-Cors==3.0.10",
+        "npf-web-extension",
         'pexpect',
         'chardet',
         'gperf',

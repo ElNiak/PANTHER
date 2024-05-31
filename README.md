@@ -239,7 +239,7 @@ Refer to the in-app documentation for detailed instructions or contact support f
     * Protocol related configurations:
         * `src/pfv/configs/<new_protocol>/[default_]<new_protocol>_config.ini`
         * `src/pfv/configs/<new_protocol>/default_<new_protocol>_implem.ini`
-2. Create a folder in `pfv/pfv_worker/implementations/<new_protocol>-implementations/` for the new protocol implementation
+2. Create a folder in `pfv/pfv_worker/app/implementations/<new_protocol>-implementations/` for the new protocol implementation
 3. Add in `src/pfv/pfv.py` and in `src/pfv/pfv_runner/pfv_<new_protocol>_runner.py` the new protocol implementation Runner.
 4. Add in `src/pfv/pfv_tester/pfv_<new_protocol>_tester.py` the new protocol implementation Tester.
 5. Add in `src/pfv/pfv_stats/pfv_<new_protocol>_stats.py` the new protocol implementation stats collector.
@@ -255,7 +255,7 @@ Refer to the in-app documentation for detailed instructions or contact support f
 ```dockerfile
 ARG image
 FROM $image:latest
-ADD pfv/pfv_worker/implementations/<protocol>-implementations/<implem> /PFV/implementations/<protocol>-implementations/<implem>
+ADD pfv/pfv_worker/app/implementations/<protocol>-implementations/<implem> /PFV/implementations/<protocol>-implementations/<implem>
 WORKDIR /PFV/implementations/<protocol>-implementations/<implem>/
 
 ### Install dependencies
