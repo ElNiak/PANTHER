@@ -1,5 +1,73 @@
-# :skull_and_crossbones: PFV (Protocols Formal Verification) :skull_and_crossbones:
+# :tiger: PANTHER - Protocol formal Analysis and formal Network Threat Evaluation Resource :tiger:
 
+``` 
+@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@: .~JG#&@@@@@@@@@@@@@@@@@@@@@@@@@@&BJ~. .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@G   .::: :?5G57~:.........:^!YG5J^.:^:.   5@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@G :.  :~                           ^:  .: Y@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@& .:  ^    .                   .    ^  :. #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@7   .:  .     .^.        ~:     .  ..   ~@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@7      ~~^.  ^7^::~ ~::^7^  .^~~.     !&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@7     :!~??~. :?!: .!?^ .~??~~^     :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@J       .Y5~7J7..^   ^..7J?^YY.       ^&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@^   .   . !P7!^. .~. .^.  ~7!5~ .   :  ..B@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@:.  :~   !^  .:^^  .^.^.  ^^:.  ^J.  ^^  :.#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@P.^  ?^    ..:: :^.       .^^ .:.:.   .J  :~!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@Y^^  5!    :??.  7!!?7!7J7!?.  ??^    ^5. :!!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@#.!  Y5.   :J:^:  ..~P75!..  :^:?^   .YY  ~:G@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@?:. .YY7^. ~^^^^    ...    :^^^!  .!5Y: .: P@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@...  J557 .7:.     .:..    .:7. !5Y~  .^  .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@5  ^7.~55.... ^B5:!?YY57!^J#! ....5. .77 .. Y@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@P :~ .7Y55.  . !@&:!!^.^!!:#@? .  ~Y7JJ^  :Y. #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@J .YJ   .^7:    .^G?5YJ^?J5?G~.    ~~^.     ^5!.?@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@! :Y!             .~~!YYJYY7~~.         .     J5Y.^@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@7 ^5~  :~         .JG!^~:.:~~~GY.         7!:^?5555 .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@5  Y5  .P~        .5!!: ^~:~^ .!~Y.         ~J555555^ ~@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@   Y5!:?57         ?^  .::.::.  :J.            .:!55^  B@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@G   .?5555~          :!^.      .~:        J:       :5^  7@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@Y    .555^      ..     .^~~~~^:.          :~~:.     ~7  !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@#      !P7     .!J^                            :?^    :. .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@.       ~?    .Y^                         ....  :^        !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@P     .   ..   ::                      ^~::....::^^.        .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@~     ~J        !                  .:::^.           ^^.       .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@&.      ~57.     !7        .....::::::.           .:             ?@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@.         .^~^   :.     .!?#^ .:...                              .@@@@@@@@@@@@@@@@@@@@@@@@@@#J7P@
+@@!             :J:        :~G^ .?#~   .:..         :...             @@@@@@@@@@@@@@@@@@@@&G5J~.    P
+@&               :5.        .. .7#!  .^^~   .:.    ^^                @@@@@@@@@@@@@@@@#7.           G
+@Y              .757            !    .?&#..:.    .~     ..           &@@@@@@@@@@@@@#:            .P@
+@J              ....!J?^             ^G:  ~GG  .::      .:^:.        &@@@@@@@@@@@@5         .^75#@@@
+@@:..                :~?!::.         .    PJ^..            ...      Y@@@@@@@@@@@@&        :#@@@@@@@@
+@@@^ .                :   ~~...          ..                      JG#@@@@@@@@@@@@@#        &@@@@@@@@@
+@@@@?.                ..:.5&G.:                                  G@@@@@@@@@@@@@@@@:       &@@@@@@@@@
+@@@@@&5~.         ::  .  :.:J?.                                 ^ .~P&@@@@@@@@@@@@&       7@@@@@@@@@
+@@@@@@@@@&^       .  .~.                                        ^   .~J#@@@@@@@@@@@B    .  ?@@@@@@@@
+@@@@@@@@@@B        : ^G#B! .                    5&.             ^     :^7&@@@@@@@@@@J   :.  P@@@@@@@
+@@@@@@@@@@@Y   .^   :.  .7PP&B!                 @@J^.          ^        ::B@@@@@@@@@&   .   :@@@@@@@
+@@@@@@@@@@@@&. :^  .    :&@@@@@P.               ^&P.~         ~~GY^.     ..P@@@@@@@@J    !. .@@@@@@@
+@@@@@@@@@@@@@7     G&B! J@@@@@@@@?                : .^:.     ~~B@@@5.     . :JGBBBY:    ^P: J@@@@@@@
+@@@@@@@@@@@@@P.  ~7: :5G5G@@@@@@@@@Y            .:    ~..    .:5@@@@&~    ..           .Y? ~@@@@@@@@
+@@@@@@@@@@@@@@&? .YB?^G@@@@@@@@@@@@@&?           :    7        .@@@@@@G:   .^:.      .~J!.5@@@@@@@@@
+@@@@@@@@@@@@@@@@&P7^?G5@@@@@@@@@@@@@@@&Y~:::~: .::    !         P@@@@@@@B~    :^^^^~!!~~5@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&5!:   .!         .&@@@@@@@@@#57~^^^~~7Y#@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#!  ~    .  .   !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&7..        :! #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@!!:.  .: :^~ &@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&?.^?7~7YJ. !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&. .^. ::  .7&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@# :.        :#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@P 7.    ..!~ ?@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@J.~         5@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#!   ..:^~G@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&BPYYG&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+                                            Made with ❤️ 
+                                For the Community, By the Community   
+
+                                ###################################
+                    
+                                        Made by ElNiak
+                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+                                Github - https://github.com/elniak
+```
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10819552.svg)](https://doi.org/10.5281/zenodo.10819552)
 
@@ -7,20 +75,35 @@
 
 ## :rocket: Overview
 
-PFV harnesses cutting-edge techniques in network protocol verification, merging the capabilities of the Shadow network simulator with the Ivy formal verification tool. This powerful combination facilitates the examination of time properties in network protocols. A specialized time module enhances Ivy, enabling it to handle complex quantitative-time properties with greater precision. PFV's effectiveness is highlighted through its application to the QUIC protocol. By refining QUIC's formal specification in Ivy, the tool not only verifies essential aspects of the protocol but also exposes real-world implementation errors, demonstrating its practical utility. This innovative integration paves the way for more thorough, efficient, and precise protocol testing and verification.
+PANTHER combines advanced techniques in network protocol verification, integrating the Shadow network simulator with the Ivy formal verification tool. This powerful synergy allows for the detailed examination of time properties in network protocols. A specialized time module enhances Ivy's capabilities, enabling it to handle complex quantitative-time properties with greater precision.
+
+PANTHER's effectiveness is demonstrated through its application to the QUIC protocol. By refining QUIC's formal specification in Ivy, PANTHER not only verifies essential aspects of the protocol but also identifies real-world implementation errors, showcasing its practical utility. This innovative integration paves the way for more thorough, efficient, and precise protocol testing and verification.
 
 ### :heavy_plus_sign: Multi-Protocol Support
 
-PFV supports multiple protocols. Add new protocol specifications in the `protocols` directory, following the existing structure.
-For now the following protocols are supported:
+PANTHER supports multiple protocols. To add new protocol specifications, place them in the `protocols` directory following the existing structure. Currently supported protocols include:
 - [X] QUIC
 - [X] MiniP
 - [ ] BGP
 - [ ] CoAP
 
+### :heavy_plus_sign: Multi-Implementation Support
+
+PANTHER supports multiple implementations. To add new implementations, place them in the `implementations` directory following the existing structure.
+
+### :heavy_plus_sign: Advanced Persistent Threat Simulation
+
+PANTHER can simulate advanced persistent threats (APTs) in network protocols. By leveraging the Shadow network simulator, PANTHER models and analyzes the behavior of APTs in a controlled environment, providing valuable insights into potential vulnerabilities and attack vectors. Supported simulations include:
+- [X] QUIC
+- [X] MiniP
+
+
+
 ---
 
 ## :wrench: Installation 
+
+Note, before implementation were added as submodule. Now we only consider Docker containers installation. (To be updated)
 
 <details>
 <summary>Click to expand</summary>
@@ -138,7 +221,7 @@ make clean-docker-full
 ```bash
 # Start a Docker container for interactive Bash access
 IMPLEM="picoquic" make start-bash
-python3 pfv.py --mode client --categories all --update_include_tls \
+python3 panther.py --mode client --categories all --update_include_tls \
 		--timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29  
 # Example: Runs a Docker container with 'picoquic' for interactive Bash access
 ```
@@ -176,7 +259,7 @@ First go to: `http://172.27.1.10/index.html`
 
 1. **Choose Protocol**: Start by selecting the protocol (QUIC, MINIP, BGP) you want to test.
 
-![Choose Protocol](res/2.png)
+![Choose Protocol](readme-res/2.png)
 
 2. **Set Network Type**: Opt for localhost, vnet, or shadow based on your network testing environment.
 
@@ -184,25 +267,25 @@ First go to: `http://172.27.1.10/index.html`
 
 4. **Debugging Options**: Toggle performance and memory profiling tools like gperf, gdb, and memprof as needed.
 
-![Set Global parameters](res/1.png)
+![Set Global parameters](readme-res/1.png)
 
 5. **Adjust Test Settings**: Customize Shadow parameters such as loss, jitter, and latency for simulation accuracy.
 
-![Adjust Test Settings](res/3.png)
+![Adjust Test Settings](readme-res/3.png)
 
 6. **Protocol custom configuration**: Set the number of requests, initial version, number of clients, and ALPN for, e.g QUIC tests.
 
-![QUIC Verification](res/4.png)
+![QUIC Verification](readme-res/4.png)
 
 7. **Select Tests**: Choose from server, client, and MIM tests to target specific aspects of the QUIC protocol.
 
-![Select Tests](res/5.png)
+![Select Tests](readme-res/5.png)
 
 8. **Implementation Testing**: Pick the QUIC implementation you want to test from the available options.
 
 9. **Start Experiments**: Hit 'Start Experiments' to begin the testing process with your configured settings.
 
-![Implementation Testing](res/6.png)
+![Implementation Testing](readme-res/6.png)
 
 **Running the Tests**:
 
@@ -218,18 +301,18 @@ Refer to the in-app documentation for detailed instructions or contact support f
 <details>
 <summary>Click to expand</summary>
 
-1. Add the corresponding configuration files in `src/pfv/configs/<new_protocol>/`:
+1. Add the corresponding configuration files in `src/panther/configs/<new_protocol>/`:
     * Host related configurations:
-        * `src/pfv/configs/<new_protocol>/implem-server/`: configuration files for the server implementation
-        * `src/pfv/configs/<new_protocol>/implem-client/`: configuration files for the client implementation
-        * (`src/pfv/configs/<new_protocol>/implem-<host_type>/`: configuration files for the <host_type> implementation)
+        * `src/panther/configs/<new_protocol>/implem-server/`: configuration files for the server implementation
+        * `src/panther/configs/<new_protocol>/implem-client/`: configuration files for the client implementation
+        * (`src/panther/configs/<new_protocol>/implem-<host_type>/`: configuration files for the <host_type> implementation)
     * Protocol related configurations:
-        * `src/pfv/configs/<new_protocol>/[default_]<new_protocol>_config.ini`
-        * `src/pfv/configs/<new_protocol>/default_<new_protocol>_implem.ini`
-2. Create a folder in `src/implementations/<new_protocol>-implementations/` for the new protocol implementation
-3. Add in `src/pfv/pfv.py` and in `src/pfv/pfv_runner/pfv_<new_protocol>_runner.py` the new protocol implementation Runner.
-4. Add in `src/pfv/pfv_tester/pfv_<new_protocol>_tester.py` the new protocol implementation Tester.
-5. Add in `src/pfv/pfv_stats/pfv_<new_protocol>_stats.py` the new protocol implementation stats collector.
+        * `src/panther/configs/<new_protocol>/[default_]<new_protocol>_config.ini`
+        * `src/panther/configs/<new_protocol>/default_<new_protocol>_implem.ini`
+2. Create a folder in `panther/panther_worker/app/implementations/<new_protocol>-implementations/` for the new protocol implementation
+3. Add in `src/panther/panther.py` and in `src/panther/panther_runner/panther_<new_protocol>_runner.py` the new protocol implementation Runner.
+4. Add in `src/panther/panther_tester/panther_<new_protocol>_tester.py` the new protocol implementation Tester.
+5. Add in `src/panther/panther_stats/panther_<new_protocol>_stats.py` the new protocol implementation stats collector.
 
 </details>
 
@@ -242,15 +325,15 @@ Refer to the in-app documentation for detailed instructions or contact support f
 ```dockerfile
 ARG image
 FROM $image:latest
-ADD src/implementations/<protocol>-implementations/<implem> /PFV/implementations/<protocol>-implementations/<implem>
-WORKDIR /PFV/implementations/<protocol>-implementations/<implem>/
+ADD panther/panther_worker/app/implementations/<protocol>-implementations/<implem> /PANTHER/implementations/<protocol>-implementations/<implem>
+WORKDIR /PANTHER/implementations/<protocol>-implementations/<implem>/
 
 ### Install dependencies
 
-WORKDIR /PFV
+WORKDIR /PANTHER
 ```
 
-2. Add the corresponding configuration file in `src/pfv/configs/<protocol>/.../<implem>.ini`
+2. Add the corresponding configuration file in `src/panther/configs/<protocol>/.../<implem>.ini`
 3. Build the docker image with `IMPLEM=<implem> make build-docker`
     * Also update the Makefile to add the new implementation (commit, building, etc)
 4. Add the new implementation in `docker-compose.yml` file such as:
@@ -259,32 +342,32 @@ WORKDIR /PFV
     hostname: <implem>-ivy
     container_name: <implem>-ivy
     image: "<implem>-ivy:latest"
-    command: python3 pfv.py --update_ivy --getstats --worker --compile  --docker
+    command: python3 panther.py --update_ivy --getstats --worker --compile  --docker
     ports:
       - "<new_pôrt>:80"
     volumes:
-      - ${PWD}/src/webapp/pfv_client.py:/PFV/webapp/pfv_client.py
-      - ${PWD}/src/pfv/pfv.py:/PFV/pfv.py
-      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/topo.gml
-      - ${PWD}/src/pfv/res/shadow/shadow_client_test.yml:/PFV/shadow_client_test.yml
-      - ${PWD}/src/pfv/res/shadow/shadow_server_test.yml:/PFV/shadow_server_test.yml
-      - ${PWD}/src/pfv/res/shadow/shadow_client_test_template.yml:/PFV/shadow_client_test_template.yml
-      - ${PWD}/src/pfv/res/shadow/shadow_server_test_template.yml:/PFV/shadow_server_test_template.yml
-      - ${PWD}/data/tls-keys:/PFV/tls-keys
-      - ${PWD}/data/tickets:/PFV/tickets
-      - ${PWD}/data/qlogs:/PFV/qlogs
-      - ${PWD}/src/pfv/pfv_utils/:/PFV/pfv_utils/
-      - ${PWD}/src/pfv/pfv_stats/:/PFV/pfv_stats/
-      - ${PWD}/src/pfv/pfv_runner/:/PFV/pfv_runner/
-      - ${PWD}/src/pfv/pfv_tester/:/PFV/pfv_tester/
-      - ${PWD}/src/pfv/ivy_utils/:/PFV/ivy_utils/
-      - ${PWD}/src/pfv/logger/:/PFV/logger/
-      - ${PWD}/src/pfv/argument_parser/:/PFV/argument_parser/
-      - ${PWD}/src/pfv/configs/:/PFV/configs/
-      - ${PWD}/src/Protocols-Ivy/protocol-testing/:/PFV/Protocols-Ivy/protocol-testing/
-      - ${PWD}/src/Protocols-Ivy/doc/examples/quic:/PFV/Protocols-Ivy/doc/examples/quic
-      - ${PWD}/src/Protocols-Ivy/ivy/:/PFV/Protocols-Ivy/ivy/
-      - ${PWD}/src/Protocols-Ivy/ivy/include/1.7:/PFV/Protocols-Ivy/ivy/include/1.7
+      - ${PWD}/src/webapp/panther_client.py:/PANTHER/webapp/panther_client.py
+      - ${PWD}/src/panther/panther.py:/PANTHER/panther.py
+      - ${PWD}/src/panther/res/shadow/shadow_client_test.yml:/PANTHER/topo.gml
+      - ${PWD}/src/panther/res/shadow/shadow_client_test.yml:/PANTHER/shadow_client_test.yml
+      - ${PWD}/src/panther/res/shadow/shadow_server_test.yml:/PANTHER/shadow_server_test.yml
+      - ${PWD}/src/panther/res/shadow/shadow_client_test_template.yml:/PANTHER/shadow_client_test_template.yml
+      - ${PWD}/src/panther/res/shadow/shadow_server_test_template.yml:/PANTHER/shadow_server_test_template.yml
+      - ${PWD}/data/tls-keys:/PANTHER/tls-keys
+      - ${PWD}/data/tickets:/PANTHER/tickets
+      - ${PWD}/data/qlogs:/PANTHER/qlogs
+      - ${PWD}/src/panther/panther_utils/:/PANTHER/panther_utils/
+      - ${PWD}/src/panther/panther_stats/:/PANTHER/panther_stats/
+      - ${PWD}/src/panther/panther_runner/:/PANTHER/panther_runner/
+      - ${PWD}/src/panther/panther_tester/:/PANTHER/panther_tester/
+      - ${PWD}/src/panther/ivy_utils/:/PANTHER/ivy_utils/
+      - ${PWD}/src/panther/logger/:/PANTHER/logger/
+      - ${PWD}/src/panther/argument_parser/:/PANTHER/argument_parser/
+      - ${PWD}/src/panther/configs/:/PANTHER/configs/
+      - ${PWD}/src/Protocols-Ivy/protocol-testing/:/PANTHER/Protocols-Ivy/protocol-testing/
+      - ${PWD}/src/Protocols-Ivy/doc/examples/quic:/PANTHER/Protocols-Ivy/doc/examples/quic
+      - ${PWD}/src/Protocols-Ivy/ivy/:/PANTHER/Protocols-Ivy/ivy/
+      - ${PWD}/src/Protocols-Ivy/ivy/include/1.7:/PANTHER/Protocols-Ivy/ivy/include/1.7
       - /tmp/.X11-unix:/tmp/.X11-unix
     networks:
       net:
@@ -383,10 +466,10 @@ TODO
 <details>
 <summary>Click to expand</summary>
 
-The PFV project is organized into the following key directories:
+The PANTHER project is organized into the following key directories:
 
 ```
-PFV/
+PANTHER/
 └── data/
 └── src/
     ├── Protocols-Ivy/
@@ -405,16 +488,16 @@ PFV/
     │   └── [other protocols]
     ├── containers/
     │   └── [Dockerfile definitions]
-    └── pfv/
-        ├── pfv.py
-        ├── pfv_runner/ [test preparation]
+    └── panther/
+        ├── panther.py
+        ├── panther_runner/ [test preparation]
         ├── ...
-        ├── pfv_tester/ [test execution]
+        ├── panther_tester/ [test execution]
         └── configs/
             └── [configuration files]
 ```
 - `data/`: Data directory for storing results and logs.
-- `pfv/`: Main PFV module.
+- `panther/`: Main PANTHER module.
 - `Protocols-Ivy/`: Core of protocol specifications and testing.
 - `implementations/`: Various QUIC implementation modules.
 - `containers/`: Dockerfile definitions for different environments.
@@ -429,7 +512,7 @@ PFV/
 
 | Docker Compose Architecture | Docker Container Internal Architecture |
 |:---------------------------:|:--------------------------------------:|
-| ![Docker Compose Architecture](res/DALL·E%202024-01-05%2006.59.32%20-%20A%20diagram%20illustrating%20the%20architecture%20of%20a%20Docker%20Compose%20setup%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20It%20shows%20various%20Docker%20contain.png) | ![Docker Container Internal Architecture](res/DALL·E%202024-01-05%2007.00.02%20-%20An%20internal%20architecture%20diagram%20of%20a%20Docker%20container%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20The%20diagram%20should%20show%20the%20layering%20of%20co.png) |
+| ![Docker Compose Architecture](readme-res/DALL·E%202024-01-05%2006.59.32%20-%20A%20diagram%20illustrating%20the%20architecture%20of%20a%20Docker%20Compose%20setup%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20It%20shows%20various%20Docker%20contain.png) | ![Docker Container Internal Architecture](readme-res/DALL·E%202024-01-05%2007.00.02%20-%20An%20internal%20architecture%20diagram%20of%20a%20Docker%20container%20for%20the%20PFV%20(Protocols%20Formal%20Verification)%20project.%20The%20diagram%20should%20show%20the%20layering%20of%20co.png) |
 
 </details>
 
