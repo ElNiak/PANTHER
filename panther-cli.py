@@ -12,8 +12,16 @@ import click
 import json
 import time
 import yaml
+from datetime import datetime
 
-logging.basicConfig(level=logging.DEBUG)
+log_file = f"logs/panther_docker_{datetime.now()}.log"
+logging.basicConfig(handlers=[
+                        logging.FileHandler(log_file),
+                        logging.StreamHandler()
+                    ],
+                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                    datefmt='%H:%M:%S',
+                    level=logging.INFO)
 
 
 def log_docker_output(generator, task_name: str = "docker command execution") -> None:
@@ -27,14 +35,14 @@ def log_docker_output(generator, task_name: str = "docker command execution") ->
             output = generator.__next__()
             if "stream" in output:
                 output_str = output["stream"].strip("\r\n").strip("\n")
-                click.echo(output_str)
+                logging.info(f"{task_name}: {output_str}")
             elif "error" in output:
                 raise ValueError(f'Error from {task_name}: {output["error"]}')
         except StopIteration:
-            click.echo(f"{task_name} complete.")
+            logging.info(f"{task_name} complete.")
             break
         except ValueError:
-            click.echo(f"Error parsing output from {task_name}: {output}")
+            logging.error(f"Error parsing output from {task_name}: {output}")
 
 
 def container_exists(client, container_name):
@@ -85,11 +93,17 @@ def load_config(config_path):
     return config
 
 
-def execute_command(command):
+def execute_command(command, tmux=None):
     logging.debug(f"Executing command: {command}")
-    result = subprocess.run(command, shell=True)
-    if result.returncode != 0:
-        raise subprocess.CalledProcessError(result.returncode, command)
+    
+    if tmux:
+        logging.info(f"Executing command in tmux with log file:  \"{command}\"")
+        session_name = subprocess.check_output(['tmux', 'display-message', '-p', '#S']).strip().decode('utf-8')
+        os.system(f"tmux split-window -h; tmux send-keys -t  {session_name}:0.1 \"{command}\" C-m;")
+    else:
+        result = subprocess.run(command, shell=True)
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(result.returncode, command)
 
 
 def get_current_branch():
@@ -164,6 +178,9 @@ def start_tool(config):
                 append_to_hosts_file(entry)
         else:
             print(f"Container '{container_name}' does not exist.")
+    
+    compose_log = f"\'logs/compose_{datetime.now()}.log\'"
+    execute_command(f"docker compose -f {yaml_path} logs -f | tee {compose_log}", tmux=compose_log)
 
 
 def monitor_docker_usage(container_name, interval=1.0, duration=10.0):
@@ -215,7 +232,7 @@ def monitor_docker_usage(container_name, interval=1.0, duration=10.0):
             )
 
             logging.info(
-                f"Name {container_name} - Time: {time.time() - start_time:.2f}s, CPU Usage: {cpu_usage:.2f}%, Memory Usage: {memory_usage:.2f}MB ({memory_percentage:.2f}%)"
+                f"Name {container_name}\n\t - Time: {time.time() - start_time:.2f}s\n\t - CPU Usage: {cpu_usage:.2f}%\n\t - Memory Usage: {memory_usage:.2f}MB ({memory_percentage:.2f}%)"
             )
         except docker.errors.APIError as e:
             logging.error(f"An error occurred: {e}")
@@ -255,6 +272,8 @@ def update_docker_compose(config, yaml_path="panther/docker-compose.yml"):
                     "volumes": [
                         "/tmp/.X11-unix:/tmp/.X11-unix",
                         "${PWD}/panther/panther_worker/app/:/app/",
+                        "/app/panther-ivy/",
+                        "/app/implementations/",
                         "${PWD}/panther/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
                         "${PWD}/panther/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
                         "${PWD}/panther/outputs/tls-keys:/app/tls-keys",
@@ -265,6 +284,8 @@ def update_docker_compose(config, yaml_path="panther/docker-compose.yml"):
                     "privileged": True,
                     "tty": True,
                     "stdin_open": True,
+                    # Spectre/Meltdown mitigation ~30% performance hit
+                    "security_opt" : ["seccomp:unconfined"],
                     "environment": [
                         "DISPLAY=${DISPLAY}",
                         "XAUTHORITY=~/.Xauthority",
@@ -274,6 +295,19 @@ def update_docker_compose(config, yaml_path="panther/docker-compose.yml"):
                         "LINES=100",
                     ],
                     "restart": "always",
+                    "deploy": {
+                        "resources": {
+                            "limits": {
+                                    # TODO adapt if shadow/apt or not -> victim should have low memory
+                                    "cpus": "4.00", 
+                                    "memory": "2048M" 
+                                },
+                            "reservations": {
+                                "cpus": "2.00", 
+                                "memory": "256M"
+                                },
+                        },
+                    },
                     "depends_on": ["panther-webapp"],
                 }
 
@@ -307,6 +341,7 @@ def install_tool(config, branch=None):
             execute_command(f"git checkout {branch}")
         current_branch = get_current_branch()
         execute_command("git submodule update --init --recursive")
+        # TODO cd not working -> chdir
         execute_command(
             f"cd panther/panther_worker/panther-ivy/; git fetch; git checkout {current_branch}; git pull"
         )
@@ -317,7 +352,6 @@ def install_tool(config, branch=None):
         #     "cd panther/panther_worker/app/implementations/quic-implementations/picotls-implem;" + \  
         #     "git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76;" + \
         #     "git submodule update --init --recursive" + \
-            
         # )
 
     if config["modules"].getboolean("build_webapp"):
@@ -364,6 +398,8 @@ def build_ivy_webapp():
 
 
 def build_implem(implem, config):
+    stop_tool()
+    execute_command("git clean -f -d panther/panther_worker/panther-ivy;")
     client = docker.from_env()
     implem_build_commands = {
         # BGP Implementations
@@ -461,10 +497,10 @@ def build_implem(implem, config):
         dockerfile="Dockerfile.ivy_1",
         tag="ivy",
         rm=True,
+        buildargs={"CACHEBUST": str(time.time())},
         network_mode="host",
     )
     log_docker_output(log_generator, "Building Docker image ivy")
-
     # Check if shadow build is needed
     shadow_tag = None
     final_tag = f"{tag}-ivy"
@@ -534,7 +570,12 @@ def build_docker_visualizer():
         tag="ivy-visualizer",
         network_mode="host",
     )
-
+    
+def stop_tool():
+    client = docker.from_env()
+    docker_containers = client.containers.list(all=True)
+    for dc in docker_containers:
+        dc.stop()
 
 def get_nproc():
     """Get the number of processors available."""
@@ -592,7 +633,18 @@ import terminal_banner
 import sys
 import os
 
+
 os.system("clear")
+
+def is_tmux_session():
+    """Check if running inside a tmux session."""
+    return 'TMUX' in subprocess.run(['env'], capture_output=True, text=True).stdout
+
+if not is_tmux_session():
+        print("Not running inside a tmux session.")
+        print("Please start a tmux session first using `tmux` command and then run this script again.")
+        exit(0)
+        
 banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@: .~JG#&@@@@@@@@@@@@@@@@@@@@@@@@@@&BJ~. .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -683,6 +735,7 @@ if __name__ == "__main__":
             "run_tools",
             "run_workers",
             "run_webapp",
+            "update_docker_compose"
         ],
         help="Command to execute",
     )
@@ -692,6 +745,8 @@ if __name__ == "__main__":
 
     if args.implem:
         build_implem(args.implem, config)
+    elif args.command == "update_docker_compose":
+        update_docker_compose(config)
     elif args.command == "run_tools":
         start_tool(config)
     elif args.command == "run_workers":

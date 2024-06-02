@@ -1,4 +1,4 @@
-# :tiger: PANTHER - Protocol and Network system Threat formal Evaluation and Review :tiger:
+# :tiger: PANTHER - Protocol formal Analysis and formal Network Threat Evaluation Resource :tiger:
 
 ``` 
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

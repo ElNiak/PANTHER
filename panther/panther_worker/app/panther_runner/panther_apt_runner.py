@@ -17,19 +17,19 @@ class APTRunner(Runner):
         if self.config["global_parameters"].getboolean("getstats"):
             self.log.info("Getting experiences stats:")
             import panther_stats.panther_minip_stats as stats
-            with open(os.path.join(self.config["global_parameters"]["dir"]+str(run_id),test.name+str(i)+'.dat'),"w") as out:
+            with open(os.path.join(os.path.join(self.config["global_parameters"]["dir"],str(run_id)),test.name+str(i)+'.dat'),"w") as out:
                 save = os.getcwd()
-                os.chdir(self.config["global_parameters"]["dir"]+str(run_id))
+                os.chdir(os.path.join(self.config["global_parameters"]["dir"],str(run_id)))
                 stats.make_dat(test.name,out)
                 os.chdir(save)
-            filename = os.path.join(self.config["global_parameters"]["dir"]+str(run_id),test.name+str(i)+'.iev')
+            filename = os.path.join(os.path.join(self.config["global_parameters"]["dir"],str(run_id)),test.name+str(i)+'.iev')
             with open(filename,"r") as out:
                 stats.update_csv(run_id,
                                 implem, 
                                 test.mode, 
                                 test.name,
                                 pcap_name,
-                                os.path.join(self.config["global_parameters"]["dir"]+str(run_id), 
+                                os.path.join(os.path.join(self.config["global_parameters"]["dir"],str(run_id)), 
                                 test.name+str(i)+'.iev'),
                                 out,
                                 self.protocol_conf['minip_parameters'].getint("initial_version"))
@@ -46,7 +46,7 @@ class APTRunner(Runner):
             for mode in self.executed_tests.keys():
                 for test in self.executed_tests[mode]:
                     all_tests.append(
-                        MiniPIvyTest([test,"test_completed"],
+                        APTIvyTest([test,"test_completed"],
                                 implem_dir_server, 
                                 implem_dir_client,
                                 self.extra_args,
@@ -88,10 +88,10 @@ class APTRunner(Runner):
                         self.log.info("Iteration: "+str(i+1) +"/" + str(self.config["global_parameters"].getint("iter")))
                         
                         if self.config["net_parameters"].getboolean("vnet"):
-                            subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_setup.sh", 
+                            subprocess.Popen("bash /app/scripts/vnet/vnet_setup.sh", 
                                                                         shell=True, executable="/bin/bash").wait() 
                         else: # TODO check if still works here, was not there before (check old project commit if needed)
-                            subprocess.Popen("bash "+ SOURCE_DIR + "/vnet_reset.sh", 
+                            subprocess.Popen("bash /app/scripts/vnet/vnet_reset.sh", 
                                                                     shell=True, executable="/bin/bash").wait()
                          
                          
@@ -151,7 +151,7 @@ class APTRunner(Runner):
                             
                             self.current_executed_test_count += 1
                             self.bar_total_test.update(self.current_executed_test_count)
-                            subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh", 
+                            subprocess.Popen("bash  /app/scripts/mim/mim-reset.sh", 
                                                     shell=True, executable="/bin/bash").wait()
                             self.log.info(status)
                             if not status:
@@ -163,13 +163,7 @@ class APTRunner(Runner):
             
             # TODO check if need
             # self.remove_includes()
-            # TODO check
-            # subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tls-keys/ " + self.config["global_parameters"]["dir"], 
-            #                     shell=True, executable="/bin/bash").wait()
-            # subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/tickets/ " + self.config["global_parameters"]["dir"], 
-            #                     shell=True, executable="/bin/bash").wait()
-            # subprocess.Popen("sudo /bin/cp -r "+ SOURCE_DIR +"/qlogs/ " + self.config["global_parameters"]["dir"], 
-            #                     shell=True, executable="/bin/bash").wait()
+
             self.bar_total_test.finish()
             self.current_executed_test_count = None
             if num_failures:

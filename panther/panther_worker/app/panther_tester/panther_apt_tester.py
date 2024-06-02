@@ -10,6 +10,7 @@ from datetime import datetime
 import platform
 from time import sleep
 import re
+import resource
 
 from panther_tester.panther_tester import IvyTest
 from panther_utils.panther_constant import *
@@ -57,6 +58,11 @@ class APTIvyTest(IvyTest):
 
     def update_implementation_command(self, i):
         return i
+    
+    def set_process_limits(self):
+        # Create a new session
+        os.setsid()
+        resource.setrlimit(resource.RLIMIT_AS, (200 * 1024 * 1024, 200 * 1024 * 1024))
 
     def generate_shadow_config(self):
         server_implem_args = (
@@ -236,7 +242,7 @@ class APTIvyTest(IvyTest):
                     stdout=out,
                     stderr=err,
                     shell=True,  # self.is_client,
-                    preexec_fn=os.setsid,
+                    preexec_fn=self.set_process_limits,
                 )
                 self.log.info("implem_process pid: {}".format(self.implem_process.pid))
             else:

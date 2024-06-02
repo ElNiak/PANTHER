@@ -55,7 +55,7 @@ def maxz(x):
 def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out,initial_version):
     
     try:
-        df = pd.read_csv(RESULT_DIR.replace("$PROT","quic") + 'temp/data.csv')
+        df = pd.read_csv(RESULT_DIR.replace("$PROT","quic") + '/temp/data.csv')
         print(df)
     except:
         df = pd.DataFrame(
@@ -130,7 +130,7 @@ def update_csv(run_id, implem_name, mode, test_name, pcapFile, OutputFile,out,in
     
     print(df)
 
-    df.to_csv(RESULT_DIR.replace("$PROT","quic") + 'temp/data.csv', index=False)
+    df.to_csv(RESULT_DIR.replace("$PROT","quic") + '/temp/data.csv', index=False)
     
 
 

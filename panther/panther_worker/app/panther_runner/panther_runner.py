@@ -10,6 +10,8 @@ import socket
 
 from panther_utils.panther_constant import *
 from logger.CustomFormatter import ch
+import shutil
+
 
 # TODO super class
 class Runner:
@@ -97,24 +99,23 @@ class Runner:
                 .split(" ")[-1]
                 .split("/")[-1]
             )
-            os.system(
-                "cp "
-                + binary_path
-                + " "
-                + self.config["global_parameters"]["dir"]
-                + str(run_id)
-                + "/"
-                + binary_name
+            self.log.info("Copy binary: " + binary_path + " to " + os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), binary_name
+                ))
+            shutil.copyfile(
+                binary_path,
+                os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), binary_name
+                ),
             )
-            os.system(
-                "cp "
-                + self.config["global_parameters"]["build_dir"]
-                + test.name
-                + " "
-                + self.config["global_parameters"]["dir"]
-                + str(run_id)
-                + "/"
-                + test.name
+            self.log.info("Copy test: " + test.name + " to " + os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), test.name
+                ))
+            shutil.copyfile(
+                os.path.join(self.config["global_parameters"]["build_dir"], test.name),
+                os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), test.name
+                ),
             )
 
     # Return dictionnary of paths according to possible location
@@ -233,22 +234,12 @@ class Runner:
             pcap_name = (
                 ivy_dir + "/ivy_lo_" + implem + "_" + test.replace(".ivy", "") + ".pcap"
             )
-            subprocess.Popen(
-                "touch " + pcap_name, shell=True, executable="/bin/bash"
-            ).wait()
+            open(pcap_name, mode="w").close()
             subprocess.Popen(
                 "sudo /bin/chmod o=xw " + pcap_name, shell=True, executable="/bin/bash"
             ).wait()
-            subprocess.Popen(
-                "touch " + pcap_name.replace("ivy_lo_", "ivy_ivy_"),
-                shell=True,
-                executable="/bin/bash",
-            ).wait()
-            subprocess.Popen(
-                "touch " + pcap_name.replace("ivy_lo_", "implem_lo_"),
-                shell=True,
-                executable="/bin/bash",
-            ).wait()
+            open(pcap_name.replace("ivy_lo_", "ivy_ivy_"), mode="w").close()
+            open(pcap_name.replace("ivy_lo_", "implem_lo_"), mode="w").close()
             subprocess.Popen(
                 "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "ivy_ivy_"),
                 shell=True,
@@ -259,11 +250,7 @@ class Runner:
                 shell=True,
                 executable="/bin/bash",
             ).wait()
-            subprocess.Popen(
-                "touch " + pcap_name.replace("ivy_lo_", "implem_"),
-                shell=True,
-                executable="/bin/bash",
-            ).wait()
+            open(pcap_name.replace("ivy_lo_", "implem_"), mode="w").close()
             subprocess.Popen(
                 "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "implem_"),
                 shell=True,
@@ -271,9 +258,7 @@ class Runner:
             ).wait()
         else:
             pcap_name = ivy_dir + "/" + implem + "_" + test + ".pcap"
-            subprocess.Popen(
-                "touch " + pcap_name, shell=True, executable="/bin/bash"
-            ).wait()
+            open(pcap_name, mode="w").close()
             subprocess.Popen(
                 "sudo /bin/chmod o=xw " + pcap_name, shell=True, executable="/bin/bash"
             ).wait()
@@ -287,10 +272,8 @@ class Runner:
         ]
         pcap_i = len(folders) + 1
         self.log.info(pcap_i)
-        ivy_dir = self.config["global_parameters"]["dir"] + str(pcap_i)
-        subprocess.Popen(
-            "/bin/mkdir " + ivy_dir, shell=True, executable="/bin/bash"
-        ).wait()
+        ivy_dir = os.path.join(self.config["global_parameters"]["dir"], str(pcap_i))
+        os.mkdir(ivy_dir)
         return ivy_dir, pcap_i
 
     def setup_exp(self, implem):
@@ -316,109 +299,207 @@ class Runner:
             self.log.info("Save shadow res:")
             self.log.info(
                 "mv /app/shadow.data/ "
-                + self.config["global_parameters"]["dir"]
-                + str(run_id)
+                + os.path.join(self.config["global_parameters"]["dir"], str(run_id))
             )
-            os.system(
-                "mv /app/shadow.data/ "
-                + self.config["global_parameters"]["dir"]
-                + str(run_id)
+            shutil.move(
+                "/app/shadow.data/",
+                os.path.join(self.config["global_parameters"]["dir"], str(run_id)),
             )
-            os.system(
-                "mv /app/shadow.log "
-                + self.config["global_parameters"]["dir"]
-                + str(run_id)
-                + "/shadow.log"
+            shutil.move(
+                "/app/shadow.log",
+                os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), "shadow.log"
+                ),
             )
-            os.system("rm " + pcap_name)
-            os.system(
-                "cp "
-                + self.config["global_parameters"]["dir"]
-                + str(run_id)
-                + "/shadow.data/hosts/client/eth0.pcap "
-                + pcap_name
+            os.remove(pcap_name)
+            self.log.info(
+                "mv /app/shadow.data/hosts/server/eth0.pcap "
+                + os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), "eth0.pcap"
+                )
             )
-            if "client" in test.mode:  # TODO
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/server/*.stderr >>"
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+            shutil.copy(
+                os.path.join(
+                    self.config["global_parameters"]["dir"],
+                    str(run_id),
+                    "shadow.data/hosts/server/eth0.pcap",
+                ),
+                pcap_name,
+            )
+            if "client" in test.mode:  
+                self.log.info("mv /app/shadow.data/hosts/server/*.stderr " + os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), "ivy_stderr.txt"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/server/*.stderr",
+                    ),
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
                         "ivy_stderr.txt",
-                    )
+                    ),
                 )
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/server/*.stdout >>"
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                self.log.info("mv " + os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/server/*.stdout",
+                    ) + " " + os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), test.name + str(i) + ".iev"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/server/*.stdout",
+                    ),
+                    os.path.join(
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".iev",
-                    )
+                    ),
                 )
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/client/*.stdout >>"
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                self.log.info("mv " + os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stdout",
+                    ) + " " + os.path.join(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"], str(run_id)
+                    ),
+                    test.name + str(i) + ".out"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stdout",
+                    ),
+                    os.path.join(
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".out",
-                    )
+                    ),
                 )
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/client/*.stderr >>"
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                self.log.info("mv " + os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stderr",
+                    ) + " " + os.path.join(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"], str(run_id)
+                    ),
+                    test.name + str(i) + ".err"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stderr",
+                    ),
+                    os.path.join(
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".err",
-                    )
+                    ),
                 )
             elif "server" in test.mode:
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/client/*.stderr >>"
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                self.log.info("mv " + os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stderr",
+                    ) + " " + os.path.join(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"], str(run_id)
+                    ),
+                    "ivy_stderr.txt"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stderr",
+                    ),
+                    os.path.join(
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         "ivy_stderr.txt",
-                    )
+                    ),
                 )
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/client/*.stdout >> "
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                self.log.info("mv " + os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stdout",
+                    ) + " " + os.path.join(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"], str(run_id)
+                    ),
+                    test.name + str(i) + ".iev"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/client/*.stdout",
+                    ),
+                    os.path.join(
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".iev",
-                    )
+                    ),
                 )
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/server/*.stdout >>"
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                self.log.info("mv " + os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/server/*.stdout",
+                    ) + " " + os.path.join(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"], str(run_id)
+                    ),
+                    test.name + str(i) + ".out"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/server/*.stdout",
+                    ),
+                    os.path.join(
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".out",
-                    )
+                    ),
                 )
-                os.system(
-                    "cat "
-                    + self.config["global_parameters"]["dir"]
-                    + str(run_id)
-                    + "/shadow.data/hosts/server/*.stderr >>"
-                    + os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                self.log.info("mv " + os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/server/*.stderr",
+                    ) + " " + os.path.join(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"], str(run_id)
+                    ),
+                    test.name + str(i) + ".err"
+                ))
+                shutil.copy(
+                    os.path.join(
+                        self.config["global_parameters"]["dir"],
+                        str(run_id),
+                        "shadow.data/hosts/server/*.stderr",
+                    ),
+                    os.path.join(
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".err",
-                    )
+                    ),
                 )
 
     def run_exp(self, implem):

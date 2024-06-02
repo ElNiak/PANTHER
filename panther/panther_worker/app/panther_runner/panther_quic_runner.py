@@ -38,17 +38,17 @@ class QUICRunner(Runner):
 
             with open(
                 os.path.join(
-                    self.config["global_parameters"]["dir"] + str(run_id),
+                    os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
                     test.name + str(i) + ".dat",
                 ),
                 "w",
             ) as out:
                 save = os.getcwd()
-                os.chdir(self.config["global_parameters"]["dir"] + str(run_id))
+                os.chdir(os.path.join(self.config["global_parameters"]["dir"],str(run_id)))
                 stats.make_dat(test.name, out)
                 os.chdir(save)
             filename = os.path.join(
-                self.config["global_parameters"]["dir"] + str(run_id),
+                os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
                 test.name + str(i) + ".iev",
             )
             with open(filename, "r") as out:
@@ -59,7 +59,7 @@ class QUICRunner(Runner):
                     test.name,
                     pcap_name,
                     os.path.join(
-                        self.config["global_parameters"]["dir"] + str(run_id),
+                        os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
                         test.name + str(i) + ".iev",
                     ),
                     out,
@@ -146,13 +146,13 @@ class QUICRunner(Runner):
                         ).wait()
                     else:
                         subprocess.Popen(
-                            "bash " + SOURCE_DIR + "/vnet_setup.sh",
+                            "bash  /app/scripts/vnet/vnet_setup.sh",
                             shell=True,
                             executable="/bin/bash",
                         ).wait()
                 else:  # TODO check if still works here, was not there before (check old project commit if needed)
                     subprocess.Popen(
-                        "bash " + SOURCE_DIR + "/vnet_reset.sh",
+                        "bash  /app/scripts/vnet/vnet_reset.sh",
                         shell=True,
                         executable="/bin/bash",
                     ).wait()
@@ -161,7 +161,7 @@ class QUICRunner(Runner):
                     #     subprocess.Popen("bash "+ SOURCE_DIR + "/mim-setup.sh",
                     #                                         shell=True, executable="/bin/bash").wait()
                     # else:
-                    #     subprocess.Popen("bash "+ SOURCE_DIR + "/mim-reset.sh",
+                    #     subprocess.Popen("bash  /app/scripts/mim/mim-reset.sh",
                     #                                         shell=True, executable="/bin/bash").wait()
 
                 for j in range(0, number_ite_for_test):
@@ -192,13 +192,13 @@ class QUICRunner(Runner):
 
                         if self.config["net_parameters"].getboolean("vnet"):
                             subprocess.Popen(
-                                "bash " + SOURCE_DIR + "/vnet_setup.sh",
+                                "bash  /app/scripts/vnet/vnet_setup.sh",
                                 shell=True,
                                 executable="/bin/bash",
                             ).wait()
                         else:  # TODO check if still works here, was not there before (check old project commit if needed)
                             subprocess.Popen(
-                                "bash " + SOURCE_DIR + "/vnet_reset.sh",
+                                "bash  /app/scripts/vnet/vnet_reset.sh",
                                 shell=True,
                                 executable="/bin/bash",
                             ).wait()
@@ -268,7 +268,7 @@ class QUICRunner(Runner):
 
                             if self.config["net_parameters"].getboolean("vnet"):
                                 subprocess.Popen(
-                                    "bash " + SOURCE_DIR + "/vnet_reset.sh",
+                                    "bash  /app/scripts/vnet/vnet_reset.sh",
                                     shell=True,
                                     executable="/bin/bash",
                                 ).wait()
@@ -276,7 +276,7 @@ class QUICRunner(Runner):
                             self.current_executed_test_count += 1
                             self.bar_total_test.update(self.current_executed_test_count)
                             subprocess.Popen(
-                                "bash " + SOURCE_DIR + "/mim-reset.sh",
+                                "bash  /app/scripts/mim/mim-reset.sh",
                                 shell=True,
                                 executable="/bin/bash",
                             ).wait()

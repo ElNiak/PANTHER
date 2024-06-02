@@ -236,7 +236,7 @@ class MiniPIvyTest(IvyTest):
                     stdout=out,
                     stderr=err,
                     shell=True,  # self.is_client,
-                    preexec_fn=os.setsid,
+                    preexec_fn=self.set_process_limits,
                 )
                 self.log.info("implem_process pid: {}".format(self.implem_process.pid))
             else:

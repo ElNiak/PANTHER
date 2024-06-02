@@ -59,7 +59,7 @@ def update_csv(
 ):
 
     try:
-        df = pd.read_csv(RESULT_DIR.replace("$PROT", "minip") + "temp/data.csv")
+        df = pd.read_csv(RESULT_DIR.replace("$PROT", "minip") + "/temp/data.csv")
         print(df)
     except:
         df = pd.DataFrame(
@@ -173,7 +173,7 @@ def update_csv(
 
     print(df)
 
-    df.to_csv(RESULT_DIR.replace("$PROT", "minip") + "temp/data.csv", index=False)
+    df.to_csv(RESULT_DIR.replace("$PROT", "minip") + "/temp/data.csv", index=False)
 
 
 def merge_dats():

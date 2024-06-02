@@ -3,25 +3,232 @@ import os
 import configparser
 import logging
 import subprocess
+from dataclasses import dataclass
 
 logging.basicConfig(level=logging.INFO)
 
-# Ivy related
-IVY_INCLUDE_PATH = os.path.join(SOURCE_DIR, "/app/panther-ivy/ivy/include/1.7/")
-MODEL_DIR = os.path.join(SOURCE_DIR, "/app/panther-ivy/protocol-testing/")
+#
+# Panther Configuration
+#
 
-# QUIC related
-TLS_KEY_PATH = os.path.join(SOURCE_DIR, "/tls-keys")
-QUIC_TICKET_PATH = os.path.join(SOURCE_DIR, "/tickets")
-QLOGS_PATH = os.path.join(SOURCE_DIR, "/qlogs")
+@dataclass
+class GlobalConfig:
+    shadow: bool
+    docker: bool
+    docker_swarm: bool
+    init_submodule: bool
 
-# TODO create Config class
+@dataclass
+class QuicImplementations:
+    picoquic: bool
+    quant: bool
+    picoquic_shadow: bool
+    mvfst: bool
+    aioquic: bool
+    lsquic: bool
+    quic_go: bool
+    quiche: bool
+    quinn: bool
 
+@dataclass
+class QuicTools:
+    visualizer: bool
 
-def execute_command(command):
+@dataclass
+class MinipImplementations:
+    ping_pong: bool
+    ping_pong_flaky: bool
+    ping_pong_fail: bool
+    ping_pong_mt: bool
+    ping_pong_flaky_mt: bool
+    ping_pong_fail_mt: bool
+
+@dataclass
+class BgpImplementations:
+    gobgp: bool
+    bird: bool
+    frr: bool
+
+@dataclass
+class AptImplementations:
+    picoquic_shadow: bool
+    picoquic: bool
+    quant: bool
+    quic_go: bool
+    ping_pong: bool
+
+@dataclass
+class PantherConfig:
+    global_parameters: GlobalConfig
+    quic_implementations:QuicImplementations
+    quic_tools:QuicTools
+    minip_implementations:MinipImplementations
+    bgp_implementations:BgpImplementations
+    apt_implementations:AptImplementations
+
+def update_config_from_global_conf(config: PantherConfig, global_conf_file: str):
+    global_config = configparser.ConfigParser(allow_no_value=True)
+    global_config.read(global_conf_file)
+    
+    # Update global_parameters
+    config.global_parameters.shadow = global_config.getboolean("global_parameters", "shadow")
+    config.global_parameters.docker = global_config.getboolean("global_parameters", "docker")
+    config.global_parameters.docker_swarm = global_config.getboolean("global_parameters", "docker_swarm")
+    config.global_parameters.init_submodule = global_config.getboolean("global_parameters", "init_submodule")
+    
+    # Update quic_implementations
+    config.quic_implementations.picoquic = global_config.getboolean("quic_implementations", "picoquic")
+    config.quic_implementations.quant = global_config.getboolean("quic_implementations", "quant")
+    config.quic_implementations.picoquic_shadow = global_config.getboolean("quic_implementations", "picoquic_shadow")
+    config.quic_implementations.mvfst = global_config.getboolean("quic_implementations", "mvfst")
+    config.quic_implementations.aioquic = global_config.getboolean("quic_implementations", "aioquic")
+    config.quic_implementations.lsquic = global_config.getboolean("quic_implementations", "lsquic")
+    config.quic_implementations.quic_go = global_config.getboolean("quic_implementations", "quic_go")
+    config.quic_implementations.quiche = global_config.getboolean("quic_implementations", "quiche")
+    config.quic_implementations.quinn = global_config.getboolean("quic_implementations", "quinn")
+    
+    # Update quic_tools
+    config.quic_tools.visualizer = global_config.getboolean("quic_tools", "visualizer")
+    
+    # Update minip_implementations
+    config.minip_implementations.ping_pong = global_config.getboolean("minip_implementations", "ping_pong")
+    config.minip_implementations.ping_pong_flaky = global_config.getboolean("minip_implementations", "ping_pong_flaky")
+    config.minip_implementations.ping_pong_fail = global_config.getboolean("minip_implementations", "ping_pong_fail")
+    config.minip_implementations.ping_pong_mt = global_config.getboolean("minip_implementations", "ping_pong_mt")
+    config.minip_implementations.ping_pong_flaky_mt = global_config.getboolean("minip_implementations", "ping_pong_flaky_mt")
+    config.minip_implementations.ping_pong_fail_mt = global_config.getboolean("minip_implementations", "ping_pong_fail_mt")
+    
+    # Update bgp_implementations
+    config.bgp_implementations.gobgp = global_config.getboolean("bgp_implementations", "gobgp")
+    config.bgp_implementations.bird = global_config.getboolean("bgp_implementations", "bird")
+    config.bgp_implementations.frr = global_config.getboolean("bgp_implementations", "frr")
+    
+    # Update apt_implementations
+    config.apt_implementations.picoquic_shadow = global_config.getboolean("apt_implementations", "picoquic_shadow")
+    config.apt_implementations.picoquic = global_config.getboolean("apt_implementations", "picoquic")
+    config.apt_implementations.quant = global_config.getboolean("apt_implementations", "quant")
+    config.apt_implementations.quic_go = global_config.getboolean("apt_implementations", "quic_go")
+    config.apt_implementations.ping_pong = global_config.getboolean("apt_implementations", "ping_pong")
+
+#
+# Experiment Configuration
+#
+
+@dataclass
+class GlobalParameters:
+    dir: str = "temp/"
+    build_dir: str = "build/"
+    tests_dir: str = "tests/"
+    iter: int = 1
+    internal_iteration: int = 100
+    getstats: bool = False
+    compile: bool = True
+    run: bool = True
+    timeout: int = 100
+    keep_alive: bool = False
+    update_ivy: bool = True
+    docker: bool = False
+    apt: bool = False
+
+@dataclass
+class DebugParameters:
+    gperf: bool = False
+    gdb: bool = False
+    memprof: bool = False
+    ivy_process_tracer: bool = False
+
+@dataclass
+class NetParameters:
+    localhost: bool = True
+    vnet: bool = False
+    shadow: bool = False
+
+@dataclass
+class ShadowParameters:
+    loss: float = 0.0
+    jitter: float = 0.0
+    latency: float = 0.0
+
+@dataclass
+class VerifiedProtocol:
+    quic: bool = True
+    minip: bool = False
+    bgp: bool = False
+    apt: bool = False
+
+@dataclass
+class ExperimentConfig:
+    global_parameters: GlobalParameters
+    debug_parameters: DebugParameters
+    net_parameters: NetParameters
+    shadow_parameters: ShadowParameters
+    verified_protocol: VerifiedProtocol
+    
+# Create an instance of ExperimentConfig
+experiment_config = ExperimentConfig(
+    global_parameters=GlobalParameters(
+        dir="temp/",
+        build_dir="build/",
+        tests_dir="tests/",
+        iter=1,
+        internal_iteration=100,
+        getstats=False,
+        compile=True,
+        run=True,
+        timeout=100,
+        keep_alive=False,
+        update_ivy=True,
+        docker=False,
+        apt=False
+    ),
+    debug_parameters=DebugParameters(
+        gperf=False,
+        gdb=False,
+        memprof=False,
+        ivy_process_tracer=False
+    ),
+    net_parameters=NetParameters(
+        localhost=True,
+        vnet=False,
+        shadow=False
+    ),
+    shadow_parameters=ShadowParameters(
+        loss=0.0,
+        jitter=0.0,
+        latency=0.0
+    ),
+    verified_protocol=VerifiedProtocol(
+        quic=True,
+        minip=False,
+        bgp=False,
+        apt=False
+    )
+)
+
+def update_experiment_config(experiment_parameters, current_protocol):
+    if experiment_parameters:
+        config = configparser.ConfigParser(allow_no_value=True)
+        config.read("configs/default_config.ini")
+        for arg in experiment_parameters:
+            if arg in config["global_parameters"]:
+                setattr(experiment_config.global_parameters, arg, config["global_parameters"].getboolean(arg))
+            elif arg in config["debug_parameters"]:
+                setattr(experiment_config.debug_parameters, arg, config["debug_parameters"].getboolean(arg))
+            elif arg in config["net_parameters"]:
+                setattr(experiment_config.net_parameters, arg, config["net_parameters"].getboolean(arg))
+            elif arg in config["shadow_parameters"]:
+                setattr(experiment_config.shadow_parameters, arg, config["shadow_parameters"].getfloat(arg))
+            elif arg in config["verified_protocol"]:
+                setattr(experiment_config.verified_protocol, arg, config["verified_protocol"].getboolean(arg))
+        with open("configs/config.ini", "w") as configfile:
+            config.write(configfile)
+
+# TODO use these dataclasses to update the configuration files
+
+def execute_command(command, must_pass=True):
     logging.debug(f"Executing command: {command}")
     result = subprocess.run(command, shell=True, executable="/bin/bash")  # .wait()
-    if result.returncode != 0:
+    if result.returncode != 0 and must_pass:
         raise subprocess.CalledProcessError(result.returncode, command)
 
 
@@ -107,8 +314,6 @@ def get_experiment_config(
     current_protocol = ""
     supported_protocols = config["verified_protocol"].keys()
 
-    is_apt = config["global_parameters"].getboolean("apt")
-
     if new_current_protocol:
         current_protocol = new_current_protocol
     else:
@@ -126,7 +331,7 @@ def get_experiment_config(
         protocol_test_path,
         protocol_conf,
     ) = get_protocol_config(
-        config, current_protocol, get_all_test, get_default_conf, is_apt
+        config, current_protocol, get_all_test, get_default_conf
     )
 
     return (
@@ -144,7 +349,7 @@ def get_experiment_config(
 
 
 def get_protocol_config(
-    config, protocol, get_all_test=False, get_default_conf=False, is_apt=False
+    config, protocol, get_all_test=False, get_default_conf=False
 ):
     protocol_conf = configparser.ConfigParser(allow_no_value=True)
     for envar in P_ENV_VAR[protocol]:
@@ -157,44 +362,32 @@ def get_protocol_config(
     else:
         protocol_conf.read("configs/" + protocol + "/" + protocol + "_config.ini")
 
-    if is_apt:
-        protocol_model_path = os.path.join(MODEL_DIR, "apt")
-        config.set(
-            "global_parameters",
-            "tests_dir",
-            os.path.join(MODEL_DIR, "apt", "apt_tests"),
-        )
-        config.set(
-            "global_parameters", "dir", os.path.join(MODEL_DIR, "apt", "test", "temps")
-        )
-        config.set(
-            "global_parameters", "build_dir", os.path.join(MODEL_DIR, "apt", "build")
-        )
+    protocol_model_path = os.path.join(MODEL_DIR, protocol)
+    config.set(
+        "global_parameters",
+        "tests_dir",
+        os.path.join(MODEL_DIR, protocol, protocol + "_tests"),
+    )
+    config.set(
+        "global_parameters",
+        "dir",
+        os.path.join(MODEL_DIR, protocol, "test", "temp"),
+    )
+    config.set(
+        "global_parameters", "build_dir", os.path.join(MODEL_DIR, protocol, "build")
+    )
 
-    else:
-        protocol_model_path = os.path.join(MODEL_DIR, protocol)
-        config.set(
-            "global_parameters",
-            "tests_dir",
-            os.path.join(MODEL_DIR, protocol, protocol + "_tests"),
-        )
-        config.set(
-            "global_parameters",
-            "dir",
-            os.path.join(MODEL_DIR, protocol, "test", "temps"),
-        )
-        config.set(
-            "global_parameters", "build_dir", os.path.join(MODEL_DIR, protocol, "build")
-        )
-
-    protocol_test_path = os.path.join(protocol_model_path, "tests/")
+    protocol_test_path    = os.path.join(protocol_model_path, "tests/")
     protocol_results_path = os.path.join(protocol_model_path, "test/", "temp/")
 
-    if not os.path.exists(protocol_results_path):
-        logging.info(f"Creating directory: {protocol_results_path}")
+    if not os.path.isdir(os.path.join(protocol_model_path, "test/")):
+        path = os.path.join(protocol_model_path, "test/")
+        logging.info(f"Creating directory: {path}")
         os.mkdir(os.path.join(protocol_model_path, "test/"))
+    if not os.path.isdir(protocol_results_path):
+        logging.info(f"Creating directory: {protocol_results_path}")
         os.mkdir(protocol_results_path)
-    if not os.path.exists(protocol_test_path):
+    if not os.path.isdir(protocol_test_path):
         logging.info(f"Creating directory: {protocol_test_path}")
         os.mkdir(protocol_test_path)
 

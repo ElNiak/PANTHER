@@ -43,7 +43,7 @@ class PFVClient:
 
         update_protocol_config(protocol_arguments, current_protocol, current_tests)
 
-        tool = PANTHER()
+        tool = Panther()
         try:
             PFVClient.thread = threading.Thread(
                 target=tool.launch_experiments, args=([[user_data["implementation"]]])
@@ -71,7 +71,6 @@ class PFVClient:
     def run(self):
         PFVClient.app.run(host="0.0.0.0", port=80, use_reloader=True)
 
-os.system("clear")
 banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@: .~JG#&@@@@@@@@@@@@@@@@@@@@@@@@@@&BJ~. .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

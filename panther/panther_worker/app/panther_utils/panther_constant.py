@@ -1,11 +1,32 @@
 import os
+import logging
 
-SOURCE_DIR = os.getcwd()
-IMPLEM_DIR = SOURCE_DIR + "/app/implementations/$PROT-implementations/"
-RESULT_DIR = SOURCE_DIR + "/app/panther-ivy/protocol-testing/$PROT/test/"
-IVY_DIR = SOURCE_DIR + "/app/panther-ivy/"
-MODEL_DIR = SOURCE_DIR + "/app/panther-ivy/protocol-testing/"
+logging.basicConfig(level=logging.INFO)
 
+SOURCE_DIR = "/app"
+IMPLEM_DIR = os.path.join(SOURCE_DIR, "implementations", "$PROT-implementations")
+RESULT_DIR = os.path.join(SOURCE_DIR, "panther-ivy", "protocol-testing", "$PROT", "test")
+IVY_DIR = os.path.join(SOURCE_DIR, "panther-ivy")
+MODEL_DIR = os.path.join(SOURCE_DIR, "panther-ivy", "protocol-testing")
+
+# Ivy related
+IVY_INCLUDE_PATH = os.path.join(SOURCE_DIR, "panther-ivy", "ivy", "include", "1.7")
+MODEL_DIR = os.path.join(SOURCE_DIR, "panther-ivy", "protocol-testing")
+
+# QUIC related
+TLS_KEY_PATH = os.path.join(SOURCE_DIR, "tls-keys")
+QUIC_TICKET_PATH = os.path.join(SOURCE_DIR, "tickets")
+QLOGS_PATH = os.path.join(SOURCE_DIR, "qlogs")
+
+logging.info(f"SOURCE_DIR: {SOURCE_DIR}")
+logging.info(f"IMPLEM_DIR: {IMPLEM_DIR}")
+logging.info(f"RESULT_DIR: {RESULT_DIR}")
+logging.info(f"IVY_DIR: {IVY_DIR}")
+logging.info(f"MODEL_DIR: {MODEL_DIR}")
+logging.info(f"IVY_INCLUDE_PATH: {IVY_INCLUDE_PATH}")
+logging.info(f"TLS_KEY_PATH: {TLS_KEY_PATH}")
+logging.info(f"QUIC_TICKET_PATH: {QUIC_TICKET_PATH}")
+logging.info(f"QLOGS_PATH: {QLOGS_PATH}")
 
 ENV_VAR = {
     "IVY_INCLUDE_PATH": "${IVY_INCLUDE_PATH}:/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7",

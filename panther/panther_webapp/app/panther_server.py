@@ -156,7 +156,23 @@ class PFVServer:
                 PFVServer.experiment_current_iteration = 0
                 PFVServer.experiment_iteration = 0
         return "ok"  # TODO
-
+    
+    @app.route("/errored-experiment", methods=["GET"])
+    def errored_experiment():
+        if PFVServer.is_experiment_started:
+            PFVServer.is_experiment_started = False
+            PFVServer.experiment_current_iteration = 0
+            PFVServer.experiment_iteration = 0
+        return "ok"  # TODO
+    
+    @app.route("/finish-experiment", methods=["GET"])
+    def finish_experiment():
+        if PFVServer.is_experiment_started:
+            PFVServer.is_experiment_started = False
+            PFVServer.experiment_current_iteration = 0
+            PFVServer.experiment_iteration = 0
+        return "ok"  # TODO
+    
     def get_args():
         """_summary_
         Get list of argument for automatic GUI generation
@@ -1016,7 +1032,6 @@ class PFVServer:
         )  # , processes=4
 
 
-os.system("clear")
 banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@: .~JG#&@@@@@@@@@@@@@@@@@@@@@@@@@@&BJ~. .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

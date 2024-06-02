@@ -2,6 +2,8 @@ import logging
 import subprocess
 import sys
 import tracemalloc
+
+import requests
 from plantuml import PlantUML
 import configparser
 import os
@@ -20,7 +22,7 @@ from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 DEBUG = True
 
 
-class PANTHER:
+class Panther:
     def __init__(self):
         # Setup cargo
         subprocess.Popen("", shell=True, executable="/bin/bash").wait()  # TODO source
@@ -60,9 +62,6 @@ class PANTHER:
 
         self.log.info("Selected protocol: " + self.current_protocol)
 
-        self.is_apt = self.config["global_parameters"].getboolean("apt")
-        self.log.info("Advanced Persistent Threat: " + str(self.is_apt))
-
         with os.scandir(self.protocol_results_path) as entries:
             self.total_exp_in_dir = sum(1 for entry in entries if entry.is_dir())
         self.current_exp_path = os.path.join(
@@ -74,6 +73,21 @@ class PANTHER:
 
         if self.config["debug_parameters"].getboolean("memprof"):
             self.memory_snapshots = []
+
+    def find_ivy_files(self):
+        """
+        Recursively find all .ivy files in the specified folder and its subfolders, excluding those with 'test' in the filename.
+        
+        :param root_folder: The root folder to start the search from.
+        :return: A list of paths to the found .ivy files.
+        """
+        ivy_files = []
+        for dirpath, _, filenames in os.walk(self.protocol_model_path):
+            for f in filenames:
+                if f.endswith(".ivy") and "test" not in f:
+                    ivy_files.append(os.path.join(dirpath, f))
+        return ivy_files
+
 
     def update_ivy_tool(self):
         # Note we use subprocess in order to get sudo rights
@@ -102,45 +116,39 @@ class PANTHER:
                 + file
                 + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
             )
-            os.chdir(
-                "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/"
-            )
-            execute_command(
-                "sudo /bin/cp -f -a "
-                + SOURCE_DIR
-                + "/app/panther-ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib"
-            )
+        
+        os.chdir(
+            "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/"
+        )
+        execute_command(
+            "sudo /bin/cp -f -a "
+            + "/app/panther-ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib",
+            must_pass=False
+        )
 
         if self.config["verified_protocol"].getboolean("quic"):
             self.log.info("Copying QUIC libraries")
             # TODO picotls add submodule
             execute_command(
                 "sudo /bin/cp -f -a "
-                + SOURCE_DIR
                 + "/app/implementations/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib"
             )
             execute_command(
                 "sudo /bin/cp -f -a "
-                + SOURCE_DIR
                 + "/app/implementations/quic-implementations/picotls/*.a "
-                + SOURCE_DIR
                 + "/app/panther-ivy/ivy/lib"
             )
             execute_command(
                 "sudo /bin/cp -f "
-                + SOURCE_DIR
                 + "/app/implementations/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include"
             )
             execute_command(
                 "sudo /bin/cp -f "
-                + SOURCE_DIR
                 + "/app/implementations/quic-implementations/picotls/include/picotls.h "
-                + SOURCE_DIR
                 + "/app/panther-ivy/ivy/include"
             )
             execute_command(
                 "sudo /bin/cp -r -f "
-                + SOURCE_DIR
                 + "/app/implementations/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/picotls"
             )
 
@@ -149,38 +157,24 @@ class PANTHER:
     def setup_ivy_model(self):
         self.log.info(
             'Update "include" path of python with updated version of the project from \n\t'
-            + self.ivy_model_path
+            + self.protocol_model_path
         )
-        subfolder = [
-            os.path.join(self.ivy_model_path, f)
-            for f in os.listdir(self.ivy_model_path)
-            if os.path.isdir(os.path.join(self.ivy_model_path, f))
-        ]
-        for folder in subfolder:
-            files = [
-                os.path.join(folder, f)
-                for f in os.listdir(folder)
-                if os.path.isfile(os.path.join(folder, f))
-                and f.endswith(".ivy")
-                and not "test" in f
-            ]  # TODO find more elegant way to avoid copy test files
-            for file in files:
-                self.log.info("* " + file)
-                self.included_files.append(file)
-                execute_command(
-                    "sudo /bin/cp "
-                    + file
-                    + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
-                )
+        
+        files = self.find_ivy_files()
+        for file in files:
+            self.log.info("* " + file)
+            self.included_files.append(file)
+            execute_command(
+                "sudo /bin/cp "
+                + file
+                + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+            )
+            
         if self.config["verified_protocol"].getboolean("quic"):
             execute_command(
                 "sudo /bin/cp "
-                + os.path.join(
-                    self.ivy_model_path
-                    if not self.is_apt
-                    else os.path.join(self.ivy_model_path, "/quic")
-                ),
-                "/quic_utils/quic_ser_deser.h"
+                + self.protocol_model_path 
+                + "/quic_utils/quic_ser_deser.h"
                 + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/",
             )
 
@@ -207,13 +201,11 @@ class PANTHER:
                 if mode in file:  # TODO more beautiful
                     self.log.info(
                         "chdir in "
-                        + self.config["global_parameters"]["tests_dir"]
-                        + mode
-                        + "s"
+                        + str(os.path.join(self.config["global_parameters"]["tests_dir"],  mode + "s"))
                     )
                     os.chdir(
-                        self.config["global_parameters"]["tests_dir"] + mode + "s"
-                    )  # TODO either add "s" in config or change folder
+                        os.path.join(self.config["global_parameters"]["tests_dir"],  mode + "s")
+                    )  
                     file = (
                         os.path.join(
                             self.config["global_parameters"]["tests_dir"], file
@@ -224,17 +216,17 @@ class PANTHER:
                     nameFileShort = file.split("/")[-1]
                     self.build_file(nameFileShort)
         os.chdir(SOURCE_DIR)
-
+    
+    def pair_compile_file(self, file, replacements):
+        for old_name, new_name in replacements.items():
+            if old_name in file:
+                file = file.replace(old_name, new_name)
+                self.compile_file(file)
+                        
     def build_file(self, file):
         self.compile_file(file)
         if self.config["verified_protocol"].getboolean("quic"):
             # TODO add in config file, test that should be build and run in pair
-            def pair_compile_file(self, file, replacements):
-                for old_name, new_name in replacements.items():
-                    if old_name in file:
-                        file = file.replace(old_name, new_name)
-                        self.compile_file(file)
-
             replacements = {
                 "quic_server_test_0rtt": "quic_server_test_0rtt_stream",
                 "quic_server_test_0rtt_stream": "quic_server_test_0rtt_stream_co_close",
@@ -291,138 +283,157 @@ class PANTHER:
             execute_command("/bin/rm " + file.replace(".ivy", ".h"))
 
     def launch_experiments(self, implementations=None):
-        if self.config["debug_parameters"].getboolean("memprof"):
-            tracemalloc.start()
+        try:
+            build_dir = os.path.join(MODEL_DIR, self.current_protocol, "build/")
+            if not os.path.isdir(build_dir):
+                self.log.info(f"Creating directory: {build_dir}")
+                os.mkdir(build_dir)
+            if self.config["debug_parameters"].getboolean("memprof"):
+                tracemalloc.start()
 
-        if self.config["global_parameters"].getboolean("update_ivy"):
-            self.update_ivy_tool()
-        self.setup_ivy_model()
+            if self.config["global_parameters"].getboolean("update_ivy"):
+                self.update_ivy_tool()
+            self.setup_ivy_model()
 
-        # Set environement-specific env var
-        if not self.config["global_parameters"].getboolean("docker"):
-            os.environ["IS_NOT_DOCKER"] = "true"
-            ENV_VAR["IS_NOT_DOCKER"] = "true"
-        else:
-            if "IS_NOT_DOCKER" in os.environ:
-                del os.environ["IS_NOT_DOCKER"]
-            if "IS_NOT_DOCKER" in ENV_VAR:
-                del ENV_VAR["IS_NOT_DOCKER"]
+            # Set environement-specific env var
+            if not self.config["global_parameters"].getboolean("docker"):
+                os.environ["IS_NOT_DOCKER"] = "true"
+                ENV_VAR["IS_NOT_DOCKER"] = "true"
+            else:
+                if "IS_NOT_DOCKER" in os.environ:
+                    del os.environ["IS_NOT_DOCKER"]
+                if "IS_NOT_DOCKER" in ENV_VAR:
+                    del ENV_VAR["IS_NOT_DOCKER"]
 
-        # Set network-specific env var
-        if self.config["net_parameters"].getboolean("shadow"):
-            ENV_VAR["LOSS"] = float(self.config["shadow_parameters"]["loss"])
-            ENV_VAR["LATENCY"] = int(self.config["shadow_parameters"]["latency"])
-            ENV_VAR["JITTER"] = int(self.config["shadow_parameters"]["jitter"])
-            if DEBUG:
-                self.log.info(ENV_VAR["LOSS"])
-                self.log.info(ENV_VAR["LATENCY"])
-                self.log.info(ENV_VAR["JITTER"])
+            # Set network-specific env var
+            if self.config["net_parameters"].getboolean("shadow"):
+                ENV_VAR["LOSS"] = float(self.config["shadow_parameters"]["loss"])
+                ENV_VAR["LATENCY"] = int(self.config["shadow_parameters"]["latency"])
+                ENV_VAR["JITTER"] = int(self.config["shadow_parameters"]["jitter"])
+                if DEBUG:
+                    self.log.info(ENV_VAR["LOSS"])
+                    self.log.info(ENV_VAR["LATENCY"])
+                    self.log.info(ENV_VAR["JITTER"])
 
-        if not self.config["global_parameters"].getboolean("docker"):
-            execute_command(
-                "sudo sysctl -w net.core.rmem_max=2500000"
-            )
+            if not self.config["global_parameters"].getboolean("docker"):
+                execute_command(
+                    "sudo sysctl -w net.core.rmem_max=2500000"
+                )
 
-        self.build_tests(test_to_do=self.tests)
+            self.build_tests(test_to_do=self.tests_enabled)
 
-        if implementations == None or implementations == []:
-            self.log.error(
-                "TODO implement in local mode, for now only with docker (ERROR)"
-            )
-            sys.exit(0)
-            # TODO implement in local mode, for now only with docker
+            if implementations == None or implementations == []:
+                self.log.error(
+                    "TODO implement in local mode, for now only with docker (ERROR)"
+                )
+                sys.exit(0)
+                # TODO implement in local mode, for now only with docker
 
-        for implem in implementations:
-            self.log.info(implem)
-            self.log.info(self.implems.keys())
-            if implem not in self.implems.keys():
-                self.log.info("Unknown implementation")
-                sys.stderr.write("nknown implementation: {}\n".format(implem))
-                exit(1)
+            for implem in implementations:
+                self.log.info(implem)
+                self.log.info(self.implementation_enable.keys())
+                if implem not in self.implementation_enable.keys():
+                    self.log.info("Unknown implementation")
+                    sys.stderr.write("nknown implementation: {}\n".format(implem))
+                    exit(1)
 
-        if self.is_apt:
-            runner = APTRunner(
-                self.config,
-                self.protocol_conf,
-                self.current_protocol,
-                self.implems,
-                self.tests,
-            )
-        elif self.config["verified_protocol"].getboolean("quic"):
-            runner = QUICRunner(
-                self.config,
-                self.protocol_conf,
-                self.current_protocol,
-                self.implems,
-                self.tests,
-            )
-        elif self.config["verified_protocol"].getboolean("minip"):
-            runner = MiniPRunner(
-                self.config,
-                self.protocol_conf,
-                self.current_protocol,
-                self.implems,
-                self.tests,
-            )
-        else:
-            self.log.info("No protocols selected")
-            exit(0)
+            if self.config["verified_protocol"].getboolean("apt"):
+                runner = APTRunner(
+                    self.config,
+                    self.protocol_conf,
+                    self.current_protocol,
+                    self.conf_implementation_enable,
+                    self.tests_enabled,
+                )
+            elif self.config["verified_protocol"].getboolean("quic"):
+                runner = QUICRunner(
+                    self.config,
+                    self.protocol_conf,
+                    self.current_protocol,
+                    self.conf_implementation_enable,
+                    self.tests_enabled,
+                )
+            elif self.config["verified_protocol"].getboolean("minip"):
+                runner = MiniPRunner(
+                    self.config,
+                    self.protocol_conf,
+                    self.current_protocol,
+                    self.conf_implementation_enable,
+                    self.tests_enabled,
+                )
+            else:
+                self.log.info("No protocols selected")
+                exit(0)
 
-        self.log.infor("Starting experiments:")
-        for implementation in implementations:
-            self.log.info("- Starting tests for implementation: " + implementation)
-            os.environ["TEST_IMPL"] = implementation
-            ENV_VAR["TEST_IMPL"] = implementation
-            try:
-                runner.run_exp(implementation)
-            except Exception as e:
-                print(e)
-                with open(
-                    "configs/"
-                    + implementation
-                    + "/"
-                    + self.current_protocol
-                    + "_config.ini",
-                    "w",
-                ) as configfile:
+            self.log.info("Starting experiments:")
+            for implementation in implementations:
+                self.log.info("- Starting tests for implementation: " + implementation)
+                os.environ["TEST_IMPL"] = implementation
+                ENV_VAR["TEST_IMPL"] = implementation
+                try:
+                    runner.run_exp(implementation)
+                except Exception as e:
+                    print(e)
                     with open(
                         "configs/"
                         + implementation
-                        + "/default_"
+                        + "/"
                         + self.current_protocol
                         + "_config.ini",
-                        "r",
-                    ) as default_config:
-                        default_settings = default_config.read()
-                        configfile.write(default_settings)
-            finally:  # In Runner.py
-                self.stop_stdout()
-                if self.config["net_parameters"].getboolean("vnet"):
-                    self.log.info("Reset vnet")
-                    subprocess.Popen(
-                        "bash " + SOURCE_DIR + "/vnet_reset.sh",
-                        shell=True,
-                        executable="/bin/bash",
-                    ).wait()
+                        "w",
+                    ) as configfile:
+                        with open(
+                            "configs/"
+                            + implementation
+                            + "/default_"
+                            + self.current_protocol
+                            + "_config.ini",
+                            "r",
+                        ) as default_config:
+                            default_settings = default_config.read()
+                            configfile.write(default_settings)
+                finally:  # In Runner.py
+                    self.stop_stdout()
+                    if self.config["net_parameters"].getboolean("vnet"):
+                        self.log.info("Reset vnet")
+                        subprocess.Popen(
+                            "bash  /app/scripts/vnet/vnet_reset.sh",
+                            shell=True,
+                            executable="/bin/bash",
+                        ).wait()
 
-        self.log.info("Experiments finished")
+            self.log.info("Experiments finished")
 
-        if self.config["debug_parameters"].getboolean("memprof"):
-            self.log.info("Memory profiling")
-            snapshot = tracemalloc.take_snapshot()
-            top_stats = snapshot.statistics("lineno")
-            self.log.info("[ Top 50 ]")
-            for stat in top_stats[:50]:
-                self.log.info(stat)
+            if self.config["debug_parameters"].getboolean("memprof"):
+                self.log.info("Memory profiling")
+                snapshot = tracemalloc.take_snapshot()
+                top_stats = snapshot.statistics("lineno")
+                self.log.info("[ Top 50 ]")
+                for stat in top_stats[:50]:
+                    self.log.info(stat)
 
-        if self.config["debug_parameters"].getboolean("ivy_process_tracer"):
+            if self.config["debug_parameters"].getboolean("ivy_process_tracer"):
+                try:
+                    self.generate_uml_trace()
+                except Exception as e:
+                    print(e)
+
+            self.log.info("END 1")
             try:
-                self.generate_uml_trace()
-            except Exception as e:
-                print(e)
-
-        self.log.info("END 1")
-        exit(0)
+                x = requests.get('http://panther-webapp/finish-experiment')
+                self.log.info(x)
+            except:
+                pass
+            exit(0)
+        except Exception as e:
+            print(e)
+            try:
+                x = requests.get('http://panther-webapp/errored-experiment')
+                self.log.info(x)
+            except:
+                pass
+            self.log.error("END 2")
+            exit(1)
 
     def generate_uml_trace(self):
         self.log.info("Generating PlantUML trace from ivy trace")

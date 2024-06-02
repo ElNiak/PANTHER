@@ -10,6 +10,7 @@ from datetime import datetime
 import platform
 from time import sleep
 import logging
+import resource
 
 from panther_utils.panther_constant import *
 from logger.CustomFormatter import ch
@@ -188,6 +189,9 @@ class IvyTest(object):
     def stop_processes(self):
         raise NotImplementedError
 
+    def set_process_limits(self):
+        pass
+    
     def run_tester(self, iteration, iev, i, iclient):
         command = self.generate_tester_command(iteration, iclient)
         self.log.info(command)
@@ -288,7 +292,7 @@ class IvyTest(object):
 
     def generate_implementation_command(self):
         raise NotImplementedError
-
+    
     def generate_tester_command(self, iteration, iclient):
         import platform
 

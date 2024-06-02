@@ -466,19 +466,23 @@ class QUICIvyTest(IvyTest):
         ivy_env = ""  # TODO use a list of env
 
         # TODO use config file
-        self.log.info("shadow test:")
-        print("shadow test:")
+        self.log.info(f"Shadow test for {self.name}")
+        print(f"Shadow test for {self.name}")
         for env_var in ENV_VAR:
             print(env_var, ENV_VAR[env_var])
         if "client_test" in self.name:
-            file = "/app/shadow_client_test.yml"
+            file      = "/app/shadow_client_test.yml"
             file_temp = "/app/shadow_client_test_template.yml"
         else:
-            file = "/app/shadow_server_test.yml"
+            file      = "/app/shadow_server_test.yml"
             file_temp = "/app/shadow_server_test_template.yml"
+        
         with open(file_temp, "r") as f:
-            content = f.read()  # todo replace
+            self.log.info(f"Read Shadow template file {file_temp}:")
+            content = f.read() 
+            self.log.info(content)
         with open(file, "w") as f:
+            self.log.info(f"Writing Shadow final config {file}:")
             content = content.replace("<VERSION>", ENV_VAR["INITIAL_VERSION"])
             content = content.replace("<IMPLEMENTATION>", ENV_VAR["TEST_IMPL"])
             content = content.replace("<ALPN>", ENV_VAR["TEST_ALPN"])
@@ -680,6 +684,10 @@ class QUICIvyTest(IvyTest):
         else:
             return [server_command, client_command]
 
+    def set_process_limits(self):
+        # Create a new session
+        os.setsid()
+    
     def start_implementation(self, i, out, err):
         if self.config["global_parameters"].getboolean("run"):
             if self.is_mim:
@@ -738,7 +746,7 @@ class QUICIvyTest(IvyTest):
                             stdout=out,
                             stderr=err,
                             shell=True,  # self.is_client,
-                            preexec_fn=os.setsid,
+                            preexec_fn=self.set_process_limits,
                         )
                         self.log.info(
                             "implem_process pid: {}".format(self.implem_process.pid)
@@ -770,7 +778,7 @@ class QUICIvyTest(IvyTest):
                 stdout=out,
                 stderr=err,
                 shell=True,  # self.is_client,
-                preexec_fn=os.setsid,
+                preexec_fn=self.set_process_limits,
             )
             self.log.info("quic_process_1 pid: {}".format(self.quic_process_1.pid))
             print("quic_process_1 pid: {}".format(self.quic_process_1.pid))
@@ -788,7 +796,7 @@ class QUICIvyTest(IvyTest):
                 stdout=out,
                 stderr=err,
                 shell=True,  # self.is_client,
-                preexec_fn=os.setsid,
+                preexec_fn=self.set_process_limits,
             )
             self.log.info("quic_process_2 pid: {}".format(self.quic_process_2.pid))
             print("quic_process_2 pid: {}".format(self.quic_process_2.pid))
