@@ -24,7 +24,7 @@ class PFVClient:
         pass
 
     # Parse the parameters received in the request and launch the SCDG
-    @app.route("/run-exp", methods=["POST"])
+    @app.route("/run-exp", methods=["GET"])
     def run_experiment():
         # Modify config file with the args provided in web app
         user_data = request.json
@@ -45,15 +45,38 @@ class PFVClient:
 
         tool = Panther()
         try:
-            PFVClient.thread = threading.Thread(
-                target=tool.launch_experiments, args=([[user_data["implementation"]]])
-            )
-            PFVClient.thread.daemon = True
-            PFVClient.thread.start()
-            return "Request successful"
-        except:
-            return "Something went wrong"
+            PFVClient.start_experiment_in_thread(user_data,tool)
+            return jsonify({"message": "Request successful"}), 200
+        except Exception as e:
+            PFVClient.app.logger.info("Error handling request: %s", e)
+            return jsonify({"message": "Something went wrong", "error": str(e)}), 500
 
+    def start_experiment_in_thread(user_data, tool):
+        if PFVClient.thread is None or not PFVClient.thread.is_alive():
+            PFVClient.thread = threading.Thread(
+                    target=tool.launch_experiments, args=([[user_data["implementation"]]])
+                )
+            # PFVClient.thread.daemon = True
+            PFVClient.thread.start()
+            PFVClient.app.logger.info("Thread started")
+            # Wait for the thread to complete
+            if PFVClient.thread is not None:
+                PFVClient.thread.join()
+                PFVClient.app.logger.info("Thread finished")
+                PFVClient.thread = None
+        else:
+            PFVClient.app.logger.info("Thread already running")
+
+    @app.route("/get-protocols", methods=["GET"])
+    def get_protocols():
+        return jsonify(PROTOCOLS)
+    
+    
+    @app.route("/stop-client", methods=["GET"])
+    def stop_client(): 
+        # TODO: hack because connection aborted i dont know why
+        sys.exit(0)
+    
     @app.after_request
     def add_header(r):
         """

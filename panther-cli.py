@@ -497,7 +497,7 @@ def build_implem(implem, config):
         dockerfile="Dockerfile.ivy_1",
         tag="ivy",
         rm=True,
-        buildargs={"CACHEBUST": str(time.time())},
+        # buildargs={"CACHEBUST": str(time.time())}, # Cache invalidation
         network_mode="host",
     )
     log_docker_output(log_generator, "Building Docker image ivy")
@@ -505,17 +505,18 @@ def build_implem(implem, config):
     shadow_tag = None
     final_tag = f"{tag}-ivy"
     # final_tag = final_tag.split("_",1)[-1].replace("_","-")
-    if config["modules"]["build_shadow"].lower() == "true" and "shadow" in implem:
-        logging.debug("Building Docker image shadow-ivy")
-        image_obj, log_generator = client.images.build(
-            path="panther/panther_worker/",
-            dockerfile="Dockerfile.shadow",
-            tag="shadow-ivy",
-            rm=True,
-            network_mode="host",
-        )
-        log_docker_output(log_generator, "Building Docker image shadow-ivy")
-        shadow_tag = "shadow-ivy"
+    #if config["modules"]["build_shadow"].lower() == "true" and "shadow" in implem:
+    # TODO for example ping pong
+    logging.debug("Building Docker image shadow-ivy")
+    image_obj, log_generator = client.images.build(
+        path="panther/panther_worker/",
+        dockerfile="Dockerfile.shadow",
+        tag="shadow-ivy",
+        rm=True,
+        network_mode="host",
+    )
+    log_docker_output(log_generator, "Building Docker image shadow-ivy")
+    shadow_tag = "shadow-ivy"
 
     # Build the picotls image
     build_args = {"image": shadow_tag} if shadow_tag else {"image": "ivy"}

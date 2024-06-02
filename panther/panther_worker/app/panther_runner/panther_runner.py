@@ -1,3 +1,4 @@
+import glob
 import os
 import re
 import sys
@@ -69,54 +70,67 @@ class Runner:
             )
 
     def save_shadow_binaries(self, implem, test, run_id):
-        # TODO save shadow yml for better reproductibiltiy
-        if self.config["net_parameters"].getboolean("shadow"):
-            self.log.info("Save shadow binaries:")
-            if test.mode == "client":
-                index = 0
-            else:
-                index = 1
-            binary_path = (
-                self.implems[implem][index][implem]["binary-dir"]
-                .replace(
-                    "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                )
-                .replace("$MODEL_DIR", MODEL_DIR)
-                + "/"
-                + self.implems[implem][index][implem]["binary-name"]
-                .replace(
-                    "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                )
-                .replace("$MODEL_DIR", MODEL_DIR)
-                .split(" ")[-1]
-            )
-            binary_name = (
-                self.implems[implem][index][implem]["binary-name"]
-                .replace(
-                    "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                )
-                .replace("$MODEL_DIR", MODEL_DIR)
-                .split(" ")[-1]
-                .split("/")[-1]
-            )
-            self.log.info("Copy binary: " + binary_path + " to " + os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), binary_name
-                ))
-            shutil.copyfile(
-                binary_path,
-                os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), binary_name
-                ),
-            )
-            self.log.info("Copy test: " + test.name + " to " + os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), test.name
-                ))
-            shutil.copyfile(
-                os.path.join(self.config["global_parameters"]["build_dir"], test.name),
-                os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), test.name
-                ),
-            )
+        """
+        Save shadow binaries for the given implementation and test.
+
+        Parameters:
+        implem (str): Implementation name.
+        test (object): Test object containing test details.
+        run_id (int): Unique run identifier.
+        """
+        if not self.config["net_parameters"].getboolean("shadow"):
+            return
+
+        self.log.info("Save shadow binaries:")
+
+        try:
+            binary_path, binary_name = self.get_binary_details(implem, test.mode)
+            self.copy_file(binary_path, os.path.join(self.config["global_parameters"]["dir"], str(run_id), binary_name))
+
+            test_path = os.path.join(self.config["global_parameters"]["build_dir"], test.name)
+            dest_test_path = os.path.join(self.config["global_parameters"]["dir"], str(run_id), test.name)
+            self.copy_file(test_path, dest_test_path)
+
+        except Exception as e:
+            self.log.error(f"Failed to save shadow binaries: {e}")
+
+    def get_binary_details(self, implem, mode):
+        """
+        Get binary path and name for the given implementation and mode.
+
+        Parameters:
+        implem (str): Implementation name.
+        mode (str): Mode of the test (client/server).
+
+        Returns:
+        tuple: (binary_path, binary_name)
+        """
+        index = 0 if mode == "client" else 1
+        binary_dir = self.implems[implem][index][implem]["binary-dir"]
+        binary_name = self.implems[implem][index][implem]["binary-name"]
+
+        binary_path = (
+            binary_dir.replace("$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol))
+            .replace("$MODEL_DIR", MODEL_DIR)
+            + "/"
+            + binary_name.replace("$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol))
+            .replace("$MODEL_DIR", MODEL_DIR)
+            .split(" ")[-1]
+        )
+
+        binary_name = binary_name.split("/")[-1].split(" ")[-1]
+        return binary_path, binary_name
+
+    def copy_file(self, src, dst):
+        """
+        Copy a file from source to destination.
+
+        Parameters:
+        src (str): Source file path.
+        dst (str): Destination file path.
+        """
+        self.log.info(f"Copy file: {src} to {dst}")
+        shutil.copyfile(src, dst)
 
     # Return dictionnary of paths according to possible location
     # TODO make more robust
@@ -297,210 +311,47 @@ class Runner:
     def save_shadow_res(self, test, i, pcap_name, run_id):
         if self.config["net_parameters"].getboolean("shadow"):
             self.log.info("Save shadow res:")
-            self.log.info(
-                "mv /app/shadow.data/ "
-                + os.path.join(self.config["global_parameters"]["dir"], str(run_id))
-            )
-            shutil.move(
-                "/app/shadow.data/",
-                os.path.join(self.config["global_parameters"]["dir"], str(run_id)),
-            )
-            shutil.move(
-                "/app/shadow.log",
-                os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), "shadow.log"
-                ),
-            )
-            os.remove(pcap_name)
-            self.log.info(
-                "mv /app/shadow.data/hosts/server/eth0.pcap "
-                + os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), "eth0.pcap"
-                )
-            )
-            shutil.copy(
-                os.path.join(
-                    self.config["global_parameters"]["dir"],
-                    str(run_id),
-                    "shadow.data/hosts/server/eth0.pcap",
-                ),
-                pcap_name,
-            )
-            if "client" in test.mode:  
-                self.log.info("mv /app/shadow.data/hosts/server/*.stderr " + os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), "ivy_stderr.txt"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/server/*.stderr",
-                    ),
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "ivy_stderr.txt",
-                    ),
-                )
-                self.log.info("mv " + os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/server/*.stdout",
-                    ) + " " + os.path.join(
-                    self.config["global_parameters"]["dir"], str(run_id), test.name + str(i) + ".iev"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/server/*.stdout",
-                    ),
-                    os.path.join(
-                        os.path.join(
-                            self.config["global_parameters"]["dir"], str(run_id)
-                        ),
-                        test.name + str(i) + ".iev",
-                    ),
-                )
-                self.log.info("mv " + os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stdout",
-                    ) + " " + os.path.join(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"], str(run_id)
-                    ),
-                    test.name + str(i) + ".out"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stdout",
-                    ),
-                    os.path.join(
-                        os.path.join(
-                            self.config["global_parameters"]["dir"], str(run_id)
-                        ),
-                        test.name + str(i) + ".out",
-                    ),
-                )
-                self.log.info("mv " + os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stderr",
-                    ) + " " + os.path.join(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"], str(run_id)
-                    ),
-                    test.name + str(i) + ".err"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stderr",
-                    ),
-                    os.path.join(
-                        os.path.join(
-                            self.config["global_parameters"]["dir"], str(run_id)
-                        ),
-                        test.name + str(i) + ".err",
-                    ),
-                )
-            elif "server" in test.mode:
-                self.log.info("mv " + os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stderr",
-                    ) + " " + os.path.join(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"], str(run_id)
-                    ),
-                    "ivy_stderr.txt"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stderr",
-                    ),
-                    os.path.join(
-                        os.path.join(
-                            self.config["global_parameters"]["dir"], str(run_id)
-                        ),
-                        "ivy_stderr.txt",
-                    ),
-                )
-                self.log.info("mv " + os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stdout",
-                    ) + " " + os.path.join(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"], str(run_id)
-                    ),
-                    test.name + str(i) + ".iev"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/client/*.stdout",
-                    ),
-                    os.path.join(
-                        os.path.join(
-                            self.config["global_parameters"]["dir"], str(run_id)
-                        ),
-                        test.name + str(i) + ".iev",
-                    ),
-                )
-                self.log.info("mv " + os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/server/*.stdout",
-                    ) + " " + os.path.join(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"], str(run_id)
-                    ),
-                    test.name + str(i) + ".out"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/server/*.stdout",
-                    ),
-                    os.path.join(
-                        os.path.join(
-                            self.config["global_parameters"]["dir"], str(run_id)
-                        ),
-                        test.name + str(i) + ".out",
-                    ),
-                )
-                self.log.info("mv " + os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/server/*.stderr",
-                    ) + " " + os.path.join(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"], str(run_id)
-                    ),
-                    test.name + str(i) + ".err"
-                ))
-                shutil.copy(
-                    os.path.join(
-                        self.config["global_parameters"]["dir"],
-                        str(run_id),
-                        "shadow.data/hosts/server/*.stderr",
-                    ),
-                    os.path.join(
-                        os.path.join(
-                            self.config["global_parameters"]["dir"], str(run_id)
-                        ),
-                        test.name + str(i) + ".err",
-                    ),
-                )
+            shadow_data_src = "/app/shadow.data"
+            shadow_data_dst = os.path.join(self.config["global_parameters"]["dir"], str(run_id), "shadow.data")
+            self.log.info(f"Copying entire folder: {shadow_data_src} to {shadow_data_dst}")
+            shutil.copytree(shadow_data_src, shadow_data_dst)
+            shutil.copyfile("/app/shadow.log", os.path.join(self.config["global_parameters"]["dir"], str(run_id), "shadow.log"))
+            shutil.rmtree(shadow_data_src)
+            os.remove("/app/shadow.log")
+            shadow_data_dir = os.path.join(self.config["global_parameters"]["dir"], str(run_id), "shadow.data")
+            host_dirs = {
+                "client": os.path.join(shadow_data_dir, "hosts/client"),
+                "server": os.path.join(shadow_data_dir, "hosts/server"),
+            }
+            dest_dir = os.path.join(self.config["global_parameters"]["dir"], str(run_id))
 
+            if "client" in test.mode:
+                patterns = [
+                    ("client", "*.stdout", test.name + str(i) + ".out"),
+                    ("client", "*.stderr", test.name + str(i) + ".err"),
+                    ("server", "*.stdout", test.name + str(i) + ".iev"),
+                    ("server", "*.stderr", "ivy_stderr.txt"),
+                ]
+            else:
+                 patterns = [
+                    ("server", "*.stdout", test.name + str(i) + ".out"),
+                    ("server", "*.stderr", test.name + str(i) + ".err"),
+                    ("client", "*.stdout", test.name + str(i) + ".iev"),
+                    ("client", "*.stderr", "ivy_stderr.txt"),
+                ]
+
+            for mode, pattern, dest_filename in patterns:
+                self.log.info(f"Matching pattern {pattern} in {host_dirs[mode]}")
+                for file_path in glob.glob(os.path.join(host_dirs[mode], pattern)):
+                    self.log.info(f"Copy {file_path} to {os.path.join(dest_dir, dest_filename)}")
+                    shutil.copy(file_path, os.path.join(dest_dir, dest_filename))
+
+            if "client" in test.mode:
+                self.log.info(f"Copy eth0.pcap to {pcap_name}")
+                shutil.copy(os.path.join(shadow_data_dir, "hosts/server/eth0.pcap"), pcap_name)
+            elif "server" in test.mode:
+                self.log.info(f"Copy eth0.pcap to {pcap_name}")
+                shutil.copy(os.path.join(shadow_data_dir, "hosts/client/eth0.pcap"), pcap_name)
+                
     def run_exp(self, implem):
         raise NotImplementedError

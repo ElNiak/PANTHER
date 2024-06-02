@@ -283,7 +283,7 @@ class QUICRunner(Runner):
                             self.log.info("End run status: " + str(status))
                             if not status:
                                 num_failures += 1
-
+                            
                             self.save_shadow_res(test, i, pcap_name, run_id)
                             self.save_shadow_binaries(implem, test, run_id)
                             self.get_exp_stats(implem, test, run_id, pcap_name, i)
@@ -304,5 +304,6 @@ class QUICRunner(Runner):
                 self.log.info("error: {} tests(s) failed".format(num_failures))
             else:
                 self.log.info("OK")
+                return
         except KeyboardInterrupt:
             self.log.info("terminated")

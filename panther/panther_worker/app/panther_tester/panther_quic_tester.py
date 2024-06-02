@@ -298,172 +298,57 @@ class QUICIvyTest(IvyTest):
             self.implem_cmd = self.implem_cmd.replace("ALPN", ENV_VAR["TEST_ALPN"])
 
     def generate_shadow_config(self):
-        server_implem_args = (
-            self.implem_conf[0][self.implementation_name]["cert-param"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[0][self.implementation_name]["key-param"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["key-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[0][self.implementation_name]["root-cert-param"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["root-cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[0][self.implementation_name]["log-param"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["log-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[0][self.implementation_name]["qlog-param"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["qlog-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[0][self.implementation_name]["secret-key-param"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["secret-key-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[0][self.implementation_name]["alpn"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["alpn-value"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["version"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["version-value"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["verbosity"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["addition-parameters"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["source-format"]
-            .replace(
-                "[source]", self.implem_conf[0][self.implementation_name]["source"]
-            )
-            .replace(
-                "[source-value]",
-                self.implem_conf[0][self.implementation_name]["source-value"],
-            )
-            .replace("[port]", self.implem_conf[0][self.implementation_name]["port"])
-            .replace(
-                "[port-value]",
-                self.implem_conf[0][self.implementation_name]["port-value"],
-            )
-        )
-
+        server_implem_args = self.implem_conf[0][self.implementation_name]["cert-param"] + " " + self.implem_conf[0][self.implementation_name]["cert-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[0][self.implementation_name]["key-param"] + " " + self.implem_conf[0][self.implementation_name]["key-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[0][self.implementation_name]["root-cert-param"] + " " + self.implem_conf[0][self.implementation_name]["root-cert-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[0][self.implementation_name]["log-param"] + " " + self.implem_conf[0][self.implementation_name]["log-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[0][self.implementation_name]["qlog-param"] + " " + self.implem_conf[0][self.implementation_name]["qlog-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[0][self.implementation_name]["secret-key-param"] + " " + self.implem_conf[0][self.implementation_name]["secret-key-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[0][self.implementation_name]["alpn"] + " " + self.implem_conf[0][self.implementation_name]["alpn-value"] \
+            + " " + self.implem_conf[0][self.implementation_name]["version"] + " " + self.implem_conf[0][self.implementation_name]["version-value"] \
+            + " " + self.implem_conf[0][self.implementation_name]["verbosity"] + " " + self.implem_conf[0][self.implementation_name]["addition-parameters"] \
+            + " " + self.implem_conf[0][self.implementation_name]["source-format"].replace("[source]", 
+                                                                                                self.implem_conf[0][self.implementation_name]["source"]
+                                                                                    ).replace("[source-value]", 
+                                                                                                self.implem_conf[0][self.implementation_name]["source-value"]
+                                                                                    ).replace("[port]", 
+                                                                                                self.implem_conf[0][self.implementation_name]["port"]
+                                                                                    ).replace("[port-value]", 
+                                                                                                self.implem_conf[0][self.implementation_name]["port-value"]) 
+        
         # server_implem_args = server_implem_args.replace("implem","lo")
-        server_implem_args = server_implem_args.replace(
-            "XXXXXXXX", "quic-implementations"
-        )
-        server_implem_args = server_implem_args.replace(
-            "VERSION",
-            (
-                "00000001"
-                if ENV_VAR["INITIAL_VERSION"] == "1"
-                else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c")
-            ),
-        )
-        server_implem_args = server_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
-        server_implem_args = re.sub("\s{2,}", " ", server_implem_args)
-
-        client_implem_args = (
-            self.implem_conf[1][self.implementation_name]["cert-param"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[1][self.implementation_name]["key-param"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["key-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[1][self.implementation_name]["root-cert-param"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["root-cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[1][self.implementation_name]["log-param"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["log-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[1][self.implementation_name]["qlog-param"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["qlog-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
-            + " "
-            + self.implem_conf[1][self.implementation_name]["secret-key-param"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["secret-key-file"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["alpn"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["alpn-value"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["version"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["version-value"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["verbosity"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["addition-parameters"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["destination-format"]
-            .replace(
-                "[destination]",
-                self.implem_conf[1][self.implementation_name]["destination"],
-            )
-            .replace(
-                "[destination-value]",
-                self.implem_conf[1][self.implementation_name]["destination-value"],
-            )
-            .replace("[port]", self.implem_conf[1][self.implementation_name]["port"])
-            .replace(
-                "[port-value]",
-                self.implem_conf[1][self.implementation_name]["port-value"],
-            )
-        )
-
+        server_implem_args = server_implem_args.replace("XXXXXXXX","quic-implementations")
+        server_implem_args = server_implem_args.replace("VERSION","00000001" if ENV_VAR["INITIAL_VERSION"] == "1" else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"))
+        server_implem_args = server_implem_args.replace("ALPN",ENV_VAR["TEST_ALPN"])
+        server_implem_args = re.sub('\s{2,}', ' ', server_implem_args)
+        
+        client_implem_args = self.implem_conf[1][self.implementation_name]["cert-param"] + " " + self.implem_conf[1][self.implementation_name]["cert-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[1][self.implementation_name]["key-param"] + " " + self.implem_conf[1][self.implementation_name]["key-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[1][self.implementation_name]["root-cert-param"] + " " + self.implem_conf[1][self.implementation_name]["root-cert-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[1][self.implementation_name]["log-param"] + " " + self.implem_conf[1][self.implementation_name]["log-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[1][self.implementation_name]["qlog-param"] + " " + self.implem_conf[1][self.implementation_name]["qlog-file"].replace("$SOURCE_DIR",SOURCE_DIR).replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[1][self.implementation_name]["secret-key-param"] + " " + self.implem_conf[1][self.implementation_name]["secret-key-file"].replace("$IMPLEM_DIR",self.implem_dir_server+"/") \
+            + " " + self.implem_conf[1][self.implementation_name]["alpn"] + " " + self.implem_conf[1][self.implementation_name]["alpn-value"] \
+            + " " + self.implem_conf[1][self.implementation_name]["version"] + " " + self.implem_conf[1][self.implementation_name]["version-value"] \
+            + " " + self.implem_conf[1][self.implementation_name]["verbosity"] + " " + self.implem_conf[1][self.implementation_name]["addition-parameters"] \
+            + " " + self.implem_conf[1][self.implementation_name]["destination-format"].replace("[destination]", 
+                                                                                            self.implem_conf[1][self.implementation_name]["destination"]
+                                                                                        ).replace("[destination-value]", 
+                                                                                                    self.implem_conf[1][self.implementation_name]["destination-value"]
+                                                                                        ).replace("[port]", 
+                                                                                                    self.implem_conf[1][self.implementation_name]["port"]
+                                                                                        ).replace("[port-value]", 
+                                                                                                    self.implem_conf[1][self.implementation_name]["port-value"]) 
+        
         # client_implem_args = client_implem_args.replace("implem","lo")
-        client_implem_args = client_implem_args.replace(
-            "XXXXXXXX", "quic-implementations"
-        )
-        client_implem_args = client_implem_args.replace(
-            "VERSION",
-            (
-                "00000001"
-                if ENV_VAR["INITIAL_VERSION"] == "1"
-                else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c")
-            ),
-        )
-        client_implem_args = client_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
-        client_implem_args = re.sub("\s{2,}", " ", client_implem_args)
-        implem_env = ""  # TODO use a list of env
+        client_implem_args = client_implem_args.replace("XXXXXXXX","quic-implementations")
+        client_implem_args = client_implem_args.replace("VERSION","00000001" if ENV_VAR["INITIAL_VERSION"] == "1" else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"))
+        client_implem_args = client_implem_args.replace("ALPN",ENV_VAR["TEST_ALPN"])
+        client_implem_args = re.sub('\s{2,}', ' ', client_implem_args)
+        implem_env  = "" # TODO use a list of env
 
-        ivy_args = (
-            self.generate_tester_command(
-                self.config["global_parameters"].getint("iter"), 1
-            )
-            .split("/")[-1]
-            .replace(self.name, "")
-        )
-        ivy_env = ""  # TODO use a list of env
+        ivy_args    = self.generate_tester_command(self.config["global_parameters"].getint("iter"),1).split("/")[-1].replace(self.name,"")
+        ivy_env     = "" # TODO use a list of en
 
         # TODO use config file
         self.log.info(f"Shadow test for {self.name}")

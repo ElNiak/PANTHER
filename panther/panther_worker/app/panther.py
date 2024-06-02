@@ -326,7 +326,7 @@ class Panther:
                 self.log.error(
                     "TODO implement in local mode, for now only with docker (ERROR)"
                 )
-                sys.exit(0)
+                # exit(0)
                 # TODO implement in local mode, for now only with docker
 
             for implem in implementations:
@@ -335,9 +335,15 @@ class Panther:
                 if implem not in self.implementation_enable.keys():
                     self.log.info("Unknown implementation")
                     sys.stderr.write("nknown implementation: {}\n".format(implem))
-                    exit(1)
+                    # exit(1)
 
             if self.config["verified_protocol"].getboolean("apt"):
+                self.log.info(self.config)
+                self.log.info(self.protocol_conf)
+                self.log.info(self.current_protocol)
+                self.log.info(self.conf_implementation_enable)
+                self.log.info(self.tests_enabled)
+                # exit()
                 runner = APTRunner(
                     self.config,
                     self.protocol_conf,
@@ -363,7 +369,7 @@ class Panther:
                 )
             else:
                 self.log.info("No protocols selected")
-                exit(0)
+                # exit(0)
 
             self.log.info("Starting experiments:")
             for implementation in implementations:
@@ -374,24 +380,12 @@ class Panther:
                     runner.run_exp(implementation)
                 except Exception as e:
                     print(e)
-                    with open(
-                        "configs/"
-                        + implementation
-                        + "/"
-                        + self.current_protocol
-                        + "_config.ini",
-                        "w",
-                    ) as configfile:
-                        with open(
-                            "configs/"
-                            + implementation
-                            + "/default_"
-                            + self.current_protocol
-                            + "_config.ini",
-                            "r",
-                        ) as default_config:
-                            default_settings = default_config.read()
-                            configfile.write(default_settings)
+                    restore_config()
+                    try:
+                        x = requests.get('http://panther-webapp/errored-experiment')
+                        self.log.info(x)
+                    except:
+                        pass
                 finally:  # In Runner.py
                     self.stop_stdout()
                     if self.config["net_parameters"].getboolean("vnet"):
@@ -422,10 +416,11 @@ class Panther:
             try:
                 x = requests.get('http://panther-webapp/finish-experiment')
                 self.log.info(x)
+                # exit(0)
             except:
                 pass
-            exit(0)
-        except Exception as e:
+            # exit(0)
+        except Exception as e: 
             print(e)
             try:
                 x = requests.get('http://panther-webapp/errored-experiment')
@@ -433,7 +428,7 @@ class Panther:
             except:
                 pass
             self.log.error("END 2")
-            exit(1)
+            # exit(1)
 
     def generate_uml_trace(self):
         self.log.info("Generating PlantUML trace from ivy trace")

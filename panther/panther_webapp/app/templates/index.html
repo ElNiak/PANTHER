@@ -13,6 +13,7 @@
       <link href="/static/css/styles.css" rel="stylesheet" />
       <script src="https://use.fontawesome.com/releases/v6.1.0/js/all.js" crossorigin="anonymous"></script>
       <script src="https://code.jquery.com/jquery-3.6.2.min.js" integrity="sha256-2krYZKh//PcchRtd+H+VyyQoZ/e3EcrkxhM8ycwASPA=" crossorigin="anonymous"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
    </head>
    <body class="sb-nav-fixed">
       <script>
@@ -78,50 +79,38 @@
             var progress_bar = $('.progress-bar');
             var submitter = $('.submitter');
             function check_progress() {
-               function worker() {
-                   $.get('progress', function(data) {
-                        console.log(data)
-                        console.log({{ iteration }})
-                       if (data == "None") {
-                           progress_class.css('display','none');
-                           $('#rainbowContainer').css('display','none');
-                           $('#rainbowContainer2').css('display','none');
-                           
-                           submitter.attr("disabled", false);
-                           nyanCat.setPercent(0);
-                           return false;
+               var socket = io.connect('http://' + document.domain + ':' + location.port);
+           
+               socket.on('progress_update', function(data) {
+                   console.log(data.progress);
+                   console.log({{ iteration }});
+           
+                   if (data.progress === "None") {
+                       progress_class.css('display','none');
+                       $('#rainbowContainer').css('display','none');
+                       $('#rainbowContainer2').css('display','none');
+           
+                       submitter.attr("disabled", false);
+                       nyanCat.setPercent(0);
+                   } else if (parseInt(data.progress) >= 0) {
+                       progress_class.css('display','inherit');
+                       $('#rainbowContainer').css('display','inherit');
+                       $('#rainbowContainer2').css('display','inherit');
+           
+                       submitter.attr("disabled", true);
+                       progress_bar.attr("aria-valuenow", data.progress);
+                       var percent = parseInt(data.progress) / parseInt({{ iteration }}) * 100;
+                       progress_bar.css('width', percent + '%');
+                       nyanCat.setPercent(percent);
+           
+                       if (percent == 100) {
+                           socket.disconnect();
                        }
-                       else if (parseInt(data) >= 0) {
-                           progress_class.css('display','inherit');
-                           $('#rainbowContainer').css('display','inherit');
-                           $('#rainbowContainer2').css('display','inherit');
-
-                           submitter.attr("disabled", true);
-                           progress_bar.attr("aria-valuenow", data);
-                           var percent = parseInt(data)/parseInt({{ iteration }}) * 100;
-                           progress_bar.css('width', percent  + '%');
-                           //setTimeout(worker, 1000)
-                           nyanCat.setPercent(percent);
-                           if(percent == 100) {
-                              return true;
-                           } else {
-                              return false;
-                           }
-                       } else {
-                           return false;
-                       }
-                   })
-               }
-               worker()
-               var intervalId = window.setInterval(function(){
-                  var cond =  worker()
-                  if(cond) {
-                     window.clearInterval(intervalId);
-                  }
-                }, 5000); //TODO stop
-               
+                   }
+               });
            }
-           check_progress()
+           
+           check_progress();
          });
       </script>
       <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">

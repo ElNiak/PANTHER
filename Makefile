@@ -26,8 +26,10 @@ clean-docker-full:
 	docker image prune -a
     # Fully clean the Docker system (containers, networks, and images)
 	docker system prune -a -f
+    docker volume prune -a
     # Force removal of all images
 	docker rmi $(docker images -a -q)
+    
 
 ###################################################################################################
 # RUNNER COMMANDS

@@ -28,6 +28,7 @@ setup(name='panther-webapp',
           'flask', # malwexp
           "flask_session",
           "django",
+          "flask-socketio",
           "requests",
           "Flask-Cors==3.0.10",
           "npf-web-extension",

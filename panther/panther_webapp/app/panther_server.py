@@ -25,6 +25,7 @@ from flask import (
     render_template,
     jsonify,
 )
+from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
 from base64 import b64encode
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -60,6 +61,9 @@ class PFVServer:
 
     def __init__(self, dir_path=None):
         restore_config()
+        
+        # Initialize SocketIO
+        PFVServer.socketio = SocketIO(PFVServer.app)
 
         # Setup configuration
         PFVServer.app.logger.info("Setup configuration ...")
@@ -138,40 +142,42 @@ class PFVServer:
         """
         return redirect("index.html", code=302)
 
-    @app.route("/progress", methods=["GET"])
-    def progress():
-        # TODO
-        return (
-            "None"
-            if not PFVServer.is_experiment_started
-            else str(PFVServer.experiment_current_iteration)
-        )
-
+    def reset_experiment_state():
+        PFVServer.is_experiment_started = False
+        PFVServer.experiment_current_iteration = 0
+        PFVServer.experiment_iteration = 0
+        restore_config()
+    
     @app.route("/update-count", methods=["GET"])
     def update_count():
         if PFVServer.is_experiment_started:
             PFVServer.experiment_current_iteration += 1
-            if PFVServer.experiment_current_iteration == PFVServer.experiment_iteration:
-                PFVServer.is_experiment_started = False
-                PFVServer.experiment_current_iteration = 0
-                PFVServer.experiment_iteration = 0
-        return "ok"  # TODO
+            if PFVServer.experiment_current_iteration >= PFVServer.experiment_iteration:
+                PFVServer.emit_progress_update()
+                PFVServer.reset_experiment_state()
+                # requests.get(f"http://{impl}-ivy:80/finish-experiment")
+            else:
+                PFVServer.emit_progress_update()
+        return jsonify({"status": "success"}), 200
+
+    def emit_progress_update():
+        progress = PFVServer.experiment_current_iteration
+        PFVServer.socketio.emit('progress_update', {'progress': progress})
+
     
     @app.route("/errored-experiment", methods=["GET"])
     def errored_experiment():
         if PFVServer.is_experiment_started:
-            PFVServer.is_experiment_started = False
-            PFVServer.experiment_current_iteration = 0
-            PFVServer.experiment_iteration = 0
-        return "ok"  # TODO
+            PFVServer.emit_progress_update()
+            PFVServer.reset_experiment_state()
+        return jsonify({"status": "success"}), 200
     
     @app.route("/finish-experiment", methods=["GET"])
     def finish_experiment():
         if PFVServer.is_experiment_started:
-            PFVServer.is_experiment_started = False
-            PFVServer.experiment_current_iteration = 0
-            PFVServer.experiment_iteration = 0
-        return "ok"  # TODO
+            PFVServer.emit_progress_update()
+            PFVServer.reset_experiment_state()
+        return jsonify({"status": "success"}), 200
     
     def get_args():
         """_summary_
@@ -349,11 +355,15 @@ class PFVServer:
                     "tests_requested": PFVServer.tests_requested,
                 }
                 PFVServer.app.logger.info("with parameters: " + str(req))
-                response = requests.post("http://" + impl + "-ivy:80/run-exp", json=req)
+                response = None
+                try:
+                    response = requests.get(f"http://{impl}-ivy:80/run-exp", json=req)
+                    response.raise_for_status()
+                    PFVServer.app.logger.info(f"Experiment status: {response.content}")
+                except requests.RequestException as e:
+                    PFVServer.app.logger.error(f"Request failed for {impl}: {e} - {response}")
+                    continue
 
-                PFVServer.app.logger.info(
-                    "Experimented status: " + str(response.content)
-                )
 
                 while (
                     PFVServer.experiment_current_iteration
@@ -362,11 +372,9 @@ class PFVServer:
                 ):
                     time.sleep(10)
                     PFVServer.app.logger.info("Waiting")
-                    PFVServer.app.logger.info(PFVServer.experiment_current_iteration)
-                    PFVServer.app.logger.info(
-                        PFVServer.experiment_iteration
-                        / len(PFVServer.implementation_requested)
-                    )
+                    PFVServer.app.logger.info("Waiting")
+                    PFVServer.app.logger.info(f"Current iteration: {PFVServer.experiment_current_iteration}")
+                    PFVServer.app.logger.info(f"Target iteration: {PFVServer.experiment_iteration / len(PFVServer.implementation_requested)}")
                 PFVServer.app.logger.info(
                     "Ending experiment for implementation " + impl
                 )
@@ -374,6 +382,13 @@ class PFVServer:
             # TODO multi test
             # Need to avoid shared configuration file
             pass
+    
+    # To start the experiment in a thread
+    def start_experiment_thread(experiment_arguments, protocol_arguments):
+        thread = threading.Thread(target=PFVServer.start_exp, args=(experiment_arguments, protocol_arguments))
+        thread.daemon = True
+        thread.start()
+
 
     def change_current_protocol(protocol):
         PFVServer.app.logger.info(
@@ -485,12 +500,7 @@ class PFVServer:
                 * int(experiment_arguments["iter"])
             )
 
-            thread = threading.Thread(
-                target=PFVServer.start_exp,
-                args=([experiment_arguments, protocol_arguments]),
-            )
-            thread.daemon = True
-            thread.start()
+            PFVServer.start_experiment_thread(experiment_arguments, protocol_arguments)
         else:
             if (
                 request.args.get("prot", "")

@@ -237,6 +237,15 @@ def restore_config():
         with open("configs/default_config.ini", "r") as default_config:
             default_settings = default_config.read()
             configfile.write(default_settings)
+    with open("configs/quic/quic_config.ini", "w") as configfile:
+        with open("configs/quic/default_quic_config.ini", "r") as default_config:
+            default_settings = default_config.read()
+            configfile.write(default_settings)
+    with open("configs/minip/minip_config.ini", "w") as configfile:
+        with open("configs/minip/default_minip_config.ini", "r") as default_config:
+            default_settings = default_config.read()
+            configfile.write(default_settings)
+            
 
 
 def update_config(experiment_parameters, current_protocol):

@@ -128,7 +128,7 @@ class ArgumentParserRunner:
             '--loss', 
             help='Shadow: loss (default:0)',
             type=float, 
-            default=1.0
+            default=0.1
         )
         self.group_shadow.add_argument(
             '--jitter', 
