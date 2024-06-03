@@ -256,6 +256,11 @@ class Panther:
             rc = child
             self.log.info(rc)
             if rc != 0:
+                try:
+                    x = requests.get('http://panther-webapp/errored-experiment')
+                    self.log.info(x)
+                except:
+                    pass
                 exit(1)
 
             self.log.info("Moving built file in correct folder:")

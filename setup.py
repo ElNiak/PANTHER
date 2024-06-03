@@ -29,7 +29,11 @@ setup(name='panther',
           'click',
           'termcolor',
           'terminal_banner',
-          "paramiko"
+          "paramiko",
+          "mkgendocs == 0.9.2",
+          "mkdocs-material == 9.1.15",
+          "mkdocs == 1.5.0",
+          "PyYAML == 6.0.1"
           ],
 
       zip_safe=False)

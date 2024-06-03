@@ -5,6 +5,14 @@ NPROC := $(shell nproc)
 # CLEANUP COMMANDS
 ###################################################################################################
 
+gen-docs:
+ python3 ./docs/generate_doc.py
+ gendocs --config mkgendocs.yaml
+
+mkdocs:
+ make gen-docs
+ mkdocs serve
+
 # Clean Docker images and containers
 clean:
     # This command removes all stopped containers and unused images
