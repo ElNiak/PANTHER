@@ -75,7 +75,7 @@
 
 ## :rocket: Overview
 
-PANTHER combines advanced techniques in network protocol verification, integrating the Shadow network simulator with the Ivy formal verification tool. This powerful synergy allows for the detailed examination of time properties in network protocols. A specialized time module enhances Ivy's capabilities, enabling it to handle complex quantitative-time properties with greater precision.
+PANTHER combines advanced techniques in network protocol verification, integrating the [Shadow network simulator](https://github.com/shadow/shadow) with the [Ivy formal verification tool](https://github.com/ElNiak/PANTHER-Ivy). This powerful synergy allows for the detailed examination of time properties in network protocols. A specialized time module enhances Ivy's capabilities, enabling it to handle complex quantitative-time properties with greater precision.
 
 PANTHER's effectiveness is demonstrated through its application to the QUIC protocol. By refining QUIC's formal specification in Ivy, PANTHER not only verifies essential aspects of the protocol but also identifies real-world implementation errors, showcasing its practical utility. This innovative integration paves the way for more thorough, efficient, and precise protocol testing and verification.
 
