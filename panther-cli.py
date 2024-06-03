@@ -99,7 +99,7 @@ def execute_command(command, tmux=None):
     if tmux:
         logging.info(f"Executing command in tmux with log file:  \"{command}\"")
         session_name = subprocess.check_output(['tmux', 'display-message', '-p', '#S']).strip().decode('utf-8')
-        os.system(f"tmux split-window -h; tmux send-keys -t  {session_name}:0.1 \"{command}\" C-m;")
+        os.system(f"tmux split-window -h -l 80%; tmux send-keys -t  {session_name}:0.1 \"{command}\" C-m;")
     else:
         result = subprocess.run(command, shell=True)
         if result.returncode != 0:
@@ -167,11 +167,12 @@ def start_tool(config):
     yaml_path, defined_services = update_docker_compose(config)
     execute_command(f"cat {yaml_path}")
     execute_command(f"docker compose -f {yaml_path} up -d")
+    execute_command("clear")
 
+    docker_to_monitor = []
     for container_name in defined_services:
         if container_exists(client, container_name):
-            thread = threading.Thread(target=monitor_docker_usage, args=([container_name, 10, -1])) 
-            thread.start()
+            docker_to_monitor.append(container_name)
             ip_address = get_container_ip(client, container_name)
             if ip_address:
                 entry = f"{ip_address} {container_name}\n"
@@ -179,11 +180,18 @@ def start_tool(config):
         else:
             print(f"Container '{container_name}' does not exist.")
     
+    thread = threading.Thread(target=monitor_docker_usage, args=([docker_to_monitor, 1, -1])) 
+    thread.start()
+    
     compose_log = f"\'logs/compose_{datetime.now()}.log\'"
     execute_command(f"docker compose -f {yaml_path} logs -f | tee {compose_log}", tmux=compose_log)
+    
+    # TODO: should split the first 
+    session_name = subprocess.check_output(['tmux', 'display-message', '-p', '#S']).strip().decode('utf-8')
+    os.system(f"tmux split-window -v -l 10%; tmux send-keys -t  {session_name}:0.0 \"bash\" C-m;")
 
 
-def monitor_docker_usage(container_name, interval=1.0, duration=10.0):
+def monitor_docker_usage(docker_to_monitor, interval=1.0, duration=10.0):
     """
     Monitor the CPU and memory usage of a Docker container.
 
@@ -193,52 +201,57 @@ def monitor_docker_usage(container_name, interval=1.0, duration=10.0):
     """
     client = docker.from_env()
 
-    try:
-        container = client.containers.get(container_name)
-    except docker.errors.NotFound:
-        logging.info(f"No container found with name or ID {container_name}")
-        return
+    for container_name in docker_to_monitor:
+        try:
+            container = client.containers.get(container_name)
+        except docker.errors.NotFound:
+            logging.info(f"No container found with name or ID {container_name}")
+            return
 
     start_time = time.time()
     duration_condition = lambda: (
         (time.time() - start_time) < duration if duration > 0 else True
     )
     while duration_condition():
-        try:
-            stats = container.stats(stream=False)
+        execute_command("clear")
+        for container_name in docker_to_monitor:
+            try:
+                container = client.containers.get(container_name)
+                
+                stats = container.stats(stream=False)
 
-            # Check for missing keys and default to 0 if missing
-            cpu_delta = stats["cpu_stats"]["cpu_usage"].get("total_usage", 0) - stats[
-                "precpu_stats"
-            ]["cpu_usage"].get("total_usage", 0)
-            system_cpu_delta = stats["cpu_stats"].get("system_cpu_usage", 0) - stats[
-                "precpu_stats"
-            ].get("system_cpu_usage", 0)
-            number_cpus = len(stats["cpu_stats"]["cpu_usage"].get("percpu_usage", []))
-            cpu_usage = (
-                (cpu_delta / system_cpu_delta) * number_cpus * 100.0
-                if system_cpu_delta > 0
-                else 0.0
-            )
+                # Check for missing keys and default to 0 if missing
+                cpu_delta = stats["cpu_stats"]["cpu_usage"].get("total_usage", 0) - stats[
+                    "precpu_stats"
+                ]["cpu_usage"].get("total_usage", 0)
+                system_cpu_delta = stats["cpu_stats"].get("system_cpu_usage", 0) - stats[
+                    "precpu_stats"
+                ].get("system_cpu_usage", 0)
+                number_cpus = len(stats["cpu_stats"]["cpu_usage"].get("percpu_usage", []))
+                cpu_usage = (
+                    (cpu_delta / system_cpu_delta) * number_cpus * 100.0
+                    if system_cpu_delta > 0
+                    else 0.0
+                )
 
-            memory_usage = stats["memory_stats"].get("usage", 0) / (
-                1024 * 1024
-            )  # Convert to MB
-            memory_limit = stats["memory_stats"].get("limit", 1) / (
-                1024 * 1024
-            )  # Convert to MB
-            memory_percentage = (
-                (memory_usage / memory_limit) * 100.0 if memory_limit > 0 else 0.0
-            )
+                memory_usage = stats["memory_stats"].get("usage", 0) / (
+                    1024 * 1024
+                )  # Convert to MB
+                memory_limit = stats["memory_stats"].get("limit", 1) / (
+                    1024 * 1024
+                )  # Convert to MB
+                memory_percentage = (
+                    (memory_usage / memory_limit) * 100.0 if memory_limit > 0 else 0.0
+                )
 
-            logging.info(
-                f"Name {container_name}\n\t - Time: {time.time() - start_time:.2f}s\n\t - CPU Usage: {cpu_usage:.2f}%\n\t - Memory Usage: {memory_usage:.2f}MB ({memory_percentage:.2f}%)"
-            )
-        except docker.errors.APIError as e:
-            logging.error(f"An error occurred: {e}")
-            break
-        except KeyError as e:
-            logging.warning(f"Missing key in stats: {e}")
+                logging.info(
+                    f"Name {container_name}\n\t - Time: {time.time() - start_time:.2f}s\n\t - CPU Usage: {cpu_usage:.2f}%\n\t - Memory Usage: {memory_usage:.2f}MB ({memory_percentage:.2f}%)"
+                )
+            except docker.errors.APIError as e:
+                logging.error(f"An error occurred: {e}")
+                break
+            except KeyError as e:
+                logging.warning(f"Missing key in stats: {e}")
         time.sleep(interval)
 
 

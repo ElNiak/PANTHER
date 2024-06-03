@@ -77,7 +77,7 @@ class QUICRunner(Runner):
         )
         self.log.info("Setup SSL keylog file:")
         os.environ["SSLKEYLOGFILE"] = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
-        ENV_VAR["SSLKEYLOGFILE"] = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
+        ENV_VAR["SSLKEYLOGFILE"]    = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
         # Main
         try:
             self.bar_total_test.start()
@@ -304,6 +304,5 @@ class QUICRunner(Runner):
                 self.log.info("error: {} tests(s) failed".format(num_failures))
             else:
                 self.log.info("OK")
-                return
         except KeyboardInterrupt:
             self.log.info("terminated")

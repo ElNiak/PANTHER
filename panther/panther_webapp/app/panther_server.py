@@ -155,7 +155,6 @@ class PFVServer:
             if PFVServer.experiment_current_iteration >= PFVServer.experiment_iteration:
                 PFVServer.emit_progress_update()
                 PFVServer.reset_experiment_state()
-                # requests.get(f"http://{impl}-ivy:80/finish-experiment")
             else:
                 PFVServer.emit_progress_update()
         return jsonify({"status": "success"}), 200
