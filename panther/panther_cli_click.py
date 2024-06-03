@@ -99,75 +99,75 @@ IMPLEM_BUILD_COMMAND = {
     # BGP Implementations
     "bgp_bird": (
         "bird",
-        "panther/panther_worker/app/implementations/bgp-implementations/bird",
+        "panther_worker/app/implementations/bgp-implementations/bird",
         "Dockerfile.bird",
     ),
     "bgp_gobgp": (
         "gobgp",
-        "panther/panther_worker/app/implementations/bgp-implementations/gobgp",
+        "panther_worker/app/implementations/bgp-implementations/gobgp",
         "Dockerfile.gobgp",
     ),
     # CoAP Implementations
     "coap_libcoap": (
         "libcoap",
-        "panther/panther_worker/app/implementations/coap-implementations/libcoap",
+        "panther_worker/app/implementations/coap-implementations/libcoap",
         "Dockerfile.libcoap",
     ),
     # MiniP Implementations
     "minip_ping_pong": (
         "ping-pong",
-        "panther/panther_worker/app/implementations/minip-implementations/ping-pong",
+        "panther_worker/app/implementations/minip-implementations/ping-pong",
         "Dockerfile.ping-pong",
     ),
     # QUIC Implementations
     "quic_aioquic": (
         "aioquic",
-        "panther/panther_worker/app/implementations/quic-implementations/aioquic",
+        "panther_worker/app/implementations/quic-implementations/aioquic",
         "Dockerfile.aioquic",
     ),
     "quic_lsquic": (
         "lsquic",
-        "panther/panther_worker/app/implementations/quic-implementations/lsquic",
+        "panther_worker/app/implementations/quic-implementations/lsquic",
         "Dockerfile.lsquic",
     ),
     "quic_mvfst": (
         "mvfst",
-        "panther/panther_worker/app/implementations/quic-implementations/mvfst",
+        "panther_worker/app/implementations/quic-implementations/mvfst",
         "Dockerfile.mvfst",
     ),
     "quic_picoquic": (
         "picoquic",
-        "panther/panther_worker/app/implementations/quic-implementations/picoquic",
+        "panther_worker/app/implementations/quic-implementations/picoquic",
         "Dockerfile.picoquic",
     ),
     "quic_picoquic_shadow": (
         "picoquic-shadow",
-        "panther/panther_worker/app/implementations/quic-implementations/picoquic",
+        "panther_worker/app/implementations/quic-implementations/picoquic",
         "Dockerfile.picoquic-shadow",
     ),
     "quic_picoquic_vuln": (
         "picoquic-shadow",
-        "panther/panther_worker/app/implementations/quic-implementations/picoquic",
+        "panther_worker/app/implementations/quic-implementations/picoquic",
         "Dockerfile.picoquic-vuln",
     ),
     "quic_quant": (
         "quant",
-        "panther/panther_worker/app/implementations/quic-implementations/quant",
+        "panther_worker/app/implementations/quic-implementations/quant",
         "Dockerfile.quant",
     ),
     "quic_quic_go": (
         "quic-go",
-        "panther/panther_worker/app/implementations/quic-implementations/quic-go",
+        "panther_worker/app/implementations/quic-implementations/quic-go",
         "Dockerfile.quic-go",
     ),
     "quic_quiche": (
         "quiche",
-        "panther/panther_worker/app/implementations/quic-implementations/quiche",
+        "panther_worker/app/implementations/quic-implementations/quiche",
         "Dockerfile.quiche",
     ),
     "quic_quinn": (
         "quinn",
-        "panther/panther_worker/app/implementations/quic-implementations/quinn",
+        "panther_worker/app/implementations/quic-implementations/quinn",
         "Dockerfile.quinn",
     ),
 }
@@ -317,7 +317,7 @@ def start_tool(config_file):
     config = load_config(config_file)
     client = docker.from_env()
     create_docker_network()
-    execute_command("sudo chown -R $USER:$GROUPS $PWD/panther/")
+    execute_command("sudo chown -R $USER:$GROUPS $PWD/")
     execute_command("xhost +")
     yaml_path, defined_services = update_docker_compose(config)
     execute_command(f"cat {yaml_path}")
@@ -396,8 +396,8 @@ def monitor_docker_usage(container_name, interval=1.0, duration=10.0):
 @click.command()
 @click.pass_context
 @click.option('--config_file', default="install_config.ini",        help='Configuration file to use for installation')
-@click.option('--yaml_path',   default="panther/docker-compose.yml", help='Path to the Docker Compose YAML file')
-def update_docker_compose(config_file, yaml_path="panther/docker-compose.yml"):
+@click.option('--yaml_path',   default="docker-compose.yml", help='Path to the Docker Compose YAML file')
+def update_docker_compose(config_file, yaml_path="docker-compose.yml"):
     config = load_config(config_file)
     with open(yaml_path, "r") as file:
         # save backup version
@@ -427,12 +427,12 @@ def update_docker_compose(config_file, yaml_path="panther/docker-compose.yml"):
                     "ports": [f"{port}:80"],
                     "volumes": [
                         "/tmp/.X11-unix:/tmp/.X11-unix",
-                        "${PWD}/panther/panther_worker/app/:/app/",
-                        "${PWD}/panther/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
-                        "${PWD}/panther/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
-                        "${PWD}/panther/outputs/tls-keys:/app/tls-keys",
-                        "${PWD}/panther/outputs/tickets:/app/tickets",
-                        "${PWD}/panther/outputs/qlogs:/app/qlogs",
+                        "${PWD}/panther_worker/app/:/app/",
+                        "${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
+                        "${PWD}/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
+                        "${PWD}/outputs/tls-keys:/app/tls-keys",
+                        "${PWD}/outputs/tickets:/app/tickets",
+                        "${PWD}/outputs/qlogs:/app/qlogs",
                     ],
                     "networks": {"net": {"ipv4_address": ipv4_address}},
                     "privileged": True,
@@ -488,13 +488,13 @@ def install_tool(config_file, branch=None):
         execute_command("git submodule update --init --recursive")
         # TODO cd not working -> chdir
         execute_command(
-            f"cd panther/panther_worker/panther-ivy/; git fetch; git checkout {current_branch}; git pull"
+            f"cd panther_worker/panther-ivy/; git fetch; git checkout {current_branch}; git pull"
         )
         execute_command(
-            "cd panther/panther_worker/panther-ivy;   git submodule update --init --recursive"
+            "cd panther_worker/panther-ivy;   git submodule update --init --recursive"
         )
         # execute_command(
-        #     "cd panther/panther_worker/app/implementations/quic-implementations/picotls-implem;" + \  
+        #     "cd panther_worker/app/implementations/quic-implementations/picotls-implem;" + \  
         #     "git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76;" + \
         #     "git submodule update --init --recursive" + \
         # )
@@ -534,9 +534,9 @@ def clean_tool(config_file):
 def build_ivy_webapp():
     client = docker.from_env()
     logging.info("Building Docker image panther-webapp")
-    execute_command("sudo chown -R $USER:$GROUPS $PWD/panther/panther_webapp/")
+    execute_command("sudo chown -R $USER:$GROUPS $PWD/panther_webapp/")
     image_obj, log_generator = client.images.build(
-        path="panther/panther_webapp",
+        path="panther_webapp",
         dockerfile="Dockerfile.ivy_webapp",
         tag="panther-webapp",
         network_mode="host",
@@ -556,7 +556,7 @@ def build_ivy_webapp():
 def build_worker(implem, config_file):
     config = load_config(config_file)
     stop_tool()
-    execute_command("git clean -f -d panther/panther_worker/panther-ivy;")
+    execute_command("git clean -f -d panther_worker/panther-ivy;")
     client = docker.from_env()
     
     if implem == "all":
@@ -569,7 +569,7 @@ def build_worker(implem, config_file):
     # Build the base ubuntu-ivy image
     logging.debug("Building Docker image ubuntu-ivy")
     image_obj, log_generator = client.images.build(
-        path="panther/panther_worker/",
+        path="panther_worker/",
         dockerfile="Dockerfile.ubuntu",
         tag="ubuntu-ivy",
         rm=True,
@@ -580,7 +580,7 @@ def build_worker(implem, config_file):
     # Build the first ivy image
     logging.debug("Building Docker image ivy")
     image_obj, log_generator = client.images.build(
-        path="panther/panther_worker/",
+        path="panther_worker/",
         dockerfile="Dockerfile.ivy_1",
         tag="ivy",
         rm=True,
@@ -595,7 +595,7 @@ def build_worker(implem, config_file):
     if config["modules"]["build_shadow"].lower() == "true" and "shadow" in implem:
         logging.debug("Building Docker image shadow-ivy")
         image_obj, log_generator = client.images.build(
-            path="panther/panther_worker/",
+            path="panther_worker/",
             dockerfile="Dockerfile.shadow",
             tag="shadow-ivy",
             rm=True,
@@ -609,7 +609,7 @@ def build_worker(implem, config_file):
     itag = "shadow-ivy-picotls" if shadow_tag else "ivy-picotls"
     logging.debug(f"Building Docker image {itag} from tag {build_args}")
     image_obj, log_generator = client.images.build(
-        path="panther/panther_worker/app/implementations/quic-implementations/picotls/",
+        path="panther_worker/app/implementations/quic-implementations/picotls/",
         dockerfile="Dockerfile.picotls",
         tag=itag,
         rm=True,
@@ -637,7 +637,7 @@ def build_worker(implem, config_file):
     build_args = {"image": tag}
     logging.debug(f"Building Docker image {final_tag} from tag {build_args}")
     image_obj, log_generator = client.images.build(
-        path="panther/panther_worker/",
+        path="panther_worker/",
         dockerfile="Dockerfile.ivy_2",
         tag=final_tag,
         rm=True,
@@ -651,7 +651,7 @@ def build_docker_visualizer():
     client = docker.from_env()
     logging.info("Building Docker image visualizer")
     client.images.build(
-        path="panther/panther_webapp/tools/",
+        path="panther_webapp/tools/",
         rm=True,
         dockerfile="Dockerfile.visualizer",
         tag="ivy-visualizer",

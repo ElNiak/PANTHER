@@ -6,7 +6,7 @@ import yaml
 import shutil
 
 
-def update_docker_compose(config, yaml_path="panther/docker-compose.yml", prod=False):
+def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
     with open(yaml_path, "r") as file:
         # save backup version
         shutil.copyfile(yaml_path, f"{yaml_path}.bak")
@@ -48,14 +48,14 @@ def update_docker_compose(config, yaml_path="panther/docker-compose.yml", prod=F
             else:
                 volumes = [
                     "/tmp/.X11-unix:/tmp/.X11-unix",
-                    "${PWD}/panther/panther_worker/app/:/app/",
+                    "${PWD}/panther_worker/app/:/app/",
                     "/app/panther-ivy/",
                     "/app/implementations/",
-                    "${PWD}/panther/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
-                    "${PWD}/panther/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
-                    "${PWD}/panther/outputs/tls-keys:/app/tls-keys",
-                    "${PWD}/panther/outputs/tickets:/app/tickets",
-                    "${PWD}/panther/outputs/qlogs:/app/qlogs",
+                    "${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
+                    "${PWD}/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
+                    "${PWD}/outputs/tls-keys:/app/tls-keys",
+                    "${PWD}/outputs/tickets:/app/tickets",
+                    "${PWD}/outputs/qlogs:/app/qlogs",
                 ]
 
             docker_compose["services"][service_name] = {
@@ -85,8 +85,8 @@ def update_docker_compose(config, yaml_path="panther/docker-compose.yml", prod=F
                             "memory": memory,
                         },
                         "reservations": {
-                            "cpus": str(cpus/2), 
-                            "memory": str(memory/2),
+                            "cpus": str(float(cpus)/2), 
+                            "memory": str(int(memory.replace("M",""))/2)+"M",
                         },
                     },
                 },

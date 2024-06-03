@@ -9,7 +9,7 @@ import configparser
 import os
 
 from panther_utils.panther_constant import *
-from panther_utils.panther_config import *
+from panther_config.panther_config import *
 
 from panther_runner.panther_apt_runner import APTRunner
 from panther_runner.panther_quic_runner import QUICRunner

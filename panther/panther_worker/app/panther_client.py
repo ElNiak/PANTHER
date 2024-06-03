@@ -11,7 +11,7 @@ from termcolor import colored, cprint
 import terminal_banner
 
 from panther_utils.panther_constant import *
-from panther_utils.panther_config import update_config, update_protocol_config
+from panther_config.panther_config import update_config, update_protocol_config
 from panther import *
 
 

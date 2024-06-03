@@ -6,7 +6,7 @@ import yaml
 import shutil
 from panther_scalability.scalability_policy import *
 
-def update_docker_swarm(config, yaml_path="panther/docker-swarm.yml", prod=False):
+def update_docker_swarm(config, yaml_path="docker-swarm.yml", prod=False):
     with open(yaml_path, "r") as file:
         # save backup version
         shutil.copyfile(yaml_path, f"{yaml_path}.bak")
@@ -44,14 +44,14 @@ def update_docker_swarm(config, yaml_path="panther/docker-swarm.yml", prod=False
             else:
                 volumes = [
                     "/tmp/.X11-unix:/tmp/.X11-unix",
-                    "${PWD}/panther/panther_worker/app/:/app/",
+                    "${PWD}/panther_worker/app/:/app/",
                     "/app/panther-ivy/",
                     "/app/implementations/",
-                    "${PWD}/panther/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
-                    "${PWD}/panther/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
-                    "${PWD}/panther/outputs/tls-keys:/app/tls-keys",
-                    "${PWD}/panther/outputs/tickets:/app/tickets",
-                    "${PWD}/panther/outputs/qlogs:/app/qlogs",
+                    "${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
+                    "${PWD}/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
+                    "${PWD}/outputs/tls-keys:/app/tls-keys",
+                    "${PWD}/outputs/tickets:/app/tickets",
+                    "${PWD}/outputs/qlogs:/app/qlogs",
                 ]
             
             is_shadow = shadow_support.getboolean(implem)
@@ -87,8 +87,8 @@ def update_docker_swarm(config, yaml_path="panther/docker-swarm.yml", prod=False
                             "memory": memory,
                         },
                         "reservations": {
-                            "cpus": str(cpus/2), 
-                            "memory": str(memory/2),
+                            "cpus": str(float(cpus)/2), 
+                            "memory": str(int(memory.replace("M",""))/2)+"M",
                         },
                     },
                 },

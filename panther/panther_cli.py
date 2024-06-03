@@ -341,15 +341,15 @@ def start_bash_container(implem):
     container_name = f"{implem}-panther"
 
     volumes = {
-        f"{pwd}/tls-keys": {"bind": "/PANTHER/tls-keys", "mode": "rw"},
-        f"{pwd}/tickets": {"bind": "/PANTHER/tickets", "mode": "rw"},
-        f"{pwd}/qlogs": {"bind": "/PANTHER/qlogs", "mode": "rw"},
-        f"{pwd}/src/Protocols-Ivy/doc/examples/quic": {
-            "bind": "/PANTHER/Protocols-Ivy/doc/examples/quic",
+        f"{pwd}/tls-keys": {"bind": "/app/tls-keys", "mode": "rw"},
+        f"{pwd}/tickets":  {"bind": "/app/tickets", "mode": "rw"},
+        f"{pwd}/qlogs":    {"bind": "/app/qlogs", "mode": "rw"},
+        f"{pwd}/panther_worker/app/panther-ivy/protocol-testing/": {
+            "bind": "/app/panther-ivy/protocol-testing/",
             "mode": "rw",
         },
-        f"{pwd}/src/Protocols-Ivy/ivy/include/1.7": {
-            "bind": "/PANTHER/Protocols-Ivy/ivy/include/1.7",
+        f"{pwd}/panther_worker/app/panther-ivy/ivy/include/1.7": {
+            "bind": "/app/panther-ivy/ivy/include/1.7",
             "mode": "rw",
         },
     }
