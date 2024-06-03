@@ -28,7 +28,8 @@ setup(name='panther',
           'docker',
           'click',
           'termcolor',
-          'terminal_banner'
+          'terminal_banner',
+          "paramiko"
           ],
 
       zip_safe=False)

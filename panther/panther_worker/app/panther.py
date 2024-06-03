@@ -9,7 +9,7 @@ import configparser
 import os
 
 from panther_utils.panther_constant import *
-from panther_utils.panther_config import *
+from panther_config.panther_config import *
 
 from panther_runner.panther_apt_runner import APTRunner
 from panther_runner.panther_quic_runner import QUICRunner
@@ -375,9 +375,10 @@ class Panther:
             for implementation in implementations:
                 self.log.info("- Starting tests for implementation: " + implementation)
                 os.environ["TEST_IMPL"] = implementation
-                ENV_VAR["TEST_IMPL"] = implementation
+                ENV_VAR["TEST_IMPL"]    = implementation
                 try:
                     runner.run_exp(implementation)
+                    self.log.info("Experiments finished")
                 except Exception as e:
                     print(e)
                     restore_config()
@@ -387,7 +388,6 @@ class Panther:
                     except:
                         pass
                 finally:  # In Runner.py
-                    self.stop_stdout()
                     if self.config["net_parameters"].getboolean("vnet"):
                         self.log.info("Reset vnet")
                         subprocess.Popen(

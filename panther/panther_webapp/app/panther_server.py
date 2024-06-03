@@ -41,7 +41,7 @@ import terminal_banner
 
 from utils.cytoscape_generator import *
 from panther_utils.panther_constant import *
-from panther_utils.panther_config import get_experiment_config, restore_config
+from panther_config.panther_config import get_experiment_config, restore_config
 
 from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 
@@ -155,7 +155,6 @@ class PFVServer:
             if PFVServer.experiment_current_iteration >= PFVServer.experiment_iteration:
                 PFVServer.emit_progress_update()
                 PFVServer.reset_experiment_state()
-                # requests.get(f"http://{impl}-ivy:80/finish-experiment")
             else:
                 PFVServer.emit_progress_update()
         return jsonify({"status": "success"}), 200
