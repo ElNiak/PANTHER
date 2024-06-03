@@ -20,7 +20,7 @@ def get_mkgendocs_config():
 
     """
     try:
-        with open("mkgendocs.yaml", encoding="UTF-8") as mkgendocs_config:
+        with open("docs/mkgendocs.yaml", encoding="UTF-8") as mkgendocs_config:
             return yaml.safe_load(mkgendocs_config)
     except FileNotFoundError as error_message:
         print("mkgendocs.yaml not found")
@@ -108,7 +108,7 @@ def main():
 
     mkgendocs_config["pages"] = new_pages
 
-    with open("mkgendocs.yaml", "w", encoding="UTF-8") as mkgendocs_config_file:
+    with open("docs/mkgendocs.yaml", "w", encoding="UTF-8") as mkgendocs_config_file:
         yaml.dump(mkgendocs_config, mkgendocs_config_file)
 
 
