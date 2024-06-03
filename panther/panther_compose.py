@@ -76,6 +76,8 @@ def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
                     'MPLBACKEND="Agg"',
                     "COLUMNS=100",
                     "LINES=100",
+                    "PYTHONUNBUFFERED=1",
+                    "PYTHONPATH=${PYTHONPATH}:/app/implementations/quic-implementations/aioquic/src"
                 ],
                 "restart": "always",
                 "deploy": {
