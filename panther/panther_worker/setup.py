@@ -10,7 +10,7 @@ setup(
         "flask_session",
         "django",
         "requests",
-        "Flask-Cors==3.0.10",
+        "Flask-Cors==4.0.1",
         "npf-web-extension",
         'pexpect',
         'chardet',
