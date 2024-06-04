@@ -10,10 +10,13 @@ import socket
 from termcolor import colored, cprint
 import terminal_banner
 
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
+from panther import *
 from panther_utils.panther_constant import *
 from panther_config.panther_config import update_config, update_protocol_config
-from panther import *
-
 
 class PFVClient:
     app = Flask(__name__)

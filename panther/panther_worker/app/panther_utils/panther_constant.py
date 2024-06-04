@@ -1,5 +1,9 @@
 import os
 import logging
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 logging.basicConfig(level=logging.INFO)
 

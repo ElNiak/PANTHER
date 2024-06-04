@@ -11,6 +11,9 @@ import platform
 from time import sleep
 import re
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
 from panther_tester.panther_tester import IvyTest
 from panther_utils.panther_constant import *
 

@@ -1,3 +1,7 @@
+"""
+This script is the main entry point for the PANTHER CLI. It provides a command-line interface to manage the PANTHER tool.
+"""
+
 # panther_cli.py
 import configparser
 import argparse
@@ -14,16 +18,19 @@ import json
 import time
 import yaml
 
-log_file = f"logs/panther_docker_{datetime.now()}.log"
-logging.basicConfig(handlers=[
-                        logging.FileHandler(log_file),
-                        logging.StreamHandler()
-                    ],
-                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.INFO)
+try:
+    log_file = f"logs/panther_docker_{datetime.now()}.log"
+    logging.basicConfig(handlers=[
+                            logging.FileHandler(log_file),
+                            logging.StreamHandler()
+                        ],
+                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                        datefmt='%H:%M:%S',
+                        level=logging.INFO)
 
-logger = logging.getLogger("panther-cli")
+    logger = logging.getLogger("panther-cli")
+except Exception as e:
+    print(f"Error setting up logging: {e}")
 
 def load_config(config_path):
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
@@ -385,7 +392,7 @@ def is_tmux_session():
 if not is_tmux_session():
         print("Not running inside a tmux session.")
         print("Please start a tmux session first using `tmux` command and then run this script again.")
-        exit(0)
+        # exit(0)
         
 banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

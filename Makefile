@@ -6,6 +6,8 @@ NPROC := $(shell nproc)
 ###################################################################################################
 
 mkdocs:
+	python3 automate_mkdocs.py
+	gendocs --config mkgendocs.yml
 	mkdocs build --verbose
 	mkdocs serve 
 

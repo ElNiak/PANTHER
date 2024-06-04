@@ -172,16 +172,18 @@ IMPLEM_BUILD_COMMAND = {
     ),
 }
 
-
-log_file = f"logs/panther_docker_{datetime.now()}.log"
-logging.basicConfig(handlers=[
-                        logging.FileHandler(log_file),
-                        logging.StreamHandler()
-                    ],
-                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.DEBUG)
-
+try:
+    log_file = f"logs/panther_docker_{datetime.now()}.log"
+    logging.basicConfig(handlers=[
+                            logging.FileHandler(log_file),
+                            logging.StreamHandler()
+                        ],
+                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                        datefmt='%H:%M:%S',
+                        level=logging.DEBUG)
+except Exception as e:
+    print(f"Error setting up logging: {e}")
+    
 def log_docker_output(generator, task_name: str = "docker command execution") -> None:
     """
     Log output to console from a generator returned from docker client

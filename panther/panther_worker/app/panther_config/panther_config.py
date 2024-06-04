@@ -1,9 +1,15 @@
-from panther_utils.panther_constant import *
 import os
 import configparser
 import logging
 import subprocess
 from dataclasses import dataclass
+import sys
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
+from panther_utils.panther_constant import *
+
 
 logging.basicConfig(level=logging.INFO)
 

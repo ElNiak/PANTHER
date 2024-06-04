@@ -39,6 +39,9 @@ import sys
 from termcolor import colored, cprint
 import terminal_banner
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
 from utils.cytoscape_generator import *
 from panther_utils.panther_constant import *
 from panther_config.panther_config import get_experiment_config, restore_config

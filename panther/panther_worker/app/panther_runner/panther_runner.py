@@ -9,6 +9,9 @@ import subprocess
 import time
 import socket
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
 from panther_utils.panther_constant import *
 from logger.CustomFormatter import ch
 import shutil
@@ -103,7 +106,7 @@ class Runner:
         mode (str): Mode of the test (client/server).
 
         Returns:
-        tuple: (binary_path, binary_name)
+            tuple: (binary_path, binary_name)
         """
         index = 0 if mode == "client" else 1
         binary_dir = self.implems[implem][index][implem]["binary-dir"]
