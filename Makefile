@@ -5,13 +5,9 @@ NPROC := $(shell nproc)
 # CLEANUP COMMANDS
 ###################################################################################################
 
-gen-docs:
-	python3 ./docs/generate_doc.py
-	gendocs --config docs/mkgendocs.yaml
-
 mkdocs:
-	make gen-docs
-	mkdocs serve
+	mkdocs build --site-dir sites/ --verbose
+	mkdocs serve 
 
 # Clean Docker images and containers
 clean:
