@@ -1,3 +1,7 @@
+"""
+This script is the main entry point for the PANTHER CLI. It provides a command-line interface to manage the PANTHER tool.
+"""
+
 # panther_cli.py
 import configparser
 import argparse
@@ -14,23 +18,44 @@ import json
 import time
 import yaml
 
-log_file = f"logs/panther_docker_{datetime.now()}.log"
-logging.basicConfig(handlers=[
-                        logging.FileHandler(log_file),
-                        logging.StreamHandler()
-                    ],
-                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.INFO)
+try:
+    log_file = f"logs/panther_docker_{datetime.now()}.log"
+    logging.basicConfig(handlers=[
+                            logging.FileHandler(log_file),
+                            logging.StreamHandler()
+                        ],
+                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                        datefmt='%H:%M:%S',
+                        level=logging.INFO)
 
-logger = logging.getLogger("panther-cli")
+    logger = logging.getLogger("panther-cli")
+except Exception as e:
+    print(f"Error setting up logging: {e}")
 
 def load_config(config_path):
+    """_summary_
+
+    Args:
+        config_path (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
     config.read(config_path)
     return config
 
 def execute_command(command, tmux=None, cwd=None):
+    """_summary_
+
+    Args:
+        command (_type_): _description_
+        tmux (_type_, optional): _description_. Defaults to None.
+        cwd (_type_, optional): _description_. Defaults to None.
+
+    Raises:
+        subprocess.CalledProcessError: _description_
+    """
     logger.debug(f"Executing command: {command}")
     
     if tmux:
@@ -50,6 +75,11 @@ from panther_compose import *
 from panther_swarm import *
 
 def get_current_branch():
+    """_summary_
+
+    Returns:
+        _type_: _description_
+    """
     result = subprocess.run(
         f"git rev-parse --abbrev-ref HEAD",
         shell=True,
@@ -60,6 +90,12 @@ def get_current_branch():
     return result.stdout.strip()
 
 def start_tool(config, swarm=False):
+    """_summary_
+
+    Args:
+        config (_type_): _description_
+        swarm (bool, optional): _description_. Defaults to False.
+    """
     client = docker.from_env()
     
     create_docker_network()
@@ -109,6 +145,12 @@ def start_tool(config, swarm=False):
     os.system(f"tmux split-window -v -l 10%; tmux send-keys -t  {session_name}:0.0 \"bash\" C-m;")
 
 def install_tool(config, branch=None):
+    """_summary_
+
+    Args:
+        config (_type_): _description_
+        branch (_type_, optional): _description_. Defaults to None.
+    """
     # Pre-installation commands
     logger.info("Running pre-installation commands")
 
@@ -171,6 +213,11 @@ def install_tool(config, branch=None):
     update_docker_compose(config)
 
 def clean_tool(config):
+    """_summary_
+
+    Args:
+        config (_type_): _description_
+    """
     client = docker.from_env()
     docker_containers = client.containers.list(all=True)
     for dc in docker_containers:
@@ -181,6 +228,11 @@ def clean_tool(config):
     logger.info(client.volumes.prune())
 
 def build_webapp(push=False):
+    """_summary_
+
+    Args:
+        push (bool, optional): _description_. Defaults to False.
+    """
     client = docker.from_env()
     logger.info("Building Docker image panther-webapp")
     execute_command("sudo chown -R $USER:$GROUPS $PWD/panther_webapp/")
@@ -197,6 +249,13 @@ def build_webapp(push=False):
         push_image_to_registry("panther-webapp")
 
 def build_worker(implem, config, push=False):
+    """_summary_
+
+    Args:
+        implem (_type_): _description_
+        config (_type_): _description_
+        push (bool, optional): _description_. Defaults to False.
+    """
     stop_tool()
     execute_command("git clean -f -d panther_worker/panther-ivy;")
     client = docker.from_env()
@@ -305,6 +364,11 @@ def build_worker(implem, config, push=False):
         push_image_to_registry(final_tag)
 
 def build_docker_visualizer(push=False):
+    """_summary_
+
+    Args:
+        push (bool, optional): _description_. Defaults to False.
+    """
     client = docker.from_env()
     logger.info("Building Docker image visualizer")
     client.images.build(
@@ -318,13 +382,23 @@ def build_docker_visualizer(push=False):
         push_image_to_registry("ivy-visualizer")
 
 def stop_tool():
+    """_summary_
+    """
     client = docker.from_env()
     docker_containers = client.containers.list(all=True)
     for dc in docker_containers:
         dc.stop()
 
 def start_bash_container(implem):
-    """Start a Docker container with the specified parameters."""
+    """_summary_
+    Start a Docker container with the specified parameters.
+    
+    Args:
+        implem (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     client = docker.from_env()
     pwd = os.getcwd()
     def get_nproc():
@@ -385,7 +459,7 @@ def is_tmux_session():
 if not is_tmux_session():
         print("Not running inside a tmux session.")
         print("Please start a tmux session first using `tmux` command and then run this script again.")
-        exit(0)
+        # exit(0)
         
 banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -460,6 +534,8 @@ banner_terminal = terminal_banner.Banner(banner)
 cprint(banner_terminal, "green", file=sys.stderr)
 
 if __name__ == "__main__":
+    """_summary_
+    """
     parser = argparse.ArgumentParser(description="Manage PANTHER Tool")
     parser.add_argument(
         "--config", type=str, required=True, help="Path to the configuration file"

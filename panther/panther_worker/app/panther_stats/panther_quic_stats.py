@@ -4,6 +4,9 @@ import sys
 import pandas as pd
 from scapy.all import *
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
 import ivy_utils.ivy_ev_parser as ev
 import ivy_utils.ivy_utils as iu
 from panther_utils.panther_constant import *

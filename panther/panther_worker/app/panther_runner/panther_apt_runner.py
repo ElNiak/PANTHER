@@ -5,6 +5,9 @@ import subprocess
 import requests
 import time
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
 from panther_runner.panther_runner import Runner
 from panther_utils.panther_constant import * 
 from panther_tester.panther_apt_tester import APTIvyTest

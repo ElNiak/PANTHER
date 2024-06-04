@@ -8,6 +8,9 @@ from plantuml import PlantUML
 import configparser
 import os
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
 from panther_utils.panther_constant import *
 from panther_config.panther_config import *
 

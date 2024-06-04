@@ -5,13 +5,17 @@ import subprocess
 import time
 from panther_cli import execute_command
 
-
 def log_docker_output(generator, task_name: str = "docker command execution") -> None:
+    """_summary_
+
+    Args:
+        generator (_type_): _description_
+        task_name (str, optional): _description_. Defaults to "docker command execution".
+
+    Raises:
+        ValueError: _description_
     """
-    Log output to console from a generator returned from docker client
-    :param Any generator: The generator to log the output of
-    :param str task_name: A name to give the task, i.e. 'Build database image', used for logging
-    """
+    
     while True:
         try:
             output = generator.__next__()
@@ -28,7 +32,16 @@ def log_docker_output(generator, task_name: str = "docker command execution") ->
 
 
 def container_exists(client, container_name):
-    """Check if the Docker container exists."""
+    """_summary_
+    Check if the Docker container exists.
+    
+    Args:
+        client (_type_): _description_
+        container_name (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     try:
         client.containers.get(container_name)
         return True
@@ -40,7 +53,16 @@ def container_exists(client, container_name):
 
 
 def get_container_ip(client, container_name):
-    """Get the IP address of the Docker container."""
+    """_summary_
+    Get the IP address of the Docker container.
+    
+    Args:
+        client (_type_): _description_
+        container_name (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     try:
         container = client.containers.get(container_name)
         ip_address = container.attrs["NetworkSettings"]["Networks"].values()
@@ -50,6 +72,11 @@ def get_container_ip(client, container_name):
         return None
 
 def get_panther_container():
+    """_summary_
+
+    Returns:
+        _type_: _description_
+    """
     client = docker.from_env()
     panther_containers = []
     for container in client.containers.list():
@@ -58,7 +85,14 @@ def get_panther_container():
     return panther_containers
 
 def push_image_to_registry(image_name, registry_url="elniak", tag="latest"):
-    """Push a Docker image to a registry."""
+    """_summary_
+    Push a Docker image to a registry.
+    
+    Args:
+        image_name (_type_): _description_
+        registry_url (str, optional): _description_. Defaults to "elniak".
+        tag (str, optional): _description_. Defaults to "latest".
+    """
     try:
         command = f"docker tag {image_name} {registry_url}/{image_name}:{tag}"
         execute_command(command)
@@ -69,7 +103,9 @@ def push_image_to_registry(image_name, registry_url="elniak", tag="latest"):
         logging.error(f"Error pushing image to registry: {e}")
 
 def restore_hosts_file():
-    """Restore the original /etc/hosts file from the backup."""
+    """_summary_
+    Restore the original /etc/hosts file from the backup.
+    """
     try:
         execute_command("sudo cp /etc/hosts.bak /etc/hosts")
         logging.info("Restored the original /etc/hosts file.")
@@ -78,7 +114,12 @@ def restore_hosts_file():
 
 
 def append_to_hosts_file(entry):
-    """Append a new entry to the /etc/hosts file."""
+    """_summary_
+    Append a new entry to the /etc/hosts file.
+    
+    Args:
+        entry (_type_): _description_
+    """
     try:
         command = f"echo '{entry.strip()}' | sudo tee -a /etc/hosts"
         execute_command(command)
@@ -88,7 +129,16 @@ def append_to_hosts_file(entry):
 
 
 def network_exists(client, network_name):
-    """Check if the Docker network exists."""
+    """_summary_
+    Check if the Docker network exists.
+    
+    Args:
+        client (_type_): _description_
+        network_name (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     try:
         client.networks.get(network_name)
         return True
@@ -100,7 +150,15 @@ def network_exists(client, network_name):
 
 
 def create_network(client, network_name, gateway, subnet):
-    """Create a Docker network with the specified gateway and subnet."""
+    """_summary_
+    Create a Docker network with the specified gateway and subnet.
+    
+    Args:
+        client (_type_): _description_
+        network_name (_type_): _description_
+        gateway (_type_): _description_
+        subnet (_type_): _description_
+    """
     try:
         client.networks.create(
             name=network_name,
@@ -113,6 +171,9 @@ def create_network(client, network_name, gateway, subnet):
 
 
 def create_docker_network():
+    """_summary_
+    Create the docker network
+    """
     network_name = "net"
     gateway = "172.27.1.1"
     subnet = "172.27.1.0/24"
@@ -126,12 +187,13 @@ def create_docker_network():
 
 
 def monitor_docker_usage(docker_to_monitor, interval=1.0, duration=10.0):
-    """
+    """_summary_
     Monitor the CPU and memory usage of a Docker container.
 
-    :param container_name: Name or ID of the Docker container to monitor
-    :param interval: Time interval (in seconds) between checks
-    :param duration: Total duration (in seconds) to monitor
+    Args:
+        docker_to_monitor (_type_): _description_
+        interval (float, optional): _description_. Defaults to 1.0.
+        duration (float, optional): _description_. Defaults to 10.0.
     """
     client = docker.from_env()
 

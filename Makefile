@@ -6,6 +6,11 @@ NPROC := $(shell nproc)
 ###################################################################################################
 
 mkdocs:
+	python3 automate_mkdocs.py
+	gendocs --config mkgendocs.yml
+	cp *.md docs/
+	cp -r readme-res/ docs/
+	cp README.md docs/home.md
 	mkdocs build --verbose
 	mkdocs serve 
 

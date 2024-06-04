@@ -12,6 +12,9 @@ from time import sleep
 import logging
 import resource
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
+
 from panther_utils.panther_constant import *
 from logger.CustomFormatter import ch
 

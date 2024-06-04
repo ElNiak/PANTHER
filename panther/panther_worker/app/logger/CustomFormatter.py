@@ -2,6 +2,9 @@ import logging
 
 
 class CustomFormatter(logging.Formatter):
+    
+    def __init__(self):
+        super().__init__()
 
     BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = [
         "\033[1;30;40m",
