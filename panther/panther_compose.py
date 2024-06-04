@@ -7,6 +7,16 @@ import shutil
 
 
 def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
+    """_summary_
+
+    Args:
+        config (_type_): _description_
+        yaml_path (str, optional): _description_. Defaults to "docker-compose.yml".
+        prod (bool, optional): _description_. Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
     with open(yaml_path, "r") as file:
         # save backup version
         shutil.copyfile(yaml_path, f"{yaml_path}.bak")
