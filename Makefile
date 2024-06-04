@@ -6,7 +6,7 @@ NPROC := $(shell nproc)
 ###################################################################################################
 
 mkdocs:
-	mkdocs build --site-dir sites/ --verbose
+	mkdocs build --verbose
 	mkdocs serve 
 
 # Clean Docker images and containers
