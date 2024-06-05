@@ -1,7 +1,11 @@
-# :wrench: Installation 
+# :wrench: Installation
 
 Note, before implementation were added as submodule. Now we only consider Docker containers installation. (To be updated)
 
+```
+python3 -m pip install pre-commit
+pre-commit installed at .git/hooks/pre-commit
+```
 
 
 ## :computer: Local Installation (Not Recommended)
@@ -12,7 +16,7 @@ See Dockerfile for dependencies and commands
 
 
 
-## :whale: Single implementation 
+## :whale: Single implementation
 
 
 
@@ -22,13 +26,13 @@ IMPLEM="picoquic" make build-docker
 ```
 
 
-## :whale: WebApp (Recommended) 
+## :whale: WebApp (Recommended)
 
 ```bash
-# For first installation 
+# For first installation
 make install
 
-# For modification: 
+# For modification:
 # For major update in ivy:
 make build-docker-compose-full
 # For a minor update in some implementation:

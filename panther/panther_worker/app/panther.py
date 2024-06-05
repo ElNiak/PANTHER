@@ -26,6 +26,8 @@ DEBUG = True
 
 
 class Panther:
+    """_summary_"""
+
     def __init__(self):
         # Setup cargo
         subprocess.Popen("", shell=True, executable="/bin/bash").wait()  # TODO source
@@ -80,7 +82,7 @@ class Panther:
     def find_ivy_files(self):
         """
         Recursively find all .ivy files in the specified folder and its subfolders, excluding those with 'test' in the filename.
-        
+
         :param root_folder: The root folder to start the search from.
         :return: A list of paths to the found .ivy files.
         """
@@ -91,8 +93,8 @@ class Panther:
                     ivy_files.append(os.path.join(dirpath, f))
         return ivy_files
 
-
     def update_ivy_tool(self):
+        """_summary_"""
         # Note we use subprocess in order to get sudo rights
         os.chdir(SOURCE_DIR + "/panther-ivy/")
         execute_command("sudo python2.7 setup.py install")
@@ -119,14 +121,12 @@ class Panther:
                 + file
                 + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
             )
-        
-        os.chdir(
-            "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/"
-        )
+
+        os.chdir("/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/")
         execute_command(
             "sudo /bin/cp -f -a "
             + "/app/panther-ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib",
-            must_pass=False
+            must_pass=False,
         )
 
         if self.config["verified_protocol"].getboolean("quic"):
@@ -158,11 +158,12 @@ class Panther:
         os.chdir(SOURCE_DIR)
 
     def setup_ivy_model(self):
+        """_summary_"""
         self.log.info(
             'Update "include" path of python with updated version of the project from \n\t'
             + self.protocol_model_path
         )
-        
+
         files = self.find_ivy_files()
         for file in files:
             self.log.info("* " + file)
@@ -172,16 +173,17 @@ class Panther:
                 + file
                 + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
             )
-            
+
         if self.config["verified_protocol"].getboolean("quic"):
             execute_command(
                 "sudo /bin/cp "
-                + self.protocol_model_path 
+                + self.protocol_model_path
                 + "/quic_utils/quic_ser_deser.h"
                 + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/",
             )
 
     def remove_includes(self):
+        """_summary_"""
         self.log.info('Reset "include" path of python')
         for file in self.included_files:
             self.log.info("* " + file)
@@ -193,6 +195,11 @@ class Panther:
         self.included_files = list()
 
     def build_tests(self, test_to_do={}):
+        """_summary_
+
+        Args:
+            test_to_do (dict, optional): _description_. Defaults to {}.
+        """
         self.log.info("Number of test to compile: " + str(len(test_to_do)))
         self.log.info(test_to_do)
         assert len(test_to_do) > 0
@@ -200,15 +207,25 @@ class Panther:
         self.available_test_modes = test_to_do.keys()
         self.log.info(self.available_test_modes)
         for mode in self.available_test_modes:
+            mode_inc = mode.replace("tests", "test")  # TODO
+            self.log.info("Mode: " + mode)
+            self.log.info("Mode_inc: " + mode_inc)
             for file in test_to_do[mode]:
-                if mode in file:  # TODO more beautiful
+                self.log.info("File: " + file)
+                if mode_inc in file:
                     self.log.info(
                         "chdir in "
-                        + str(os.path.join(self.config["global_parameters"]["tests_dir"],  mode + "s"))
+                        + str(
+                            os.path.join(
+                                self.config["global_parameters"]["tests_dir"], mode
+                            )
+                        )
                     )
                     os.chdir(
-                        os.path.join(self.config["global_parameters"]["tests_dir"],  mode + "s")
-                    )  
+                        os.path.join(
+                            self.config["global_parameters"]["tests_dir"], mode
+                        )
+                    )
                     file = (
                         os.path.join(
                             self.config["global_parameters"]["tests_dir"], file
@@ -219,14 +236,25 @@ class Panther:
                     nameFileShort = file.split("/")[-1]
                     self.build_file(nameFileShort)
         os.chdir(SOURCE_DIR)
-    
+
     def pair_compile_file(self, file, replacements):
+        """_summary_
+
+        Args:
+            file (_type_): _description_
+            replacements (_type_): _description_
+        """
         for old_name, new_name in replacements.items():
             if old_name in file:
                 file = file.replace(old_name, new_name)
                 self.compile_file(file)
-                        
+
     def build_file(self, file):
+        """_summary_
+
+        Args:
+            file (_type_): _description_
+        """
         self.compile_file(file)
         if self.config["verified_protocol"].getboolean("quic"):
             # TODO add in config file, test that should be build and run in pair
@@ -246,6 +274,11 @@ class Panther:
             self.pair_compile_file(file, replacements)
 
     def compile_file(self, file):
+        """_summary_
+
+        Args:
+            file (_type_): _description_
+        """
         if self.config["global_parameters"].getboolean("compile"):
             self.log.info("Building/Compiling file:")
             child = subprocess.Popen(
@@ -260,7 +293,7 @@ class Panther:
             self.log.info(rc)
             if rc != 0:
                 try:
-                    x = requests.get('http://panther-webapp/errored-experiment')
+                    x = requests.get("http://panther-webapp/errored-experiment")
                     self.log.info(x)
                 except:
                     pass
@@ -291,6 +324,11 @@ class Panther:
             execute_command("/bin/rm " + file.replace(".ivy", ".h"))
 
     def launch_experiments(self, implementations=None):
+        """_summary_
+
+        Args:
+            implementations (_type_, optional): _description_. Defaults to None.
+        """
         try:
             build_dir = os.path.join(MODEL_DIR, self.current_protocol, "build/")
             if not os.path.isdir(build_dir):
@@ -324,9 +362,7 @@ class Panther:
                     self.log.info(ENV_VAR["JITTER"])
 
             if not self.config["global_parameters"].getboolean("docker"):
-                execute_command(
-                    "sudo sysctl -w net.core.rmem_max=2500000"
-                )
+                execute_command("sudo sysctl -w net.core.rmem_max=2500000")
 
             self.build_tests(test_to_do=self.tests_enabled)
 
@@ -383,7 +419,7 @@ class Panther:
             for implementation in implementations:
                 self.log.info("- Starting tests for implementation: " + implementation)
                 os.environ["TEST_IMPL"] = implementation
-                ENV_VAR["TEST_IMPL"]    = implementation
+                ENV_VAR["TEST_IMPL"] = implementation
                 try:
                     runner.run_exp(implementation)
                     self.log.info("Experiments finished")
@@ -391,7 +427,7 @@ class Panther:
                     print(e)
                     restore_config()
                     try:
-                        x = requests.get('http://panther-webapp/errored-experiment')
+                        x = requests.get("http://panther-webapp/errored-experiment")
                         self.log.info(x)
                     except:
                         pass
@@ -422,16 +458,16 @@ class Panther:
 
             self.log.info("END 1")
             try:
-                x = requests.get('http://panther-webapp/finish-experiment')
+                x = requests.get("http://panther-webapp/finish-experiment")
                 self.log.info(x)
                 # exit(0)
             except:
                 pass
             # exit(0)
-        except Exception as e: 
+        except Exception as e:
             print(e)
             try:
-                x = requests.get('http://panther-webapp/errored-experiment')
+                x = requests.get("http://panther-webapp/errored-experiment")
                 self.log.info(x)
             except:
                 pass
@@ -439,6 +475,7 @@ class Panther:
             # exit(1)
 
     def generate_uml_trace(self):
+        """_summary_"""
         self.log.info("Generating PlantUML trace from ivy trace")
         plantuml_file = "/ivy_trace.txt"
         plantuml_obj = PlantUML(
@@ -454,6 +491,7 @@ class Panther:
         plantuml_obj.processes_file(plantuml_file, plantuml_file_png)
 
     def stop_stdout(self):
+        """_summary_"""
         sys.stdout.close()
         sys.stderr.close()
         sys.stdout = sys.__stdout__
@@ -462,7 +500,9 @@ class Panther:
 
 def main():
     experiments = ArgumentParserRunner().parse_arguments()
+    # TODO put config in argument
     experiments.launch_experiments()
+
 
 if __name__ == "__main__":
     try:
