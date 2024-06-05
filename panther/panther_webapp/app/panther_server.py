@@ -54,17 +54,17 @@ DEBUG = True
 
 class PFVServer:
     ROOTPATH = os.getcwd()
-    app      = Flask(__name__, static_folder="/app/static/")
-    app.secret_key                  = "super secret key"  # TODO
-    app.config["SESSION_TYPE"]      = "filesystem"
+    app = Flask(__name__, static_folder="/app/static/")
+    app.secret_key = "super secret key"  # TODO
+    app.config["SESSION_TYPE"] = "filesystem"
     app.config["SESSION_PERMANENT"] = False
-    app.config["APPLICATION_ROOT"]  = ROOTPATH + "/app/templates/"
-    app.debug                       = True
+    app.config["APPLICATION_ROOT"] = ROOTPATH + "/app/templates/"
+    app.debug = True
     CORS(app, resources={r"/*": {"origins": "*"}})
 
     def __init__(self, dir_path=None):
         restore_config()
-        
+
         # Initialize SocketIO
         PFVServer.socketio = SocketIO(PFVServer.app)
 
@@ -150,7 +150,7 @@ class PFVServer:
         PFVServer.experiment_current_iteration = 0
         PFVServer.experiment_iteration = 0
         restore_config()
-    
+
     @app.route("/update-count", methods=["GET"])
     def update_count():
         if PFVServer.is_experiment_started:
@@ -164,23 +164,22 @@ class PFVServer:
 
     def emit_progress_update():
         progress = PFVServer.experiment_current_iteration
-        PFVServer.socketio.emit('progress_update', {'progress': progress})
+        PFVServer.socketio.emit("progress_update", {"progress": progress})
 
-    
     @app.route("/errored-experiment", methods=["GET"])
     def errored_experiment():
         if PFVServer.is_experiment_started:
             PFVServer.emit_progress_update()
             PFVServer.reset_experiment_state()
         return jsonify({"status": "success"}), 200
-    
+
     @app.route("/finish-experiment", methods=["GET"])
     def finish_experiment():
         if PFVServer.is_experiment_started:
             PFVServer.emit_progress_update()
             PFVServer.reset_experiment_state()
         return jsonify({"status": "success"}), 200
-    
+
     def get_args():
         """_summary_
         Get list of argument for automatic GUI generation
@@ -312,9 +311,9 @@ class PFVServer:
                                 elif not isinstance(action, argparse._HelpAction):
                                     if hasattr(action, "choices"):
                                         if action.choices:
-                                            PFVServer.choices_args[action.dest] = (
-                                                action.choices
-                                            )
+                                            PFVServer.choices_args[
+                                                action.dest
+                                            ] = action.choices
                                         args_list[-1][group_name].append(
                                             {
                                                 "name": action.dest,
@@ -363,9 +362,10 @@ class PFVServer:
                     response.raise_for_status()
                     PFVServer.app.logger.info(f"Experiment status: {response.content}")
                 except requests.RequestException as e:
-                    PFVServer.app.logger.error(f"Request failed for {impl}: {e} - {response}")
+                    PFVServer.app.logger.error(
+                        f"Request failed for {impl}: {e} - {response}"
+                    )
                     continue
-
 
                 while (
                     PFVServer.experiment_current_iteration
@@ -375,8 +375,12 @@ class PFVServer:
                     time.sleep(10)
                     PFVServer.app.logger.info("Waiting")
                     PFVServer.app.logger.info("Waiting")
-                    PFVServer.app.logger.info(f"Current iteration: {PFVServer.experiment_current_iteration}")
-                    PFVServer.app.logger.info(f"Target iteration: {PFVServer.experiment_iteration / len(PFVServer.implementation_requested)}")
+                    PFVServer.app.logger.info(
+                        f"Current iteration: {PFVServer.experiment_current_iteration}"
+                    )
+                    PFVServer.app.logger.info(
+                        f"Target iteration: {PFVServer.experiment_iteration / len(PFVServer.implementation_requested)}"
+                    )
                 PFVServer.app.logger.info(
                     "Ending experiment for implementation " + impl
                 )
@@ -384,13 +388,14 @@ class PFVServer:
             # TODO multi test
             # Need to avoid shared configuration file
             pass
-    
+
     # To start the experiment in a thread
     def start_experiment_thread(experiment_arguments, protocol_arguments):
-        thread = threading.Thread(target=PFVServer.start_exp, args=(experiment_arguments, protocol_arguments))
+        thread = threading.Thread(
+            target=PFVServer.start_exp, args=(experiment_arguments, protocol_arguments)
+        )
         thread.daemon = True
         thread.start()
-
 
     def change_current_protocol(protocol):
         PFVServer.app.logger.info(
@@ -435,6 +440,9 @@ class PFVServer:
                 request.args.get("prot", "")
                 and request.args.get("prot", "") in PFVServer.supported_protocols
             ):
+                PFVServer.app.logger.info(
+                    f"POST request with protocol change: {request.args.get('prot', '')}"
+                )
                 # The Selected Protocol change -> change GUI
                 json_arg, prot_arg = PFVServer.change_current_protocol(
                     request.args.get("prot", "")
@@ -472,9 +480,7 @@ class PFVServer:
             for key, value in arguments.items():
                 if (key, value) == ("boundary", "experiment separation"):
                     exp_number += 1
-                elif (
-                    key in PFVServer.implementation_enable.keys() and value == "true"
-                ):
+                elif key in PFVServer.implementation_enable.keys() and value == "true":
                     PFVServer.implementation_requested.append(key)
                 elif "test" in key and value == "true":
                     PFVServer.tests_requested.append(key)
@@ -528,18 +534,16 @@ class PFVServer:
             "index.html",
             json_arg=json_arg,
             prot_arg=prot_arg,
-            
-            base_conf          =PFVServer.config,
-            protocol_conf      =PFVServer.protocol_conf,
+            base_conf=PFVServer.config,
+            protocol_conf=PFVServer.protocol_conf,
             supported_protocols=PFVServer.supported_protocols,
-            current_protocol   =PFVServer.current_protocol,
-            
-            nb_exp                  =PFVServer.total_exp_in_dir,
-            tests_enable            =PFVServer.tests_enabled,
-            implementation_enable   =PFVServer.implementation_enable,
+            current_protocol=PFVServer.current_protocol,
+            nb_exp=PFVServer.total_exp_in_dir,
+            tests_enable=PFVServer.tests_enabled,
+            implementation_enable=PFVServer.implementation_enable,
             implementation_requested=PFVServer.implementation_requested,
-            progress                =PFVServer.experiment_current_iteration,  # PFVServer.experiments.count_1,
-            iteration               =PFVServer.experiment_iteration,
+            progress=PFVServer.experiment_current_iteration,  # PFVServer.experiments.count_1,
+            iteration=PFVServer.experiment_iteration,
         )
 
     @app.route("/directory/<int:directory>/file/<path:file>")
@@ -1103,15 +1107,15 @@ banner = """
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@J.~         5@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#!   ..:^~G@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&BPYYG&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-                                            Made with ❤️ 
-                                For the Community, By the Community   
+                                            Made with ❤️
+                                For the Community, By the Community
 
                                 ###################################
-                    
+
                                         Made by ElNiak
-                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/
                                 Github - https://github.com/elniak
-                                                                                      
+
 """
 banner_terminal = terminal_banner.Banner(banner)
 cprint(banner_terminal, "green", file=sys.stderr)

@@ -1,5 +1,8 @@
 """
-This script is the main entry point for the PANTHER CLI. It provides a command-line interface to manage the PANTHER tool.
+# PANTHER CLI
+
+This script is the main entry point for the PANTHER CLI.
+It provides a command-line interface to manage the PANTHER tool.
 """
 
 # panther_cli.py
@@ -20,59 +23,125 @@ import yaml
 
 try:
     log_file = f"logs/panther_docker_{datetime.now()}.log"
-    logging.basicConfig(handlers=[
-                            logging.FileHandler(log_file),
-                            logging.StreamHandler()
-                        ],
-                        format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                        datefmt='%H:%M:%S',
-                        level=logging.INFO)
+    logging.basicConfig(
+        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
+        format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+        level=logging.INFO,
+    )
 
     logger = logging.getLogger("panther-cli")
 except Exception as e:
     print(f"Error setting up logging: {e}")
 
+
 def load_config(config_path):
-    """_summary_
+    """
+    Load the configuration from the specified file path.
 
     Args:
-        config_path (_type_): _description_
+        config_path (str): The path to the configuration file.
 
     Returns:
-        _type_: _description_
+        configparser.ConfigParser: The loaded configuration object.
     """
-    config = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+    config = configparser.ConfigParser(
+        interpolation=configparser.ExtendedInterpolation()
+    )
     config.read(config_path)
     return config
 
-def execute_command(command, tmux=None, cwd=None):
-    """_summary_
+
+def is_htop_installed():
+    """
+    Check if htop is installed by running 'htop --version' command.
+
+    Returns:
+        bool: True if htop is installed, False otherwise.
+    """
+    try:
+        result = subprocess.run(
+            ["htop", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def execute_command(command, cwd=None):
+    """
+    Executes a command in the shell.
 
     Args:
-        command (_type_): _description_
-        tmux (_type_, optional): _description_. Defaults to None.
-        cwd (_type_, optional): _description_. Defaults to None.
+        command (str): The command to be executed.
+        tmux (bool, optional): If True, the command will be executed in a tmux session. Defaults to None.
+        cwd (str, optional): The current working directory for the command. Defaults to None.
 
     Raises:
-        subprocess.CalledProcessError: _description_
+        subprocess.CalledProcessError: If the command execution returns a non-zero exit code.
     """
     logger.debug(f"Executing command: {command}")
-    
-    if tmux:
-        logger.info(f"Executing command in tmux with log file:  \"{command}\"")
-        session_name = subprocess.check_output(['tmux', 'display-message', '-p', '#S']).strip().decode('utf-8')
-        os.system(f"tmux split-window -h -l 80%; tmux send-keys -t  {session_name}:0.1 \"{command}\" C-m;")
-    else:
-        if cwd:
-            result = subprocess.run(command, shell=True, cwd=cwd)
-        else:
-            result = subprocess.run(command, shell=True)
-        if result.returncode != 0:
-            raise subprocess.CalledProcessError(result.returncode, command)
 
-from panther_docker import *
-from panther_compose import *
-from panther_swarm import *
+    if cwd:
+        result = subprocess.run(command, shell=True, cwd=cwd)
+    else:
+        result = subprocess.run(command, shell=True)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, command)
+
+
+def setup_tmux_layout(yaml_path, swarm):
+    """
+    Set up the tmux layout based on whether htop is installed.
+
+    Args:
+        yaml_path (str): Path to the docker compose yaml file.
+        swarm (bool): Whether the docker setup is using swarm.
+    """
+    session_name = (
+        subprocess.check_output(["tmux", "display-message", "-p", "#S"])
+        .strip()
+        .decode("utf-8")
+    )
+    htop_installed = is_htop_installed()
+    os.system(f"tmux kill-pane -a -t {session_name}")
+
+    # Setup the initial panes
+    os.system(f"tmux split-window -v -l 50% -t {session_name}:0.0")
+    os.system(f"tmux split-window -v -l 50% -t {session_name}:0.1")
+    os.system(f"tmux split-window -h -l 50% -t {session_name}:0.0")
+
+    # Run bash in the top left pane
+    os.system(f"tmux send-keys -t {session_name}:0.2 'bash' C-m")
+
+    # Run docker stats in the bottom pane
+    os.system(f"tmux send-keys -t {session_name}:0.0 'docker stats' C-m")
+
+    # Run htop or docker logs in the top right pane
+    if htop_installed:
+        os.system(f"tmux send-keys -t {session_name}:0.1 'htop' C-m")
+    else:
+        os.system(f"tmux send-keys -t {session_name}:0.1 'docker stats' C-m")
+
+    # Run docker compose logs in the bottom right pane
+    if swarm:
+        compose_log = f"logs/swarm_{datetime.now()}.log"
+        logger.info(f"Logging docker stack services to {compose_log}")
+        os.system(
+            f"tmux send-keys -t {session_name}:0.3 'docker stack services panther | tee {compose_log}' C-m"
+        )
+    else:
+        compose_log = f"logs/compose_{datetime.now()}.log"
+        logger.info(f"Logging docker stack services to {compose_log}")
+        os.system(
+            f"tmux send-keys -t {session_name}:0.3 'docker compose -f {yaml_path} logs -f | tee {compose_log}' C-m"
+        )
+
+
+from panther_cli_utils.panther_docker import *
+from panther_cli_utils.panther_compose import *
+from panther_cli_utils.panther_swarm import *
+
 
 def get_current_branch():
     """_summary_
@@ -89,6 +158,7 @@ def get_current_branch():
     logger.info(f"Current branch: {result.stdout.strip()}")
     return result.stdout.strip()
 
+
 def start_tool(config, swarm=False):
     """_summary_
 
@@ -97,52 +167,30 @@ def start_tool(config, swarm=False):
         swarm (bool, optional): _description_. Defaults to False.
     """
     client = docker.from_env()
-    
+
     create_docker_network()
-    
+
     execute_command("sudo chown -R $USER:$GROUPS $PWD/")
     execute_command("xhost +")
-    
+
     if swarm:
         execute_command("docker swarm init")
         yaml_path, defined_services = update_docker_swarm(config)
     else:
         yaml_path, defined_services = update_docker_compose(config)
-    
+
     execute_command(f"cat {yaml_path}")
-    
+
     if swarm:
         execute_command(f"docker stack rm panther")
         execute_command(f"docker stack -c {yaml_path} panther")
     else:
         execute_command(f"docker compose -f {yaml_path} up -d")
-    
+
     execute_command("clear")
 
-    docker_to_monitor = []
-    for container_name in defined_services:
-        if container_exists(client, container_name):
-            docker_to_monitor.append(container_name)
-            ip_address = get_container_ip(client, container_name)
-            if ip_address:
-                entry = f"{ip_address} {container_name}\n"
-                append_to_hosts_file(entry)
-        else:
-            logger.info(f"Container '{container_name}' does not exist.")
-    
-    thread = threading.Thread(target=monitor_docker_usage, args=([docker_to_monitor, 1, -1])) 
-    thread.start()
-    
-    if swarm:
-        compose_log = f"\'logs/swarm_{datetime.now()}.log\'"
-        execute_command(f"docker stack services panther | tee {compose_log}", tmux=compose_log)
-    else:
-        compose_log = f"\'logs/compose_{datetime.now()}.log\'"
-        execute_command(f"docker compose -f {yaml_path} logs -f | tee {compose_log}", tmux=compose_log)
-    
-    # TODO: should split the first 
-    session_name = subprocess.check_output(['tmux', 'display-message', '-p', '#S']).strip().decode('utf-8')
-    os.system(f"tmux split-window -v -l 10%; tmux send-keys -t  {session_name}:0.0 \"bash\" C-m;")
+    setup_tmux_layout(yaml_path, swarm)
+
 
 def install_tool(config, branch=None):
     """_summary_
@@ -170,28 +218,18 @@ def install_tool(config, branch=None):
         current_branch = get_current_branch()
         execute_command("git submodule update --init --recursive")
         # TODO cd not working -> chdir
+        execute_command(f"git fetch", cwd="panther_worker/panther-ivy/")
         execute_command(
-            f"git fetch",
-            cwd="panther_worker/panther-ivy/"
+            f"git checkout {current_branch}", cwd="panther_worker/panther-ivy/"
         )
-        execute_command(
-            f"git checkout {current_branch}",
-            cwd="panther_worker/panther-ivy/"
-        )
-        execute_command(
-            f"git pull",
-            cwd="panther_worker/panther-ivy/"
-        )
+        execute_command(f"git pull", cwd="panther_worker/panther-ivy/")
         execute_command(
             f"git submodule update --init --recursive",
-            cwd="panther_worker/panther-ivy/"
+            cwd="panther_worker/panther-ivy/",
         )
-        execute_command(
-            f"git pull",
-            cwd="panther_worker/panther-ivy/"
-        )
+        execute_command(f"git pull", cwd="panther_worker/panther-ivy/")
         # execute_command(
-        #     "cd panther_worker/app/implementations/quic-implementations/picotls-implem;" + \  
+        #     "cd panther_worker/app/implementations/quic-implementations/picotls-implem;" + \
         #     "git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76;" + \
         #     "git submodule update --init --recursive" + \
         # )
@@ -212,6 +250,7 @@ def install_tool(config, branch=None):
 
     update_docker_compose(config)
 
+
 def clean_tool(config):
     """_summary_
 
@@ -226,6 +265,7 @@ def clean_tool(config):
     logger.info(client.images.prune(filters={"dangling": False}))
     logger.info(client.networks.prune())
     logger.info(client.volumes.prune())
+
 
 def build_webapp(push=False):
     """_summary_
@@ -248,6 +288,7 @@ def build_webapp(push=False):
     if push:
         push_image_to_registry("panther-webapp")
 
+
 def build_worker(implem, config, push=False):
     """_summary_
 
@@ -260,8 +301,8 @@ def build_worker(implem, config, push=False):
     execute_command("git clean -f -d panther_worker/panther-ivy;")
     client = docker.from_env()
 
-    implem_build_commands = dict(config.items('implem_build_commands'))
-    shadow_support = config['shadow_support']
+    implem_build_commands = dict(config.items("implem_build_commands"))
+    shadow_support = config["shadow_support"]
     tag, path, dockerfile = eval(implem_build_commands[implem])
 
     logger.info(f"Building Docker image {tag} from {dockerfile}")
@@ -334,7 +375,9 @@ def build_worker(implem, config, push=False):
 
     # Build the specified implementation image
     build_args = (
-        {"image": "shadow-panther-picotls"} if shadow_tag else {"image": "panther-picotls"}
+        {"image": "shadow-panther-picotls"}
+        if shadow_tag
+        else {"image": "panther-picotls"}
     )
     logger.debug(f"Building Docker image {tag} from tag {build_args}")
     image_obj, log_generator = client.images.build(
@@ -359,9 +402,10 @@ def build_worker(implem, config, push=False):
         buildargs=build_args,
     )
     log_docker_output(log_generator, f"Building Docker image {final_tag}")
-    
+
     if push:
         push_image_to_registry(final_tag)
+
 
 def build_docker_visualizer(push=False):
     """_summary_
@@ -381,18 +425,19 @@ def build_docker_visualizer(push=False):
     if push:
         push_image_to_registry("ivy-visualizer")
 
+
 def stop_tool():
-    """_summary_
-    """
+    """_summary_"""
     client = docker.from_env()
     docker_containers = client.containers.list(all=True)
     for dc in docker_containers:
         dc.stop()
 
+
 def start_bash_container(implem):
     """_summary_
     Start a Docker container with the specified parameters.
-    
+
     Args:
         implem (_type_): _description_
 
@@ -401,14 +446,18 @@ def start_bash_container(implem):
     """
     client = docker.from_env()
     pwd = os.getcwd()
+
     def get_nproc():
         """Get the number of processors available."""
         try:
-            result = subprocess.run(["nproc"], capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                ["nproc"], capture_output=True, text=True, check=True
+            )
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
             print(f"Error getting the number of processors: {e}")
             return "1"
+
     nproc = get_nproc()
     cpus = f"{nproc}.0"
 
@@ -416,8 +465,8 @@ def start_bash_container(implem):
 
     volumes = {
         f"{pwd}/tls-keys": {"bind": "/app/tls-keys", "mode": "rw"},
-        f"{pwd}/tickets":  {"bind": "/app/tickets", "mode": "rw"},
-        f"{pwd}/qlogs":    {"bind": "/app/qlogs", "mode": "rw"},
+        f"{pwd}/tickets": {"bind": "/app/tickets", "mode": "rw"},
+        f"{pwd}/qlogs": {"bind": "/app/qlogs", "mode": "rw"},
         f"{pwd}/panther_worker/app/panther-ivy/protocol-testing/": {
             "bind": "/app/panther-ivy/protocol-testing/",
             "mode": "rw",
@@ -445,6 +494,7 @@ def start_bash_container(implem):
     except Exception as e:
         print(f"Error starting the container: {e}")
 
+
 from termcolor import colored, cprint
 import terminal_banner
 import sys
@@ -452,15 +502,19 @@ import os
 
 os.system("clear")
 
+
 def is_tmux_session():
     """Check if running inside a tmux session."""
-    return 'TMUX' in subprocess.run(['env'], capture_output=True, text=True).stdout
+    return "TMUX" in subprocess.run(["env"], capture_output=True, text=True).stdout
+
 
 if not is_tmux_session():
-        print("Not running inside a tmux session.")
-        print("Please start a tmux session first using `tmux` command and then run this script again.")
-        # exit(0)
-        
+    print("Not running inside a tmux session.")
+    print(
+        "Please start a tmux session first using `tmux` command and then run this script again."
+    )
+    exit(0)
+
 banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@: .~JG#&@@@@@@@@@@@@@@@@@@@@@@@@@@&BJ~. .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -520,22 +574,21 @@ banner = """
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@J.~         5@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#!   ..:^~G@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&BPYYG&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-                                            Made with ❤️ 
-                                For the Community, By the Community   
+                                            Made with ❤️
+                                For the Community, By the Community
 
                                 ###################################
-                    
+
                                         Made by ElNiak
-                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/
                                 Github - https://github.com/elniak
-                                                                                      
+
 """
 banner_terminal = terminal_banner.Banner(banner)
 cprint(banner_terminal, "green", file=sys.stderr)
 
 if __name__ == "__main__":
-    """_summary_
-    """
+    """_summary_"""
     parser = argparse.ArgumentParser(description="Manage PANTHER Tool")
     parser.add_argument(
         "--config", type=str, required=True, help="Path to the configuration file"
@@ -547,7 +600,10 @@ if __name__ == "__main__":
         "--debug", required=False, help="Debug mode", action="store_true"
     )
     parser.add_argument(
-        "--push_to_hub", required=False, help="Push image to docker hub", action="store_true"
+        "--push_to_hub",
+        required=False,
+        help="Push image to docker hub",
+        action="store_true",
     )
     parser.add_argument(
         "command",
@@ -564,7 +620,8 @@ if __name__ == "__main__":
             "run_workers_prod",
             "run_webapp",
             "update_docker_compose",
-            "update_docker_swarm"
+            "update_docker_swarm",
+            "stop_tools",
         ],
         help="Command to execute",
     )
@@ -586,7 +643,9 @@ if __name__ == "__main__":
         pass
     elif args.command == "run_webapp":
         pass
-    
+    elif args.command == "stop_tools":
+        stop_tool()
+
     elif args.command == "update_docker_swarm":
         update_docker_swarm(config, prod=True)
     elif args.command == "run_tools_prod":
@@ -595,7 +654,7 @@ if __name__ == "__main__":
         pass
     elif args.command == "run_webapp_prod":
         pass
-    
+
     elif args.command == "install":
         install_tool(config)
     elif args.command == "build_webapp":
@@ -604,7 +663,7 @@ if __name__ == "__main__":
         for implem, should_build in config["implems"].items():
             if should_build.lower() == "true":
                 build_worker(implem, config, push=args.push_to_hub)
-   
+
     elif args.command == "clean":
         clean_tool(config)
     elif args.command == "push_tools":

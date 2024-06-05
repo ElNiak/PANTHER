@@ -95,8 +95,8 @@ class MiniPIvyTest(IvyTest):
             )
         )
 
-        client_implem_args = re.sub("\s{2,}", " ", client_implem_args)
-        server_implem_args = re.sub("\s{2,}", " ", server_implem_args)
+        client_implem_args = re.sub("\\s{2,}", " ", client_implem_args)
+        server_implem_args = re.sub("\\s{2,}", " ", server_implem_args)
 
         implem_env = ""  # TODO use a list of env
 
@@ -208,8 +208,8 @@ class MiniPIvyTest(IvyTest):
                 self.implem_conf[1][self.implementation_name]["port-value"],
             )
         )
-        client_command = re.sub("\s{2,}", " ", client_command)
-        server_command = re.sub("\s{2,}", " ", server_command)
+        client_command = re.sub("\\s{2,}", " ", client_command)
+        server_command = re.sub("\\s{2,}", " ", server_command)
         if self.is_client:
             return [client_command, server_command]
         else:

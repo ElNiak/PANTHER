@@ -24,22 +24,24 @@ class MiniPRunner(Runner):
     def get_exp_stats(self, implem, test, run_id, pcap_name, i):
         if self.config["global_parameters"].getboolean("getstats"):
             self.log.info("Getting experiences stats:")
-            
+
             import panther_stats.panther_minip_stats as stats
 
             with open(
                 os.path.join(
-                    os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
+                    os.path.join(self.config["global_parameters"]["dir"], str(run_id)),
                     test.name + str(i) + ".dat",
                 ),
                 "w",
             ) as out:
                 save = os.getcwd()
-                os.chdir(os.path.join(self.config["global_parameters"]["dir"],str(run_id)))
+                os.chdir(
+                    os.path.join(self.config["global_parameters"]["dir"], str(run_id))
+                )
                 stats.make_dat(test.name, out)
                 os.chdir(save)
             filename = os.path.join(
-                os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
+                os.path.join(self.config["global_parameters"]["dir"], str(run_id)),
                 test.name + str(i) + ".iev",
             )
             with open(filename, "r") as out:
@@ -50,7 +52,9 @@ class MiniPRunner(Runner):
                     test.name,
                     pcap_name,
                     os.path.join(
-                        os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".iev",
                     ),
                     out,
@@ -60,7 +64,7 @@ class MiniPRunner(Runner):
     def set_process_limits(self):
         # Create a new session
         os.setsid()
-        
+
     def run_exp(self, implem):
         implem_dir_server, implem_dir_client = self.setup_exp(implem=implem)
 
@@ -136,11 +140,11 @@ class MiniPRunner(Runner):
                         ivy_err = exp_folder + "/ivy_stderr.txt"
                         sys.stdout = open(ivy_out, "w")
                         sys.stderr = open(ivy_err, "w")
-                        
+
                         self.log.info("Start run")
 
                         os.environ["TEST_TYPE"] = test.mode.split("_")[0]
-                        ENV_VAR["TEST_TYPE"]    = test.mode.split("_")[0]
+                        ENV_VAR["TEST_TYPE"] = test.mode.split("_")[0]
 
                         status = False
                         try:
@@ -149,13 +153,11 @@ class MiniPRunner(Runner):
                             print(e)
                         finally:  # In Runner.py
                             try:
-                                x = requests.get(
-                                    "http://panther-webapp/update-count"
-                                )
+                                x = requests.get("http://panther-webapp/update-count")
                                 self.log.info(x)
                             except:
                                 pass
-                            
+
                             sys.stdout.close()
                             sys.stderr.close()
                             sys.stdout = sys.__stdout__

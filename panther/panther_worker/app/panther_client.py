@@ -18,6 +18,7 @@ from panther import *
 from panther_utils.panther_constant import *
 from panther_config.panther_config import update_config, update_protocol_config
 
+
 class PFVClient:
     app = Flask(__name__)
     app.debug = True
@@ -48,7 +49,7 @@ class PFVClient:
 
         tool = Panther()
         try:
-            PFVClient.start_experiment_in_thread(user_data,tool)
+            PFVClient.start_experiment_in_thread(user_data, tool)
             return jsonify({"message": "Request successful"}), 200
         except Exception as e:
             PFVClient.app.logger.info("Error handling request: %s", e)
@@ -57,8 +58,8 @@ class PFVClient:
     def start_experiment_in_thread(user_data, tool):
         if PFVClient.thread is None or not PFVClient.thread.is_alive():
             PFVClient.thread = threading.Thread(
-                    target=tool.launch_experiments, args=([[user_data["implementation"]]])
-                )
+                target=tool.launch_experiments, args=([[user_data["implementation"]]])
+            )
             # PFVClient.thread.daemon = True
             PFVClient.thread.start()
             PFVClient.app.logger.info("Thread started")
@@ -73,13 +74,12 @@ class PFVClient:
     @app.route("/get-protocols", methods=["GET"])
     def get_protocols():
         return jsonify(PROTOCOLS)
-    
-    
+
     @app.route("/stop-client", methods=["GET"])
-    def stop_client(): 
+    def stop_client():
         # TODO: hack because connection aborted i dont know why
         sys.exit(0)
-    
+
     @app.after_request
     def add_header(r):
         """
@@ -96,6 +96,7 @@ class PFVClient:
 
     def run(self):
         PFVClient.app.run(host="0.0.0.0", port=80, use_reloader=True)
+
 
 banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -156,15 +157,15 @@ banner = """
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@J.~         5@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#!   ..:^~G@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&BPYYG&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-                                            Made with ❤️ 
-                                For the Community, By the Community   
+                                            Made with ❤️
+                                For the Community, By the Community
 
                                 ###################################
-                    
+
                                         Made by ElNiak
-                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/ 
+                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/
                                 Github - https://github.com/elniak
-                                                                                      
+
 """
 
 banner_terminal = terminal_banner.Banner(banner)
