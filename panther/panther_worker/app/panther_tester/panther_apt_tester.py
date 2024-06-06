@@ -76,7 +76,20 @@ class APTIvyTest(IvyTest):
         )
 
     def update_implementation_command(self, i):
-        return i
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][
+                self.implementation_name
+            ]
+        else:
+            current_protocol = self.current_protocol
+        if current_protocol == "quic":
+            self.log.info("Updating command for quic implementation:")
+            self.quic_tester.__dict__.update(self.__dict__)
+            super().__dict__.update(self.__dict__)
+            return self.quic_tester.update_implementation_command(i)
+        else:
+            self.log.info("Updating command for apt implementation:")
+            return i
 
     def set_process_limits(self):
         # Create a new session
@@ -84,6 +97,7 @@ class APTIvyTest(IvyTest):
         # resource.setrlimit(resource.RLIMIT_AS, (200 * 1024 * 1024, 200 * 1024 * 1024))
 
     def generate_shadow_config(self):
+        # TODO add path to shadow config and then call the protocol specific function
         server_implem_args = (
             self.implem_conf[0][self.implementation_name]["source-format"]
             .replace(
@@ -190,85 +204,48 @@ class APTIvyTest(IvyTest):
         else:
             current_protocol = self.current_protocol
         if current_protocol == "quic":
-            return self.quic_tester.generate_implementation_command()
-
-    def start_implementation(self, i, out, err):
-        if self.run:
-            self.update_implementation_command(i)
-            self.log.info(self.implem_cmd)
-            qcmd = (
-                "sleep 5; "
-                if self.is_client
-                and not self.config["net_parameters"].getboolean("shadow")
-                else ""
-            ) + self.implem_cmd  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
-            qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
-            self.log.info("implementation command: {}".format(qcmd))
-            if not self.config["net_parameters"].getboolean("shadow"):
-                self.log.info("not shadow test:")
-                self.implem_process = subprocess.Popen(
-                    qcmd,
-                    cwd=(
-                        self.implem_dir_client
-                        if self.is_client
-                        else self.implem_dir_server
-                    ),
-                    stdout=out,
-                    stderr=err,
-                    shell=True,  # self.is_client,
-                    preexec_fn=self.set_process_limits,
-                )
-                self.log.info("implem_process pid: {}".format(self.implem_process.pid))
-            else:
-                # TODO use config file
-                self.log.info("Generating shadow config:")
-                file = self.generate_shadow_config()
-                self.log.info(
-                    "command: RUST_BACKTRACE=1 shadow " + file + " > shadow.log"
-                )
-                try:
-                    os.system("RUST_BACKTRACE=1 shadow " + file + " > shadow.log")
-                except:
-                    pass
+            self.log.info("Generating command for quic implementation:")
+            self.quic_tester.__dict__.update(self.__dict__)
+            super().__dict__.update(self.__dict__)
+            self.quic_tester.implem_conf = self.implem_conf
+            implems = self.quic_tester.generate_implementation_command()
+            self.implem_cmd = implems[0]
+            self.quic_tester.__dict__.update(self.__dict__)
+            super().__dict__.update(self.__dict__)
+            return implems
 
     def start_tester(self, iteration, iev, i):
         self.log.info("Starting tester:")
-        ok = True
-        if not self.config["net_parameters"].getboolean("shadow"):
-            try:
-                for iclient in range(
-                    0, self.nclient
-                ):  # TODO for multiple implem client only
-                    self.log.info("iclient = " + str(iclient))
-                    ok = ok and self.run_tester(iteration, iev, i, iclient)
-            except KeyboardInterrupt:
-                if self.run and not self.config["global_parameters"].getboolean(
-                    "keep_alive"
-                ):
-                    self.log.info("cool kill")
-                    if self.config["net_parameters"].getboolean("vnet"):
-                        subprocess.Popen(
-                            "/bin/bash " + SOURCE_DIR + "/vnet_reset.sh",
-                            shell=True,
-                            executable="/bin/bash",
-                        ).wait()
-                    self.implem_process.terminate()
-                raise KeyboardInterrupt
+        print("Starting tester:")
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][
+                self.implementation_name
+            ]
+        else:
+            current_protocol = self.current_protocol
+        if current_protocol == "quic":
+            self.log.info("Starting tester for quic implementation:")
+            self.quic_tester.__dict__.update(self.__dict__)
+            super().__dict__.update(self.__dict__)
+            return self.quic_tester.start_tester(iteration, iev, i)
 
-            if self.run and not self.config["global_parameters"].getboolean(
-                "keep_alive"
-            ):
-                self.log.info("implem_process.terminate()")
-                # The above code is terminating the process.
-                self.implem_process.terminate()
-                retcode = self.implem_process.wait()
-                self.log.info(retcode)
-                if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
-                    iev.write("server_return_code({})\n".format(retcode))
-                    self.log.info("server return code: {}".format(retcode))
-                    self.implem_process.kill()
-                    return False
-        return ok
+    def start_implementation(self, i, out, err):
+        self.log.info("Start implementation:")
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][
+                self.implementation_name
+            ]
+        else:
+            current_protocol = self.current_protocol
+        if current_protocol == "quic":
+            self.log.info("Start quic implementation:")
+            self.log.info(f"APT implemententation command {self.implem_cmd}")
+            self.quic_tester.__dict__.update(self.__dict__)
+            super().__dict__.update(self.__dict__)
+            self.log.info(
+                f"QUIC implemententation command {self.quic_tester.implem_cmd}"
+            )
+            return self.quic_tester.start_implementation(i, out, err)
 
     def stop_processes(self):
         self.log.info("Stop processes:")
@@ -292,4 +269,7 @@ class APTIvyTest(IvyTest):
         else:
             current_protocol = self.current_protocol
         if current_protocol == "quic":
-            return self.quic_tester.generate_tester_command(iteration, iclient)
+            command = self.quic_tester.generate_tester_command(iteration, iclient)
+            self.quic_tester.__dict__.update(self.__dict__)
+            super().__dict__.update(self.__dict__)
+            return command

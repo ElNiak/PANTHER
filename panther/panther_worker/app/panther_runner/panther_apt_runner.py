@@ -31,8 +31,9 @@ class APTRunner(Runner):
     def get_exp_stats(self, implem, test, run_id, pcap_name, i):
         if self.config["global_parameters"].getboolean("getstats"):
             self.log.info("Getting experiences stats:")
-            import panther_stats.panther_minip_stats as stats
+            import panther_stats.panther_apt_stats as stats
 
+            protocol = self.apt_conf["protocol_origins"][self.current_implementation]
             with open(
                 os.path.join(
                     os.path.join(self.config["global_parameters"]["dir"], str(run_id)),
@@ -64,7 +65,9 @@ class APTRunner(Runner):
                         test.name + str(i) + ".iev",
                     ),
                     out,
-                    self.protocol_conf["minip_parameters"].getint("initial_version"),
+                    self.protocol_conf[protocol + "_parameters"].getint(
+                        "initial_version"
+                    ),
                 )
 
     def run_exp(self, implem):

@@ -240,7 +240,7 @@ class QUICIvyTest(IvyTest):
             },
         }
 
-        self.is_mim = True if "mim" in self.mode else False
+        self.is_mim = True if "mim" in self.mode else False  # TODO
 
         self.loop = {
             "quic_server_test_0rtt": 2,
@@ -711,6 +711,8 @@ class QUICIvyTest(IvyTest):
         client_implem_args = client_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
         client_implem_args = re.sub("\s{2,}", " ", client_implem_args)
 
+        self.log.info(f"Server implem args: {server_implem_args}")
+        self.log.info(f"Client implem args: {client_implem_args}")
         if self.is_client:
             return [client_implem_args, server_implem_args]
         else:
@@ -721,6 +723,13 @@ class QUICIvyTest(IvyTest):
         os.setsid()
 
     def start_implementation(self, i, out, err):
+        """_summary_
+
+        Args:
+            i (_type_): _description_
+            out (_type_): _description_
+            err (_type_): _description_
+        """
         if self.config["global_parameters"].getboolean("run"):
             if self.is_mim:
                 pass

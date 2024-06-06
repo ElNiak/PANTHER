@@ -75,7 +75,7 @@ class IvyTest(object):
         self.loop = {}
 
         self.implem_process = None
-        self.is_client = True if "client" in self.mode else False
+        self.is_client = True if "client" in self.name else False  # TODO check
 
     def restore_implementation_command(self):
         self.implem_cmd = self.implem_cmd_original
@@ -194,11 +194,11 @@ class IvyTest(object):
 
     def set_process_limits(self):
         pass
-    
+
     def run_tester(self, iteration, iev, i, iclient):
         command = self.generate_tester_command(iteration, iclient)
-        self.log.info(command)
-        print(command)
+        self.log.info(f"Tester command: {command}")
+        print(f"Tester command: {command}")
         # time.sleep(5)
         for name in self.loop.keys():
             if name in command:
@@ -295,7 +295,7 @@ class IvyTest(object):
 
     def generate_implementation_command(self):
         raise NotImplementedError
-    
+
     def generate_tester_command(self, iteration, iclient):
         import platform
 
