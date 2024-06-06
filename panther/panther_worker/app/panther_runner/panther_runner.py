@@ -30,12 +30,16 @@ class Runner:
         self.log.addHandler(ch)
         self.log.propagate = False
 
+        self.protocol_conf = protocol_config
+        self.apt_conf = None
+
         # Setup configuration
         self.log.info("START SETUP CONFIGURATION")
         self.current_protocol = current_protocol
         self.config = config
         self.log.info("SELECTED PROTOCOL: " + self.current_protocol)
-        self.protocol_conf = protocol_config
+        self.log.info("Implementations: " + str(implems))
+
         self.log.info("END SETUP PROTOCOL PARAMETERS")
 
         # TODO refactor
@@ -54,9 +58,12 @@ class Runner:
         self.implems = implems
 
         self.webapp_ip = socket.gethostbyname("panther-webapp")
-        print(self.webapp_ip)
-        print(self.nb_test_to_execute)
-        print(self.nb_test_to_execute * self.config["global_parameters"].getint("iter"))
+        print("panther-webapp IP: ", self.webapp_ip)
+        print("Number of test to execute: ", self.nb_test_to_execute)
+        print(
+            "Total number of test to execute: ",
+            self.nb_test_to_execute * self.config["global_parameters"].getint("iter"),
+        )
         # TODO make less general
         if (
             "quic_server_test_0rtt" in executed_test
@@ -88,10 +95,19 @@ class Runner:
 
         try:
             binary_path, binary_name = self.get_binary_details(implem, test.mode)
-            self.copy_file(binary_path, os.path.join(self.config["global_parameters"]["dir"], str(run_id), binary_name))
+            self.copy_file(
+                binary_path,
+                os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), binary_name
+                ),
+            )
 
-            test_path = os.path.join(self.config["global_parameters"]["build_dir"], test.name)
-            dest_test_path = os.path.join(self.config["global_parameters"]["dir"], str(run_id), test.name)
+            test_path = os.path.join(
+                self.config["global_parameters"]["build_dir"], test.name
+            )
+            dest_test_path = os.path.join(
+                self.config["global_parameters"]["dir"], str(run_id), test.name
+            )
             self.copy_file(test_path, dest_test_path)
 
         except Exception as e:
@@ -112,11 +128,19 @@ class Runner:
         binary_dir = self.implems[implem][index][implem]["binary-dir"]
         binary_name = self.implems[implem][index][implem]["binary-name"]
 
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][implem]
+        else:
+            current_protocol = self.current_protocol
+
         binary_path = (
-            binary_dir.replace("$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol))
-            .replace("$MODEL_DIR", MODEL_DIR)
+            binary_dir.replace(
+                "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", current_protocol)
+            ).replace("$MODEL_DIR", MODEL_DIR)
             + "/"
-            + binary_name.replace("$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol))
+            + binary_name.replace(
+                "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", current_protocol)
+            )
             .replace("$MODEL_DIR", MODEL_DIR)
             .split(" ")[-1]
         )
@@ -138,18 +162,31 @@ class Runner:
     # Return dictionnary of paths according to possible location
     # TODO make more robust
     def get_implementation_dir(self, implem):
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][implem]
+        else:
+            current_protocol = self.current_protocol
         return self.implems[implem][0][implem]["binary-dir"].replace(
-            "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol)
+            "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", current_protocol)
         ), self.implems[implem][1][implem]["binary-dir"].replace(
-            "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", self.current_protocol)
+            "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", current_protocol)
         )
 
     def record_pcap(self, pcap_name):
         self.log.info("Start thsark")
         # time.sleep(10) # for server test
         # TODO kill entual old quic implem
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][
+                self.current_implementation
+            ]
+        else:
+            current_protocol = self.current_protocol
+        pcap_protocol = self.protocol_conf[current_protocol + "_parameters"]["protocol"]
+
         if self.config["net_parameters"].getboolean("vnet"):
             interface = "lo"
+
             p = subprocess.Popen(
                 [
                     "ip",
@@ -162,9 +199,7 @@ class Runner:
                     "-i",
                     interface,
                     "-f",
-                    self.protocol_conf[self.current_protocol + "_parameters"][
-                        "protocol"
-                    ],
+                    pcap_protocol,
                 ],
                 stdout=sys.stdout,
             )
@@ -180,9 +215,7 @@ class Runner:
                     "-i",
                     interface,
                     "-f",
-                    self.protocol_conf[self.current_protocol + "_parameters"][
-                        "protocol"
-                    ],
+                    pcap_protocol,
                 ],
                 stdout=sys.stdout,
             )
@@ -199,9 +232,7 @@ class Runner:
                     "-i",
                     interface,
                     "-f",
-                    self.protocol_conf[self.current_protocol + "_parameters"][
-                        "protocol"
-                    ],
+                    pcap_protocol,
                 ],
                 stdout=sys.stdout,
             )
@@ -218,9 +249,7 @@ class Runner:
                     "-i",
                     interface,
                     "-f",
-                    self.protocol_conf[self.current_protocol + "_parameters"][
-                        "protocol"
-                    ],
+                    pcap_protocol,
                 ],
                 stdout=sys.stdout,
             )
@@ -237,13 +266,11 @@ class Runner:
                     "-i",
                     interface,
                     "-f",
-                    self.protocol_conf[self.current_protocol + "_parameters"][
-                        "protocol"
-                    ],
+                    pcap_protocol,
                 ],
                 stdout=sys.stdout,
             )
-        time.sleep(3)  # TODO
+        time.sleep(3)  # TODO .wait() ?
         return p
 
     def config_pcap(self, ivy_dir, implem, test):
@@ -288,8 +315,9 @@ class Runner:
             if os.path.isdir(os.path.join(self.config["global_parameters"]["dir"], f))
         ]
         pcap_i = len(folders) + 1
-        self.log.info(pcap_i)
+        self.log.info(f"Experiment number: {pcap_i}")
         ivy_dir = os.path.join(self.config["global_parameters"]["dir"], str(pcap_i))
+        self.log.info(f"Create folder: {ivy_dir}")
         os.mkdir(ivy_dir)
         return ivy_dir, pcap_i
 
@@ -315,18 +343,31 @@ class Runner:
         if self.config["net_parameters"].getboolean("shadow"):
             self.log.info("Save shadow res:")
             shadow_data_src = "/app/shadow.data"
-            shadow_data_dst = os.path.join(self.config["global_parameters"]["dir"], str(run_id), "shadow.data")
-            self.log.info(f"Copying entire folder: {shadow_data_src} to {shadow_data_dst}")
+            shadow_data_dst = os.path.join(
+                self.config["global_parameters"]["dir"], str(run_id), "shadow.data"
+            )
+            self.log.info(
+                f"Copying entire folder: {shadow_data_src} to {shadow_data_dst}"
+            )
             shutil.copytree(shadow_data_src, shadow_data_dst)
-            shutil.copyfile("/app/shadow.log", os.path.join(self.config["global_parameters"]["dir"], str(run_id), "shadow.log"))
+            shutil.copyfile(
+                "/app/shadow.log",
+                os.path.join(
+                    self.config["global_parameters"]["dir"], str(run_id), "shadow.log"
+                ),
+            )
             shutil.rmtree(shadow_data_src)
             os.remove("/app/shadow.log")
-            shadow_data_dir = os.path.join(self.config["global_parameters"]["dir"], str(run_id), "shadow.data")
+            shadow_data_dir = os.path.join(
+                self.config["global_parameters"]["dir"], str(run_id), "shadow.data"
+            )
             host_dirs = {
                 "client": os.path.join(shadow_data_dir, "hosts/client"),
                 "server": os.path.join(shadow_data_dir, "hosts/server"),
             }
-            dest_dir = os.path.join(self.config["global_parameters"]["dir"], str(run_id))
+            dest_dir = os.path.join(
+                self.config["global_parameters"]["dir"], str(run_id)
+            )
 
             if "client" in test.mode:
                 patterns = [
@@ -336,7 +377,7 @@ class Runner:
                     ("server", "*.stderr", "ivy_stderr.txt"),
                 ]
             else:
-                 patterns = [
+                patterns = [
                     ("server", "*.stdout", test.name + str(i) + ".out"),
                     ("server", "*.stderr", test.name + str(i) + ".err"),
                     ("client", "*.stdout", test.name + str(i) + ".iev"),
@@ -346,15 +387,21 @@ class Runner:
             for mode, pattern, dest_filename in patterns:
                 self.log.info(f"Matching pattern {pattern} in {host_dirs[mode]}")
                 for file_path in glob.glob(os.path.join(host_dirs[mode], pattern)):
-                    self.log.info(f"Copy {file_path} to {os.path.join(dest_dir, dest_filename)}")
+                    self.log.info(
+                        f"Copy {file_path} to {os.path.join(dest_dir, dest_filename)}"
+                    )
                     shutil.copy(file_path, os.path.join(dest_dir, dest_filename))
 
             if "client" in test.mode:
                 self.log.info(f"Copy eth0.pcap to {pcap_name}")
-                shutil.copy(os.path.join(shadow_data_dir, "hosts/server/eth0.pcap"), pcap_name)
+                shutil.copy(
+                    os.path.join(shadow_data_dir, "hosts/server/eth0.pcap"), pcap_name
+                )
             elif "server" in test.mode:
                 self.log.info(f"Copy eth0.pcap to {pcap_name}")
-                shutil.copy(os.path.join(shadow_data_dir, "hosts/client/eth0.pcap"), pcap_name)
-                
+                shutil.copy(
+                    os.path.join(shadow_data_dir, "hosts/client/eth0.pcap"), pcap_name
+                )
+
     def run_exp(self, implem):
         raise NotImplementedError

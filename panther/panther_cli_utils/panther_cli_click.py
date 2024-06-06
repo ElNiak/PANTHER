@@ -726,8 +726,8 @@ def start_bash_container(implem):
         f"{pwd}/tls-keys": {"bind": "/PANTHER/tls-keys", "mode": "rw"},
         f"{pwd}/tickets": {"bind": "/PANTHER/tickets", "mode": "rw"},
         f"{pwd}/qlogs": {"bind": "/PANTHER/qlogs", "mode": "rw"},
-        f"{pwd}/src/Protocols-Ivy/doc/examples/quic": {
-            "bind": "/PANTHER/Protocols-Ivy/doc/examples/quic",
+        f"{pwd}/src/Protocols-Ivy/protocol-testing/quic": {
+            "bind": "/PANTHER/Protocols-Ivy/protocol-testing/quic",
             "mode": "rw",
         },
         f"{pwd}/src/Protocols-Ivy/ivy/include/1.7": {

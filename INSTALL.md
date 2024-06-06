@@ -2,8 +2,11 @@
 
 Note, before implementation were added as submodule. Now we only consider Docker containers installation. (To be updated)
 
+
+## :gear: Pre-commit and Black
+
 ```
-python3 -m pip install pre-commit
+python3 -m pip install pre-commit black
 pre-commit installed at .git/hooks/pre-commit
 ```
 

@@ -16,6 +16,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from panther_tester.panther_tester import IvyTest
+from panther_tester.panther_quic_tester import QUICIvyTest
 from panther_utils.panther_constant import *
 
 # On Windows, pexpect doesn't implement 'spawn'.
@@ -44,9 +45,24 @@ class APTIvyTest(IvyTest):
         protocol_conf,
         implem_conf,
         current_protocol,
+        apt_conf,
     ):
 
         super().__init__(
+            args,
+            implem_dir_server,
+            implem_dir_client,
+            extra_args,
+            implementation_name,
+            mode,
+            config,
+            protocol_conf,
+            implem_conf,
+            current_protocol,
+        )
+        self.apt_conf = apt_conf
+
+        self.quic_tester = QUICIvyTest(
             args,
             implem_dir_server,
             implem_dir_client,
@@ -65,7 +81,7 @@ class APTIvyTest(IvyTest):
     def set_process_limits(self):
         # Create a new session
         os.setsid()
-        resource.setrlimit(resource.RLIMIT_AS, (200 * 1024 * 1024, 200 * 1024 * 1024))
+        # resource.setrlimit(resource.RLIMIT_AS, (200 * 1024 * 1024, 200 * 1024 * 1024))
 
     def generate_shadow_config(self):
         server_implem_args = (
@@ -120,12 +136,12 @@ class APTIvyTest(IvyTest):
         print("shadow test:")
         for env_var in ENV_VAR:
             print(env_var, ENV_VAR[env_var])
-        if "client_test" in self.name:
-            file = "/app/shadow_client_test.yml"
-            file_temp = "/app/shadow_client_test_template.yml"
+        if "attacker_test" in self.name:
+            file = "/app/shadow_attacker_test.yml"
+            file_temp = "/app/shadow_attacker_test_template.yml"
         else:
-            file = "/app/shadow_server_test.yml"
-            file_temp = "/app/shadow_server_test_template.yml"
+            file = "/app/shadow_man_in_the_middle_test.yml"
+            file_temp = "/app/shadow_man_in_the_middle_test_template.yml"
         with open(file_temp, "r") as f:
             content = f.read()  # todo replace
         with open(file, "w") as f:
@@ -167,59 +183,14 @@ class APTIvyTest(IvyTest):
         return file
 
     def generate_implementation_command(self):
-        server_command = (
-            self.implem_conf[0][self.implementation_name]["binary-name"]
-            .replace(
-                "$IMPLEM_DIR",
-                IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + self.current_protocol,
-            )
-            .replace("$MODEL_DIR", MODEL_DIR + self.current_protocol)
-            + " "
-            + self.implem_conf[0][self.implementation_name]["source-format"]
-            .replace(
-                "[source]", self.implem_conf[0][self.implementation_name]["source"]
-            )
-            .replace(
-                "[source-value]",
-                self.implem_conf[0][self.implementation_name]["source-value"],
-            )
-            .replace("[port]", self.implem_conf[0][self.implementation_name]["port"])
-            .replace(
-                "[port-value]",
-                self.implem_conf[0][self.implementation_name]["port-value"],
-            )
-        )
-        client_command = (
-            self.implem_conf[1][self.implementation_name]["binary-name"]
-            .replace(
-                "$IMPLEM_DIR",
-                IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + self.current_protocol,
-            )
-            .replace("$MODEL_DIR", MODEL_DIR + self.current_protocol)
-            + " "
-            + self.implem_conf[1][self.implementation_name]["destination-format"]
-            .replace(
-                "[destination]",
-                self.implem_conf[1][self.implementation_name]["destination"],
-            )
-            .replace(
-                "[destination-value]",
-                self.implem_conf[1][self.implementation_name]["destination-value"],
-            )
-            .replace("[port]", self.implem_conf[1][self.implementation_name]["port"])
-            .replace(
-                "[port-value]",
-                self.implem_conf[1][self.implementation_name]["port-value"],
-            )
-        )
-        client_command = re.sub("\\s{2,}", " ", client_command)
-        server_command = re.sub("\\s{2,}", " ", server_command)
-        if self.is_client:
-            return [client_command, server_command]
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][
+                self.implementation_name
+            ]
         else:
-            return [server_command, client_command]
+            current_protocol = self.current_protocol
+        if current_protocol == "quic":
+            return self.quic_tester.generate_implementation_command()
 
     def start_implementation(self, i, out, err):
         if self.run:
@@ -314,71 +285,11 @@ class APTIvyTest(IvyTest):
                 self.log.info("implem_process.kill()")
 
     def generate_tester_command(self, iteration, iclient):
-        strace_cmd, gperf_cmd, timeout_cmd = super().generate_tester_command(
-            iteration, iclient
-        )
-
-        os.environ["TIMEOUT_IVY"] = str(
-            self.config["global_parameters"].getint("timeout")
-        )
-
-        randomSeed = random.randint(0, 1000)
-        random.seed(datetime.now())
-
-        prefix = ""
-        server_port = 4443
-        client_port = 2 * iteration + 4987 + iclient
-
-        print(self.name)
-        # time.sleep(5)
-        if self.config["debug_parameters"].getboolean("gdb"):
-            # TODO refactor
-            prefix = " gdb --args "
-        if self.config["net_parameters"].getboolean("vnet"):
-            envs = "env - "
-            for env_var in ENV_VAR:
-                if env_var != "PATH":  # TODO remove it is useless
-                    envs = envs + env_var + '="' + ENV_VAR[env_var] + '" '
-                else:
-                    envs = envs + env_var + '="' + os.environ.get(env_var) + '" '
-            prefix = (
-                "sudo ip netns exec ivy "
-                + envs
-                + " "
-                + strace_cmd
-                + " "
-                + gperf_cmd
-                + " "
-            )
-            ip_server = 0x0A000003 if not self.is_client else 0x0A000001
-            ip_client = 0x0A000001 if not self.is_client else 0x0A000003
-        elif self.config["net_parameters"].getboolean("shadow"):
-            ip_server = 0x0B000002 if not self.is_client else 0x0B000001
-            ip_client = 0x0B000001 if not self.is_client else 0x0B000002
-        else:
-            # prefix = strace_cmd + " "
-            ip_server = 0x7F000001
-            ip_client = ip_server
-
-        return " ".join(
-            [
-                "{}{}{}/{} seed={} server_port={} server_addr={}  {}".format(
-                    timeout_cmd,
-                    prefix,
-                    self.config["global_parameters"]["build_dir"],
-                    self.name,
-                    randomSeed,
-                    server_port,
-                    ip_server,
-                    (
-                        ""
-                        if self.is_client
-                        else "client_port={}  client_addr={}".format(
-                            client_port, ip_client
-                        )
-                    ),
-                )
+        if self.current_protocol == "apt":
+            current_protocol = self.apt_conf["protocol_origins"][
+                self.implementation_name
             ]
-            + self.extra_args
-            + ([""] if self.config["net_parameters"].getboolean("vnet") else [""])
-        )
+        else:
+            current_protocol = self.current_protocol
+        if current_protocol == "quic":
+            return self.quic_tester.generate_tester_command(iteration, iclient)

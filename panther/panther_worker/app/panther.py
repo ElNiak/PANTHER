@@ -17,6 +17,8 @@ from panther_config.panther_config import *
 from panther_runner.panther_apt_runner import APTRunner
 from panther_runner.panther_quic_runner import QUICRunner
 from panther_runner.panther_minip_runner import MiniPRunner
+from panther_runner.panther_bgp_runner import BGPRunner
+from panther_runner.panther_coap_runner import CoAPRunner
 
 from logger.CustomFormatter import ch
 
@@ -129,26 +131,28 @@ class Panther:
             must_pass=False,
         )
 
-        if self.config["verified_protocol"].getboolean("quic"):
+        if self.config["verified_protocol"].getboolean("quic") or self.config[
+            "verified_protocol"
+        ].getboolean("apt"):
             self.log.info("Copying QUIC libraries")
             # TODO picotls add submodule
             execute_command(
                 "sudo /bin/cp -f -a "
-                + "/app/implementations/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib"
+                + "/app/implementations/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib/"
             )
             execute_command(
                 "sudo /bin/cp -f -a "
                 + "/app/implementations/quic-implementations/picotls/*.a "
-                + "/app/panther-ivy/ivy/lib"
+                + "/app/panther-ivy/ivy/lib/"
             )
             execute_command(
                 "sudo /bin/cp -f "
-                + "/app/implementations/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include"
+                + "/app/implementations/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/picotls.h"
             )
             execute_command(
                 "sudo /bin/cp -f "
                 + "/app/implementations/quic-implementations/picotls/include/picotls.h "
-                + "/app/panther-ivy/ivy/include"
+                + "/app/panther-ivy/ivy/include/picotls.h"
             )
             execute_command(
                 "sudo /bin/cp -r -f "
@@ -211,6 +215,7 @@ class Panther:
             self.log.info("Mode: " + mode)
             self.log.info("Mode_inc: " + mode_inc)
             for file in test_to_do[mode]:
+                # TODO wait x seconds than the RAM is available compare
                 self.log.info("File: " + file)
                 if mode_inc in file:
                     self.log.info(
@@ -300,6 +305,8 @@ class Panther:
                 exit(1)
 
             self.log.info("Moving built file in correct folder:")
+            self.log.info("From: " + file)
+            self.log.info("To: " + self.config["global_parameters"]["build_dir"])
             execute_command("/usr/bin/chmod +x " + file.replace(".ivy", ""))
             execute_command(
                 "/bin/cp "
@@ -411,6 +418,22 @@ class Panther:
                     self.conf_implementation_enable,
                     self.tests_enabled,
                 )
+            elif self.config["verified_protocol"].getboolean("coap"):
+                runner = CoAPRunner(
+                    self.config,
+                    self.protocol_conf,
+                    self.current_protocol,
+                    self.conf_implementation_enable,
+                    self.tests_enabled,
+                )
+            elif self.config["verified_protocol"].getboolean("bgp"):
+                runner = BGPRunner(
+                    self.config,
+                    self.protocol_conf,
+                    self.current_protocol,
+                    self.conf_implementation_enable,
+                    self.tests_enabled,
+                )
             else:
                 self.log.info("No protocols selected")
                 # exit(0)
@@ -456,7 +479,7 @@ class Panther:
                 except Exception as e:
                     print(e)
 
-            self.log.info("END 1")
+            self.log.info("END OK")
             try:
                 x = requests.get("http://panther-webapp/finish-experiment")
                 self.log.info(x)
@@ -465,13 +488,13 @@ class Panther:
                 pass
             # exit(0)
         except Exception as e:
-            print(e)
+            self.log.error(e)
             try:
                 x = requests.get("http://panther-webapp/errored-experiment")
                 self.log.info(x)
             except:
                 pass
-            self.log.error("END 2")
+            self.log.error("END ERRORED")
             # exit(1)
 
     def generate_uml_trace(self):

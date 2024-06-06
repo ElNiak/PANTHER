@@ -186,7 +186,7 @@ class PFVServer:
         Returns:
             _type_: _description_
         """
-        # TODO refactor
+        # TODO refactor -> From configfile
         PFVServer.choices_args = {}
         args_parser = ArgumentParserRunner().parser
         args_list = [{}]

@@ -41,17 +41,19 @@ class QUICRunner(Runner):
 
             with open(
                 os.path.join(
-                    os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
+                    os.path.join(self.config["global_parameters"]["dir"], str(run_id)),
                     test.name + str(i) + ".dat",
                 ),
                 "w",
             ) as out:
                 save = os.getcwd()
-                os.chdir(os.path.join(self.config["global_parameters"]["dir"],str(run_id)))
+                os.chdir(
+                    os.path.join(self.config["global_parameters"]["dir"], str(run_id))
+                )
                 stats.make_dat(test.name, out)
                 os.chdir(save)
             filename = os.path.join(
-                os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
+                os.path.join(self.config["global_parameters"]["dir"], str(run_id)),
                 test.name + str(i) + ".iev",
             )
             with open(filename, "r") as out:
@@ -62,7 +64,9 @@ class QUICRunner(Runner):
                     test.name,
                     pcap_name,
                     os.path.join(
-                        os.path.join(self.config["global_parameters"]["dir"],str(run_id)),
+                        os.path.join(
+                            self.config["global_parameters"]["dir"], str(run_id)
+                        ),
                         test.name + str(i) + ".iev",
                     ),
                     out,
@@ -70,6 +74,7 @@ class QUICRunner(Runner):
                 )
 
     def run_exp(self, implem):
+        self.current_implementation = implem
         implem_dir_server, implem_dir_client = self.setup_exp(implem=implem)
         self.log.info("Setup QUIC alpn:")
         os.environ["TEST_ALPN"] = (
@@ -80,7 +85,7 @@ class QUICRunner(Runner):
         )
         self.log.info("Setup SSL keylog file:")
         os.environ["SSLKEYLOGFILE"] = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
-        ENV_VAR["SSLKEYLOGFILE"]    = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
+        ENV_VAR["SSLKEYLOGFILE"] = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
         # Main
         try:
             self.bar_total_test.start()
@@ -286,7 +291,7 @@ class QUICRunner(Runner):
                             self.log.info("End run status: " + str(status))
                             if not status:
                                 num_failures += 1
-                            
+
                             self.save_shadow_res(test, i, pcap_name, run_id)
                             self.save_shadow_binaries(implem, test, run_id)
                             self.get_exp_stats(implem, test, run_id, pcap_name, i)

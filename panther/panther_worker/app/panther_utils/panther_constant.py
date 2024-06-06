@@ -9,7 +9,9 @@ logging.basicConfig(level=logging.INFO)
 
 SOURCE_DIR = "/app"
 IMPLEM_DIR = os.path.join(SOURCE_DIR, "implementations", "$PROT-implementations")
-RESULT_DIR = os.path.join(SOURCE_DIR, "panther-ivy", "protocol-testing", "$PROT", "test")
+RESULT_DIR = os.path.join(
+    SOURCE_DIR, "panther-ivy", "protocol-testing", "$PROT", "test"
+)
 IVY_DIR = os.path.join(SOURCE_DIR, "panther-ivy")
 MODEL_DIR = os.path.join(SOURCE_DIR, "panther-ivy", "protocol-testing")
 
@@ -53,27 +55,29 @@ ENV_VAR = {
 P_ENV_VAR = {
     "quic": {
         "ZRTT_SSLKEYLOGFILE": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/last_tls_key.txt",
+        + "/panther-ivy/protocol-testing/quic/last_tls_key.txt",
         "RETRY_TOKEN_FILE": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/last_retry_token.txt",
-        "NEW_TOKEN_FILE": SOURCE_DIR + "/panther-ivy/doc/examples/quic/last_new_token.txt",
+        + "/panther-ivy/protocol-testing/quic/last_retry_token.txt",
+        "NEW_TOKEN_FILE": SOURCE_DIR
+        + "/panther-ivy/protocol-testing/quic/last_new_token.txt",
         "ENCRYPT_TICKET_FILE": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/last_encrypt_session_ticket.txt",
+        + "/panther-ivy/protocol-testing/quic/last_encrypt_session_ticket.txt",
         "SESSION_TICKET_FILE": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/last_session_ticket_cb.txt",
-        "SAVED_PACKET": SOURCE_DIR + "/panther-ivy/doc/examples/quic/saved_packet.txt",
+        + "/panther-ivy/protocol-testing/quic/last_session_ticket_cb.txt",
+        "SAVED_PACKET": SOURCE_DIR
+        + "/panther-ivy/protocol-testing/quic/saved_packet.txt",
         "initial_max_stream_id_bidi": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/initial_max_stream_id_bidi.txt",
+        + "/panther-ivy/protocol-testing/quic/initial_max_stream_id_bidi.txt",
         "active_connection_id_limit": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/active_connection_id_limit.txt",
+        + "/panther-ivy/protocol-testing/quic/active_connection_id_limit.txt",
         "initial_max_stream_data_bidi_local": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/initial_max_stream_data_bidi_local.txt",
+        + "/panther-ivy/protocol-testing/quic/initial_max_stream_data_bidi_local.txt",
         "initial_max_stream_data_bidi_remote": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/initial_max_stream_data_bidi_remote.txt",
+        + "/panther-ivy/protocol-testing/quic/initial_max_stream_data_bidi_remote.txt",
         "initial_max_stream_data_uni": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/initial_max_stream_data_uni.txt",
+        + "/panther-ivy/protocol-testing/quic/initial_max_stream_data_uni.txt",
         "initial_max_data": SOURCE_DIR
-        + "/panther-ivy/doc/examples/quic/initial_max_data.txt",
+        + "/panther-ivy/protocol-testing/quic/initial_max_data.txt",
         "INITIAL_VERSION": "1",
     },
     "bgp": {},

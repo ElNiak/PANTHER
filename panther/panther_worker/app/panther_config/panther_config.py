@@ -527,6 +527,11 @@ def get_protocol_config(config, protocol, get_all_test=False, get_default_conf=F
             for implem in global_config[key]:
                 implementation_enable[implem] = global_config[key].getboolean(implem)
 
+    if protocol == "apt":
+        protocol_origins = configparser.ConfigParser(allow_no_value=True)
+        protocol_origins.read("configs/apt/apt_protocols_config.ini")
+        protocol_conf["protocol_origins"] = protocol_origins["implems"]
+
     return (
         tests_enabled,
         conf_implementation_enable,

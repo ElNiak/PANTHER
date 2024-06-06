@@ -145,19 +145,19 @@ class QUICIvyTest(IvyTest):
                 + "/tls-keys/secret.log",
                 "quiche": "cargo run --bin quiche-server --  --cert "
                 + SOURCE_DIR
-                + "/panther-ivy/doc/examples/quic/cert.pem --early-data --dump-packets "
+                + "/panther-ivy/protocol-testing/quic/cert.pem --early-data --dump-packets "
                 + SOURCE_DIR
                 + "/qlogs/quiche/dump_packet.txt --key "
                 + SOURCE_DIR
-                + "/panther-ivy/doc/examples/quic/priv.key --listen 127.0.0.1:4443",
+                + "/panther-ivy/protocol-testing/quic/priv.key --listen 127.0.0.1:4443",
                 "quinn": "cargo run -vv --example server "
                 + SOURCE_DIR
-                + "/panther-ivy/doc/examples/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443",
+                + "/panther-ivy/protocol-testing/quic/index.html --keylog --stateless-retry --listen 127.0.0.1:4443",
                 "quic-go": "./server -c "
                 + SOURCE_DIR
-                + "/panther-ivy/doc/examples/quic/cert.pem -k "
+                + "/panther-ivy/protocol-testing/quic/cert.pem -k "
                 + SOURCE_DIR
-                + "/panther-ivy/doc/examples/quic/priv.key -r -p 4443 127.0.0.1",
+                + "/panther-ivy/protocol-testing/quic/priv.key -r -p 4443 127.0.0.1",
                 "mvfst": "./echo -mode=server -host=127.0.0.1 -port=4443  -v=10 -pr=true",
             },
             "quic_client_test_version_negociation": {
@@ -246,60 +246,6 @@ class QUICIvyTest(IvyTest):
             "quic_server_test_0rtt": 2,
         }
 
-    def update_implementation_command(self, i):
-        # TODO add that in config file
-        if i == 1:
-            self.implem_cmd = self.implem_cmd.replace("4443", "4444")
-            if self.implementation_name == "mvfst":
-                self.implem_cmd = self.implem_cmd + " -zrtt=true"
-            elif self.implementation_name == "quiche":
-                self.implem_cmd = self.implem_cmd + " --early-data"
-
-        if i == 0 and "quic_client_test_0rtt" in self.name:
-            if (
-                self.implementation_name == "quic-go"
-            ):  # change port for 2d run directly in implem
-                self.implem_cmd = self.implem_cmd.replace(
-                    "./client -X", "./client -R -X"
-                )
-            elif self.implementation_name == "quinn":
-                self.implem_cmd = self.implem_cmd + " --zrtt"
-
-        if self.config["net_parameters"].getboolean("vnet"):
-            implem_cmd_copy = self.implem_cmd
-            implem_cmd = "sudo ip netns exec implem "
-            # if self.implementation_name == "picoquic":
-            #     implem_cmd = "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'  + implem_cmd + "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'
-            envs = "env - "
-            for env_var in ENV_VAR:
-                if env_var != "PATH":  # TODO remove it is useless
-                    envs = envs + env_var + '="' + ENV_VAR[env_var] + '" '
-                else:
-                    envs = envs + env_var + '="' + os.environ.get(env_var) + '" '
-            self.implem_cmd = self.implem_cmd + envs + implem_cmd_copy
-        else:
-            self.implem_cmd = "exec " + self.implem_cmd
-            self.implem_cmd = self.implem_cmd.replace("10.0.0.1", "localhost")
-            self.implem_cmd = self.implem_cmd.replace("10.0.0.3", "localhost")
-            self.implem_cmd = self.implem_cmd.replace(
-                "quic-implementations", "XXXXXXXX"
-            )
-            self.implem_cmd = self.implem_cmd.replace("implem", "lo")
-            self.implem_cmd = self.implem_cmd.replace(
-                "XXXXXXXX", "quic-implementations"
-            )
-            self.implem_cmd = self.implem_cmd.replace(
-                "VERSION",
-                (
-                    "00000001"
-                    if ENV_VAR["INITIAL_VERSION"] == "1"
-                    else (
-                        "ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"
-                    )
-                ),
-            )
-            self.implem_cmd = self.implem_cmd.replace("ALPN", ENV_VAR["TEST_ALPN"])
-
     def generate_shadow_config(self):
         server_implem_args = (
             self.implem_conf[0][self.implementation_name]["cert-param"]
@@ -371,9 +317,11 @@ class QUICIvyTest(IvyTest):
         )
         server_implem_args = server_implem_args.replace(
             "VERSION",
-            "00000001"
-            if ENV_VAR["INITIAL_VERSION"] == "1"
-            else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"),
+            (
+                "00000001"
+                if ENV_VAR["INITIAL_VERSION"] == "1"
+                else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c")
+            ),
         )
         server_implem_args = server_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
         server_implem_args = re.sub("\s{2,}", " ", server_implem_args)
@@ -449,9 +397,11 @@ class QUICIvyTest(IvyTest):
         )
         client_implem_args = client_implem_args.replace(
             "VERSION",
-            "00000001"
-            if ENV_VAR["INITIAL_VERSION"] == "1"
-            else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"),
+            (
+                "00000001"
+                if ENV_VAR["INITIAL_VERSION"] == "1"
+                else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c")
+            ),
         )
         client_implem_args = client_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
         client_implem_args = re.sub("\s{2,}", " ", client_implem_args)
@@ -525,57 +475,109 @@ class QUICIvyTest(IvyTest):
 
         return file
 
+    def update_implementation_command(self, i):
+        self.log.info(f"Update implementation before {self.implem_cmd}")
+        # TODO add that in config file
+        if i == 1:
+            self.implem_cmd = self.implem_cmd.replace("4443", "4444")
+            if self.implementation_name == "mvfst":
+                self.implem_cmd = self.implem_cmd + " -zrtt=true"
+            elif self.implementation_name == "quiche":
+                self.implem_cmd = self.implem_cmd + " --early-data"
+
+        if i == 0 and "quic_client_test_0rtt" in self.name:
+            if (
+                self.implementation_name == "quic-go"
+            ):  # change port for 2d run directly in implem
+                self.implem_cmd = self.implem_cmd.replace(
+                    "./client -X", "./client -R -X"
+                )
+            elif self.implementation_name == "quinn":
+                self.implem_cmd = self.implem_cmd + " --zrtt"
+
+        if self.config["net_parameters"].getboolean("vnet"):
+            implem_cmd_copy = self.implem_cmd
+            implem_cmd = "sudo ip netns exec implem "
+            # if self.implementation_name == "picoquic":
+            #     implem_cmd = "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'  + implem_cmd + "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'
+            envs = "env - "
+            for env_var in ENV_VAR:
+                if env_var != "PATH":  # TODO remove it is useless
+                    envs = envs + env_var + '="' + ENV_VAR[env_var] + '" '
+                else:
+                    envs = envs + env_var + '="' + os.environ.get(env_var) + '" '
+            self.implem_cmd = self.implem_cmd + envs + implem_cmd_copy
+        else:
+            self.implem_cmd = "exec " + self.implem_cmd
+            self.implem_cmd = self.implem_cmd.replace("10.0.0.1", "localhost")
+            self.implem_cmd = self.implem_cmd.replace("10.0.0.3", "localhost")
+            self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "localhost")
+            self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "localhost")
+            # self.implem_cmd = self.implem_cmd.replace(
+            #     "quic-implementations", "XXXXXXXX"
+            # )
+            maxreplace = 1
+            old = "implem"
+            new = "lo"
+            self.implem_cmd = new.join(self.implem_cmd.rsplit(old, maxreplace))
+            # self.implem_cmd.replace("implem", "lo")
+            # self.implem_cmd = self.implem_cmd.replace(
+            #     "XXXXXXXX", "quic-implementations"
+            # )
+            # self.implem_cmd = self.implem_cmd.replace(
+            #     "VERSION",
+            #     (
+            #         "00000001"
+            #         if ENV_VAR["INITIAL_VERSION"] == "1"
+            #         else (
+            #             "ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c"
+            #         )
+            #     ),
+            # )
+            # self.implem_cmd = self.implem_cmd.replace("ALPN", ENV_VAR["TEST_ALPN"])
+            self.log.info(f"Update implementation after {self.implem_cmd}")
+
     # TODO add if to avoid space in command
     # TODO Reorder config param to loop and generate command eaisier
     def generate_implementation_command(self):
-        server_command = (
+        server_implem_args = (
             self.implem_conf[0][self.implementation_name]["binary-name"]
-            .replace(
-                "$IMPLEM_DIR",
-                IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + self.current_protocol,
-            )
-            .replace("$MODEL_DIR", MODEL_DIR + self.current_protocol)
-            + " "
-            + self.implem_conf[0][self.implementation_name]["interface"]
-            + " "
-            + self.implem_conf[0][self.implementation_name]["interface-value"]
             + " "
             + self.implem_conf[0][self.implementation_name]["cert-param"]
             + " "
-            + self.implem_conf[0][self.implementation_name]["cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[0][self.implementation_name]["cert-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["key-param"]
             + " "
-            + self.implem_conf[0][self.implementation_name]["key-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[0][self.implementation_name]["key-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["root-cert-param"]
             + " "
-            + self.implem_conf[0][self.implementation_name]["root-cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[0][self.implementation_name]["root-cert-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["log-param"]
             + " "
-            + self.implem_conf[0][self.implementation_name]["log-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[0][self.implementation_name]["log-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["qlog-param"]
             + " "
-            + self.implem_conf[0][self.implementation_name]["qlog-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[0][self.implementation_name]["qlog-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["secret-key-param"]
             + " "
-            + self.implem_conf[0][self.implementation_name]["secret-key-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[0][self.implementation_name]["secret-key-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["alpn"]
             + " "
@@ -588,6 +590,10 @@ class QUICIvyTest(IvyTest):
             + self.implem_conf[0][self.implementation_name]["verbosity"]
             + " "
             + self.implem_conf[0][self.implementation_name]["addition-parameters"]
+            + " "
+            + self.implem_conf[1][self.implementation_name]["interface"]
+            + " "
+            + self.implem_conf[1][self.implementation_name]["interface-value"]
             + " "
             + self.implem_conf[0][self.implementation_name]["source-format"]
             .replace(
@@ -604,52 +610,59 @@ class QUICIvyTest(IvyTest):
             )
         )
 
-        client_command = (
+        # server_implem_args = server_implem_args.replace("implem","lo")
+        server_implem_args = server_implem_args.replace(
+            "XXXXXXXX", "quic-implementations"
+        )
+        server_implem_args = server_implem_args.replace(
+            "VERSION",
+            (
+                "00000001"
+                if ENV_VAR["INITIAL_VERSION"] == "1"
+                else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c")
+            ),
+        )
+        server_implem_args = server_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
+        server_implem_args = re.sub("\s{2,}", " ", server_implem_args)
+
+        client_implem_args = (
             self.implem_conf[1][self.implementation_name]["binary-name"]
-            .replace(
-                "$IMPLEM_DIR",
-                IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + self.current_protocol,
-            )
-            .replace("$MODEL_DIR", MODEL_DIR + self.current_protocol)
-            + " "
-            + self.implem_conf[1][self.implementation_name]["interface"]
-            + " "
-            + self.implem_conf[1][self.implementation_name]["interface-value"]
             + " "
             + self.implem_conf[1][self.implementation_name]["cert-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[1][self.implementation_name]["cert-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["key-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["key-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[1][self.implementation_name]["key-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["root-cert-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["root-cert-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[1][self.implementation_name]["root-cert-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["log-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["log-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[1][self.implementation_name]["log-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["qlog-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["qlog-file"].replace(
-                "$SOURCE_DIR", SOURCE_DIR
-            )
+            + self.implem_conf[1][self.implementation_name]["qlog-file"]
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["secret-key-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["secret-key-file"]
+            + self.implem_conf[1][self.implementation_name]["secret-key-file"].replace(
+                "$IMPLEM_DIR", self.implem_dir_server + "/"
+            )
             + " "
             + self.implem_conf[1][self.implementation_name]["alpn"]
             + " "
@@ -662,6 +675,10 @@ class QUICIvyTest(IvyTest):
             + self.implem_conf[1][self.implementation_name]["verbosity"]
             + " "
             + self.implem_conf[1][self.implementation_name]["addition-parameters"]
+            + " "
+            + self.implem_conf[1][self.implementation_name]["interface"]
+            + " "
+            + self.implem_conf[1][self.implementation_name]["interface-value"]
             + " "
             + self.implem_conf[1][self.implementation_name]["destination-format"]
             .replace(
@@ -678,12 +695,26 @@ class QUICIvyTest(IvyTest):
                 self.implem_conf[1][self.implementation_name]["port-value"],
             )
         )
-        client_command = re.sub("\\s{2,}", " ", client_command)
-        server_command = re.sub("\\s{2,}", " ", server_command)
+
+        # client_implem_args = client_implem_args.replace("implem","lo")
+        client_implem_args = client_implem_args.replace(
+            "XXXXXXXX", "quic-implementations"
+        )
+        client_implem_args = client_implem_args.replace(
+            "VERSION",
+            (
+                "00000001"
+                if ENV_VAR["INITIAL_VERSION"] == "1"
+                else ("ff00001d" if ENV_VAR["INITIAL_VERSION"] == "29" else "ff00001c")
+            ),
+        )
+        client_implem_args = client_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
+        client_implem_args = re.sub("\s{2,}", " ", client_implem_args)
+
         if self.is_client:
-            return [client_command, server_command]
+            return [client_implem_args, server_implem_args]
         else:
-            return [server_command, client_command]
+            return [server_implem_args, client_implem_args]
 
     def set_process_limits(self):
         # Create a new session
@@ -1003,6 +1034,12 @@ class QUICIvyTest(IvyTest):
         if self.config["debug_parameters"].getboolean("gdb"):
             # TODO refactor
             prefix = " gdb --args "
+        if self.config["debug_parameters"].getboolean("ptrace"):
+            # TODO refactor
+            prefix = " ptrace "
+        if self.config["debug_parameters"].getboolean("strace"):
+            # TODO refactor
+            prefix = strace_cmd + " "
         if self.config["net_parameters"].getboolean("vnet"):
             envs = "env - "
             for env_var in ENV_VAR:

@@ -128,13 +128,13 @@ def setup_tmux_layout(yaml_path, swarm):
         compose_log = f"logs/swarm_{datetime.now()}.log"
         logger.info(f"Logging docker stack services to {compose_log}")
         os.system(
-            f"tmux send-keys -t {session_name}:0.3 'docker stack services panther | tee {compose_log}' C-m"
+            f"tmux send-keys -t {session_name}:0.3 'docker stack services panther | tee \"{compose_log}\"' C-m"
         )
     else:
         compose_log = f"logs/compose_{datetime.now()}.log"
         logger.info(f"Logging docker stack services to {compose_log}")
         os.system(
-            f"tmux send-keys -t {session_name}:0.3 'docker compose -f {yaml_path} logs -f | tee {compose_log}' C-m"
+            f"tmux send-keys -t {session_name}:0.3 'docker compose -f {yaml_path} logs -f | tee \"{compose_log}\"' C-m"
         )
 
 
@@ -304,6 +304,7 @@ def build_worker(implem, config, push=False):
     implem_build_commands = dict(config.items("implem_build_commands"))
     shadow_support = config["shadow_support"]
     tag, path, dockerfile = eval(implem_build_commands[implem])
+    execute_command("sudo chown -R $USER:$GROUPS $PWD/")
 
     logger.info(f"Building Docker image {tag} from {dockerfile}")
     # Build the base ubuntu-panther image

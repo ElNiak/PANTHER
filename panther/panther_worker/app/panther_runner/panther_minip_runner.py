@@ -66,6 +66,8 @@ class MiniPRunner(Runner):
         os.setsid()
 
     def run_exp(self, implem):
+        self.current_implementation = implem
+
         implem_dir_server, implem_dir_client = self.setup_exp(implem=implem)
 
         # Main
