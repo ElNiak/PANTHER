@@ -4,7 +4,7 @@ Note, before implementation were added as submodule. Now we only consider Docker
 
 ```
 python3 -m pip install pre-commit
-pre-commit installed at .git/hooks/pre-commit
+pre-commit install
 ```
 
 
