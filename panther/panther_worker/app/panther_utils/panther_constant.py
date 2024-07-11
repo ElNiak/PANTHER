@@ -13,7 +13,6 @@ RESULT_DIR = os.path.join(
     SOURCE_DIR, "panther-ivy", "protocol-testing", "$PROT", "test"
 )
 IVY_DIR = os.path.join(SOURCE_DIR, "panther-ivy")
-MODEL_DIR = os.path.join(SOURCE_DIR, "panther-ivy", "protocol-testing")
 
 # Ivy related
 IVY_INCLUDE_PATH = os.path.join(SOURCE_DIR, "panther-ivy", "ivy", "include", "1.7")
@@ -40,9 +39,7 @@ ENV_VAR = {
     "Z3_LIBRARY_PATH": IVY_DIR + "/submodules/z3/build;",
     "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:" + IVY_DIR + "/submodules/z3/build",
     "PROOTPATH": SOURCE_DIR,
-    "PYTHONPATH": "${PYTHONPATH}:"
-    + IMPLEM_DIR
-    + "/aioquic:"
+    "PYTHONPATH": "${PYTHONPATH}:/app/implementations/quic-implementations/aioquic/src/:"
     + IVY_DIR
     + "/submodules/z3/build/python",
     "PATH": os.getenv("PATH")
@@ -51,6 +48,18 @@ ENV_VAR = {
     + "/submodules/z3/build",  # "/go/bin:${"+ os.getenv('PATH') +"}", #
 }
 
+QUIC_PAIRED_TEST = {
+    "quic_server_test_0rtt": "quic_server_test_0rtt_stream",
+    "quic_server_test_0rtt_stream": "quic_server_test_0rtt_stream_co_close",
+    "quic_server_test_0rtt_stream_co_close": "quic_server_test_0rtt_stream_app_close",
+    "quic_client_test_0rtt_invalid": "quic_client_test_0rtt_max",
+    "quic_client_test_0rtt_add_val": "quic_client_test_0rtt_max_add_val",
+    "quic_client_test_0rtt_mim_replay": "quic_client_test_0rtt_max",
+    "quic_client_test_0rtt": "quic_client_test_0rtt_max",
+    "quic_client_test_0rtt_max": "quic_client_test_0rtt_max_co_close",
+    "quic_client_test_0rtt_max_co_close": "quic_client_test_0rtt_max_app_close",
+    "quic_server_test_retry_reuse_key": "quic_server_test_retry",
+}
 
 P_ENV_VAR = {
     "quic": {

@@ -6,6 +6,8 @@
 
 * refactor
 
+* AVOID creating multiple time the same docker volume
+
 * change os.system with subprocess or with python funct
 
 * add barplot progression

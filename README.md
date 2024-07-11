@@ -1,4 +1,4 @@
-# PANTHER :tiger:
+<h1 align="center"> PANTHER </h1>
 
 ## :tiger: **P**rotocol formal **A**nalysis and formal **N**etwork **T**hreat **E**valuation **R**esources
 

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3.9
 # -*- coding: utf-8 -*-
 
-
 # TODO add logs
 # TODO https://www.mongodb.com/docs/manual/core/geospatial-indexes/
 
-from cgitb import html
 import json
 import os
 import socket
@@ -15,28 +13,22 @@ import threading
 import requests
 from flask import (
     Flask,
-    flash,
     request,
     redirect,
-    url_for,
     send_from_directory,
-    Response,
-    session,
     render_template,
     jsonify,
 )
-from flask_socketio import SocketIO, emit
-from werkzeug.utils import secure_filename
+from flask_socketio import SocketIO
 from base64 import b64encode
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 import datetime
 from flask_cors import CORS
 import pandas as pd
 from npf_web_extension.app import export
-import configparser
 import argparse
 import sys
-from termcolor import colored, cprint
+from termcolor import cprint
 import terminal_banner
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -49,7 +41,8 @@ from panther_config.panther_config import get_experiment_config, restore_config
 from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 
 SOURCE_DIR = os.getcwd()
-DEBUG = True
+
+logging.getLogger().setLevel(int(os.environ["LOG_LEVEL"]))
 
 
 class PFVServer:
@@ -59,7 +52,7 @@ class PFVServer:
     app.config["SESSION_TYPE"] = "filesystem"
     app.config["SESSION_PERMANENT"] = False
     app.config["APPLICATION_ROOT"] = ROOTPATH + "/app/templates/"
-    app.debug = True
+    # app.debug = True
     CORS(app, resources={r"/*": {"origins": "*"}})
 
     def __init__(self, dir_path=None):
@@ -115,7 +108,7 @@ class PFVServer:
         except:
             PFVServer.local_ip = ""
             PFVServer.vizualiser_ip = ""
-            PFVServer.app.logger.info("No visualizer found")
+            PFVServer.app.logger.info("No visualizer service found")
 
     @app.after_request
     def add_header(r):
@@ -345,9 +338,6 @@ class PFVServer:
 
         if sequencial_test:
             for impl in PFVServer.implementation_requested:
-                PFVServer.app.logger.info(
-                    "Starting experiment for implementation " + impl
-                )
                 req = {
                     "args": experiment_arguments,
                     "protocol_arguments": protocol_arguments,
@@ -355,10 +345,14 @@ class PFVServer:
                     "implementation": impl,
                     "tests_requested": PFVServer.tests_requested,
                 }
-                PFVServer.app.logger.info("with parameters: " + str(req))
+                PFVServer.app.logger.info(
+                    f"Starting experiment for implementation {impl} with parameters {req}"
+                )
                 response = None
                 try:
-                    response = requests.get(f"http://{impl}-ivy:80/run-exp", json=req)
+                    response = requests.get(
+                        f"http://{impl}-panther:80/run-exp", json=req
+                    )
                     response.raise_for_status()
                     PFVServer.app.logger.info(f"Experiment status: {response.content}")
                 except requests.RequestException as e:
@@ -373,8 +367,6 @@ class PFVServer:
                     / len(PFVServer.implementation_requested)
                 ):
                     time.sleep(10)
-                    PFVServer.app.logger.info("Waiting")
-                    PFVServer.app.logger.info("Waiting")
                     PFVServer.app.logger.info(
                         f"Current iteration: {PFVServer.experiment_current_iteration}"
                     )
@@ -398,7 +390,7 @@ class PFVServer:
         thread.start()
 
     def change_current_protocol(protocol):
-        PFVServer.app.logger.info(
+        PFVServer.app.logger.debug(
             f"Selected Protocol change ({protocol}) -> change GUI"
         )
 
@@ -406,13 +398,12 @@ class PFVServer:
 
         json_arg, prot_arg = PFVServer.get_args()
 
-        if DEBUG:
-            PFVServer.app.logger.info("JSON arguments availables:")
-            for elem in json_arg:
-                PFVServer.app.logger.info(elem)
-            PFVServer.app.logger.info("PROTOCOL arguments availables:")
-            for elem in prot_arg:
-                PFVServer.app.logger.info(elem)
+        PFVServer.app.logger.debug("JSON arguments availables:")
+        for elem in json_arg:
+            PFVServer.app.logger.debug(elem)
+        PFVServer.app.logger.debug("PROTOCOL arguments availables:")
+        for elem in prot_arg:
+            PFVServer.app.logger.debug(elem)
 
         return json_arg, prot_arg
 
@@ -422,16 +413,15 @@ class PFVServer:
         It creates a folder for the project, and then calls the upload function
         :return: the upload function.
         """
-        PFVServer.app.logger.info("Protocols under test: " + PFVServer.current_protocol)
+        PFVServer.app.logger.info(f"Protocols under test: {PFVServer.current_protocol}")
 
-        if DEBUG:
-            json_arg, prot_arg = PFVServer.get_args()
-            PFVServer.app.logger.info("JSON arguments availables:")
-            for elem in json_arg:
-                PFVServer.app.logger.info(elem)
-            PFVServer.app.logger.info("PROTOCOL arguments availables:")
-            for elem in prot_arg:
-                PFVServer.app.logger.info(elem)
+        json_arg, prot_arg = PFVServer.get_args()
+        PFVServer.app.logger.debug("JSON arguments availables:")
+        for elem in json_arg:
+            PFVServer.app.logger.debug(elem)
+        PFVServer.app.logger.debug("PROTOCOL arguments availables:")
+        for elem in prot_arg:
+            PFVServer.app.logger.debug(elem)
 
         if request.method == "POST":
             # TODO link json_arg and prot_arg to config so we can restore old config
@@ -440,7 +430,7 @@ class PFVServer:
                 request.args.get("prot", "")
                 and request.args.get("prot", "") in PFVServer.supported_protocols
             ):
-                PFVServer.app.logger.info(
+                PFVServer.app.logger.debug(
                     f"POST request with protocol change: {request.args.get('prot', '')}"
                 )
                 # The Selected Protocol change -> change GUI
@@ -463,12 +453,10 @@ class PFVServer:
 
             # TODO implem progress, avoid to use post if experience already launched
             # TODO force to select at least one test and one implem
-            PFVServer.app.logger.info("Form in POST request:")
-            PFVServer.app.logger.info(request.form)
-            if DEBUG:
-                for c in request.form:
-                    for elem in request.form.getlist(c):
-                        PFVServer.app.logger.info(elem)
+            PFVServer.app.logger.debug(f"Form in POST request:\n{request.form}")
+            for c in request.form:
+                for elem in request.form.getlist(c):
+                    PFVServer.app.logger.debug(elem)
 
             PFVServer.implementation_requested = []
             experiment_arguments = {}
@@ -493,12 +481,10 @@ class PFVServer:
                     elif exp_number == 2:
                         protocol_arguments[key] = value
 
+            PFVServer.app.logger.info(f"Experiment arguments:\n{experiment_arguments}")
+            PFVServer.app.logger.info(f"Protocol   arguments:\n{protocol_arguments}")
             PFVServer.app.logger.info(
-                "Experiment arguments: " + str(experiment_arguments)
-            )
-            PFVServer.app.logger.info("Protocol arguments: " + str(protocol_arguments))
-            PFVServer.app.logger.info(
-                "Experiment tests requested: " + str(PFVServer.tests_requested)
+                f"Experiment tests requested:\n{PFVServer.tests_requested}"
             )
 
             PFVServer.is_experiment_started = True
@@ -564,7 +550,7 @@ class PFVServer:
         :return: the upload function.
         """
         PFVServer.app.logger.info(
-            "Current Protocol Tests output folder: " + PFVServer.protocol_results_path
+            f"Current Protocol Tests output folder: {PFVServer.protocol_results_path}"
         )
         PFVServer.app.logger.info(os.listdir(PFVServer.protocol_results_path))
 

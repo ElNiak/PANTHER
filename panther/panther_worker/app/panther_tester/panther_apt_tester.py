@@ -60,6 +60,7 @@ class APTIvyTest(IvyTest):
             implem_conf,
             current_protocol,
         )
+        self.log.setLevel(int(os.environ["LOG_LEVEL"]))
         self.apt_conf = apt_conf
 
         self.quic_tester = QUICIvyTest(

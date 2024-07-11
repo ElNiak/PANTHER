@@ -1,13 +1,9 @@
 import sys
 from flask import Flask, request, jsonify
-import requests
-import argparse
-import configparser
 import threading
 import os
-import socket
 
-from termcolor import colored, cprint
+from termcolor import cprint
 import terminal_banner
 
 
@@ -18,10 +14,12 @@ from panther import *
 from panther_utils.panther_constant import *
 from panther_config.panther_config import update_config, update_protocol_config
 
+logging.getLogger().setLevel(int(os.environ["LOG_LEVEL"]))
+
 
 class PFVClient:
     app = Flask(__name__)
-    app.debug = True
+    # app.debug = True
     thread = None
 
     def __init__(self, dir_path=None):
@@ -33,12 +31,12 @@ class PFVClient:
         # Modify config file with the args provided in web app
         user_data = request.json
         os.chdir(SOURCE_DIR)
-        PFVClient.app.logger.info("Request to start experiment with parameters:")
-        PFVClient.app.logger.info(user_data)
+        PFVClient.app.logger.debug(
+            f"Request to start experiment with parameters: \n {user_data}"
+        )
 
         current_protocol = user_data["protocol"]
         exp_args = user_data["args"]
-        net_args = ""
 
         update_config(exp_args, current_protocol)
 
@@ -62,14 +60,14 @@ class PFVClient:
             )
             # PFVClient.thread.daemon = True
             PFVClient.thread.start()
-            PFVClient.app.logger.info("Thread started")
+            PFVClient.app.logger.debug("Experiment thread started")
             # Wait for the thread to complete
             if PFVClient.thread is not None:
                 PFVClient.thread.join()
-                PFVClient.app.logger.info("Thread finished")
+                PFVClient.app.logger.debug("Experiment thread finished")
                 PFVClient.thread = None
         else:
-            PFVClient.app.logger.info("Thread already running")
+            PFVClient.app.logger.debug("Experiment thread already running")
 
     @app.route("/get-protocols", methods=["GET"])
     def get_protocols():

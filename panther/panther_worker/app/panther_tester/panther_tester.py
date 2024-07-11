@@ -29,6 +29,7 @@ if platform.system() == "Windows":
 else:
     spawn = pexpect.spawn
 
+logging.getLogger().setLevel(int(os.environ["LOG_LEVEL"]))
 
 # TODO add tested implemenatation name
 class IvyTest(object):
@@ -48,11 +49,11 @@ class IvyTest(object):
 
         # Setup logger
         self.log = logging.getLogger("panther-test")
-        self.log.setLevel(logging.INFO)
-        if self.log.hasHandlers():
-            self.log.handlers.clear()
-        self.log.addHandler(ch)
-        self.log.propagate = False
+        # if self.log.hasHandlers():
+        #     self.log.handlers.clear()
+        # self.log.addHandler(ch)
+        # self.log.propagate = False
+        self.log.setLevel(int(os.environ["LOG_LEVEL"]))
 
         self.dir = ""
         self.name, self.res, self.opts = args[0], args[-1], args[1:-1]
@@ -91,15 +92,21 @@ class IvyTest(object):
         if not self.config["global_parameters"].getboolean("run"):
             self.implem_cmd = "true"
         self.implem_cmd_original = self.implem_cmd
-        self.log.info("implementation command: {}".format(self.implem_cmd))
-        print("implementation command: {}".format(self.implem_cmd))
+
+        self.log.info("Tested implementation command: {}".format(self.implem_cmd))
+        print("Tested implementation command: {}".format(self.implem_cmd))
+
         self.implem_cmd_opposite = implem_cmds[1]
         self.implem_cmd_opposite_original = self.implem_cmd_opposite
+
         self.log.info("{}/{} ({}) ...".format(self.dir, self.name, iteration))
         print("{}/{} ({}) ...".format(self.dir, self.name, iteration))
+
         status = self.run_expect(iteration)
+
         self.log.info("PASS" if status else "FAIL")
         print("PASS" if status else "FAIL")
+
         return status
 
     def prep_gperf(self, iteration):
@@ -197,9 +204,10 @@ class IvyTest(object):
 
     def run_tester(self, iteration, iev, i, iclient):
         command = self.generate_tester_command(iteration, iclient)
-        self.log.info(f"Tester command: {command}")
-        print(f"Tester command: {command}")
         # time.sleep(5)
+        self.log.debug(
+            "Tester command before split is {} from {}\n".format(command, self.name)
+        )
         for name in self.loop.keys():
             if name in command:
                 commands = command.split(";")
@@ -207,8 +215,8 @@ class IvyTest(object):
                     i += 1
                 command = commands[i]
         sleep(1)
-        self.log.info("command is {} from {}\n".format(command, self.name))
-        print("command is {} from {}\n".format(command, self.name))
+        self.log.info("Tester command is {} from {}\n".format(command, self.name))
+        print("Tester command is {} from {}\n".format(command, self.name))
         if platform.system() != "Windows":
             oldcwd = os.getcwd()
             os.chdir(self.config["global_parameters"]["build_dir"])
@@ -224,8 +232,8 @@ class IvyTest(object):
                 # proc.terminate()
                 retcode = proc.wait()
             except KeyboardInterrupt:
-                self.log.info("terminating client process {}".format(proc.pid))
-                print("terminating client process {}".format(proc.pid))
+                self.log.info("Terminating client process {}".format(proc.pid))
+                print("Terminating client process {}".format(proc.pid))
                 proc.terminate()
                 raise KeyboardInterrupt
             if retcode == 124:
@@ -262,8 +270,8 @@ class IvyTest(object):
             try:
                 child.expect(self.res, timeout=100)
                 child.close()
-                self.log.info("tester exit status: {}".format(child.exitstatus))
-                self.log.info("tester signal status: {}".format(child.signalstatus))
+                self.log.info("Tester exit status: {}".format(child.exitstatus))
+                self.log.info("Tester signal status: {}".format(child.signalstatus))
                 print("tester exit status: {}".format(child.exitstatus))
                 print("tester signal status: {}".format(child.signalstatus))
                 return True
@@ -278,8 +286,8 @@ class IvyTest(object):
                 child.close()
                 return False
             except KeyboardInterrupt:
-                self.log.info("terminating tester process")
-                print("terminating tester process")
+                self.log.info("Terminating tester process")
+                print("Terminating tester process")
                 child.kill(signal.SIGINT)
                 child.close()
                 raise KeyboardInterrupt

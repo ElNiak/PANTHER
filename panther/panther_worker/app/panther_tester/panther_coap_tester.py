@@ -53,6 +53,7 @@ class CoAPIvyTest(IvyTest):
             implem_conf,
             current_protocol,
         )
+        self.log.setLevel(int(os.environ["LOG_LEVEL"]))
 
     def update_implementation_command(self, i):
         return i

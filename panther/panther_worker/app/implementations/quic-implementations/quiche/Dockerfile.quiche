@@ -2,4 +2,25 @@ ARG image
 
 FROM $image:latest
 
-RUN git clone https://github.com/cloudflare/quiche
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.12.4/cmake-3.12.4-Linux-x86_64.sh 
+RUN chmod +x cmake-3.12.4-Linux-x86_64.sh
+RUN mkdir /opt/cmake
+RUN bash cmake-3.12.4-Linux-x86_64.sh --skip-license --prefix=/opt/cmake
+RUN ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
+RUN cmake --version
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /app/implementations/quic-implementations/quiche
+
+RUN git clone https://github.com/cloudflare/quiche .
+
+RUN git checkout 4bda0917dd5aa535f39214063ee85c2cad00ceb2 #0.7.0 # master # 0.9.0 for quic client ! TODO
+RUN git submodule update --init
+ADD quiche/packet_0.9.0.rs src/packet.rs
+RUN cargo build --examples
+RUN cargo test || true
+
+
+WORKDIR /app

@@ -14,6 +14,7 @@ import re
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
+from panther_utils.panther_vnet import *
 from panther_tester.panther_tester import IvyTest
 from panther_utils.panther_constant import *
 
@@ -59,16 +60,9 @@ class QUICIvyTest(IvyTest):
             current_protocol,
         )
 
-        self.specials = {
-            "quic_server_test_0rtt": "quic_server_test_0rtt_stream",
-            "quic_client_test_new_token_address_validation": "quic_client_test_new_token_address_validation",
-            "quic_client_test_0rtt": "quic_client_test_0rtt_max",
-            "quic_client_test_0rtt_add_val": "quic_client_test_0rtt_max_add_val",
-            "quic_client_test_0rtt_invalid": "quic_client_test_0rtt_max",
-            "quic_client_test_0rtt_mim_replay": "quic_client_test_0rtt_max",
-            "quic_server_test_retry_reuse_key": "quic_server_test_retry",
-        }
+        # self.log.setLevel(int(os.environ["LOG_LEVEL"]))
 
+        # TODO enforce
         self.special_tests_compatible_impl = {
             "quic_server_test_retry_reuse_key": ["picoquic-vuln", "picoquic"],
             "quic_server_test_retry": [
@@ -97,43 +91,19 @@ class QUICIvyTest(IvyTest):
         }
 
         # MORE config
-        # TODO implem
-        self.specials2 = {
+        # TODO use config instead
+        self.special_command_additions = {
             "quic_server_test_retry_reuse_key": {
-                "picoquic-vuln": './picoquicdemo -l "n"  -D -L -r',
-                "picoquic": "./picoquicdemo -l - -r -D -L -q "
-                + SOURCE_DIR
-                + "/qlog/picoquic",
-                "quant": IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + "/quant/Debug/bin/server -x 1000 -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q "
-                + SOURCE_DIR
-                + "/qlogs/quant -l "
-                + SOURCE_DIR
-                + "/tls-keys/secret.log -r",
-                "quant-vuln": IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + "/quant-vuln/Debug/bin/server -x 1000 -d . -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q "
-                + SOURCE_DIR
-                + "/qlogs/quant -l "
-                + SOURCE_DIR
-                + "/tls-keys/secret.log -r",
+                "picoquic-vuln": "-r",
+                "picoquic": "-r",
+                "quant": "-r",
+                "quant-vuln": "-r",
             },
             "quic_server_test_retry": {
-                "quant": IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + "/quant/Debug/bin/server -x 1000 -d . -o -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q "
-                + SOURCE_DIR
-                + "/qlogs/quant -l "
-                + SOURCE_DIR
-                + "/tls-keys/secret.log -r",
-                "quant-vuln": IMPLEM_DIR.replace("$PROT", self.current_protocol)
-                + "/quant-vuln/Debug/bin/server -x 1000 -d . -c leaf_cert.pem -k leaf_cert.key -p 4443 -t 3600 -v 5 -q "
-                + SOURCE_DIR
-                + "/qlogs/quant -l "
-                + SOURCE_DIR
-                + "/tls-keys/secret.log -r",
-                "picoquic": './picoquicdemo -l "n" -D -L -q '
-                + SOURCE_DIR
-                + "/qlog/picoquic -r",
-                "picoquic-vuln": "./picoquicdemo -l - -D -L -r",
+                "picoquic-vuln": "-r",
+                "picoquic": "-r",
+                "quant": "-r",
+                "quant-vuln": "-r",
                 "aioquic": "python3.9 examples/http3_server.py --quic-log "
                 + SOURCE_DIR
                 + "/qlogs/aioquic --certificate "
@@ -251,38 +221,26 @@ class QUICIvyTest(IvyTest):
             self.implem_conf[0][self.implementation_name]["cert-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["key-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["key-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["root-cert-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["root-cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["log-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["log-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["qlog-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["qlog-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["secret-key-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["secret-key-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["alpn"]
             + " "
@@ -326,42 +284,36 @@ class QUICIvyTest(IvyTest):
         server_implem_args = server_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
         server_implem_args = re.sub("\s{2,}", " ", server_implem_args)
 
+        server_implem_args = (
+            server_implem_args.replace("$MODEL_DIR", MODEL_DIR)
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
+        )
+
         client_implem_args = (
             self.implem_conf[1][self.implementation_name]["cert-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["key-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["key-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["root-cert-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["root-cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["log-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["log-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["qlog-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["qlog-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["secret-key-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["secret-key-file"].replace(
-                "$IMPLEM_DIR", self.implem_dir_server + "/"
-            )
+            + self.implem_conf[1][self.implementation_name]["secret-key-file"]
             + " "
             + self.implem_conf[1][self.implementation_name]["alpn"]
             + " "
@@ -405,6 +357,12 @@ class QUICIvyTest(IvyTest):
         )
         client_implem_args = client_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
         client_implem_args = re.sub("\s{2,}", " ", client_implem_args)
+
+        client_implem_args = (
+            client_implem_args.replace("$MODEL_DIR", MODEL_DIR)
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
+        )
         implem_env = ""  # TODO use a list of env
 
         ivy_args = (
@@ -429,11 +387,11 @@ class QUICIvyTest(IvyTest):
             file_temp = "/app/shadow_server_test_template.yml"
 
         with open(file_temp, "r") as f:
-            self.log.info(f"Read Shadow template file {file_temp}:")
+            self.log.debug(f"Read Shadow template file {file_temp}:")
             content = f.read()
-            self.log.info(content)
+            self.log.debug(content)
         with open(file, "w") as f:
-            self.log.info(f"Writing Shadow final config {file}:")
+            self.log.debug(f"Writing Shadow final config {file}:")
             content = content.replace("<VERSION>", ENV_VAR["INITIAL_VERSION"])
             content = content.replace("<IMPLEMENTATION>", ENV_VAR["TEST_IMPL"])
             content = content.replace("<ALPN>", ENV_VAR["TEST_ALPN"])
@@ -462,22 +420,25 @@ class QUICIvyTest(IvyTest):
                 "<BUILD_PATH>", self.config["global_parameters"]["build_dir"]
             )
             content = content.replace("<TEST_ARGS>", ivy_args)
-            self.log.info(content)
+            self.log.debug(content)
             print(content)
             f.write(content)
         os.chdir("/app")
-        self.log.info("rm -r /app/shadow.data/ ")
+        self.log.debug("rm -r /app/shadow.data/ ")
         print("rm -r /app/shadow.data/ ")
         os.system("rm -r /app/shadow.data/ ")
         os.system("rm  /app/shadow.log ")
+
         self.log.info("command: RUST_BACKTRACE=1 shadow " + file + " > shadow.log")
         print("command: RUST_BACKTRACE=1 shadow " + file + " > shadow.log")
 
         return file
 
     def update_implementation_command(self, i):
-        self.log.info(f"Update implementation before {self.implem_cmd}")
+        self.log.debug(f"Update implementation before {self.implem_cmd}")
+
         # TODO add that in config file
+        # 0rtt case:
         if i == 1:
             self.implem_cmd = self.implem_cmd.replace("4443", "4444")
             if self.implementation_name == "mvfst":
@@ -495,9 +456,15 @@ class QUICIvyTest(IvyTest):
             elif self.implementation_name == "quinn":
                 self.implem_cmd = self.implem_cmd + " --zrtt"
 
+        # Retry case:
+        if (
+            "quic_server_test_retry_reuse_key" in self.name
+            or "quic_server_test_retry" in self.name
+        ):
+            pass
+
         if self.config["net_parameters"].getboolean("vnet"):
             implem_cmd_copy = self.implem_cmd
-            implem_cmd = "sudo ip netns exec implem "
             # if self.implementation_name == "picoquic":
             #     implem_cmd = "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'  + implem_cmd + "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'
             envs = "env - "
@@ -506,13 +473,69 @@ class QUICIvyTest(IvyTest):
                     envs = envs + env_var + '="' + ENV_VAR[env_var] + '" '
                 else:
                     envs = envs + env_var + '="' + os.environ.get(env_var) + '" '
-            self.implem_cmd = self.implem_cmd + envs + implem_cmd_copy
+            if not self.is_mim:
+                self.implem_cmd = "sudo ip netns exec implem "
+                self.implem_cmd = self.implem_cmd + envs + implem_cmd_copy
+                self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.1")
+                self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.1")
+            else:
+                self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.5")
+                self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.5")
+
+                self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                    "11.0.0.1", "10.0.0.6"
+                )
+                self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                    "11.0.0.3", "10.0.0.6"
+                )
+
+                maxreplace = 1
+                self.implem_cmd = (
+                    "sudo ip netns exec tested_server " + envs + self.implem_cmd
+                )
+                old = "implem"
+                new = "client_server"
+                self.implem_cmd = new.join(self.implem_cmd.rsplit(old, maxreplace))
+
+                self.implem_cmd_opposite = (
+                    "sudo ip netns exec tested_client "
+                    + envs
+                    + self.implem_cmd_opposite
+                )
+                old = "implem"
+                new = "server_client"
+                self.implem_cmd_opposite = new.join(
+                    self.implem_cmd_opposite.rsplit(old, maxreplace)
+                )
+
         else:
-            self.implem_cmd = "exec " + self.implem_cmd
-            self.implem_cmd = self.implem_cmd.replace("10.0.0.1", "localhost")
-            self.implem_cmd = self.implem_cmd.replace("10.0.0.3", "localhost")
-            self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "localhost")
-            self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "localhost")
+            self.implem_cmd = (
+                "RUST_LOG='debug' RUST_BACKTRACE=1 exec " + self.implem_cmd
+            )
+            self.implem_cmd = self.implem_cmd.replace(
+                "10.0.0.1",
+                "localhost"
+                if self.implem_conf[0][self.implementation_name]["localhost"] == "true"
+                else "127.0.0.1",
+            )
+            self.implem_cmd = self.implem_cmd.replace(
+                "10.0.0.3",
+                "localhost"
+                if self.implem_conf[0][self.implementation_name]["localhost"] == "true"
+                else "127.0.0.1",
+            )
+            self.implem_cmd = self.implem_cmd.replace(
+                "11.0.0.1",
+                "localhost"
+                if self.implem_conf[0][self.implementation_name]["localhost"] == "true"
+                else "127.0.0.1",
+            )
+            self.implem_cmd = self.implem_cmd.replace(
+                "11.0.0.3",
+                "localhost"
+                if self.implem_conf[0][self.implementation_name]["localhost"] == "true"
+                else "127.0.0.1",
+            )
             # self.implem_cmd = self.implem_cmd.replace(
             #     "quic-implementations", "XXXXXXXX"
             # )
@@ -535,7 +558,7 @@ class QUICIvyTest(IvyTest):
             #     ),
             # )
             # self.implem_cmd = self.implem_cmd.replace("ALPN", ENV_VAR["TEST_ALPN"])
-            self.log.info(f"Update implementation after {self.implem_cmd}")
+            self.log.debug(f"Update implementation after {self.implem_cmd}")
 
     # TODO add if to avoid space in command
     # TODO Reorder config param to loop and generate command eaisier
@@ -543,41 +566,39 @@ class QUICIvyTest(IvyTest):
         server_implem_args = (
             self.implem_conf[0][self.implementation_name]["binary-name"]
             + " "
+            + (
+                self.implem_conf[0][self.implementation_name]["retry"]
+                if "retry" in self.name
+                else ""
+            )
+            + (
+                self.implem_conf[0][self.implementation_name]["version-negociation"]
+                if "version_negociation" in self.name
+                else ""
+            )
             + self.implem_conf[0][self.implementation_name]["cert-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["key-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["key-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["root-cert-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["root-cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["log-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["log-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["qlog-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["qlog-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["secret-key-param"]
             + " "
             + self.implem_conf[0][self.implementation_name]["secret-key-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[0][self.implementation_name]["alpn"]
             + " "
@@ -589,11 +610,11 @@ class QUICIvyTest(IvyTest):
             + " "
             + self.implem_conf[0][self.implementation_name]["verbosity"]
             + " "
-            + self.implem_conf[0][self.implementation_name]["addition-parameters"]
-            + " "
             + self.implem_conf[1][self.implementation_name]["interface"]
             + " "
             + self.implem_conf[1][self.implementation_name]["interface-value"]
+            + " "
+            + self.implem_conf[0][self.implementation_name]["addition-parameters"]
             + " "
             + self.implem_conf[0][self.implementation_name]["source-format"]
             .replace(
@@ -623,46 +644,44 @@ class QUICIvyTest(IvyTest):
             ),
         )
         server_implem_args = server_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
+        server_implem_args = (
+            server_implem_args.replace("$MODEL_DIR", MODEL_DIR)
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
+        )
         server_implem_args = re.sub("\s{2,}", " ", server_implem_args)
 
         client_implem_args = (
             self.implem_conf[1][self.implementation_name]["binary-name"]
             + " "
+            + (
+                self.implem_conf[1][self.implementation_name]["versionnegociation"]
+                if "version_negociation" in self.name
+                else ""
+            )
             + self.implem_conf[1][self.implementation_name]["cert-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["key-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["key-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["root-cert-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["root-cert-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["log-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["log-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["qlog-param"]
             + " "
             + self.implem_conf[1][self.implementation_name]["qlog-file"]
-            .replace("$SOURCE_DIR", SOURCE_DIR)
-            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
             + " "
             + self.implem_conf[1][self.implementation_name]["secret-key-param"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["secret-key-file"].replace(
-                "$IMPLEM_DIR", self.implem_dir_server + "/"
-            )
+            + self.implem_conf[1][self.implementation_name]["secret-key-file"]
             + " "
             + self.implem_conf[1][self.implementation_name]["alpn"]
             + " "
@@ -674,11 +693,11 @@ class QUICIvyTest(IvyTest):
             + " "
             + self.implem_conf[1][self.implementation_name]["verbosity"]
             + " "
-            + self.implem_conf[1][self.implementation_name]["addition-parameters"]
-            + " "
             + self.implem_conf[1][self.implementation_name]["interface"]
             + " "
             + self.implem_conf[1][self.implementation_name]["interface-value"]
+            + " "
+            + self.implem_conf[1][self.implementation_name]["addition-parameters"]
             + " "
             + self.implem_conf[1][self.implementation_name]["destination-format"]
             .replace(
@@ -709,10 +728,15 @@ class QUICIvyTest(IvyTest):
             ),
         )
         client_implem_args = client_implem_args.replace("ALPN", ENV_VAR["TEST_ALPN"])
+        client_implem_args = (
+            client_implem_args.replace("$MODEL_DIR", MODEL_DIR)
+            .replace("$SOURCE_DIR", SOURCE_DIR)
+            .replace("$IMPLEM_DIR", self.implem_dir_server + "/")
+        )
         client_implem_args = re.sub("\s{2,}", " ", client_implem_args)
 
-        self.log.info(f"Server implem args: {server_implem_args}")
-        self.log.info(f"Client implem args: {client_implem_args}")
+        self.log.debug(f"Server implem args: {server_implem_args}")
+        self.log.debug(f"Client implem args: {client_implem_args}")
         if self.is_client:
             return [client_implem_args, server_implem_args]
         else:
@@ -732,6 +756,7 @@ class QUICIvyTest(IvyTest):
         """
         if self.config["global_parameters"].getboolean("run"):
             if self.is_mim:
+                self.log.info("Man in the middle test")
                 pass
             else:
                 self.log.info("Updating implementation:")
@@ -756,18 +781,18 @@ class QUICIvyTest(IvyTest):
                         else ""
                     ) + self.implem_cmd  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
                     qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
-                    self.log.info("implementation command: {}".format(qcmd))
+                    self.log.info("Implementation command: {}".format(qcmd))
                     self.log.info(
-                        "implementation diretory: {}".format(
+                        "Implementation diretory: {}".format(
                             self.implem_dir_client
                             if self.is_client
                             else self.implem_dir_server
                         )
                     )
                     self.log.info(self.config["net_parameters"].getboolean("shadow"))
-                    print("implementation command: {}".format(qcmd))
+                    print("Implementation command: {}".format(qcmd))
                     print(
-                        "implementation diretory: {}".format(
+                        "Implementation diretory: {}".format(
                             self.implem_dir_client
                             if self.is_client
                             else self.implem_dir_server
@@ -775,8 +800,8 @@ class QUICIvyTest(IvyTest):
                     )
                     print(self.config["net_parameters"].getboolean("shadow"))
                     if not self.config["net_parameters"].getboolean("shadow"):
-                        self.log.info("not shadow test:")
-                        print("not shadow test:")
+                        self.log.debug("Not shadow test:")
+                        print("Not shadow test:")
                         self.implem_process = subprocess.Popen(
                             qcmd,
                             cwd=(
@@ -805,12 +830,14 @@ class QUICIvyTest(IvyTest):
                             print(e)
         # TODO check if it still work
         if self.is_mim:
+            self.log.info("Updating implementation:")
+            print("Updating implementation:")
+            self.update_implementation_command(i)
             qcmd = (
-                "sleep 7; " + "exec " + self.implem_cmd
+                "RUST_LOG='debug' RUST_BACKTRACE=1  exec " + self.implem_cmd
             )  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
-            qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
-            self.log.info("implementation command 1: {}".format(qcmd))
-            print("implementation command 1: {}".format(qcmd))
+            self.log.info("Implementation command server: {}".format(qcmd))
+            print("Implementation command server: {}".format(qcmd))
             self.quic_process_1 = subprocess.Popen(
                 qcmd,
                 cwd=(
@@ -823,22 +850,28 @@ class QUICIvyTest(IvyTest):
             )
             self.log.info("quic_process_1 pid: {}".format(self.quic_process_1.pid))
             print("quic_process_1 pid: {}".format(self.quic_process_1.pid))
+
             qcmd = (
-                "exec " + self.implem_cmd_opposite
+                "sleep 10; "
+                + "RUST_LOG='debug' RUST_BACKTRACE=1  exec "
+                + self.implem_cmd_opposite
             )  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
-            qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
-            self.log.info("implementation command 2: {}".format(qcmd))
-            print("implementation command 2: {}".format(qcmd))
-            self.quic_process_2 = subprocess.Popen(
-                qcmd,
-                cwd=(
-                    self.implem_dir_client if self.is_client else self.implem_dir_server
-                ),
-                stdout=out,
-                stderr=err,
-                shell=True,  # self.is_client,
-                preexec_fn=self.set_process_limits,
-            )
+            self.log.info("Implementation command client: {}".format(qcmd))
+            print("Implementation command client: {}".format(qcmd))
+            with self.open_out(self.name + "_server.out") as out_c:
+                with self.open_out(self.name + "_client.err") as err_c:
+                    self.quic_process_2 = subprocess.Popen(
+                        qcmd,
+                        cwd=(
+                            self.implem_dir_client
+                            if self.is_client
+                            else self.implem_dir_server
+                        ),
+                        stdout=out_c,
+                        stderr=err_c,
+                        shell=True,  # self.is_client,
+                        preexec_fn=self.set_process_limits,
+                    )
             self.log.info("quic_process_2 pid: {}".format(self.quic_process_2.pid))
             print("quic_process_2 pid: {}".format(self.quic_process_2.pid))
 
@@ -851,7 +884,7 @@ class QUICIvyTest(IvyTest):
                 for iclient in range(
                     0, self.nclient
                 ):  # TODO for multiple implem client only
-                    self.log.info("iclient = " + str(iclient))
+                    self.log.debug("iclient = " + str(iclient))
                     print("iclient = " + str(iclient))
                     ok = ok and self.run_tester(iteration, iev, i, iclient)
             except KeyboardInterrupt:
@@ -860,11 +893,10 @@ class QUICIvyTest(IvyTest):
                         "run"
                     ) and not self.config["global_parameters"].getboolean("keep_alive"):
                         if self.config["net_parameters"].getboolean("vnet"):
-                            subprocess.Popen(
-                                "/bin/bash " + SOURCE_DIR + "/vnet_reset.sh",
-                                shell=True,
-                                executable="/bin/bash",
-                            ).wait()
+                            if "mim" in self.name or "attack" in self.name:
+                                run_steps(reset_mim, ignore_errors=True)
+                            else:
+                                run_steps(reset, ignore_errors=True)
                         self.implem_process.terminate()
                     raise KeyboardInterrupt
                 else:
@@ -872,11 +904,10 @@ class QUICIvyTest(IvyTest):
                         "run"
                     ) and not self.config["global_parameters"].getboolean("keep_alive"):
                         if self.config["net_parameters"].getboolean("vnet"):
-                            subprocess.Popen(
-                                "/bin/bash " + SOURCE_DIR + "/vnet_reset.sh",
-                                shell=True,
-                                executable="/bin/bash",
-                            ).wait()
+                            if "mim" in self.name or "attack" in self.name:
+                                run_steps(reset_mim, ignore_errors=True)
+                            else:
+                                run_steps(reset, ignore_errors=True)
                         self.quic_process_1.terminate()
                         self.quic_process_2.terminate()
                     raise KeyboardInterrupt
@@ -983,6 +1014,8 @@ class QUICIvyTest(IvyTest):
             self.config["global_parameters"].getint("timeout")
         )
 
+        timeout_cmd = ("sleep 5; " if not self.is_client else "") + timeout_cmd
+
         randomSeed = random.randint(0, 1000)
         random.seed(datetime.now())
 
@@ -1041,15 +1074,20 @@ class QUICIvyTest(IvyTest):
         print(self.name)
         # time.sleep(5)
         if self.config["debug_parameters"].getboolean("gdb"):
+            self.log.debug("Prefix added: gdb")
             # TODO refactor
             prefix = " gdb --args "
         if self.config["debug_parameters"].getboolean("ptrace"):
+            self.log.debug("Prefix added: ptrace")
             # TODO refactor
             prefix = " ptrace "
         if self.config["debug_parameters"].getboolean("strace"):
+            self.log.debug("Prefix added: strace")
             # TODO refactor
             prefix = strace_cmd + " "
+
         if self.config["net_parameters"].getboolean("vnet"):
+            self.log.debug("Prefix added: vnet")
             envs = "env - "
             for env_var in ENV_VAR:
                 if env_var != "PATH":  # TODO remove it is useless
@@ -1059,24 +1097,37 @@ class QUICIvyTest(IvyTest):
             prefix = (
                 "sudo ip netns exec ivy "
                 + envs
-                + " "
-                + strace_cmd
-                + " "
-                + gperf_cmd
+                + (
+                    (" " + strace_cmd)
+                    if self.config["debug_parameters"].getboolean("ptrace")
+                    else ""
+                )
+                + (
+                    (" " + gperf_cmd)
+                    if self.config["debug_parameters"].getboolean("gperf")
+                    else ""
+                )
                 + " "
             )
-            ip_server = 0x0A000003 if not self.is_client else 0x0A000001
-            ip_client = 0x0A000001 if not self.is_client else 0x0A000003
+
+        if self.config["net_parameters"].getboolean("vnet"):
+            if self.is_mim:
+                ip_server = 0x0A000004
+                ip_client = 0x0A000002
+            else:
+                ip_server = 0x0A000002 if not self.is_client else 0x0A000001
+                ip_client = 0x0A000001 if not self.is_client else 0x0A000002
         elif self.config["net_parameters"].getboolean("shadow"):
             ip_server = 0x0B000002 if not self.is_client else 0x0B000001
             ip_client = 0x0B000001 if not self.is_client else 0x0B000002
         else:
-            # prefix = strace_cmd + " "
             ip_server = 0x7F000001
             ip_client = ip_server
 
-        if self.name in self.specials.keys():  # TODO build quic_server_test_stream
-            first_test = self.specials[self.name]
+        self.log.debug(f"Prefix of tester command: {prefix}")
+
+        if self.name in QUIC_PAIRED_TEST.keys():  # TODO build quic_server_test_stream
+            first_test = QUIC_PAIRED_TEST[self.name]
             if (
                 self.name == "quic_client_test_0rtt"
                 or self.name == "quic_server_test_0rtt"

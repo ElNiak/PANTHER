@@ -1,8 +1,6 @@
 import glob
 import os
-import re
 import sys
-import configparser
 import logging
 import progressbar
 import subprocess
@@ -15,7 +13,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 from panther_utils.panther_constant import *
 from logger.CustomFormatter import ch
 import shutil
-
+from panther_utils.panther_vnet import *
 
 # TODO super class
 class Runner:
@@ -24,28 +22,27 @@ class Runner:
     ):
         # Setup logger
         self.log = logging.getLogger("panther-runner")
-        self.log.setLevel(logging.INFO)
-        # if (self.log.hasHandlers()):
-        #     self.log.handlers.clear()
-        self.log.addHandler(ch)
-        self.log.propagate = False
+        self.log.setLevel(int(os.environ["LOG_LEVEL"]))
+        # # if (self.log.hasHandlers()):
+        # #     self.log.handlers.clear()
+        # self.log.addHandler(ch)
+        # self.log.propagate = False
 
         self.protocol_conf = protocol_config
         self.apt_conf = None
 
         # Setup configuration
-        self.log.info("START SETUP CONFIGURATION")
         self.current_protocol = current_protocol
         self.config = config
-        self.log.info("SELECTED PROTOCOL: " + self.current_protocol)
-        self.log.info("Implementations: " + str(implems))
-
-        self.log.info("END SETUP PROTOCOL PARAMETERS")
+        self.log.debug("Protocol:        " + self.current_protocol)
+        self.log.debug("Implementations: " + str(implems))
 
         # TODO refactor
+        # TODO enforce in this file
         self.iters = self.config["global_parameters"].getint(
             "iter"
-        )  # Number of iteration per test           # TODO enforce in this file
+        )  # Number of iteration per test
+
         self.test_pattern = "*"  # Test to launch regex, * match all test # TODO
 
         self.extra_args = []  # TODO
@@ -58,13 +55,13 @@ class Runner:
         self.implems = implems
 
         self.webapp_ip = socket.gethostbyname("panther-webapp")
-        print("panther-webapp IP: ", self.webapp_ip)
-        print("Number of test to execute: ", self.nb_test_to_execute)
-        print(
-            "Total number of test to execute: ",
-            self.nb_test_to_execute * self.config["global_parameters"].getint("iter"),
+        self.log.debug(f"IP panther-webapp: {self.webapp_ip}")
+        self.log.debug(f"Number of test to execute: {self.nb_test_to_execute}")
+        self.log.debug(
+            f"Total number of test to execute: {self.nb_test_to_execute * self.config['global_parameters'].getint('iter')}"
         )
-        # TODO make less general
+
+        # TODO make more general
         if (
             "quic_server_test_0rtt" in executed_test
             or "quic_client_test_0rtt" in executed_test
@@ -167,13 +164,19 @@ class Runner:
         else:
             current_protocol = self.current_protocol
         return self.implems[implem][0][implem]["binary-dir"].replace(
-            "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", current_protocol)
+            "$IMPLEM_DIR",
+            IMPLEM_DIR.replace("$PROT", current_protocol).replace(
+                "$MODEL_DIR", MODEL_DIR
+            ),
         ), self.implems[implem][1][implem]["binary-dir"].replace(
-            "$IMPLEM_DIR", IMPLEM_DIR.replace("$PROT", current_protocol)
+            "$IMPLEM_DIR",
+            IMPLEM_DIR.replace("$PROT", current_protocol).replace(
+                "$MODEL_DIR", MODEL_DIR
+            ),
         )
 
     def record_pcap(self, pcap_name):
-        self.log.info("Start thsark")
+        self.log.info("Start tshark pcap recording")
         # time.sleep(10) # for server test
         # TODO kill entual old quic implem
         if self.current_protocol == "apt":
@@ -185,74 +188,121 @@ class Runner:
         pcap_protocol = self.protocol_conf[current_protocol + "_parameters"]["protocol"]
 
         if self.config["net_parameters"].getboolean("vnet"):
-            interface = "lo"
+            if "mim" in pcap_name or "attack" in pcap_name:
+                interfaces = [
+                    ("ivy", "lo", pcap_name),
+                    ("tested_client", "lo", pcap_name.replace("ivy_lo_", "client_lo_")),
+                    ("tested_server", "lo", pcap_name.replace("ivy_lo_", "server_lo_")),
+                    ("ivy", "ivy_client", pcap_name.replace("ivy_lo_", "ivy_client_")),
+                    ("ivy", "ivy_server", pcap_name.replace("ivy_lo_", "ivy_server_")),
+                    (
+                        "tested_client",
+                        "client_ivy",
+                        pcap_name.replace("ivy_lo_", "client_"),
+                    ),
+                    (
+                        "tested_server",
+                        "server_ivy",
+                        pcap_name.replace("ivy_lo_", "server_"),
+                    ),
+                    (
+                        "tested_client",
+                        "client_server",
+                        pcap_name.replace("ivy_lo_", "client_server_"),
+                    ),
+                    (
+                        "tested_server",
+                        "server_client",
+                        pcap_name.replace("ivy_lo_", "server_client_"),
+                    ),
+                ]
 
-            p = subprocess.Popen(
-                [
-                    "ip",
-                    "netns",
-                    "exec",
-                    "ivy",
-                    "tshark",
-                    "-w",
-                    pcap_name,
-                    "-i",
-                    interface,
-                    "-f",
-                    pcap_protocol,
-                ],
-                stdout=sys.stdout,
-            )
-            p = subprocess.Popen(
-                [
-                    "ip",
-                    "netns",
-                    "exec",
-                    "implem",
-                    "tshark",
-                    "-w",
-                    pcap_name.replace("ivy_lo_", "implem_lo_"),
-                    "-i",
-                    interface,
-                    "-f",
-                    pcap_protocol,
-                ],
-                stdout=sys.stdout,
-            )
-            interface = "ivy"
-            p = subprocess.Popen(
-                [
-                    "ip",
-                    "netns",
-                    "exec",
-                    "ivy",
-                    "tshark",
-                    "-w",
-                    pcap_name.replace("ivy_lo_", "ivy_ivy_"),
-                    "-i",
-                    interface,
-                    "-f",
-                    pcap_protocol,
-                ],
-                stdout=sys.stdout,
-            )
-            interface = "implem"
-            p = subprocess.Popen(
-                [
-                    "ip",
-                    "netns",
-                    "exec",
-                    "implem",
-                    "tshark",
-                    "-w",
-                    pcap_name.replace("ivy_lo_", "implem_"),
-                    "-i",
-                    interface,
-                    "-f",
-                    pcap_protocol,
-                ],
-                stdout=sys.stdout,
-            )
+                for ns, interface, pcap_file in interfaces:
+                    p = subprocess.Popen(
+                        [
+                            "ip",
+                            "netns",
+                            "exec",
+                            ns,
+                            "tshark",
+                            "-w",
+                            pcap_file,
+                            "-i",
+                            interface,
+                            "-f",
+                            pcap_protocol,
+                        ],
+                        stdout=sys.stdout,
+                    )
+
+            else:
+                interface = "lo"
+                p = subprocess.Popen(
+                    [
+                        "ip",
+                        "netns",
+                        "exec",
+                        "ivy",
+                        "tshark",
+                        "-w",
+                        pcap_name,
+                        "-i",
+                        interface,
+                        "-f",
+                        pcap_protocol,
+                    ],
+                    stdout=sys.stdout,
+                )
+                p = subprocess.Popen(
+                    [
+                        "ip",
+                        "netns",
+                        "exec",
+                        "implem",
+                        "tshark",
+                        "-w",
+                        pcap_name.replace("ivy_lo_", "implem_lo_"),
+                        "-i",
+                        interface,
+                        "-f",
+                        pcap_protocol,
+                    ],
+                    stdout=sys.stdout,
+                )
+                interface = "ivy"
+                p = subprocess.Popen(
+                    [
+                        "ip",
+                        "netns",
+                        "exec",
+                        "ivy",
+                        "tshark",
+                        "-w",
+                        pcap_name.replace("ivy_lo_", "ivy_ivy_"),
+                        "-i",
+                        interface,
+                        "-f",
+                        pcap_protocol,
+                    ],
+                    stdout=sys.stdout,
+                )
+                interface = "implem"
+                p = subprocess.Popen(
+                    [
+                        "ip",
+                        "netns",
+                        "exec",
+                        "implem",
+                        "tshark",
+                        "-w",
+                        pcap_name.replace("ivy_lo_", "implem_"),
+                        "-i",
+                        interface,
+                        "-f",
+                        pcap_protocol,
+                    ],
+                    stdout=sys.stdout,
+                )
         elif self.config["net_parameters"].getboolean("shadow"):
             p = None
         else:
@@ -275,31 +325,81 @@ class Runner:
 
     def config_pcap(self, ivy_dir, implem, test):
         if self.config["net_parameters"].getboolean("vnet"):
-            pcap_name = (
-                ivy_dir + "/ivy_lo_" + implem + "_" + test.replace(".ivy", "") + ".pcap"
-            )
-            open(pcap_name, mode="w").close()
-            subprocess.Popen(
-                "sudo /bin/chmod o=xw " + pcap_name, shell=True, executable="/bin/bash"
-            ).wait()
-            open(pcap_name.replace("ivy_lo_", "ivy_ivy_"), mode="w").close()
-            open(pcap_name.replace("ivy_lo_", "implem_lo_"), mode="w").close()
-            subprocess.Popen(
-                "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "ivy_ivy_"),
-                shell=True,
-                executable="/bin/bash",
-            ).wait()
-            subprocess.Popen(
-                "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "implem_lo_"),
-                shell=True,
-                executable="/bin/bash",
-            ).wait()
-            open(pcap_name.replace("ivy_lo_", "implem_"), mode="w").close()
-            subprocess.Popen(
-                "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "implem_"),
-                shell=True,
-                executable="/bin/bash",
-            ).wait()
+            if "mim" in test or "attack" in test:
+                pcap_name = (
+                    ivy_dir
+                    + "/ivy_lo_"
+                    + implem
+                    + "_"
+                    + test.replace(".ivy", "")
+                    + ".pcap"
+                )
+                open(pcap_name, mode="w").close()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw " + pcap_name,
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+                open(pcap_name.replace("ivy_lo_", "ivy_client_"), mode="w").close()
+                open(pcap_name.replace("ivy_lo_", "ivy_server_"), mode="w").close()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw "
+                    + pcap_name.replace("ivy_lo_", "ivy_client_"),
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw "
+                    + pcap_name.replace("ivy_lo_", "ivy_server_"),
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+                open(pcap_name.replace("ivy_lo_", "client_"), mode="w").close()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "client_"),
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+                open(pcap_name.replace("ivy_lo_", "server_"), mode="w").close()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "server_"),
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+            else:
+                pcap_name = (
+                    ivy_dir
+                    + "/ivy_lo_"
+                    + implem
+                    + "_"
+                    + test.replace(".ivy", "")
+                    + ".pcap"
+                )
+                open(pcap_name, mode="w").close()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw " + pcap_name,
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+                open(pcap_name.replace("ivy_lo_", "ivy_ivy_"), mode="w").close()
+                open(pcap_name.replace("ivy_lo_", "implem_lo_"), mode="w").close()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "ivy_ivy_"),
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw "
+                    + pcap_name.replace("ivy_lo_", "implem_lo_"),
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+                open(pcap_name.replace("ivy_lo_", "implem_"), mode="w").close()
+                subprocess.Popen(
+                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "implem_"),
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
         else:
             pcap_name = ivy_dir + "/" + implem + "_" + test + ".pcap"
             open(pcap_name, mode="w").close()
@@ -323,13 +423,12 @@ class Runner:
 
     def setup_exp(self, implem):
         if self.config["global_parameters"]["dir"] is None:
-            self.log.info("ERROR")
+            self.log.error("ERROR in implementation directory")
             exit(0)
 
         # test, run_id, pcap_name,iteration,j
         # Put an array of eventual extra argument for the test (TODO)
         # self.extra_args = [opt_name+'='+opt_val for opt_name,opt_val in self.ivy_options.items() if opt_val is not None]
-        self.log.info("Get implementation directory:")
         implem_dir_server, implem_dir_client = self.get_implementation_dir(implem)
 
         self.log.info("Server implementation directory: {}".format(implem_dir_server))
@@ -341,12 +440,12 @@ class Runner:
 
     def save_shadow_res(self, test, i, pcap_name, run_id):
         if self.config["net_parameters"].getboolean("shadow"):
-            self.log.info("Save shadow res:")
+            self.log.info("Saving Shadow results")
             shadow_data_src = "/app/shadow.data"
             shadow_data_dst = os.path.join(
                 self.config["global_parameters"]["dir"], str(run_id), "shadow.data"
             )
-            self.log.info(
+            self.log.debug(
                 f"Copying entire folder: {shadow_data_src} to {shadow_data_dst}"
             )
             shutil.copytree(shadow_data_src, shadow_data_dst)
@@ -385,20 +484,20 @@ class Runner:
                 ]
 
             for mode, pattern, dest_filename in patterns:
-                self.log.info(f"Matching pattern {pattern} in {host_dirs[mode]}")
+                self.log.debug(f"Matching pattern {pattern} in {host_dirs[mode]}")
                 for file_path in glob.glob(os.path.join(host_dirs[mode], pattern)):
-                    self.log.info(
+                    self.log.debug(
                         f"Copy {file_path} to {os.path.join(dest_dir, dest_filename)}"
                     )
                     shutil.copy(file_path, os.path.join(dest_dir, dest_filename))
 
             if "client" in test.mode:
-                self.log.info(f"Copy eth0.pcap to {pcap_name}")
+                self.log.debug(f"Copy eth0.pcap to {pcap_name}")
                 shutil.copy(
                     os.path.join(shadow_data_dir, "hosts/server/eth0.pcap"), pcap_name
                 )
             elif "server" in test.mode:
-                self.log.info(f"Copy eth0.pcap to {pcap_name}")
+                self.log.debug(f"Copy eth0.pcap to {pcap_name}")
                 shutil.copy(
                     os.path.join(shadow_data_dir, "hosts/client/eth0.pcap"), pcap_name
                 )

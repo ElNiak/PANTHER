@@ -87,6 +87,7 @@ def update_docker_swarm(config, yaml_path="docker-swarm.yml", prod=False):
                     'MPLBACKEND="Agg"',
                     "COLUMNS=100",
                     "LINES=100",
+                    f"LOG_LEVEL={logging.getLogger().level}",
                 ],
                 "restart": "always",
                 "deploy": {
