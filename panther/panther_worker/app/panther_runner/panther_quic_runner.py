@@ -175,17 +175,13 @@ class QUICRunner(Runner):
 
                         # TODO check if still works here, was not there before (check old project commit if needed)
                         if self.config["net_parameters"].getboolean("vnet"):
-                            if (
-                                "mim" in test.name
-                                or "attack" in test.name
-                                or "mim" in test.mode
-                                or "attack" in test.mode
-                            ):
-                                run_steps(setup_mim, ignore_errors=True)
+                            if self.config["vnet_parameters"].getboolean("mitm"):
+                                if self.config["vnet_parameters"].getboolean("bridged"):
+                                    run_steps(setup_mim_bridged, ignore_errors=True)
+                                else:
+                                    run_steps(setup_mim, ignore_errors=True)
                             else:
                                 run_steps(setup, ignore_errors=True)
-                        else:
-                            run_steps(reset, ignore_errors=True)
 
                         exp_folder, run_id = self.create_exp_folder()
                         pcap_name = self.config_pcap(exp_folder, implem, test.name)
@@ -248,7 +244,15 @@ class QUICRunner(Runner):
                                 pass
 
                             if self.config["net_parameters"].getboolean("vnet"):
-                                run_steps(reset, ignore_errors=True)
+                                if self.config["vnet_parameters"].getboolean("mitm"):
+                                    if self.config["vnet_parameters"].getboolean(
+                                        "bridged"
+                                    ):
+                                        run_steps(reset_mim_bridged, ignore_errors=True)
+                                    else:
+                                        run_steps(reset_mim, ignore_errors=True)
+                                else:
+                                    run_steps(reset, ignore_errors=True)
 
                             self.current_executed_test_count += 1
                             self.bar_total_test.update(self.current_executed_test_count)

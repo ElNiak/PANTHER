@@ -320,15 +320,22 @@ def build_worker(implem, config, push=False):
 
     # Build the first ivy image
     logger.debug("Building Docker image ivy")
-    image_obj, log_generator = client.images.build(
-        path="panther_worker/",
-        dockerfile="Dockerfile.ivy_1",
-        tag="ivy",
-        rm=True,
-        # buildargs={"CACHEBUST": str(time.time())}, # Cache invalidation
-        network_mode="host",
-    )
-    log_docker_output(log_generator, "Building Docker image ivy")
+    try:
+        image_obj, log_generator = client.images.build(
+            path="panther_worker/",
+            dockerfile="Dockerfile.ivy_1",
+            tag="ivy",
+            rm=True,
+            # buildargs={"CACHEBUST": str(time.time())}, # Cache invalidation
+            network_mode="host",
+        )
+        log_docker_output(log_generator, "Building Docker image ivy")
+    except docker.errors.BuildError as e:
+        logger.debug("Hey something went wrong with image build!")
+        for line in e.build_log:
+            if "stream" in line:
+                logger.error(line["stream"].strip())
+        raise
 
     # Check if shadow build is needed
     shadow_tag = None
@@ -336,43 +343,66 @@ def build_worker(implem, config, push=False):
 
     if shadow_support.getboolean(implem):
         logger.debug("Building Docker image shadow-panther")
-        image_obj, log_generator = client.images.build(
-            path="panther_worker/",
-            dockerfile="Dockerfile.shadow",
-            tag="shadow-panther",
-            rm=True,
-            network_mode="host",
-        )
-        log_docker_output(log_generator, "Building Docker image shadow-panther")
-        shadow_tag = "shadow-panther"
+        try:
+            image_obj, log_generator = client.images.build(
+                path="panther_worker/",
+                dockerfile="Dockerfile.shadow",
+                tag="shadow-panther",
+                rm=True,
+                network_mode="host",
+            )
+            log_docker_output(log_generator, "Building Docker image shadow-panther")
+            shadow_tag = "shadow-panther"
+        except docker.errors.BuildError as e:
+            logger.debug("Hey something went wrong with image build!")
+            for line in e.build_log:
+                if "stream" in line:
+                    logger.error(line["stream"].strip())
+            raise
 
         # Build the picotls image
         build_args = {"image": shadow_tag}
         itag = "shadow-panther-picotls"
         logger.debug(f"Building Docker image {itag} from tag {build_args}")
-        image_obj, log_generator = client.images.build(
-            path="panther_worker/app/implementations/quic-implementations/picotls/",
-            dockerfile="Dockerfile.picotls",
-            tag=itag,
-            rm=True,
-            network_mode="host",
-            buildargs=build_args,
-        )
-        log_docker_output(log_generator, "Building Docker image shadow-panther-picotls")
+        try:
+            image_obj, log_generator = client.images.build(
+                path="panther_worker/app/implementations/quic-implementations/picotls/",
+                dockerfile="Dockerfile.picotls",
+                tag=itag,
+                rm=True,
+                network_mode="host",
+                buildargs=build_args,
+            )
+            log_docker_output(
+                log_generator, "Building Docker image shadow-panther-picotls"
+            )
+        except docker.errors.BuildError as e:
+            logger.debug("Hey something went wrong with image build!")
+            for line in e.build_log:
+                if "stream" in line:
+                    logger.error(line["stream"].strip())
+            raise
     else:
         # Build the picotls image
         build_args = {"image": "ivy"}
         itag = "panther-picotls"
         logger.debug(f"Building Docker image {itag} from tag {build_args}")
-        image_obj, log_generator = client.images.build(
-            path="panther_worker/app/implementations/quic-implementations/picotls/",
-            dockerfile="Dockerfile.picotls",
-            tag=itag,
-            rm=True,
-            network_mode="host",
-            buildargs=build_args,
-        )
-        log_docker_output(log_generator, "Building Docker image panther-picotls")
+        try:
+            image_obj, log_generator = client.images.build(
+                path="panther_worker/app/implementations/quic-implementations/picotls/",
+                dockerfile="Dockerfile.picotls",
+                tag=itag,
+                rm=True,
+                network_mode="host",
+                buildargs=build_args,
+            )
+            log_docker_output(log_generator, "Building Docker image panther-picotls")
+        except docker.errors.BuildError as e:
+            logger.debug("Hey something went wrong with image build!")
+            for line in e.build_log:
+                if "stream" in line:
+                    logger.error(line["stream"].strip())
+            raise
 
     # Build the specified implementation image
     build_args = (
@@ -381,28 +411,42 @@ def build_worker(implem, config, push=False):
         else {"image": "panther-picotls"}
     )
     logger.debug(f"Building Docker image {tag} from tag {build_args}")
-    image_obj, log_generator = client.images.build(
-        path=path,
-        dockerfile=dockerfile,
-        tag=tag,
-        rm=True,
-        network_mode="host",
-        buildargs=build_args,
-    )
+    try:
+        image_obj, log_generator = client.images.build(
+            path=path,
+            dockerfile=dockerfile,
+            tag=tag,
+            rm=True,
+            network_mode="host",
+            buildargs=build_args,
+        )
+        log_docker_output(log_generator, f"Building Docker image {tag}")
+    except docker.errors.BuildError as e:
+        logger.debug("Hey something went wrong with image build!")
+        for line in e.build_log:
+            if "stream" in line:
+                logger.error(line["stream"].strip())
+        raise
 
-    log_docker_output(log_generator, f"Building Docker image {tag}")
     # Build the final implementation-ivy image
     build_args = {"image": tag}
     logger.debug(f"Building Docker image {final_tag} from tag {build_args}")
-    image_obj, log_generator = client.images.build(
-        path="panther_worker/",
-        dockerfile="Dockerfile.ivy_2",
-        tag=final_tag,
-        rm=True,
-        network_mode="host",
-        buildargs=build_args,
-    )
-    log_docker_output(log_generator, f"Building Docker image {final_tag}")
+    try:
+        image_obj, log_generator = client.images.build(
+            path="panther_worker/",
+            dockerfile="Dockerfile.ivy_2",
+            tag=final_tag,
+            rm=True,
+            network_mode="host",
+            buildargs=build_args,
+        )
+        log_docker_output(log_generator, f"Building Docker image {final_tag}")
+    except docker.errors.BuildError as e:
+        logger.debug("Hey something went wrong with image build!")
+        for line in e.build_log:
+            if "stream" in line:
+                logger.error(line["stream"].strip())
+        raise
 
     if push:
         push_image_to_registry(final_tag)

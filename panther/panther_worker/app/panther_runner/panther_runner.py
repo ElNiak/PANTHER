@@ -175,6 +175,20 @@ class Runner:
             ),
         )
 
+    def start_tshark(self, interfaces, pcap_protocol):
+        for ns, interface, pcap_file in interfaces:
+            if self.config["net_parameters"].getboolean("vnet"):
+                cmd = ["tshark", "-w", pcap_file, "-i", interface]
+            else:
+                cmd = ["tshark", "-w", pcap_file, "-i", interface, "-f", pcap_protocol]
+            if ns:
+                cmd = ["ip", "netns", "exec", ns] + cmd
+            p = subprocess.Popen(cmd, stdout=sys.stdout)
+            self.log.info(
+                f"Started tshark for {ns}:{interface} capturing to {pcap_file}"
+            )
+        return p
+
     def record_pcap(self, pcap_name):
         self.log.info("Start tshark pcap recording")
         # time.sleep(10) # for server test
@@ -185,187 +199,158 @@ class Runner:
             ]
         else:
             current_protocol = self.current_protocol
+
         pcap_protocol = self.protocol_conf[current_protocol + "_parameters"]["protocol"]
 
         if self.config["net_parameters"].getboolean("vnet"):
-            if "mim" in pcap_name or "attack" in pcap_name:
+            if self.config["vnet_parameters"].getboolean("mitm"):
+                if self.config["vnet_parameters"].getboolean("bridged"):
+                    interfaces = [
+                        ("ivy", "lo", pcap_name),
+                        (
+                            "tested_client",
+                            "lo",
+                            pcap_name.replace("ivy_lo_", "client_lo_"),
+                        ),
+                        (
+                            "tested_server",
+                            "lo",
+                            pcap_name.replace("ivy_lo_", "server_lo_"),
+                        ),
+                        ("ivy", "veth_ivy", pcap_name.replace("ivy_lo_", "ivy_veth_")),
+                        (
+                            "tested_client",
+                            "veth_client",
+                            pcap_name.replace("ivy_lo_", "client_veth_"),
+                        ),
+                        (
+                            "tested_server",
+                            "veth_server",
+                            pcap_name.replace("ivy_lo_", "server_veth_"),
+                        ),
+                        ("", "br_ivy", pcap_name.replace("ivy_lo_", "br_ivy_")),
+                        ("", "br_client", pcap_name.replace("ivy_lo_", "br_client_")),
+                        ("", "br_server", pcap_name.replace("ivy_lo_", "br_server_")),
+                    ]
+                else:
+                    interfaces = [
+                        ("ivy", "lo", pcap_name),
+                        (
+                            "tested_client",
+                            "lo",
+                            pcap_name.replace("ivy_lo_", "client_lo_"),
+                        ),
+                        (
+                            "tested_server",
+                            "lo",
+                            pcap_name.replace("ivy_lo_", "server_lo_"),
+                        ),
+                        (
+                            "ivy",
+                            "ivy_client",
+                            pcap_name.replace("ivy_lo_", "ivy_client_"),
+                        ),
+                        (
+                            "ivy",
+                            "ivy_server",
+                            pcap_name.replace("ivy_lo_", "ivy_server_"),
+                        ),
+                        (
+                            "tested_client",
+                            "client_ivy",
+                            pcap_name.replace("ivy_lo_", "client_"),
+                        ),
+                        (
+                            "tested_server",
+                            "server_ivy",
+                            pcap_name.replace("ivy_lo_", "server_"),
+                        ),
+                        (
+                            "tested_client",
+                            "client_server",
+                            pcap_name.replace("ivy_lo_", "client_server_"),
+                        ),
+                        (
+                            "tested_server",
+                            "server_client",
+                            pcap_name.replace("ivy_lo_", "server_client_"),
+                        ),
+                    ]
+            else:
                 interfaces = [
                     ("ivy", "lo", pcap_name),
-                    ("tested_client", "lo", pcap_name.replace("ivy_lo_", "client_lo_")),
-                    ("tested_server", "lo", pcap_name.replace("ivy_lo_", "server_lo_")),
+                    ("implem", "lo", pcap_name.replace("ivy_lo_", "implem_lo_")),
                     ("ivy", "ivy_client", pcap_name.replace("ivy_lo_", "ivy_client_")),
-                    ("ivy", "ivy_server", pcap_name.replace("ivy_lo_", "ivy_server_")),
                     (
-                        "tested_client",
-                        "client_ivy",
-                        pcap_name.replace("ivy_lo_", "client_"),
-                    ),
-                    (
-                        "tested_server",
-                        "server_ivy",
-                        pcap_name.replace("ivy_lo_", "server_"),
-                    ),
-                    (
-                        "tested_client",
-                        "client_server",
-                        pcap_name.replace("ivy_lo_", "client_server_"),
-                    ),
-                    (
-                        "tested_server",
-                        "server_client",
-                        pcap_name.replace("ivy_lo_", "server_client_"),
+                        "implem",
+                        "implem_client",
+                        pcap_name.replace("ivy_lo_", "implem_client_"),
                     ),
                 ]
-
-                for ns, interface, pcap_file in interfaces:
-                    p = subprocess.Popen(
-                        [
-                            "ip",
-                            "netns",
-                            "exec",
-                            ns,
-                            "tshark",
-                            "-w",
-                            pcap_file,
-                            "-i",
-                            interface,
-                            "-f",
-                            pcap_protocol,
-                        ],
-                        stdout=sys.stdout,
-                    )
-
-            else:
-                interface = "lo"
-                p = subprocess.Popen(
-                    [
-                        "ip",
-                        "netns",
-                        "exec",
-                        "ivy",
-                        "tshark",
-                        "-w",
-                        pcap_name,
-                        "-i",
-                        interface,
-                        "-f",
-                        pcap_protocol,
-                    ],
-                    stdout=sys.stdout,
-                )
-                p = subprocess.Popen(
-                    [
-                        "ip",
-                        "netns",
-                        "exec",
-                        "implem",
-                        "tshark",
-                        "-w",
-                        pcap_name.replace("ivy_lo_", "implem_lo_"),
-                        "-i",
-                        interface,
-                        "-f",
-                        pcap_protocol,
-                    ],
-                    stdout=sys.stdout,
-                )
-                interface = "ivy"
-                p = subprocess.Popen(
-                    [
-                        "ip",
-                        "netns",
-                        "exec",
-                        "ivy",
-                        "tshark",
-                        "-w",
-                        pcap_name.replace("ivy_lo_", "ivy_ivy_"),
-                        "-i",
-                        interface,
-                        "-f",
-                        pcap_protocol,
-                    ],
-                    stdout=sys.stdout,
-                )
-                interface = "implem"
-                p = subprocess.Popen(
-                    [
-                        "ip",
-                        "netns",
-                        "exec",
-                        "implem",
-                        "tshark",
-                        "-w",
-                        pcap_name.replace("ivy_lo_", "implem_"),
-                        "-i",
-                        interface,
-                        "-f",
-                        pcap_protocol,
-                    ],
-                    stdout=sys.stdout,
-                )
         elif self.config["net_parameters"].getboolean("shadow"):
-            p = None
+            return None
         else:
-            interface = "lo"
-            p = subprocess.Popen(
-                [
-                    "sudo",
-                    "tshark",
-                    "-w",
-                    pcap_name,
-                    "-i",
-                    interface,
-                    "-f",
-                    pcap_protocol,
-                ],
-                stdout=sys.stdout,
-            )
+            interfaces = [("", "lo", pcap_name)]
+
+        p = self.start_tshark(interfaces, pcap_protocol)
         time.sleep(3)  # TODO .wait() ?
         return p
 
     def config_pcap(self, ivy_dir, implem, test):
+        def prepare_pcap_files(base_name, suffixes):
+            for suffix in suffixes:
+                file = base_name.replace("ivy_lo_", suffix)
+                open(file, mode="w").close()
+                subprocess.Popen(
+                    f"/bin/chmod o=xw {file}",
+                    shell=True,
+                    executable="/bin/bash",
+                ).wait()
+
         if self.config["net_parameters"].getboolean("vnet"):
-            if "mim" in test or "attack" in test:
-                pcap_name = (
-                    ivy_dir
-                    + "/ivy_lo_"
-                    + implem
-                    + "_"
-                    + test.replace(".ivy", "")
-                    + ".pcap"
-                )
-                open(pcap_name, mode="w").close()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw " + pcap_name,
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
-                open(pcap_name.replace("ivy_lo_", "ivy_client_"), mode="w").close()
-                open(pcap_name.replace("ivy_lo_", "ivy_server_"), mode="w").close()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw "
-                    + pcap_name.replace("ivy_lo_", "ivy_client_"),
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw "
-                    + pcap_name.replace("ivy_lo_", "ivy_server_"),
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
-                open(pcap_name.replace("ivy_lo_", "client_"), mode="w").close()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "client_"),
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
-                open(pcap_name.replace("ivy_lo_", "server_"), mode="w").close()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "server_"),
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
+            if self.config["vnet_parameters"].getboolean("mitm"):
+                if self.config["vnet_parameters"].getboolean("bridged"):
+                    pcap_name = (
+                        ivy_dir
+                        + "/ivy_lo_"
+                        + implem
+                        + "_"
+                        + test.replace(".ivy", "")
+                        + ".pcap"
+                    )
+                    suffixes = [
+                        "ivy_lo_",
+                        "client_lo_",
+                        "server_lo_",
+                        "ivy_veth_",
+                        "client_veth_",
+                        "server_veth_",
+                        "br_ivy_",
+                        "br_client_",
+                        "br_server_",
+                    ]
+                    prepare_pcap_files(pcap_name, suffixes)
+                else:
+                    pcap_name = (
+                        ivy_dir
+                        + "/ivy_lo_"
+                        + implem
+                        + "_"
+                        + test.replace(".ivy", "")
+                        + ".pcap"
+                    )
+                    suffixes = [
+                        "ivy_lo_",
+                        "client_lo_",
+                        "server_lo_",
+                        "ivy_client_",
+                        "ivy_server_",
+                        "client_",
+                        "server_",
+                        "client_server_",
+                        "server_client_",
+                    ]
+                    prepare_pcap_files(pcap_name, suffixes)
             else:
                 pcap_name = (
                     ivy_dir
@@ -375,36 +360,13 @@ class Runner:
                     + test.replace(".ivy", "")
                     + ".pcap"
                 )
-                open(pcap_name, mode="w").close()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw " + pcap_name,
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
-                open(pcap_name.replace("ivy_lo_", "ivy_ivy_"), mode="w").close()
-                open(pcap_name.replace("ivy_lo_", "implem_lo_"), mode="w").close()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "ivy_ivy_"),
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw "
-                    + pcap_name.replace("ivy_lo_", "implem_lo_"),
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
-                open(pcap_name.replace("ivy_lo_", "implem_"), mode="w").close()
-                subprocess.Popen(
-                    "sudo /bin/chmod o=xw " + pcap_name.replace("ivy_lo_", "implem_"),
-                    shell=True,
-                    executable="/bin/bash",
-                ).wait()
+                suffixes = ["ivy_lo_", "ivy_ivy_", "implem_lo_", "implem_"]
+                prepare_pcap_files(pcap_name, suffixes)
         else:
             pcap_name = ivy_dir + "/" + implem + "_" + test + ".pcap"
             open(pcap_name, mode="w").close()
             subprocess.Popen(
-                "sudo /bin/chmod o=xw " + pcap_name, shell=True, executable="/bin/bash"
+                f"/bin/chmod o=xw {pcap_name}", shell=True, executable="/bin/bash"
             ).wait()
         return pcap_name
 

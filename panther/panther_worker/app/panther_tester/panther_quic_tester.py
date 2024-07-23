@@ -473,28 +473,44 @@ class QUICIvyTest(IvyTest):
                     envs = envs + env_var + '="' + ENV_VAR[env_var] + '" '
                 else:
                     envs = envs + env_var + '="' + os.environ.get(env_var) + '" '
+
             if not self.is_mim:
                 self.implem_cmd = "sudo ip netns exec implem "
                 self.implem_cmd = self.implem_cmd + envs + implem_cmd_copy
                 self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.1")
                 self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.1")
             else:
-                self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.5")
-                self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.5")
+                if self.config["vnet_parameters"].getboolean("bridged"):
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.2")
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.2")
 
-                self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
-                    "11.0.0.1", "10.0.0.6"
-                )
-                self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
-                    "11.0.0.3", "10.0.0.6"
-                )
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.1", "10.0.0.3"
+                    )
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.3", "10.0.0.3"
+                    )
+                else:
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.5")
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.5")
+
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.1", "10.0.0.6"
+                    )
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.3", "10.0.0.6"
+                    )
 
                 maxreplace = 1
                 self.implem_cmd = (
                     "sudo ip netns exec tested_server " + envs + self.implem_cmd
                 )
                 old = "implem"
-                new = "client_server"
+                new = (
+                    "veth_server"
+                    if self.config["vnet_parameters"].getboolean("bridged")
+                    else "server_client"
+                )
                 self.implem_cmd = new.join(self.implem_cmd.rsplit(old, maxreplace))
 
                 self.implem_cmd_opposite = (
@@ -503,7 +519,11 @@ class QUICIvyTest(IvyTest):
                     + self.implem_cmd_opposite
                 )
                 old = "implem"
-                new = "server_client"
+                new = (
+                    "veth_client"
+                    if self.config["vnet_parameters"].getboolean("bridged")
+                    else "client_server"
+                )
                 self.implem_cmd_opposite = new.join(
                     self.implem_cmd_opposite.rsplit(old, maxreplace)
                 )
@@ -780,7 +800,7 @@ class QUICIvyTest(IvyTest):
                         and not self.config["net_parameters"].getboolean("shadow")
                         else ""
                     ) + self.implem_cmd  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
-                    qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
+
                     self.log.info("Implementation command: {}".format(qcmd))
                     self.log.info(
                         "Implementation diretory: {}".format(
@@ -840,9 +860,7 @@ class QUICIvyTest(IvyTest):
             print("Implementation command server: {}".format(qcmd))
             self.quic_process_1 = subprocess.Popen(
                 qcmd,
-                cwd=(
-                    self.implem_dir_client if self.is_client else self.implem_dir_server
-                ),
+                cwd=(self.implem_dir_server),
                 stdout=out,
                 stderr=err,
                 shell=True,  # self.is_client,
@@ -852,21 +870,17 @@ class QUICIvyTest(IvyTest):
             print("quic_process_1 pid: {}".format(self.quic_process_1.pid))
 
             qcmd = (
-                "sleep 10; "
+                "sleep 15; "
                 + "RUST_LOG='debug' RUST_BACKTRACE=1  exec "
                 + self.implem_cmd_opposite
             )  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
             self.log.info("Implementation command client: {}".format(qcmd))
             print("Implementation command client: {}".format(qcmd))
-            with self.open_out(self.name + "_server.out") as out_c:
+            with self.open_out(self.name + "_client.out") as out_c:
                 with self.open_out(self.name + "_client.err") as err_c:
                     self.quic_process_2 = subprocess.Popen(
                         qcmd,
-                        cwd=(
-                            self.implem_dir_client
-                            if self.is_client
-                            else self.implem_dir_server
-                        ),
+                        cwd=(self.implem_dir_client),
                         stdout=out_c,
                         stderr=err_c,
                         shell=True,  # self.is_client,
@@ -1014,6 +1028,8 @@ class QUICIvyTest(IvyTest):
             self.config["global_parameters"].getint("timeout")
         )
 
+        ENV_VAR["PROTOCOL_TESTED"] = self.current_protocol
+
         timeout_cmd = ("sleep 5; " if not self.is_client else "") + timeout_cmd
 
         randomSeed = random.randint(0, 1000)
@@ -1112,8 +1128,12 @@ class QUICIvyTest(IvyTest):
 
         if self.config["net_parameters"].getboolean("vnet"):
             if self.is_mim:
-                ip_server = 0x0A000004
-                ip_client = 0x0A000002
+                if self.config["vnet_parameters"].getboolean("bridged"):
+                    ip_client = 0x0A000002
+                    ip_server = 0x0A000003
+                else:
+                    ip_server = 0x0A000004
+                    ip_client = 0x0A000002
             else:
                 ip_server = 0x0A000002 if not self.is_client else 0x0A000001
                 ip_client = 0x0A000001 if not self.is_client else 0x0A000002

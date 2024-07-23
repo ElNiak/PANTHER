@@ -91,6 +91,10 @@ setup_mim_ivy = [
 
 
 setup_mim = [
+    # Clean up existing namespaces and veth pairs if they exist
+    "ip netns del ivy || true",
+    "ip netns del tested_client || true",
+    "ip netns del tested_server || true",
     "ip netns add ivy",
     "ip netns add tested_client",
     "ip netns add tested_server",
@@ -146,6 +150,9 @@ setup_mim = [
     "ip netns exec ivy                  sysctl -w net.ipv4.ip_forward=1",
     "ip netns exec tested_client        sysctl -w net.ipv4.ip_forward=1",
     "ip netns exec tested_server        sysctl -w net.ipv4.ip_forward=1",
+    # Set up NAT for forwarding
+    "ip netns exec ivy iptables -t nat -A POSTROUTING -o ivy_client -j MASQUERADE",
+    "ip netns exec ivy iptables -t nat -A POSTROUTING -o ivy_server -j MASQUERADE",
     # Verify loopback interfaces
     "ip netns exec ivy                  ip addr",
     "ip netns exec tested_client        ip addr",
@@ -167,8 +174,8 @@ setup_mim = [
     "ip netns exec tested_client ping -c 3 10.0.0.6",  # client to server
     "ip netns exec tested_server ping -c 3 10.0.0.3",  # server to ivy
     "ip netns exec tested_server ping -c 3 10.0.0.5",  # server to client
-    "ip netns exec ivy ping -c 3 10.0.0.2",  # ivy to client
-    "ip netns exec ivy ping -c 3 10.0.0.4"  # ivy to server
+    "ip netns exec ivy           ping -c 3 10.0.0.2",  # ivy to client
+    "ip netns exec ivy           ping -c 3 10.0.0.4",  # ivy to server
     "ip netns exec ivy                  ip route",
     "ip netns exec tested_client        ip route",
     "ip netns exec tested_server        ip route",
@@ -189,12 +196,103 @@ setup_mim = [
     # Install and run ARP spoofing (requires arpspoof utility from dsniff package)
     # "ip netns exec ivy                  arpspoof -i ivy_client -t 10.0.0.2 10.0.0.4 &",
     # "ip netns exec ivy                  arpspoof -i ivy_server -t 10.0.0.4 10.0.0.2 &"
+    "ip netns exec tested_client ip neigh",
+    "ip netns exec tested_server ip neigh",
+    "ip netns exec ivy ip neigh",
 ]
 
 reset_mim = [
     "ip netns del ivy",
     "ip netns del tested_server",
     "ip netns del tested_client",
+]
+
+setup_mim_bridged = [
+    # Clean up existing namespaces and veth pairs if they exist
+    "ip netns del ivy || true",
+    "ip netns del tested_client || true",
+    "ip netns del tested_server || true",
+    "ip link delete veth_ivy || true",
+    "ip link delete veth_client || true",
+    "ip link delete veth_server || true",
+    "ip link delete br_ivy || true",
+    "ip link delete br_client || true",
+    "ip link delete br_server || true",
+    # Create network namespaces
+    "ip netns add ivy",
+    "ip netns add tested_client",
+    "ip netns add tested_server",
+    # Create a bridge in the root namespace
+    "ip link add name ivy_bro type bridge",
+    "ip link set ivy_bro up",
+    # Create veth pairs
+    "ip link add veth_ivy type veth peer name br_ivy",
+    "ip link add veth_client type veth peer name br_client",
+    "ip link add veth_server type veth peer name br_server",
+    # Assign veth pairs to namespaces
+    "ip link set veth_ivy netns ivy",
+    "ip link set veth_client netns tested_client",
+    "ip link set veth_server netns tested_server",
+    # Attach the bridge side of veth pairs to the bridge
+    "ip link set br_ivy master ivy_bro",
+    "ip link set br_client master ivy_bro",
+    "ip link set br_server master ivy_bro",
+    "ip link set br_ivy up",
+    "ip link set br_client up",
+    "ip link set br_server up",
+    # Assign IP addresses to the interfaces in the namespaces
+    "ip netns exec ivy           ip addr add 10.0.0.1/24 dev veth_ivy",
+    "ip netns exec tested_client ip addr add 10.0.0.2/24 dev veth_client",
+    "ip netns exec tested_server ip addr add 10.0.0.3/24 dev veth_server",
+    # Bring up the interfaces in the namespaces
+    "ip netns exec ivy           ip link set veth_ivy up",
+    "ip netns exec tested_client ip link set veth_client up",
+    "ip netns exec tested_server ip link set veth_server up",
+    # Bring up the loopback interfaces
+    "ip netns exec ivy ip link set lo up",
+    "ip netns exec tested_client ip link set lo up",
+    "ip netns exec tested_server ip link set lo up",
+    # Enable IP forwarding
+    # "ip netns exec ivy iptables -t nat -A POSTROUTING -o veth_ivy -j MASQUERADE",
+    "ip netns exec ivy sysctl -w net.ipv4.ip_forward=0",  # Disable IP forwarding for arpspoof TODO make more flexible
+    "ip netns exec ivy sysctl -w net.ipv4.ip_nonlocal_bind=1"
+    # "ip netns exec tested_client sysctl -w net.ipv4.ip_forward=1",
+    # "ip netns exec tested_server sysctl -w net.ipv4.ip_forward=1",
+    # Check MTU
+    "ip netns exec ivy ip link show veth_ivy",
+    "ip netns exec tested_client ip link show veth_client",
+    "ip netns exec tested_server ip link show veth_server",
+    "ip link show br_ivy",
+    "ip link show br_client",
+    "ip link show br_server",
+    # Changing MTU to 5000
+    "ip netns exec ivy ip link set dev veth_ivy mtu 5000",
+    "ip netns exec tested_client ip link set dev veth_client mtu 5000",
+    "ip netns exec tested_server ip link set dev veth_server mtu 5000",
+    "ip link set dev br_ivy mtu 5000",
+    "ip link set dev br_client mtu 5000",
+    "ip link set dev br_server mtu 5000",
+    # Verify routes
+    "ip netns exec ivy ip route",
+    "ip netns exec tested_client ip route",
+    "ip netns exec tested_server ip route",
+    # Test connectivity by pinging between namespaces
+    "ip netns exec tested_client ping -c 3 10.0.0.3",  # client to server
+    "ip netns exec tested_server ping -c 3 10.0.0.2",  # server to client
+    "ip netns exec ivy ping -c 3 10.0.0.2",  # ivy to client
+    "ip netns exec ivy ping -c 3 10.0.0.3"  # ivy to server
+    # # Start ARP spoofing from ivy targeting both client and server, with logging
+    # "ip netns exec ivy arpspoof -i veth_ivy -t 10.0.0.2 -r 10.0.0.3 > /tmp/arpspoof_ivy.log 2>&1 &",
+    # "ip netns exec ivy arpspoof -i veth_ivy -t 10.0.0.3 -r 10.0.0.2 > /tmp/arpspoof_ivy.log 2>&1 &",
+]
+
+reset_mim_bridged = [
+    "ip netns del ivy",
+    "ip netns del tested_server",
+    "ip netns del tested_client",
+    # Delete the bridge
+    "ip link set ivy_bro down",
+    "ip link delete ivy_bro",
 ]
 
 

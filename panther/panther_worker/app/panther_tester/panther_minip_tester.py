@@ -59,8 +59,75 @@ class MiniPIvyTest(IvyTest):
         )
         self.log.setLevel(int(os.environ["LOG_LEVEL"]))
 
+        self.is_mim = True if "mim" in self.mode else False  # TODO
+
     def update_implementation_command(self, i):
-        return i
+        self.log.debug(f"Update implementation before {self.implem_cmd}")
+        if self.config["net_parameters"].getboolean("vnet"):
+            implem_cmd_copy = self.implem_cmd
+            # if self.implementation_name == "picoquic":
+            #     implem_cmd = "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'  + implem_cmd + "cd " + IMPLEM_DIR.replace("$PROT",self.current_protocol) + '/picoquic;'
+            envs = "env - "
+            for env_var in ENV_VAR:
+                if env_var != "PATH":  # TODO remove it is useless
+                    envs = envs + env_var + '="' + ENV_VAR[env_var] + '" '
+                else:
+                    envs = envs + env_var + '="' + os.environ.get(env_var) + '" '
+
+            if not self.is_mim:
+                self.implem_cmd = "sudo ip netns exec implem "
+                self.implem_cmd = self.implem_cmd + envs + implem_cmd_copy
+                self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.1")
+                self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.1")
+            else:
+                if self.config["vnet_parameters"].getboolean("bridged"):
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.3")
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.2", "10.0.0.3")
+
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.1", "10.0.0.3"
+                    )
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.3", "10.0.0.3"
+                    )
+                else:
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.1", "10.0.0.5")
+                    self.implem_cmd = self.implem_cmd.replace("11.0.0.3", "10.0.0.5")
+
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.1", "10.0.0.6"
+                    )
+                    self.implem_cmd_opposite = self.implem_cmd_opposite.replace(
+                        "11.0.0.3", "10.0.0.6"
+                    )
+
+                maxreplace = 1
+                self.implem_cmd = (
+                    "sudo ip netns exec tested_server " + envs + self.implem_cmd
+                )
+                old = "implem"
+                new = (
+                    "veth_server"
+                    if self.config["vnet_parameters"].getboolean("bridged")
+                    else "server_client"
+                )
+                self.implem_cmd = new.join(self.implem_cmd.rsplit(old, maxreplace))
+
+                self.implem_cmd_opposite = (
+                    "sudo ip netns exec tested_client "
+                    + envs
+                    + self.implem_cmd_opposite
+                )
+                old = "implem"
+                new = (
+                    "veth_client"
+                    if self.config["vnet_parameters"].getboolean("bridged")
+                    else "client_server"
+                )
+                self.implem_cmd_opposite = new.join(
+                    self.implem_cmd_opposite.rsplit(old, maxreplace)
+                )
+        self.log.debug(f"Update implementation after {self.implem_cmd}")
 
     def generate_shadow_config(self):
         server_implem_args = (
@@ -221,29 +288,49 @@ class MiniPIvyTest(IvyTest):
             self.update_implementation_command(i)
             self.log.info(self.implem_cmd)
             qcmd = (
-                "sleep 5; "
+                "sleep 5; exec "
                 if self.is_client
                 and not self.config["net_parameters"].getboolean("shadow")
-                else ""
+                else "exec "
             ) + self.implem_cmd  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
-            qcmd = 'RUST_LOG="debug" RUST_BACKTRACE=1 ' + qcmd
-            self.log.info("implementation command: {}".format(qcmd))
-            if not self.config["net_parameters"].getboolean("shadow"):
-                self.log.info("not shadow test:")
-                self.implem_process = subprocess.Popen(
+
+            if self.is_mim:
+                self.log.info("Implementation command server: {}".format(qcmd))
+                print("Implementation command server: {}".format(qcmd))
+                self.minip_process_1 = subprocess.Popen(
                     qcmd,
-                    cwd=(
-                        self.implem_dir_client
-                        if self.is_client
-                        else self.implem_dir_server
-                    ),
+                    cwd=(self.implem_dir_server),
                     stdout=out,
                     stderr=err,
                     shell=True,  # self.is_client,
                     preexec_fn=self.set_process_limits,
                 )
-                self.log.info("implem_process pid: {}".format(self.implem_process.pid))
-            else:
+                self.log.info(
+                    "minip_process_1 pid: {}".format(self.minip_process_1.pid)
+                )
+                print("minip_process_1 pid: {}".format(self.minip_process_1.pid))
+
+                qcmd = (
+                    "sleep 5; exec "
+                ) + self.implem_cmd_opposite  # if self.is_client else implem_cmd.split()  #if is client 'sleep 5; ' +
+                self.log.info("Implementation command client: {}".format(qcmd))
+                print("Implementation command client: {}".format(qcmd))
+                with self.open_out(self.name + "_client.out") as out_c:
+                    with self.open_out(self.name + "_client.err") as err_c:
+                        self.minip_process_2 = subprocess.Popen(
+                            qcmd,
+                            cwd=(self.implem_dir_client),
+                            stdout=out_c,
+                            stderr=err_c,
+                            shell=True,  # self.is_client,
+                            preexec_fn=self.set_process_limits,
+                        )
+                self.log.info(
+                    "minip_process_2 pid: {}".format(self.minip_process_2.pid)
+                )
+                print("minip_process_2 pid: {}".format(self.minip_process_2.pid))
+
+            elif self.config["net_parameters"].getboolean("shadow"):
                 # TODO use config file
                 self.log.info("Generating shadow config:")
                 file = self.generate_shadow_config()
@@ -254,6 +341,25 @@ class MiniPIvyTest(IvyTest):
                     os.system("RUST_BACKTRACE=1 shadow " + file + " > shadow.log")
                 except:
                     pass
+            else:
+                self.log.info("implementation command: {}".format(qcmd))
+                if not self.config["net_parameters"].getboolean("shadow"):
+                    self.log.info("not shadow test:")
+                    self.implem_process = subprocess.Popen(
+                        qcmd,
+                        cwd=(
+                            self.implem_dir_client
+                            if self.is_client
+                            else self.implem_dir_server
+                        ),
+                        stdout=out,
+                        stderr=err,
+                        shell=True,  # self.is_client,
+                        preexec_fn=self.set_process_limits,
+                    )
+                    self.log.info(
+                        "implem_process pid: {}".format(self.implem_process.pid)
+                    )
 
     def start_tester(self, iteration, iev, i):
         self.log.info("Starting tester:")
@@ -317,6 +423,8 @@ class MiniPIvyTest(IvyTest):
             self.config["global_parameters"].getint("timeout")
         )
 
+        ENV_VAR["PROTOCOL_TESTED"] = self.current_protocol
+
         randomSeed = random.randint(0, 1000)
         random.seed(datetime.now())
 
@@ -324,11 +432,21 @@ class MiniPIvyTest(IvyTest):
         server_port = 4443
         client_port = 2 * iteration + 4987 + iclient
 
-        print(self.name)
-        # time.sleep(5)
         if self.config["debug_parameters"].getboolean("gdb"):
+            self.log.debug("Prefix added: gdb")
             # TODO refactor
             prefix = " gdb --args "
+        if self.config["debug_parameters"].getboolean("ptrace"):
+            self.log.debug("Prefix added: ptrace")
+            # TODO refactor
+            prefix = " ptrace "
+        if self.config["debug_parameters"].getboolean("strace"):
+            self.log.debug("Prefix added: strace")
+            # TODO refactor
+            prefix = strace_cmd + " "
+
+        print(self.name)
+
         if self.config["net_parameters"].getboolean("vnet"):
             envs = "env - "
             for env_var in ENV_VAR:
@@ -339,14 +457,29 @@ class MiniPIvyTest(IvyTest):
             prefix = (
                 "sudo ip netns exec ivy "
                 + envs
-                + " "
-                + strace_cmd
-                + " "
-                + gperf_cmd
+                + (
+                    (" " + strace_cmd)
+                    if self.config["debug_parameters"].getboolean("ptrace")
+                    else ""
+                )
+                + (
+                    (" " + gperf_cmd)
+                    if self.config["debug_parameters"].getboolean("gperf")
+                    else ""
+                )
                 + " "
             )
-            ip_server = 0x0A000003 if not self.is_client else 0x0A000001
-            ip_client = 0x0A000001 if not self.is_client else 0x0A000003
+            if self.config["net_parameters"].getboolean("vnet"):
+                if self.is_mim:
+                    if self.config["vnet_parameters"].getboolean("bridged"):
+                        ip_client = 0x0A000002
+                        ip_server = 0x0A000003
+                    else:
+                        ip_server = 0x0A000004
+                        ip_client = 0x0A000002
+                else:
+                    ip_server = 0x0A000002 if not self.is_client else 0x0A000001
+                    ip_client = 0x0A000001 if not self.is_client else 0x0A000002
         elif self.config["net_parameters"].getboolean("shadow"):
             ip_server = 0x0B000002 if not self.is_client else 0x0B000001
             ip_client = 0x0B000001 if not self.is_client else 0x0B000002
@@ -354,6 +487,8 @@ class MiniPIvyTest(IvyTest):
             # prefix = strace_cmd + " "
             ip_server = 0x7F000001
             ip_client = ip_server
+
+        self.log.debug(f"Prefix of tester command: {prefix}")
 
         return " ".join(
             [

@@ -448,6 +448,7 @@ def get_protocol_config(config, protocol, get_all_test=False, get_default_conf=F
     protocol_conf = configparser.ConfigParser(allow_no_value=True)
     for envar in P_ENV_VAR[protocol]:
         os.environ[envar] = P_ENV_VAR[protocol][envar]
+        ENV_VAR[envar] = P_ENV_VAR[protocol][envar]  # TODO only for quic
 
     if get_default_conf:
         protocol_conf.read(
@@ -471,7 +472,7 @@ def get_protocol_config(config, protocol, get_all_test=False, get_default_conf=F
         "global_parameters", "build_dir", os.path.join(MODEL_DIR, protocol, "build")
     )
 
-    protocol_test_path = os.path.join(protocol_model_path, "tests/")
+    protocol_test_path = os.path.join(protocol_model_path, "test/")
     protocol_results_path = os.path.join(protocol_model_path, "test/", "temp/")
 
     if not os.path.isdir(os.path.join(protocol_model_path, "test/")):

@@ -61,6 +61,7 @@ def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
                     "/app/implementations/",
                     "${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
                     "${PWD}/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
+                    "${PWD}/panther_worker/app/panther-ivy/ivy/ivy_to_cpp.py:/app/panther-ivy/ivy/ivy_to_cpp.py",
                     "${PWD}/outputs/tls-keys:/app/tls-keys",
                     "${PWD}/outputs/tickets:/app/tickets",
                     "${PWD}/outputs/qlogs:/app/qlogs",

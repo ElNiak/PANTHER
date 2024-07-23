@@ -7,6 +7,7 @@
 import json
 import os
 import socket
+import subprocess
 import time
 import uuid
 import threading
@@ -43,6 +44,28 @@ from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 SOURCE_DIR = os.getcwd()
 
 logging.getLogger().setLevel(int(os.environ["LOG_LEVEL"]))
+
+
+def execute_command(command, cwd=None):
+    """
+    Executes a command in the shell.
+
+    Args:
+        command (str): The command to be executed.
+        tmux (bool, optional): If True, the command will be executed in a tmux session. Defaults to None.
+        cwd (str, optional): The current working directory for the command. Defaults to None.
+
+    Raises:
+        subprocess.CalledProcessError: If the command execution returns a non-zero exit code.
+    """
+    logger.debug(f"Executing command: {command}")
+
+    if cwd:
+        result = subprocess.run(command, shell=True, cwd=cwd)
+    else:
+        result = subprocess.run(command, shell=True)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, command)
 
 
 class PFVServer:
@@ -164,6 +187,7 @@ class PFVServer:
         if PFVServer.is_experiment_started:
             PFVServer.emit_progress_update()
             PFVServer.reset_experiment_state()
+        execute_command("chown -R $UID:$GID $PWD/")
         return jsonify({"status": "success"}), 200
 
     @app.route("/finish-experiment", methods=["GET"])
@@ -171,6 +195,7 @@ class PFVServer:
         if PFVServer.is_experiment_started:
             PFVServer.emit_progress_update()
             PFVServer.reset_experiment_state()
+        execute_command("chown -R $UID:$GID $PWD/")
         return jsonify({"status": "success"}), 200
 
     def get_args():

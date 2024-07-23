@@ -170,6 +170,11 @@ class Panther:
         )
 
         files = self.find_ivy_files()
+
+        if int(os.environ["LOG_LEVEL"]) < logging.DEBUG:
+            self.log.info("Removing debug events")
+            self.remove_debug_events(files)
+
         for file in files:
             self.log.debug("\t- " + file)
             self.included_files.append(file)
@@ -253,6 +258,32 @@ class Panther:
             if old_name in file:
                 file = file.replace(old_name, new_name)
                 self.compile_file(file)
+
+    def remove_debug_events(self, files):
+        self.log.info("Removing debug events")
+        for file in files:
+            with open(file, "r") as f:
+                lines = f.readlines()
+            with open(file, "w") as f:
+                for line in lines:
+                    if "debug_event" not in line and not line.startswith("##"):
+                        f.write(line)
+                    else:
+                        self.log.debug(f"Removing debug event: {line}")
+                        f.write("##" + line)
+
+    def restore_debug_events(self, files):
+        self.log.info("Restoring debug events")
+        for file in files:
+            with open(file, "r") as f:
+                lines = f.readlines()
+            with open(file, "w") as f:
+                for line in lines:
+                    if line.startswith("##") and "debug_event" in line:
+                        self.log.debug(f"Restoring debug event: {line}")
+                        f.write(line[2:])
+                    else:
+                        f.write(line)
 
     def build_file(self, file):
         """_summary_
@@ -381,7 +412,7 @@ class Panther:
                 self.log.debug(self.current_protocol)
                 self.log.debug(self.conf_implementation_enable)
                 self.log.debug(self.tests_enabled)
-                # exit()
+                os.environ["APT_TEST"] = "true"
                 runner = APTRunner(
                     self.config,
                     self.protocol_conf,
@@ -443,14 +474,6 @@ class Panther:
                         self.log.info(x)
                     except:
                         pass
-                finally:  # In Runner.py
-                    if self.config["net_parameters"].getboolean("vnet"):
-                        self.log.debug("Reset vnet")
-                        subprocess.Popen(
-                            "bash  /app/scripts/vnet/vnet_reset.sh",
-                            shell=True,
-                            executable="/bin/bash",
-                        ).wait()
 
             self.log.info("Experiments finished")
 
@@ -485,6 +508,9 @@ class Panther:
                 pass
             self.log.error("END ERRORED")
             # exit(1)
+        finally:
+            if int(os.environ["LOG_LEVEL"]) < logging.DEBUG:
+                self.restore_debug_events(self.included_files)
 
     def generate_uml_trace(self):
         """_summary_"""

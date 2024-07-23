@@ -62,7 +62,7 @@ def update_csv(
 ):
 
     try:
-        df = pd.read_csv(RESULT_DIR.replace("$PROT", "minip") + "/temp/data.csv")
+        df = pd.read_csv(RESULT_DIR.replace("$PROT", "apt") + "/temp/data.csv")
         print(df)
     except:
         df = pd.DataFrame(

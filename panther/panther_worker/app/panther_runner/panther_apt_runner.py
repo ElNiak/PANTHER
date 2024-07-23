@@ -81,24 +81,30 @@ class APTRunner(Runner):
             "configs/" + protocol + "/default_" + protocol + "_config.ini"
         )
 
-        alpn = (
-            self.protocol_conf["quic_parameters"]["alpn"] if implem != "mvfst" else "hq"
-        )
-        self.log.debug(f"Setup QUIC alpn - {alpn}")
-        os.environ["TEST_ALPN"] = alpn
-        ENV_VAR["TEST_ALPN"] = alpn
+        if protocol == "quic":
+            self.log.debug("Setup QUIC:")
+            alpn = (
+                self.protocol_conf["quic_parameters"]["alpn"]
+                if implem != "mvfst"
+                else "hq"
+            )
+            self.log.debug(f"Setup QUIC alpn - {alpn}")
+            os.environ["TEST_ALPN"] = alpn
+            ENV_VAR["TEST_ALPN"] = alpn
 
-        keylog_file = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
-        self.log.debug(f"Setup SSL keylog file - {keylog_file}")
-        os.environ["SSLKEYLOGFILE"] = keylog_file
-        ENV_VAR["SSLKEYLOGFILE"] = keylog_file
+            keylog_file = SOURCE_DIR + "/tls-keys/" + implem + "_key.log"
+            self.log.debug(f"Setup SSL keylog file - {keylog_file}")
+            os.environ["SSLKEYLOGFILE"] = keylog_file
+            ENV_VAR["SSLKEYLOGFILE"] = keylog_file
 
-        initial_version = str(
-            self.protocol_conf["quic_parameters"].getint("initial_version")
-        )
-        self.log.debug(f"Setup Initial Version - {initial_version}")
-        os.environ["INITIAL_VERSION"] = initial_version
-        ENV_VAR["INITIAL_VERSION"] = initial_version
+            initial_version = str(
+                self.protocol_conf["quic_parameters"].getint("initial_version")
+            )
+            self.log.debug(f"Setup Initial Version - {initial_version}")
+            os.environ["INITIAL_VERSION"] = initial_version
+            ENV_VAR["INITIAL_VERSION"] = initial_version
+        elif protocol == "minip":
+            self.log.debug("Setup MINIP:")
 
         implem_dir_server, implem_dir_client = self.setup_exp(implem=implem)
 
@@ -157,23 +163,19 @@ class APTRunner(Runner):
 
                         # TODO check if still works here, was not there before (check old project commit if needed)
                         if self.config["net_parameters"].getboolean("vnet"):
-                            if (
-                                "mim" in test.name
-                                or "attack" in test.name
-                                or "mim" in test.mode
-                                or "attack" in test.mode
-                            ):
-                                run_steps(setup_mim, ignore_errors=True)
+                            if self.config["vnet_parameters"].getboolean("mitm"):
+                                if self.config["vnet_parameters"].getboolean("bridged"):
+                                    run_steps(setup_mim_bridged, ignore_errors=True)
+                                else:
+                                    run_steps(setup_mim, ignore_errors=True)
                             else:
                                 run_steps(setup, ignore_errors=True)
                         else:
-                            if (
-                                "mim" in test.name
-                                or "attack" in test.name
-                                or "mim" in test.mode
-                                or "attack" in test.mode
-                            ):
-                                run_steps(reset_mim, ignore_errors=True)
+                            if self.config["vnet_parameters"].getboolean("mitm"):
+                                if self.config["vnet_parameters"].getboolean("bridged"):
+                                    run_steps(reset_mim_bridged, ignore_errors=True)
+                                else:
+                                    run_steps(reset_mim, ignore_errors=True)
                             else:
                                 run_steps(reset, ignore_errors=True)
 
@@ -254,13 +256,13 @@ class APTRunner(Runner):
                             self.get_exp_stats(implem, test, run_id, pcap_name, i)
 
                             if self.config["net_parameters"].getboolean("vnet"):
-                                if (
-                                    "mim" in test.name
-                                    or "attack" in test.name
-                                    or "mim" in test.mode
-                                    or "attack" in test.mode
-                                ):
-                                    run_steps(reset_mim, ignore_errors=True)
+                                if self.config["vnet_parameters"].getboolean("mitm"):
+                                    if self.config["vnet_parameters"].getboolean(
+                                        "bridged"
+                                    ):
+                                        run_steps(reset_mim_bridged, ignore_errors=True)
+                                    else:
+                                        run_steps(reset_mim, ignore_errors=True)
                                 else:
                                     run_steps(reset, ignore_errors=True)
 
