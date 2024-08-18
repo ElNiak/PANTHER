@@ -28,17 +28,13 @@ from argument_parser.ArgumentParserRunner import ArgumentParserRunner
 # logging.getLogger().addHandler(ch)
 # logging.getLogger().propagate = False
 
-
 class Panther:
     """_summary_"""
 
-    def __init__(self):
+    def __init__(self,current_protocol=None):
         # Setup cargo
         subprocess.Popen("", shell=True, executable="/bin/bash").wait()  # TODO source
 
-        # Setup logger
-        self.log = logging.getLogger("panther")
-        self.log.setLevel(int(os.environ["LOG_LEVEL"]))
         # if self.log.hasHandlers():
         #     self.log.handlers.clear()
         # self.log.addHandler(ch)
@@ -46,12 +42,8 @@ class Panther:
 
         # Setup argument parser
         self.args = ArgumentParserRunner().parse_arguments()
-
-        # Setup environment variables
-        for env_var in ENV_VAR:
-            os.environ[env_var] = str(ENV_VAR[env_var])
-            self.log.debug("ENV_VAR=" + env_var)
-            self.log.debug("ENV_VAL=" + str(ENV_VAR[env_var]))
+        
+        self.log = logging.getLogger("panther")
 
         # Setup configuration
         self.log.info("Getting Experiment configuration:")
@@ -66,9 +58,27 @@ class Panther:
             self.protocol_test_path,
             self.config,
             self.protocol_conf,
-        ) = get_experiment_config(None, False, False)
-
+        ) = get_experiment_config(current_protocol, False, False)
+        
         self.log.info("Selected protocol: " + self.current_protocol)
+        
+        # Setup logger
+        self.log.setLevel(int(os.environ["LOG_LEVEL"]))
+        self.log.info(f"Log level {int(os.environ['LOG_LEVEL'])}")
+        
+        if self.config["global_parameters"]["log_level"] == "DEBUG":
+            self.log.info("Log level DEBUG")    
+            os.environ["LOG_LEVEL_IVY"] = str(logging.DEBUG)
+        elif self.config["global_parameters"]["log_level"] == "INFO":
+            self.log.info("Log level INFO")
+            os.environ["LOG_LEVEL_IVY"] = str(logging.INFO)
+        
+        # Setup environment variables
+        for env_var in ENV_VAR:
+            os.environ[env_var] = str(ENV_VAR[env_var])
+            self.log.debug("ENV_VAR=" + env_var)
+            self.log.debug("ENV_VAL=" + str(ENV_VAR[env_var]))
+
 
         with os.scandir(self.protocol_results_path) as entries:
             self.total_exp_in_dir = sum(1 for entry in entries if entry.is_dir())
@@ -171,7 +181,7 @@ class Panther:
 
         files = self.find_ivy_files()
 
-        if int(os.environ["LOG_LEVEL"]) < logging.DEBUG:
+        if int(os.environ["LOG_LEVEL_IVY"]) > logging.DEBUG:
             self.log.info("Removing debug events")
             self.remove_debug_events(files)
 
@@ -210,11 +220,15 @@ class Panther:
         Args:
             test_to_do (dict, optional): _description_. Defaults to {}.
         """
-        self.log.info(f"Number of test to compile: {len(test_to_do)}\n{test_to_do}")
         assert len(test_to_do) > 0
-
-        self.available_test_modes = test_to_do.keys()
         self.log.debug(self.available_test_modes)
+        number_of_tests = 0
+        for key in test_to_do.keys():
+            self.log.info(f"Test mode: {key}")
+            self.log.info(f"Number of test to compile: {len(test_to_do[key])}")
+            number_of_tests += len(test_to_do[key])
+        self.log.info(f"Number of test to compile: {number_of_tests}")
+        self.available_test_modes = test_to_do.keys()
         for mode in self.available_test_modes:
             mode_inc = mode.replace("tests", "test")  # TODO
             self.log.debug("Mode: " + mode)
@@ -266,11 +280,11 @@ class Panther:
                 lines = f.readlines()
             with open(file, "w") as f:
                 for line in lines:
-                    if "debug_event" not in line and not line.startswith("##"):
-                        f.write(line)
-                    else:
+                    if "debug_event" in line and not line.lstrip().startswith("##"):
                         self.log.debug(f"Removing debug event: {line}")
                         f.write("##" + line)
+                    else:
+                        f.write(line)
 
     def restore_debug_events(self, files):
         self.log.info("Restoring debug events")
@@ -320,6 +334,7 @@ class Panther:
                     self.log.debug(x)
                 except:
                     pass
+                self.log.error("Error in compilation")
                 exit(1)
 
             self.log.info(
@@ -387,7 +402,8 @@ class Panther:
 
             if not self.config["global_parameters"].getboolean("docker"):
                 execute_command("sudo sysctl -w net.core.rmem_max=2500000")
-
+            self.log.info("Building tests")
+            self.log.debug(self.tests_enabled)
             self.build_tests(test_to_do=self.tests_enabled)
 
             if implementations == None or implementations == []:
@@ -404,7 +420,14 @@ class Panther:
                     self.log.error("Unknown implementation")
                     sys.stderr.write("nknown implementation: {}\n".format(implem))
                     # exit(1)
-
+            self.config["verified_protocol"][self.current_protocol] = "true"
+            
+            self.log.info(self.config["verified_protocol"].getboolean("apt"))
+            self.log.info(str(self.config))
+            self.log.info(self.current_protocol)
+            self.log.info(self.config["verified_protocol"].getboolean("apt"))
+            # exit()
+            
             if self.config["verified_protocol"].getboolean("apt"):
                 self.log.debug("Current configuration:")
                 self.log.debug(self.config)
@@ -468,12 +491,12 @@ class Panther:
                     self.log.info("Experiments finished")
                 except Exception as e:
                     print(e)
-                    restore_config()
-                    try:
-                        x = requests.get("http://panther-webapp/errored-experiment")
-                        self.log.info(x)
-                    except:
-                        pass
+                    # restore_config()
+                    # try:
+                    #     x = requests.get("http://panther-webapp/errored-experiment")
+                    #     self.log.info(x)
+                    # except:
+                    #     pass
 
             self.log.info("Experiments finished")
 
@@ -509,7 +532,7 @@ class Panther:
             self.log.error("END ERRORED")
             # exit(1)
         finally:
-            if int(os.environ["LOG_LEVEL"]) < logging.DEBUG:
+            if int(os.environ["LOG_LEVEL_IVY"]) > logging.DEBUG:
                 self.restore_debug_events(self.included_files)
 
     def generate_uml_trace(self):

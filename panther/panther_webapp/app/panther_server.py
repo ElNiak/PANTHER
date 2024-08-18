@@ -16,7 +16,7 @@ from flask import (
     Flask,
     request,
     redirect,
-    send_from_directory,
+    send_from_directory, 
     render_template,
     jsonify,
 )
@@ -220,7 +220,10 @@ class PFVServer:
                     continue
                 if group.title == "Usage type":
                     continue
-
+                # PFVServer.app.logger.debug(PFVServer.supported_protocols)  
+                # for p in PFVServer.supported_protocols:
+                #     PFVServer.app.logger.debug(p)
+                # exit()
                 cont = False
                 for p in PFVServer.supported_protocols:
                     if p in group.title.lower():
@@ -296,7 +299,7 @@ class PFVServer:
             for group in group_type:
                 for p in PFVServer.supported_protocols:
                     if p in group.title.lower():
-                        if p in PFVServer.current_protocol:
+                        if p in PFVServer.current_protocol or PFVServer.current_protocol == "apt":
                             if len(args_list[-1]) == 3:
                                 args_list.append({})
 
@@ -389,14 +392,14 @@ class PFVServer:
                 while (
                     PFVServer.experiment_current_iteration
                     < PFVServer.experiment_iteration
-                    / len(PFVServer.implementation_requested)
+                    / max(1,len(PFVServer.implementation_requested))
                 ):
                     time.sleep(10)
                     PFVServer.app.logger.info(
                         f"Current iteration: {PFVServer.experiment_current_iteration}"
                     )
                     PFVServer.app.logger.info(
-                        f"Target iteration: {PFVServer.experiment_iteration / len(PFVServer.implementation_requested)}"
+                        f"Target iteration: {PFVServer.experiment_iteration / max(1,len(PFVServer.implementation_requested))}"
                     )
                 PFVServer.app.logger.info(
                     "Ending experiment for implementation " + impl
@@ -1135,16 +1138,16 @@ cprint(banner_terminal, "green", file=sys.stderr)
 def main():
     app = PFVServer(SOURCE_DIR)
     app.run()
-    sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(e)
+        logging.error(e)
     finally:
         sys.stdout.close()
         sys.stderr.close()
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
+

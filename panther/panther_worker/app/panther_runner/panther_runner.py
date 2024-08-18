@@ -163,17 +163,41 @@ class Runner:
             current_protocol = self.apt_conf["protocol_origins"][implem]
         else:
             current_protocol = self.current_protocol
-        return self.implems[implem][0][implem]["binary-dir"].replace(
-            "$IMPLEM_DIR",
-            IMPLEM_DIR.replace("$PROT", current_protocol).replace(
-                "$MODEL_DIR", MODEL_DIR
-            ),
-        ), self.implems[implem][1][implem]["binary-dir"].replace(
-            "$IMPLEM_DIR",
-            IMPLEM_DIR.replace("$PROT", current_protocol).replace(
-                "$MODEL_DIR", MODEL_DIR
-            ),
-        )
+        if "-" in current_protocol:
+            implem_dir_server = []
+            implem_dir_client = []  
+            protocols = current_protocol.split("-") 
+            implementations = implem.split("-")
+            for p in range(len(protocols)):
+                implem_dir_server.append(
+                    self.implems[implementations[p]][0][implementations[p]]["binary-dir"].replace(
+                        "$IMPLEM_DIR",
+                        IMPLEM_DIR.replace("$PROT", protocols[p]).replace(
+                            "$MODEL_DIR", MODEL_DIR
+                        ),
+                    )
+                )
+                implem_dir_client.append(
+                    self.implems[implementations[p]][1][implementations[p]]["binary-dir"].replace(
+                        "$IMPLEM_DIR",
+                        IMPLEM_DIR.replace("$PROT", protocols[p]).replace(
+                            "$MODEL_DIR", MODEL_DIR
+                        ),
+                    )
+                )
+            return implem_dir_server, implem_dir_client
+        else:
+            return self.implems[implem][0][implem]["binary-dir"].replace(
+                "$IMPLEM_DIR",
+                IMPLEM_DIR.replace("$PROT", current_protocol).replace(
+                    "$MODEL_DIR", MODEL_DIR
+                ),
+            ), self.implems[implem][1][implem]["binary-dir"].replace(
+                "$IMPLEM_DIR",
+                IMPLEM_DIR.replace("$PROT", current_protocol).replace(
+                    "$MODEL_DIR", MODEL_DIR
+                ),
+            )
 
     def start_tshark(self, interfaces, pcap_protocol):
         for ns, interface, pcap_file in interfaces:
@@ -200,8 +224,12 @@ class Runner:
         else:
             current_protocol = self.current_protocol
 
-        pcap_protocol = self.protocol_conf[current_protocol + "_parameters"]["protocol"]
+        if "-" in current_protocol:
+            pcap_protocol = "udp"
+        else:
+            pcap_protocol = self.protocol_conf[current_protocol + "_parameters"]["protocol"]
 
+                
         if self.config["net_parameters"].getboolean("vnet"):
             if self.config["vnet_parameters"].getboolean("mitm"):
                 if self.config["vnet_parameters"].getboolean("bridged"):
@@ -228,9 +256,21 @@ class Runner:
                             "veth_server",
                             pcap_name.replace("ivy_lo_", "server_veth_"),
                         ),
+                        (
+                            "tested_tclient",
+                            "veth_tclient",
+                            pcap_name.replace("ivy_lo_", "targ_client_veth_"),
+                        ),
+                        (
+                            "tested_tserver",
+                            "veth_tserver",
+                            pcap_name.replace("ivy_lo_", "targ_server_veth_"),
+                        ),
                         ("", "br_ivy", pcap_name.replace("ivy_lo_", "br_ivy_")),
                         ("", "br_client", pcap_name.replace("ivy_lo_", "br_client_")),
                         ("", "br_server", pcap_name.replace("ivy_lo_", "br_server_")),
+                        ("", "br_tserver", pcap_name.replace("ivy_lo_", "br_targ_client_")),
+                        ("", "br_tclient", pcap_name.replace("ivy_lo_", "br_targ_server_")),
                     ]
                 else:
                     interfaces = [
@@ -320,14 +360,20 @@ class Runner:
                     )
                     suffixes = [
                         "ivy_lo_",
+                        "target_client_lo_",
+                        "target_server_lo_",
                         "client_lo_",
                         "server_lo_",
                         "ivy_veth_",
+                        "target_client_veth_",
+                        "target_server_veth_",
                         "client_veth_",
                         "server_veth_",
                         "br_ivy_",
                         "br_client_",
                         "br_server_",
+                        "br_targ_client_",
+                        "br_targ_server_",
                     ]
                     prepare_pcap_files(pcap_name, suffixes)
                 else:

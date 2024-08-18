@@ -37,7 +37,7 @@ class QUICRunner(Runner):
 
     def get_exp_stats(self, implem, test, run_id, pcap_name, i):
         if self.config["global_parameters"].getboolean("getstats"):
-            self.log.debug("Getting experiences stats:")
+            self.log.debug("Getting QUIC experiences stats:")
             import panther_stats.panther_quic_stats as stats
 
             with open(
@@ -122,7 +122,8 @@ class QUICRunner(Runner):
                 number_ite_for_test = 1
 
                 # Setup test-specific parameter
-                if test.name == "quic_client_test_0rtt_mim_replay":
+                if test.name == "quic_client_test_0rtt_mim_replay" or \
+                   test.name == "quic_mim_test_replay_0rtt":
                     os.environ["ZERORTT_TEST"] = "true"
                     ENV_VAR["ZERORTT_TEST"] = "true"
                 elif (
@@ -142,15 +143,7 @@ class QUICRunner(Runner):
                     nclient = 2
                 else:
                     nclient = self.protocol_conf["quic_parameters"].getint("nclient")
-
-                    # TODO check
-                    # if "quic_client_test_version_negociation_mim" in test:
-                    #     subprocess.Popen("bash "+ SOURCE_DIR + "/mim-setup.sh",
-                    #                                         shell=True, executable="/bin/bash").wait()
-                    # else:
-                    #     subprocess.Popen("bash  /app/scripts/mim/mim-reset.sh",
-                    #                                         shell=True, executable="/bin/bash").wait()
-
+                    
                 for j in range(0, number_ite_for_test):
                     for i in range(0, self.iters):
                         if j == 1:  # TODO wtf
@@ -260,9 +253,17 @@ class QUICRunner(Runner):
                             if not status:
                                 num_failures += 1
 
-                            self.save_shadow_res(test, i, pcap_name, run_id)
-                            self.save_shadow_binaries(implem, test, run_id)
-                            self.get_exp_stats(implem, test, run_id, pcap_name, i)
+                            try:
+                                self.save_shadow_res(test, i, pcap_name, run_id)
+                                self.save_shadow_binaries(implem, test, run_id)
+                            except Exception as e:
+                                self.log.error("Error while saving shadow results")
+                                self.log.error(e)
+                            try:
+                                self.get_exp_stats(implem, test, run_id, pcap_name, i)
+                            except Exception as e:
+                                self.log.error("Error while saving stats results")
+                                self.log.error(e)
                             # TODO send post message to update nyan cat
 
             # TODO check if need

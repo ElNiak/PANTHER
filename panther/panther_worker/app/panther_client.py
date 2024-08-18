@@ -36,16 +36,17 @@ class PFVClient:
         )
 
         current_protocol = user_data["protocol"]
-        exp_args = user_data["args"]
+        exp_args         = user_data["args"]
 
         update_config(exp_args, current_protocol)
 
-        current_tests = user_data["tests_requested"]
+        current_tests      = user_data["tests_requested"]
         protocol_arguments = user_data["protocol_arguments"]
 
         update_protocol_config(protocol_arguments, current_protocol, current_tests)
 
-        tool = Panther()
+        tool = Panther(current_protocol)
+        # tool.config["verified_protocol"] = user_data["protocol"]
         try:
             PFVClient.start_experiment_in_thread(user_data, tool)
             return jsonify({"message": "Request successful"}), 200

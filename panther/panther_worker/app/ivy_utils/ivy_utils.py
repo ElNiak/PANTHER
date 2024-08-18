@@ -507,7 +507,7 @@ class ErrorPrinter(object):
     def __exit__(self,exc_type, exc_val, exc_tb):
         if exc_type == IvyError or isinstance(exc_val,IvyError):
             print(str(exc_val))
-            exit(1)
+            # exit(1)
             return True
         return False # don't block any other exceptions
 

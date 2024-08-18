@@ -171,11 +171,11 @@ setup_mim = [
     "ip netns exec ivy ip route add 10.0.0.5/32 via 10.0.0.1 dev ivy_client",  # ivy to client
     "ip netns exec ivy ip route add 10.0.0.6/32 via 10.0.0.3 dev ivy_server",  # ivy to server
     # Test connectivity by pinging between namespaces
-    "ip netns exec tested_client ping -c 3 10.0.0.6",  # client to server
-    "ip netns exec tested_server ping -c 3 10.0.0.3",  # server to ivy
-    "ip netns exec tested_server ping -c 3 10.0.0.5",  # server to client
-    "ip netns exec ivy           ping -c 3 10.0.0.2",  # ivy to client
-    "ip netns exec ivy           ping -c 3 10.0.0.4",  # ivy to server
+    "ip netns exec tested_client ping -c 1 10.0.0.6",  # client to server
+    "ip netns exec tested_server ping -c 1 10.0.0.3",  # server to ivy
+    "ip netns exec tested_server ping -c 1 10.0.0.5",  # server to client
+    "ip netns exec ivy           ping -c 1 10.0.0.2",  # ivy to client
+    "ip netns exec ivy           ping -c 1 10.0.0.4",  # ivy to server
     "ip netns exec ivy                  ip route",
     "ip netns exec tested_client        ip route",
     "ip netns exec tested_server        ip route",
@@ -212,75 +212,135 @@ setup_mim_bridged = [
     "ip netns del ivy || true",
     "ip netns del tested_client || true",
     "ip netns del tested_server || true",
+    "ip netns del tested_tserver || true",
+    "ip netns del tested_tclient || true",
     "ip link delete veth_ivy || true",
     "ip link delete veth_client || true",
     "ip link delete veth_server || true",
+    "ip link delete veth_tserver || true",
+    "ip link delete veth_tclient || true",
     "ip link delete br_ivy || true",
     "ip link delete br_client || true",
     "ip link delete br_server || true",
+    "ip link delete br_tserver || true",
+    "ip link delete br_tclient || true",  
     # Create network namespaces
     "ip netns add ivy",
     "ip netns add tested_client",
     "ip netns add tested_server",
+    "ip netns add tested_tserver",
+    "ip netns add tested_tclient",
     # Create a bridge in the root namespace
     "ip link add name ivy_bro type bridge",
     "ip link set ivy_bro up",
     # Create veth pairs
-    "ip link add veth_ivy type veth peer name br_ivy",
+    "ip link add veth_ivy    type veth peer name br_ivy",
     "ip link add veth_client type veth peer name br_client",
     "ip link add veth_server type veth peer name br_server",
+    "ip link add veth_tserver type veth peer name br_tserver",
+    "ip link add veth_tclient type veth peer name br_tclient",
     # Assign veth pairs to namespaces
-    "ip link set veth_ivy netns ivy",
+    "ip link set veth_ivy    netns ivy",
     "ip link set veth_client netns tested_client",
     "ip link set veth_server netns tested_server",
+    "ip link set veth_tserver netns tested_tserver",
+    "ip link set veth_tclient netns tested_tclient",
     # Attach the bridge side of veth pairs to the bridge
-    "ip link set br_ivy master ivy_bro",
+    "ip link set br_ivy    master ivy_bro",
     "ip link set br_client master ivy_bro",
     "ip link set br_server master ivy_bro",
+    "ip link set br_tserver master ivy_bro",
+    "ip link set br_tclient master ivy_bro",
     "ip link set br_ivy up",
     "ip link set br_client up",
     "ip link set br_server up",
+    "ip link set br_tserver up",
+    "ip link set br_tclient up",
     # Assign IP addresses to the interfaces in the namespaces
     "ip netns exec ivy           ip addr add 10.0.0.1/24 dev veth_ivy",
     "ip netns exec tested_client ip addr add 10.0.0.2/24 dev veth_client",
     "ip netns exec tested_server ip addr add 10.0.0.3/24 dev veth_server",
+    "ip netns exec tested_tserver ip addr add 10.0.0.5/24 dev veth_tserver",
+    "ip netns exec tested_tclient ip addr add 10.0.0.4/24 dev veth_tclient",
     # Bring up the interfaces in the namespaces
     "ip netns exec ivy           ip link set veth_ivy up",
     "ip netns exec tested_client ip link set veth_client up",
     "ip netns exec tested_server ip link set veth_server up",
+    "ip netns exec tested_tserver ip link set veth_tserver up",
+    "ip netns exec tested_tclient ip link set veth_tclient up",
     # Bring up the loopback interfaces
     "ip netns exec ivy ip link set lo up",
     "ip netns exec tested_client ip link set lo up",
     "ip netns exec tested_server ip link set lo up",
+    "ip netns exec tested_tserver ip link set lo up",
+    "ip netns exec tested_tclient ip link set lo up",
     # Enable IP forwarding
     # "ip netns exec ivy iptables -t nat -A POSTROUTING -o veth_ivy -j MASQUERADE",
     "ip netns exec ivy sysctl -w net.ipv4.ip_forward=0",  # Disable IP forwarding for arpspoof TODO make more flexible
-    "ip netns exec ivy sysctl -w net.ipv4.ip_nonlocal_bind=1"
+    "ip netns exec ivy sysctl -w net.ipv4.conf.all.send_redirects=0", # Disable ICMP redirects
+    "ip netns exec ivy sysctl -w net.ipv4.conf.default.send_redirects=0",
+    "ip netns exec ivy sysctl -w net.ipv4.ip_nonlocal_bind=1",
+    
+    # "ip netns exec tested_client sysctl -w net.ipv4.ip_forward=0",
+    # "ip netns exec tested_client sysctl -w net.ipv4.conf.all.send_redirects=0",
+    # "ip netns exec tested_client sysctl -w net.ipv4.conf.default.send_redirects=0",
+    # "ip netns exec tested_client sysctl -w net.ipv4.ip_nonlocal_bind=1",
+    
+    # "ip netns exec tested_server sysctl -w net.ipv4.ip_forward=0",
+    # "ip netns exec tested_server sysctl -w net.ipv4.conf.all.send_redirects=0",
+    # "ip netns exec tested_server sysctl -w net.ipv4.conf.default.send_redirects=0",
+    # "ip netns exec tested_server sysctl -w net.ipv4.ip_nonlocal_bind=1",
+    
+    # "ip netns exec tested_tserver sysctl -w net.ipv4.ip_forward=0",
+    # "ip netns exec tested_tserver sysctl -w net.ipv4.conf.all.send_redirects=0",
+    # "ip netns exec tested_tserver sysctl -w net.ipv4.conf.default.send_redirects=0",
+    # "ip netns exec tested_tserver sysctl -w net.ipv4.ip_nonlocal_bind=1",
+    
     # "ip netns exec tested_client sysctl -w net.ipv4.ip_forward=1",
     # "ip netns exec tested_server sysctl -w net.ipv4.ip_forward=1",
+    "ebtables -A FORWARD -i br_ivy -o br_ivy -j DROP",
+    "ebtables -A FORWARD --logical-in br_ivy --logical-out br_ivy -j DROP",
+    "ip netns exec ivy iptables -A FORWARD -i veth_ivy -o veth_ivy -j DROP",
     # Check MTU
     "ip netns exec ivy ip link show veth_ivy",
     "ip netns exec tested_client ip link show veth_client",
     "ip netns exec tested_server ip link show veth_server",
+    "ip netns exec tested_tserver ip link show veth_tserver",
+    "ip netns exec tested_tclient ip link show veth_tclient",
     "ip link show br_ivy",
     "ip link show br_client",
     "ip link show br_server",
+    "ip link show br_tserver",
+    "ip link show br_tclient",
     # Changing MTU to 5000
+    "ip netns exec ivy sysctl -w net.inet.udp.maxdgram=65535",
     "ip netns exec ivy ip link set dev veth_ivy mtu 5000",
     "ip netns exec tested_client ip link set dev veth_client mtu 5000",
     "ip netns exec tested_server ip link set dev veth_server mtu 5000",
+    "ip netns exec tested_tserver ip link set dev veth_tserver mtu 5000",
+    "ip netns exec tested_tclient ip link set dev veth_tclient mtu 5000",
     "ip link set dev br_ivy mtu 5000",
     "ip link set dev br_client mtu 5000",
     "ip link set dev br_server mtu 5000",
+    "ip link set dev br_tserver mtu 5000",
+    "ip link set dev br_tclient mtu 5000",
     # Verify routes
     "ip netns exec ivy ip route",
     "ip netns exec tested_client ip route",
     "ip netns exec tested_server ip route",
+    "ip netns exec tested_tserver ip route",
+    "ip netns exec tested_tclient ip route",
     # Test connectivity by pinging between namespaces
-    "ip netns exec tested_client ping -c 3 10.0.0.3",  # client to server
-    "ip netns exec tested_server ping -c 3 10.0.0.2",  # server to client
-    "ip netns exec ivy ping -c 3 10.0.0.2",  # ivy to client
-    "ip netns exec ivy ping -c 3 10.0.0.3"  # ivy to server
+    "ip netns exec tested_client ping -c 1 10.0.0.3",  # client to server
+    "ip netns exec tested_server ping -c 1 10.0.0.4",  # server to target
+    "ip netns exec tested_server ping -c 1 10.0.0.2",  # server to client
+    "ip netns exec tested_server ping -c 1 10.0.0.4",  # server to target
+    "ip netns exec tested_tserver ping -c 1 10.0.0.2",  # target to client
+    "ip netns exec tested_tserver ping -c 1 10.0.0.3",  # target to server
+
+    "ip netns exec ivy ping -c 1 10.0.0.2",  # ivy to client
+    "ip netns exec ivy ping -c 1 10.0.0.3",  # ivy to server
+    "ip netns exec ivy ping -c 1 10.0.0.4",  # ivy to target
     # # Start ARP spoofing from ivy targeting both client and server, with logging
     # "ip netns exec ivy arpspoof -i veth_ivy -t 10.0.0.2 -r 10.0.0.3 > /tmp/arpspoof_ivy.log 2>&1 &",
     # "ip netns exec ivy arpspoof -i veth_ivy -t 10.0.0.3 -r 10.0.0.2 > /tmp/arpspoof_ivy.log 2>&1 &",

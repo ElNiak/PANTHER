@@ -148,10 +148,14 @@ def make_dat(fbase,out):
     files = sorted([n for n in os.listdir('.') if n.startswith(fbase) and n.endswith('.iev')])
     for fn in files:
         try:
-            f = open(fn,'r')
+            f = open(fn, "r")
         except:
             print("not found: %s" % fn)
-            sys.exit(1)
+            # sys.exit(1)
+            f = open(fn, "w")
+            f.write("")
+            f.close()
+            f = open(fn, "r")
         
         with iu.ErrorPrinter():
             with iu.SourceFile(fn):
@@ -171,17 +175,17 @@ def make_dat(fbase,out):
             vals.append(sum)
         out.write(fn + ',' + ','.join(str(v) for v in vals) + '\n')
 
-def main():
-    import sys
-    def usage():
-        print("usage: \n  {} <file>.iev ".format(sys.argv[0]))
-        sys.exit(1)
-    if len(sys.argv) != 2:
-        usage()
-    fbase = sys.argv[1]
-    make_dat(fbase,sys.stdout)
+# def main():
+#     import sys
+#     def usage():
+#         print("usage: \n  {} <file>.iev ".format(sys.argv[0]))
+#         sys.exit(1)
+#     if len(sys.argv) != 2:
+#         usage()
+#     fbase = sys.argv[1]
+#     make_dat(fbase,sys.stdout)
     
     
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
 

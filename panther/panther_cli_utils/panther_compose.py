@@ -86,6 +86,7 @@ def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
                 "privileged": True,  # TODO what are the security implications of this?
                 "tty": True,
                 "stdin_open": True,
+                # ,"vm.mmap_rnd_bits=28"  https://github.com/actions/runner-images/issues/9491#issuecomment-1989718917
                 "sysctls": ["net.ipv6.conf.all.disable_ipv6=1"],
                 "environment": [
                     "DISPLAY=${DISPLAY}",

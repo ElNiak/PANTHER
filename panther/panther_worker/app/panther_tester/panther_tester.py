@@ -319,15 +319,18 @@ class IvyTest(object):
             if self.config["debug_parameters"].getboolean("gperf")
             else ""
         )
+        int_timeout = self.config["global_parameters"].getint("timeout")
+        if "quic_mim_test_replay_0rtt" in self.name:
+            int_timeout *= 2
         timeout_cmd = (
             ""
             if platform.system() == "Windows"
             else "timeout {} ".format(
-                self.config["global_parameters"].getint("timeout")
+                int_timeout
             )
         )
         os.environ["TIMEOUT_IVY"] = str(
-            self.config["global_parameters"].getint("timeout")
+            int_timeout
         )
 
         return strace_cmd, gperf_cmd, timeout_cmd

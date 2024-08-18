@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 from panther_utils.panther_constant import *
 
 #
-# Panther Configuration
+# Panther Configuration TODO
 #
 
 
@@ -76,104 +76,6 @@ class PantherConfig:
     bgp_implementations: BgpImplementations
     apt_implementations: AptImplementations
 
-
-def update_config_from_global_conf(config: PantherConfig, global_conf_file: str):
-    global_config = configparser.ConfigParser(allow_no_value=True)
-    global_config.read(global_conf_file)
-
-    # Update global_parameters
-    config.global_parameters.shadow = global_config.getboolean(
-        "global_parameters", "shadow"
-    )
-    config.global_parameters.docker = global_config.getboolean(
-        "global_parameters", "docker"
-    )
-    config.global_parameters.docker_swarm = global_config.getboolean(
-        "global_parameters", "docker_swarm"
-    )
-    config.global_parameters.init_submodule = global_config.getboolean(
-        "global_parameters", "init_submodule"
-    )
-
-    # Update quic_implementations
-    config.quic_implementations.picoquic = global_config.getboolean(
-        "quic_implementations", "picoquic"
-    )
-    config.quic_implementations.quant = global_config.getboolean(
-        "quic_implementations", "quant"
-    )
-    config.quic_implementations.picoquic_shadow = global_config.getboolean(
-        "quic_implementations", "picoquic_shadow"
-    )
-    config.quic_implementations.mvfst = global_config.getboolean(
-        "quic_implementations", "mvfst"
-    )
-    config.quic_implementations.aioquic = global_config.getboolean(
-        "quic_implementations", "aioquic"
-    )
-    config.quic_implementations.lsquic = global_config.getboolean(
-        "quic_implementations", "lsquic"
-    )
-    config.quic_implementations.quic_go = global_config.getboolean(
-        "quic_implementations", "quic_go"
-    )
-    config.quic_implementations.quiche = global_config.getboolean(
-        "quic_implementations", "quiche"
-    )
-    config.quic_implementations.quinn = global_config.getboolean(
-        "quic_implementations", "quinn"
-    )
-
-    # Update quic_tools
-    config.quic_tools.visualizer = global_config.getboolean("quic_tools", "visualizer")
-
-    # Update minip_implementations
-    config.minip_implementations.ping_pong = global_config.getboolean(
-        "minip_implementations", "ping_pong"
-    )
-    config.minip_implementations.ping_pong_flaky = global_config.getboolean(
-        "minip_implementations", "ping_pong_flaky"
-    )
-    config.minip_implementations.ping_pong_fail = global_config.getboolean(
-        "minip_implementations", "ping_pong_fail"
-    )
-    config.minip_implementations.ping_pong_mt = global_config.getboolean(
-        "minip_implementations", "ping_pong_mt"
-    )
-    config.minip_implementations.ping_pong_flaky_mt = global_config.getboolean(
-        "minip_implementations", "ping_pong_flaky_mt"
-    )
-    config.minip_implementations.ping_pong_fail_mt = global_config.getboolean(
-        "minip_implementations", "ping_pong_fail_mt"
-    )
-
-    # Update bgp_implementations
-    config.bgp_implementations.gobgp = global_config.getboolean(
-        "bgp_implementations", "gobgp"
-    )
-    config.bgp_implementations.bird = global_config.getboolean(
-        "bgp_implementations", "bird"
-    )
-    config.bgp_implementations.frr = global_config.getboolean(
-        "bgp_implementations", "frr"
-    )
-
-    # Update apt_implementations
-    config.apt_implementations.picoquic_shadow = global_config.getboolean(
-        "apt_implementations", "picoquic_shadow"
-    )
-    config.apt_implementations.picoquic = global_config.getboolean(
-        "apt_implementations", "picoquic"
-    )
-    config.apt_implementations.quant = global_config.getboolean(
-        "apt_implementations", "quant"
-    )
-    config.apt_implementations.quic_go = global_config.getboolean(
-        "apt_implementations", "quic_go"
-    )
-    config.apt_implementations.ping_pong = global_config.getboolean(
-        "apt_implementations", "ping_pong"
-    )
 
 
 #
@@ -401,6 +303,34 @@ def update_protocol_config(protocol_argument, current_protocol, current_tests):
         "configs/" + current_protocol + "/" + current_protocol + "_config.ini", "w"
     ) as configfile:
         protocol_conf.write(configfile)
+        
+    if current_protocol == "apt":
+        config = configparser.ConfigParser(allow_no_value=True)
+        config.read("configs/config.ini")
+        supported_protocols = config["verified_protocol"].keys()
+        # we modify all other protocol config files
+        for protocol in supported_protocols:
+            protocol_conf = configparser.ConfigParser(allow_no_value=True)
+            protocol_conf.read(
+                "configs/" + protocol + "/" + protocol + "_config.ini"
+            )
+            for arg in protocol_argument:
+                if arg in protocol_conf[protocol + "_parameters"]:
+                    logging.debug(
+                        f"Protocol parameter set to: {arg} : {protocol_argument[arg]}"
+                    )
+                    protocol_conf.set(
+                        protocol + "_parameters", arg, protocol_argument[arg]
+                    )
+            for test_type in protocol_conf.sections():
+                logging.debug(f"Test type: {test_type}")
+                for test in current_tests:
+                    logging.debug(f"\t - Test: {test}")
+                    test_type_in = test_type.replace("_tests", "_test")
+            with open(
+                "configs/" + protocol + "/" + protocol + "_config.ini", "w"
+            ) as configfile:
+                protocol_conf.write(configfile)
 
 
 def get_experiment_config(
@@ -445,6 +375,25 @@ def get_experiment_config(
 
 
 def get_protocol_config(config, protocol, get_all_test=False, get_default_conf=False):
+    """
+    Retrieves the configuration for a specific protocol.
+
+    Args:
+        config (ConfigParser): The main configuration object.
+        protocol (str): The protocol for which to retrieve the configuration.
+        get_all_test (bool, optional): Flag to indicate whether to retrieve all tests. Defaults to False.
+        get_default_conf (bool, optional): Flag to indicate whether to retrieve the default configuration. Defaults to False.
+
+    Returns:
+        tuple: A tuple containing the following elements:
+            - tests_enabled (dict): A dictionary containing the enabled tests for each category.
+            - conf_implementation_enable (dict): A dictionary containing the enabled implementations for each implementation file.
+            - implementation_enable (dict): A dictionary containing the enabled implementations for the protocol.
+            - protocol_model_path (str): The path to the protocol model.
+            - protocol_results_path (str): The path to the protocol results.
+            - protocol_test_path (str): The path to the protocol tests.
+            - protocol_conf (ConfigParser): The protocol configuration object.
+    """
     protocol_conf = configparser.ConfigParser(allow_no_value=True)
     for envar in P_ENV_VAR[protocol]:
         os.environ[envar] = P_ENV_VAR[protocol][envar]
@@ -472,7 +421,7 @@ def get_protocol_config(config, protocol, get_all_test=False, get_default_conf=F
         "global_parameters", "build_dir", os.path.join(MODEL_DIR, protocol, "build")
     )
 
-    protocol_test_path = os.path.join(protocol_model_path, "test/")
+    protocol_test_path    = os.path.join(protocol_model_path, "test/")
     protocol_results_path = os.path.join(protocol_model_path, "test/", "temp/")
 
     if not os.path.isdir(os.path.join(protocol_model_path, "test/")):
@@ -498,6 +447,8 @@ def get_protocol_config(config, protocol, get_all_test=False, get_default_conf=F
 
     implem_config_path_server = "configs/" + protocol + "/implem-server"
     implem_config_path_client = "configs/" + protocol + "/implem-client"
+    implem_config_path_server_target = "configs/" + protocol + "/implem-server"
+    implem_config_path_client_target = "configs/" + protocol + "/implem-client"
 
     conf_implementation_enable = {}
     for file_path in os.listdir(implem_config_path_server):
@@ -511,11 +462,24 @@ def get_protocol_config(config, protocol, get_all_test=False, get_default_conf=F
 
             implem_conf_client = configparser.ConfigParser(allow_no_value=True)
             implem_conf_client.read(os.path.join(implem_config_path_client, file_path))
+            
+            if protocol == "apt":
+                implem_conf_server_target = configparser.ConfigParser(allow_no_value=True)
+                implem_conf_server_target.read(os.path.join(implem_config_path_server_target, file_path))
+                implem_conf_client_target = configparser.ConfigParser(allow_no_value=True)
+                implem_conf_client_target.read(os.path.join(implem_config_path_client_target, file_path))
 
-            conf_implementation_enable[implem_name] = [
-                implem_conf_server,
-                implem_conf_client,
-            ]
+                conf_implementation_enable[implem_name] = [
+                    implem_conf_server,
+                    implem_conf_client,
+                    implem_conf_server_target,
+                    implem_conf_client_target,
+                ]   
+            else:        
+                conf_implementation_enable[implem_name] = [
+                    implem_conf_server,
+                    implem_conf_client,
+                ]
 
     implementation_enable = {}
     global_conf_file = "configs/global-conf.ini"

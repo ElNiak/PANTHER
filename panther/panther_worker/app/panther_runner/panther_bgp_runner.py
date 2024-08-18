@@ -24,7 +24,7 @@ class BGPRunner(Runner):
         if self.config["global_parameters"].getboolean("getstats"):
             self.log.debug("Getting experiences stats:")
             import panther_stats.panther_bgp_stats as stats
- 
+
             with open(
                 os.path.join(
                     self.config["global_parameters"]["dir"] + str(run_id),

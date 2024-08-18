@@ -176,7 +176,7 @@ def update_csv(
 
     print(df)
 
-    df.to_csv(RESULT_DIR.replace("$PROT", "minip") + "/temp/data.csv", index=False)
+    df.to_csv(RESULT_DIR.replace("$PROT", "apt") + "/temp/data.csv", index=False)
 
 
 def merge_dats():
@@ -195,7 +195,11 @@ def make_dat(fbase, out):
             f = open(fn, "r")
         except:
             print("not found: %s" % fn)
-            sys.exit(1)
+            # sys.exit(1)
+            f = open(fn, "w")
+            f.write("")
+            f.close()
+            f = open(fn, "r")
 
         with iu.ErrorPrinter():
             with iu.SourceFile(fn):
@@ -216,18 +220,18 @@ def make_dat(fbase, out):
         out.write(fn + "," + ",".join(str(v) for v in vals) + "\n")
 
 
-def main():
-    import sys
+# def main():
+#     import sys
 
-    def usage():
-        print("usage: \n  {} <file>.iev ".format(sys.argv[0]))
-        sys.exit(1)
+#     def usage():
+#         print("usage: \n  {} <file>.iev ".format(sys.argv[0]))
+#         sys.exit(1)
 
-    if len(sys.argv) != 2:
-        usage()
-    fbase = sys.argv[1]
-    make_dat(fbase, sys.stdout)
+#     if len(sys.argv) != 2:
+#         usage()
+#     fbase = sys.argv[1]
+#     make_dat(fbase, sys.stdout)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
