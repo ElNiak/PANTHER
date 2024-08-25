@@ -1,6 +1,7 @@
 # This script runs a sequence of tests on the picoquicdemo server.
 
 import random
+import resource
 import pexpect
 import os
 import sys
@@ -10,6 +11,8 @@ from datetime import datetime
 import platform
 from time import sleep
 import re
+
+# import psutil
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -63,6 +66,8 @@ class QUICIvyTest(IvyTest):
         # self.log.setLevel(int(os.environ["LOG_LEVEL"]))
 
         # TODO enforce
+        self.quic_process_1 = None
+        self.quic_process_2 = None
         self.special_tests_compatible_impl = {
             "quic_server_test_retry_reuse_key": ["picoquic-vuln", "picoquic"],
             "quic_server_test_retry": [
@@ -579,10 +584,10 @@ class QUICIvyTest(IvyTest):
                     f"sudo ip netns exec {netns_server} " + envs + self.implem_cmd
                 )
                 old = "implem"
-                if self.name == "mim_server_test_0rtt":
-                    if self.implementation_name == "picoquic":
-                        new = "implem -z"
-                        self.implem_cmd = new.join(self.implem_cmd.rsplit(old, maxreplace))
+                # if self.name == "quic_mim_test_replay_0rtt":
+                #     if self.implementation_name == "picoquic":
+                #         new = "implem -z"
+                #         self.implem_cmd = new.join(self.implem_cmd.rsplit(old, maxreplace))
                 new = (
                     "veth_server"
                     if self.config["vnet_parameters"].getboolean("bridged") and not is_target
@@ -599,10 +604,10 @@ class QUICIvyTest(IvyTest):
                     + self.implem_cmd_opposite
                 )
                 old = "implem"
-                if self.name == "mim_server_test_0rtt":
-                    if self.implementation_name == "picoquic":
-                        new = "implem -z"
-                        self.implem_cmd_opposite = new.join(self.implem_cmd_opposite.rsplit(old, maxreplace))
+                # if self.name == "quic_mim_test_replay_0rtt":
+                #     if self.implementation_name == "picoquic":
+                #         new = "implem -z"
+                #         self.implem_cmd_opposite = new.join(self.implem_cmd_opposite.rsplit(old, maxreplace))
                 new = (
                     "veth_client"
                     if self.config["vnet_parameters"].getboolean("bridged") and not is_target
@@ -871,8 +876,46 @@ class QUICIvyTest(IvyTest):
             return [server_implem_args, client_implem_args]
 
     def set_process_limits(self):
-        # Create a new session
-        os.setsid()
+        """
+        Set resource limits and create a new session for the subprocess.
+        """
+        # Maximal virtual memory for subprocesses (in bytes).
+        MAX_VIRTUAL_MEMORY = 2 * 750 * 1024 * 1024 # 500 MB
+        # Create a new session so we can terminate the subprocess and all its children later if needed
+        try:
+            os.setsid()
+        except Exception as e:
+            self.log.error("Failed to create new session: %s", str(e))
+            raise
+        
+        # Log the action of setting process limits
+        self.log.debug("Setting process limits")
+        
+        # Reduce RAM usage by limiting the address space
+        try:
+            rsrc = resource.RLIMIT_AS
+            soft, hard = resource.getrlimit(rsrc)
+            self.log.debug("Initial memory limits: soft=%s, hard=%s", soft, hard)
+
+            # Set the new limits to 1 GB/500 Mb for both soft and hard
+            # resource.setrlimit(rsrc, (MAX_VIRTUAL_MEMORY, MAX_VIRTUAL_MEMORY))
+            # resource.setrlimit(rsrc, (1e9, 1e9))
+            
+            # Log current memory usage and process information
+            # memory_info = psutil.virtual_memory()
+            # process_info = psutil.Process(os.getpid())
+            # self.log.debug(f"Memory info: {memory_info}")
+            # self.log.debug(f"Process info: Memory usage={process_info.memory_info()}, "
+            #             f"Threads={process_info.num_threads()}")
+
+            # Verify and log the new limits
+            soft, hard = resource.getrlimit(rsrc)
+            self.log.debug("Updated memory limits: soft=%s, hard=%s", soft, hard)
+        
+        except Exception as e:
+            self.log.error("Failed to set memory limits: %s", str(e))
+            raise
+        
 
     def start_target_implementation(self, i, out, err):
         """_summary_
@@ -1272,7 +1315,11 @@ class QUICIvyTest(IvyTest):
                     with self.open_out(self.name + "_client.out") as out_c:
                         with self.open_out(self.name + "_client.err") as err_c:
                             self.quic_process_2 = subprocess.Popen(
-                                qcmd.replace("sleep 10; ","sleep 50; "),
+                                (
+                                    "sleep 50; "
+                                    + "RUST_LOG='debug' RUST_BACKTRACE=1  exec "
+                                    + self.implem_cmd_opposite
+                                )  ,
                                 cwd=(self.implem_dir_client),
                                 stdout=out_c,
                                 stderr=err_c,
@@ -1421,20 +1468,9 @@ class QUICIvyTest(IvyTest):
             ):
                 self.log.info("self.stop_processes()")
                 print("self.stop_processes()")
-                if not self.is_mim and not self.is_attacker_client and not self.is_attacker_server:
+                if  self.is_mim or self.is_attacker_client or self.is_attacker_server:
                     # The above code is terminating the process.
-                    self.implem_process.terminate()
-                    retcode = self.implem_process.wait()
-                    self.log.info(retcode)
-                    print(retcode)
-                    if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
-                        iev.write("server_return_code({})\n".format(retcode))
-                        self.log.info("server return code: {}".format(retcode))
-                        print("server return code: {}".format(retcode))
-                        self.implem_process.kill()
-                        return False
-                else:
-                    if self.is_attacker_client or self.is_attacker_server or self.is_mim:
+                    if self.quic_process_1:
                         self.quic_process_1.terminate()
                         retcode = self.quic_process_1.wait()
                         self.log.info(retcode)
@@ -1445,15 +1481,28 @@ class QUICIvyTest(IvyTest):
                             print("server return code: {}".format(retcode))
                             self.quic_process_1.kill()
                             return False
-                    self.quic_process_2.terminate()
-                    retcode = self.quic_process_2.wait()
+                    if self.quic_process_2:
+                        self.quic_process_2.terminate()
+                        retcode = self.quic_process_2.wait()
+                        self.log.info(retcode)
+                        print(retcode)
+                        if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
+                            iev.write("server_return_code({})\n".format(retcode))
+                            self.log.info("server return code: {}".format(retcode))
+                            print("server return code: {}".format(retcode))
+                            self.quic_process_2.kill()
+                            return False
+                    
+                else:
+                    self.implem_process.terminate()
+                    retcode = self.implem_process.wait()
                     self.log.info(retcode)
                     print(retcode)
                     if retcode != -15 and retcode != 0:  # if not exit on SIGTERM...
                         iev.write("server_return_code({})\n".format(retcode))
                         self.log.info("server return code: {}".format(retcode))
                         print("server return code: {}".format(retcode))
-                        self.quic_process_2.kill()
+                        self.implem_process.kill()
                         return False
         return ok
 
@@ -1527,7 +1576,7 @@ class QUICIvyTest(IvyTest):
 
         ENV_VAR["PROTOCOL_TESTED"] = self.current_protocol
 
-        timeout_cmd = ("sleep 5; " if not self.is_client else "") + timeout_cmd
+        timeout_cmd = ("sleep 10; " if not self.is_client else "") + timeout_cmd
 
         randomSeed = random.randint(0, 1000)
         random.seed(datetime.now())
@@ -1563,7 +1612,7 @@ class QUICIvyTest(IvyTest):
 
         # TODO port for multiple clients
 
-        if self.name == "quic_server_test_0rtt" or self.name == "mim_server_test_0rtt":
+        if self.name == "quic_server_test_0rtt" or self.name == "quic_mim_test_replay_0rtt":
             server_port_run_2 = 4443
 
         if self.name == "quic_server_test_retry_reuse_key":

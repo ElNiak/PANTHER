@@ -298,9 +298,9 @@ setup_mim_bridged = [
     
     # "ip netns exec tested_client sysctl -w net.ipv4.ip_forward=1",
     # "ip netns exec tested_server sysctl -w net.ipv4.ip_forward=1",
-    "ebtables -A FORWARD -i br_ivy -o br_ivy -j DROP",
-    "ebtables -A FORWARD --logical-in br_ivy --logical-out br_ivy -j DROP",
-    "ip netns exec ivy iptables -A FORWARD -i veth_ivy -o veth_ivy -j DROP",
+    # "ebtables -A FORWARD -i br_ivy -o br_ivy -j DROP",
+    # "ebtables -A FORWARD --logical-in br_ivy --logical-out br_ivy -j DROP",
+    # "ip netns exec ivy iptables -A FORWARD -i veth_ivy -o veth_ivy -j DROP",
     # Check MTU
     "ip netns exec ivy ip link show veth_ivy",
     "ip netns exec tested_client ip link show veth_client",

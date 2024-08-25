@@ -1,0 +1,28 @@
+ARG image
+
+FROM $image:latest
+
+WORKDIR /app/implementations/quic-implementations/quic-go
+
+RUN git clone https://github.com/lucas-clemente/quic-go .
+RUN git fetch
+RUN git checkout b5ef99a32c250fc63f89cc686c13a008c5419d01 #v0.18.1 # v0.20.0
+
+RUN wget https://dl.google.com/go/go1.16.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf  go1.16.linux-amd64.tar.gz
+RUN export PATH="$PATH:/usr/local/go/bin"
+
+RUN /usr/local/go/bin/go version
+
+RUN mkdir client server
+ADD quic-go/rfc9000/go_client/main.go client/main.go
+ADD quic-go/rfc9000/go_server/main.go server/main.go
+ADD quic-go/rfc9000/connection_id.go internal/protocol/connection_id.go
+# TODO not working yet
+RUN /usr/local/go/bin/go mod download golang.org/x/net
+RUN /usr/local/go/bin/go clean
+RUN /usr/local/go/bin/go get ./...
+RUN /usr/local/go/bin/go build -o client/client client/main.go
+RUN /usr/local/go/bin/go build -o server/server server/main.go
+
+WORKDIR /app
