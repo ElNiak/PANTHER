@@ -50,10 +50,10 @@ extern "C" {
 #define PICOQUIC_MAX_PACKETS_IN_POOL 0x8000
 #define PICOQUIC_STORED_IP_MAX 16
 
-#define PICOQUIC_INITIAL_RTT 2000000ull /* 250 -> 2 sec ms */
+#define PICOQUIC_INITIAL_RTT 10000000ull /* 250 ms -> 10 sec */
 #define PICOQUIC_TARGET_RENO_RTT 100000ull /* 100 ms */
 #define PICOQUIC_TARGET_SATELLITE_RTT 610000ull /* 610 ms, practical maximum for non-pathological RTT */
-#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 2000000ull /* 250 ms chris: 2 sec */
+#define PICOQUIC_INITIAL_RETRANSMIT_TIMER 10000000ull /* 250 ms chris: 10 sec */
 #define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 10000000ull /* one second CHRIS 10 sec*/ 
 #define PICOQUIC_LARGE_RETRANSMIT_TIMER 7000000ull /* two seconds CHRIS 7 sec */
 #define PICOQUIC_MIN_RETRANSMIT_TIMER 2000000ull /* 50 ms -> 1 sec */

@@ -2,7 +2,6 @@ import logging
 import docker
 from docker.errors import NotFound
 import subprocess
-import time
 from panther_cli import execute_command
 
 

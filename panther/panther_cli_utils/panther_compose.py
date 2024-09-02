@@ -61,11 +61,20 @@ def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
                     "/app/implementations/",
                     "${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/",
                     "${PWD}/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/",
+                    "${PWD}/panther_worker/app/panther-ivy/ivy/ivy_to_cpp.py:/app/panther-ivy/ivy/ivy_to_cpp.py",
                     "${PWD}/outputs/tls-keys:/app/tls-keys",
                     "${PWD}/outputs/tickets:/app/tickets",
                     "${PWD}/outputs/qlogs:/app/qlogs",
                 ]
-
+            docker_compose["services"]["panther-webapp"]["environment"] = [
+                "ROOT_PATH=${PWD}",
+                "DISPLAY=${DISPLAY}",
+                "XAUTHORITY=~/.Xauthority",
+                "COLUMNS=100",
+                "FLASK_ENV=development",
+                "LINES=100",
+                f"LOG_LEVEL={logging.getLogger().level}",
+            ]
             docker_compose["services"][service_name] = {
                 "hostname": service_name,
                 "container_name": service_name,
@@ -77,6 +86,8 @@ def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
                 "privileged": True,  # TODO what are the security implications of this?
                 "tty": True,
                 "stdin_open": True,
+                # ,"vm.mmap_rnd_bits=28"  https://github.com/actions/runner-images/issues/9491#issuecomment-1989718917
+                "sysctls": ["net.ipv6.conf.all.disable_ipv6=1"],
                 "environment": [
                     "DISPLAY=${DISPLAY}",
                     "XAUTHORITY=~/.Xauthority",
@@ -84,6 +95,7 @@ def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
                     'MPLBACKEND="Agg"',
                     "COLUMNS=100",
                     "LINES=100",
+                    f"LOG_LEVEL={logging.getLogger().level}",
                     "PYTHONUNBUFFERED=1",
                     "PYTHONPATH=${PYTHONPATH}:/app/implementations/quic-implementations/aioquic/src",
                 ],

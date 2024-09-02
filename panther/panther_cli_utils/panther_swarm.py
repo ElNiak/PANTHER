@@ -79,6 +79,7 @@ def update_docker_swarm(config, yaml_path="docker-swarm.yml", prod=False):
                 "stdin_open": True,
                 # Spectre/Meltdown mitigation ~30% performance hit
                 "security_opt": ["seccomp:unconfined"],
+                "sysctls": ["net.ipv6.conf.all.disable_ipv6=1"],
                 "environment": [
                     "DISPLAY=${DISPLAY}",
                     "XAUTHORITY=~/.Xauthority",
@@ -86,6 +87,7 @@ def update_docker_swarm(config, yaml_path="docker-swarm.yml", prod=False):
                     'MPLBACKEND="Agg"',
                     "COLUMNS=100",
                     "LINES=100",
+                    f"LOG_LEVEL={logging.getLogger().level}",
                 ],
                 "restart": "always",
                 "deploy": {

@@ -28,6 +28,10 @@ clean-docker:
 	# Force removal of all images
 	docker rmi $(docker images -a -q)
 
+clean-docker-volume:
+	# Removes all Docker volumes
+	docker volume prune -f
+
 # Fully clean Docker environment
 clean-docker-full:
 	# Removes unused Docker images and containers

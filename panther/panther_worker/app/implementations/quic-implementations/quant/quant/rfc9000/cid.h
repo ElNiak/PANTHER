@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// Copyright (c) 2016-2020, NetApp, Inc.
+// Copyright (c) 2016-2022, NetApp, Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -58,13 +58,14 @@ struct cid {
     uint8_t srt[SRT_LEN]; ///< Stateless Reset Token
     uint8_t has_srt : 1;  ///< Is the SRT field valid?
 #endif
-    uint8_t in_cbi : 1;    ///< Is the CID in conns_by_id?
-    uint8_t retired : 1;   ///< Did we retire this CID?
-    uint8_t available : 1; ///< Is this CID available?
+    uint8_t in_cbi : 1;       ///< Is the CID in conns_by_id?
+    uint8_t retired : 1;      ///< Did we retire this CID?
+    uint8_t available : 1;    ///< Is this CID available?
+    uint8_t local_choice : 1; ///< Was this CID chosen by this end or the peer?
 #ifndef NO_SRT_MATCHING
-    uint8_t : 4;
+    uint8_t : 3;
 #else
-    uint8_t : 5;
+    uint8_t : 4;
 #endif
 #if HAVE_64BIT
     uint8_t _unused[2];
@@ -152,7 +153,6 @@ cid_cmp(const struct cid * const a, const struct cid * const b)
 static inline void __attribute__((nonnull))
 cid_cpy(struct cid * const dst, const struct cid * const src)
 {
-    // cppcheck-suppress nullPointerArithmeticRedundantCheck
     memcpy((uint8_t *)dst + offsetof(struct cid, seq),
            (const uint8_t *)src + offsetof(struct cid, seq),
            sizeof(struct cid) - offsetof(struct cid, seq) -

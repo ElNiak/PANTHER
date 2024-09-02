@@ -36,42 +36,52 @@ import os
 #                     python3 run_docker_image.py --mode server --categories 0rtt_test --update_include_tls  --timeout 30 --getstats --implementations aioquic --iter 100 --compile --remove  --docker_output_path docker-output-100-server-aioquic/ >> 100_server_0rtt_aioquic;'
 
 
-SOURCE_DIR = os.getenv('PWD')
-IMPLEM_DIR = SOURCE_DIR + '/quic-implementations'
+SOURCE_DIR = os.getenv("PWD")
+IMPLEM_DIR = SOURCE_DIR + "/quic-implementations"
 
-def main(argv):     
+
+def main(argv):
     args_parser = ArgumentParser()
     args = args_parser.parse_arguments()
     print(args)
-    if args.remove: 
-        os.system('sudo docker rm $(sudo docker ps -aq)')
+    if args.remove:
+        os.system("sudo docker rm $(sudo docker ps -aq)")
 
-    if args.delete: 
-        os.system('sudo docker rmi $(sudo docker images -aq)')
+    if args.delete:
+        os.system("sudo docker rmi $(sudo docker images -aq)")
 
-    if args.build: # TODO add no_cache option
+    if args.build:  # TODO add no_cache option
         print("build")
-        command = 'sudo docker build'+\
-            ' -t quic-ivy-uclouvain ' +\
-            ' .'
+        command = "sudo docker build" + " -t quic-ivy-uclouvain " + " ."
         print(command)
         os.system(command)
-
 
     if not os.path.isdir(SOURCE_DIR + "/" + args.docker_output_path):
         os.mkdir(SOURCE_DIR + "/" + args.docker_output_path)
 
-    command = 'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" ' +\
-                ' --privileged -it -v '+ SOURCE_DIR + "/" + args.docker_output_path + ':/QUIC-FormalVerification/panther-ivy/doc/examples/quic/test/temp ' +\
-                ' --name quic-ivy-uclouvain quic-ivy-uclouvain ' +\
-                'python3 panther.py --docker --mode '+ str(args.mode) +\
-                ' --categories '+ str(args.categories) +\
-                ' --implementations '+ ' '.join([str(elem) for elem in args.implementations]) +\
-                ' --update_include_tls  --timeout '+ str(args.timeout) +\
-                ' --getstats  --iter '+ str(args.iter) +\
-                ' --compile'
+    command = (
+        'sudo docker run --cpus="4.0" --memory="10g" --memory-reservation="9.5g" '
+        + " --privileged -it -v "
+        + SOURCE_DIR
+        + "/"
+        + args.docker_output_path
+        + ":/QUIC-FormalVerification/panther-ivy/protocol-testing/quic/test/temp "
+        + " --name quic-ivy-uclouvain quic-ivy-uclouvain "
+        + "python3 panther.py --docker --mode "
+        + str(args.mode)
+        + " --categories "
+        + str(args.categories)
+        + " --implementations "
+        + " ".join([str(elem) for elem in args.implementations])
+        + " --update_include_tls  --timeout "
+        + str(args.timeout)
+        + " --getstats  --iter "
+        + str(args.iter)
+        + " --compile"
+    )
     print(command)
     os.system(command)
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

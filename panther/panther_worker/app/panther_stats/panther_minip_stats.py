@@ -195,8 +195,11 @@ def make_dat(fbase, out):
             f = open(fn, "r")
         except:
             print("not found: %s" % fn)
-            sys.exit(1)
-
+            # sys.exit(1)
+            f = open(fn, "w")
+            f.write("")
+            f.close()
+            f = open(fn, "r")
         with iu.ErrorPrinter():
             with iu.SourceFile(fn):
                 s = f.read()
