@@ -1842,11 +1842,11 @@ def setup_quic_model(ivy_test_path):
 
                 # TODO
                 if (
-                    "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                    "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
                     in line
                 ):
                     line = line.replace(
-                        "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/",
+                        "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/",
                         "",
                     )
 
@@ -3472,7 +3472,7 @@ def init_tp_mapping(content, mapping, splitted_line):
 
 
 def get_prefix(splitted_line):
-    prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+    prefix = "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
     if "server_test" in splitted_line[0]:
         prefix = "/app/panther-ivy/protocol-testing/quic/quic_tests/server_tests/"
     elif "client_test" in splitted_line[0]:

@@ -95,8 +95,8 @@ IMPLEMENTATIONS = {
     # # Server:
     # # Client:
     # aioquic:[
-    #     [IMPLEM_DIR + '/aioquic/','python3.9 examples/http3_server.py --quic-log '+SOURCE_DIR +'/qlogs/aioquic --certificate '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_cert.pem --private-key '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_key.pem  -v -v --host 127.0.0.1 --port 4443 -l '+SOURCE_DIR +'/tls-keys/secret.log'],
-    #     [IMPLEM_DIR + '/aioquic/','python3.9 examples/http3_client.py --zero-rtt -s '+SOURCE_DIR +'/tickets/ticket.bin -l '+SOURCE_DIR +'/tls-keys/secret.log -v -q '+SOURCE_DIR +'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html']
+    #     [IMPLEM_DIR + '/aioquic/','python3.10.9 examples/http3_server.py --quic-log '+SOURCE_DIR +'/qlogs/aioquic --certificate '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_cert.pem --private-key '+SOURCE_DIR +'/quic-implementations/aioquic/tests/ssl_key.pem  -v -v --host 127.0.0.1 --port 4443 -l '+SOURCE_DIR +'/tls-keys/secret.log'],
+    #     [IMPLEM_DIR + '/aioquic/','python3.10.9 examples/http3_client.py --zero-rtt -s '+SOURCE_DIR +'/tickets/ticket.bin -l '+SOURCE_DIR +'/tls-keys/secret.log -v -q '+SOURCE_DIR +'/qlogs/aioquic/ --ca-certs tests/pycacert.pem -i --insecure --legacy-http https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html https://10.0.0.1:4443/index.html']
     # ],
     # # Server: cid 0x0 & 0x1 + comment 1 line in quic_frame
     # # Client: Not working: unknown reason (ok now, check alpn + ignore cert) -> no co_close ? + 0rtt todo +- ok now

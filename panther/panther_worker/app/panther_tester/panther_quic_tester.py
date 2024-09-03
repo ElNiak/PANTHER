@@ -109,7 +109,7 @@ class QUICIvyTest(IvyTest):
                 "picoquic": "-r",
                 "quant": "-r",
                 "quant-vuln": "-r",
-                "aioquic": "python3.9 examples/http3_server.py --quic-log "
+                "aioquic": "python3.10.9 examples/http3_server.py --quic-log "
                 + SOURCE_DIR
                 + "/qlogs/aioquic --certificate "
                 + SOURCE_DIR
@@ -149,7 +149,7 @@ class QUICIvyTest(IvyTest):
                 + SOURCE_DIR
                 + "/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html",
                 "picoquic": "./picoquicdemo -z -l - -D -L -a hq-interop localhost 4443",
-                "aioquic": "python3.9 examples/http3_client.py --version_negociation -l "
+                "aioquic": "python3.10.9 examples/http3_client.py --version_negociation -l "
                 + SOURCE_DIR
                 + "/tls-keys/secret.log -v -q "
                 + SOURCE_DIR
@@ -175,7 +175,7 @@ class QUICIvyTest(IvyTest):
                 + SOURCE_DIR
                 + "/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html",
                 "picoquic": "./picoquicdemo -G bbr -l - -D -L -a hq-interop -v 00000001 localhost 4443",  # CUBIC important for rtt
-                "aioquic": "python3.9 examples/http3_client.py --version_negociation -l "
+                "aioquic": "python3.10.9 examples/http3_client.py --version_negociation -l "
                 + SOURCE_DIR
                 + "/tls-keys/secret.log -v -q "
                 + SOURCE_DIR
@@ -201,7 +201,7 @@ class QUICIvyTest(IvyTest):
                 + SOURCE_DIR
                 + "/qlogs/quant -t 3600 -v 5  https://localhost:4443/index.html",
                 "picoquic": "./picoquicdemo -l - -D -L -a hq-29 localhost 4443",
-                "aioquic": "python3.9 examples/http3_client.py --version_negociation -l "
+                "aioquic": "python3.10.9 examples/http3_client.py --version_negociation -l "
                 + SOURCE_DIR
                 + "/tls-keys/secret.log -v -q "
                 + SOURCE_DIR

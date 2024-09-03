@@ -37,7 +37,7 @@ ENV_VAR = {
     "PROTOCOL_TESTED": "$PROT",
     "RUST_LOG": "debug",
     "RUST_BACKTRACE": "1",
-    "IVY_INCLUDE_PATH": "${IVY_INCLUDE_PATH}:/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7",
+    "IVY_INCLUDE_PATH": "${IVY_INCLUDE_PATH}:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7",
     "Z3_LIBRARY_DIRS": IVY_DIR + "/submodules/z3/build",
     "Z3_LIBRARY_PATH": IVY_DIR + "/submodules/z3/build;",
     "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:" + IVY_DIR + "/submodules/z3/build",

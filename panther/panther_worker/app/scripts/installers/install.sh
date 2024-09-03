@@ -14,7 +14,7 @@ sudo apt-get install  --fix-missing  -y cmake wireshark tshark rand
 sudo apt-get install  --fix-missing  -y binutils autoconf automake autotools-dev libtool pkg-config libev-dev libjemalloc-dev ca-certificates mime-support
 sudo apt-get install  --fix-missing  -y libboost-all-dev libevent-dev libdouble-conversion-dev libgoogle-glog-dev libgflags-dev libiberty-dev liblz4-dev liblzma-dev
 sudo apt-get install  --fix-missing  -y libsnappy-dev zlib1g-dev binutils-dev libjemalloc-dev libsodium-dev sudo
-sudo apt-get install  --fix-missing  -y git python3 python3-dev python3-pip build-essential libffi-dev python-dev cargo
+sudo apt-get install  --fix-missing  -y git python3.10 python3.10-dev python3.10-pip build-essential libffi-dev python-dev cargo
 sudo apt-get install  --fix-missing  -y build-essential software-properties-common zlib1g-dev libevent-dev
 sudo apt-get install  --fix-missing  -y python python-pip g++ cmake python-ply python-pygraphviz git python-tk tix pkg-config libssl-dev # TODO
 sudo apt-get install  --fix-missing  -y libunwind-dev
@@ -32,7 +32,7 @@ sudo apt-get install cmake
 cmake --version
 /usr/bin/cmake --version
 
-curl -fsSL https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3.5
+curl -fsSL https://bootstrap.pypa.io/pip/3.5/get-pip.py | python3.10.5
 
 printf '%s\n' "-------------> Init submodules: <-------------"
 

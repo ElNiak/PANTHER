@@ -10,8 +10,8 @@ make
 make check
 
 cd $HOME/TVOQE_UPGRADE_27/QUIC-Ivy/submodules/picotls/include/
-sudo rm -r /usr/local/lib/python2.7/dist-packages/ivy/include/picotls/
-sudo rm /usr/local/lib/python2.7/dist-packages/ivy/include/picotls.h
+sudo rm -r /usr/local/lib/python3.10.10/dist-packages/ivy/include/picotls/
+sudo rm /usr/local/lib/python3.10.10/dist-packages/ivy/include/picotls.h
 
-sudo cp -r $HOME/TVOQE_UPGRADE_27/QUIC-Ivy/submodules/picotls/include/picotls/ /usr/local/lib/python2.7/dist-packages/ivy/include/
-sudo cp $HOME/TVOQE_UPGRADE_27/QUIC-Ivy/submodules/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ivy/include/
+sudo cp -r $HOME/TVOQE_UPGRADE_27/QUIC-Ivy/submodules/picotls/include/picotls/ /usr/local/lib/python3.10.10/dist-packages/ivy/include/
+sudo cp $HOME/TVOQE_UPGRADE_27/QUIC-Ivy/submodules/picotls/include/picotls.h /usr/local/lib/python3.10.10/dist-packages/ivy/include/

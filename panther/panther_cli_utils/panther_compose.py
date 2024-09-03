@@ -79,7 +79,7 @@ def update_docker_compose(config, yaml_path="docker-compose.yml", prod=False):
                 "hostname": service_name,
                 "container_name": service_name,
                 "image": f"{service_name}:latest",
-                "command": 'bash -c "stty cols 100 rows 100 && python3 panther_client.py"',
+                "command": 'bash -c "stty cols 100 rows 100 && python3.10 panther_client.py"',
                 "ports": [f"{port}:80"],
                 "volumes": volumes,
                 "networks": {"net": {"ipv4_address": ipv4_address}},

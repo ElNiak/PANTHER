@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.9
+#!/usr/bin/env python3.10.9
 # -*- coding: utf-8 -*-
 
 
@@ -789,11 +789,11 @@ class IvyServer:
                 input_file_content_lines = input_file.readlines()
                 for line in input_file_content_lines:
                     if (
-                        "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                        "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
                         in line
                     ):
                         line = line.replace(
-                            "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/",
+                            "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/",
                             "",
                         )
                     if "in action" in line:
@@ -814,7 +814,7 @@ class IvyServer:
                             print("=========================================")
                             continue
 
-                        prefix = "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                        prefix = "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
 
                         if "server_test" in splitted_line[0]:
                             prefix = "/app/panther-ivy/protocol-testing/quic/quic_tests/server_tests/"
@@ -834,7 +834,7 @@ class IvyServer:
                             print(tp_name)
                             print("**************************************")
                             with open(
-                                "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/quic_transport_parameters.ivy",
+                                "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/quic_transport_parameters.ivy",
                                 "r",
                             ) as f:
                                 content = f.read()
@@ -906,7 +906,7 @@ class IvyServer:
                                         }
                                     )
                                     with open(
-                                        "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                                        "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
                                         + splitted_line[0],
                                         "r",
                                     ) as f:
@@ -1027,7 +1027,7 @@ class IvyServer:
                                             }
                                         )
                                         with open(
-                                            "/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                                            "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
                                             + splitted_line[0],
                                             "r",
                                         ) as f:
@@ -1790,7 +1790,7 @@ class IvyServer:
 
         # try:
         #     # pedantic=true isolate_mode=test isolate=this
-        #     result = call_python_version("2.7", "ivy.ivy_init", "ivy_init",
+        #     result = call_python_version("3.8", "ivy.ivy_init", "ivy_init",
         #                                  {"show_compiled":"true",
         #                                   "pedantic":"true",
         #                                   "isolate_mode":"test",

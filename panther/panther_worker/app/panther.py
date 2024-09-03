@@ -110,7 +110,7 @@ class Panther:
         """_summary_"""
         # Note we use subprocess in order to get sudo rights
         os.chdir(SOURCE_DIR + "/panther-ivy/")
-        execute_command("sudo python2.7 setup.py install")
+        execute_command("sudo python3.10 setup.py install")
         execute_command("sudo cp lib/libz3.so submodules/z3/build/python/z3")
 
         # TODO extract variable for path -> put in module path
@@ -125,20 +125,20 @@ class Panther:
         ]
 
         self.log.info(
-            "Copying file to /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+            "Copying file to /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
         )
         for file in files:
             self.log.debug("\t -" + file)
             execute_command(
                 "sudo /bin/cp -f "
                 + file
-                + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                + " /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
             )
 
-        os.chdir("/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/")
+        os.chdir("/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/")
         execute_command(
             "sudo /bin/cp -f -a "
-            + "/app/panther-ivy/lib/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib",
+            + "/app/panther-ivy/lib/*.a /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib",
             must_pass=False,
         )
 
@@ -149,7 +149,7 @@ class Panther:
             # TODO picotls add submodule
             execute_command(
                 "sudo /bin/cp -f -a "
-                + "/app/implementations/quic-implementations/picotls/*.a /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib/"
+                + "/app/implementations/quic-implementations/picotls/*.a /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/"
             )
             execute_command(
                 "sudo /bin/cp -f -a "
@@ -158,7 +158,7 @@ class Panther:
             )
             execute_command(
                 "sudo /bin/cp -f "
-                + "/app/implementations/quic-implementations/picotls/include/picotls.h /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/picotls.h"
+                + "/app/implementations/quic-implementations/picotls/include/picotls.h /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls.h"
             )
             execute_command(
                 "sudo /bin/cp -f "
@@ -167,7 +167,7 @@ class Panther:
             )
             execute_command(
                 "sudo /bin/cp -r -f "
-                + "/app/implementations/quic-implementations/picotls/include/picotls/. /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/picotls"
+                + "/app/implementations/quic-implementations/picotls/include/picotls/. /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls"
             )
 
         os.chdir(SOURCE_DIR)
@@ -191,7 +191,7 @@ class Panther:
             execute_command(
                 "sudo /bin/cp -f "
                 + file
-                + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                + " /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
             )
 
         if self.config["verified_protocol"].getboolean("quic"):
@@ -199,7 +199,7 @@ class Panther:
                 "sudo /bin/cp -f "
                 + self.protocol_model_path
                 + "/quic_utils/quic_ser_deser.h"
-                + " /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/",
+                + " /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/",
             )
 
     def remove_includes(self):
@@ -209,7 +209,7 @@ class Panther:
             self.log.info("* " + file)
             nameFileShort = file.split("/")[-1]
             execute_command(
-                "sudo /bin/rm /usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/"
+                "sudo /bin/rm /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/"
                 + nameFileShort
             )
         self.included_files = list()

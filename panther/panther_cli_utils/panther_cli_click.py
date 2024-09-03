@@ -441,7 +441,7 @@ def update_docker_compose(config_file, yaml_path="docker-compose.yml"):
                     "hostname": service_name,
                     "container_name": service_name,
                     "image": f"{service_name}:latest",
-                    "command": 'bash -c "stty cols 100 rows 100 && python3 panther_client.py"',
+                    "command": 'bash -c "stty cols 100 rows 100 && python3.10 panther_client.py"',
                     "ports": [f"{port}:80"],
                     "volumes": [
                         "/tmp/.X11-unix:/tmp/.X11-unix",

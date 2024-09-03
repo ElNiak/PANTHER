@@ -7,13 +7,13 @@ git config --global --add safe.directory $PROOTPATH/QUIC-Ivy/submodules/picotls
 mkdir doc/examples/quic/build
 mkdir doc/examples/quic/test/temp
 
-sudo rm -r /usr/local/lib/python2.7/dist-packages && sudo mkdir /usr/local/lib/python2.7/dist-packages
+sudo rm -r /usr/local/lib/python3.10.10/dist-packages && sudo mkdir /usr/local/lib/python3.10.10/dist-packages
 sudo pip2 install pexpect chardet
 sudo pip2 install gperf pandas scandir
 sudo pip2 install ply
-sudo python3 -m pip install pexpect chardet
-sudo python3 -m pip install gperf pandas scandir
-sudo python3 -m pip install ply
+sudo python3.10 -m pip install pexpect chardet
+sudo python3.10 -m pip install gperf pandas scandir
+sudo python3.10 -m pip install ply
 sudo pip install pexpect chardet
 sudo pip install gperf pandas scandir
 sudo pip install ply
