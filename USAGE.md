@@ -62,7 +62,7 @@
 ```bash
 # Start a Docker container for interactive Bash access
 IMPLEM="picoquic" make start-bash
-python3 panther.py --mode client --categories all --update_include_tls \
+python3.10 panther.py --mode client --categories all --update_include_tls \
 		--timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29  
 # Example: Runs a Docker container with 'picoquic' for interactive Bash access
 ```
@@ -180,7 +180,7 @@ WORKDIR /PANTHER
     hostname: <implem>-ivy
     container_name: <implem>-ivy
     image: "<implem>-ivy:latest"
-    command: python3 panther.py --update_ivy --getstats --worker --compile  --docker
+    command: python3.10 panther.py --update_ivy --getstats --worker --compile  --docker
     ports:
       - "<new_pôrt>:80"
     volumes:

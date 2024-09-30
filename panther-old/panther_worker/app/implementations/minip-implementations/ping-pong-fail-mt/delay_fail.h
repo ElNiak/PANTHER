@@ -1,0 +1,3 @@
+int MIN_DELAY = 4;
+int SAFETY_MARGIN = 0;
+int TIMEOUT = 3;

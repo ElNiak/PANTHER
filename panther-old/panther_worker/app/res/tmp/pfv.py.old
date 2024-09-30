@@ -1,0 +1,634 @@
+import logging
+import subprocess
+import sys
+import time
+import progressbar
+import tracemalloc  
+from plantuml import PlantUML
+import configparser
+import os
+
+from utils.Runner import Runner
+from utils.constants import *
+from logger.CustomFormatter import CustomFormatter
+
+class PANTHER:
+    SOURCE_DIR =  os.getcwd()
+    IMPLEM_DIR =  SOURCE_DIR + '/quic-implementations'
+    MEMORY_PROFILING = False
+    COMPILE = False
+
+    def __init__(self):
+        # Set environment variables
+        for env_var in ENV_VAR:
+            os.environ[env_var] = ENV_VAR[env_var]
+            print(env_var, ENV_VAR[env_var])
+        subprocess.Popen("source $HOME/.cargo/env",shell=True, executable="/bin/bash").wait() # TODO source
+
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        ch.setFormatter(CustomFormatter())
+        self.log = logging.getLogger("panther")
+        self.log.setLevel(logging.INFO)
+        self.log.addHandler(ch)
+        self.log.propagate = False 
+        self.included_files = list()
+
+
+        if PANTHER.MEMORY_PROFILING:
+            # TODO take snapshot in build_scdgs()
+            self.memory_snapshots = []
+
+        # args_parser = ArgumentParserRunner()
+        # self.args = args_parser.parse_arguments()
+        # self.log.info(self.args)
+        
+        config = configparser.ConfigParser(allow_no_value=True)
+        config.read('configs/default_config.ini')
+
+
+        os.environ['INITIAL_VERSION'] = str(self.args.initial_version)
+        ENV_VAR["INITIAL_VERSION"] = str(self.args.initial_version)
+        PANTHER.COMPILE = self.args.compile
+
+        self.executed_tests = []
+        self.count_1 = None
+
+
+    def update_ivy(self):
+        # Note we use subprocess in order to get sudo rights
+        # TODO should use makefile
+        os.chdir(PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/")
+        os.system("sudo python2.7 setup.py install")
+        os.system("sudo cp lib/libz3.so submodules/z3/build/python/z3")
+        # cp lib/libz3.so submodules/z3/build/python/z3; 
+        # export IVY_INCLUDE_PATH=IVY_INCLUDE_PATH:/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7;
+        # export Z3_LIBRARY_DIRS=$PWD/submodules/z3/build; 
+        # export Z3_LIBRARY_PATH=$PWD/submodules/z3/build; 
+        # export PATH=$PATH:$PWD/submodules/z3/build; 
+        # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/submodules/z3/build; 
+        # export PYTHONPATH=$PYTHONPATH:$PWD/submodules/z3/build/python; 
+          
+        
+        folder = PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include/1.7"
+        self.log.info("Update \"include\" path of python with updated version of the TLS project from \n\t"+folder)
+        # self.log.info("TESTSSS")
+        # subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_tracer.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_tracer.py", 
+        #                                             shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo python -m compileall ivy_tracer.py", 
+        #                                             shell=True, executable="/bin/bash").wait()
+        files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy")]
+        self.log.info("Copying file to /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/")
+        for file in files:
+            self.log.info(" " + file)
+            subprocess.Popen("sudo /bin/cp "+ file +" /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
+                                                    shell=True, executable="/bin/bash").wait()
+        """
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_to_cpp.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_to_cpp.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_solver.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_solver.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_cpp_types.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_cpp_types.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_parser.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_parser.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_ast.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_ast.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_compiler.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_compiler.py", 
+        #                                             shell=True, executable="/bin/bash").wait() # TODO
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_ui.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_ui.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/cy_render.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/cy_render.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_graph_ui.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_trace.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_trace.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/tk_ui.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/tk_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/tk_graph_ui.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/tk_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy_actions.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy_actions.py", 
+        #                                             shell=True, executable="/bin/bash").wait() # TODO
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/ivy.py /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/ivy.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        #cd /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/
+        """
+        
+        os.chdir('/usr/local/lib/python2.7/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/')
+
+        """
+        subprocess.Popen("sudo python -m compileall ivy_to_cpp.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo python -m compileall ivy_cpp_types.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo python -m compileall ivy_solver.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo python -m compileall ivy_parser.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo python -m compileall ivy_ast.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo python -m compileall ivy_compiler.py", 
+        #                                             shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo python -m compileall ivy_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()  
+        
+        subprocess.Popen("sudo python -m compileall ivy_trace.py", 
+                                                    shell=True, executable="/bin/bash").wait()  
+        
+        subprocess.Popen("sudo python -m compileall cy_render.py", 
+                                                    shell=True, executable="/bin/bash").wait()  
+        
+        subprocess.Popen("sudo python -m compileall ivy_ui_cti.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        subprocess.Popen("sudo python -m compileall tk_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        subprocess.Popen("sudo python -m compileall tk_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        
+        subprocess.Popen("sudo python -m compileall ivy_graph_ui.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        
+        # subprocess.Popen("sudo python -m compileall ivy_actions.py",  # TODO
+        #                                             shell=True, executable="/bin/bash").wait()
+        
+        subprocess.Popen("sudo python -m compileall ivy.py", 
+                                                    shell=True, executable="/bin/bash").wait()
+        """
+        subprocess.Popen("sudo /bin/cp -f -a " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/lib/*.a /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib", 
+                                                    shell=True, executable="/bin/bash").wait()
+
+        #echo "CP picotls lib"
+        subprocess.Popen("sudo /bin/cp -f -a " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/*.a /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/lib", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f -a " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/*.a " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/lib", 
+                                                    shell=True, executable="/bin/bash").wait()                                          
+
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp -f " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include", 
+                                                    shell=True, executable="/bin/bash").wait()
+
+        # cp -f " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include
+        # cp -f " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/include/picotls.h " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include
+        subprocess.Popen("sudo /bin/cp -r -f " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/picotls", 
+                                                    shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -r -f " + PANTHER.SOURCE_DIR + "/quic-implementations/picotls/include/picotls/. " + PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/ivy/include/picotls", 
+        #                                             shell=True, executable="/bin/bash").wait()
+ 
+        os.chdir(PANTHER.SOURCE_DIR)
+
+    def update_includes(self):
+        path = PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic"
+        self.log.info("Update \"include\" path of python with updated version of the project from \n\t"+path)
+        subfolder = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
+        for folder in subfolder:
+            files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy") and not "test" in f]
+            for file in files:
+                self.log.info(" " + file)
+                self.included_files.append(file)
+                subprocess.Popen("sudo /bin/cp "+ file +" /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
+                                                    shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("sudo /bin/cp "+ path + "/quic_utils/quic_ser_deser.h" +" /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/", 
+                                                    shell=True, executable="/bin/bash").wait()
+
+    def set_custom(self, custom):
+        TESTS_CUSTOM = custom
+        
+    def remove_includes(self):
+        self.log.info("Reset \"include\" path of python")
+        for file in self.included_files:
+            self.log.info(" " + file)
+            nameFileShort = file.split("/")[-1]
+            subprocess.Popen("sudo /bin/rm /usr/local/lib/python3.10.10/dist-packages/ms_ivy-1.8.24-py2.7.egg/ivy/include/1.7/" + nameFileShort, 
+                                                    shell=True, executable="/bin/bash").wait()
+
+    def build_tests(self,mode, categories,tc=None):
+        custom = False
+        if mode == "server":
+            true_categories = TESTS_SERVER.keys()
+        elif mode == "mim":
+            true_categories = TESTS_MIM.keys()
+        elif mode == "client":
+            true_categories = TESTS_CLIENT.keys()
+        else:
+            custom = True
+        if not custom:
+            folder = PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
+            os.chdir(folder)
+            if "all" in categories:
+                files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.endswith(".ivy") and mode in f]
+                for file in files:
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
+            elif categories in true_categories:
+                if mode == "server":
+                    self.log.info(TESTS_SERVER[categories])
+                    files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_SERVER[categories]]
+                elif mode == "mim":
+                    self.log.info(TESTS_MIM[categories])
+                    files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_MIM[categories]]
+                elif mode == "client":
+                    self.log.info(TESTS_CLIENT[categories])
+                    files = [os.path.join(folder, f) for f in os.listdir(folder) if os.path.isfile(os.path.join(folder, f)) and f.replace(".ivy","") in TESTS_CLIENT[categories]]
+                    
+                for file in files:
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
+            else:
+                self.log.info(" " +categories)
+                nameFileShort = categories.split("/")[-1]
+                self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                self.build_file(nameFileShort)
+        else:
+            if tc is not None:
+                TESTS_CUSTOM = tc # STRANGE changing variable in worker.py do not change it here
+            self.log.info(" " + str(len(TESTS_CUSTOM)))
+            self.log.info(TESTS_CUSTOM)
+            for file in TESTS_CUSTOM:
+                if "server" in file:
+                    mode = "server"
+                    folder = PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    os.chdir(folder)
+                    file = os.path.join(folder, file) + ".ivy"
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    if self.args.ivy_ui:
+                        # oldcwd = os.getcwd()
+                        # os.chdir(QUIC_DIR)
+                        subprocess.Popen("ivy show_compiled=false pedantic=true isolate_mode=test isolate=this ui=cti " + nameFileShort, 
+                                        shell=True, 
+                                        # cwd=QUIC_DIR,
+                                        executable="/bin/bash").wait()
+                        # os.chdir(oldcwd)
+                        exit(0)
+                    self.build_file(nameFileShort)
+                elif "client" in file:
+                    mode = "client"
+                    folder = PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    os.chdir(folder)
+                    file = os.path.join(folder, file) + ".ivy"
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
+                else:
+                    mode = "mim"
+                    folder = PANTHER.SOURCE_DIR + "/QUIC-Ivy-Attacker/doc/examples/quic/quic_tests/" + mode +"_tests/"
+                    os.chdir(folder)
+                    file = os.path.join(folder, file) + ".ivy"
+                    self.log.info(" " + file)
+                    nameFileShort = file.split("/")[-1]
+                    self.executed_tests.append(nameFileShort.replace(".ivy",""))
+                    self.build_file(nameFileShort)
+
+    def build_file(self,file):
+        self.compile_file(file)
+        if "quic_server_test_0rtt" in file:
+            file = file.replace("quic_server_test_0rtt","quic_server_test_0rtt_stream")
+            self.compile_file(file)
+            file = file.replace("quic_server_test_0rtt_stream","quic_server_test_0rtt_stream_co_close")
+            self.compile_file(file)
+            file = file.replace("quic_server_test_0rtt_stream_co_close","quic_server_test_0rtt_stream_app_close")
+            self.compile_file(file)
+        elif "quic_client_test_0rtt_invalid" in file:
+            file = file.replace("quic_client_test_0rtt_invalid","quic_client_test_0rtt_max")
+            self.compile_file(file)
+        elif "quic_client_test_0rtt_add_val" in file:
+            file = file.replace("quic_client_test_0rtt_add_val","quic_client_test_0rtt_max_add_val")
+            self.compile_file(file)
+        elif "quic_client_test_0rtt_mim_replay" in file:
+            file = file.replace("quic_client_test_0rtt_mim_replay","quic_client_test_0rtt_max")
+            self.compile_file(file)
+        elif "quic_client_test_0rtt" in file:
+            file = file.replace("quic_client_test_0rtt","quic_client_test_0rtt_max")
+            self.compile_file(file)
+            file = file.replace("quic_client_test_0rtt_max","quic_client_test_0rtt_max_co_close")
+            self.compile_file(file)
+            file = file.replace("quic_client_test_0rtt_max_co_close","quic_client_test_0rtt_max_app_close")
+            self.compile_file(file)
+        elif "quic_server_test_retry_reuse_key" in file:
+            file = file.replace("quic_server_test_retry_reuse_key","quic_server_test_retry")
+            self.compile_file(file)
+
+    def compile_file(self,file):
+        if PANTHER.COMPILE:
+            child= subprocess.Popen("ivyc trace=false show_compiled=false target=test test_iters="+ str(self.args.internal_iteration) + "  " + file, 
+                                                    shell=True, executable="/bin/bash").wait()
+            rc = child
+            print(rc)
+            if rc != 0:
+                exit(1)
+            subprocess.Popen("/usr/bin/chmod +x "+ file.replace('.ivy',''), 
+                                                    shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("/bin/cp "+ file.replace('.ivy','')  + " "+ PANTHER.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
+                                                    shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("/bin/cp "+ file.replace('.ivy','.cpp')  + " "+ PANTHER.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
+                                                    shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("/bin/cp "+ file.replace('.ivy','.h')  + " "+ PANTHER.SOURCE_DIR +"/QUIC-Ivy-Attacker/doc/examples/quic/build/", 
+                                                    shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("/bin/rm "+ file.replace('.ivy',''), 
+                                                    shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("/bin/rm "+ file.replace('.ivy','.cpp'), 
+                                                    shell=True, executable="/bin/bash").wait()
+            subprocess.Popen("/bin/rm "+ file.replace('.ivy','.h'), 
+                                                    shell=True, executable="/bin/bash").wait()
+
+    def launch_experiments(self,tc=None):
+        if PANTHER.MEMORY_PROFILING:
+            tracemalloc.start()
+            
+        self.included_files = list()
+            
+        if self.args.update_include_tls:
+            self.update_ivy()
+        self.update_includes()
+        
+        self.executed_tests = []
+        
+        os.environ['INITIAL_VERSION'] = str(self.args.initial_version)
+        ENV_VAR["INITIAL_VERSION"] = str(self.args.initial_version)
+        PANTHER.COMPILE = self.args.compile
+        
+        if not self.args.docker:
+            os.environ['IS_NOT_DOCKER'] = "true" 
+            ENV_VAR["IS_NOT_DOCKER"]    = "true"
+        else:
+            if 'IS_NOT_DOCKER' in os.environ:
+                del os.environ['IS_NOT_DOCKER']
+            if 'IS_NOT_DOCKER' in ENV_VAR:
+                del ENV_VAR['IS_NOT_DOCKER']
+        
+        print("shadow:")
+        print(self.args.shadow)
+        if not self.args.shadow:
+            os.environ['IS_NOT_SHADOW'] = "true" 
+            ENV_VAR["IS_NOT_SHADOW"]    = "true"
+        else:
+            if 'IS_NOT_SHADOW' in os.environ:
+                del os.environ['IS_NOT_SHADOW']
+            if 'IS_NOT_SHADOW' in ENV_VAR:
+                del ENV_VAR['IS_NOT_SHADOW']
+        ENV_VAR["LOSS"] = self.args.loss
+        ENV_VAR["LATENCY"] = self.args.latency
+        ENV_VAR["JITTER"] = self.args.jitter
+        print(ENV_VAR["LOSS"])
+        print(ENV_VAR["LATENCY"])
+        print(ENV_VAR["JITTER"])
+        print('IS_NOT_SHADOW' in os.environ)
+        print('IS_NOT_SHADOW' in ENV_VAR)
+        
+                
+        subprocess.Popen("sudo sysctl -w net.core.rmem_max=2500000", 
+                            shell=True, executable="/bin/bash").wait() # for quic-go
+        if self.args.vnet:
+            if self.args.mode == "mim" or self.args.categories == "attacks_test":
+                subprocess.Popen("bash "+ PANTHER.SOURCE_DIR + "/vnet_setup_mim.sh", 
+                                                        shell=True, executable="/bin/bash").wait()
+            else:
+                subprocess.Popen("bash "+ PANTHER.SOURCE_DIR + "/vnet_setup.sh", 
+                                                        shell=True, executable="/bin/bash").wait() 
+        else:
+            subprocess.Popen("bash "+ PANTHER.SOURCE_DIR + "/vnet_reset.sh", 
+                                                    shell=True, executable="/bin/bash").wait()
+        self.build_tests(self.args.mode, self.args.categories, tc=tc)
+
+        runner = Runner(self.args)
+
+        implementations = self.args.implementations
+        if implementations == None:
+            implementations = IMPLEMENTATIONS.keys()
+
+        if  "quic_server_test_0rtt" in self.executed_tests or  "quic_client_test_0rtt" in self.executed_tests:
+            bar_f = progressbar.ProgressBar(max_value=(len(self.executed_tests)+2)*len(implementations)*self.args.iter)
+        else:
+            bar_f = progressbar.ProgressBar(max_value=len(self.executed_tests)*len(implementations)*self.args.iter)
+        bar_f.start()
+        self.count_1 = 0
+        
+        # subprocess.Popen("echo '' >> "+ PANTHER.SOURCE_DIR +"/tickets/ticket.bin", 
+        #                 shell=True, executable="/bin/bash").wait()
+        
+        for test in self.executed_tests:
+            initial_test = test
+            ni = 1
+            if test == "quic_client_test_0rtt_mim_replay":
+                os.environ['ZERORTT_TEST']="true" 
+                ENV_VAR["ZERORTT_TEST"]="true"
+            elif test == "quic_server_test_0rtt" or test == "quic_client_test_0rtt":
+                os.environ['ZERORTT_TEST']="true" 
+                ENV_VAR["ZERORTT_TEST"]="true"
+                ni = 3
+            else:
+                if 'ZERORTT_TEST' in os.environ:
+                    del os.environ['ZERORTT_TEST']
+                if 'ZERORTT_TEST' in ENV_VAR:
+                    del ENV_VAR["ZERORTT_TEST"]
+            if test == "quic_server_test_retry_reuse_key": # TODO
+                runner.nclient = 2
+            else:
+                runner.nclient = self.args.nclient
+            
+            # if "quic_client_test_version_negociation_mim" in test:
+            #     subprocess.Popen("bash "+ PANTHER.SOURCE_DIR + "/mim-setup.sh", 
+            #                                         shell=True, executable="/bin/bash").wait()
+            # else:
+            #     subprocess.Popen("bash "+ PANTHER.SOURCE_DIR + "/mim-reset.sh", 
+            #                                         shell=True, executable="/bin/bash").wait()
+
+            #if test == "quic_client_test_version_negociation_mim":
+            #    subprocess.Popen("/bin/bash "+ PANTHER.SOURCE_DIR + "/mim-setup.sh", 
+            #                                        shell=True, executable="/bin/bash").wait()
+            #else:
+            #    subprocess.Popen("/bin/bash "+ PANTHER.SOURCE_DIR + "/mim-reset.sh", 
+            #                                        shell=True, executable="/bin/bash").wait()
+            
+            for j in range(0,ni):
+                for implementation in implementations:  
+                    print(implementations)
+                    os.environ['TEST_IMPL'] = implementation
+                    ENV_VAR["TEST_IMPL"] = implementation
+                    os.environ['TEST_ALPN'] = self.args.alpn if implementation != "mvfst" else "hq"
+                    ENV_VAR["TEST_ALPN"] = self.args.alpn if implementation != "mvfst" else "hq"
+                    os.environ['SSLKEYLOGFILE'] = PANTHER.SOURCE_DIR +"/tls-keys/"+implementation+"_key.log"
+                    ENV_VAR["SSLKEYLOGFILE"] = PANTHER.SOURCE_DIR +"/tls-keys/"+implementation+"_key.log"
+                    for i in range(0,self.args.iter):
+                        if j == 1:
+                            test = initial_test + "_app_close"
+                        elif j == 2:
+                            test = initial_test + "_co_close"
+                        self.log.info("Test: "+test)
+                        self.log.info("Implementation: "+implementation)
+                        self.log.info("Iteration: "+str(i+1) +"/" + str(self.args.iter))
+                        os.environ['CNT'] = str(self.count_1)
+                        ENV_VAR["CNT"] = str(self.count_1)
+                        #os.environ['RND'] = os.getenv("RANDOM")
+                        subprocess.Popen("> "+ PANTHER.SOURCE_DIR +"/tickets/ticket.bin", 
+                                                    shell=True, executable="/bin/bash").wait()
+                        path = PANTHER.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/'
+                        #print(path)
+                        folders = [os.path.join(path, f) for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
+                        #print(folders)
+                        pcap_i = len(folders)
+                        self.log.info(pcap_i)
+                        ivy_dir = path+str(pcap_i)
+                        subprocess.Popen("/bin/mkdir " + ivy_dir, 
+                                                    shell=True, executable="/bin/bash").wait()
+                        if self.args.vnet:
+                            pcap_name = ivy_dir +"/ivy_lo_"+ implementation +"_"+ test +".pcap"
+                            subprocess.Popen("touch "+pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("touch "+pcap_name.replace("ivy_lo_","ivy_ivy_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name.replace("ivy_lo_","ivy_ivy_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("touch "+pcap_name.replace("ivy_lo_","implem_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name.replace("ivy_lo_","implem_"), 
+                                                        shell=True, executable="/bin/bash").wait()
+                        else:
+                            pcap_name = ivy_dir +"/"+ implementation +"_"+ test +".pcap"
+                            subprocess.Popen("touch "+pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("sudo /bin/chmod o=xw "+ pcap_name, 
+                                                        shell=True, executable="/bin/bash").wait()
+                        self.log.info("\tStart thsark")
+                        #time.sleep(10) # for server test 
+                        # TODO kill entual old quic implem
+
+                        if self.args.vnet:
+                            interface = "lo"
+                            p = subprocess.Popen(["ip", "netns", "exec", "ivy", "tshark", "-w",
+                                                pcap_name,
+                                                "-i", interface, "-f", 'udp'],
+                                                stdout=sys.stdout)
+                            interface = "ivy"
+                            p = subprocess.Popen(["ip", "netns", "exec", "ivy", "tshark", "-w",
+                                                    pcap_name.replace("ivy_lo_","ivy_ivy_"),
+                                                    "-i", interface, "-f", 'udp'],
+                                                    stdout=sys.stdout)
+                            interface = "implem"
+                            p = subprocess.Popen(["ip", "netns", "exec", "implem", "tshark", "-w",
+                                                pcap_name.replace("ivy_lo_","implem_"),
+                                                "-i", interface, "-f", 'udp'],
+                                                stdout=sys.stdout)
+                        else:
+                            interface = "lo"
+                            p = subprocess.Popen(["sudo", "tshark", "-w",
+                                                pcap_name,
+                                                "-i", interface, "-f", 'udp'],
+                                                stdout=sys.stdout)
+                        time.sleep(3)
+                        runner.quic_implementation = implementation
+                        
+                        ivy_out = ivy_dir + '/ivy_stdout.txt'
+                        ivy_err = ivy_dir + '/ivy_stderr.txt'
+                        sys.stdout = open(ivy_out, 'w')
+                        sys.stderr = open(ivy_err, 'w')
+                        self.log.info("\tStart run")
+                        try:
+                            runner.output_path = None
+                            os.environ['TEST_TYPE']     = "server" if "server" in initial_test else "client" # TODO for dockercompose -> change for custom
+                            ENV_VAR["TEST_TYPE"]        = "server" if "server" in initial_test else "client"# self.args.mode
+                            runner.run_exp(initial_test,pcap_i,pcap_name,i,j,self.args.gperf)
+                            
+                        except Exception as e:
+                            print(e)
+                        finally: # In Runner.py
+                            sys.stdout.close()
+                            sys.stderr.close()
+                            sys.stdout = sys.__stdout__
+                            sys.stderr = sys.__stderr__
+                            subprocess.Popen("/usr/bin/tail -2 " + ivy_err, 
+                                                    shell=True, executable="/bin/bash").wait()
+                            subprocess.Popen("/usr/bin/tail -2 " + ivy_out, 
+                                                    shell=True, executable="/bin/bash").wait()
+                            #subprocess.Popen("/usr/bin/tail $(/usr/bin/lsof -i udp) >/dev/null 2>&1", # deadlock in docker todo
+                            #                        shell=True, executable="/bin/bash").wait()
+                            self.log.info("\tKill thsark")
+                            subprocess.Popen("sudo /usr/bin/pkill tshark", 
+                                                    shell=True, executable="/bin/bash").wait()
+                            #p.kill()
+                            self.count_1 += 1
+                            bar_f.update(self.count_1)
+                            subprocess.Popen("bash "+ PANTHER.SOURCE_DIR + "/mim-reset.sh", 
+                                                    shell=True, executable="/bin/bash").wait()
+        if self.args.vnet:
+            subprocess.Popen("bash "+ PANTHER.SOURCE_DIR + "/vnet_reset.sh", 
+                            shell=True, executable="/bin/bash").wait()
+        bar_f.finish()
+        self.count_1 = None
+        # self.remove_includes()
+        TESTS_CUSTOM = []
+        # subprocess.Popen("sudo /bin/cp -r "+ PANTHER.SOURCE_DIR +"/tls-keys/ " + PANTHER.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/', 
+        #                     shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -r "+ PANTHER.SOURCE_DIR +"/tickets/ " + PANTHER.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/', 
+        #                     shell=True, executable="/bin/bash").wait()
+        # subprocess.Popen("sudo /bin/cp -r "+ PANTHER.SOURCE_DIR +"/qlogs/ " + PANTHER.SOURCE_DIR + '/QUIC-Ivy-Attacker/doc/examples/quic/test/temp/', 
+        #                     shell=True, executable="/bin/bash").wait()
+        if PANTHER.MEMORY_PROFILING:
+            snapshot = tracemalloc.take_snapshot()
+            top_stats = snapshot.statistics('lineno')
+            self.log.info("[ Top 50 ]")
+            for stat in top_stats[:50]:
+                self.log.info(stat)
+                
+        try:
+            plantuml_file = "/ivy_trace.txt"
+            plantuml_obj = PlantUML(url="http://www.plantuml.com/plantuml/img/",  basic_auth={}, form_auth={}, http_opts={}, request_opts={})
+
+            plantuml_file_png = plantuml_file.replace('.puml', '.png') #"media/" + str(nb_exp) + "_plantuml.png"
+            plantuml_obj.processes_file(plantuml_file,  plantuml_file_png)
+            print("done")
+        except Exception as e:
+            print(e)
+            pass
+                
+        # time.sleep(100)
+
+
+def main():
+    experiments = PANTHER()
+    if experiments.args.webapp:
+        from webapp.server import IvyServer
+        app = IvyServer(PANTHER.SOURCE_DIR, experiments)
+        app.run()
+        sys.exit(app.exec_())
+    elif experiments.args.worker:
+        from webapp.worker import IvyWorker
+        app = IvyWorker(PANTHER.SOURCE_DIR, experiments)
+        app.run()
+        sys.exit(app.exec_())
+    else:
+        experiments.launch_experiments()
+
+if __name__ == "__main__":    
+    try:
+        main()
+    except Exception as e:
+        print(e)
+    finally:
+        sys.stdout.close()
+        sys.stderr.close() 
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__       
+        subprocess.Popen("kill $(lsof -i udp) >/dev/null 2>&1") 
+        subprocess.Popen("sudo pkill tshark")
+        subprocess.Popen("bash /app/scripts/vnet/vnet_reset.sh", 
+                        shell=True, executable="/bin/bash").wait()
+        subprocess.Popen("/bin/kill $(/usr/bin/lsof -i udp) >/dev/null 2>&1") 
+        subprocess.Popen("sudo /usr/bin/pkill tshark")
+
+

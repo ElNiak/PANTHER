@@ -4,7 +4,7 @@
 
 ## PANTHER Ivy
 
-* Merge mcmillan python3
+* Merge mcmillan python3.10
 
 * Use Jinja template for ivy_to_cpp
 

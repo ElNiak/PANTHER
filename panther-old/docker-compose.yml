@@ -1,0 +1,156 @@
+networks:
+  net:
+    external: true
+    ipam:
+      config:
+      - subnet: 172.27.1.0/24
+      driver: default
+services:
+  panther-webapp:
+    command: bash -c "stty cols 100 rows 100 && python3 panther_server.py"
+    container_name: panther-webapp
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    devices:
+    - /dev/dri:/dev/dri
+    environment:
+    - ROOT_PATH=${PWD}
+    - DISPLAY=${DISPLAY}
+    - XAUTHORITY=~/.Xauthority
+    - COLUMNS=100
+    - FLASK_ENV=development
+    - LINES=100
+    - LOG_LEVEL=10
+    healthcheck:
+      interval: 1m30s
+      retries: 3
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost
+      timeout: 10s
+    hostname: panther-webapp
+    image: panther-webapp:latest
+    networks:
+      net:
+        ipv4_address: 172.27.1.10
+    ports:
+    - 49150:80
+    privileged: true
+    restart: always
+    stdin_open: true
+    tty: true
+    user: ${UID}:${GID}
+    volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix
+    - ${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/
+    - ${PWD}/panther_webapp/app/panther_server.py:/app/panther_server.py
+    - ${PWD}/panther_webapp/app/static/:/app/static/
+    - ${PWD}/panther_webapp/app/templates/:/app/templates/
+    - ${PWD}/panther_worker/app/panther_utils/:/app/panther_utils/
+    - ${PWD}/panther_worker/app/panther_config/:/app/panther_config/
+    - ${PWD}/panther_worker/app/configs/:/app/configs/
+    - ${PWD}/panther_worker/app/argument_parser/:/app/argument_parser/
+  picoquic-panther:
+    command: bash -c "stty cols 100 rows 100 && python3.10 panther_client.py"
+    container_name: picoquic-panther
+    depends_on:
+    - panther-webapp
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 1524M
+        reservations:
+          cpus: '4.0'
+          memory: 762.0M
+    environment:
+    - DISPLAY=${DISPLAY}
+    - XAUTHORITY=~/.Xauthority
+    - ROOT_PATH=${PWD}
+    - MPLBACKEND="Agg"
+    - COLUMNS=100
+    - LINES=100
+    - LOG_LEVEL=10
+    - PYTHONUNBUFFERED=1
+    - PYTHONPATH=${PYTHONPATH}:/app/implementations/quic-implementations/aioquic/src
+    hostname: picoquic-panther
+    image: picoquic-panther:latest
+    networks:
+      net:
+        ipv4_address: 172.27.1.13
+    ports:
+    - 49162:80
+    privileged: true
+    restart: always
+    security_opt:
+    - seccomp:unconfined
+    stdin_open: true
+    sysctls:
+    - net.ipv6.conf.all.disable_ipv6=1
+    tty: true
+    volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix
+    - ${PWD}/panther_worker/app/:/app/
+    - /app/panther-ivy/
+    - /app/implementations/
+    - ${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/
+    - ${PWD}/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/
+    - ${PWD}/panther_worker/app/panther-ivy/ivy/ivy_to_cpp.py:/app/panther-ivy/ivy/ivy_to_cpp.py
+    - ${PWD}/outputs/tls-keys:/app/tls-keys
+    - ${PWD}/outputs/tickets:/app/tickets
+    - ${PWD}/outputs/qlogs:/app/qlogs
+  ping-pong-panther:
+    command: bash -c "stty cols 100 rows 100 && python3.10 panther_client.py"
+    container_name: ping-pong-panther
+    depends_on:
+    - panther-webapp
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 1524M
+        reservations:
+          cpus: '4.0'
+          memory: 762.0M
+    environment:
+    - DISPLAY=${DISPLAY}
+    - XAUTHORITY=~/.Xauthority
+    - ROOT_PATH=${PWD}
+    - MPLBACKEND="Agg"
+    - COLUMNS=100
+    - LINES=100
+    - LOG_LEVEL=10
+    - PYTHONUNBUFFERED=1
+    - PYTHONPATH=${PYTHONPATH}:/app/implementations/quic-implementations/aioquic/src
+    hostname: ping-pong-panther
+    image: ping-pong-panther:latest
+    networks:
+      net:
+        ipv4_address: 172.27.1.12
+    ports:
+    - 49161:80
+    privileged: true
+    restart: always
+    security_opt:
+    - seccomp:unconfined
+    stdin_open: true
+    sysctls:
+    - net.ipv6.conf.all.disable_ipv6=1
+    tty: true
+    volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix
+    - ${PWD}/panther_worker/app/:/app/
+    - /app/panther-ivy/
+    - /app/implementations/
+    - ${PWD}/panther_worker/app/panther-ivy/protocol-testing/:/app/panther-ivy/protocol-testing/
+    - ${PWD}/panther_worker/app/panther-ivy/ivy/include/:/app/panther-ivy/ivy/include/
+    - ${PWD}/panther_worker/app/panther-ivy/ivy/ivy_to_cpp.py:/app/panther-ivy/ivy/ivy_to_cpp.py
+    - ${PWD}/outputs/tls-keys:/app/tls-keys
+    - ${PWD}/outputs/tickets:/app/tickets
+    - ${PWD}/outputs/qlogs:/app/qlogs
+version: '3.7'
