@@ -5,6 +5,16 @@ class IServiceManager(ABC):
     def __init__(self):
         pass
     
+    
+    @abstractmethod
+    def get_implementation_name(self) -> str:
+        """
+        Returns the name of the implementation.
+
+        :return: Implementation name as a string.
+        """
+        pass
+    
     @abstractmethod
     def build_image(self, environment: str):
         """

@@ -35,10 +35,12 @@ class ExperimentManager:
         self.global_config     = global_config
         self.experiment_config = experiment_config
         self.experiment_name = (
-            f"{experiment_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-            or f"experiment_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+            f"{experiment_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}" if experiment_name
+            else f"experiment_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         )
-        self.experiment_dir = Path("experiments") / self.experiment_name
+        
+        # TODO sometime logs dir is not used directly in inv -> assume it is used in the future
+        self.experiment_dir = Path(global_config.paths.output_dir) / self.experiment_name
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir = self.experiment_dir / "logs"
         self.docker_compose_logs_dir = self.experiment_dir / "docker_compose_logs"
@@ -54,6 +56,8 @@ class ExperimentManager:
         self.plugin_dir = Path(plugin_dir)
         self.plugin_loader  = PluginLoader(plugin_dir)
         self.plugin_manager = PluginManager(self.plugin_loader)
+        
+        self.current_test_services = {}
 
         self.load_logging()
         self.register_default_observers()
@@ -118,7 +122,7 @@ class ExperimentManager:
                 for impl in implementations:
                     if impl in available_implementations:
                         implementation_dir = protocol_plugin_path / impl
-                        protocol_templates_dir = protocol_plugin_path / "templates"
+                        protocol_templates_dir = protocol_plugin_path / impl /"templates"
                         # Create service manager using PluginFactory
                         service_manager = self.plugin_manager.create_service_manager(
                             protocol=proto,
@@ -142,7 +146,7 @@ class ExperimentManager:
         for env in environments:
             if env:
                 self.logger.debug(f"Creating environment manager for environment '{env}'")
-                environment_manager = self.plugin_manager.create_environment_manager(environment=env, environment_dir=self.plugin_dir / "environments" /  f"{type}_environment")
+                environment_manager = self.plugin_manager.create_environment_manager(environment=env, environment_dir=self.plugin_dir / "environments" /  f"{type}_environment", output_dir=self.experiment_dir)
                 self.environment_managers.append(environment_manager)
                 self.logger.debug(f"Added environment manager for environment '{env}'")
 
@@ -181,17 +185,27 @@ class ExperimentManager:
 
     def generate_deployment_commands(self) -> Dict[str, str]:
         """
-        Collects deployment commands from all service managers.
+        Collects deployment commands from all service managers based on the services defined in the tests.
 
         :return: A dictionary mapping service names to their respective command strings.
         """
         deployment_commands = {}
-        for manager in self.service_managers:
-            # Assume that each manager can handle multiple services if needed
-            for service_name, service_details in manager.config.get("services", {}).items():
-                self.logger.debug(f"Generating deployment commands for '{service_name}'")
-                command = manager.generate_deployment_commands(service_details)
-                deployment_commands.update(command)
+        for service_name, service_details in self.current_test_services.items():
+            self.logger.debug(f"Generating deployment commands for '{service_name}'")
+            # Find the appropriate service manager based on implementation
+            implementation = service_details.get("implementation")
+            manager = next((m for m in self.service_managers if m.get_implementation_name() == implementation), None)
+            if not manager:
+                self.logger.error(f"No service manager found for implementation '{implementation}'")
+                continue
+            try:
+                # Ensure 'name' key exists
+                if 'name' not in service_details:
+                    service_details['name'] = service_name
+                command_dict = manager.generate_deployment_commands(service_details)
+                deployment_commands.update(command_dict)
+            except Exception as e:
+                self.logger.error(f"Failed to generate deployment command for service '{service_name}': {e}")
         self.logger.debug(f"Collected deployment commands: {deployment_commands}")
         return deployment_commands
 
@@ -296,6 +310,23 @@ class ExperimentManager:
             else:
                 self.logger.debug(f"No teardown_environment method for '{env_manager.__class__.__name__}'. Skipping.")
     
+    def execute_steps(self, steps: Dict[str, Any]):
+        """
+        Executes the defined steps of a test.
+
+        :param steps: Dictionary of steps to execute.
+        """
+        for step_name, step_details in steps.items():
+            if step_name == "wait":
+                duration = step_details.get("duration", 0)
+                self.logger.info(f"Executing step 'wait' for {duration} seconds.")
+                import time
+                time.sleep(duration)
+                self.logger.info(f"Completed step 'wait' for {duration} seconds.")
+                self.event_manager.notify(Event("step_completed", {"step": "wait", "duration": duration}))
+            # Add more step handlers as needed
+
+
     def run_tests(self):
         """
         Orchestrates the entire experiment workflow.
@@ -310,6 +341,7 @@ class ExperimentManager:
                 protocol = test.get("protocol")
                 environment = test.get("network_environment")  # Ensure consistent naming
                 services = test.get("services", {})
+                self.current_test_services = services
                 steps = test.get("steps", {})
                 assertions = test.get("assertions", [])
 
