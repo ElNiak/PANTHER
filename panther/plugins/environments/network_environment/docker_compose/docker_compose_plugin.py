@@ -224,7 +224,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
     #             )
     #         self.logger.info("Docker Compose services started successfully")
     #     except subprocess.CalledProcessError as e:
-    #         self.logger.error(f"Failed to start Docker Compose services: {e.stderr.decode()}")
+    #         self.logger.error(f"Failed to start Docker Compose services: {e.stderr}")
     #         subprocess.run(
     #                 ["docker", "compose", "-f", self.services_network_config_file_path, "down"],
     #                 check=True,
@@ -259,17 +259,30 @@ class DockerComposeEnvironment(INetworkEnvironment):
         Generates the docker-compose.yml file using the provided services and deployment commands.
         """
         try:
+            # Ensure the log directory for each service exists
+            for service_name in self.services.keys():
+                log_dir = os.path.join(self.output_dir, "logs", service_name)
+                if not os.path.exists(log_dir):
+                    os.makedirs(log_dir)
+                    self.logger.info(f"Created log directory: {log_dir}")
             template = self.jinja_env.get_template("docker-compose-template.j2")
             rendered = template.render(
                 services=self.services,
                 deployment_commands=self.deployment_commands,
-                output_dir=self.output_dir,
+                output_dir=os.path.abspath(self.output_dir),
+                cert_dir=os.path.abspath(os.path.join(self.output_dir, "certs")),
             )
             with open(self.compose_file_path, "w") as f:
                 f.write(rendered)
             self.logger.info(
                 f"Docker Compose file generated at '{self.compose_file_path}'"
             )
+            # Copy the generated docker-compose.yml to the output directory
+            output_compose_path = os.path.join(self.output_dir, "logs", "docker-compose.yml")
+            with open(output_compose_path, "w") as output_file:
+                output_file.write(rendered)
+            self.logger.info(f"Copied Docker Compose file to '{output_compose_path}'")
+            
         except Exception as e:
             self.logger.error(
                 f"Failed to generate Docker Compose file: {e}\n{traceback.format_exc()}"
@@ -283,23 +296,29 @@ class DockerComposeEnvironment(INetworkEnvironment):
             with open(
                 os.path.join(self.output_dir, "logs", "docker-compose.log"), "w"
             ) as log_file:
-                subprocess.run(
-                    [
-                        "docker",
-                        "compose",
-                        "-f",
-                        str(self.compose_file_path),
-                        "up",
-                        "-d",
-                    ],
-                    check=True,
-                    stdout=log_file,
-                    stderr=subprocess.STDOUT,
-                )
+                with open(
+                    os.path.join(self.output_dir, "logs", "docker-compose.err.log"), "w"
+                ) as log_file_err:
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "-f",
+                            str(self.compose_file_path),
+                            "up",
+                        ],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,  # Ensures that output is in string format
+                    )
+                    # Write both stdout and stderr to the log file
+                    log_file.write(result.stdout)
+                    log_file_err.write(result.stderr)
                 self.logger.info("Docker Compose environment launched successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(
-                f"Failed to launch Docker Compose environment: {e.stderr.decode()}"
+                f"Failed to launch Docker Compose environment: {e.stderr}"
             )
             raise e
 
@@ -311,51 +330,58 @@ class DockerComposeEnvironment(INetworkEnvironment):
         with open(
             os.path.join(self.output_dir, "logs", "docker-compose-teardown.log"), "w"
         ) as log_file:
-            try:
-                if self.network_driver == "host":
-                    # In host mode, stop containers individually
-                    # Assumes service names are the container names
-                    compose_dict = self.read_compose_file()
-                    services = compose_dict.get("services", {})
-                    for service_name in services.keys():
-                        cmd = f"docker stop {service_name}"
-                        self.logger.debug(f"Executing command: {cmd}")
-                        subprocess.run(
-                            cmd,
-                            shell=True,
+            with open(
+                os.path.join(self.output_dir, "logs", "docker-compose-teardown.err.log"), "w"
+            ) as log_file_err:
+                try:
+                    if self.network_driver == "host":
+                        # In host mode, stop containers individually
+                        # Assumes service names are the container names
+                        compose_dict = self.read_compose_file()
+                        services = compose_dict.get("services", {})
+                        for service_name in services.keys():
+                            cmd = f"docker stop {service_name}"
+                            self.logger.debug(f"Executing command: {cmd}")
+                            subprocess.run(
+                                cmd,
+                                shell=True,
+                                check=True,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                            )
+                            cmd_rm = f"docker rm {service_name}"
+                            self.logger.debug(f"Executing command: {cmd_rm}")
+                            subprocess.run(
+                                cmd_rm,
+                                shell=True,
+                                check=True,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                            )
+                    else:
+                        # For other network drivers, use docker-compose
+                        result = subprocess.run(
+                            [
+                                "docker",
+                                "compose",
+                                "-f",
+                                self.services_network_config_file_path,
+                                "down",
+                            ],
                             check=True,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
+                            text=True,  # Ensures that output is in string format
                         )
-                        cmd_rm = f"docker rm {service_name}"
-                        self.logger.debug(f"Executing command: {cmd_rm}")
-                        subprocess.run(
-                            cmd_rm,
-                            shell=True,
-                            check=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                        )
-                else:
-                    # For other network drivers, use docker-compose
-                    subprocess.run(
-                        [
-                            "docker",
-                            "compose",
-                            "-f",
-                            self.services_network_config_file_path,
-                            "down",
-                        ],
-                        check=True,
-                        stdout=log_file,
-                        stderr=subprocess.STDOUT,
+                        # Write both stdout and stderr to the log file
+                        log_file.write(result.stdout)
+                        log_file_err.write(result.stderr)
+                    self.logger.info("Docker Compose environment torn down successfully")
+                except subprocess.CalledProcessError as e:
+                    self.logger.error(
+                        f"Failed to tear down Docker Compose environment: {e.stderr}"
                     )
-                self.logger.info("Docker Compose environment torn down successfully")
-            except subprocess.CalledProcessError as e:
-                self.logger.error(
-                    f"Failed to tear down Docker Compose environment: {e.stderr.decode()}"
-                )
-                raise e
+                    raise e
 
     def read_compose_file(self) -> Dict[str, Any]:
         """

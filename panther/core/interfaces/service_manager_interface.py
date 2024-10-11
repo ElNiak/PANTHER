@@ -25,7 +25,7 @@ class IServiceManager(ABC):
         pass 
     
     @abstractmethod
-    def generate_deployment_commands(self, service_params: Dict[str, Any]) -> Dict[str, str]:
+    def generate_deployment_commands(self, service_params: Dict[str, Any], environment:str) -> Dict[str, str]:
         """
         Generates deployment commands based on service parameters.
 

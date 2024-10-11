@@ -183,7 +183,7 @@ class ExperimentManager:
             except Exception as e:
                 self.logger.error(f"Failed to setup environment '{env_manager.__class__.__name__}': {e}")
 
-    def generate_deployment_commands(self) -> Dict[str, str]:
+    def generate_deployment_commands(self, environment:str) -> Dict[str, str]:
         """
         Collects deployment commands from all service managers based on the services defined in the tests.
 
@@ -202,7 +202,7 @@ class ExperimentManager:
                 # Ensure 'name' key exists
                 if 'name' not in service_details:
                     service_details['name'] = service_name
-                command_dict = manager.generate_deployment_commands(service_details)
+                command_dict = manager.generate_deployment_commands(service_details,environment)
                 deployment_commands.update(command_dict)
             except Exception as e:
                 self.logger.error(f"Failed to generate deployment command for service '{service_name}': {e}")
@@ -250,8 +250,14 @@ class ExperimentManager:
         """
         import requests
         from urllib.parse import urljoin
+        self.logger.debug(f"Checking responsiveness of '{service_name}' at '{endpoint}'")
+        for cuurent_service_name, service_details in self.current_test_services.items():
+            if cuurent_service_name == service_name:
+                # Find the appropriate service manager based on implementation
+                implementation = service_details.get("implementation")
+                service_manager = next((m for m in self.service_managers if m.get_implementation_name() == implementation), None)
+                break
 
-        service_manager = next((sm for sm in self.service_managers if sm.__class__.__name__ == f"{service_name.capitalize()}ServiceManager"), None)
         if not service_manager:
             self.logger.error(f"Service manager for '{service_name}' not found.")
             return
@@ -369,7 +375,7 @@ class ExperimentManager:
                 # Step 4: Build Docker images if necessary
                 self.build_docker_images()
 
-                deployment_commands = self.generate_deployment_commands()
+                deployment_commands = self.generate_deployment_commands(environment)
 
                 # Step 5: Setup environments with services
                 self.setup_environments(services,deployment_commands)

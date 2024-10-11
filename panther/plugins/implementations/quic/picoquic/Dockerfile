@@ -45,7 +45,7 @@ RUN echo "Starting dependency installation..." && \
 
 
 RUN cd /opt && \
-    https://github.com/private-octopus/picoquic.git && \
+    git clone https://github.com/private-octopus/picoquic.git && \
     cd /opt/picoquic && \
     git checkout ${VERSION} && \
     cmake . && \

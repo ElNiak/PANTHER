@@ -19,6 +19,7 @@ class PicoquicServiceManager(IServiceManager):
         self.logger = logging.getLogger("PicoquicServiceManager")
         self.config_path = implementation_config_path
         self.config = self.load_config()
+        self.service_name = None
         self.validate_config()
         self.templates_dir = protocol_templates_dir
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
@@ -31,6 +32,9 @@ class PicoquicServiceManager(IServiceManager):
     
     def get_implementation_name(self) -> str:
         return "picoquic"
+    
+    def get_service_name(self) -> str:
+        return self.service_name
     
     def validate_config(self):
         """
@@ -97,7 +101,7 @@ class PicoquicServiceManager(IServiceManager):
             self.logger.error(f"Failed to load configuration: {e}\n{traceback.format_exc()}")
             return {}
 
-    def generate_deployment_commands(self, service_params: Dict[str, Any]) -> Dict[str, str]:
+    def generate_deployment_commands(self, service_params: Dict[str, Any], environment:str) -> Dict[str, str]:
         """
         Generates deployment commands based on service parameters using the protocol-specific templates.
 
@@ -108,6 +112,8 @@ class PicoquicServiceManager(IServiceManager):
         role = service_params.get("parameters").get("role")
         version = service_params.get("version", "rfc9000")
         version_config = self.config.get("picoquic", {}).get("versions", {}).get(version, {})
+        
+        include_interface = environment not in ["docker_compose"]
 
         self.logger.debug(f"Using version '{version}' configuration: {version_config}")
         # Extract parameters based on role
@@ -134,10 +140,6 @@ class PicoquicServiceManager(IServiceManager):
                     "additional_parameters": version_config.get("client", {}).get("protocol", {}).get("additional_parameters"),
                 },
                 "network": {
-                    "interface" : {
-                        "param": version_config.get("client", {}).get("network", {}).get("interface", {}).get("param"),
-                        "value": version_config.get("client", {}).get("network", {}).get("interface", {}).get("value"),
-                    },
                     "port": version_config.get("client", {}).get("network", {}).get("port"),
                     "destination": service_params.get("target", version_config.get("client", {}).get("network", {}).get("destination")),
                 },
@@ -149,6 +151,12 @@ class PicoquicServiceManager(IServiceManager):
                     }
                 }
             }
+            # Conditionally include network interface parameters
+            if include_interface:
+                params["network"]["interface"] = {
+                    "param": version_config.get("client", {}).get("network", {}).get("interface", {}).get("param"),
+                    "value": version_config.get("client", {}).get("network", {}).get("interface", {}).get("value"),
+                }
             # Handle missing parameters
             missing_params = self.check_missing_params(params)
             if missing_params:
@@ -183,14 +191,16 @@ class PicoquicServiceManager(IServiceManager):
                     "additional_parameters": version_config.get("server", {}).get("protocol", {}).get("additional_parameters"),
                 },
                 "network": {
-                    "interface" : {
-                        "param": version_config.get("client", {}).get("network", {}).get("interface", {}).get("param"),
-                        "value": version_config.get("client", {}).get("network", {}).get("interface", {}).get("value"),
-                    },
                     "port": version_config.get("server", {}).get("network", {}).get("port"),
                     "destination": service_params.get("destination-value", version_config.get("server", {}).get("network", {}).get("destination")),
                 }
             }
+            # Conditionally include network interface parameters
+            if include_interface:
+                params["network"]["interface"] = {
+                    "param": version_config.get("client", {}).get("network", {}).get("interface", {}).get("param"),
+                    "value": version_config.get("client", {}).get("network", {}).get("interface", {}).get("value"),
+                }
             # Handle missing parameters
             missing_params = self.check_missing_params(params)
             if missing_params:
