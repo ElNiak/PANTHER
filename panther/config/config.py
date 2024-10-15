@@ -6,7 +6,6 @@ from omegaconf import OmegaConf
 class ConfigLoader:
     def __init__(self, config_dir: str):
         self.config_dir = config_dir
-        self.global_config = self.load_global_config()
         self.experiment_config = self.load_experiment_config()
 
     def load_global_config(self):

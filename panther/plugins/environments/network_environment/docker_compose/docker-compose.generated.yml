@@ -1,5 +1,3 @@
-# plugins/environments/docker_compose/templates/docker-compose-template.j2
-
 version: '3.8'
 
 services:
@@ -13,15 +11,36 @@ services:
       
       - "8080:8080"
       
+    
+    # 
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:/health"]
+    #   interval: 5s
+    #   timeout: 2s
+    #   retries: 5
+    #   start_period: 5s
+    # 
     environment:
       ROLE: server
-      VERBOSITY: 
-    entrypoint: "/opt/picoquic/./picoquicdemo -q /app/logs/server.qlog -c /opt/certs/cert.pem -k /opt/certs/key.pem -a hq-interop -p 4443 -D -L -n servername > /app/logs/server.log 2>&1"
+      
+    tty: true
+    stdin_open: true
+    working_dir: "/opt/picoquic"
+    command: 
+      - "./picoquicdemo -c /opt/certs/cert.pem -k /opt/certs/key.pem -a hq-interop  -n servername -D -L  -p 4443 > /app/logs/server.log 2>&1"
     volumes:
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-10-11_14-22-31/logs/picoquic_server:/app/logs/"
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-10-11_14-22-31/certs:/app/certs/"
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-10-15_18-37-52/logs/picoquic_server/:/app/logs/"
+      
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
+      
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
+      
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
+      
     networks:
-      - panther_network
+      panther_network:
+        aliases: 
+          - picoquic_server
   
   picoquic_client:
     image: picoquic_rfc9000_panther:latest
@@ -32,15 +51,36 @@ services:
       
       - "8081:8081"
       
+    
+    depends_on:
+      - picoquic_server
+        # condition: service_healthy
+    
+    # 
     environment:
       ROLE: client
-      VERBOSITY: 
-    entrypoint: "/opt/picoquic/./picoquicdemo -l - -T /opt/ticket/ticket.pem -v 00000001 -c /opt/certs/cert.pem -k /opt/certs/key.pem -a hq-interop  -D -L -n servername 11.0.0.1 4443 > /app/logs/client.log 2>&1"
+      
+      TARGET: picoquic_server
+      MESSAGE: ""
+      
+    tty: true
+    stdin_open: true
+    working_dir: "/opt/picoquic"
+    command: 
+      - "./picoquicdemo -c /opt/certs/cert.pem -k /opt/certs/key.pem -T /opt/ticket/ticket.key -a hq-interop -D -L   -v 00000001  picoquic_server 4443 > /app/logs/client.log 2>&1"
     volumes:
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-10-11_14-22-31/logs/picoquic_client:/app/logs/"
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-10-11_14-22-31/certs:/app/certs/"
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-10-15_18-37-52/logs/picoquic_client/:/app/logs/"
+      
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
+      
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
+      
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
+      
     networks:
-      - panther_network
+      panther_network:
+        aliases: 
+          - picoquic_client
   
 
 networks:

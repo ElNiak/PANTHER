@@ -1,5 +1,5 @@
 
-from panther.core.interfaces.observer_interface import IObserver
+from core.interfaces.observer_interface import IObserver
 from core.experiment import Experiment
 
 

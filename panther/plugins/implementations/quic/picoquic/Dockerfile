@@ -4,9 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install -y build-essential git cmake software-properties-common \
-    openssl libssl-dev pkg-config clang python3
-
-WORKDIR /opt
+    openssl libssl-dev pkg-config clang python3 net-tools
 
 # Define build arguments for version-specific configurations
 ARG VERSION=master
@@ -22,7 +20,8 @@ RUN echo install Scope::Guard | perl -MCPAN -
 RUN apt-get install -y jq
 # Function to parse and build dependencies
 # TODO make more modular
-RUN echo "Starting dependency installation..." && \
+RUN cd /opt && \ 
+    echo "Starting dependency installation..." && \
     echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
         DEP_NAME=$(echo $dep | jq -r '.name'); \
         DEP_URL=$(echo $dep | jq -r '.url'); \
@@ -58,9 +57,8 @@ EXPOSE 8080
 
 # Ensure the log directory exists
 RUN mkdir -p /app/logs
-
-# Copy service manager scripts if needed
-COPY service_manager.py /opt/service_manager.py
+RUN mkdir -p /opt/certs
+RUN mkdir -p /opt/ticket
 
 # Set entrypoint (can be overridden)
-ENTRYPOINT ["/bin/bash"]
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

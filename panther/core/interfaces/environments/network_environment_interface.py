@@ -5,13 +5,6 @@ from core.interfaces.environments.environment_interface import IEnvironmentPlugi
 
 class INetworkEnvironment(IEnvironmentPlugin):
     @abstractmethod
-    def configure_network(self, services: Dict[str, Dict[str, Any]]):
-        """
-        Configures the network environment.
-        """
-        pass
-    
-    @abstractmethod
     def setup_environment(self):
         """
         Sets up the required environment before running experiments.

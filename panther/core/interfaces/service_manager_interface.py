@@ -5,6 +5,12 @@ class IServiceManager(ABC):
     def __init__(self):
         pass
     
+    @abstractmethod
+    def get_base_url(self, service_name: str) -> str:
+        """
+        Returns the base URL for the given service.
+        """
+        raise NotImplementedError("Method 'get_base_url' must be implemented in subclasses.")
     
     @abstractmethod
     def get_implementation_name(self) -> str:

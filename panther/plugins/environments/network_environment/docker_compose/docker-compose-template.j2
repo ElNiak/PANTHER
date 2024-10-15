@@ -1,5 +1,3 @@
-# plugins/environments/docker_compose/templates/docker-compose-template.j2
-
 version: '3.8'
 
 services:
@@ -11,15 +9,39 @@ services:
       {% for port in service.ports %}
       - "{{ port }}"
       {% endfor %}
+    {% if service.role == 'client' %}
+    depends_on:
+      - {{ service.target }}
+        # condition: service_healthy
+    {% endif %}
+    # {% if service.role == 'server' %}
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:{{ service.healthcheck_port }}/health"]
+    #   interval: 5s
+    #   timeout: 2s
+    #   retries: 5
+    #   start_period: 5s
+    # {% endif %}
     environment:
-      ROLE: {{ service.parameters.role }}
-      VERBOSITY: {{ service.parameters.verbosity }}
-    entrypoint: "{{ deployment_commands[service_name] }}"
+      ROLE: {{ service.role }}
+      {% if service.role == 'client' %}
+      TARGET: {{ service.target }}
+      MESSAGE: "{{ service.message }}"
+      {% endif %}
+    tty: true
+    stdin_open: true
+    working_dir: "{{ deployment_info[service_name]['working_dir'] }}"
+    command: 
+      - {{ deployment_info[service_name]['command'] }}
     volumes:
-      - "{{ output_dir }}/logs/{{ service_name }}:/app/logs/"
-      - "{{ cert_dir }}:/app/certs/"
+      - "{{ log_dir | realpath  }}/{{ service_name }}/:/app/logs/"
+      {% for volume in deployment_info[service_name]['volumes'] %}
+      - "{{ volume.local | realpath }}:{{ volume.container }}"
+      {% endfor %}
     networks:
-      - panther_network
+      panther_network:
+        aliases: 
+          - {{ service_name }}
   {% endfor %}
 
 networks:
