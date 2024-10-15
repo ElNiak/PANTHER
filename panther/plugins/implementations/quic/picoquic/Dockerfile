@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install -y build-essential git cmake software-properties-common \
-    openssl libssl-dev pkg-config clang python3 net-tools
+    openssl libssl-dev pkg-config clang python3 net-tools tcpdump
 
 # Define build arguments for version-specific configurations
 ARG VERSION=master

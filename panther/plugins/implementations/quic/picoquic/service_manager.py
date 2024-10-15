@@ -206,7 +206,6 @@ class PicoquicServiceManager(IServiceManager):
             # Clean up the command string
             command_str = command.replace('\t', ' ').replace('\n', ' ').strip()
             
-            command_str = '"' + command_str + '"'
 
             # Create the command list
             working_dir = version_config.get(role, {}).get("binary", {}).get("dir", "/opt/picoquic")
