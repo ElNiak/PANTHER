@@ -11,7 +11,7 @@ from omegaconf import DictConfig
 import requests
 import yaml
 
-from utils.plugin_loader import PluginLoader
+from core.utils.plugin_loader import PluginLoader
 from plugins.implementations.protocol_interface import IProtocolPlugin
 from plugins.environments.environment_interface import IEnvironmentPlugin
 from plugins.implementations.service_manager_interface import IServiceManager

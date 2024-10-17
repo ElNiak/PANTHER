@@ -10,7 +10,7 @@ from plugins.environments.network_environment.network_environment_interface impo
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.implementations.service_manager_interface import IServiceManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
-from utils.plugin_loader import PluginLoader
+from core.utils.plugin_loader import PluginLoader
 
 
 class PluginManager:

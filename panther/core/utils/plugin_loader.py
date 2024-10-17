@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 import yaml
-from utils.docker_builder import DockerBuilder
+from core.utils.docker_builder import DockerBuilder
 
 
 class PluginLoader:
