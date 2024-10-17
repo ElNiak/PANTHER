@@ -7,7 +7,7 @@ import docker
 from docker.errors import DockerException, NotFound, BuildError, APIError
 from pathlib import Path
 from typing import Any, Dict, Optional, List
-
+import os
 import yaml
 
 
@@ -40,11 +40,12 @@ class DockerBuilder:
                 if "stream" in output:
                     output_str = output["stream"].strip("\r\n").strip("\n")
                     if log_f:
-                        log_f.write(f"{output_str}\n")
+                        log_f.write(f"{task_name}:{output_str}\n")
                     self.logger.info(f"{task_name}: {output_str}")
                 elif "error" in output:
                     if log_f:
-                        log_f.write(f"{output['error']}\n")
+                        log_f.write(f"{task_name}:{output['error']}\n")
+                    self.logger.error(f"Error from {task_name}: {output['error']}")
                     raise ValueError(f'Error from {task_name}: {output["error"]}')
                 
             except StopIteration:
@@ -83,7 +84,10 @@ class DockerBuilder:
         try:
             build_args = {
                 'VERSION': config.get('commit', 'master'),
-                'DEPENDENCIES': dependencies_json
+                'DEPENDENCIES': dependencies_json,
+                'USER_UID': str(os.getuid()),
+                'USER_GID': str(os.getgid()),
+                'USER_N':  os.getlogin()
             }
             # Open the build log file if specified
             if self.build_log_file:
@@ -115,13 +119,13 @@ class DockerBuilder:
             if self.build_log_file:
                 with open(self.build_log_file, 'a') as log_f:
                     log_f.write(f"ERROR: {e}\n")
-            return None
+            exit(1)
         except Exception as e:
             self.logger.error(f"Unexpected error during build of '{image_tag}': {e}")
             if self.build_log_file:
                 with open(self.build_log_file, 'a') as log_f:
                     log_f.write(f"ERROR: {e}\n")
-            return None
+            exit(1)
 
     def image_exists(self, image_tag: str) -> bool:
         """

@@ -1,11 +1,16 @@
 FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
     apt-get install -y build-essential git cmake software-properties-common \
-    openssl libssl-dev pkg-config clang python3 net-tools tcpdump wireshark \
-    tshark  apt-utils
+    openssl libssl-dev pkg-config clang python3 net-tools tcpdump \
+    apt-utils  wireshark tshark  libcap2-bin traceroute \
+    iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils iperf 
+
+# "yes" answer by 'dpkg-reconfigure wireshark-common' so you can run tshark as normal use
+RUN  dpkg-reconfigure -f noninteractive wireshark-common
 
 # Define build arguments for version-specific configurations
 ARG VERSION=master
@@ -13,12 +18,40 @@ ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
 ENV VERSION=${VERSION}
 ENV DEPENDENCIES=${DEPENDENCIES}
 
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG USER_N=elniak
+
+RUN addgroup --gid ${USER_GID} ${USER_N} && \
+    adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
+    usermod -aG wireshark ${USER_N}
+
+# RUN chown ${USER_N}:wireshark /usr/bin/dumpcap
+
+# RUN setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/dumpcap && \
+#     chgrp wireshark /usr/bin/dumpcap 
+    # chmod 750 /usr/bin/dumpcap
+
+# RUN setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/dumpcap
+# RUN chmod +x /usr/bin/dumpcap 
+
+
+# Give the user ownership of the /app directory (or any directories you need)
+RUN mkdir -p /app
+RUN chown -R ${USER_N}:${USER_N} /app
+RUN chown -R ${USER_N}:${USER_N} /opt
+
+# Switch to the new user
+
 # Perl stuff is for the picotls test code
 RUN echo install Test::TCP | perl -MCPAN -
 RUN echo install Scope::Guard | perl -MCPAN -
 
 # Install jq for JSON parsing
 RUN apt-get install -y jq
+
+USER ${USER_N}
+
 # Function to parse and build dependencies
 # TODO make more modular
 RUN cd /opt && \ 

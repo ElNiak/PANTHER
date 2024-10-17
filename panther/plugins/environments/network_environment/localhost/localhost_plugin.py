@@ -12,7 +12,7 @@ from core.interfaces.environments.network_environment_interface import (
 import traceback
 
 
-class DockerComposeEnvironment(INetworkEnvironment):
+class LocalHostEnvironment(INetworkEnvironment):
     def __init__(
         self,
         config_path: str,
@@ -20,7 +20,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         network_driver: str = "bridge",
         templates_dir: str = "plugins/environments/network_environment/docker_compose",
     ):
-        self.logger = logging.getLogger("DockerComposeEnvironment")
+        self.logger = logging.getLogger("LocalHostEnvironment")
         self.services_network_config_file_path = os.path.join(
             os.getcwd(),
             "plugins",
@@ -76,7 +76,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str
     ):
         """
-        Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
+        Sets up the localhost environment by generating the docker-compose.yml file with deployment commands.
 
         :param services: Dictionary of services with their configurations.
         :param deployment_info: Dictionary containing commands and volumes for each service.
@@ -86,10 +86,10 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.services = services
         self.deployment_info = deployment_info
         self.logger.debug(
-            f"Setting up Docker Compose environment with services: {services} and deployment info: {deployment_info}"
+            f"Setting up localhost environment with services: {services} and deployment info: {deployment_info}"
         )
         self.generate_docker_compose(paths=paths, timestamp=timestamp)
-        self.logger.info("Docker Compose environment setup complete")
+        self.logger.info("localhost environment setup complete")
 
 
     def deploy_services(self):
@@ -128,17 +128,17 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 f.write(rendered)
                 
             self.logger.info(
-                f"Docker Compose file generated at '{self.compose_file_path}'"
+                f"localhost file generated at '{self.compose_file_path}'"
             )
         except Exception as e:
             self.logger.error(
-                f"Failed to generate Docker Compose file: {e}\n{traceback.format_exc()}"
+                f"Failed to generate localhost file: {e}\n{traceback.format_exc()}"
             )
-            exit(1)
+            raise e
 
     def launch_docker_compose(self):
         """
-        Launches the Docker Compose environment using the generated docker-compose.yml file.
+        Launches the localhost environment using the generated docker-compose.yml file.
         """
         try:
             with open(
@@ -169,88 +169,21 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     # Write both stdout and stderr to the log file
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
-                self.logger.info("Docker Compose environment launched successfully.")
+                self.logger.info("localhost environment launched successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(
-                f"Failed to launch Docker Compose environment: {e.stderr}"
+                f"Failed to launch localhost environment: {e.stderr}"
             )
             raise e
 
     def teardown_environment(self):
         """
-        Tears down the Docker Compose environment by bringing down services.
+        Tears down the localhost environment by bringing down services.
         """
-        self.logger.info("Tearing down Docker Compose environment")
-        with open(
+        self.logger.info("Tearing down localhost environment")
+        raise NotImplementedError("Method not implemented - In another module FOR NOW")
             os.path.join(self.output_dir, "logs", "docker-compose-teardown.log"), "w"
         ) as log_file:
-            with open(
-                os.path.join(self.output_dir, "logs", "docker-compose-teardown.err.log"), "w"
-            ) as log_file_err:
-                try:
-                    if self.network_driver == "host":
-                        # In host mode, stop containers individually
-                        # Assumes service names are the container names
-                        compose_dict = self.read_compose_file()
-                        services = compose_dict.get("services", {})
-                        for service_name in services.keys():
-                            cmd = f"docker stop {service_name}"
-                            self.logger.debug(f"Executing command: {cmd}")
-                            subprocess.run(
-                                cmd,
-                                shell=True,
-                                check=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                            )
-                            cmd_rm = f"docker rm {service_name}"
-                            self.logger.debug(f"Executing command: {cmd_rm}")
-                            subprocess.run(
-                                cmd_rm,
-                                shell=True,
-                                check=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                            )
-                    else:
-                        # For other network drivers, use docker-compose
-                        result = subprocess.run(
-                            [
-                                "docker",
-                                "compose",
-                                "-f",
-                                self.services_network_config_file_path,
-                                "down",
-                            ],
-                            check=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,  # Ensures that output is in string format
-                        )
-                        # Write both stdout and stderr to the log file
-                        log_file.write(result.stdout)
-                        log_file_err.write(result.stderr)
-                    self.logger.info("Docker Compose environment torn down successfully")
-                except subprocess.CalledProcessError as e:
-                    self.logger.error(
-                        f"Failed to tear down Docker Compose environment: {e.stderr}"
-                    )
-                    raise e
-
-    def read_compose_file(self) -> Dict[str, Any]:
-        """
-        Reads the generated docker-compose.yml file.
-        """
-        if not os.path.exists(self.services_network_config_file_path):
-            self.logger.error(
-                f"Docker Compose file '{self.services_network_config_file_path}' does not exist."
-            )
-            raise FileNotFoundError(
-                f"Docker Compose file '{self.services_network_config_file_path}' does not exist."
-            )
-
-        with open(self.services_network_config_file_path, "r") as compose_file:
-            return yaml.safe_load(compose_file)
 
     def __str__(self) -> str:
         return (

@@ -132,7 +132,9 @@ class PicoquicServiceManager(IServiceManager):
         version_config = self.config.get("picoquic", {}).get("versions", {}).get(version, {})
 
         # Determine if network interface parameters should be included based on environment
-        include_interface = environment not in ["docker_compose"]
+        # TODO
+        # include_interface = environment not in ["docker_compose"]
+        include_interface = True
 
         # Build parameters for the command template
         params = {
@@ -206,6 +208,8 @@ class PicoquicServiceManager(IServiceManager):
             # Clean up the command string
             command_str = command.replace('\t', ' ').replace('\n', ' ').strip()
             
+            # TODO make more clean with event
+            command_str = "sleep 5;" + command_str if role == "client" else command_str
 
             # Create the command list
             working_dir = version_config.get(role, {}).get("binary", {}).get("dir", "/opt/picoquic")
@@ -259,13 +263,14 @@ class PicoquicServiceManager(IServiceManager):
         """
         Starts the Picoquic server or client based on the role.
         Parameters should include 'role'.
+        # TODO should be in envirnment
         """
         role = parameters.get("role")
         if role not in ['server', 'client']:
             self.logger.error(f"Unknown role '{role}'. Cannot start service.")
             return
 
-        cmd = self.generate_command(role)
+        cmd = self.generate_deployment_commands(role)
         if not cmd:
             self.logger.error(f"Failed to generate command for role '{role}'.")
             return

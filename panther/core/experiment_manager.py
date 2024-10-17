@@ -315,6 +315,8 @@ class ExperimentManager:
         :param steps: Dictionary of steps to execute.
         """
         for step_name, step_details in steps.items():
+            if step_name == "record_pcap":
+                pass
             if step_name == "wait":
                 duration = step_details.get("duration", 0)
                 self.logger.info(f"Executing step 'wait' for {duration} seconds.")
