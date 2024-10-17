@@ -10,7 +10,7 @@ RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils iperf 
 
 # "yes" answer by 'dpkg-reconfigure wireshark-common' so you can run tshark as normal use
-RUN  dpkg-reconfigure -f noninteractive wireshark-common
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common
 
 # Define build arguments for version-specific configurations
 ARG VERSION=master

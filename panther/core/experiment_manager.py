@@ -344,6 +344,7 @@ class ExperimentManager:
             tests = self.experiment_config.get("tests", [])
 
             for test in tests:
+                # TODO create subtest folder for each test
                 self.logger.info(f"Starting Test: {test.get('name', 'Unnamed Test')}")
                 self.logger.info(f"Description:   {test.get('description', '')}")
 
