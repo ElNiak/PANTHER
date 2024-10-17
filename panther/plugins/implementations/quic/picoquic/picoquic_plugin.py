@@ -1,4 +1,4 @@
-from core.interfaces.protocol_interface import IProtocolPlugin
+from plugins.implementations.protocol_interface import IProtocolPlugin
 from plugins.implementations.quic.picoquic.service_manager import PicoquicServiceManager
 
 class PicoquicPlugin(IProtocolPlugin):

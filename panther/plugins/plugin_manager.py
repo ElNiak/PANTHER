@@ -5,11 +5,11 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List
-from core.interfaces.protocol_interface import IProtocolPlugin
-from core.interfaces.environments.network_environment_interface import INetworkEnvironment
-from core.interfaces.environments.execution_environment_interface import IExecutionEnvironment
-from core.interfaces.service_manager_interface import IServiceManager
-from core.interfaces.environments.environment_interface import IEnvironmentPlugin
+from plugins.implementations.protocol_interface import IProtocolPlugin
+from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
+from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from plugins.implementations.service_manager_interface import IServiceManager
+from plugins.environments.environment_interface import IEnvironmentPlugin
 from utils.plugin_loader import PluginLoader
 
 

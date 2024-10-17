@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import Dict, Any
-from core.interfaces.environments.execution_environment_interface import IExecutionEnvironment
+from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 
 class GPerfEnvironment(IExecutionEnvironment):
     def __init__(self):

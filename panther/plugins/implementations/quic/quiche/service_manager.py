@@ -1,7 +1,7 @@
 import subprocess
 import logging
 import os
-from core.interfaces.service_manager_interface import IServiceManager
+from plugins.implementations.service_manager_interface import IServiceManager
 
 class QuicheServiceManager(IServiceManager):
     def __init__(self, implementation_config_path: str = "/opt/quiche/config.yaml", protocol_templates_dir: str = "/opt/quiche/templates"):

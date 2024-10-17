@@ -3,7 +3,7 @@ import subprocess
 import logging
 from typing import Dict, Any
 import yaml
-from core.interfaces.environments.network_environment_interface import INetworkEnvironment
+from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 
 class VNetEnvironment(INetworkEnvironment):
     def __init__(self):

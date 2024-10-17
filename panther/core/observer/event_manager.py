@@ -4,7 +4,7 @@ from abc import ABC
 import logging
 from typing import List
 from core.observer.event import Event
-from core.interfaces.observer_interface import IObserver
+from core.observer.observer_interface import IObserver
 
 class EventManager(ABC):
     def __init__(self):

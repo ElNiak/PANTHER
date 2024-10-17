@@ -1,4 +1,4 @@
-from core.interfaces.protocol_interface import IProtocolPlugin
+from plugins.implementations.protocol_interface import IProtocolPlugin
 from plugins.implementations.quic.quiche.service_manager import QuicheServiceManager
 
 class QuichePlugin(IProtocolPlugin):

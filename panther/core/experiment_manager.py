@@ -12,12 +12,12 @@ import requests
 import yaml
 
 from utils.plugin_loader import PluginLoader
-from core.interfaces.protocol_interface import IProtocolPlugin
-from core.interfaces.environments.environment_interface import IEnvironmentPlugin
-from core.interfaces.service_manager_interface import IServiceManager
+from plugins.implementations.protocol_interface import IProtocolPlugin
+from plugins.environments.environment_interface import IEnvironmentPlugin
+from plugins.implementations.service_manager_interface import IServiceManager
 from core.observer.logger_observer import LoggerObserver
-from core.factories.environment_manager import EnvironmentManager
-from core.factories.plugin_manager import PluginManager
+from plugins.environments.environment_manager import EnvironmentManager
+from plugins.plugin_manager import PluginManager
 from core.observer.event_manager import EventManager
 from core.observer.event import Event
 # from core.test import Test

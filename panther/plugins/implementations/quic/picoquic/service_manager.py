@@ -6,7 +6,7 @@ import os
 from typing import Any, Dict, Optional
 import yaml
 import traceback    
-from core.interfaces.service_manager_interface import IServiceManager
+from plugins.implementations.service_manager_interface import IServiceManager
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template
 

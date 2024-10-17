@@ -6,7 +6,7 @@ import logging
 from typing import Dict, Any
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from core.interfaces.environments.network_environment_interface import (
+from plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
 import traceback

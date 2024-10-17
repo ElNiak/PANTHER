@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from core.interfaces.environments.environment_interface import IEnvironmentPlugin
+from plugins.environments.environment_interface import IEnvironmentPlugin
 
 class IExecutionEnvironment(IEnvironmentPlugin):
     @abstractmethod

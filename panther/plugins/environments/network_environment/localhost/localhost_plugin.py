@@ -6,7 +6,7 @@ import logging
 from typing import Dict, Any
 import yaml
 from jinja2 import Environment, FileSystemLoader
-from core.interfaces.environments.network_environment_interface import (
+from plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
 import traceback
@@ -182,9 +182,7 @@ class LocalHostEnvironment(INetworkEnvironment):
         """
         self.logger.info("Tearing down localhost environment")
         raise NotImplementedError("Method not implemented - In another module FOR NOW")
-            os.path.join(self.output_dir, "logs", "docker-compose-teardown.log"), "w"
-        ) as log_file:
-
+       
     def __str__(self) -> str:
         return (
             super().__str__()

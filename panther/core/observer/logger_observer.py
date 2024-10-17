@@ -1,6 +1,6 @@
 
 import logging
-from core.interfaces.observer_interface import IObserver
+from core.observer.observer_interface import IObserver
 from core.observer.event import Event
 
 class LoggerObserver(IObserver):

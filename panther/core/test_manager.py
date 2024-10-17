@@ -3,8 +3,8 @@ import logging
 from typing import Any, Dict, List
 
 from core.experiment_manager import ExperimentManager
-from core.interfaces.environments.environment_interface import IEnvironmentPlugin
-from core.interfaces.service_manager_interface import IServiceManager
+from plugins.environments.environment_interface import IEnvironmentPlugin
+from plugins.implementations.service_manager_interface import IServiceManager
 
 
 class Test:

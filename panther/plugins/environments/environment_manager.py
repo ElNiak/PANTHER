@@ -1,7 +1,7 @@
 # PANTHER-SCP/panther/core/factories/environment_manager.py
 
 from typing import Dict, Any
-from core.interfaces.environments.environment_interface import IEnvironmentPlugin
+from plugins.environments.environment_interface import IEnvironmentPlugin
 
 class EnvironmentManager:
     def __init__(self, environment_plugins: Dict[str, IEnvironmentPlugin]):

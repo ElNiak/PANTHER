@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from core.interfaces.environments.environment_interface import IEnvironmentPlugin
+from plugins.environments.environment_interface import IEnvironmentPlugin
 
 class INetworkEnvironment(IEnvironmentPlugin):
     @abstractmethod

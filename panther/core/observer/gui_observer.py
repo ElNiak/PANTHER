@@ -1,5 +1,5 @@
 
-from core.interfaces.observer_interface import IObserver
+from core.observer.observer_interface import IObserver
 from core.experiment import Experiment
 
 
