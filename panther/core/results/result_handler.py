@@ -1,6 +1,7 @@
 
 from abc import ABC
-
+import os
+import logging
 
 class ResultHandler(ABC):
     """
@@ -16,8 +17,12 @@ class ResultHandler(ABC):
             Handles the request or passes it to the next handler in the chain.
     """
     
-    def __init__(self) -> None:
-        self.next_handler = None
+    def __init__(self, output_dir: str, experiment_name: str):
+        self.output_dir = os.path.join(output_dir, experiment_name)
+        os.makedirs(self.output_dir, exist_ok=True)
+        logging.info(f"Results will be saved to {self.output_dir}")
+        self.log_dir = os.path.join(self.output_dir, "logs")
+        os.makedirs(self.log_dir , exist_ok=True)
     
     def set_next_handler(self, handler) -> None:
         self.next_handler = handler

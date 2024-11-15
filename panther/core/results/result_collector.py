@@ -18,6 +18,12 @@ class ResultCollector:
     """
     def __init__(self) -> None:
         self.handlers: Dict[str, List[ResultHandler]] = {}
+    
+    def register_handler(self, result_type: str, handler: ResultHandler) -> None:
+        """Registers a handler for a specific result type."""
+        if result_type not in self.handlers:
+            self.handlers[result_type] = []
+        self.handlers[result_type].append(handler)
         
     def collect(self, result: Dict) -> None:
         # TODO 

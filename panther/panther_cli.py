@@ -9,7 +9,6 @@ from core.experiment_manager import ExperimentManager
 from config.config import ConfigLoader
 
 
-
 def main():
     parser = argparse.ArgumentParser(description="Panther CLI")
     parser.add_argument(

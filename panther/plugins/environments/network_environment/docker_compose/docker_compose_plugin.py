@@ -44,6 +44,23 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
 
+    def __str__(self):
+        attributes = {
+            "config_path": self.config_path,
+            "output_dir": self.output_dir,
+            "network_driver": self.network_driver,
+            "templates_dir": self.templates_dir,
+            "services_network_config_file_path": self.services_network_config_file_path,
+            "network_name": self.network_name,
+            "log_dirs": self.log_dirs,
+            "rendered_docker_compose_path": self.rendered_docker_compose_path,
+            "compose_file_path": str(self.compose_file_path),
+            "services": self.services,
+            "deployment_commands": self.deployment_commands,
+            "timeout": self.timeout,
+        }
+        return f"DockerComposeEnvironment({attributes})"
+    
     def build_images(self):
         """
         Builds Docker images for all implementations.

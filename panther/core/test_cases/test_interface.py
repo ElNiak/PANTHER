@@ -2,27 +2,29 @@
 
 from abc import ABC, abstractmethod
 import logging
+from omegaconf import DictConfig
 
 class ITestCase(ABC):
-    def __init__(self, logger: logging.Logger):
+    def __init__(self, test_config: DictConfig, logger: logging.Logger):
         self.logger = logger
+        self.test_config = test_config
 
     @abstractmethod
     def run(self):
         """Runs the test case."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def run_services(self):
+    def deploy_services(self):
         """Starts the services defined in the test configuration."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def execute_steps(self):
         """Executes steps defined in the test configuration."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def validate_assertions(self):
         """Validates assertions defined in the test configuration."""
-        pass
+        raise NotImplementedError

@@ -12,8 +12,6 @@ except:
   # This happens when running tests
   long_description = None
 
-# TODO test if good
-
 setup(name='panther',
       version='0.1',
       description='panther',
@@ -33,7 +31,10 @@ setup(name='panther',
           "mkgendocs == 0.9.2",
           "mkdocs-material == 9.1.15",
           "mkdocs == 1.5.0",
-          "PyYAML == 6.0.1"
+          "PyYAML == 6.0.1",
+          "omegaconf",
+          'cerberus',
+          'jinja2',
+          'requests'
           ],
-
       zip_safe=False)

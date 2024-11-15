@@ -16,7 +16,6 @@ class PluginLoader:
         self.built_images: Dict[str, str] = {}  # Maps implementation names to image tags
         self.protocol_plugins: Dict[str, Path] = {}
         self.environment_plugins: Dict[str, Path] = {}
-        self.load_plugins()
         
     def build_all_docker_images(self):
         """
@@ -81,20 +80,28 @@ class PluginLoader:
         self.logger.debug(f"Loading plugins from base directory '{self.plugins_base_dir}'")
 
         # Discover protocol plugins
-        protocols_dir = self.plugins_base_dir
+        protocols_dir = self.plugins_base_dir / "implementations"
         for protocol in protocols_dir.iterdir():
-            if protocol.is_dir() and not protocol.name.startswith('__') and protocol.name not in ['environments']:
-                if (protocol / "quic_plugin.py").exists() or (protocol / "protocol_plugin.py").exists():
+            self.logger.debug(f"Checking protocol plugin '{protocol}'")
+            if protocol.is_dir() and not protocol.name.startswith('__'):
+                if (protocol / f"{protocol.name}_plugin.py").exists():
                     self.protocol_plugins[protocol.name] = protocol
                     self.logger.debug(f"Discovered protocol plugin '{protocol.name}' at '{protocol}'")
 
         # Discover environment plugins
         environments_dir = self.plugins_base_dir / "environments"
         if environments_dir.exists() and environments_dir.is_dir():
+            self.logger.debug(f"Checking environments directory '{environments_dir}'")
             for environment in environments_dir.iterdir():
-                if environment.is_dir() and not environment.name.startswith('__'):
-                    if (environment / "environment_plugin.py").exists():
-                        self.environment_plugins[environment.name] = environment
-                        self.logger.debug(f"Discovered environment plugin '{environment.name}' at '{environment}'")
+                if environment.is_dir():
+                    self.environment_plugins[environment.name] = {}
+                    for item in environment.iterdir():
+                        if item.is_dir() and not item.name.startswith('__'):
+                            if (item / f"{item.name}_plugin.py").exists():
+                                self.environment_plugins[environment.name][item.name] = item
+                                self.logger.debug(f"Discovered environment plugin '{item.name}' at '{item}' under '{environment}'")
         else:
             self.logger.warning(f"Environments directory '{environments_dir}' does not exist.")
+        
+        # TODO only build images for the selected experiments
+        self.build_all_docker_images()
