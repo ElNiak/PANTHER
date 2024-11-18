@@ -169,6 +169,23 @@ class DockerBuilder:
                     dockerfiles[impl_name] = dockerfile.resolve()
                     self.logger.debug(f"Found Dockerfile for implementation '{impl_name}': {dockerfile.resolve()}")
 
+
+        testers_dir = Path(plugins_dir) / "testers"
+        self.logger.info(f"Scanning for Dockerfiles in '{testers_dir.r.resolve()}'")
+
+        if not implementations_dir.exists():
+            self.logger.warning(f"Testers directory '{implementations_dir}' does not exist.")
+            return dockerfiles
+
+        for impl_dir in implementations_dir.rglob("*"):
+            if impl_dir.is_dir():
+                dockerfile = impl_dir / "Dockerfile"
+                if dockerfile.exists():
+                    impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
+                    dockerfiles[impl_name] = dockerfile.resolve()
+                    self.logger.debug(f"Found Dockerfile for tester '{impl_name}': {dockerfile.resolve()}")
+
+
         self.logger.info(f"Total Dockerfiles found: {len(dockerfiles)}")
         return dockerfiles
 

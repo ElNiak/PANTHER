@@ -42,7 +42,7 @@ class PluginManager:
             module = importlib.util.module_from_spec(spec)
             importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
-            class_name = f"{implementation.capitalize()}ServiceManager"
+            class_name = f'{implementation.replace("_", " ").title()}ServiceManager'.replace(" ", "")
             service_manager_class = getattr(module, class_name, None)
             if service_manager_class and issubclass(service_manager_class, IServiceManager):
                 implementation_config_path = implementation_dir / "config.yaml"

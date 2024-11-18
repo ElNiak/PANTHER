@@ -16,6 +16,7 @@ class PluginLoader:
         self.built_images: Dict[str, str] = {}  # Maps implementation names to image tags
         self.protocol_plugins: Dict[str, Path] = {}
         self.environment_plugins: Dict[str, Path] = {}
+        self.tester_plugins: Dict[str, Path] = {}
         
     def build_all_docker_images(self):
         """
@@ -73,6 +74,21 @@ class PluginLoader:
             self.logger.warning(f"Protocol plugin '{protocol}' not found or does not exist.")
         return implementations
     
+    def get_testers(self) -> List[str]:
+        """
+        Retrieves a list of implementations under a given protocol.
+
+        :param protocol: Name of the protocol.
+        :return: List of implementation names.
+        """
+        implementations = []
+        implementations_dir = self.plugins_base_dir  / "testers" 
+        self.logger.debug(f"Checking for testers in '{implementations_dir}'")
+        for item in implementations_dir.iterdir():
+                if item.is_dir() and not item.name.startswith('__') and item.name != "templates":
+                    implementations.append(item.name)
+        return implementations
+    
     def load_plugins(self):
         """
         Discovers and registers all protocol and environment plugins.
@@ -102,6 +118,18 @@ class PluginLoader:
                                 self.logger.debug(f"Discovered environment plugin '{item.name}' at '{item}' under '{environment}'")
         else:
             self.logger.warning(f"Environments directory '{environments_dir}' does not exist.")
+            
+        # Discover tester plugins
+        testers_dir = self.plugins_base_dir / "testers"
+        if testers_dir.exists() and testers_dir.is_dir():
+            self.logger.debug(f"Checking testers directory '{testers_dir}'")
+            for tester in testers_dir.iterdir():
+                if tester.is_dir() and not tester.name.startswith('__'):
+                    if (tester / f"{tester.name}_plugin.py").exists():
+                        self.tester_plugins[tester.name] = item
+                        self.logger.debug(f"Discovered tester plugin '{tester.name}' at '{tester}'")
+        else:
+            self.logger.warning(f"Testers directory '{testers_dir}' does not exist.")
         
         # TODO only build images for the selected experiments
         self.build_all_docker_images()

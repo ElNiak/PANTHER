@@ -67,7 +67,59 @@ class TestCase(ITestCase):
         finally:
             self.teardown_environment()
 
-    
+    def setup_testers(self):
+        """
+        
+        """
+        def get_required_testers(services: Dict[str, Dict[str, Any]]) -> Set[str]:
+            """_summary_
+
+            Args:
+                services (Dict[str, Dict[str, Any]]): _description_
+
+            Returns:
+                Set[str]: _description_
+            """
+            required_implementations = set()
+            for service_name, service_details in services.items():
+                implementation = service_details.get("implementation")
+                if implementation and service_details.get("type") == "tester":
+                    required_implementations.add(implementation)
+                else:
+                    self.logger.warning(f"Service '{service_name}' does not specify an implementation.")
+
+            if not required_implementations:
+                self.logger.error("No tester specified for services. Aborting test. ?")
+                # Skip to the next test
+            return required_implementations
+        
+        testers = get_required_testers(self.services)
+        if len(testers) == 0:
+            self.logger.warning("No testers specified in the test configuration.")
+            return
+        testers_plugin_path = Path(f"plugins/testers")
+        if testers_plugin_path.exists() and testers_plugin_path.is_dir():
+            self.logger.debug(f"Found tester plugin at '{testers_plugin_path}'")
+            # Discover and load implementations under this protocol using PluginFactory
+            available_testers = self.plugin_manager.plugins_loaders.get_testers()
+            for impl in testers:
+                if impl in available_testers:
+                    implementation_dir = testers_plugin_path / impl
+                    protocol_templates_dir = testers_plugin_path / impl /"templates"
+                    # Create service manager using PluginFactory
+                    service_manager = self.plugin_manager.create_service_manager(
+                        protocol="quic", # TODO 
+                        implementation=impl,
+                        implementation_dir=implementation_dir,
+                        protocol_templates_dir=protocol_templates_dir
+                    )
+                    self.service_managers.append(service_manager)
+                    self.logger.debug(f"Added service manager for tester '{impl}' under protocol '{'quic'}'")
+                else:
+                    self.logger.warning(f"Tester '{impl}' for protocol '{'quic'}' not found. Skipping.")
+        else:
+            self.logger.warning(f"Tester plugin not found at '{testers_plugin_path}'. Skipping.")
+        
     def setup_services(self):
         """
         Initializes protocol managers based on the specified protocols and required implementations.
@@ -85,14 +137,14 @@ class TestCase(ITestCase):
             required_implementations = set()
             for service_name, service_details in services.items():
                 implementation = service_details.get("implementation")
-                if implementation:
+                if implementation and service_details.get("type") != "tester":
                     required_implementations.add(implementation)
                 else:
                     self.logger.warning(f"Service '{service_name}' does not specify an implementation.")
 
             if not required_implementations:
-                self.logger.error("No implementations specified for services. Aborting test.")
-                raise  # Skip to the next test
+                self.logger.error("No implementations specified for services. Aborting test. ?")
+                raise Exception # Skip to the next test
             return required_implementations
         
         # TODO
@@ -120,8 +172,10 @@ class TestCase(ITestCase):
                         self.logger.debug(f"Added service manager for implementation '{impl}' under protocol '{proto}'")
                     else:
                         self.logger.warning(f"Implementation '{impl}' for protocol '{proto}' not found. Skipping.")
+                        exit()
             else:
                 self.logger.warning(f"Protocol plugin '{proto}' not found at '{protocol_plugin_path}'. Skipping.")
+                exit()
 
     def teardown_services(self):
         """
@@ -244,51 +298,6 @@ class TestCase(ITestCase):
         except Exception as e:
             self.logger.error(f"Assertion Failed: Could not reach '{service_name}' at '{url}': {e}")
 
-
-    def initialize_protocol_managers(self, protocols: List[str], implementations: Set[str]):
-        """
-        Initializes protocol managers based on the specified protocols and required implementations.
-
-        :param protocols: List of protocol names.
-        :param implementations: Set of implementation names to initialize.
-        """
-        for proto in protocols:
-            protocol_plugin_path = Path(f"plugins/implementations/{proto}")
-            if protocol_plugin_path.exists() and protocol_plugin_path.is_dir():
-                self.logger.debug(f"Found protocol plugin at '{protocol_plugin_path}'")
-                # Discover and load implementations under this protocol using PluginFactory
-                available_implementations = self.plugin_manager.plugins_loaders.get_implementations_for_protocol(proto)
-                for impl in implementations:
-                    if impl in available_implementations:
-                        implementation_dir = protocol_plugin_path / impl
-                        protocol_templates_dir = protocol_plugin_path / impl /"templates"
-                        # Create service manager using PluginFactory
-                        service_manager = self.plugin_manager.create_service_manager(
-                            protocol=proto,
-                            implementation=impl,
-                            implementation_dir=implementation_dir,
-                            protocol_templates_dir=protocol_templates_dir
-                        )
-                        self.service_managers.append(service_manager)
-                        self.logger.debug(f"Added service manager for implementation '{impl}' under protocol '{proto}'")
-                    else:
-                        self.logger.warning(f"Implementation '{impl}' for protocol '{proto}' not found. Skipping.")
-            else:
-                self.logger.warning(f"Protocol plugin '{proto}' not found at '{protocol_plugin_path}'. Skipping.")
-
-    def initialize_environment_managers(self, environments: List[str], type: str = "network"):
-        """
-        Initializes environment managers based on the specified environments.
-
-        :param environments: List of environment names.
-        """
-        for env in environments:
-            if env:
-                self.logger.debug(f"Creating environment manager for environment '{env}'")
-                environment_manager = self.plugin_manager.create_environment_manager(environment=env, environment_dir=self.plugin_manager.plugins_loaders.plugins_base_dir / "environments" /  f"{type}_environment", 
-                                                                                     output_dir=self.test_experiment_dir)
-                self.environment_plugin_manager.append(environment_manager)
-                self.logger.debug(f"Added environment manager for environment '{env}'")
     
     def register_default_observers(self):
         """
@@ -326,6 +335,7 @@ class TestCase(ITestCase):
         self.logger.info("Setting up all environments")
         self.setup_environment()
         self.setup_services()
+        self.setup_testers()
         self.generate_deployment_commands(self.test_config.get("network_environment", "docker_compose"))
         for env_manager in self.environment_plugin_manager:
             try:
@@ -354,7 +364,7 @@ class TestCase(ITestCase):
             manager = next((m for m in self.service_managers if m.get_implementation_name() == implementation), None)
             if not manager:
                 self.logger.error(f"No service manager found for implementation '{implementation}'")
-                continue
+                exit(1)
             try:
                 # Ensure 'name' key exists
                 if 'name' not in service_details:
