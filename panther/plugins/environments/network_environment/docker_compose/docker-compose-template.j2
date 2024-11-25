@@ -1,8 +1,13 @@
-
+# TODO remove space
+name: {{ experiment_name }}
 services:
   {% for service_name, service in services.items() %}
   {{ service_name }}:
+    {% if service.type == "tester" %}
+    image: {{ service.implementation }}_{{ service.protocol.version }}_panther:latest
+    {% else %}
     image: {{ service.implementation }}_{{ service.version }}_panther:latest
+    {% endif %}
     container_name: {{ service_name }}
     ports:
       {% for port in service.ports %}
@@ -11,42 +16,40 @@ services:
     {% if service.role == 'client' %}
     depends_on:
       - {{ service.target }}
-        # condition: service_healthy
     {% endif %}
-    # {% if service.role == 'server' %}
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:{{ service.healthcheck_port }}/health"]
-    #   interval: 5s
-    #   timeout: 2s
-    #   retries: 5
-    #   start_period: 5s
-    # {% endif %}
     environment:
       ROLE: {{ service.role }}
-      # TODO
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
-      {% if service.role == 'client' %}
-      TARGET: {{ service.target }}
-      MESSAGE: "{{ service.message }}"
+      {% if service_name in environments%}
+      {% for key, value in environments[service_name].items() %}
+      {{ key }}: "{{ value }}"
+      {% endfor %}
       {% endif %}
     tty: true
     stdin_open: true
-    # user: "${UID}:${GID}"
-    # Not needed with user
-    # privileged: true
     cap_add:
       - CAP_NET_ADMIN
       - CAP_NET_RAW
     working_dir: "{{ deployment_info[service_name]['working_dir'] }}"
+    # TODO protocol + duration
     command: 
-      # TODO protocol + duration
-      - "(tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & (sleep 2; {{ deployment_info[service_name]['command'] }})"
+    {% if not "ivy" in service_name  %}
+      - bash -c "
+          {{ additional_command }} 
+          (tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & (sleep 2; {{ deployment_info[service_name]['command'] }})"
+    {% else %}
+      - bash -c "{{ deployment_info[service_name]['compilation_command'] }} && (tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & (sleep 2; {{ deployment_info[service_name]['command'] }})"
+    {% endif %}
     volumes:
-      - "{{ log_dir | realpath  }}/{{ service_name }}/:/app/logs/"
+      - {{ log_dir | realpath }}/{{ service_name }}:/app/logs/
       {% for volume in deployment_info[service_name]['volumes'] %}
+      {% if volume | is_dict %}
       - "{{ volume.local | realpath }}:{{ volume.container }}"
+      {% else %}
+      - "{{ volume }}"
+      {% endif %}
       {% endfor %}
     networks:
       panther_network:
@@ -57,3 +60,7 @@ services:
 networks:
   panther_network:
     driver: bridge
+
+volumes:
+  shared_logs:
+    driver: local

@@ -19,6 +19,8 @@ from core.observer.event_manager import EventManager
 from core.observer.event import Event
 from core.test_cases.test_case import TestCase
 
+# TODO implement errors management strategy (e.g., retry, fail, etc.)
+
 class ExperimentManager:
     def __init__(
         self,
@@ -71,7 +73,6 @@ class ExperimentManager:
 
     def _validate_configuration(self):
         """Validates the experiment configuration."""
-        # Example: Ensure mandatory fields are present in the configuration
         if not self.experiment_config.get("tests"):
             raise ValueError("Experiment configuration must include at least one test.")
         self.logger.info("Experiment configuration validated.")
@@ -86,10 +87,10 @@ class ExperimentManager:
                 exec_environment_type = test_config.get("execution_environment", [])
                 # if not exec_environment_type:
                 #     raise ValueError(f"Unknown environment type: {exec_environment_type}")
-                test_experiment_dir = self.experiment_dir / test_config.get("name", "Unnamed Test")
-                self.result_collectors.register_handler(f"storage_{test_config.get('name', 'Unnamed Test')}",  
+                test_experiment_dir = self.experiment_dir / test_config.get("name", "Unnamed Test").replace(" ", "_")
+                self.result_collectors.register_handler(f"storage_{test_config.get('name', 'Unnamed Test').replace(' ', '_')})",  
                                                         StorageHandler(self.experiment_dir, 
-                                                                       test_config.get("name", "Unnamed Test")))
+                                                                       test_config.get("name", "Unnamed Test").replace(" ", "_")))
                 test_case = TestCase(test_config, 
                                      self.logger, 
                                      self.result_collectors, 

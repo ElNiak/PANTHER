@@ -53,6 +53,8 @@ class PluginManager:
                     implementation_config_path=str(implementation_config_path),
                     protocol_templates_dir=str(protocol_templates_dir)
                 )
+                self.logger.debug(f"Preparing instance of '{class_name}'")
+                instance.prepare(self.plugins_loaders)
                 self.logger.debug(f"Created instance of '{class_name}'")
                 return instance
             else:

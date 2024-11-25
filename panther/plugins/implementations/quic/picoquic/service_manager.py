@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, Optional
 import yaml
 import traceback    
+from core.utils.plugin_loader import PluginLoader
 from plugins.implementations.service_manager_interface import IServiceManager
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template
@@ -23,6 +24,8 @@ class PicoquicServiceManager(IServiceManager):
         self.validate_config()
         self.templates_dir = protocol_templates_dir
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
+        self.jinja_env.trim_blocks   = True
+        self.jinja_env.lstrip_blocks = True
         # Debugging: List files in templates_dir
         if not os.path.isdir(self.templates_dir):
             self.logger.error(f"Templates directory '{self.templates_dir}' does not exist.")
@@ -85,21 +88,14 @@ class PicoquicServiceManager(IServiceManager):
                 self.logger.error(f"Missing required key '{key}' in configuration.")
                 raise KeyError(f"Missing required key '{key}' in configuration.")
             
-    def build_image(self):
+    def prepare(self,plugin_loader: Optional[PluginLoader] = None):
         """
-        Builds the Picoquic Docker image.
+        Prepare the service manager for use.
         """
-        self.logger.info("Building Picoquic Docker image...")
-        try:
-            subprocess.run(
-                "docker build -t picoquic .",
-                shell=True,
-                cwd="/opt/picoquic",  # Ensure this matches your Dockerfile's location
-                check=True
-            )
-            self.logger.info("Picoquic Docker image built successfully.")
-        except Exception as e:
-            self.logger.error(f"Failed to build Picoquic Docker image: {e}\n{traceback.format_exc()}")
+        self.logger.info("Preparing Picoquic service manager...")
+        # Additional setup can be implemented here
+        plugin_loader.build_docker_image(self.get_implementation_name())
+        self.logger.info("Picoquic service manager prepared.")
 
     def load_config(self) -> dict:
         """
@@ -190,6 +186,7 @@ class PicoquicServiceManager(IServiceManager):
                 "local": os.path.abspath(params["certificates"]["key_local_file"]),
                 "container": params["certificates"]["key_file"]
             })
+        
         # Ticket file (if applicable)
         if params["ticket_file"]["local_file"]:
             volumes.append({

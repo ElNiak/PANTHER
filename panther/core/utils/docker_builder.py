@@ -69,6 +69,8 @@ class DockerBuilder:
         :param tag_version: Tag version for the Docker image.
         :return: Image tag if build is successful, else None.
         """
+        # TODO pass control to the service manager -> prepare()
+        
         image_tag = f"{impl_name}_{version}_panther:{tag_version}"
         self.logger.info(f"Building Docker image '{image_tag}' from '{dockerfile_path}' with context '{context_path}'")
 
@@ -80,7 +82,8 @@ class DockerBuilder:
         # Extract dependencies
         dependencies = config.get('dependencies', {})
         dependencies_json = json.dumps(dependencies) if dependencies else "[]"
-
+        build_logs = None
+        log_f = None
         try:
             build_args = {
                 'VERSION': config.get('commit', 'master'),
@@ -116,12 +119,14 @@ class DockerBuilder:
             return image_tag
         except (BuildError, APIError) as e:
             self.logger.error(f"Failed to build Docker image '{image_tag}': {e}")
+            self.log_docker_output(e.build_log, f"Building Docker image '{image_tag}'", log_f)
             if self.build_log_file:
                 with open(self.build_log_file, 'a') as log_f:
                     log_f.write(f"ERROR: {e}\n")
             exit(1)
         except Exception as e:
             self.logger.error(f"Unexpected error during build of '{image_tag}': {e}")
+            self.log_docker_output(build_logs, f"Building Docker image '{image_tag}'", log_f)
             if self.build_log_file:
                 with open(self.build_log_file, 'a') as log_f:
                     log_f.write(f"ERROR: {e}\n")
@@ -171,13 +176,13 @@ class DockerBuilder:
 
 
         testers_dir = Path(plugins_dir) / "testers"
-        self.logger.info(f"Scanning for Dockerfiles in '{testers_dir.r.resolve()}'")
-
-        if not implementations_dir.exists():
-            self.logger.warning(f"Testers directory '{implementations_dir}' does not exist.")
+        self.logger.info(f"Scanning for Dockerfiles in '{testers_dir.resolve()}'")
+        tester_dir = Path(plugins_dir) / "testers"
+        if not tester_dir.exists():
+            self.logger.warning(f"Testers directory '{tester_dir}' does not exist.")
             return dockerfiles
 
-        for impl_dir in implementations_dir.rglob("*"):
+        for impl_dir in tester_dir.rglob("*"):
             if impl_dir.is_dir():
                 dockerfile = impl_dir / "Dockerfile"
                 if dockerfile.exists():
@@ -187,6 +192,7 @@ class DockerBuilder:
 
 
         self.logger.info(f"Total Dockerfiles found: {len(dockerfiles)}")
+        self.logger.debug(f"Dockerfiles found: {dockerfiles}")
         return dockerfiles
 
     def load_config(self, impl_name: str, version: str) -> Optional[Dict[str, Any]]:

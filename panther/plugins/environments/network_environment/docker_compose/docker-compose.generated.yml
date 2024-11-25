@@ -1,109 +1,77 @@
-
+# TODO remove space
+name: QUIC_Client-Server_Communication_Test_II
 services:
-  
   picoquic_server:
     image: picoquic_rfc9000_panther:latest
     container_name: picoquic_server
     ports:
-      
       - "4443:4443"
-      
       - "8080:8080"
-      
-    
-    # 
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:/health"]
-    #   interval: 5s
-    #   timeout: 2s
-    #   retries: 5
-    #   start_period: 5s
-    # 
     environment:
       ROLE: server
-      # TODO
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
-      
     tty: true
     stdin_open: true
-    # user: "${UID}:${GID}"
-    # Not needed with user
-    # privileged: true
     cap_add:
       - CAP_NET_ADMIN
       - CAP_NET_RAW
     working_dir: "/opt/picoquic"
+    # TODO protocol + duration
     command: 
-      # TODO protocol + duration
-      - "(tshark -a duration:10 -i any -w /app/logs/picoquic_server.pcap;) & (sleep 2; ./picoquicdemo -c /opt/certs/cert.pem -k /opt/certs/key.pem -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2>&1)"
+      - bash -c "
+          while [ ! -f /app/sync_logs/ivy_ready ]; do
+                                echo 'Waiting for Ivy tester to be ready...' > /app/logs/tester_ready;
+                                sleep 2;
+                            done;
+                            echo 'Ivy tester is ready, starting picoquic_server...' /app/logs/tester_ready; 
+          (tshark -a duration:10 -i any -w /app/logs/picoquic_server.pcap;) & (sleep 2; ./picoquicdemo -c /opt/certs/cert.pem -k /opt/certs/key.pem -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2>&1)"
     volumes:
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-15_10-20-29/QUIC Client-Server Communication Test I/logs/picoquic_server/:/app/logs/"
-      
+      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-25_17-07-27/QUIC_Client-Server_Communication_Test_II/logs/picoquic_server:/app/logs/
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
-      
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
-      
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
-      
+      - "shared_logs:/app/sync_logs"
     networks:
       panther_network:
         aliases: 
           - picoquic_server
-  
-  picoquic_client:
-    image: picoquic_rfc9000_panther:latest
-    container_name: picoquic_client
+  ivy_client:
+    image: panther_ivy_rfc9000_panther:latest
+    container_name: ivy_client
     ports:
-      
       - "5000:5000"
-      
       - "8081:8081"
-      
-    
     depends_on:
       - picoquic_server
-        # condition: service_healthy
-    
-    # 
     environment:
       ROLE: client
-      # TODO
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
-      
-      TARGET: picoquic_server
-      MESSAGE: ""
-      
     tty: true
     stdin_open: true
-    # user: "${UID}:${GID}"
-    # Not needed with user
-    # privileged: true
     cap_add:
       - CAP_NET_ADMIN
       - CAP_NET_RAW
-    working_dir: "/opt/picoquic"
+    working_dir: "/opt/panther_ivy/protocol-testing/quic"
+    # TODO protocol + duration
     command: 
-      # TODO protocol + duration
-      - "(tshark -a duration:10 -i any -w /app/logs/picoquic_client.pcap;) & (sleep 2; sleep 5;./picoquicdemo -c /opt/certs/cert.pem -k /opt/certs/key.pem -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e eth0   -v 00000001  picoquic_server 4443 > /app/logs/client.log 2>&1)"
+      - bash -c "cd /opt/panther_ivy/; PYTHONPATH=$PYTHONPATH:/opt/panther_ivy/ivy/ ivyc trace=false show_compiled=false target=test test_iters=100 /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max.ivy && mv /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max.* /opt/panther_ivy/protocol-testing/quic/build/ &&  touch /app/sync_logs/tester_ready && (tshark -a duration:10 -i any -w /app/logs/ivy_client.pcap;) & (sleep 2; cd /opt/panther_ivy/protocol-testing/quic && timeout 120 build//quic_client_test_max seed=0 the_cid=0         server_port=4443 iversion=1 server_addr=2130706433         client_port=4443 client_port_alt=4444 client_addr=2130706433  > /app/logs/tester.log 2>&1)"
     volumes:
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-15_10-20-29/QUIC Client-Server Communication Test I/logs/picoquic_client/:/app/logs/"
-      
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
-      
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
-      
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
-      
+      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-25_17-07-27/QUIC_Client-Server_Communication_Test_II/logs/ivy_client:/app/logs/
+      - "shared_logs:/app/sync_logs"
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/tester_ticket.key"
     networks:
       panther_network:
         aliases: 
-          - picoquic_client
-  
+          - ivy_client
 
 networks:
   panther_network:
     driver: bridge
+
+volumes:
+  shared_logs:
+    driver: local

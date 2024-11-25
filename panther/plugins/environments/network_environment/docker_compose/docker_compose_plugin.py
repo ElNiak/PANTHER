@@ -29,6 +29,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             "docker_compose",
             "docker-compose.generated.yml",
         )
+        self.config_path = config_path
         self.network_name = "quic_network_dynamic"
         self.network_driver = network_driver
         self.templates_dir = templates_dir
@@ -43,6 +44,9 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.timeout = 60
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
+        self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
+        self.jinja_env.trim_blocks   = True
+        self.jinja_env.lstrip_blocks = True
 
     def __str__(self):
         attributes = {
@@ -107,11 +111,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
         )
         self.generate_docker_compose(paths=paths, timestamp=timestamp)
         self.logger.info("Docker Compose environment setup complete")
-
+    
 
     def deploy_services(self):
         self.logger.info("Deploying services")
+        # self.prepare_tester() # TODO
         self.launch_docker_compose()
+        
 
     def generate_docker_compose(self, paths: Dict[str, str], timestamp: str):
         """
@@ -120,6 +126,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
+        # TODO add timeout in the test config
         try:
             # Ensure the log directory for each service exists
             for service_name in self.services.keys():
@@ -127,6 +134,21 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 if not os.path.exists(log_dir):
                     os.makedirs(log_dir)
                     self.logger.info(f"Created log directory: {log_dir}")
+                
+                additional_command = ""
+                if "ivy" in service_name:
+                    # update other service so they wait for ivy to be ready
+                    self.logger.debug(f"Adding wait for Ivy tester to be ready for {service_name}")
+                    for other_service_name in self.services.keys():
+                        if other_service_name != service_name:
+                            additional_command = f"""
+                            while [ ! -f /app/sync_logs/ivy_ready ]; do
+                                echo 'Waiting for Ivy tester to be ready...' > /app/logs/tester_ready;
+                                sleep 2;
+                            done;
+                            echo 'Ivy tester is ready, starting {other_service_name}...' /app/logs/tester_ready;   
+                            """.strip()
+                            self.deployment_info[other_service_name]["volumes"].append("shared_logs:/app/sync_logs")
             
             template = self.jinja_env.get_template("docker-compose-template.j2")
             rendered = template.render(
@@ -135,6 +157,9 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 paths=paths,
                 timestamp=timestamp,
                 log_dir=self.log_dirs,
+                additional_command=additional_command,
+                environments={},
+                experiment_name=self.output_dir.split("/")[-1],
             )
             
             # Write the rendered content to docker-compose.generated.yml
@@ -197,6 +222,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         """
         Tears down the Docker Compose environment by bringing down services.
         """
+        # TODO: add a way to retrieve the logs, results, binary
         self.logger.info("Tearing down Docker Compose environment")
         with open(
             os.path.join(self.output_dir, "logs", "docker-compose-teardown.log"), "w"

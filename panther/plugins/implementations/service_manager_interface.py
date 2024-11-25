@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
+from core.utils.plugin_loader import PluginLoader
+
+
+# TODO create a new module "services" and move this interface there with 'implementations' and 'testers' interfaces
 class IServiceManager(ABC):
     def __init__(self):
         pass
@@ -22,7 +26,7 @@ class IServiceManager(ABC):
         pass
     
     @abstractmethod
-    def build_image(self, environment: str):
+    def prepare(self, plugin_loader: Optional[PluginLoader] = None):
         """
         Builds the Docker image for the implementation based on the environment.
         

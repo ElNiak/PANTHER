@@ -26,15 +26,6 @@ RUN addgroup --gid ${USER_GID} ${USER_N} && \
     adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
     usermod -aG wireshark ${USER_N}
 
-# RUN chown ${USER_N}:wireshark /usr/bin/dumpcap
-
-# RUN setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/dumpcap && \
-#     chgrp wireshark /usr/bin/dumpcap 
-    # chmod 750 /usr/bin/dumpcap
-
-# RUN setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/dumpcap
-# RUN chmod +x /usr/bin/dumpcap 
-
 
 # Give the user ownership of the /app directory (or any directories you need)
 RUN mkdir -p /app

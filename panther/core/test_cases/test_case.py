@@ -80,11 +80,15 @@ class TestCase(ITestCase):
             Returns:
                 Set[str]: _description_
             """
-            required_implementations = set()
+            required_implementations = []
+            # TODO add check unicity of the tester [i.e set() like -> unhashable type: 'dict']
             for service_name, service_details in services.items():
                 implementation = service_details.get("implementation")
                 if implementation and service_details.get("type") == "tester":
-                    required_implementations.add(implementation)
+                    if implementation not in [impl["implem"] for impl in required_implementations]:
+                        print("fuck")
+                        required_implementations.append({"implem": implementation,
+                                                         "protocol": service_details.get("protocol", {})})
                 else:
                     self.logger.warning(f"Service '{service_name}' does not specify an implementation.")
 
@@ -103,20 +107,22 @@ class TestCase(ITestCase):
             # Discover and load implementations under this protocol using PluginFactory
             available_testers = self.plugin_manager.plugins_loaders.get_testers()
             for impl in testers:
-                if impl in available_testers:
-                    implementation_dir = testers_plugin_path / impl
-                    protocol_templates_dir = testers_plugin_path / impl /"templates"
+                if impl["implem"] in available_testers:
+                    implementation_dir = testers_plugin_path / impl["implem"]
+                    protocol_templates_dir = testers_plugin_path / impl["implem"] /"templates"
                     # Create service manager using PluginFactory
+                    print(impl["protocol"])
+                    print(impl["protocol"])
                     service_manager = self.plugin_manager.create_service_manager(
-                        protocol="quic", # TODO 
-                        implementation=impl,
+                        protocol=impl["protocol"]["name"], 
+                        implementation=impl["implem"],
                         implementation_dir=implementation_dir,
                         protocol_templates_dir=protocol_templates_dir
                     )
                     self.service_managers.append(service_manager)
-                    self.logger.debug(f"Added service manager for tester '{impl}' under protocol '{'quic'}'")
+                    self.logger.debug(f"Added service manager for tester '{impl['implem']}' under protocol '{impl['protocol']['name']}'")
                 else:
-                    self.logger.warning(f"Tester '{impl}' for protocol '{'quic'}' not found. Skipping.")
+                    self.logger.warning(f"Tester '{impl['implem']}' for protocol '{impl['protocol']['name']}' not found. Skipping.")
         else:
             self.logger.warning(f"Tester plugin not found at '{testers_plugin_path}'. Skipping.")
         
@@ -228,6 +234,7 @@ class TestCase(ITestCase):
                 self.event_manager.notify(Event("services_deployed", {"environment": env_manager}))
             except Exception as e:
                 self.logger.error(f"Failed to deploy services via '{env_manager.__class__.__name__}': {e}")
+                raise e
                 
     def execute_steps(self):
         """
@@ -240,6 +247,7 @@ class TestCase(ITestCase):
             if step_name == "record_pcap":
                 pass
             if step_name == "wait":
+                # TODO assert that wait is >= timeout of the services
                 duration = step_details.get("duration", 0)
                 self.logger.info(f"Executing step 'wait' for {duration} seconds.")
                 import time
