@@ -39,6 +39,13 @@ class TestCase(ITestCase):
             f"services={self.services}, "
             f"environments={self.environments}, "
             f"test_experiment_dir={self.test_experiment_dir})")
+        
+    def __repr__(self):
+        return (f"TestCase(name={self.test_config.get('name', 'Unnamed Test')}, "
+            f"description={self.test_config.get('description', '')}, "
+            f"services={self.services}, "
+            f"environments={self.environments}, "
+            f"test_experiment_dir={self.test_experiment_dir})")
 
     def run(self):
         """Runs the test case based on the provided configuration."""
@@ -381,5 +388,6 @@ class TestCase(ITestCase):
                 deployment_commands.update(info_commands)
             except Exception as e:
                 self.logger.error(f"Failed to generate deployment command for service '{service_name}': {e}")
+                exit(1)
         self.logger.debug(f"Collected deployment commands: {deployment_commands}")
         self.deployment_commands = deployment_commands

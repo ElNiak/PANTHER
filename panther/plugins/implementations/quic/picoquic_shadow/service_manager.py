@@ -13,11 +13,11 @@ from jinja2 import Environment, FileSystemLoader, Template
 
 # TODO Tom create test template for QUIC implementations new users
 
-class PicoquicServiceManager(IServiceManager):
-    def __init__(self,implementation_config_path: str = "plugins/implementations/quic/picoquic/", 
-                      protocol_templates_dir: str     = "plugins/implementations/quic/picoquic/templates/"):
+class PicoquicShadowServiceManager(IServiceManager):
+    def __init__(self,implementation_config_path: str = "plugins/implementations/quic/picoquic_shadow/", 
+                      protocol_templates_dir: str     = "plugins/implementations/quic/picoquic_shadow/templates/"):
         self.process = None
-        self.logger = logging.getLogger("PicoquicServiceManager")
+        self.logger = logging.getLogger("PicoquicShadowServiceManager")
         self.config_path = implementation_config_path
         self.config = self.load_config()
         self.service_name = None
@@ -59,7 +59,7 @@ class PicoquicServiceManager(IServiceManager):
             return ""
         
     def get_implementation_name(self) -> str:
-        return "picoquic"
+        return "picoquic_shadow"
     
     def get_service_name(self) -> str:
         return self.service_name
@@ -90,7 +90,7 @@ class PicoquicServiceManager(IServiceManager):
             raise ValueError("Empty implementation configuration.")
         # Additional validation can be implemented here
         # For example, check required keys are present
-        required_keys = [['picoquic'], ['picoquic','versions']]
+        required_keys = [['picoquic_shadow'], ['picoquic_shadow','versions']]
         for key in required_keys:
             if not keys_exists(self.config, key):
                 self.logger.error(f"Missing required key '{key}' in configuration.")
@@ -100,10 +100,10 @@ class PicoquicServiceManager(IServiceManager):
         """
         Prepare the service manager for use.
         """
-        self.logger.info("Preparing Picoquic service manager...")
+        self.logger.info("Preparing picoquic_shadow service manager...")
         # Additional setup can be implemented here
         plugin_loader.build_docker_image(self.get_implementation_name())
-        self.logger.info("Picoquic service manager prepared.")
+        self.logger.info("PicoquicShadow service manager prepared.")
 
     def load_config(self) -> dict:
         """
@@ -133,7 +133,7 @@ class PicoquicServiceManager(IServiceManager):
         self.logger.debug(f"Generating deployment commands for service: {service_params}")
         role = service_params.get("role")
         version = service_params.get("version", "rfc9000")
-        version_config = self.config.get("picoquic", {}).get("versions", {}).get(version, {})
+        version_config = self.config.get("picoquic_shadow", {}).get("versions", {}).get(version, {})
 
         # Determine if network interface parameters should be included based on environment
         # TODO
@@ -251,8 +251,6 @@ class PicoquicServiceManager(IServiceManager):
         recurse(params)
         return missing
     
-    # TODO setup logs files from environment (change base dir)
-    
     def replace_env_vars(self, value: str) -> str:
         """
         Replaces environment variables in the given string with their actual values.
@@ -269,7 +267,7 @@ class PicoquicServiceManager(IServiceManager):
     
     def start_service(self, parameters: dict):
         """
-        Starts the Picoquic server or client based on the role.
+        Starts the PicoquicShadow server or client based on the role.
         Parameters should include 'role'.
         # TODO should be in envirnment
         """
@@ -284,7 +282,7 @@ class PicoquicServiceManager(IServiceManager):
             return
 
         log_path = self.config.get(role, {}).get("log_path", f"/app/logs/{role}.log")
-        self.logger.info(f"Starting Picoquic {role} with command: {cmd}")
+        self.logger.info(f"Starting PicoquicShadow {role} with command: {cmd}")
         try:
             self.process = subprocess.Popen(
                 cmd,
@@ -294,25 +292,25 @@ class PicoquicServiceManager(IServiceManager):
                 stderr=subprocess.PIPE,
                 preexec_fn=os.setsid
             )
-            self.logger.info(f"Picoquic {role} started with PID {self.process.pid}")
+            self.logger.info(f"PicoquicShadow {role} started with PID {self.process.pid}")
         except Exception as e:
-            self.logger.error(f"Failed to start Picoquic {role}: {e}\n{traceback.format_exc()}")
+            self.logger.error(f"Failed to start PicoquicShadow {role}: {e}\n{traceback.format_exc()}")
 
     def stop_service(self):
         """
-        Stops the Picoquic service gracefully.
+        Stops the PicoquicShadow service gracefully.
         """
         if self.process:
-            self.logger.info(f"Stopping Picoquic service with PID {self.process.pid}")
+            self.logger.info(f"Stopping PicoquicShadow service with PID {self.process.pid}")
             try:
                 os.killpg(os.getpgid(self.process.pid), 15)  # SIGTERM
                 self.process.wait(timeout=10)
-                self.logger.info("Picoquic service stopped successfully.")
+                self.logger.info("PicoquicShadow service stopped successfully.")
             except Exception as e:
-                self.logger.error(f"Failed to stop Picoquic service: {e}")
+                self.logger.error(f"Failed to stop PicoquicShadow service: {e}")
 
     def __str__(self) -> str:
-        return  f" (Picoquic Service Manager - {self.config_path})"
+        return  f" (PicoquicShadow Service Manager - {self.config_path})"
     
     def __repr__(self):
-        return super().__repr__() + f" (Picoquic Service Manager - {self.config_path})"
+        return super().__repr__() + f" (PicoquicShadow Service Manager - {self.config_path})"

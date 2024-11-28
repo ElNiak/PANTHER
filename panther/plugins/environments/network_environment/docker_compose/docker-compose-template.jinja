@@ -1,4 +1,3 @@
-# TODO remove space
 name: {{ experiment_name }}
 services:
   {% for service_name, service in services.items() %}
@@ -22,26 +21,42 @@ services:
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
-      {% if service_name in environments%}
-      {% for key, value in environments[service_name].items() %}
+      {% if "environment" in deployment_info[service_name] %}
+      {% for key, value in deployment_info[service_name]["environment"].items() %}
       {{ key }}: "{{ value }}"
       {% endfor %}
       {% endif %}
     tty: true
     stdin_open: true
+    # TODO fix in the docker
     cap_add:
       - CAP_NET_ADMIN
       - CAP_NET_RAW
     working_dir: "{{ deployment_info[service_name]['working_dir'] }}"
     # TODO protocol + duration
     command: 
+      - /bin/sh -c '
+          set -x;
+          export PATH=$$PATH:$$ADDITIONAL_PATH;
+          export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
+          env >> /app/logs/ivy_setup.log;
     {% if not "ivy" in service_name  %}
-      - bash -c "
           {{ additional_command }} 
-          (tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & (sleep 2; {{ deployment_info[service_name]['command'] }})"
+          (tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & 
+          {% if service.role == 'client' %}
+          (sleep 5; {{ deployment_info[service_name]['command'] }})'
+          {% else %}
+          ({{ deployment_info[service_name]['command'] }})'
+          {% endif %}
     {% else %}
-      - bash -c "{{ deployment_info[service_name]['compilation_command'] }} && (tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & (sleep 2; {{ deployment_info[service_name]['command'] }})"
+          {{ deployment_info[service_name]['compilation_command'] }} && ((touch /app/logs/{{ service_name }}.pcap; tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & 
+          {% if service.role == 'client' %}
+          (sleep 5; {{ deployment_info[service_name]['command'] }}))'
+          {% else %}
+          ({{ deployment_info[service_name]['command'] }}))'
+          {% endif %}
     {% endif %}
+    # TODO fix sudo tshark
     volumes:
       - {{ log_dir | realpath }}/{{ service_name }}:/app/logs/
       {% for volume in deployment_info[service_name]['volumes'] %}

@@ -67,6 +67,54 @@ class PluginLoader:
             self.logger.error(f"Configuration file '{config_path}' does not exist for implementation '{impl_name}'. Skipping.")
             exit(1)
         
+    def build_docker_image_from_path(self, path: Path, version: Optional[str] = None):
+        """
+        Builds a Docker image for a given implementation and version.
+
+        :param impl_name: Name of the implementation.
+        :param version: Version of the implementation.
+        """
+        if impl_name in self.dockerfiles:
+            dockerfile_path = self.dockerfiles[impl_name]
+            # Load version-specific configurations from config.yaml
+            config_path = dockerfile_path.parent / "config.yaml"
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    full_config = yaml.safe_load(f)
+
+                impl_config = full_config.get(impl_name, {})
+                if not version:
+                    if "ivy" in impl_name:
+                        versions = impl_config.get("quic",{}).get('versions', {})
+                    else:
+                        versions = impl_config.get('versions', {})
+                else:
+                    versions = {version: impl_config.get(version, {})}
+                    
+                self.logger.debug(f"Found configuration for implementation '{impl_name}': {versions}")
+                for version, version_config in versions.items():
+                    self.logger.info(f"Building image for implementation '{impl_name}' version '{version}'")
+                    image_tag = self.docker_builder.build_image(
+                        impl_name=impl_name,
+                        version=version,
+                        dockerfile_path=dockerfile_path,
+                        context_path=dockerfile_path.parent,
+                        config=version_config,
+                        tag_version="latest"  # or use version if desired
+                    )
+                    if image_tag:
+                        key = f"{impl_name}_{version}"
+                        self.built_images[key] = image_tag
+                    else:
+                        self.logger.error(f"Image build failed for implementation '{impl_name}' version '{version}'")
+            else:
+                self.logger.error(f"Configuration file '{config_path}' does not exist for implementation '{impl_name}'. Skipping.")
+                exit(1)
+        else:
+            self.logger.error(f"Configuration file '{config_path}' does not exist for implementation '{impl_name}'. Skipping.")
+            exit(1)
+        
+    
     def build_all_docker_images(self):
         """
         Finds and builds all Docker images from Dockerfiles using DockerBuilder.

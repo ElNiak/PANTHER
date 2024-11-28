@@ -18,7 +18,7 @@ class LocalHostEnvironment(INetworkEnvironment):
         config_path: str,
         output_dir: str,
         network_driver: str = "bridge",
-        templates_dir: str = "plugins/environments/network_environment/docker_compose",
+        templates_dir: str = "plugins/environments/network_environment/localhost",
     ):
         self.logger = logging.getLogger("LocalHostEnvironment")
         self.services_network_config_file_path = os.path.join(
@@ -26,18 +26,18 @@ class LocalHostEnvironment(INetworkEnvironment):
             "plugins",
             "environments",
             "network_environment",
-            "docker_compose",
-            "docker-compose.generated.yml",
+            "localhost",
+            "run.generated.sh",
         )
         self.network_name = "quic_network_dynamic"
         self.network_driver = network_driver
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.log_dirs = os.path.join(self.output_dir, "logs")
-        self.rendered_docker_compose_path = os.path.join(
-            self.output_dir, "docker-compose.yml"
+        self.rendered_script_path = os.path.join(
+            self.output_dir, "run.sh"
         )
-        self.compose_file_path = Path(self.services_network_config_file_path)
+        self.script_file_path = Path(self.services_network_config_file_path)
         self.services = {}
         self.deployment_commands = {}
         self.timeout = 60
@@ -111,7 +111,7 @@ class LocalHostEnvironment(INetworkEnvironment):
                     os.makedirs(log_dir)
                     self.logger.info(f"Created log directory: {log_dir}")
             
-            template = self.jinja_env.get_template("docker-compose-template.j2")
+            template = self.jinja_env.get_template("docker-compose-template.jinja")
             rendered = template.render(
                 services=self.services,
                 deployment_info=self.deployment_info,
@@ -121,14 +121,14 @@ class LocalHostEnvironment(INetworkEnvironment):
             )
             
             # Write the rendered content to docker-compose.generated.yml
-            with open(self.compose_file_path, "w") as f:
+            with open(self.script_file_path, "w") as f:
                 f.write(rendered)
                 
-            with open(self.rendered_docker_compose_path, "w") as f:
+            with open(self.rendered_script_path, "w") as f:
                 f.write(rendered)
                 
             self.logger.info(
-                f"localhost file generated at '{self.compose_file_path}'"
+                f"localhost file generated at '{self.script_file_path}'"
             )
         except Exception as e:
             self.logger.error(
@@ -152,7 +152,7 @@ class LocalHostEnvironment(INetworkEnvironment):
                             "docker",
                             "compose",
                             "-f",
-                            str(self.compose_file_path),
+                            str(self.script_file_path),
                             "up",
                             "-d"
                         ],

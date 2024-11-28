@@ -47,8 +47,28 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
         self.jinja_env.trim_blocks   = True
         self.jinja_env.lstrip_blocks = True
+        
+        
+        self.source_dir = "/opt/panther"
 
     def __str__(self):
+        attributes = {
+            "config_path": self.config_path,
+            "output_dir": self.output_dir,
+            "network_driver": self.network_driver,
+            "templates_dir": self.templates_dir,
+            "services_network_config_file_path": self.services_network_config_file_path,
+            "network_name": self.network_name,
+            "log_dirs": self.log_dirs,
+            "rendered_docker_compose_path": self.rendered_docker_compose_path,
+            "compose_file_path": str(self.compose_file_path),
+            "services": self.services,
+            "deployment_commands": self.deployment_commands,
+            "timeout": self.timeout,
+        }
+        return f"DockerComposeEnvironment({attributes})"
+    
+    def __repr__(self):
         attributes = {
             "config_path": self.config_path,
             "output_dir": self.output_dir,
@@ -112,6 +132,39 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.generate_docker_compose(paths=paths, timestamp=timestamp)
         self.logger.info("Docker Compose environment setup complete")
     
+    def resolve_environment_variables(self, env_vars):
+        """
+        Resolves environment variables incrementally, ensuring no duplication
+        and preserving unresolved tokens. Processes variables in dependency order.
+
+        :param env_vars: dict, environment variables with potential references.
+        :return: dict, resolved environment variables.
+        """
+        resolved_env = {}
+
+        self.logger.debug("Initial environment variables:")
+        for k, v in env_vars.items():
+            self.logger.debug(f"{k}: {v}")
+
+        for key, value in env_vars.items():
+            if isinstance(value, str):
+                resolved_value = value
+                self.logger.debug(f"\nResolving variable: {key}")
+                self.logger.debug(f"Original value: {value}")
+                for var_name, var_value in resolved_env.items():  # Use already resolved variables
+                    if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
+                        resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
+                        resolved_value = resolved_value.replace(f"${var_name}", var_value)
+                        self.logger.debug(f"Replaced ${var_name} in {key} with {var_value}")
+                resolved_value = resolved_value.replace('$', '$$')
+                resolved_env[key] = resolved_value
+
+        self.logger.debug("\nFinal resolved environment variables without duplication:")
+        for k, v in resolved_env.items():
+            self.logger.debug(f"{k}: {v}")
+
+        return resolved_env
+
 
     def deploy_services(self):
         self.logger.info("Deploying services")
@@ -143,14 +196,19 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         if other_service_name != service_name:
                             additional_command = f"""
                             while [ ! -f /app/sync_logs/ivy_ready ]; do
-                                echo 'Waiting for Ivy tester to be ready...' > /app/logs/tester_ready;
+                                echo "Waiting for Ivy tester to be ready..." >> /app/logs/tester_ready;
                                 sleep 2;
                             done;
-                            echo 'Ivy tester is ready, starting {other_service_name}...' /app/logs/tester_ready;   
+                            echo "Ivy tester is ready, starting {other_service_name}..." >> /app/logs/tester_ready;   
                             """.strip()
                             self.deployment_info[other_service_name]["volumes"].append("shared_logs:/app/sync_logs")
             
-            template = self.jinja_env.get_template("docker-compose-template.j2")
+            
+            for service_name, service in self.services.items():
+                if "environment" in self.deployment_info[service_name]:
+                    self.deployment_info[service_name]["environment"] = self.resolve_environment_variables(self.deployment_info[service_name]["environment"])
+            
+            template = self.jinja_env.get_template("docker-compose-template.jinja")
             rendered = template.render(
                 services=self.services,
                 deployment_info=self.deployment_info,
@@ -158,7 +216,6 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 timestamp=timestamp,
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
-                environments={},
                 experiment_name=self.output_dir.split("/")[-1],
             )
             
@@ -196,14 +253,17 @@ class DockerComposeEnvironment(INetworkEnvironment):
                             "-f",
                             str(self.compose_file_path),
                             "up",
-                            "-d"
+                            "-d", # Detached mode: Run containers in the background
+                            "-V", # Recreate anonymous volumes instead of retrieving data from the previous containers
+                            # "--abort-on-container-exit", 
+                            # "--exit-code-from", "panther_ivy"
                         ],
                         check=True,
                         # Now in docker build
-                        env={ # TODO is it dangerous ?
-                            "UID": str(os.getuid()),
-                            "GID": str(os.getgid()),
-                        },
+                        # env={ # TODO is it dangerous ?
+                        #     "UID": str(os.getuid()),
+                        #     "GID": str(os.getgid()),
+                        # },
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,  # Ensures that output is in string format
@@ -295,8 +355,3 @@ class DockerComposeEnvironment(INetworkEnvironment):
         with open(self.services_network_config_file_path, "r") as compose_file:
             return yaml.safe_load(compose_file)
 
-    def __str__(self) -> str:
-        return (
-            super().__str__()
-            + f" (network_driver={self.network_driver}, network_name={self.network_name})"
-        )

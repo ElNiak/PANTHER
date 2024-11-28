@@ -115,10 +115,10 @@ class DockerBuilder:
                     network_mode="host",
                 )
             self.log_docker_output(build_logs, f"Building Docker image '{image_tag}'")
-            self.logger.info(f"Successfully built Docker image '{image_tag}'")
+            self.logger.info(f"Successfully built Docker image '{image_tag}' with context '{context_path}' and build args '{build_args}'")
             return image_tag
         except (BuildError, APIError) as e:
-            self.logger.error(f"Failed to build Docker image '{image_tag}': {e}")
+            self.logger.error(f"Failed to build Docker image '{image_tag}' : {e}")
             self.log_docker_output(e.build_log, f"Building Docker image '{image_tag}'", log_f)
             if self.build_log_file:
                 with open(self.build_log_file, 'a') as log_f:
@@ -159,9 +159,9 @@ class DockerBuilder:
         """
         dockerfiles = {}
         self.plugins_dir = plugins_dir  # Store for later use in dependency builds
+        
         implementations_dir = Path(plugins_dir) / "implementations"
         self.logger.info(f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'")
-
         if not implementations_dir.exists():
             self.logger.warning(f"Implementations directory '{implementations_dir}' does not exist.")
             return dockerfiles
@@ -175,9 +175,8 @@ class DockerBuilder:
                     self.logger.debug(f"Found Dockerfile for implementation '{impl_name}': {dockerfile.resolve()}")
 
 
-        testers_dir = Path(plugins_dir) / "testers"
-        self.logger.info(f"Scanning for Dockerfiles in '{testers_dir.resolve()}'")
         tester_dir = Path(plugins_dir) / "testers"
+        self.logger.info(f"Scanning for Dockerfiles in '{tester_dir.resolve()}'")
         if not tester_dir.exists():
             self.logger.warning(f"Testers directory '{tester_dir}' does not exist.")
             return dockerfiles
@@ -191,6 +190,20 @@ class DockerBuilder:
                     self.logger.debug(f"Found Dockerfile for tester '{impl_name}': {dockerfile.resolve()}")
 
 
+        env_dir = Path(plugins_dir) / "environments"
+        self.logger.info(f"Scanning for Dockerfiles in '{env_dir.resolve()}'")
+        if not env_dir.exists():
+            self.logger.warning(f"Environment directory '{env_dir}' does not exist.")
+            return dockerfiles
+
+        for impl_dir in env_dir.rglob("*"):
+            if impl_dir.is_dir():
+                dockerfile = impl_dir / "Dockerfile"
+                if dockerfile.exists():
+                    impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
+                    dockerfiles[impl_name] = dockerfile.resolve()
+                    self.logger.debug(f"Found Dockerfile for environment '{impl_name}': {dockerfile.resolve()}")
+                    
         self.logger.info(f"Total Dockerfiles found: {len(dockerfiles)}")
         self.logger.debug(f"Dockerfiles found: {dockerfiles}")
         return dockerfiles

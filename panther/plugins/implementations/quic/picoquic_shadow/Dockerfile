@@ -69,7 +69,7 @@ RUN cd /opt && \
 
 
 RUN cd /opt && \
-    git clone https://github.com/private-octopus/picoquic.git && \
+    git clone https://github.com/ElNiak/picoquic.git && \
     cd /opt/picoquic && \
     git checkout ${VERSION} && \
     cmake . && \
