@@ -315,4 +315,4 @@ class PicoquicServiceManager(IServiceManager):
         return  f" (Picoquic Service Manager - {self.config_path})"
     
     def __repr__(self):
-        return super().__repr__() + f" (Picoquic Service Manager - {self.config_path})"
+        return  f" (Picoquic Service Manager - {self.config_path})"

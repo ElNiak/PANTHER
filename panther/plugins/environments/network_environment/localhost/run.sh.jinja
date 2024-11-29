@@ -1,1 +1,57 @@
 
+#!/bin/bash
+# Script to set up and run the local experiment
+
+set -e
+
+# Define experiment name
+EXPERIMENT_NAME="{{ experiment_name }}"
+
+echo "Setting up experiment: $EXPERIMENT_NAME"
+
+# Define logs directory
+LOGS_DIR="{{ log_dir | realpath }}"
+mkdir -p "$LOGS_DIR"
+
+# Set up and start services
+{% for service_name, service in services.items() %}
+echo "Setting up service: {{ service_name }}"
+
+# Create logs directory for the service
+mkdir -p "$LOGS_DIR/{{ service_name }}"
+
+# Set up environment variables
+export ROLE="{{ service.role }}"
+export SSLKEYLOGFILE="$LOGS_DIR/{{ service_name }}/sslkeylogfile.txt"
+export UID=$(id -u)
+export GID=$(id -g)
+{% if "environment" in deployment_info[service_name] %}
+{% for key, value in deployment_info[service_name]["environment"].items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+{% endif %}
+
+# Execute the service command
+echo "Starting service {{ service_name }}..."
+(
+    cd "{{ deployment_info[service_name]['working_dir'] }}"
+    {% if not "ivy" in service_name %}
+    {{ additional_command }}
+    (tshark -a duration:10 -i any -w "$LOGS_DIR/{{ service_name }}/{{ service_name }}.pcap") &
+    {% if service.role == "client" %}
+    sleep 5
+    {% endif %}
+    {{ deployment_info[service_name]['command'] }}
+    {% else %}
+    {{ deployment_info[service_name]['compilation_command'] }} && \
+    (touch "$LOGS_DIR/{{ service_name }}/{{ service_name }}.pcap"; \
+    tshark -a duration:10 -i any -w "$LOGS_DIR/{{ service_name }}/{{ service_name }}.pcap") &
+    {% if service.role == "client" %}
+    sleep 5
+    {% endif %}
+    {{ deployment_info[service_name]['command'] }}
+    {% endif %}
+) > "$LOGS_DIR/{{ service_name }}/service.log" 2>&1 &
+{% endfor %}
+
+echo "All services are started. Logs are located in $LOGS_DIR."

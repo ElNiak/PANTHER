@@ -1,13 +1,15 @@
-name: QUIC_Client-Server_Communication_Test_II
+name: QUIC_Client-IvyServer_Communication_Test
 services:
-  picoquic_server:
+  picoquic_client:
     image: picoquic_rfc9000_panther:latest
-    container_name: picoquic_server
+    container_name: picoquic_client
     ports:
-      - "4443:4443"
-      - "8080:8080"
+      - "5000:5000"
+      - "8081:8081"
+    depends_on:
+      - ivy_server
     environment:
-      ROLE: server
+      ROLE: client
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
@@ -29,12 +31,12 @@ services:
                                 echo "Waiting for Ivy tester to be ready..." >> /app/logs/tester_ready;
                                 sleep 2;
                             done;
-                            echo "Ivy tester is ready, starting picoquic_server..." >> /app/logs/tester_ready; 
-          (tshark -a duration:10 -i any -w /app/logs/picoquic_server.pcap;) & 
-          (./picoquicdemo -c /opt/certs/cert.pem -k /opt/certs/key.pem -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2>&1)'
+                            echo "Ivy tester is ready, starting picoquic_client..." >> /app/logs/tester_ready; 
+          (tshark -a duration:10 -i any -w /app/logs/picoquic_client.pcap;) & 
+          (sleep 5; sleep 5;./picoquicdemo -c /opt/certs/cert.pem -k /opt/certs/key.pem -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e lo   -v 00000001  ivy_server 4443 > /app/logs/client.log 2> /app/logs/client.err.log)'
     # TODO fix sudo tshark
     volumes:
-      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-28_16-49-21/QUIC_Client-Server_Communication_Test_II/logs/picoquic_server:/app/logs/
+      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-29_15-22-30/QUIC_Client-IvyServer_Communication_Test/logs/picoquic_client:/app/logs/
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
@@ -42,21 +44,20 @@ services:
     networks:
       panther_network:
         aliases: 
-          - picoquic_server
-  ivy_client:
+          - picoquic_client
+  ivy_server:
     image: panther_ivy_rfc9000_panther:latest
-    container_name: ivy_client
+    container_name: ivy_server
     ports:
-      - "5000:5000"
-      - "8081:8081"
-    depends_on:
-      - picoquic_server
+      - "4443:4443"
+      - "4987:4987"
+      - "8080:8080"
     environment:
-      ROLE: client
+      ROLE: server
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
-      PROTOCOL_TESTED: ""
+      PROTOCOL_TESTED: "quic"
       RUST_LOG: "debug"
       RUST_BACKTRACE: "1"
       SOURCE_DIR: "/opt/"
@@ -69,6 +70,7 @@ services:
       PROOTPATH: "/opt/"
       ADDITIONAL_PYTHONPATH: "/app/implementations/quic-implementations/aioquic/src/:/opt//panther_ivy/submodules/z3/build/python:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/"
       ADDITIONAL_PATH: "/go/bin:/opt//panther_ivy/submodules/z3/build"
+      TEST_ALPN: "hq-interop"
       ZRTT_SSLKEYLOGFILE: "/opt//panther_ivy/protocol-testing/quic/last_tls_key.txt"
       RETRY_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/quic/last_retry_token.txt"
       NEW_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/quic/last_new_token.txt"
@@ -82,6 +84,7 @@ services:
       initial_max_stream_data_uni: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_uni.txt"
       initial_max_data: "/opt//panther_ivy/protocol-testing/quic/initial_max_data.txt"
       INITIAL_VERSION: "1"
+      TEST_TYPE: "client"
     tty: true
     stdin_open: true
     # TODO fix in the docker
@@ -96,6 +99,25 @@ services:
           export PATH=$$PATH:$$ADDITIONAL_PATH;
           export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
           env >> /app/logs/ivy_setup.log;
+          TARGET_IP=$(getent hosts picoquic_client | awk "{ print \$1 }");
+          echo "Resolved picoquic_client IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
+          IVY_IP=$(hostname -I | awk "{ print \$1 }");
+          echo "Resolved ivy_server IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
+          
+          ip_to_hex() {
+              echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
+          }
+
+          ip_to_decimal() {
+              echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
+          }
+
+          TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);
+          IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);
+          
+          echo "Resolved picoquic_client IP in HEX - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+          echo "Resolved ivy_server IP in HEX - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
+          
           
         echo "Copying QUIC libraries..." >> /app/logs/ivy_setup.log &&
         cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" &&
@@ -156,18 +178,20 @@ services:
             ls -l /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
         }
 
-        setup_ivy_model && (cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests; PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_client_test_max.ivy >> /app/logs/ivy_setup.log 2>&1 ;ls >> /app/logs/ivy_setup.log 2>&1 ; cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;  ) &&  ( touch /app/sync_logs/ivy_ready ) && ((touch /app/logs/ivy_client.pcap; tshark -a duration:10 -i any -w /app/logs/ivy_client.pcap;) & 
-          (sleep 5; cd /opt/panther_ivy/protocol-testing/quic && timeout 120 build//quic_client_test_max seed=0 the_cid=0         server_port=4443 iversion=1 server_addr=picoquic_server         client_port=4443 client_port_alt=4444 client_addr=picoquic_server  > /app/logs/tester.log 2>&1))'
+        setup_ivy_model && (cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests; PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_client_test_max.ivy >> /app/logs/ivy_setup.log 2>&1 ;ls >> /app/logs/ivy_setup.log 2>&1 ; cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;  ) &&  ( touch /app/sync_logs/ivy_ready ) && ((touch /app/logs/ivy_server.pcap; tshark -a duration:10 -i any -w /app/logs/ivy_server.pcap;) & 
+          echo "cd /opt/panther_ivy/protocol-testing/quic && timeout 120 build//quic_client_test_max seed=0 the_cid=0         server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX server_cid=0 > /app/logs/tester.log 2> /app/logs/tester.err" >> /app/logs/ivy_setup.log;
+          (cd /opt/panther_ivy/protocol-testing/quic && timeout 120 build//quic_client_test_max seed=0 the_cid=0         server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX server_cid=0 > /app/logs/tester.log 2> /app/logs/tester.err))'
     # TODO fix sudo tshark
     volumes:
-      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-28_16-49-21/QUIC_Client-Server_Communication_Test_II/logs/ivy_client:/app/logs/
+      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-11-29_15-22-30/QUIC_Client-IvyServer_Communication_Test/logs/ivy_server:/app/logs/
+      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/plugins/testers/panther_ivy/ivy/include/1.7:/opt/panther_ivy/ivy/include/1.7"
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/plugins/testers/panther_ivy/protocol-testing/quic:/opt/panther_ivy/protocol-testing/quic"
       - "shared_logs:/app/sync_logs"
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/tester_ticket.key"
     networks:
       panther_network:
         aliases: 
-          - ivy_client
+          - ivy_server
 
 networks:
   panther_network:

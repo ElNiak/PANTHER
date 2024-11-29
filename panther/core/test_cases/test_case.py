@@ -288,6 +288,7 @@ class TestCase(ITestCase):
         import requests
         from urllib.parse import urljoin
         self.logger.debug(f"Checking responsiveness of '{service_name}' at '{endpoint}'")
+        service_manager = None
         for cuurent_service_name, service_details in self.services.items():
             if cuurent_service_name == service_name:
                 # Find the appropriate service manager based on implementation

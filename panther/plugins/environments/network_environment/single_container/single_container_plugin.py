@@ -3,31 +3,29 @@ from pathlib import Path
 import socket
 import subprocess
 import logging
-from typing import Dict, Any
-import yaml
-from jinja2 import Environment, FileSystemLoader
-from plugins.environments.network_environment.network_environment_interface import (
-    INetworkEnvironment,
-)
 import traceback
+from typing import Dict, Any, Optional
+from jinja2 import Environment, FileSystemLoader
+import yaml
+from panther.core.utils.plugin_loader import PluginLoader
+from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 
-
-class DockerComposeEnvironment(INetworkEnvironment):
+class SingleContainerEnvironment(INetworkEnvironment):
     def __init__(
         self,
         config_path: str,
         output_dir: str,
         network_driver: str = "bridge",
-        templates_dir: str = "plugins/environments/network_environment/docker_compose",
+        templates_dir: str = "plugins/environments/network_environment/single_container",
     ):
-        self.logger = logging.getLogger("DockerComposeEnvironment")
+        self.logger = logging.getLogger("SingleContainerEnvironment")
         self.services_network_config_file_path = os.path.join(
             os.getcwd(),
             "plugins",
             "environments",
             "network_environment",
-            "docker_compose",
-            "docker-compose.generated.yml",
+            "shadow_ns",
+            "shadow.generated.yml",
         )
         self.config_path = config_path
         self.network_name = "quic_network_dynamic"
@@ -35,10 +33,17 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.templates_dir = templates_dir
         self.output_dir = output_dir
         self.log_dirs = os.path.join(self.output_dir, "logs")
-        self.rendered_docker_compose_path = os.path.join(
-            self.output_dir, "docker-compose.yml"
+        
+        self.rendered_shadow_conf_path = os.path.join(
+            self.output_dir, "shadow.yml"
         )
-        self.compose_file_path = Path(self.services_network_config_file_path)
+        self.shadow_conf_path = Path(self.services_network_config_file_path)
+        
+        self.rendered_shadow_docker_path = os.path.join(
+            self.output_dir, "Dockerfile.experience"
+        )
+        self.shadow_docker_path = Path(self.services_network_config_file_path)
+        
         self.services = {}
         self.deployment_commands = {}
         self.timeout = 60
@@ -48,8 +53,9 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.jinja_env.trim_blocks   = True
         self.jinja_env.lstrip_blocks = True
         
+        self.plugin_loader = None # TODO ?
+        
         self.source_dir = "/opt/panther"
-
 
     def __str__(self):
         attributes = {
@@ -60,13 +66,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_docker_compose_path": self.rendered_docker_compose_path,
-            "compose_file_path": str(self.compose_file_path),
+            "rendered_shadow_conf_path": self.rendered_shadow_conf_path,
+            "shadow_conf_path": str(self.shadow_conf_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
-        return f"DockerComposeEnvironment({attributes})"
+        return f"SingleContainerEnvironment({attributes})"
     
     def __repr__(self):
         attributes = {
@@ -77,13 +83,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_docker_compose_path": self.rendered_docker_compose_path,
-            "compose_file_path": str(self.compose_file_path),
+            "rendered_shadow_conf_path": self.rendered_shadow_conf_path,
+            "shadow_conf_path": str(self.shadow_conf_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
-        return f"DockerComposeEnvironment({attributes})"
+        return f"SingleContainerEnvironment({attributes})"
     
     def build_images(self):
         """
@@ -93,6 +99,16 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.logger.info("Docker images built successfully")
         raise NotImplementedError("Method not implemented - In another module FOR NOW")
 
+    def prepare(self,plugin_loader: Optional[PluginLoader] = None):
+        """
+        Prepare the service manager for use.
+        """
+        self.logger.info("Preparing Shadow NS service manager...")
+        # Additional setup can be implemented here
+        plugin_loader.build_docker_image("shadow_ns")
+        self.plugin_loader = plugin_loader
+        
+        
     def is_port_free(self, port: int) -> bool:
         """
         Checks if a given port is free on the host.
@@ -117,7 +133,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str
     ):
         """
-        Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
+        Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
 
         :param services: Dictionary of services with their configurations.
         :param deployment_info: Dictionary containing commands and volumes for each service.
@@ -127,10 +143,11 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.services = services
         self.deployment_info = deployment_info
         self.logger.debug(
-            f"Setting up Docker Compose environment with services: {services} and deployment info: {deployment_info}"
+            f"Setting up Shadow NS environment with services: {services} and deployment info: {deployment_info}"
         )
-        self.generate_docker_compose(paths=paths, timestamp=timestamp)
-        self.logger.info("Docker Compose environment setup complete")
+        self.prepare()
+        self.generate_shadow_ns(paths=paths, timestamp=timestamp)
+        self.logger.info("Shadow NS environment setup complete")
     
     def resolve_environment_variables(self, env_vars):
         """
@@ -169,12 +186,12 @@ class DockerComposeEnvironment(INetworkEnvironment):
     def deploy_services(self):
         self.logger.info("Deploying services")
         # self.prepare_tester() # TODO
-        self.launch_docker_compose()
+        self.launch_shadow_ns()
         
 
-    def generate_docker_compose(self, paths: Dict[str, str], timestamp: str):
+    def generate_shadow_ns(self, paths: Dict[str, str], timestamp: str):
         """
-        Generates the docker-compose.yml file using the provided services and deployment commands.
+        Generates the shadow.yml file using the provided services and deployment commands.
 
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
@@ -208,7 +225,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 if "environment" in self.deployment_info[service_name]:
                     self.deployment_info[service_name]["environment"] = self.resolve_environment_variables(self.deployment_info[service_name]["environment"])
             
-            template = self.jinja_env.get_template("docker-compose-template.jinja")
+            template = self.jinja_env.get_template("shadow-template.jinja")
             rendered = template.render(
                 services=self.services,
                 deployment_info=self.deployment_info,
@@ -219,44 +236,67 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 experiment_name=self.output_dir.split("/")[-1],
             )
             
-            # Write the rendered content to docker-compose.generated.yml
-            with open(self.compose_file_path, "w") as f:
+            # Write the rendered content to shadow.generated.yml
+            with open(self.shadow_conf_path, "w") as f:
                 f.write(rendered)
                 
-            with open(self.rendered_docker_compose_path, "w") as f:
+            with open(self.rendered_shadow_conf_path, "w") as f:
                 f.write(rendered)
                 
             self.logger.info(
-                f"Docker Compose file generated at '{self.compose_file_path}'"
+                f"Shadow NS file generated at '{self.shadow_conf_path}'"
             )
+            
+            self.logger.info("Shadow NS based environment manager prepared.")
+            # Define docker container for experience 
+            template = self.jinja_env.get_template("Dockerfile.experience.jinja")
+            rendered = template.render(
+                services=self.services,
+                paths=paths,
+                timestamp=timestamp,
+                log_dir=self.log_dirs,
+                additional_command=additional_command,
+                experiment_name=self.output_dir.split("/")[-1],
+            )
+            
+            # Write the rendered content to shadow.generated.yml
+            with open(self.shadow_docker_path, "w") as f:
+                f.write(rendered)
+                
+            with open(self.rendered_shadow_docker_path, "w") as f:
+                f.write(rendered)
+                
+            self.logger.info(
+                f"Shadow NS file generated at '{self.shadow_conf_path}'"
+            )
+            
+            self.plugin_loader.build_docker_image_from_path(Path("plugins/environments/network_environment/shadow_ns/Dockerfile.experience"))
+            
         except Exception as e:
             self.logger.error(
-                f"Failed to generate Docker Compose file: {e}\n{traceback.format_exc()}"
+                f"Failed to generate Shadow NS file: {e}\n{traceback.format_exc()}"
             )
             exit(1)
 
-    def launch_docker_compose(self):
+    def launch_shadow_ns(self):
         """
-        Launches the Docker Compose environment using the generated docker-compose.yml file.
+        Launches the Shadow NS environment using the generated shadow.yml file.
         """
         try:
             with open(
-                os.path.join(self.output_dir, "logs", "docker-compose.log"), "w"
+                os.path.join(self.output_dir, "logs", "shadow.log"), "w"
             ) as log_file:
                 with open(
-                    os.path.join(self.output_dir, "logs", "docker-compose.err.log"), "w"
+                    os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
                 ) as log_file_err:
                     result = subprocess.run(
                         [
                             "docker",
                             "compose",
                             "-f",
-                            str(self.compose_file_path),
+                            str(self.shadow_conf_path),
                             "up",
-                            "-d", # Detached mode: Run containers in the background
-                            "-V", # Recreate anonymous volumes instead of retrieving data from the previous containers
-                            # "--abort-on-container-exit", 
-                            # "--exit-code-from", "panther_ivy"
+                            "-d"
                         ],
                         check=True,
                         # Now in docker build
@@ -271,30 +311,30 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     # Write both stdout and stderr to the log file
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
-                self.logger.info("Docker Compose environment launched successfully.")
+                self.logger.info("Shadow NS environment launched successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(
-                f"Failed to launch Docker Compose environment: {e.stderr}"
+                f"Failed to launch Shadow NS environment: {e.stderr}"
             )
             raise e
 
     def teardown_environment(self):
         """
-        Tears down the Docker Compose environment by bringing down services.
+        Tears down the Shadow NS environment by bringing down services.
         """
         # TODO: add a way to retrieve the logs, results, binary
-        self.logger.info("Tearing down Docker Compose environment")
+        self.logger.info("Tearing down Shadow NS environment")
         with open(
-            os.path.join(self.output_dir, "logs", "docker-compose-teardown.log"), "w"
+            os.path.join(self.output_dir, "logs", "shadow-teardown.log"), "w"
         ) as log_file:
             with open(
-                os.path.join(self.output_dir, "logs", "docker-compose-teardown.err.log"), "w"
+                os.path.join(self.output_dir, "logs", "shadow-teardown.err.log"), "w"
             ) as log_file_err:
                 try:
                     if self.network_driver == "host":
                         # In host mode, stop containers individually
                         # Assumes service names are the container names
-                        compose_dict = self.read_compose_file()
+                        compose_dict = self.read_shadow_file()
                         services = compose_dict.get("services", {})
                         for service_name in services.keys():
                             cmd = f"docker stop {service_name}"
@@ -316,7 +356,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                                 stderr=subprocess.PIPE,
                             )
                     else:
-                        # For other network drivers, use docker-compose
+                        # For other network drivers, use shadow
                         result = subprocess.run(
                             [
                                 "docker",
@@ -333,24 +373,23 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         # Write both stdout and stderr to the log file
                         log_file.write(result.stdout)
                         log_file_err.write(result.stderr)
-                        os.system(f"docker volume prune -a -f")
-                    self.logger.info("Docker Compose environment torn down successfully")
+                    self.logger.info("Shadow NS environment torn down successfully")
                 except subprocess.CalledProcessError as e:
                     self.logger.error(
-                        f"Failed to tear down Docker Compose environment: {e.stderr}"
+                        f"Failed to tear down Shadow NS environment: {e.stderr}"
                     )
                     raise e
 
-    def read_compose_file(self) -> Dict[str, Any]:
+    def read_shadow_file(self) -> Dict[str, Any]:
         """
-        Reads the generated docker-compose.yml file.
+        Reads the generated shadow.yml file.
         """
         if not os.path.exists(self.services_network_config_file_path):
             self.logger.error(
-                f"Docker Compose file '{self.services_network_config_file_path}' does not exist."
+                f"Shadow NS file '{self.services_network_config_file_path}' does not exist."
             )
             raise FileNotFoundError(
-                f"Docker Compose file '{self.services_network_config_file_path}' does not exist."
+                f"Shadow NS file '{self.services_network_config_file_path}' does not exist."
             )
 
         with open(self.services_network_config_file_path, "r") as compose_file:

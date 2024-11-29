@@ -1,0 +1,53 @@
+FROM panther_shadow_ns:latest
+
+{% for service_name, service in services.items() %}
+
+{% if service.type == "tester" %}
+FROM {{ service.implementation }}_{{ service.protocol.version }}_panther:latest as {{ service_name }}_image
+{% else %}
+FROM {{ service.implementation }}_{{ service.version }}_panther:latest as {{ service_name }}_image
+{% endif %}
+
+{% for port in service.ports %}
+EXPOSE {{ port }}
+{% endfor %}# Set container working directory
+WORKDIR "{{ deployment_info[service_name]['working_dir'] }}"
+
+# Add service-specific environment variables
+ENV ROLE="{{ service.role }}"
+ENV UID=${UID}
+ENV GID=${GID}
+{% if "environment" in deployment_info[service_name] %}
+{% for key, value in deployment_info[service_name]["environment"].items() %}
+ENV {{ key }}="{{ value }}"
+{% endfor %}
+{% endif %}
+
+# Copy logs and volumes
+VOLUME /app/logs
+{% for volume in deployment_info[service_name]['volumes'] %}
+{% if volume | is_dict %}
+VOLUME "{{ volume.local | realpath }}:{{ volume.container }}"
+{% else %}
+VOLUME "{{ volume }}"
+{% endif %}
+{% endfor %}
+
+# Set capabilities
+RUN apt-get update && apt-get install -y sudo
+RUN sudo setcap cap_net_admin,cap_net_raw+ep /bin/sh
+
+# Define the command for the service
+{% if "ivy" in service_name %}
+CMD ["/bin/sh", "-c", "{{ deployment_info[service_name]['compilation_command'] }} && \
+    touch /app/logs/{{ service_name }}.pcap;"]">>",
+{% endif %}
+
+{% endfor %}
+
+WORKDIR /
+
+ADD {{ shadow_ns_config_file }} /shadow_ns_config.yml
+ENV RUST_BACKTRACE=1
+ENTRYPOINT [ "shadow", "shadow_ns_config.yml" , ">> /app/logs/shadow_ns.log" ]
+

@@ -42,17 +42,38 @@ services:
           env >> /app/logs/ivy_setup.log;
     {% if not "ivy" in service_name  %}
           {{ additional_command }} 
-          (tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & 
+          (tshark -a duration:50 -i any -w /app/logs/{{ service_name }}.pcap;) & 
           {% if service.role == 'client' %}
           (sleep 5; {{ deployment_info[service_name]['command'] }})'
           {% else %}
           ({{ deployment_info[service_name]['command'] }})'
           {% endif %}
     {% else %}
-          {{ deployment_info[service_name]['compilation_command'] }} && ((touch /app/logs/{{ service_name }}.pcap; tshark -a duration:10 -i any -w /app/logs/{{ service_name }}.pcap;) & 
+          TARGET_IP=$(getent hosts {{ service.target }} | awk "{ print \$1 }");
+          echo "Resolved {{ service.target }} IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
+          IVY_IP=$(hostname -I | awk "{ print \$1 }");
+          echo "Resolved {{ service_name }} IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
+          
+          ip_to_hex() {
+              echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
+          }
+
+          ip_to_decimal() {
+              echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
+          }
+
+          TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);
+          IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);
+          
+          echo "Resolved {{ service.target }} IP in HEX - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+          echo "Resolved {{ service_name }} IP in HEX - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
+          
+          {{ deployment_info[service_name]['compilation_command'] }} && ((touch /app/logs/{{ service_name }}.pcap; tshark -a duration:50 -i any -w /app/logs/{{ service_name }}.pcap;) & 
           {% if service.role == 'client' %}
+          echo "{{ deployment_info[service_name]['command'] }}" >> /app/logs/ivy_setup.log;
           (sleep 5; {{ deployment_info[service_name]['command'] }}))'
           {% else %}
+          echo "{{ deployment_info[service_name]['command'] }}" >> /app/logs/ivy_setup.log;
           ({{ deployment_info[service_name]['command'] }}))'
           {% endif %}
     {% endif %}
