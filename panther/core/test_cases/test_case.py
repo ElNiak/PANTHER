@@ -13,7 +13,7 @@ from core.observer.event_manager import EventManager
 from core.observer.event import Event
 from core.observer.logger_observer import LoggerObserver
 from core.results.result_collector import ResultCollector
-from plugins.implementations.service_manager_interface import IServiceManager
+from plugins.services.implementations.service_manager_interface import IServiceManager
 from plugins.plugin_manager import PluginManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
 
@@ -165,7 +165,7 @@ class TestCase(ITestCase):
         implementations = get_required_implementations(self.services)
         
         for proto in protocols:
-            protocol_plugin_path = Path(f"plugins/implementations/{proto}")
+            protocol_plugin_path = Path(f"plugins/services/implementations/{proto}")
             if protocol_plugin_path.exists() and protocol_plugin_path.is_dir():
                 self.logger.debug(f"Found protocol plugin at '{protocol_plugin_path}'")
                 # Discover and load implementations under this protocol using PluginFactory

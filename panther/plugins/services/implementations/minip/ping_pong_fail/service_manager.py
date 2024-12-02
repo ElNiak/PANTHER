@@ -1,13 +1,29 @@
 import subprocess
 import logging
 import os
-from plugins.implementations.service_manager_interface import IServiceManager
+from plugins.services.implementations.service_manager_interface import IServiceManager
 
-class PingPongServiceManager(IServiceManager):
+class PingPontFailServiceManager(IServiceManager):
     def __init__(self):
         self.process = None
-        self.logger = logging.getLogger("PingPongServiceManager")
+        self.logger = logging.getLogger("PicoquicServiceManager")
     
+    def build_image(self):
+        """
+        Builds the Picoquic Docker image.
+        """
+        self.logger.info("Building Picoquic Docker image...")
+        try:
+            subprocess.run(
+                "docker build -t picoquic .",
+                shell=True,
+                cwd="/opt/picoquic",  # Adjust based on Dockerfile's location
+                check=True
+            )
+            self.logger.info("Picoquic Docker image built successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to build Picoquic Docker image: {e}")
+            
     def start_service(self, parameters: dict):
         """
         Starts the Picoquic server or client based on the role.

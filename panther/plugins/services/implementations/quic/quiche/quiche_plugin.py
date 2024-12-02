@@ -1,5 +1,5 @@
-from plugins.implementations.protocol_interface import IProtocolPlugin
-from plugins.implementations.quic.quiche.service_manager import QuicheServiceManager
+from plugins.services.implementations.protocol_interface import IProtocolPlugin
+from plugins.services.implementations.quic.quiche.service_manager import QuicheServiceManager
 
 class QuichePlugin(IProtocolPlugin):
     def __init__(self):

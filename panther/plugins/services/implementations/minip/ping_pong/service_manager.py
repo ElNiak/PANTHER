@@ -1,13 +1,12 @@
 import subprocess
 import logging
 import os
-from plugins.implementations.service_manager_interface import IServiceManager
+from plugins.services.implementations.service_manager_interface import IServiceManager
 
-class QuicheServiceManager(IServiceManager):
-    def __init__(self, implementation_config_path: str = "/opt/quiche/config.yaml", protocol_templates_dir: str = "/opt/quiche/templates"):
+class PingPongServiceManager(IServiceManager):
+    def __init__(self):
         self.process = None
-        self.logger = logging.getLogger("QuicheServiceManager")
-        self.config = implementation_config_path
+        self.logger = logging.getLogger("PingPongServiceManager")
     
     def start_service(self, parameters: dict):
         """

@@ -7,7 +7,7 @@ import traceback
 from typing import Dict, Any, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
-from panther.core.utils.plugin_loader import PluginLoader
+from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 
 class SingleContainerEnvironment(INetworkEnvironment):

@@ -8,7 +8,7 @@ from typing import List
 from omegaconf import DictConfig
 
 
-from core.utils.plugin_loader import PluginLoader
+from plugins.plugin_loader import PluginLoader
 from core.results.result_handlers.storage_handler import StorageHandler
 from core.test_cases.test_interface import ITestCase
 from core.results.result_collector import ResultCollector

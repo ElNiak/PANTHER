@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
-from core.utils.plugin_loader import PluginLoader
+from plugins.plugin_loader import PluginLoader
 
 
 # TODO create a new module "services" and move this interface there with 'implementations' and 'testers' interfaces

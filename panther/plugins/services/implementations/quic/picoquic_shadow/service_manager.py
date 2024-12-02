@@ -1,4 +1,4 @@
-# PANTHER-SCP/panther/plugins/implementations/picoquic_rfc9000/service_manager.py
+# PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
 
 import subprocess
 import logging
@@ -6,16 +6,16 @@ import os
 from typing import Any, Dict, Optional
 import yaml
 import traceback    
-from core.utils.plugin_loader import PluginLoader
-from plugins.implementations.service_manager_interface import IServiceManager
+from plugins.plugin_loader import PluginLoader
+from plugins.services.implementations.service_manager_interface import IServiceManager
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template
 
 # TODO Tom create test template for QUIC implementations new users
 
 class PicoquicShadowServiceManager(IServiceManager):
-    def __init__(self,implementation_config_path: str = "plugins/implementations/quic/picoquic_shadow/", 
-                      protocol_templates_dir: str     = "plugins/implementations/quic/picoquic_shadow/templates/"):
+    def __init__(self,implementation_config_path: str = "plugins/services/implementations/quic/picoquic_shadow/", 
+                      protocol_templates_dir: str     = "plugins/services/implementations/quic/picoquic_shadow/templates/"):
         self.process = None
         self.logger = logging.getLogger("PicoquicShadowServiceManager")
         self.config_path = implementation_config_path

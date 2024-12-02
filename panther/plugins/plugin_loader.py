@@ -160,7 +160,7 @@ class PluginLoader:
         :return: List of implementation names.
         """
         implementations = []
-        implementations_dir = self.plugins_base_dir  / "implementations" / protocol
+        implementations_dir = self.plugins_base_dir  / "services" / "implementations" / protocol
         self.logger.debug(f"Checking for implementations in '{implementations_dir}'")
         if implementations_dir and implementations_dir.exists():
             for item in implementations_dir.iterdir():
@@ -179,7 +179,7 @@ class PluginLoader:
         :return: List of implementation names.
         """
         implementations = []
-        implementations_dir = self.plugins_base_dir  / "testers" 
+        implementations_dir = self.plugins_base_dir  / "services" / "testers" 
         self.logger.debug(f"Checking for testers in '{implementations_dir}'")
         for item in implementations_dir.iterdir():
                 if item.is_dir() and not item.name.startswith('__') and item.name != "templates":
@@ -193,7 +193,7 @@ class PluginLoader:
         self.logger.debug(f"Loading plugins from base directory '{self.plugins_base_dir}'")
 
         # Discover protocol plugins
-        protocols_dir = self.plugins_base_dir / "implementations"
+        protocols_dir = self.plugins_base_dir / "services" / "implementations"
         for protocol in protocols_dir.iterdir():
             self.logger.debug(f"Checking protocol plugin '{protocol}'")
             if protocol.is_dir() and not protocol.name.startswith('__'):
@@ -217,7 +217,7 @@ class PluginLoader:
             self.logger.warning(f"Environments directory '{environments_dir}' does not exist.")
             
         # Discover tester plugins
-        testers_dir = self.plugins_base_dir / "testers"
+        testers_dir = self.plugins_base_dir / "services" / "testers"
         if testers_dir.exists() and testers_dir.is_dir():
             self.logger.debug(f"Checking testers directory '{testers_dir}'")
             for tester in testers_dir.iterdir():

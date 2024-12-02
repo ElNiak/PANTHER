@@ -1,5 +1,5 @@
-from plugins.implementations.protocol_interface import IProtocolPlugin
-from plugins.implementations.quic.picoquic_shadow.service_manager import PicoquicShadowServiceManager
+from plugins.services.implementations.protocol_interface import IProtocolPlugin
+from plugins.services.implementations.quic.picoquic_shadow.service_manager import PicoquicShadowServiceManager
 
 class PicoquicShadowPlugin(IProtocolPlugin):
     def __init__(self):
