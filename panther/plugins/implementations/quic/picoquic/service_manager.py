@@ -219,10 +219,12 @@ class PicoquicServiceManager(IServiceManager):
             # Create the command list
             working_dir = version_config.get(role, {}).get("binary", {}).get("dir", "/opt/picoquic")
 
+            ending_command = "cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo"
+            
             service_name = service_params.get("name")
             self.logger.debug(f"Generated command for '{service_name}': {command_str}")
             return {service_name: {"command": command_str, "volumes": volumes, "working_dir": working_dir,
-                                   "environment": self.environments}}
+                                   "environment": self.environments, "ending_command": ending_command}}
         except Exception as e:
             self.logger.error(f"Failed to render command for service '{service_params.get('name', 'unknown')}': {e}\n{traceback.format_exc()}")
             raise e

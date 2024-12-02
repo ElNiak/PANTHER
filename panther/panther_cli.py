@@ -8,6 +8,7 @@ from pathlib import Path
 from core.experiment_manager import ExperimentManager
 from config.config import ConfigLoader
 
+# TODO create singleton plugin_loader ?
 
 def main():
     parser = argparse.ArgumentParser(description="Panther CLI")

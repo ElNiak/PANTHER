@@ -1,5 +1,6 @@
 FROM ubuntu:20.04 as panther_shadow_ns
 WORKDIR /
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install libglib2.0 -y
 

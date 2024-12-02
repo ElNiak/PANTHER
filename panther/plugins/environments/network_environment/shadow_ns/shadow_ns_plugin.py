@@ -10,7 +10,7 @@ import yaml
 from panther.core.utils.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 
-class ShadowNSEnvironment(INetworkEnvironment):
+class ShadowNsEnvironment(INetworkEnvironment):
     def __init__(
         self,
         config_path: str,
@@ -18,7 +18,7 @@ class ShadowNSEnvironment(INetworkEnvironment):
         network_driver: str = "bridge",
         templates_dir: str = "plugins/environments/network_environment/shadow_ns",
     ):
-        self.logger = logging.getLogger("ShadowNSEnvironment")
+        self.logger = logging.getLogger("ShadowNsEnvironment")
         self.services_network_config_file_path = os.path.join(
             os.getcwd(),
             "plugins",
@@ -72,7 +72,7 @@ class ShadowNSEnvironment(INetworkEnvironment):
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
-        return f"ShadowNSEnvironment({attributes})"
+        return f"ShadowNsEnvironment({attributes})"
     
     def __repr__(self):
         attributes = {
@@ -89,7 +89,7 @@ class ShadowNSEnvironment(INetworkEnvironment):
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
-        return f"ShadowNSEnvironment({attributes})"
+        return f"ShadowNsEnvironment({attributes})"
     
     def build_images(self):
         """
@@ -130,7 +130,7 @@ class ShadowNSEnvironment(INetworkEnvironment):
         raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
 
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str
+        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
     ):
         """
         Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
@@ -140,12 +140,12 @@ class ShadowNSEnvironment(INetworkEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
-        self.services = services
+        self.services        = services
         self.deployment_info = deployment_info
         self.logger.debug(
             f"Setting up Shadow NS environment with services: {services} and deployment info: {deployment_info}"
         )
-        self.prepare()
+        self.prepare(plugin_loader)
         self.generate_shadow_ns(paths=paths, timestamp=timestamp)
         self.logger.info("Shadow NS environment setup complete")
     
@@ -234,6 +234,7 @@ class ShadowNSEnvironment(INetworkEnvironment):
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
+                simulation_settings=self.deployment_info.get("simulation_settings", {}),
             )
             
             # Write the rendered content to shadow.generated.yml

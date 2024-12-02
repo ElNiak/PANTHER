@@ -2,8 +2,7 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y build-essential git cmake software-properties-common \
     openssl libssl-dev pkg-config clang python3 net-tools tcpdump \
     apt-utils  wireshark tshark  libcap2-bin traceroute \
@@ -39,7 +38,7 @@ RUN echo install Test::TCP | perl -MCPAN -
 RUN echo install Scope::Guard | perl -MCPAN -
 
 # Install jq for JSON parsing
-RUN apt-get install -y jq
+RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 

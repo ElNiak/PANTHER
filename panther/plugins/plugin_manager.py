@@ -14,8 +14,8 @@ from core.utils.plugin_loader import PluginLoader
 
 
 class PluginManager:
-    def __init__(self, plugins_loaders: PluginLoader):
-        self.plugins_loaders = plugins_loaders
+    def __init__(self, plugins_loader: PluginLoader):
+        self.plugins_loader = plugins_loader
         self.logger = logging.getLogger("PluginManager")
         self.protocol_plugins: Dict[str, IProtocolPlugin] = {}
         self.network_environment_plugins: Dict[str, INetworkEnvironment] = {}
@@ -54,7 +54,7 @@ class PluginManager:
                     protocol_templates_dir=str(protocol_templates_dir)
                 )
                 self.logger.debug(f"Preparing instance of '{class_name}'")
-                instance.prepare(self.plugins_loaders)
+                instance.prepare(self.plugins_loader)
                 self.logger.debug(f"Created instance of '{class_name}'")
                 return instance
             else:

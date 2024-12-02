@@ -112,7 +112,7 @@ class TestCase(ITestCase):
         if testers_plugin_path.exists() and testers_plugin_path.is_dir():
             self.logger.debug(f"Found tester plugin at '{testers_plugin_path}'")
             # Discover and load implementations under this protocol using PluginFactory
-            available_testers = self.plugin_manager.plugins_loaders.get_testers()
+            available_testers = self.plugin_manager.plugins_loader.get_testers()
             for impl in testers:
                 if impl["implem"] in available_testers:
                     implementation_dir = testers_plugin_path / impl["implem"]
@@ -169,7 +169,7 @@ class TestCase(ITestCase):
             if protocol_plugin_path.exists() and protocol_plugin_path.is_dir():
                 self.logger.debug(f"Found protocol plugin at '{protocol_plugin_path}'")
                 # Discover and load implementations under this protocol using PluginFactory
-                available_implementations = self.plugin_manager.plugins_loaders.get_implementations_for_protocol(proto)
+                available_implementations = self.plugin_manager.plugins_loader.get_implementations_for_protocol(proto)
                 for impl in implementations:
                     if impl in available_implementations:
                         implementation_dir = protocol_plugin_path / impl
@@ -210,7 +210,7 @@ class TestCase(ITestCase):
         for type, env in self.environments.items():
             if env:
                 self.logger.debug(f"Creating environment manager for environment '{env}'")
-                environment_manager = self.plugin_manager.create_environment_manager(environment=env, environment_dir=self.plugin_manager.plugins_loaders.plugins_base_dir / "environments" /  f"{type}_environment", 
+                environment_manager = self.plugin_manager.create_environment_manager(environment=env, environment_dir=self.plugin_manager.plugins_loader.plugins_base_dir / "environments" /  f"{type}_environment", 
                                                                                      output_dir=self.test_experiment_dir)
                 self.environment_plugin_manager.append(environment_manager)
                 self.logger.debug(f"Added environment manager for environment '{env}'")
@@ -358,11 +358,13 @@ class TestCase(ITestCase):
                 env_manager.setup_environment(self.services, 
                                               self.deployment_commands, 
                                               self.test_config.get('paths', {}), 
-                                              datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+                                              datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+                                              self.plugin_manager.plugins_loader)
                 self.logger.info(f"Environment '{env_manager.__class__.__name__}' setup successfully.")
                 self.event_manager.notify(Event("environment_setup", {"environment": env_manager}))
             except Exception as e:
                 self.logger.error(f"Failed to setup environment '{env_manager.__class__.__name__}': {e}")
+                exit()
 
 
     def generate_deployment_commands(self, environment:str) -> Dict[str, str]:

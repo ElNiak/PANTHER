@@ -6,6 +6,7 @@ import logging
 from typing import Dict, Any
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from core.utils.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
@@ -114,7 +115,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
 
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str
+        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
     ):
         """
         Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
