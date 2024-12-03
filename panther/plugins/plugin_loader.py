@@ -67,13 +67,14 @@ class PluginLoader:
             self.logger.error(f"Configuration file '{config_path}' does not exist for implementation '{impl_name}'. Skipping.")
             exit(1)
         
-    def build_docker_image_from_path(self, path: Path, version: Optional[str] = None):
+    def build_docker_image_from_path(self, path: Path, name: str, version: Optional[str] = None):
         """
         Builds a Docker image for a given implementation and version.
 
         :param impl_name: Name of the implementation.
         :param version: Version of the implementation.
         """
+        self.logger.info(f"Building image from path '{path.name}'")
         dockerfile_path = path
         # Load version-specific configurations from config.yaml
         config_path = dockerfile_path.parent / "config.yaml"
@@ -90,11 +91,11 @@ class PluginLoader:
             else:
                 versions = {version: impl_config.get(version, {})}
                 
-            self.logger.debug(f"Found configuration for implementation '{path.name}': {versions}")
+            self.logger.debug(f"Found configuration for path '{path.name}': {versions}")
             for version, version_config in versions.items():
-                self.logger.info(f"Building image for implementation '{path.name}' version '{version}'")
+                self.logger.info(f"Building image for path '{path.name}' version '{version}'")
                 image_tag = self.docker_builder.build_image(
-                    impl_name=path.name,
+                    impl_name=name,
                     version=version,
                     dockerfile_path=dockerfile_path,
                     context_path=dockerfile_path.parent,

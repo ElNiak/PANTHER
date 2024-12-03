@@ -108,7 +108,7 @@ class TestCase(ITestCase):
         if len(testers) == 0:
             self.logger.warning("No testers specified in the test configuration.")
             return
-        testers_plugin_path = Path(f"plugins/testers")
+        testers_plugin_path = Path(f"plugins/services/testers")
         if testers_plugin_path.exists() and testers_plugin_path.is_dir():
             self.logger.debug(f"Found tester plugin at '{testers_plugin_path}'")
             # Discover and load implementations under this protocol using PluginFactory

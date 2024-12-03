@@ -1,55 +1,61 @@
 general:
-  stop_time: {{ simulation_settings.stop_time }}
-  model_unblocked_syscall_latency: {{ simulation_settings.model_unblocked_syscall_latency }}
+  stop_time: {{ simulation_settings.stop_time | default(60) }}
+  model_unblocked_syscall_latency:  {%if simulation_settings.model_unblocked_syscall_latency %} true  {% else %} false {% endif %} 
+
 
 experimental:
   strace_logging_mode: "{{ simulation_settings.strace_logging_mode }}"
 
+
 network:
+  # TODO improve network configuration -> make more modular
   graph:
-    type: {{ network.graph.type }}
-    {% if network.graph.type == "gml" %}
+    type: gml
     inline: |
       graph [
         directed 0
-        {% for node in network.graph.nodes %}
         node [
-          id {{ node.id }}
-          host_bandwidth_down "{{ node.bandwidth_down }}"
-          host_bandwidth_up "{{ node.bandwidth_up }}"
+            id 0
+            host_bandwidth_down "100 Gbit"
+            host_bandwidth_up "100 Gbit"
         ]
-        {% endfor %}
-        {% for edge in network.graph.edges %}
         edge [
-          source {{ edge.source }}
-          target {{ edge.target }}
-          latency "{{ edge.latency }} ms"
-          jitter "{{ edge.jitter }} ms"
-          packet_loss {{ edge.packet_loss }}
+            source 0
+            target 0
+            latency "{{ simulation_settings.latency }} ms"
+            jitter "{{ simulation_settings.jitter }} ms"
+            packet_loss {{ simulation_settings.packet_loss}}
         ]
-        {% endfor %}
       ]
-    {% else %}
-    file:
-      path: {{ network.graph.file_path }}
-    {% endif %}
 
 host_option_defaults:
-  pcap_enabled: {{ host_defaults.pcap_enabled }}
+  pcap_enabled: {%if simulation_settings.pcap_enabled %} true  {% else %} false {% endif %}
+
 
 hosts:
-  {% for host_name, host in hosts.items() %}
-  {{ host_name }}:
-    network_node_id: {{ host.network_node_id }}
-    ip_addr: "{{ host.ip_addr }}"
+  {% for service_name, service in services.items() %}
+  {{ service_name }}:
+    # TODO improve process configuration -> make more modular (need better config format for experiment paramters and allowed values)
+    {% if service.role == "client" %}
+    network_node_id: 0
+    ip_addr: 11.0.0.2
+    {% else %}
+    network_node_id: 1
+    ip_addr: 11.0.0.1
+    {% endif %}
+
     processes:
-    {% for process in host.processes %}
-    - path: {{ process.path }}
-      args: {{ process.args }}
-      start_time: {{ process.start_time }}
+    - path: {{ deployment_info[service_name]['working_dir'] }}/{{ deployment_info[service_name]['command_binary'] }}
+      args: {{ deployment_info[service_name]['args'] }}
+      {% if service.role == 'client' %}
+      start_time: 5
+      {% else %}
+      start_time: 1
+      {% endif %}
+      {% if "environment" in deployment_info[service_name] %}
       environment:
-        {% for key, value in process.environment.items() %}
-        {{ key }}: {{ value }}
+        {% for key, value in deployment_info[service_name]["environment"].items() %}
+        {{ key }}: "{{ value }}"
         {% endfor %}
-    {% endfor %}
+      {% endif %}
   {% endfor %}

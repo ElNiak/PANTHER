@@ -206,25 +206,42 @@ class PicoquicShadowServiceManager(IServiceManager):
         # Render the appropriate template
         try:
             template_name = f"{role}_command.jinja"
-            self.logger.debug(f"Rendering command using template '{template_name}' with parameters: {params}")
+            self.logger.debug(
+                f"Rendering command using template '{template_name}' with parameters: {params}"
+            )
             template = self.jinja_env.get_template(template_name)
             command = template.render(**params)
 
             # Clean up the command string
-            command_str = command.replace('\t', ' ').replace('\n', ' ').strip()
-            
-            # TODO make more clean with event
-            command_str = "sleep 5;" + command_str if role == "client" else command_str
+            command_str = command.replace("\t", " ").replace("\n", " ").strip()
 
             # Create the command list
-            working_dir = version_config.get(role, {}).get("binary", {}).get("dir", "/opt/picoquic")
+            working_dir = (
+                version_config.get(role, {})
+                .get("binary", {})
+                .get("dir", "/opt/picoquic")
+            )
+
+            ending_command = "cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo"
 
             service_name = service_params.get("name")
             self.logger.debug(f"Generated command for '{service_name}': {command_str}")
-            return {service_name: {"command": command_str, "volumes": volumes, "working_dir": working_dir,
-                                   "environment": self.environments}}
+            return {
+                service_name: {
+                    "command_binary": version_config.get(role, {})
+                                .get("binary", {})
+                                .get("name", "./picoquicdemo"),
+                    "args": command_str,
+                    "volumes": volumes,
+                    "working_dir": working_dir,
+                    "environment": self.environments,
+                    "ending_command": ending_command,
+                }
+            }
         except Exception as e:
-            self.logger.error(f"Failed to render command for service '{service_params.get('name', 'unknown')}': {e}\n{traceback.format_exc()}")
+            self.logger.error(
+                f"Failed to render command for service '{service_params.get('name', 'unknown')}': {e}\n{traceback.format_exc()}"
+            )
             raise e
 
     def check_missing_params(self, params: Dict[str, Any], required: list = []) -> list:

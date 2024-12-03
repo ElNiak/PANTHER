@@ -5,7 +5,7 @@ import logging
 import os
 from typing import Any, Dict, Optional
 import yaml
-import traceback    
+import traceback
 from plugins.plugin_loader import PluginLoader
 from plugins.services.implementations.service_manager_interface import IServiceManager
 from pathlib import Path
@@ -13,34 +13,41 @@ from jinja2 import Environment, FileSystemLoader, Template
 
 # TODO Tom create test template for QUIC implementations new users
 
+
 class PicoquicServiceManager(IServiceManager):
-    def __init__(self,implementation_config_path: str = "plugins/services/implementations/quic/picoquic/", 
-                      protocol_templates_dir: str     = "plugins/services/implementations/quic/picoquic/templates/"):
+    def __init__(
+        self,
+        implementation_config_path: str = "plugins/services/implementations/quic/picoquic/",
+        protocol_templates_dir: str = "plugins/services/implementations/quic/picoquic/templates/",
+    ):
         self.process = None
         self.logger = logging.getLogger("PicoquicServiceManager")
         self.config_path = implementation_config_path
         self.config = self.load_config()
-        self.service_name = None
         self.validate_config()
         
+        self.service_name = None
         self.protocol = None
         self.protocol_version = None
         self.role = None
         self.protocol_model_path = None
         self.environments = {}
-        
-        
+
         self.templates_dir = protocol_templates_dir
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.jinja_env.trim_blocks   = True
+        self.jinja_env.trim_blocks = True
         self.jinja_env.lstrip_blocks = True
         # Debugging: List files in templates_dir
         if not os.path.isdir(self.templates_dir):
-            self.logger.error(f"Templates directory '{self.templates_dir}' does not exist.")
+            self.logger.error(
+                f"Templates directory '{self.templates_dir}' does not exist."
+            )
         else:
             templates = os.listdir(self.templates_dir)
-            self.logger.debug(f"Available templates in '{self.templates_dir}': {templates}")
-    
+            self.logger.debug(
+                f"Available templates in '{self.templates_dir}': {templates}"
+            )
+
     def get_base_url(self, service_name: str) -> str:
         """
         Returns the base URL for the given service.
@@ -48,8 +55,8 @@ class PicoquicServiceManager(IServiceManager):
         # Assuming services are accessible via localhost and mapped ports
         # You might need to adjust this based on your actual setup
         port_mappings = {
-            'picoquic_server': 8080,
-            'picoquic_client': 8081,
+            "picoquic_server": 8080,
+            "picoquic_client": 8081,
         }
         port = port_mappings.get(service_name, None)
         if port:
@@ -57,25 +64,29 @@ class PicoquicServiceManager(IServiceManager):
         else:
             self.logger.error(f"No port mapping found for service '{service_name}'")
             return ""
-        
+
     def get_implementation_name(self) -> str:
         return "picoquic"
-    
+
     def get_service_name(self) -> str:
         return self.service_name
-    
+
     def validate_config(self):
         """
         Validates the loaded implementation configuration.
+        This validate that the plugins configuration is correct (e.g., required keys are present).
         """
+
         def keys_exists(element, keys):
-            '''
+            """
             Check if *keys (nested) exists in `element` (dict).
-            '''
+            """
             if not isinstance(element, dict):
-                raise AttributeError('keys_exists() expects dict as first argument.')
+                raise AttributeError("keys_exists() expects dict as first argument.")
             if len(keys) == 0:
-                raise AttributeError('keys_exists() expects at least two arguments, one given.')
+                raise AttributeError(
+                    "keys_exists() expects at least two arguments, one given."
+                )
 
             _element = element
             for key in keys:
@@ -90,13 +101,13 @@ class PicoquicServiceManager(IServiceManager):
             raise ValueError("Empty implementation configuration.")
         # Additional validation can be implemented here
         # For example, check required keys are present
-        required_keys = [['picoquic'], ['picoquic','versions']]
+        required_keys = [["picoquic"], ["picoquic", "versions"]]
         for key in required_keys:
             if not keys_exists(self.config, key):
                 self.logger.error(f"Missing required key '{key}' in configuration.")
                 raise KeyError(f"Missing required key '{key}' in configuration.")
-            
-    def prepare(self,plugin_loader: Optional[PluginLoader] = None):
+
+    def prepare(self, plugin_loader: Optional[PluginLoader] = None):
         """
         Prepare the service manager for use.
         """
@@ -111,18 +122,24 @@ class PicoquicServiceManager(IServiceManager):
         """
         config_file = Path(self.config_path)
         if not config_file.exists():
-            self.logger.error(f"Configuration file '{self.config_path}' does not exist.")
+            self.logger.error(
+                f"Configuration file '{self.config_path}' does not exist."
+            )
             return {}
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 config = yaml.safe_load(f)
             self.logger.info(f"Loaded configuration from '{self.config_path}'")
             return config
         except Exception as e:
-            self.logger.error(f"Failed to load configuration: {e}\n{traceback.format_exc()}")
+            self.logger.error(
+                f"Failed to load configuration: {e}\n{traceback.format_exc()}"
+            )
             return {}
 
-    def generate_deployment_commands(self, service_params: Dict[str, Any], environment: str) -> Dict[str, Any]:
+    def generate_deployment_commands(
+        self, service_params: Dict[str, Any], environment: str
+    ) -> Dict[str, Any]:
         """
         Generates deployment commands and collects volume mappings based on service parameters.
 
@@ -130,10 +147,14 @@ class PicoquicServiceManager(IServiceManager):
         :param environment: The environment in which the services are being deployed.
         :return: A dictionary with service name as key and a dictionary containing command and volumes.
         """
-        self.logger.debug(f"Generating deployment commands for service: {service_params}")
+        self.logger.debug(
+            f"Generating deployment commands for service: {service_params}"
+        )
         role = service_params.get("role")
         version = service_params.get("version", "rfc9000")
-        version_config = self.config.get("picoquic", {}).get("versions", {}).get(version, {})
+        version_config = (
+            self.config.get("picoquic", {}).get("versions", {}).get(version, {})
+        )
 
         # Determine if network interface parameters should be included based on environment
         # TODO
@@ -143,31 +164,72 @@ class PicoquicServiceManager(IServiceManager):
         # Build parameters for the command template
         params = {
             "binary": {
-                "dir": version_config.get(role, {}).get("binary", {}).get("dir", "/opt/picoquic"),
-                "name": version_config.get(role, {}).get("binary", {}).get("name", "./picoquicdemo"),
+                "dir": version_config.get(role, {})
+                .get("binary", {})
+                .get("dir", "/opt/picoquic"),
+                "name": version_config.get(role, {})
+                .get("binary", {})
+                .get("name", "./picoquicdemo"),
             },
-            "initial_version": version_config.get(role, {}).get("initial_version", "00000001"),
+            "initial_version": version_config.get(role, {}).get(
+                "initial_version", "00000001"
+            ),
             "protocol": {
-                "alpn": version_config.get(role, {}).get("protocol", {}).get("alpn", {}),
-                "additional_parameters": version_config.get(role, {}).get("protocol", {}).get("additional_parameters", ""),
+                "alpn": version_config.get(role, {})
+                .get("protocol", {})
+                .get("alpn", {}),
+                "additional_parameters": version_config.get(role, {})
+                .get("protocol", {})
+                .get("additional_parameters", ""),
             },
             "network": {
-                "interface": version_config.get(role, {}).get("network", {}).get("interface", {}),
-                "port": version_config.get(role, {}).get("network", {}).get("port", 4443),
-                "destination": service_params.get("target", version_config.get(role, {}).get("network", {}).get("destination", "picoquic_server")),
+                "interface": version_config.get(role, {})
+                .get("network", {})
+                .get("interface", {}),
+                "port": version_config.get(role, {})
+                .get("network", {})
+                .get("port", 4443),
+                "destination": service_params.get(
+                    "target",
+                    version_config.get(role, {})
+                    .get("network", {})
+                    .get("destination", "picoquic_server"),
+                ),
             },
             "certificates": {
-                "cert_param": version_config.get(role, {}).get("certificates", {}).get("cert", {}).get("param"),
-                "cert_file": version_config.get(role, {}).get("certificates", {}).get("cert", {}).get("file"),
-                "cert_local_file": version_config.get(role, {}).get("certificates", {}).get("cert", {}).get("local_file"),
-                "key_param": version_config.get(role, {}).get("certificates", {}).get("key", {}).get("param"),
-                "key_file": version_config.get(role, {}).get("certificates", {}).get("key", {}).get("file"),
-                "key_local_file": version_config.get(role, {}).get("certificates", {}).get("key", {}).get("local_file"),
+                "cert_param": version_config.get(role, {})
+                .get("certificates", {})
+                .get("cert", {})
+                .get("param"),
+                "cert_file": version_config.get(role, {})
+                .get("certificates", {})
+                .get("cert", {})
+                .get("file"),
+                "cert_local_file": version_config.get(role, {})
+                .get("certificates", {})
+                .get("cert", {})
+                .get("local_file"),
+                "key_param": version_config.get(role, {})
+                .get("certificates", {})
+                .get("key", {})
+                .get("param"),
+                "key_file": version_config.get(role, {})
+                .get("certificates", {})
+                .get("key", {})
+                .get("file"),
+                "key_local_file": version_config.get(role, {})
+                .get("certificates", {})
+                .get("key", {})
+                .get("local_file"),
             },
             "ticket_file": {
-                "param": version_config.get(role, {}).get("ticket_file", {}).get("param"),
+                "param": version_config.get(role, {})
+                .get("ticket_file", {})
+                .get("param"),
                 "file": version_config.get(role, {}).get("ticket_file", {}).get("file"),
-                "local_file": version_config.get(role, {}).get("ticket_file", {}).get("local_file"),
+                "local_file": version_config.get(role, {})
+                .get("ticket_file", {})
+                .get("local_file"),
             },
             "logging": version_config.get(role, {}).get("logging", {}),
         }
@@ -184,49 +246,69 @@ class PicoquicServiceManager(IServiceManager):
         # Collect volume mappings
         volumes = []
         # Only add certificate volumes if the user doesn't want to generate new certificates
-        if not service_params.get('generate_new_certificates', False):
+        if not service_params.get("generate_new_certificates", False):
             # Certificates
-            volumes.append({
-                "local": os.path.abspath(params["certificates"]["cert_local_file"]),
-                "container": params["certificates"]["cert_file"]
-            })
-            volumes.append({
-                "local": os.path.abspath(params["certificates"]["key_local_file"]),
-                "container": params["certificates"]["key_file"]
-            })
-        
+            volumes.append(
+                {
+                    "local": os.path.abspath(params["certificates"]["cert_local_file"]),
+                    "container": params["certificates"]["cert_file"],
+                }
+            )
+            volumes.append(
+                {
+                    "local": os.path.abspath(params["certificates"]["key_local_file"]),
+                    "container": params["certificates"]["key_file"],
+                }
+            )
+
         # Ticket file (if applicable)
         if params["ticket_file"]["local_file"]:
-            volumes.append({
-                "local": os.path.abspath(params["ticket_file"]["local_file"]),
-                "container": params["ticket_file"]["file"]
-            })
-
+            volumes.append(
+                {
+                    "local": os.path.abspath(params["ticket_file"]["local_file"]),
+                    "container": params["ticket_file"]["file"],
+                }
+            )
 
         # Render the appropriate template
         try:
             template_name = f"{role}_command.jinja"
-            self.logger.debug(f"Rendering command using template '{template_name}' with parameters: {params}")
+            self.logger.debug(
+                f"Rendering command using template '{template_name}' with parameters: {params}"
+            )
             template = self.jinja_env.get_template(template_name)
             command = template.render(**params)
 
             # Clean up the command string
-            command_str = command.replace('\t', ' ').replace('\n', ' ').strip()
-            
-            # TODO make more clean with event
-            command_str = "sleep 5;" + command_str if role == "client" else command_str
+            command_str = command.replace("\t", " ").replace("\n", " ").strip()
 
             # Create the command list
-            working_dir = version_config.get(role, {}).get("binary", {}).get("dir", "/opt/picoquic")
+            working_dir = (
+                version_config.get(role, {})
+                .get("binary", {})
+                .get("dir", "/opt/picoquic")
+            )
 
             ending_command = "cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo"
-            
+
             service_name = service_params.get("name")
             self.logger.debug(f"Generated command for '{service_name}': {command_str}")
-            return {service_name: {"command": command_str, "volumes": volumes, "working_dir": working_dir,
-                                   "environment": self.environments, "ending_command": ending_command}}
+            return {
+                service_name: {
+                    "command_binary": version_config.get(role, {})
+                                .get("binary", {})
+                                .get("name", "./picoquicdemo"),
+                    "args": command_str,
+                    "volumes": volumes,
+                    "working_dir": working_dir,
+                    "environment": self.environments,
+                    "ending_command": ending_command,
+                }
+            }
         except Exception as e:
-            self.logger.error(f"Failed to render command for service '{service_params.get('name', 'unknown')}': {e}\n{traceback.format_exc()}")
+            self.logger.error(
+                f"Failed to render command for service '{service_params.get('name', 'unknown')}': {e}\n{traceback.format_exc()}"
+            )
             raise e
 
     def check_missing_params(self, params: Dict[str, Any], required: list = []) -> list:
@@ -242,19 +324,21 @@ class PicoquicServiceManager(IServiceManager):
         for key in required:
             if not params.get(key):
                 missing.append(key)
+
         # Recursively check nested dictionaries
-        def recurse(d, parent_key=''):
+        def recurse(d, parent_key=""):
             for k, v in d.items():
                 full_key = f"{parent_key}.{k}" if parent_key else k
                 if isinstance(v, dict):
                     recurse(v, full_key)
                 elif v is None:
                     missing.append(full_key)
+
         recurse(params)
         return missing
-    
+
     # TODO setup logs files from environment (change base dir)
-    
+
     def replace_env_vars(self, value: str) -> str:
         """
         Replaces environment variables in the given string with their actual values.
@@ -266,9 +350,11 @@ class PicoquicServiceManager(IServiceManager):
             self.logger.debug(f"Replacing environment variables in '{value}'")
             return os.path.expandvars(value)
         except Exception as e:
-            self.logger.error(f"Failed to replace environment variables in '{value}': {e}\n{traceback.format_exc()}")
+            self.logger.error(
+                f"Failed to replace environment variables in '{value}': {e}\n{traceback.format_exc()}"
+            )
             return value
-    
+
     def start_service(self, parameters: dict):
         """
         Starts the Picoquic server or client based on the role.
@@ -276,7 +362,7 @@ class PicoquicServiceManager(IServiceManager):
         # TODO should be in envirnment
         """
         role = parameters.get("role")
-        if role not in ['server', 'client']:
+        if role not in ["server", "client"]:
             self.logger.error(f"Unknown role '{role}'. Cannot start service.")
             return
 
@@ -294,11 +380,13 @@ class PicoquicServiceManager(IServiceManager):
                 cwd="/opt/picoquic",  # Ensure this matches your Dockerfile's WORKDIR
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                preexec_fn=os.setsid
+                preexec_fn=os.setsid,
             )
             self.logger.info(f"Picoquic {role} started with PID {self.process.pid}")
         except Exception as e:
-            self.logger.error(f"Failed to start Picoquic {role}: {e}\n{traceback.format_exc()}")
+            self.logger.error(
+                f"Failed to start Picoquic {role}: {e}\n{traceback.format_exc()}"
+            )
 
     def stop_service(self):
         """
@@ -314,7 +402,7 @@ class PicoquicServiceManager(IServiceManager):
                 self.logger.error(f"Failed to stop Picoquic service: {e}")
 
     def __str__(self) -> str:
-        return  f" (Picoquic Service Manager - {self.config_path})"
-    
+        return f" (Picoquic Service Manager - {self.config_path})"
+
     def __repr__(self):
-        return  f" (Picoquic Service Manager - {self.config_path})"
+        return f" (Picoquic Service Manager - {self.config_path})"

@@ -2,7 +2,26 @@ FROM ubuntu:20.04 as panther_shadow_ns
 WORKDIR /
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install libglib2.0 -y
+RUN apt-get update && apt-get install -y git \
+                                    cmake \
+                                    findutils \
+                                    libclang-dev \
+                                    libc-dbg \
+                                    libglib2.0-0 \
+                                    libglib2.0-dev \
+                                    make \
+                                    netbase \
+                                    python3 \
+                                    python3-networkx \
+                                    xz-utils \
+                                    util-linux \
+                                    gcc \
+                                    g++ \  
+                                    wget
+
+# rustup: https://rustup.rs
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
 
 RUN git clone https://github.com/ElNiak/shadow.git && cd /shadow && git checkout rebasing_test
 

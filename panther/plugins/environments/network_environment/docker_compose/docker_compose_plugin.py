@@ -150,8 +150,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         for key, value in env_vars.items():
             if isinstance(value, str):
                 resolved_value = value
-                self.logger.debug(f"\nResolving variable: {key}")
-                self.logger.debug(f"Original value: {value}")
+                self.logger.debug(f"Resolving variable: {key} - Original value: {value}")
                 for var_name, var_value in resolved_env.items():  # Use already resolved variables
                     if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
                         resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
@@ -160,7 +159,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 resolved_value = resolved_value.replace('$', '$$')
                 resolved_env[key] = resolved_value
 
-        self.logger.debug("\nFinal resolved environment variables without duplication:")
+        self.logger.debug("Final resolved environment variables without duplication:")
         for k, v in resolved_env.items():
             self.logger.debug(f"{k}: {v}")
 
@@ -242,10 +241,10 @@ class DockerComposeEnvironment(INetworkEnvironment):
         """
         try:
             with open(
-                os.path.join(self.output_dir, "logs", "docker-compose.log"), "w"
+                os.path.join(self.output_dir, "logs", "docker-compose-up.log"), "w"
             ) as log_file:
                 with open(
-                    os.path.join(self.output_dir, "logs", "docker-compose.err.log"), "w"
+                    os.path.join(self.output_dir, "logs", "docker-compose-up.err.log"), "w"
                 ) as log_file_err:
                     result = subprocess.run(
                         [
@@ -272,6 +271,35 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     # Write both stdout and stderr to the log file
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
+                self.logger.info("Docker Compose environment launched successfully.")
+            with open(
+                os.path.join(self.output_dir, "logs", "docker-compose.log"), "w"
+            ) as log_file:
+                with open(
+                    os.path.join(self.output_dir, "logs", "docker-compose.err.log"), "w"
+                ) as log_file_err:
+                    result_exp = subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "-f",
+                            str(self.compose_file_path),
+                            "logs",
+                            "--no-color", 
+                        ],
+                        check=True,
+                        # Now in docker build
+                        # env={ # TODO is it dangerous ?
+                        #     "UID": str(os.getuid()),
+                        #     "GID": str(os.getgid()),
+                        # },
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,  # Ensures that output is in string format
+                    )
+                    # Write both stdout and stderr to the log file
+                    log_file.write(result_exp.stdout)
+                    log_file_err.write(result_exp.stderr)
                 self.logger.info("Docker Compose environment launched successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(

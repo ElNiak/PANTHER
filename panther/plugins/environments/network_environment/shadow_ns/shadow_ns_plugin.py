@@ -27,7 +27,18 @@ class ShadowNsEnvironment(INetworkEnvironment):
             "shadow_ns",
             "shadow.generated.yml",
         )
+        self.services_docker_config_file_path = os.path.join(
+            os.getcwd(),
+            "plugins",
+            "environments",
+            "network_environment",
+            "shadow_ns",
+            "Dockerfile.generated",
+        )
         self.config_path = config_path
+        self.config = self.load_config()
+        # TODO: self.validate_config()
+        
         self.network_name = "quic_network_dynamic"
         self.network_driver = network_driver
         self.templates_dir = templates_dir
@@ -42,7 +53,9 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.rendered_shadow_docker_path = os.path.join(
             self.output_dir, "Dockerfile.experience"
         )
-        self.shadow_docker_path = Path(self.services_network_config_file_path)
+        self.shadow_docker_path = Path(self.services_docker_config_file_path)
+        
+        self.docker_version = "v1"
         
         self.services = {}
         self.deployment_commands = {}
@@ -91,6 +104,27 @@ class ShadowNsEnvironment(INetworkEnvironment):
         }
         return f"ShadowNsEnvironment({attributes})"
     
+    def load_config(self) -> dict:
+        """
+        Loads the YAML configuration file.
+        """
+        config_file = Path(self.config_path)
+        if not config_file.exists():
+            self.logger.error(
+                f"Configuration file '{self.config_path}' does not exist."
+            )
+            return {}
+        try:
+            with open(config_file, "r") as f:
+                config = yaml.safe_load(f)
+            self.logger.info(f"Loaded configuration from '{self.config_path}'")
+            return config
+        except Exception as e:
+            self.logger.error(
+                f"Failed to load configuration: {e}\n{traceback.format_exc()}"
+            )
+            return {}
+        
     def build_images(self):
         """
         Builds Docker images for all implementations.
@@ -105,7 +139,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         self.logger.info("Preparing Shadow NS service manager...")
         # Additional setup can be implemented here
-        plugin_loader.build_docker_image("shadow_ns")
+        plugin_loader.build_docker_image("shadow_ns", self.docker_version)
         self.plugin_loader = plugin_loader
         
         
@@ -166,8 +200,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         for key, value in env_vars.items():
             if isinstance(value, str):
                 resolved_value = value
-                self.logger.debug(f"\nResolving variable: {key}")
-                self.logger.debug(f"Original value: {value}")
+                self.logger.debug(f"Resolving variable: {key} - Original value: {value}")
                 for var_name, var_value in resolved_env.items():  # Use already resolved variables
                     if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
                         resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
@@ -176,7 +209,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 resolved_value = resolved_value.replace('$', '$$')
                 resolved_env[key] = resolved_value
 
-        self.logger.debug("\nFinal resolved environment variables without duplication:")
+        self.logger.debug("Final resolved environment variables without duplication:")
         for k, v in resolved_env.items():
             self.logger.debug(f"{k}: {v}")
 
@@ -197,6 +230,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         :param timestamp: The timestamp string to include in log paths.
         """
         # TODO add timeout in the test config
+        # TODO check that the implementaion is compatible with shadow (in config file)
         try:
             # Ensure the log directory for each service exists
             for service_name in self.services.keys():
@@ -232,7 +266,6 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 paths=paths,
                 timestamp=timestamp,
                 log_dir=self.log_dirs,
-                additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
                 simulation_settings=self.deployment_info.get("simulation_settings", {}),
             )
@@ -255,6 +288,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 services=self.services,
                 paths=paths,
                 timestamp=timestamp,
+                deployment_info=self.deployment_info,
+                shadow_ns_config_file=self.shadow_conf_path,
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
@@ -271,7 +306,9 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 f"Shadow NS file generated at '{self.shadow_conf_path}'"
             )
             
-            self.plugin_loader.build_docker_image_from_path(Path("plugins/environments/network_environment/shadow_ns/Dockerfile.experience"))
+            self.plugin_loader.build_docker_image_from_path(self.shadow_docker_path,
+                                                            "shadow_ns",
+                                                            self.docker_version)
             
         except Exception as e:
             self.logger.error(

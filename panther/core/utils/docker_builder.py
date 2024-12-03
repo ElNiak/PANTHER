@@ -117,7 +117,7 @@ class DockerBuilder:
             self.log_docker_output(build_logs, f"Building Docker image '{image_tag}'")
             self.logger.info(f"Successfully built Docker image '{image_tag}' with context '{context_path}' and build args '{build_args}'")
             return image_tag
-        except (BuildError, APIError) as e:
+        except (BuildError) as e:
             self.logger.error(f"Failed to build Docker image '{image_tag}' : {e}")
             self.log_docker_output(e.build_log, f"Building Docker image '{image_tag}'", log_f)
             if self.build_log_file:
@@ -126,7 +126,6 @@ class DockerBuilder:
             exit(1)
         except Exception as e:
             self.logger.error(f"Unexpected error during build of '{image_tag}': {e}")
-            self.log_docker_output(build_logs, f"Building Docker image '{image_tag}'", log_f)
             if self.build_log_file:
                 with open(self.build_log_file, 'a') as log_f:
                     log_f.write(f"ERROR: {e}\n")
@@ -160,7 +159,7 @@ class DockerBuilder:
         dockerfiles = {}
         self.plugins_dir = plugins_dir  # Store for later use in dependency builds
         
-        implementations_dir = Path(plugins_dir) / "implementations"
+        implementations_dir = Path(plugins_dir) / "services" /"implementations"
         self.logger.info(f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'")
         if not implementations_dir.exists():
             self.logger.warning(f"Implementations directory '{implementations_dir}' does not exist.")
@@ -175,7 +174,7 @@ class DockerBuilder:
                     self.logger.debug(f"Found Dockerfile for implementation '{impl_name}': {dockerfile.resolve()}")
 
 
-        tester_dir = Path(plugins_dir) / "testers"
+        tester_dir = Path(plugins_dir) / "services" /"testers"
         self.logger.info(f"Scanning for Dockerfiles in '{tester_dir.resolve()}'")
         if not tester_dir.exists():
             self.logger.warning(f"Testers directory '{tester_dir}' does not exist.")
