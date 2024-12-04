@@ -20,8 +20,9 @@ from plugins.environments.environment_interface import IEnvironmentPlugin
 
 class TestCase(ITestCase):
     def __init__(self, test_config: DictConfig, logger: logging.Logger, result_collector: ResultCollector, 
-                 environment_types: Dict, event_manager: EventManager, plugin_manager: PluginManager,
+                 environment_types: Dict[str,Any], event_manager: EventManager, plugin_manager: PluginManager,
                  test_experiment_dir: Path):
+        
         super().__init__(test_config, logger)
         self.result_collector = result_collector
         self.service_managers: List[IServiceManager] = []
@@ -209,8 +210,10 @@ class TestCase(ITestCase):
         """Setup the test environment using the plugin."""
         for type, env in self.environments.items():
             if env:
-                self.logger.debug(f"Creating environment manager for environment '{env}'")
-                environment_manager = self.plugin_manager.create_environment_manager(environment=env, environment_dir=self.plugin_manager.plugins_loader.plugins_base_dir / "environments" /  f"{type}_environment", 
+                self.logger.debug(f"Creating environment manager for environment '{env}' with {type}")
+                environment_manager = self.plugin_manager.create_environment_manager(environment=env[0], 
+                                                                                     environment_settings=env[1],
+                                                                                     environment_dir=self.plugin_manager.plugins_loader.plugins_base_dir / "environments" /  f"{type}_environment", 
                                                                                      output_dir=self.test_experiment_dir)
                 self.environment_plugin_manager.append(environment_manager)
                 self.logger.debug(f"Added environment manager for environment '{env}'")
@@ -353,6 +356,7 @@ class TestCase(ITestCase):
         self.setup_services()
         self.setup_testers()
         self.generate_deployment_commands(self.test_config.get("network_environment", "docker_compose"))
+        
         for env_manager in self.environment_plugin_manager:
             try:
                 env_manager.setup_environment(self.services, 

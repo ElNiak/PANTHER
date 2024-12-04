@@ -82,6 +82,7 @@ class ExperimentManager:
         try:
             for test_config in self.experiment_config.get("tests", []):
                 net_environment_type = test_config.get("network_environment", "localhost")
+                net_setting          = test_config.get(f"{net_environment_type}_settings",{})
                 # if not net_environment_type:
                 #     raise ValueError(f"Unknown environment type: {net_environment_type}")
                 exec_environment_type = test_config.get("execution_environment", [])
@@ -91,14 +92,17 @@ class ExperimentManager:
                 self.result_collectors.register_handler(f"storage_{test_config.get('name', 'Unnamed Test').replace(' ', '_')})",  
                                                         StorageHandler(self.experiment_dir, 
                                                                        test_config.get("name", "Unnamed Test").replace(" ", "_")))
-                test_case = TestCase(test_config, 
-                                     self.logger, 
-                                     self.result_collectors, 
-                                     {"network":net_environment_type,
-                                      "execution":exec_environment_type}, 
-                                     self.event_manager,
-                                     self.plugin_manager,
-                                     test_experiment_dir)
+                test_case = TestCase(test_config=test_config, 
+                                     logger=self.logger, 
+                                     result_collector=self.result_collectors, 
+                                     environment_types= {
+                                        "network":         [net_environment_type, net_setting],
+                                        "execution":       exec_environment_type
+                                      }, 
+                                     event_manager=self.event_manager,
+                                     plugin_manager=self.plugin_manager,
+                                     test_experiment_dir=test_experiment_dir)
+                
                 self.logger.info(f"Initialized test case '{test_case}'")
                 self.test_cases.append(test_case)
             self.logger.info(f"Initialized {len(self.test_cases)} test cases.")

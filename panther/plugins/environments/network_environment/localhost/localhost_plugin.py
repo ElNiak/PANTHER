@@ -18,6 +18,7 @@ class LocalHostEnvironment(INetworkEnvironment):
         self,
         config_path: str,
         output_dir: str,
+        environment_settings: Dict[str,Any],
         network_driver: str = "bridge",
         templates_dir: str = "plugins/environments/network_environment/localhost",
     ):
@@ -41,6 +42,7 @@ class LocalHostEnvironment(INetworkEnvironment):
         self.script_file_path = Path(self.services_network_config_file_path)
         self.services = {}
         self.deployment_commands = {}
+        self.environment_settings = environment_settings
         self.timeout = 60
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
@@ -74,7 +76,8 @@ class LocalHostEnvironment(INetworkEnvironment):
         raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
 
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
+        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
+        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader, environment_settings: Dict[str,Any]
     ):
         """
         Sets up the localhost environment by generating the docker-compose.yml file with deployment commands.

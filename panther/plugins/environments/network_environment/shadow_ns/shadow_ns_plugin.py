@@ -15,6 +15,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self,
         config_path: str,
         output_dir: str,
+        environment_settings: Dict[str,Any],
         network_driver: str = "bridge",
         templates_dir: str = "plugins/environments/network_environment/shadow_ns",
     ):
@@ -56,6 +57,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.shadow_docker_path = Path(self.services_docker_config_file_path)
         
         self.docker_version = "v1"
+        self.environment_settings = environment_settings
+        self.docker_name = "shadow_"
         
         self.services = {}
         self.deployment_commands = {}
@@ -164,7 +167,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
         raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
 
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
+        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
+        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
     ):
         """
         Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
@@ -174,10 +178,11 @@ class ShadowNsEnvironment(INetworkEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
-        self.services        = services
-        self.deployment_info = deployment_info
+        self.services             = services
+        self.deployment_info      = deployment_info
+        
         self.logger.debug(
-            f"Setting up Shadow NS environment with services: {services} and deployment info: {deployment_info}"
+            f"Setting up Shadow NS environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}"
         )
         self.prepare(plugin_loader)
         self.generate_shadow_ns(paths=paths, timestamp=timestamp)
@@ -238,7 +243,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 if not os.path.exists(log_dir):
                     os.makedirs(log_dir)
                     self.logger.info(f"Created log directory: {log_dir}")
-                
+                self.docker_name = self.docker_name + service_name + "_"
                 additional_command = ""
                 if "ivy" in service_name:
                     # update other service so they wait for ivy to be ready
@@ -259,6 +264,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 if "environment" in self.deployment_info[service_name]:
                     self.deployment_info[service_name]["environment"] = self.resolve_environment_variables(self.deployment_info[service_name]["environment"])
             
+            self.logger.debug(f"Resolved environment deployment_info: {self.deployment_info}")
             template = self.jinja_env.get_template("shadow-template.jinja")
             rendered = template.render(
                 services=self.services,
@@ -267,7 +273,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 timestamp=timestamp,
                 log_dir=self.log_dirs,
                 experiment_name=self.output_dir.split("/")[-1],
-                simulation_settings=self.deployment_info.get("simulation_settings", {}),
+                environment_settings=self.environment_settings # TODO
             )
             
             # Write the rendered content to shadow.generated.yml
@@ -289,7 +295,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 paths=paths,
                 timestamp=timestamp,
                 deployment_info=self.deployment_info,
-                shadow_ns_config_file=self.shadow_conf_path,
+                shadow_ns_config_file=self.shadow_conf_path.name,
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
@@ -306,9 +312,10 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 f"Shadow NS file generated at '{self.shadow_conf_path}'"
             )
             
-            self.plugin_loader.build_docker_image_from_path(self.shadow_docker_path,
-                                                            "shadow_ns",
+            self.docker_name = self.plugin_loader.build_docker_image_from_path(self.shadow_docker_path,
+                                                            self.docker_name,
                                                             self.docker_version)
+            self.docker_name = self.docker_name.split(':')[0]
             
         except Exception as e:
             self.logger.error(
@@ -320,6 +327,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         Launches the Shadow NS environment using the generated shadow.yml file.
         """
+        # TODO use docker_builder module
         try:
             with open(
                 os.path.join(self.output_dir, "logs", "shadow.log"), "w"
@@ -330,11 +338,17 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     result = subprocess.run(
                         [
                             "docker",
-                            "compose",
-                            "-f",
-                            str(self.shadow_conf_path),
-                            "up",
-                            "-d"
+                            "run",
+                            "--sysctl",
+                            "net.ipv6.conf.all.disable_ipv6=1",
+                            "--security-opt",
+                            "seccomp=unconfined",
+                            "--shm-size=1024g",
+                            "--privileged",
+                            "--rm",
+                            "--name",
+                            self.docker_name,
+                            self.docker_name
                         ],
                         check=True,
                         # Now in docker build
@@ -354,6 +368,14 @@ class ShadowNsEnvironment(INetworkEnvironment):
             self.logger.error(
                 f"Failed to launch Shadow NS environment: {e.stderr}"
             )
+            with open(
+                os.path.join(self.output_dir, "logs", "shadow.log"), "w"
+            ) as log_file:
+                with open(
+                    os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
+                ) as log_file_err:
+                    log_file.write(e.stdout)
+                    log_file_err.write(e.stderr)
             raise e
 
     def teardown_environment(self):
@@ -398,15 +420,24 @@ class ShadowNsEnvironment(INetworkEnvironment):
                         result = subprocess.run(
                             [
                                 "docker",
-                                "compose",
-                                "-f",
-                                self.services_network_config_file_path,
-                                "down",
+                                "stop",
+                                self.docker_name,
                             ],
                             check=True,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             text=True,  # Ensures that output is in string format
+                        )
+                        log_file.write(result.stdout)
+                        log_file_err.write(result.stderr)
+                        cmd_rm = f"docker rm {self.docker_name}"
+                        self.logger.debug(f"Executing command: {cmd_rm}")
+                        result = subprocess.run(
+                            cmd_rm,
+                            shell=True,
+                            check=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
                         )
                         # Write both stdout and stderr to the log file
                         log_file.write(result.stdout)

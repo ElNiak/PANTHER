@@ -15,6 +15,7 @@ class SingleContainerEnvironment(INetworkEnvironment):
         self,
         config_path: str,
         output_dir: str,
+        environment_settings: Dict[str,Any],
         network_driver: str = "bridge",
         templates_dir: str = "plugins/environments/network_environment/single_container",
     ):
@@ -130,7 +131,8 @@ class SingleContainerEnvironment(INetworkEnvironment):
         raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
 
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
+        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
+        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader, environment_settings: Dict[str,Any]
     ):
         """
         Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.

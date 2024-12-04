@@ -1,17 +1,16 @@
-FROM panther_shadow_ns:latest
+FROM shadow_ns_v1_panther:latest
 
 {% for service_name, service in services.items() %}
-
 {% if service.type == "tester" %}
-FROM {{ service.implementation }}_{{ service.protocol.version }}_panther:latest as {{ service_name }}_image
+FROM {{ service.implementation }}_{{ service.protocol.version }}_panther:latest
 {% else %}
-FROM {{ service.implementation }}_{{ service.version }}_panther:latest as {{ service_name }}_image
+FROM {{ service.implementation }}_{{ service.version }}_panther:latest
 {% endif %}
 
 {% for port in service.ports %}
 EXPOSE {{ port }}
 {% endfor %}# Set container working directory
-WORKDIR "{{ deployment_info[service_name]['working_dir'] }}"
+# WORKDIR "{{ deployment_info[service_name]['working_dir'] }}"
 
 # Add service-specific environment variables
 ENV ROLE="{{ service.role }}"
@@ -33,10 +32,6 @@ VOLUME "{{ volume }}"
 {% endif %}
 {% endfor %}
 
-# Set capabilities
-RUN apt-get update && apt-get install -y sudo
-RUN sudo setcap cap_net_admin,cap_net_raw+ep /bin/sh
-
 # Define the command for the service
 {% if "ivy" in service_name %}
 CMD ["/bin/sh", "-c", {{ deployment_info[service_name]['compilation_command'] }}]
@@ -45,8 +40,22 @@ CMD ["/bin/sh", "-c", {{ deployment_info[service_name]['compilation_command'] }}
 {% endfor %}
 
 WORKDIR /
+ENV DEBIAN_FRONTEND=noninteractive
+USER root
+COPY --from=shadow_ns_v1_panther /shadow /shadow
+COPY --from=shadow_ns_v1_panther /root/.cargo/ /root/.cargo/
+COPY --from=shadow_ns_v1_panther /root/.local/ /root/.local/
+COPY --from=shadow_ns_v1_panther /usr/include/shadow.h /usr/include/shadow.h
+COPY --from=shadow_ns_v1_panther /etc/shadow /etc/shadow
+
+ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
+ENV PATH="/shadow/build:/root/shadow/build/:${PATH}"
+# ENV PATH="/cmake-3.26.4-linux-x86_64/bin:/root/.cargo/bin:/root/.local/bin/:/root/shadow/:${PATH}"
+# ENV LD_LIBRARY_PATH="/root/.local/lib:/root/shadow/build/src/lib/preload-injector:${LD_LIBRARY_PATH}"
+RUN rustup default stable
 
 ADD {{ shadow_ns_config_file }} /shadow_ns_config.yml
 ENV RUST_BACKTRACE=1
-ENTRYPOINT [ "shadow", "/shadow_ns_config.yml" , ">> /app/logs/shadow_ns.log" ]
+ENTRYPOINT [ "/bin/sh", "-l", "-c" ]
+# ENTRYPOINT [ "shadow", "/shadow_ns_config.yml" ]
 

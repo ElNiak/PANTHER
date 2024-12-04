@@ -78,7 +78,8 @@ class PluginManager:
         self.logger.debug(f"Found implementations for protocol '{protocol_plugin_path.name}': {implementations}")
         return implementations
     
-    def create_environment_manager(self, environment: str, environment_dir: Path, output_dir: Path) -> IEnvironmentPlugin:
+    def create_environment_manager(self, environment: str, environment_settings: Dict[str,Any],
+                                   environment_dir: Path, output_dir: Path) -> IEnvironmentPlugin:
         """
         Creates an instance of an environment manager based on the environment name.
 
@@ -107,7 +108,8 @@ class PluginManager:
                     raise FileNotFoundError(f"Configuration file '{environment_config_path}' not found.")
                 instance = environment_class(
                     config_path=str(environment_config_path),
-                    output_dir=str(output_dir)
+                    output_dir=str(output_dir),
+                    environment_settings=environment_settings
                 )
                 self.logger.debug(f"Created instance of '{class_name}'")
                 return instance

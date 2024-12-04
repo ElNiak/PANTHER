@@ -1,12 +1,11 @@
-FROM panther_shadow_ns:latest
+FROM shadow_ns_v1_panther:latest
 
-
-FROM picoquic_shadow_rfc9000_panther:latest as picoquic_server_image
+FROM picoquic_shadow_rfc9000_panther:latest
 
 EXPOSE 4443:4443
 EXPOSE 8080:8080
 # Set container working directory
-WORKDIR "/opt/picoquic"
+# WORKDIR "/opt/picoquic"
 
 # Add service-specific environment variables
 ENV ROLE="server"
@@ -19,19 +18,14 @@ VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/
 VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
 VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
 
-# Set capabilities
-RUN apt-get update && apt-get install -y sudo
-RUN sudo setcap cap_net_admin,cap_net_raw+ep /bin/sh
-
 # Define the command for the service
 
-
-FROM picoquic_shadow_rfc9000_panther:latest as picoquic_client_image
+FROM picoquic_shadow_rfc9000_panther:latest
 
 EXPOSE 5000:5000
 EXPOSE 8081:8081
 # Set container working directory
-WORKDIR "/opt/picoquic"
+# WORKDIR "/opt/picoquic"
 
 # Add service-specific environment variables
 ENV ROLE="client"
@@ -44,15 +38,25 @@ VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/
 VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
 VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
 
-# Set capabilities
-RUN apt-get update && apt-get install -y sudo
-RUN sudo setcap cap_net_admin,cap_net_raw+ep /bin/sh
-
 # Define the command for the service
 
 
 WORKDIR /
+ENV DEBIAN_FRONTEND=noninteractive
+USER root
+COPY --from=shadow_ns_v1_panther /shadow /shadow
+COPY --from=shadow_ns_v1_panther /root/.cargo/ /root/.cargo/
+COPY --from=shadow_ns_v1_panther /root/.local/ /root/.local/
+COPY --from=shadow_ns_v1_panther /usr/include/shadow.h /usr/include/shadow.h
+COPY --from=shadow_ns_v1_panther /etc/shadow /etc/shadow
 
-ADD /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/plugins/environments/network_environment/shadow_ns/shadow.generated.yml shadow_ns_config.yml
+ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
+ENV PATH="/shadow/build:/root/shadow/build/:${PATH}"
+# ENV PATH="/cmake-3.26.4-linux-x86_64/bin:/root/.cargo/bin:/root/.local/bin/:/root/shadow/:${PATH}"
+# ENV LD_LIBRARY_PATH="/root/.local/lib:/root/shadow/build/src/lib/preload-injector:${LD_LIBRARY_PATH}"
+RUN rustup default stable
+
+ADD shadow.generated.yml /shadow_ns_config.yml
 ENV RUST_BACKTRACE=1
-ENTRYPOINT [ "shadow", "shadow_ns_config.yml" , ">> /app/logs/shadow_ns.log" ]
+ENTRYPOINT [ "/bin/sh", "-l", "-c" ]
+# ENTRYPOINT [ "shadow", "/shadow_ns_config.yml" ]

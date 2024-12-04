@@ -100,13 +100,14 @@ class PluginLoader:
                     dockerfile_path=dockerfile_path,
                     context_path=dockerfile_path.parent,
                     config=version_config,
-                    tag_version="latest"  # or use version if desired
+                    tag_version="latest"  # TODO or use version if desired
                 )
                 if image_tag:
                     key = f"{path.name}_{version}"
                     self.built_images[key] = image_tag
                 else:
                     self.logger.error(f"Image build failed for implementation '{path.name}' version '{version}'")
+                return image_tag
         else:
             self.logger.error(f"Configuration file '{config_path}' does not exist for implementation '{path.name}'. Skipping.")
             exit(1)

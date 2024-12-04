@@ -18,6 +18,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self,
         config_path: str,
         output_dir: str,
+        environment_settings: Dict[str,Any],
         network_driver: str = "bridge",
         templates_dir: str = "plugins/environments/network_environment/docker_compose",
     ):
@@ -42,6 +43,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.compose_file_path = Path(self.services_network_config_file_path)
         self.services = {}
         self.deployment_commands = {}
+        self.environment_settings = environment_settings
         self.timeout = 60
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
@@ -115,7 +117,8 @@ class DockerComposeEnvironment(INetworkEnvironment):
         raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
 
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
+        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
+        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
     ):
         """
         Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
@@ -217,6 +220,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
+                environment_settings=self.environment_settings,
             )
             
             # Write the rendered content to docker-compose.generated.yml
