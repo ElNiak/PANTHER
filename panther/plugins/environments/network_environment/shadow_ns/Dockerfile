@@ -24,38 +24,19 @@ RUN apt-get update && apt-get install -y git \
 # rustup: https://rustup.rs
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
-# ENV CC gcc
+
 ENV CONTAINER ubuntu:20.04
 ENV BUILDTYPE release
 ENV RUSTPROFILE minimal
-RUN git clone https://github.com/ElNiak/shadow.git && cd /shadow && git checkout rebasing_test
+
+RUN git clone https://github.com/ElNiak/shadow.git && \
+    cd /shadow && \
+    git checkout rebasing_test
 RUN cd shadow; \
     ./setup build --clean --test  && \
-    # ./setup test && \
+    # ./setup test && # This command is not working
     ./setup install 
-# ENV CC gcc
-# ENV CONTAINER ubuntu:20.04
-# ENV BUILDTYPE release
-# ENV RUSTPROFILE minimal
-# ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
-
-# RUN wget https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.tar.gz
-# RUN tar xzf cmake-3.26.4-linux-x86_64.tar.gz
-
-# RUN cp /shadow/ci/container_scripts/install_deps.sh /root/install_deps.sh
-# RUN /root/install_deps.sh 
-
-# RUN cp /shadow/ci/container_scripts/install_extra_deps.sh /root/install_extra_deps.sh
-# RUN mkdir ci
-# RUN cp -r /shadow/ci/rust-toolchain-*.toml ci/
-# RUN /root/install_extra_deps.sh
-
-# WORKDIR /root/shadow
-
-# RUN cp -r /shadow /root/
-# ENV PATH="/cmake-3.26.4-linux-x86_64/bin:/root/.cargo/bin:${PATH}"
-# RUN ci/container_scripts/build_and_install.sh
-# Clean up
+#
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 

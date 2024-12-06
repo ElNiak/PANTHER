@@ -236,9 +236,10 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         # TODO add timeout in the test config
         # TODO check that the implementaion is compatible with shadow (in config file)
+        # TODo moodify the shadow template to add the timeout also add folder for each service to be added in the multi stage
         try:
             # Ensure the log directory for each service exists
-            for service_name in self.services.keys():
+            for service_name, service in self.services.items():
                 log_dir = os.path.join(self.log_dirs, service_name)
                 if not os.path.exists(log_dir):
                     os.makedirs(log_dir)
@@ -246,23 +247,25 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 self.docker_name = self.docker_name + service_name + "_"
                 additional_command = ""
                 if "ivy" in service_name:
-                    # update other service so they wait for ivy to be ready
-                    self.logger.debug(f"Adding wait for Ivy tester to be ready for {service_name}")
+                    # TODO make it more generic
+                    self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("eth0", "lo")
+                    if service["role"] == "client":
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "184549377")
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "184549378")
+                    else:
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "184549378")
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "184549377")
+                else:
                     for other_service_name in self.services.keys():
                         if other_service_name != service_name:
-                            additional_command = f"""
-                            while [ ! -f /app/sync_logs/ivy_ready ]; do
-                                echo "Waiting for Ivy tester to be ready..." >> /app/logs/tester_ready;
-                                sleep 2;
-                            done;
-                            echo "Ivy tester is ready, starting {other_service_name}..." >> /app/logs/tester_ready;   
-                            """.strip()
-                            self.deployment_info[other_service_name]["volumes"].append("shared_logs:/app/sync_logs")
-            
+                            self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace(service_name, service_name.replace("_", ".")) #.replace("-e eth0", "")
+                            # self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace("/opt/certs", "/opt/"+ service_name + "/certs")
             
             for service_name, service in self.services.items():
                 if "environment" in self.deployment_info[service_name]:
                     self.deployment_info[service_name]["environment"] = self.resolve_environment_variables(self.deployment_info[service_name]["environment"])
+                    self.deployment_info[service_name]["environment"]["SHADOW_TEST"] = "1"
+                    
             
             self.logger.debug(f"Resolved environment deployment_info: {self.deployment_info}")
             template = self.jinja_env.get_template("shadow-template.jinja")
@@ -335,21 +338,37 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 with open(
                     os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
                 ) as log_file_err:
-                    result = subprocess.run(
-                        [
+                    volumes = []
+                    volumes.append("-v")
+                    volumes.append(f"{os.path.abspath(self.log_dirs+'/shadow')}:/app/logs/")
+                    for service_name, service in self.services.items():
+                        for volume in self.deployment_info[service_name]['volumes']:
+                            volumes.append("-v")
+                            if isinstance(volume, dict):
+                                volumes.append(f"{os.path.abspath(volume['local'])}:{volume['container']}")
+                            else:
+                                volumes.append(f"{volume}")
+                                
+                    command = [
                             "docker",
                             "run",
+                            "--rm",
+                            "-d",
                             "--sysctl",
                             "net.ipv6.conf.all.disable_ipv6=1",
                             "--security-opt",
                             "seccomp=unconfined",
                             "--shm-size=1024g",
                             "--privileged",
-                            "--rm",
                             "--name",
                             self.docker_name,
+                            *volumes,
                             self.docker_name
-                        ],
+                        ]
+                    self.logger.debug(f"Executing command: {' '.join(command)}")
+                    
+                    result = subprocess.run(
+                        command,
                         check=True,
                         # Now in docker build
                         # env={ # TODO is it dangerous ?
@@ -363,6 +382,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     # Write both stdout and stderr to the log file
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
+                    # TODO shadow.data
                 self.logger.info("Shadow NS environment launched successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(
@@ -376,7 +396,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 ) as log_file_err:
                     log_file.write(e.stdout)
                     log_file_err.write(e.stderr)
-            raise e
+            # raise e
 
     def teardown_environment(self):
         """
@@ -391,57 +411,20 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 os.path.join(self.output_dir, "logs", "shadow-teardown.err.log"), "w"
             ) as log_file_err:
                 try:
-                    if self.network_driver == "host":
-                        # In host mode, stop containers individually
-                        # Assumes service names are the container names
-                        compose_dict = self.read_shadow_file()
-                        services = compose_dict.get("services", {})
-                        for service_name in services.keys():
-                            cmd = f"docker stop {service_name}"
-                            self.logger.debug(f"Executing command: {cmd}")
-                            subprocess.run(
-                                cmd,
-                                shell=True,
-                                check=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                            )
-                            cmd_rm = f"docker rm {service_name}"
-                            self.logger.debug(f"Executing command: {cmd_rm}")
-                            subprocess.run(
-                                cmd_rm,
-                                shell=True,
-                                check=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                            )
-                    else:
-                        # For other network drivers, use shadow
-                        result = subprocess.run(
-                            [
-                                "docker",
-                                "stop",
-                                self.docker_name,
-                            ],
-                            check=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,  # Ensures that output is in string format
-                        )
-                        log_file.write(result.stdout)
-                        log_file_err.write(result.stderr)
-                        cmd_rm = f"docker rm {self.docker_name}"
-                        self.logger.debug(f"Executing command: {cmd_rm}")
-                        result = subprocess.run(
-                            cmd_rm,
-                            shell=True,
-                            check=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                        )
-                        # Write both stdout and stderr to the log file
-                        log_file.write(result.stdout)
-                        log_file_err.write(result.stderr)
+                    # Remove the docker image after execution
+                    remove_image_command = ["docker", "rmi", f"{self.docker_name}:latest"]
+                    self.logger.debug(f"Executing remove image command: {remove_image_command}")
+                    result = subprocess.run(
+                        remove_image_command,
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                    )
+                    self.logger.debug(f"Executing command: {remove_image_command}")
+                   
+                    log_file.write(result.stdout)
+                    log_file_err.write(result.stderr)
                     self.logger.info("Shadow NS environment torn down successfully")
                 except subprocess.CalledProcessError as e:
                     self.logger.error(
