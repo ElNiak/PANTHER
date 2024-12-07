@@ -1,0 +1,82 @@
+FROM shadow_ns_v1_panther:latest AS shadow_base
+
+{% for service_name, service in services.items() %}
+
+{% if service.type == "tester" %}
+FROM {{ service.implementation }}_{{ service.protocol.version }}_panther:latest AS {{ service_name }}_stage
+{% else %}
+FROM {{ service.implementation }}_{{ service.version }}_panther:latest AS {{ service_name }}_stage
+{% endif %}
+
+# Copy files from the service stage to /opt in the final image
+{% for port in service.ports %}
+EXPOSE {{ port }}
+{% endfor %}# Set container working directory
+# WORKDIR "{{ deployment_info[service_name]['working_dir'] }}"
+
+# Add service-specific environment variables
+ENV ROLE="{{ service.role }}"
+ENV UID=${UID}
+ENV GID=${GID}
+{% if "environment" in deployment_info[service_name] %}
+{% for key, value in deployment_info[service_name]["environment"].items() %}
+ENV {{ key }}="{{ value }}"
+{% endfor %}
+{% endif %}
+
+# # Copy logs and volumes
+# VOLUME {{ log_dir | realpath }}/{{ service_name  }}:/app/logs
+# {% for volume in deployment_info[service_name]['volumes'] %}
+# {% if volume | is_dict %}
+# VOLUME "{{ volume.local | realpath }}:{{ volume.container }}"
+# {% else %}
+# VOLUME "{{ volume }}"
+# {% endif %}
+# {% endfor %}
+
+# Define the command for the service
+# TODO manage that in the Ivy module
+{% if "ivy" in service_name %}
+RUN <<EOF
+{{deployment_info[service_name]["compilation_command"]}}
+EOF
+{% endif %}
+
+{% endfor %}
+
+
+# Final stage
+FROM shadow_ns_v1_panther:latest
+WORKDIR /
+ENV DEBIAN_FRONTEND=noninteractive
+USER root
+
+{% for service_name, service in services.items() %}
+{% if "ivy" in service_name %}
+COPY --from={{ service_name }}_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
+COPY --from={{ service_name }}_stage /opt /opt
+
+{% else %}
+COPY --from={{ service_name }}_stage /opt /opt/{{ service_name }}
+{% endif %}
+{% endfor %}
+
+COPY --from=shadow_ns_v1_panther /shadow /shadow
+COPY --from=shadow_ns_v1_panther /root/.cargo/ /root/.cargo/
+COPY --from=shadow_ns_v1_panther /root/.local/ /root/.local/
+COPY --from=shadow_ns_v1_panther /usr/include/shadow.h /usr/include/shadow.h
+COPY --from=shadow_ns_v1_panther /etc/shadow /etc/shadow
+
+ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
+ENV PATH="/shadow/build:/root/shadow/build/:${PATH}"
+RUN rustup default stable
+RUN rm -rf shadow.data/
+# VOLUME {{ log_dir | realpath }}/shadow.data:/shadow.data
+
+ADD {{ shadow_ns_config_file }} /shadow_ns_config.yml
+ENV RUST_BACKTRACE=1
+# ENTRYPOINT [ "/bin/sh", "-l", "-c", "\" \"" ]
+# ENTRYPOINT [ "shadow", "/shadow_ns_config.yml", "--data-directory", "/app/logs/shadow.data" ]
+# CMD [ ">", "/app/logs/shadow_output.log" ]
+ENTRYPOINT [ "/bin/sh", "-c", "shadow /shadow_ns_config.yml --data-directory /app/logs/shadow.data > /app/logs/shadow_stdout.log 2> /app/logs/shadow_stderr.log" ]
+

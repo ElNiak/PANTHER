@@ -1,0 +1,83 @@
+FROM localhost_single_container_v1_panther:latest AS localhost_base
+
+
+FROM picoquic_rfc9000_panther:latest AS picoquic_server_stage
+
+# Copy files from the service stage to /opt in the final image
+EXPOSE 4443:4443
+EXPOSE 8080:8080
+# Set container working directory
+# WORKDIR "/opt/picoquic"
+
+# Add service-specific environment variables
+ENV ROLE="server"
+ENV UID=${UID}
+ENV GID=${GID}
+
+# # Copy logs and volumes
+# VOLUME /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-12-07_16-39-07/Localhost_QUIC_Client-Server_Communication_Test/logs/picoquic_server:/app/logs
+# # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
+# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
+# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
+# # 
+# Define the command for the service
+# TODO manage that in the Ivy module
+
+
+FROM picoquic_rfc9000_panther:latest AS picoquic_client_stage
+
+# Copy files from the service stage to /opt in the final image
+EXPOSE 5000:5000
+EXPOSE 8081:8081
+# Set container working directory
+# WORKDIR "/opt/picoquic"
+
+# Add service-specific environment variables
+ENV ROLE="client"
+ENV UID=${UID}
+ENV GID=${GID}
+
+# # Copy logs and volumes
+# VOLUME /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-12-07_16-39-07/Localhost_QUIC_Client-Server_Communication_Test/logs/picoquic_client:/app/logs
+# # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
+# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
+# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
+# # 
+# Define the command for the service
+# TODO manage that in the Ivy module
+
+
+
+# Final stage
+FROM localhost_single_container_v1_panther:latest
+WORKDIR /
+ENV DEBIAN_FRONTEND=noninteractive
+USER root
+
+# TODO try to install the packages in the base image and keep them in the final image
+RUN apt-get update && \
+    apt-get install -y build-essential git cmake software-properties-common \
+    openssl libssl-dev pkg-config clang python3 net-tools tcpdump \
+    apt-utils  wireshark tshark  libcap2-bin traceroute \
+    iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils iperf 
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common
+
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG USER_N=elniak
+
+RUN addgroup --gid ${USER_GID} ${USER_N} && \
+    adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
+    usermod -aG wireshark ${USER_N}
+
+
+COPY --from=picoquic_server_stage /opt /opt/picoquic_server
+COPY --from=picoquic_client_stage /opt /opt/picoquic_client
+
+
+ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
+
+ADD run.generated.sh /run.sh
+ENV RUST_BACKTRACE=1
+RUN chmod +x /run.sh
+ENTRYPOINT [ "/bin/sh", "-c", "./run.sh > /app/logs/localhost_stdout.log 2> /app/logs/localhost_stderr.log" ]

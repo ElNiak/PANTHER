@@ -258,6 +258,7 @@ class TestCase(ITestCase):
                 pass
             if step_name == "wait":
                 # TODO assert that wait is >= timeout of the services
+                # TODO stop the wait if the services are not failding/ending
                 duration = step_details.get("duration", 0)
                 self.logger.info(f"Executing step 'wait' for {duration} seconds.")
                 import time

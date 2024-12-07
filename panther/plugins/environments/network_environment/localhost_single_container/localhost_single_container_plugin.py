@@ -10,30 +10,30 @@ import yaml
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 
-class ShadowNsEnvironment(INetworkEnvironment):
+class LocalhostSingleContainerEnvironment(INetworkEnvironment):
     def __init__(
         self,
         config_path: str,
         output_dir: str,
         environment_settings: Dict[str,Any],
         network_driver: str = "bridge",
-        templates_dir: str = "plugins/environments/network_environment/shadow_ns",
+        templates_dir: str = "plugins/environments/network_environment/localhost_single_container",
     ):
-        self.logger = logging.getLogger("ShadowNsEnvironment")
+        self.logger = logging.getLogger("LocalhostSingleContainerEnvironment")
         self.services_network_config_file_path = os.path.join(
             os.getcwd(),
             "plugins",
             "environments",
             "network_environment",
-            "shadow_ns",
-            "shadow.generated.yml",
+            "localhost_single_container",
+            "run.generated.sh",
         )
         self.services_docker_config_file_path = os.path.join(
             os.getcwd(),
             "plugins",
             "environments",
             "network_environment",
-            "shadow_ns",
+            "localhost_single_container",
             "Dockerfile.generated",
         )
         self.config_path = config_path
@@ -46,19 +46,19 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.output_dir = output_dir
         self.log_dirs = os.path.join(self.output_dir, "logs")
         
-        self.rendered_shadow_conf_path = os.path.join(
-            self.output_dir, "shadow.yml"
+        self.rendered_localhost_conf_path = os.path.join(
+            self.output_dir, "run.sh"
         )
-        self.shadow_conf_path = Path(self.services_network_config_file_path)
+        self.localhost_conf_path = Path(self.services_network_config_file_path)
         
-        self.rendered_shadow_docker_path = os.path.join(
+        self.rendered_localhost_docker_path = os.path.join(
             self.output_dir, "Dockerfile.experience"
         )
-        self.shadow_docker_path = Path(self.services_docker_config_file_path)
+        self.localhost_docker_path = Path(self.services_docker_config_file_path)
         
         self.docker_version = "v1"
         self.environment_settings = environment_settings
-        self.docker_name = "shadow_"
+        self.docker_name = "localhost_"
         
         self.services = {}
         self.deployment_commands = {}
@@ -82,13 +82,13 @@ class ShadowNsEnvironment(INetworkEnvironment):
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_shadow_conf_path": self.rendered_shadow_conf_path,
-            "shadow_conf_path": str(self.shadow_conf_path),
+            "rendered_localhost_conf_path": self.rendered_localhost_conf_path,
+            "localhost_conf_path": str(self.localhost_conf_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
-        return f"ShadowNsEnvironment({attributes})"
+        return f"LocalhostSingleContainerEnvironment({attributes})"
     
     def __repr__(self):
         attributes = {
@@ -99,13 +99,13 @@ class ShadowNsEnvironment(INetworkEnvironment):
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_shadow_conf_path": self.rendered_shadow_conf_path,
-            "shadow_conf_path": str(self.shadow_conf_path),
+            "rendered_localhost_conf_path": self.rendered_localhost_conf_path,
+            "localhost_conf_path": str(self.localhost_conf_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
-        return f"ShadowNsEnvironment({attributes})"
+        return f"LocalhostSingleContainerEnvironment({attributes})"
     
     def load_config(self) -> dict:
         """
@@ -140,9 +140,9 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         Prepare the service manager for use.
         """
-        self.logger.info("Preparing Shadow NS service manager...")
+        self.logger.info("Preparing Localhost service manager...")
         # Additional setup can be implemented here
-        plugin_loader.build_docker_image("shadow_ns", self.docker_version)
+        plugin_loader.build_docker_image("localhost_single_container", self.docker_version)
         self.plugin_loader = plugin_loader
         
         
@@ -171,7 +171,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
     ):
         """
-        Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
+        Sets up the Localhost environment by generating the run.sh file with deployment commands.
 
         :param services: Dictionary of services with their configurations.
         :param deployment_info: Dictionary containing commands and volumes for each service.
@@ -182,11 +182,11 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.deployment_info      = deployment_info
         
         self.logger.debug(
-            f"Setting up Shadow NS environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}"
+            f"Setting up Localhost environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}"
         )
         self.prepare(plugin_loader)
-        self.generate_shadow_ns(paths=paths, timestamp=timestamp)
-        self.logger.info("Shadow NS environment setup complete")
+        self.generate_localhost_single_container(paths=paths, timestamp=timestamp)
+        self.logger.info("Localhost environment setup complete")
     
     def resolve_environment_variables(self, env_vars):
         """
@@ -224,23 +224,19 @@ class ShadowNsEnvironment(INetworkEnvironment):
     def deploy_services(self):
         self.logger.info("Deploying services")
         # self.prepare_tester() # TODO
-        self.launch_shadow_ns()
-        
-    def retrieve_binaries(self):
-        self.logger.info("Retrieving binaries")
-        raise NotImplementedError("Method not implemented - In another module FOR NOW")
+        self.launch_localhost_single_container()
         
 
-    def generate_shadow_ns(self, paths: Dict[str, str], timestamp: str):
+    def generate_localhost_single_container(self, paths: Dict[str, str], timestamp: str):
         """
-        Generates the shadow.yml file using the provided services and deployment commands.
+        Generates the run.sh file using the provided services and deployment commands.
 
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
         # TODO add timeout in the test config
-        # TODO check that the implementaion is compatible with shadow (in config file)
-        # TODo moodify the shadow template to add the timeout also add folder for each service to be added in the multi stage
+        # TODO check that the implementaion is compatible with localhost (in config file)
+        # TODo moodify the localhost template to add the timeout also add folder for each service to be added in the multi stage
         try:
             # Ensure the log directory for each service exists
             for service_name, service in self.services.items():
@@ -250,29 +246,26 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     self.logger.info(f"Created log directory: {log_dir}")
                 self.docker_name = self.docker_name + service_name + "_"
                 additional_command = ""
+                self.deployment_info[service_name]["timeout"] = self.timeout
                 if "ivy" in service_name:
                     # TODO make it more generic
                     self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("eth0", "lo")
                     if service["role"] == "client":
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "184549377")
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "184549378")
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "0x7f000001")
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "0x7f000001")
                     else:
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "184549378")
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "184549377")
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "0x7f000001")
+                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "0x7f000001")
                 else:
                     for other_service_name in self.services.keys():
                         if other_service_name != service_name:
-                            self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace(service_name, service_name.replace("_", ".")) #.replace("-e eth0", "")
+                            self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace(service_name, "127.0.0.1").replace("eth0", "lo")
                             # self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace("/opt/certs", "/opt/"+ service_name + "/certs")
             
-            for service_name, service in self.services.items():
-                if "environment" in self.deployment_info[service_name]:
-                    self.deployment_info[service_name]["environment"] = self.resolve_environment_variables(self.deployment_info[service_name]["environment"])
-                    self.deployment_info[service_name]["environment"]["SHADOW_TEST"] = "1"
-                    
+          
             
             self.logger.debug(f"Resolved environment deployment_info: {self.deployment_info}")
-            template = self.jinja_env.get_template("shadow-template.jinja")
+            template = self.jinja_env.get_template("run.sh.jinja")
             rendered = template.render(
                 services=self.services,
                 deployment_info=self.deployment_info,
@@ -283,18 +276,18 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 environment_settings=self.environment_settings # TODO
             )
             
-            # Write the rendered content to shadow.generated.yml
-            with open(self.shadow_conf_path, "w") as f:
+            # Write the rendered content to run.generated.sh
+            with open(self.localhost_conf_path, "w") as f:
                 f.write(rendered)
                 
-            with open(self.rendered_shadow_conf_path, "w") as f:
+            with open(self.rendered_localhost_conf_path, "w") as f:
                 f.write(rendered)
                 
             self.logger.info(
-                f"Shadow NS file generated at '{self.shadow_conf_path}'"
+                f"Localhost file generated at '{self.localhost_conf_path}'"
             )
             
-            self.logger.info("Shadow NS based environment manager prepared.")
+            self.logger.info("Localhost based environment manager prepared.")
             # Define docker container for experience 
             template = self.jinja_env.get_template("Dockerfile.experience.jinja")
             rendered = template.render(
@@ -302,49 +295,49 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 paths=paths,
                 timestamp=timestamp,
                 deployment_info=self.deployment_info,
-                shadow_ns_config_file=self.shadow_conf_path.name,
+                localhost_single_container_config_file=self.localhost_conf_path.name,
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
             )
             
-            # Write the rendered content to shadow.generated.yml
-            with open(self.shadow_docker_path, "w") as f:
+            # Write the rendered content to run.generated.sh
+            with open(self.localhost_docker_path, "w") as f:
                 f.write(rendered)
                 
-            with open(self.rendered_shadow_docker_path, "w") as f:
+            with open(self.rendered_localhost_docker_path, "w") as f:
                 f.write(rendered)
                 
             self.logger.info(
-                f"Shadow NS file generated at '{self.shadow_conf_path}'"
+                f"Localhost file generated at '{self.localhost_conf_path}'"
             )
             
-            self.docker_name = self.plugin_loader.build_docker_image_from_path(self.shadow_docker_path,
+            self.docker_name = self.plugin_loader.build_docker_image_from_path(self.localhost_docker_path,
                                                             self.docker_name,
                                                             self.docker_version)
             self.docker_name = self.docker_name.split(':')[0]
             
         except Exception as e:
             self.logger.error(
-                f"Failed to generate Shadow NS file: {e}\n{traceback.format_exc()}"
+                f"Failed to generate Localhost file: {e}\n{traceback.format_exc()}"
             )
             exit(1)
 
-    def launch_shadow_ns(self):
+    def launch_localhost_single_container(self):
         """
-        Launches the Shadow NS environment using the generated shadow.yml file.
+        Launches the Localhost environment using the generated run.sh file.
         """
         # TODO use docker_builder module
         try:
             with open(
-                os.path.join(self.output_dir, "logs", "shadow.log"), "w"
+                os.path.join(self.output_dir, "logs", "localhost.log"), "w"
             ) as log_file:
                 with open(
-                    os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
+                    os.path.join(self.output_dir, "logs", "localhost.err.log"), "w"
                 ) as log_file_err:
                     volumes = []
                     volumes.append("-v")
-                    volumes.append(f"{os.path.abspath(self.log_dirs+'/shadow')}:/app/logs/")
+                    volumes.append(f"{os.path.abspath(self.log_dirs+'/localhost')}:/app/logs/")
                     for service_name, service in self.services.items():
                         for volume in self.deployment_info[service_name]['volumes']:
                             volumes.append("-v")
@@ -358,12 +351,9 @@ class ShadowNsEnvironment(INetworkEnvironment):
                             "run",
                             "--rm",
                             "-d",
+                            "--privileged",
                             "--sysctl",
                             "net.ipv6.conf.all.disable_ipv6=1",
-                            "--security-opt",
-                            "seccomp=unconfined",
-                            "--shm-size=1024g",
-                            "--privileged",
                             "--name",
                             self.docker_name,
                             *volumes,
@@ -386,17 +376,17 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     # Write both stdout and stderr to the log file
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
-                    # TODO shadow.data
-                self.logger.info("Shadow NS environment launched successfully.")
+                    # TODO localhost.data
+                self.logger.info("Localhost environment launched successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(
-                f"Failed to launch Shadow NS environment: {e.stderr}"
+                f"Failed to launch Localhost environment: {e.stderr}"
             )
             with open(
-                os.path.join(self.output_dir, "logs", "shadow.log"), "w"
+                os.path.join(self.output_dir, "logs", "localhost.log"), "w"
             ) as log_file:
                 with open(
-                    os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
+                    os.path.join(self.output_dir, "logs", "localhost.err.log"), "w"
                 ) as log_file_err:
                     log_file.write(e.stdout)
                     log_file_err.write(e.stderr)
@@ -404,15 +394,15 @@ class ShadowNsEnvironment(INetworkEnvironment):
 
     def teardown_environment(self):
         """
-        Tears down the Shadow NS environment by bringing down services.
+        Tears down the Localhost environment by bringing down services.
         """
         # TODO: add a way to retrieve the logs, results, binary
-        self.logger.info("Tearing down Shadow NS environment")
+        self.logger.info("Tearing down Localhost environment")
         with open(
-            os.path.join(self.output_dir, "logs", "shadow-teardown.log"), "w"
+            os.path.join(self.output_dir, "logs", "localhost-teardown.log"), "w"
         ) as log_file:
             with open(
-                os.path.join(self.output_dir, "logs", "shadow-teardown.err.log"), "w"
+                os.path.join(self.output_dir, "logs", "localhost-teardown.err.log"), "w"
             ) as log_file_err:
                 try:
                     # Remove the docker image after execution
@@ -429,23 +419,23 @@ class ShadowNsEnvironment(INetworkEnvironment):
                    
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
-                    self.logger.info("Shadow NS environment torn down successfully")
+                    self.logger.info("Localhost environment torn down successfully")
                 except subprocess.CalledProcessError as e:
                     self.logger.error(
-                        f"Failed to tear down Shadow NS environment: {e.stderr}"
+                        f"Failed to tear down Localhost environment: {e.stderr}"
                     )
                     raise e
 
-    def read_shadow_file(self) -> Dict[str, Any]:
+    def read_localhost_file(self) -> Dict[str, Any]:
         """
-        Reads the generated shadow.yml file.
+        Reads the generated run.sh file.
         """
         if not os.path.exists(self.services_network_config_file_path):
             self.logger.error(
-                f"Shadow NS file '{self.services_network_config_file_path}' does not exist."
+                f"Localhost file '{self.services_network_config_file_path}' does not exist."
             )
             raise FileNotFoundError(
-                f"Shadow NS file '{self.services_network_config_file_path}' does not exist."
+                f"Localhost file '{self.services_network_config_file_path}' does not exist."
             )
 
         with open(self.services_network_config_file_path, "r") as compose_file:

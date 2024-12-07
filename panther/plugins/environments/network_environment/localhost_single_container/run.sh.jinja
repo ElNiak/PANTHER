@@ -1,0 +1,81 @@
+#!/bin/bash
+set -e
+
+# Setup logging directory
+mkdir -p /app/logs
+{% for service_name, service in services.items() %}
+mkdir -p /app/logs/{{ service_name }}
+echo "Initializing {{ service_name }} logs..." > /app/logs/{{ service_name }}/stdout.log
+echo "Initializing {{ service_name }} logs..." > /app/logs/{{ service_name }}/stderr.log
+{% endfor %}
+
+# Define helper functions
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> /app/logs/combined.log
+}
+
+start_pcap() {
+  local interface=$1
+  local output=$2
+  local duration=$3
+  tshark -i "$interface" -a duration:"$duration" -w "$output" &
+  echo $!
+}
+
+# TODO add loop for multiple iterations
+
+set_environment() {
+  {% for service_name, service in services.items() %}
+  log "Setting environment for {{ service_name }}..."
+  export ROLE="{{ service.role }}"
+  {% if "environment" in deployment_info[service_name] %}
+  {% for key, value in deployment_info[service_name]["environment"].items() %}
+  export {{ key }}="{{ value }}"
+  {% endfor %}
+  {% endif %}
+  {% endfor %}
+}
+
+# Initialize environment variables
+log "Setting up environment variables..."
+set_environment
+
+# Start PCAP recording for each service
+log "Starting PCAP recording..."
+{% for service_name, service in services.items() %}
+start_pcap "lo" "/app/logs/{{ service_name }}/pcap_pkt.pcap" {{ deployment_info.get(service_name, {}).get('timeout', 50) }}
+{% endfor %}
+
+
+# Start all services
+log "Starting all services..."
+{% for service_name, service in services.items() %}
+log "Starting {{ service_name }}..."
+(
+    {% if service.role == "client" %}
+    sleep 5  # Delay to ensure server is ready
+    {% endif %}
+    {% if not service.type == "tester" %}
+    {% set replacement_path = '/opt/' ~ service_name ~ '/' %}
+    {% else %}
+    {% set replacement_path = '/opt/'%}
+    {% endif %}
+    cd {{ deployment_info[service_name]['working_dir'] | replace('/opt/', replacement_path) }}
+    {% if "ivy" in service_name %}
+    timeout  {{ deployment_info.get(service_name, {}).get('timeout', 50) }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }} \
+      >> /app/logs/{{ service_name }}/stdout.log \
+      2>> /app/logs/{{ service_name }}/stderr.log
+    {% else %}
+    timeout  {{ deployment_info.get(service_name, {}).get('timeout', 50) }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }} \
+      >> /app/logs/{{ service_name }}/stdout.log \
+      2>> /app/logs/{{ service_name }}/stderr.log
+    {% endif %}
+    log "{{ service_name }} completed successfully."
+) &
+{% endfor %}
+
+# Wait for all services to finish
+log "Waiting for services to complete..."
+wait
+
+log "All services have completed."
