@@ -1,9 +1,9 @@
 # panther_core/plugins/minip/plugin.py
 
-from plugins.services.implementations.protocol_interface import IProtocolPlugin
+from plugins.services.services_interface import IServiceManager
 from plugins.services.implementations.minip.ping_pong.service_manager import PingPongServiceManager
 
-class QuicProtocolPlugin(IProtocolPlugin):
+class QuicProtocolPlugin(IServiceManager):
     def __init__(self):
         self.service_managers = {}
     

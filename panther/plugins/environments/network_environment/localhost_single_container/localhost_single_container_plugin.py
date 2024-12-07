@@ -16,74 +16,50 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         config_path: str,
         output_dir: str,
         environment_settings: Dict[str,Any],
-        network_driver: str = "bridge",
-        templates_dir: str = "plugins/environments/network_environment/localhost_single_container",
+        type: str,
+        sub_type: str,
     ):
-        self.logger = logging.getLogger("LocalhostSingleContainerEnvironment")
-        self.services_network_config_file_path = os.path.join(
-            os.getcwd(),
-            "plugins",
-            "environments",
-            "network_environment",
-            "localhost_single_container",
-            "run.generated.sh",
-        )
-        self.services_docker_config_file_path = os.path.join(
-            os.getcwd(),
-            "plugins",
-            "environments",
-            "network_environment",
-            "localhost_single_container",
-            "Dockerfile.generated",
-        )
-        self.config_path = config_path
-        self.config = self.load_config()
-        # TODO: self.validate_config()
-        
-        self.network_name = "quic_network_dynamic"
-        self.network_driver = network_driver
-        self.templates_dir = templates_dir
-        self.output_dir = output_dir
-        self.log_dirs = os.path.join(self.output_dir, "logs")
-        
-        self.rendered_localhost_conf_path = os.path.join(
-            self.output_dir, "run.sh"
-        )
-        self.localhost_conf_path = Path(self.services_network_config_file_path)
-        
-        self.rendered_localhost_docker_path = os.path.join(
-            self.output_dir, "Dockerfile.experience"
-        )
-        self.localhost_docker_path = Path(self.services_docker_config_file_path)
+        super().__init__(config_path, output_dir, environment_settings, type, sub_type)
         
         self.docker_version = "v1"
         self.environment_settings = environment_settings
         self.docker_name = "localhost_"
         
-        self.services = {}
-        self.deployment_commands = {}
-        self.timeout = 60
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
-        self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
-        self.jinja_env.trim_blocks   = True
-        self.jinja_env.lstrip_blocks = True
+        self.services_network_config_file_path = Path(os.path.join(
+            os.getcwd(),
+            "plugins",
+            "environments",
+            type,
+            sub_type,
+            "run.generated.sh",
+        ))
+        self.rendered_services_network_config_file_path = Path(os.path.join(
+            self.output_dir, f"run.sh"
+        ))
         
-        self.plugin_loader = None # TODO ?
+        self.services_network_docker_file_path = Path(os.path.join(
+            os.getcwd(),
+            "plugins",
+            "environments",
+            type,
+            sub_type,
+            "Dockerfile.generated",
+        ))
+        self.rendered_services_network_docker_file_path = Path(os.path.join(
+            self.output_dir, "Dockerfile.experience"
+        ))
         
-        self.source_dir = "/opt/panther"
 
     def __str__(self):
         attributes = {
             "config_path": self.config_path,
             "output_dir": self.output_dir,
-            "network_driver": self.network_driver,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_localhost_conf_path": self.rendered_localhost_conf_path,
-            "localhost_conf_path": str(self.localhost_conf_path),
+            "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
+            "services_network_config_file_path": str(self.services_network_config_file_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
@@ -94,13 +70,12 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         attributes = {
             "config_path": self.config_path,
             "output_dir": self.output_dir,
-            "network_driver": self.network_driver,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_localhost_conf_path": self.rendered_localhost_conf_path,
-            "localhost_conf_path": str(self.localhost_conf_path),
+            "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
+            "services_network_config_file_path": str(self.services_network_config_file_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
@@ -168,7 +143,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
 
     def setup_environment(
         self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
-        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
+        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader, execution_environment: List[IExecutionEnvironment]
     ):
         """
         Sets up the Localhost environment by generating the run.sh file with deployment commands.
@@ -185,7 +160,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             f"Setting up Localhost environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}"
         )
         self.prepare(plugin_loader)
-        self.generate_localhost_single_container(paths=paths, timestamp=timestamp)
+        self.generate_environment_services(paths=paths, timestamp=timestamp)
         self.logger.info("Localhost environment setup complete")
     
     def resolve_environment_variables(self, env_vars):
@@ -227,7 +202,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         self.launch_localhost_single_container()
         
 
-    def generate_localhost_single_container(self, paths: Dict[str, str], timestamp: str):
+    def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
         """
         Generates the run.sh file using the provided services and deployment commands.
 
@@ -278,14 +253,14 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             )
             
             # Write the rendered content to run.generated.sh
-            with open(self.localhost_conf_path, "w") as f:
+            with open(self.services_network_config_file_path, "w") as f:
                 f.write(rendered)
                 
-            with open(self.rendered_localhost_conf_path, "w") as f:
+            with open(self.rendered_services_network_config_file_path, "w") as f:
                 f.write(rendered)
                 
             self.logger.info(
-                f"Localhost file generated at '{self.localhost_conf_path}'"
+                f"Localhost file generated at '{self.services_network_config_file_path}'"
             )
             
             self.logger.info("Localhost based environment manager prepared.")
@@ -296,24 +271,24 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                 paths=paths,
                 timestamp=timestamp,
                 deployment_info=self.deployment_info,
-                localhost_single_container_config_file=self.localhost_conf_path.name,
+                localhost_single_container_config_file=self.services_network_config_file_path.name,
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
             )
             
             # Write the rendered content to run.generated.sh
-            with open(self.localhost_docker_path, "w") as f:
+            with open(self.services_network_docker_file_path, "w") as f:
                 f.write(rendered)
                 
-            with open(self.rendered_localhost_docker_path, "w") as f:
+            with open(self.rendered_services_network_docker_file_path, "w") as f:
                 f.write(rendered)
                 
             self.logger.info(
-                f"Localhost file generated at '{self.localhost_conf_path}'"
+                f"Localhost file generated at '{self.services_network_config_file_path}'"
             )
             
-            self.docker_name = self.plugin_loader.build_docker_image_from_path(self.localhost_docker_path,
+            self.docker_name = self.plugin_loader.build_docker_image_from_path(self.services_network_docker_file_path,
                                                             self.docker_name,
                                                             self.docker_version)
             self.docker_name = self.docker_name.split(':')[0]

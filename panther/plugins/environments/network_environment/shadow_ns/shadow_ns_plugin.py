@@ -4,171 +4,108 @@ import socket
 import subprocess
 import logging
 import traceback
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
+from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
-from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
+from plugins.environments.network_environment.network_environment_interface import (
+    INetworkEnvironment,
+)
+
 
 class ShadowNsEnvironment(INetworkEnvironment):
     def __init__(
         self,
         config_path: str,
         output_dir: str,
-        environment_settings: Dict[str,Any],
-        network_driver: str = "bridge",
-        templates_dir: str = "plugins/environments/network_environment/shadow_ns",
+        environment_settings: Dict[str, Any],
+        type: str,
+        sub_type: str,
     ):
-        self.logger = logging.getLogger("ShadowNsEnvironment")
-        self.services_network_config_file_path = os.path.join(
-            os.getcwd(),
-            "plugins",
-            "environments",
-            "network_environment",
-            "shadow_ns",
-            "shadow.generated.yml",
-        )
-        self.services_docker_config_file_path = os.path.join(
-            os.getcwd(),
-            "plugins",
-            "environments",
-            "network_environment",
-            "shadow_ns",
-            "Dockerfile.generated",
-        )
-        self.config_path = config_path
-        self.config = self.load_config()
-        # TODO: self.validate_config()
-        
-        self.network_name = "quic_network_dynamic"
-        self.network_driver = network_driver
-        self.templates_dir = templates_dir
-        self.output_dir = output_dir
-        self.log_dirs = os.path.join(self.output_dir, "logs")
-        
-        self.rendered_shadow_conf_path = os.path.join(
-            self.output_dir, "shadow.yml"
-        )
-        self.shadow_conf_path = Path(self.services_network_config_file_path)
-        
-        self.rendered_shadow_docker_path = os.path.join(
-            self.output_dir, "Dockerfile.experience"
-        )
-        self.shadow_docker_path = Path(self.services_docker_config_file_path)
-        
+        super().__init__(config_path, output_dir, environment_settings, type, sub_type)
+
         self.docker_version = "v1"
-        self.environment_settings = environment_settings
         self.docker_name = "shadow_"
         
-        self.services = {}
-        self.deployment_commands = {}
-        self.timeout = 60
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
-        self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
-        self.jinja_env.trim_blocks   = True
-        self.jinja_env.lstrip_blocks = True
+        self.services_network_config_file_path = Path(os.path.join(
+            os.getcwd(),
+            "plugins",
+            "environments",
+            type,
+            sub_type,
+            f"{sub_type}.generated.yml",
+        ))
+        self.rendered_services_network_config_file_path = Path(os.path.join(
+            self.output_dir, f"{sub_type}.yml"
+        ))
         
-        self.plugin_loader = None # TODO ?
-        
-        self.source_dir = "/opt/panther"
+        self.services_network_docker_file_path = Path(os.path.join(
+            os.getcwd(),
+            "plugins",
+            "environments",
+            type,
+            sub_type,
+            "Dockerfile.generated",
+        ))
+        self.rendered_services_network_docker_file_path = Path(os.path.join(
+            self.output_dir, "Dockerfile.experience"
+        ))
 
     def __str__(self):
         attributes = {
             "config_path": self.config_path,
             "output_dir": self.output_dir,
-            "network_driver": self.network_driver,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_shadow_conf_path": self.rendered_shadow_conf_path,
-            "shadow_conf_path": str(self.shadow_conf_path),
+            "rendered_shadow_conf_path": self.rendered_services_network_config_file_path,
+            "shadow_conf_path": str(self.services_network_config_file_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
         return f"ShadowNsEnvironment({attributes})"
-    
+
     def __repr__(self):
         attributes = {
             "config_path": self.config_path,
             "output_dir": self.output_dir,
-            "network_driver": self.network_driver,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_shadow_conf_path": self.rendered_shadow_conf_path,
-            "shadow_conf_path": str(self.shadow_conf_path),
+            "rendered_shadow_conf_path": self.rendered_services_network_config_file_path,
+            "shadow_conf_path": str(self.services_network_config_file_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
         return f"ShadowNsEnvironment({attributes})"
-    
-    def load_config(self) -> dict:
-        """
-        Loads the YAML configuration file.
-        """
-        config_file = Path(self.config_path)
-        if not config_file.exists():
-            self.logger.error(
-                f"Configuration file '{self.config_path}' does not exist."
-            )
-            return {}
-        try:
-            with open(config_file, "r") as f:
-                config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.config_path}'")
-            return config
-        except Exception as e:
-            self.logger.error(
-                f"Failed to load configuration: {e}\n{traceback.format_exc()}"
-            )
-            return {}
-        
-    def build_images(self):
-        """
-        Builds Docker images for all implementations.
-        """
-        self.logger.info("Building Docker images for all implementations")
-        self.logger.info("Docker images built successfully")
-        raise NotImplementedError("Method not implemented - In another module FOR NOW")
 
-    def prepare(self,plugin_loader: Optional[PluginLoader] = None):
+    def parse_gml(self, gml_file: str):
+        """
+        Parses the GML file and returns the graph.
+        Future: Try to make that format general ?
+        """
+        raise NotImplementedError
+    
+    def prepare_environment(self):
         """
         Prepare the service manager for use.
         """
         self.logger.info("Preparing Shadow NS service manager...")
-        # Additional setup can be implemented here
-        plugin_loader.build_docker_image("shadow_ns", self.docker_version)
-        self.plugin_loader = plugin_loader
+        self.plugin_loader.build_docker_image("shadow_ns", self.docker_version)
         
-        
-    def is_port_free(self, port: int) -> bool:
-        """
-        Checks if a given port is free on the host.
-        """
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(("localhost", port)) != 0
-
-    def find_free_port(
-        self, start_port: int = 5000, end_port: int = 6000, assigned_ports: set = None
-    ) -> int:
-        """
-        Finds a free port within the specified range.
-        """
-        for port in range(start_port, end_port):
-            if self.is_port_free(port) and (
-                assigned_ports is None or port not in assigned_ports
-            ):
-                return port
-        raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
-
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
-        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
+        self,
+        services: Dict[str, Dict[str, Any]],
+        deployment_info: Dict[str, Dict[str, Any]],
+        paths: Dict[str, str],
+        timestamp: str,
+        plugin_loader: PluginLoader,
+        execution_environment: List[IExecutionEnvironment],
     ):
         """
         Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
@@ -178,60 +115,27 @@ class ShadowNsEnvironment(INetworkEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
-        self.services             = services
-        self.deployment_info      = deployment_info
-        
-        self.logger.debug(
-            f"Setting up Shadow NS environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}"
-        )
-        self.prepare(plugin_loader)
-        self.generate_shadow_ns(paths=paths, timestamp=timestamp)
+        self.services = services
+        self.deployment_info = deployment_info
+        self.execution_environments = execution_environment
+        self.plugin_loader = plugin_loader
+
+        self.logger.debug(f"Setting up Shadow NS environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}")
+        self.prepare_environment()
+        self.generate_environment_services(paths=paths, timestamp=timestamp)
         self.logger.info("Shadow NS environment setup complete")
-    
-    def resolve_environment_variables(self, env_vars):
-        """
-        Resolves environment variables incrementally, ensuring no duplication
-        and preserving unresolved tokens. Processes variables in dependency order.
-
-        :param env_vars: dict, environment variables with potential references.
-        :return: dict, resolved environment variables.
-        """
-        resolved_env = {}
-
-        self.logger.debug("Initial environment variables:")
-        for k, v in env_vars.items():
-            self.logger.debug(f"{k}: {v}")
-
-        for key, value in env_vars.items():
-            if isinstance(value, str):
-                resolved_value = value
-                self.logger.debug(f"Resolving variable: {key} - Original value: {value}")
-                for var_name, var_value in resolved_env.items():  # Use already resolved variables
-                    if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
-                        resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
-                        resolved_value = resolved_value.replace(f"${var_name}", var_value)
-                        self.logger.debug(f"Replaced ${var_name} in {key} with {var_value}")
-                resolved_value = resolved_value.replace('$', '$$')
-                resolved_env[key] = resolved_value
-
-        self.logger.debug("Final resolved environment variables without duplication:")
-        for k, v in resolved_env.items():
-            self.logger.debug(f"{k}: {v}")
-
-        return resolved_env
 
 
     def deploy_services(self):
         self.logger.info("Deploying services")
         # self.prepare_tester() # TODO
-        self.launch_shadow_ns()
-        
+        self.launch_environment_services()
+
     def retrieve_binaries(self):
         self.logger.info("Retrieving binaries")
         raise NotImplementedError("Method not implemented - In another module FOR NOW")
-        
 
-    def generate_shadow_ns(self, paths: Dict[str, str], timestamp: str):
+    def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
         """
         Generates the shadow.yml file using the provided services and deployment commands.
 
@@ -252,26 +156,57 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 additional_command = ""
                 if "ivy" in service_name:
                     # TODO make it more generic
-                    self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("eth0", "lo")
+                    self.deployment_info[service_name]["args"] = self.deployment_info[
+                        service_name
+                    ]["args"].replace("eth0", "lo")
                     if service["role"] == "client":
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "184549377")
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "184549378")
+                        self.deployment_info[service_name]["args"] = (
+                            self.deployment_info[service_name]["args"].replace(
+                                "$$TARGET_IP_HEX", "184549377"
+                            )
+                        )
+                        self.deployment_info[service_name]["args"] = (
+                            self.deployment_info[service_name]["args"].replace(
+                                "$$IVY_IP_HEX", "184549378"
+                            )
+                        )
                     else:
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$TARGET_IP_HEX", "184549378")
-                        self.deployment_info[service_name]["args"] = self.deployment_info[service_name]["args"].replace("$$IVY_IP_HEX", "184549377")
+                        self.deployment_info[service_name]["args"] = (
+                            self.deployment_info[service_name]["args"].replace(
+                                "$$TARGET_IP_HEX", "184549378"
+                            )
+                        )
+                        self.deployment_info[service_name]["args"] = (
+                            self.deployment_info[service_name]["args"].replace(
+                                "$$IVY_IP_HEX", "184549377"
+                            )
+                        )
                 else:
                     for other_service_name in self.services.keys():
                         if other_service_name != service_name:
-                            self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace(service_name, service_name.replace("_", ".")) #.replace("-e eth0", "")
+                            self.deployment_info[other_service_name][
+                                "args"
+                            ] = self.deployment_info[other_service_name][
+                                "args"
+                            ].replace(
+                                service_name, service_name.replace("_", ".")
+                            )  # .replace("-e eth0", "")
                             # self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace("/opt/certs", "/opt/"+ service_name + "/certs")
-            
+
             for service_name, service in self.services.items():
                 if "environment" in self.deployment_info[service_name]:
-                    self.deployment_info[service_name]["environment"] = self.resolve_environment_variables(self.deployment_info[service_name]["environment"])
-                    self.deployment_info[service_name]["environment"]["SHADOW_TEST"] = "1"
-                    
-            
-            self.logger.debug(f"Resolved environment deployment_info: {self.deployment_info}")
+                    self.deployment_info[service_name]["environment"] = (
+                        self.resolve_environment_variables(
+                            self.deployment_info[service_name]["environment"]
+                        )
+                    )
+                    self.deployment_info[service_name]["environment"][
+                        "SHADOW_TEST"
+                    ] = "1"
+
+            self.logger.debug(
+                f"Resolved environment deployment_info: {self.deployment_info}"
+            )
             template = self.jinja_env.get_template("shadow-template.jinja")
             rendered = template.render(
                 services=self.services,
@@ -280,57 +215,53 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 timestamp=timestamp,
                 log_dir=self.log_dirs,
                 experiment_name=self.output_dir.split("/")[-1],
-                environment_settings=self.environment_settings # TODO
+                environment_settings=self.environment_settings,  # TODO
             )
-            
+
             # Write the rendered content to shadow.generated.yml
-            with open(self.shadow_conf_path, "w") as f:
+            with open(self.services_network_config_file_path, "w") as f:
                 f.write(rendered)
-                
-            with open(self.rendered_shadow_conf_path, "w") as f:
+
+            with open(self.rendered_services_network_config_file_path, "w") as f:
                 f.write(rendered)
-                
-            self.logger.info(
-                f"Shadow NS file generated at '{self.shadow_conf_path}'"
-            )
-            
+
+            self.logger.info(f"Shadow NS file generated at '{self.services_network_config_file_path}'")
+
             self.logger.info("Shadow NS based environment manager prepared.")
-            # Define docker container for experience 
+            # Define docker container for experience
             template = self.jinja_env.get_template("Dockerfile.experience.jinja")
             rendered = template.render(
                 services=self.services,
                 paths=paths,
                 timestamp=timestamp,
                 deployment_info=self.deployment_info,
-                shadow_ns_config_file=self.shadow_conf_path.name,
+                shadow_ns_config_file=self.services_network_config_file_path.name,
                 log_dir=self.log_dirs,
                 additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
             )
-            
+
             # Write the rendered content to shadow.generated.yml
-            with open(self.shadow_docker_path, "w") as f:
+            with open(self.services_network_docker_file_path, "w") as f:
                 f.write(rendered)
-                
-            with open(self.rendered_shadow_docker_path, "w") as f:
+
+            with open(self.rendered_services_network_docker_file_path, "w") as f:
                 f.write(rendered)
-                
-            self.logger.info(
-                f"Shadow NS file generated at '{self.shadow_conf_path}'"
+
+            self.logger.info(f"Shadow NS file Dockerfile generated at '{self.services_network_docker_file_path}'")
+
+            self.docker_name = self.plugin_loader.build_docker_image_from_path(
+                self.services_network_docker_file_path, self.docker_name, self.docker_version
             )
-            
-            self.docker_name = self.plugin_loader.build_docker_image_from_path(self.shadow_docker_path,
-                                                            self.docker_name,
-                                                            self.docker_version)
-            self.docker_name = self.docker_name.split(':')[0]
-            
+            self.docker_name = self.docker_name.split(":")[0]
+
         except Exception as e:
             self.logger.error(
                 f"Failed to generate Shadow NS file: {e}\n{traceback.format_exc()}"
             )
             exit(1)
 
-    def launch_shadow_ns(self):
+    def launch_environment_services(self):
         """
         Launches the Shadow NS environment using the generated shadow.yml file.
         """
@@ -344,33 +275,37 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 ) as log_file_err:
                     volumes = []
                     volumes.append("-v")
-                    volumes.append(f"{os.path.abspath(self.log_dirs+'/shadow')}:/app/logs/")
+                    volumes.append(
+                        f"{os.path.abspath(self.log_dirs+'/shadow')}:/app/logs/"
+                    )
                     for service_name, service in self.services.items():
-                        for volume in self.deployment_info[service_name]['volumes']:
+                        for volume in self.deployment_info[service_name]["volumes"]:
                             volumes.append("-v")
                             if isinstance(volume, dict):
-                                volumes.append(f"{os.path.abspath(volume['local'])}:{volume['container']}")
+                                volumes.append(
+                                    f"{os.path.abspath(volume['local'])}:{volume['container']}"
+                                )
                             else:
                                 volumes.append(f"{volume}")
-                                
+
                     command = [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "-d",
-                            "--sysctl",
-                            "net.ipv6.conf.all.disable_ipv6=1",
-                            "--security-opt",
-                            "seccomp=unconfined",
-                            "--shm-size=1024g",
-                            "--privileged",
-                            "--name",
-                            self.docker_name,
-                            *volumes,
-                            self.docker_name
-                        ]
+                        "docker",
+                        "run",
+                        "--rm",
+                        "-d",
+                        "--sysctl",
+                        "net.ipv6.conf.all.disable_ipv6=1",
+                        "--security-opt",
+                        "seccomp=unconfined",
+                        "--shm-size=1024g",
+                        "--privileged",
+                        "--name",
+                        self.docker_name,
+                        *volumes,
+                        self.docker_name,
+                    ]
                     self.logger.debug(f"Executing command: {' '.join(command)}")
-                    
+
                     result = subprocess.run(
                         command,
                         check=True,
@@ -389,9 +324,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     # TODO shadow.data
                 self.logger.info("Shadow NS environment launched successfully.")
         except subprocess.CalledProcessError as e:
-            self.logger.error(
-                f"Failed to launch Shadow NS environment: {e.stderr}"
-            )
+            self.logger.error(f"Failed to launch Shadow NS environment: {e.stderr}")
             with open(
                 os.path.join(self.output_dir, "logs", "shadow.log"), "w"
             ) as log_file:
@@ -416,8 +349,14 @@ class ShadowNsEnvironment(INetworkEnvironment):
             ) as log_file_err:
                 try:
                     # Remove the docker image after execution
-                    remove_image_command = ["docker", "rmi", f"{self.docker_name}:latest"]
-                    self.logger.debug(f"Executing remove image command: {remove_image_command}")
+                    remove_image_command = [
+                        "docker",
+                        "rmi",
+                        f"{self.docker_name}:latest",
+                    ]
+                    self.logger.debug(
+                        f"Executing remove image command: {remove_image_command}"
+                    )
                     result = subprocess.run(
                         remove_image_command,
                         check=True,
@@ -426,7 +365,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                         text=True,
                     )
                     self.logger.debug(f"Executing command: {remove_image_command}")
-                   
+
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
                     self.logger.info("Shadow NS environment torn down successfully")
@@ -450,4 +389,3 @@ class ShadowNsEnvironment(INetworkEnvironment):
 
         with open(self.services_network_config_file_path, "r") as compose_file:
             return yaml.safe_load(compose_file)
-

@@ -5,23 +5,23 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List
-from plugins.services.implementations.protocol_interface import IProtocolPlugin
+from plugins.services.testers.tester_interface import ITesterManager
+from plugins.services.services_interface import IServiceManager
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.services.implementations.service_manager_interface import IServiceManager
+from plugins.services.implementations.implementation_interface import IImplementationManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
 from plugins.plugin_loader import PluginLoader
-
 
 class PluginManager:
     def __init__(self, plugins_loader: PluginLoader):
         self.plugins_loader = plugins_loader
         self.logger = logging.getLogger("PluginManager")
-        self.protocol_plugins: Dict[str, IProtocolPlugin] = {}
+        self.protocol_plugins: Dict[str, IServiceManager] = {}
         self.network_environment_plugins: Dict[str, INetworkEnvironment] = {}
         self.execution_environment_plugins: Dict[str, IExecutionEnvironment] = {}
 
-    def create_service_manager(self, protocol: str, implementation: str, implementation_dir: Path, protocol_templates_dir: Path) -> IServiceManager:
+    def create_service_manager(self, protocol: str, implementation: str, implementation_dir: Path, protocol_templates_dir: Path) -> IImplementationManager:
         """
         Creates an instance of a service manager based on the protocol and implementation names.
 
@@ -29,9 +29,9 @@ class PluginManager:
         :param implementation: Name of the implementation (e.g., 'picoquic').
         :param implementation_dir: Path to the implementation plugin directory.
         :param protocol_templates_dir: Path to the protocol's templates directory.
-        :return: An instance of IServiceManager.
+        :return: An instance of IImplementationManager.
         """
-        service_manager_path = implementation_dir / "service_manager.py"
+        service_manager_path = implementation_dir / f"{implementation}.py"
         if not service_manager_path.exists():
             self.logger.error(f"Service manager file '{service_manager_path}' does not exist.")
             raise FileNotFoundError(f"Service manager file '{service_manager_path}' not found.")
@@ -44,7 +44,8 @@ class PluginManager:
             spec.loader.exec_module(module)
             class_name = f'{implementation.replace("_", " ").title()}ServiceManager'.replace(" ", "")
             service_manager_class = getattr(module, class_name, None)
-            if service_manager_class and issubclass(service_manager_class, IServiceManager):
+            if service_manager_class and \
+                    (issubclass(service_manager_class, IImplementationManager) or issubclass(service_manager_class, ITesterManager)):
                 implementation_config_path = implementation_dir / "config.yaml"
                 if not implementation_config_path.exists():
                     self.logger.error(f"Implementation configuration file '{implementation_config_path}' does not exist.")
@@ -58,25 +59,11 @@ class PluginManager:
                 self.logger.debug(f"Created instance of '{class_name}'")
                 return instance
             else:
-                self.logger.error(f"Service manager class '{class_name}' not found or does not inherit from IServiceManager.")
+                self.logger.error(f"Service manager class '{class_name}' not found or does not inherit from IImplementationManager.")
                 raise AttributeError(f"Service manager class '{class_name}' not found or invalid.")
         else:
             self.logger.error(f"Cannot load module from '{service_manager_path}'")
             raise ImportError(f"Cannot load module from '{service_manager_path}'")
-
-    def get_implementations_for_protocol(self, protocol_plugin_path: Path) -> List[str]:
-        """
-        Retrieves a list of implementations under a given protocol plugin.
-
-        :param protocol_plugin_path: Path to the protocol plugin directory.
-        :return: List of implementation names.
-        """
-        implementations = []
-        for item in protocol_plugin_path.iterdir():
-            if item.is_dir() and not item.name.startswith('__') and item.name != "templates":
-                implementations.append(item.name)
-        self.logger.debug(f"Found implementations for protocol '{protocol_plugin_path.name}': {implementations}")
-        return implementations
     
     def create_environment_manager(self, environment: str, environment_settings: Dict[str,Any],
                                    environment_dir: Path, output_dir: Path) -> IEnvironmentPlugin:
@@ -109,7 +96,9 @@ class PluginManager:
                 instance = environment_class(
                     config_path=str(environment_config_path),
                     output_dir=str(output_dir),
-                    environment_settings=environment_settings
+                    environment_settings=environment_settings,
+                    type=environment_dir.name,
+                    sub_type=environment
                 )
                 self.logger.debug(f"Created instance of '{class_name}'")
                 return instance
@@ -119,3 +108,5 @@ class PluginManager:
         else:
             self.logger.error(f"Cannot load module from '{environment_plugin_path}'")
             raise ImportError(f"Cannot load module from '{environment_plugin_path}'")
+        
+    

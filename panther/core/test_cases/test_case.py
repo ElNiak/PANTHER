@@ -13,7 +13,7 @@ from core.observer.event_manager import EventManager
 from core.observer.event import Event
 from core.observer.logger_observer import LoggerObserver
 from core.results.result_collector import ResultCollector
-from plugins.services.implementations.service_manager_interface import IServiceManager
+from plugins.services.services_interface import IServiceManager
 from plugins.plugin_manager import PluginManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
 
@@ -29,6 +29,7 @@ class TestCase(ITestCase):
         self.environment_plugin_manager : List[IEnvironmentPlugin] = []
         self.event_manager = event_manager
         self.environments = environment_types
+        self.exectution_environment = []
         self.plugin_manager = plugin_manager
         self.test_experiment_dir = test_experiment_dir
         self.services = test_config.get("services", {})
@@ -53,7 +54,7 @@ class TestCase(ITestCase):
         try:
             self.logger.info(f"Starting Test: {self.test_config.get('name', 'Unnamed Test')}")
             self.logger.info(f"Description:   {self.test_config.get('description', '')}")
-            self.setup_environments()
+            self.setup_test()
             self.deploy_services()
             self.execute_steps()
             self.validate_assertions()
@@ -134,7 +135,7 @@ class TestCase(ITestCase):
         else:
             self.logger.warning(f"Tester plugin not found at '{testers_plugin_path}'. Skipping.")
         
-    def setup_services(self):
+    def setup_implementations(self):
         """
         Initializes protocol managers based on the specified protocols and required implementations.
 
@@ -208,21 +209,50 @@ class TestCase(ITestCase):
 
     def setup_environment(self):
         """Setup the test environment using the plugin."""
+        self.logger.debug(f"Setting up environments '{self.environments}'")
         for type, env in self.environments.items():
-            if env:
-                self.logger.debug(f"Creating environment manager for environment '{env}' with {type}")
-                environment_manager = self.plugin_manager.create_environment_manager(environment=env[0], 
-                                                                                     environment_settings=env[1],
-                                                                                     environment_dir=self.plugin_manager.plugins_loader.plugins_base_dir / "environments" /  f"{type}_environment", 
-                                                                                     output_dir=self.test_experiment_dir)
+            self.logger.debug(f"Setting up environment type '{type}' with environments '{env}'")
+            for environment in self.environments[type]:
+                self.logger.debug(f"Setting up environment '{environment}'")
+                subtype = environment[0]
+                settings = environment[1]
+                environment_dir = self.plugin_manager.plugins_loader.plugins_base_dir / "environments" /  f"{type}_environment"
+                self.logger.debug(f"Creating environment manager for environment '{type}' with {subtype} and settings {settings}")
+                environment_manager = self.plugin_manager.create_environment_manager(environment=subtype, 
+                                                                                    environment_settings=settings,
+                                                                                    environment_dir=environment_dir, 
+                                                                                    output_dir=self.test_experiment_dir)
                 self.environment_plugin_manager.append(environment_manager)
-                self.logger.debug(f"Added environment manager for environment '{env}'")
+                self.logger.debug(f"Added environment manager for environment '{type}'")
+            
+        for env_manager in self.environment_plugin_manager:
+            try:
+                if not env_manager.is_network_environment():
+                    self.exectution_environment.append(env_manager)
+            except Exception as e:
+                self.logger.error(f"Failed to setup environment '{env_manager.__class__.__name__}': {e}")
+                exit()
+        
+        for env_manager in self.environment_plugin_manager:
+            try:
+                if env_manager.is_network_environment():
+                    env_manager.setup_environment(self.services, 
+                                                self.deployment_commands, 
+                                                self.test_config.get('paths', {}), 
+                                                datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+                                                self.plugin_manager.plugins_loader,
+                                                self.exectution_environment)
+                    self.logger.info(f"Environment '{env_manager.__class__.__name__}' setup successfully.")
+                    self.event_manager.notify(Event("environment_setup", {"environment": env_manager}))
+            except Exception as e:
+                self.logger.error(f"Failed to setup environment '{env_manager.__class__.__name__}': {e}")
+                exit()
 
     def teardown_environment(self):
         """Tears down the test environment using the plugin."""
         self.logger.info("Tearing down all environments")
         for env_manager in self.environment_plugin_manager:
-            if hasattr(env_manager, "teardown_environment"):
+            if hasattr(env_manager, "teardown_environment") and env_manager.is_network_environment():
                 try:
                     env_manager.teardown_environment()
                     self.logger.info(f"Environment '{env_manager.__class__.__name__}' torn down successfully.")
@@ -239,9 +269,10 @@ class TestCase(ITestCase):
         self.logger.info("Deploying services through environment managers")
         for env_manager in self.environment_plugin_manager:
             try:
-                env_manager.deploy_services()
-                self.logger.info(f"Services deployed via '{env_manager.__class__.__name__}'")
-                self.event_manager.notify(Event("services_deployed", {"environment": env_manager}))
+                if env_manager.is_network_environment():
+                    env_manager.deploy_services()
+                    self.logger.info(f"Services deployed via '{env_manager.__class__.__name__}'")
+                    self.event_manager.notify(Event("services_deployed", {"environment": env_manager}))
             except Exception as e:
                 self.logger.error(f"Failed to deploy services via '{env_manager.__class__.__name__}': {e}")
                 raise e
@@ -293,8 +324,8 @@ class TestCase(ITestCase):
         from urllib.parse import urljoin
         self.logger.debug(f"Checking responsiveness of '{service_name}' at '{endpoint}'")
         service_manager = None
-        for cuurent_service_name, service_details in self.services.items():
-            if cuurent_service_name == service_name:
+        for curent_service_name, service_details in self.services.items():
+            if curent_service_name == service_name:
                 # Find the appropriate service manager based on implementation
                 implementation = service_details.get("implementation")
                 service_manager = next((m for m in self.service_managers if m.get_implementation_name() == implementation), None)
@@ -305,7 +336,7 @@ class TestCase(ITestCase):
             return
 
         # Assuming service manager provides the base URL or IP
-        base_url = service_manager.get_base_url(service_name)  # Implement this method in IServiceManager and concrete classes
+        base_url = service_manager.get_base_url(service_name)  # Implement this method in IImplementationManager and concrete classes
         url = urljoin(base_url, endpoint)
         self.logger.debug(f"Checking responsiveness of '{service_name}' at '{url}'")
 
@@ -328,49 +359,21 @@ class TestCase(ITestCase):
         self.event_manager.register_observer(logging_observer)
         self.logger.debug("Registered LoggingObserver as a default observer")
     
-    def get_implementations_for_protocol(self, protocol_plugin_path: Path) -> List[str]:
-        """
-        Retrieves a list of implementations under a given protocol plugin.
-
-        :param protocol_plugin_path: Path to the protocol plugin directory.
-        :return: List of implementation names.
-        """
-        implementations = []
-        for item in protocol_plugin_path.iterdir():
-            if item.is_dir() and not item.name.startswith('__') and item.name != "templates":
-                implementations.append(item.name)
-        self.logger.debug(f"Found implementations for protocol '{protocol_plugin_path.name}': {implementations}")
-        return implementations
-    
  
-    def setup_environments(self):
+    def setup_test(self):
         """
         Sets up all environments managed by the environment managers, providing service configurations and deployment commands.
-
-        :param services: Dictionary of services with their configurations.
-        :param deployment_commands: Dictionary of deployment commands generated by service managers.
-        :param paths: Dictionary containing various path configurations.
-        :param timestamp: The timestamp string to include in log paths.
         """
-        self.logger.info("Setting up all environments")
-        self.setup_environment()
+        self.logger.info("Setting up all environments and services")
         self.setup_services()
+        self.setup_environment()
+        
+    def setup_services(self):
+        """_summary_
+        """
+        self.setup_implementations()
         self.setup_testers()
         self.generate_deployment_commands(self.test_config.get("network_environment", "docker_compose"))
-        
-        for env_manager in self.environment_plugin_manager:
-            try:
-                env_manager.setup_environment(self.services, 
-                                              self.deployment_commands, 
-                                              self.test_config.get('paths', {}), 
-                                              datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-                                              self.plugin_manager.plugins_loader)
-                self.logger.info(f"Environment '{env_manager.__class__.__name__}' setup successfully.")
-                self.event_manager.notify(Event("environment_setup", {"environment": env_manager}))
-            except Exception as e:
-                self.logger.error(f"Failed to setup environment '{env_manager.__class__.__name__}': {e}")
-                exit()
-
 
     def generate_deployment_commands(self, environment:str) -> Dict[str, str]:
         """

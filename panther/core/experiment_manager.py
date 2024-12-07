@@ -43,7 +43,7 @@ class ExperimentManager:
         with open(config_file_path, 'w') as config_file:
             config_file.write(str(self.experiment_config))
             
-        self.logs_dir = self.experiment_dir / "logs"
+        self.logs_dir = self.experiment_dir
         
         self.plugin_dir = plugin_dir
         self.logger = logger or logging.getLogger("ExperimentManager")
@@ -81,24 +81,35 @@ class ExperimentManager:
         """Initializes the test cases from the experiment configuration."""
         try:
             for test_config in self.experiment_config.get("tests", []):
+                self.logger.info(f"Initializing test case: {test_config.get('name', 'Unnamed Test')}")
                 net_environment_type = test_config.get("network_environment", "localhost")
                 net_setting          = test_config.get(f"{net_environment_type}_settings",{})
+                self.logger.info(f"Loading network environment: {net_environment_type}")
                 # if not net_environment_type:
                 #     raise ValueError(f"Unknown environment type: {net_environment_type}")
-                exec_environment_type = test_config.get("execution_environment", [])
+                execution_environment_types = []
+                exec_environment_types = test_config.get("execution_environment", [])
+                exec_env_settings = {}
+                for exec_env in exec_environment_types:
+                    self.logger.info(f"Loading execution environment: {exec_env}")
+                    exec_env_settings = test_config.get(f"{exec_env}_settings", {})
+                    execution_environment_types.append((exec_env, exec_env_settings))
                 # if not exec_environment_type:
                 #     raise ValueError(f"Unknown environment type: {exec_environment_type}")
                 test_experiment_dir = self.experiment_dir / test_config.get("name", "Unnamed Test").replace(" ", "_")
                 self.result_collectors.register_handler(f"storage_{test_config.get('name', 'Unnamed Test').replace(' ', '_')})",  
                                                         StorageHandler(self.experiment_dir, 
                                                                        test_config.get("name", "Unnamed Test").replace(" ", "_")))
+                
+                environment_types = {
+                    "network": [(net_environment_type, net_setting)],
+                    "execution": execution_environment_types 
+                }
+                self.logger.info(f"Initializing environment_types '{environment_types}'")
                 test_case = TestCase(test_config=test_config, 
                                      logger=self.logger, 
                                      result_collector=self.result_collectors, 
-                                     environment_types= {
-                                        "network":         [net_environment_type, net_setting],
-                                        "execution":       exec_environment_type
-                                      }, 
+                                     environment_types=environment_types, 
                                      event_manager=self.event_manager,
                                      plugin_manager=self.plugin_manager,
                                      test_experiment_dir=test_experiment_dir)
@@ -124,16 +135,7 @@ class ExperimentManager:
             self.logger.error(f"Failed during test execution: {e}")
             raise
 
-    def teardown(self):
-        """Tears down the environment and releases resources."""
-        try:
-            if self.environment_manager:
-                self.environment_manager.teardown_all()
-                self.logger.info("Environment torn down successfully.")
-        except Exception as e:
-            self.logger.error(f"Failed to teardown environment: {e}")
-            raise
-
+    
     def _load_logging(self):
         """
         Configures logging to output to both console and a log file.
@@ -157,119 +159,3 @@ class ExperimentManager:
                 logging.FileHandler(panther_log_file),
             ],
         )
-
-    def teardown_experiment(self):
-        """
-        Tears down the experiment by stopping all services and environments.
-        """
-        self.logger.info("Tearing down the experiment")
-        self.teardown_services()
-        self.teardown_environments()
-        self.logger.info("Experiment torn down successfully")
-        self.event_manager.notify(Event("experiment_teardown", {"experiment": self.experiment_name}))
-
-    def teardown_services(self):
-        """
-        Stops all services managed by the service managers.
-        """
-        self.logger.info("Stopping all services")
-        for manager in self.service_managers:
-            if hasattr(manager, "stop_service"):
-                try:
-                    manager.stop_service()
-                    self.logger.info(f"Service '{manager.__class__.__name__}' stopped.")
-                    self.event_manager.notify(Event("service_stopped", {"service": manager}))
-                except Exception as e:
-                    self.logger.error(f"Failed to stop service manager '{manager.__class__.__name__}': {e}")
-
-    def teardown_environments(self):
-        """
-        Tears down all environments managed by the environment managers.
-        """
-        self.logger.info("Tearing down all environments")
-        for env_manager in self.environment_manager:
-            if hasattr(env_manager, "teardown_environment"):
-                try:
-                    env_manager.teardown_environment()
-                    self.logger.info(f"Environment '{env_manager.__class__.__name__}' torn down successfully.")
-                    self.event_manager.notify(Event("environment_teardown", {"environment": env_manager}))
-                except Exception as e:
-                    self.logger.error(f"Failed to teardown environment '{env_manager.__class__.__name__}': {e}")
-            else:
-                self.logger.debug(f"No teardown_environment method for '{env_manager.__class__.__name__}'. Skipping.")
-    
-    # def run_tests(self):
-    #     """
-    #     Orchestrates the entire experiment workflow.
-    #     """
-    #     try:
-    #         tests = self.experiment_config.get("tests", [])
-
-    #         for test in tests:
-    #             # TODO create subtest folder for each test
-    #             self.logger.info(f"Starting Test: {test.get('name', 'Unnamed Test')}")
-    #             self.logger.info(f"Description:   {test.get('description', '')}")
-
-    #             protocol    = test.get("protocol")
-    #             environment = test.get("network_environment")  # Ensure consistent naming
-    #             services    = test.get("services", {})
-    #             self.current_test_services = services
-    #             steps      = test.get("steps", {})
-    #             assertions = test.get("assertions", [])
-                
-    #             # Check if new certificates should be generated
-    #             if self.experiment_config.get('generate_new_certificates', False):
-    #                 subprocess.run(["bash", 'generate_certificates.sh'])
-
-    #             # Step 1: Extract required implementations from services
-    #             required_implementations = set()
-    #             for service_name, service_details in services.items():
-    #                 implementation = service_details.get("implementation")
-    #                 if implementation:
-    #                     required_implementations.add(implementation)
-    #                 else:
-    #                     self.logger.warning(f"Service '{service_name}' does not specify an implementation.")
-
-    #             if not required_implementations:
-    #                 self.logger.error("No implementations specified for services. Aborting test.")
-    #                 continue  # Skip to the next test
-
-    #             self.logger.debug(f"Required implementations for this test: {required_implementations}")
-
-    #             # Step 2: Initialize only the required protocol managers
-    #             self.initialize_protocol_managers([protocol], required_implementations)
-
-    #             # Step 3: Initialize environment managers
-    #             self.initialize_environment_managers([environment])
-
-    #             # Step 4: Build Docker images if necessary
-    #             self.build_docker_images()
-
-    #             deployment_commands = self.generate_deployment_commands(environment)
-
-    #             # Step 5: Setup environments with services
-    #             # Generate timestamp and paths
-    #             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    #             paths = self.experiment_config.get('paths', {})
-            
-    #             self.setup_environments(services,deployment_commands, paths, timestamp)
-
-    #             # Step 6: Deploy services
-                
-    #             self.deploy_services()
-
-    #             # Step 7: Execute test steps
-    #             self.execute_steps(steps)
-
-    #             # Step 8: Perform assertions
-    #             self.perform_assertions(assertions)
-
-    #             # Step 9: Teardown for the test
-    #             self.teardown_experiment()
-
-    #             self.logger.info(f"Completed Test: {test.get('name', 'Unnamed Test')}")
-    #             self.event_manager.notify(Event("test_completed", {"test": test.get("name", "Unnamed Test")}))
-    #     except Exception as e:
-    #         self.logger.error(f"Experiment encountered an error: {e}")
-    #         self.teardown_experiment()
-        

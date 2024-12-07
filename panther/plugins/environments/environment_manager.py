@@ -7,12 +7,6 @@ class EnvironmentManager:
     def __init__(self, environment_plugins: Dict[str, IEnvironmentPlugin]):
         self.environment_plugins = environment_plugins
         
-    def parse_gml(self, gml_file: str):
-        """
-        Parses the GML file and returns the graph.
-        """
-        raise NotImplementedError
-
     def setup_environment(self, environment_name: str, services: Dict[str, Dict[str, Any]]):
         """
         Sets up the specified environment using the corresponding plugin.

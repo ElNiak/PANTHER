@@ -1,9 +1,9 @@
 # panther_core/plugins/quic/plugin.py
 
-from plugins.services.implementations.protocol_interface import IProtocolPlugin
-from plugins.services.implementations.quic.picoquic.service_manager import PicoquicServiceManager
+from plugins.services.services_interface import IServiceManager
+from plugins.services.implementations.quic.picoquic.plcoquic import PicoquicServiceManager
 
-class QuicProtocolPlugin(IProtocolPlugin):
+class QuicProtocolPlugin(IServiceManager):
     def __init__(self):
         self.service_managers = {}
     

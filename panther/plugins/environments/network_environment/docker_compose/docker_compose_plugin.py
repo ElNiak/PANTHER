@@ -3,9 +3,10 @@ from pathlib import Path
 import socket
 import subprocess
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
@@ -19,52 +20,32 @@ class DockerComposeEnvironment(INetworkEnvironment):
         config_path: str,
         output_dir: str,
         environment_settings: Dict[str,Any],
-        network_driver: str = "bridge",
-        templates_dir: str = "plugins/environments/network_environment/docker_compose",
+        type: str,
+        sub_type: str,
     ):
-        self.logger = logging.getLogger("DockerComposeEnvironment")
-        self.services_network_config_file_path = os.path.join(
+        super().__init__(config_path, output_dir, environment_settings, type, sub_type)
+        self.services_network_config_file_path = Path(os.path.join(
             os.getcwd(),
             "plugins",
             "environments",
-            "network_environment",
-            "docker_compose",
-            "docker-compose.generated.yml",
-        )
-        self.config_path = config_path
-        self.network_name = "quic_network_dynamic"
-        self.network_driver = network_driver
-        self.templates_dir = templates_dir
-        self.output_dir = output_dir
-        self.log_dirs = os.path.join(self.output_dir, "logs")
-        self.rendered_docker_compose_path = os.path.join(
-            self.output_dir, "docker-compose.yml"
-        )
-        self.compose_file_path = Path(self.services_network_config_file_path)
-        self.services = {}
-        self.deployment_commands = {}
-        self.environment_settings = environment_settings
-        self.timeout = 60
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
-        self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
-        self.jinja_env.trim_blocks   = True
-        self.jinja_env.lstrip_blocks = True
+            type,
+            sub_type,
+            f"{sub_type}.generated.yml",
+        ))
+        self.rendered_services_network_config_file_path = Path(os.path.join(
+            self.output_dir, f"{sub_type}.yml"
+        ))
         
-        self.source_dir = "/opt/panther"
-
-
     def __str__(self):
         attributes = {
             "config_path": self.config_path,
             "output_dir": self.output_dir,
-            "network_driver": self.network_driver,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_docker_compose_path": self.rendered_docker_compose_path,
-            "compose_file_path": str(self.compose_file_path),
+            "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
+            "rendered_services_network_config_file_path": str(self.rendered_services_network_config_file_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
@@ -75,50 +56,27 @@ class DockerComposeEnvironment(INetworkEnvironment):
         attributes = {
             "config_path": self.config_path,
             "output_dir": self.output_dir,
-            "network_driver": self.network_driver,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
             "network_name": self.network_name,
             "log_dirs": self.log_dirs,
-            "rendered_docker_compose_path": self.rendered_docker_compose_path,
-            "compose_file_path": str(self.compose_file_path),
+            "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
+            "rendered_services_network_config_file_path": str(self.rendered_services_network_config_file_path),
             "services": self.services,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
         return f"DockerComposeEnvironment({attributes})"
     
-    def build_images(self):
+    def prepare_environment(self):
         """
         Builds Docker images for all implementations.
         """
-        self.logger.info("Building Docker images for all implementations")
-        self.logger.info("Docker images built successfully")
-        raise NotImplementedError("Method not implemented - In another module FOR NOW")
-
-    def is_port_free(self, port: int) -> bool:
-        """
-        Checks if a given port is free on the host.
-        """
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(("localhost", port)) != 0
-
-    def find_free_port(
-        self, start_port: int = 5000, end_port: int = 6000, assigned_ports: set = None
-    ) -> int:
-        """
-        Finds a free port within the specified range.
-        """
-        for port in range(start_port, end_port):
-            if self.is_port_free(port) and (
-                assigned_ports is None or port not in assigned_ports
-            ):
-                return port
-        raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
+        pass
 
     def setup_environment(
         self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
-        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader
+        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader, execution_environment: List[IExecutionEnvironment], 
     ):
         """
         Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
@@ -130,52 +88,19 @@ class DockerComposeEnvironment(INetworkEnvironment):
         """
         self.services = services
         self.deployment_info = deployment_info
-        self.logger.debug(
-            f"Setting up Docker Compose environment with services: {services} and deployment info: {deployment_info}"
-        )
-        self.generate_docker_compose(paths=paths, timestamp=timestamp)
+        self.execution_environment = execution_environment
+        self.plugin_loader = plugin_loader
+        self.logger.debug( f"Setting up Docker Compose environment with services: {services} and deployment info: {deployment_info}")
+        self.generate_environment_services(paths=paths, timestamp=timestamp)
         self.logger.info("Docker Compose environment setup complete")
     
-    def resolve_environment_variables(self, env_vars):
-        """
-        Resolves environment variables incrementally, ensuring no duplication
-        and preserving unresolved tokens. Processes variables in dependency order.
-
-        :param env_vars: dict, environment variables with potential references.
-        :return: dict, resolved environment variables.
-        """
-        resolved_env = {}
-
-        self.logger.debug("Initial environment variables:")
-        for k, v in env_vars.items():
-            self.logger.debug(f"{k}: {v}")
-
-        for key, value in env_vars.items():
-            if isinstance(value, str):
-                resolved_value = value
-                self.logger.debug(f"Resolving variable: {key} - Original value: {value}")
-                for var_name, var_value in resolved_env.items():  # Use already resolved variables
-                    if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
-                        resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
-                        resolved_value = resolved_value.replace(f"${var_name}", var_value)
-                        self.logger.debug(f"Replaced ${var_name} in {key} with {var_value}")
-                resolved_value = resolved_value.replace('$', '$$')
-                resolved_env[key] = resolved_value
-
-        self.logger.debug("Final resolved environment variables without duplication:")
-        for k, v in resolved_env.items():
-            self.logger.debug(f"{k}: {v}")
-
-        return resolved_env
-
-
+    
     def deploy_services(self):
         self.logger.info("Deploying services")
-        # self.prepare_tester() # TODO
-        self.launch_docker_compose()
+        self.launch_environment_services()
         
 
-    def generate_docker_compose(self, paths: Dict[str, str], timestamp: str):
+    def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
         """
         Generates the docker-compose.yml file using the provided services and deployment commands.
 
@@ -224,14 +149,14 @@ class DockerComposeEnvironment(INetworkEnvironment):
             )
             
             # Write the rendered content to docker-compose.generated.yml
-            with open(self.compose_file_path, "w") as f:
+            with open(self.rendered_services_network_config_file_path, "w") as f:
                 f.write(rendered)
                 
-            with open(self.rendered_docker_compose_path, "w") as f:
+            with open(self.rendered_services_network_config_file_path, "w") as f:
                 f.write(rendered)
                 
             self.logger.info(
-                f"Docker Compose file generated at '{self.compose_file_path}'"
+                f"Docker Compose file generated at '{self.rendered_services_network_config_file_path}'"
             )
         except Exception as e:
             self.logger.error(
@@ -239,7 +164,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             )
             exit(1)
 
-    def launch_docker_compose(self):
+    def launch_environment_services(self):
         """
         Launches the Docker Compose environment using the generated docker-compose.yml file.
         """
@@ -255,12 +180,10 @@ class DockerComposeEnvironment(INetworkEnvironment):
                             "docker",
                             "compose",
                             "-f",
-                            str(self.compose_file_path),
+                            str(self.rendered_services_network_config_file_path),
                             "up",
                             "-d", # Detached mode: Run containers in the background
                             "-V", # Recreate anonymous volumes instead of retrieving data from the previous containers
-                            # "--abort-on-container-exit", 
-                            # "--exit-code-from", "panther_ivy"
                         ],
                         check=True,
                         # Now in docker build
@@ -287,7 +210,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                             "docker",
                             "compose",
                             "-f",
-                            str(self.compose_file_path),
+                            str(self.rendered_services_network_config_file_path),
                             "logs",
                             "--no-color", 
                         ],
@@ -324,68 +247,28 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 os.path.join(self.output_dir, "logs", "docker-compose-teardown.err.log"), "w"
             ) as log_file_err:
                 try:
-                    if self.network_driver == "host":
-                        # In host mode, stop containers individually
-                        # Assumes service names are the container names
-                        compose_dict = self.read_compose_file()
-                        services = compose_dict.get("services", {})
-                        for service_name in services.keys():
-                            cmd = f"docker stop {service_name}"
-                            self.logger.debug(f"Executing command: {cmd}")
-                            subprocess.run(
-                                cmd,
-                                shell=True,
-                                check=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                            )
-                            cmd_rm = f"docker rm {service_name}"
-                            self.logger.debug(f"Executing command: {cmd_rm}")
-                            subprocess.run(
-                                cmd_rm,
-                                shell=True,
-                                check=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                            )
-                    else:
-                        # For other network drivers, use docker-compose
-                        result = subprocess.run(
-                            [
-                                "docker",
-                                "compose",
-                                "-f",
-                                self.services_network_config_file_path,
-                                "down",
-                            ],
-                            check=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            text=True,  # Ensures that output is in string format
-                        )
-                        # Write both stdout and stderr to the log file
-                        log_file.write(result.stdout)
-                        log_file_err.write(result.stderr)
-                        os.system(f"docker volume prune -a -f")
+                    # For other network drivers, use docker-compose
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "-f",
+                            self.services_network_config_file_path,
+                            "down",
+                        ],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,  # Ensures that output is in string format
+                    )
+                    # Write both stdout and stderr to the log file
+                    log_file.write(result.stdout)
+                    log_file_err.write(result.stderr)
+                    os.system(f"docker volume prune -a -f")
                     self.logger.info("Docker Compose environment torn down successfully")
                 except subprocess.CalledProcessError as e:
                     self.logger.error(
                         f"Failed to tear down Docker Compose environment: {e.stderr}"
                     )
                     raise e
-
-    def read_compose_file(self) -> Dict[str, Any]:
-        """
-        Reads the generated docker-compose.yml file.
-        """
-        if not os.path.exists(self.services_network_config_file_path):
-            self.logger.error(
-                f"Docker Compose file '{self.services_network_config_file_path}' does not exist."
-            )
-            raise FileNotFoundError(
-                f"Docker Compose file '{self.services_network_config_file_path}' does not exist."
-            )
-
-        with open(self.services_network_config_file_path, "r") as compose_file:
-            return yaml.safe_load(compose_file)
 

@@ -1,9 +1,9 @@
 import subprocess
 import logging
 import os
-from plugins.services.implementations.service_manager_interface import IServiceManager
+from plugins.services.implementations.implementation_interface import IImplementationManager
 
-class PingPongServiceManager(IServiceManager):
+class PingPongServiceManager(IImplementationManager):
     def __init__(self):
         self.process = None
         self.logger = logging.getLogger("PingPongServiceManager")

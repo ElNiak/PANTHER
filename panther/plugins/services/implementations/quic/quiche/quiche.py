@@ -1,9 +1,9 @@
 import subprocess
 import logging
 import os
-from plugins.services.implementations.service_manager_interface import IServiceManager
+from plugins.services.implementations.implementation_interface import IImplementationManager
 
-class QuicheServiceManager(IServiceManager):
+class QuicheServiceManager(IImplementationManager):
     def __init__(self, implementation_config_path: str = "/opt/quiche/config.yaml", protocol_templates_dir: str = "/opt/quiche/templates"):
         self.process = None
         self.logger = logging.getLogger("QuicheServiceManager")
