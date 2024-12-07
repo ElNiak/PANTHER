@@ -1,0 +1,135 @@
+#!/bin/bash
+set -e
+
+# Constants
+NETNS_DIR="/var/run/netns"
+MAX_IFNAME_LEN=15
+
+# Setup logging directory
+mkdir -p /app/logs
+{% for service_name, service in services.items() %}
+mkdir -p /app/logs/{{ service_name }}
+echo "Initializing {{ service_name }} logs..." > /app/logs/{{ service_name }}/stdout.log
+echo "Initializing {{ service_name }} logs..." > /app/logs/{{ service_name }}/stderr.log
+{% endfor %}
+
+# Define helper functions
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> /app/logs/combined.log
+}
+
+{% raw %}
+generate_ifname() {
+  local base_name=$1
+  if [[ ${#base_name} -gt $MAX_IFNAME_LEN ]]; then
+    echo "${base_name:0:$((MAX_IFNAME_LEN - 7))}_$(echo -n "$base_name" | md5sum | cut -c1-6)"
+  else
+    echo "$base_name"
+  fi
+}
+{% endraw %}
+
+create_namespace() {
+  local namespace=$1
+  log "Creating network namespace: $namespace"
+  ip netns add "$namespace"
+}
+
+setup_veth_pair() {
+  local namespace=$1
+  local veth_host=$2
+  local veth_ns=$3
+  local ip_host=$4
+  local ip_ns=$5
+  log "Setting up veth pair for namespace $namespace..."
+  ip link add "$veth_host" type veth peer name "$veth_ns"
+  ip link set "$veth_ns" netns "$namespace"
+  ip addr add "$ip_host" dev "$veth_host"
+  ip netns exec "$namespace" ip addr add "$ip_ns" dev "$veth_ns"
+  ip link set "$veth_host" up
+  ip netns exec "$namespace" ip link set "$veth_ns" up
+  ip netns exec "$namespace" ip link set lo up
+}
+
+delete_namespace() {
+  local namespace=$1
+  log "Deleting network namespace: $namespace"
+  ip netns delete "$namespace"
+}
+
+# Create namespaces and veth pairs for each service
+{% for service_name, service in services.items() %}
+create_namespace "{{ service_name }}"
+setup_veth_pair \
+  "$(generate_ifname veth_{{ service_name }})" \
+  "{{ service_name }}" \
+  "$(generate_ifname veth_{{ service_name }}_peer)" \
+  "{{ deployment_info[service_name]['ip'] }}/24" \
+  "{{ deployment_info[service_name]['ip_peer'] }}/24"
+{% endfor %}
+
+
+start_pcap() {
+  local namespace=$1
+  local interface=$2
+  local output=$3
+  local duration=$4
+
+  log "Starting PCAP for namespace $namespace on interface $interface..."
+  ip netns exec "$namespace" tshark -i "$interface" -a duration:"$duration" -w "$output" &
+  echo $!
+}
+
+# Initialize environment variables
+log "Setting up environment variables..."
+{% for service_name, service in services.items() %}
+log "Setting environment for {{ service_name }}..."
+export ROLE="{{ service.role }}"
+{% if "environment" in deployment_info[service_name] %}
+{% for key, value in deployment_info[service_name]["environment"].items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+# Start PCAP recording for each service
+log "Starting PCAP recording..."
+{% for service_name, service in services.items() %}
+start_pcap "{{ service_name }}" "$(generate_ifname veth_{{ service_name }}_peer)" \
+  "/app/logs/{{ service_name }}/pcap_pkt.pcap" {{ deployment_info.get(service_name, {}).get('timeout', 50) }}
+{% endfor %}
+
+# Start all services
+log "Starting all services..."
+{% for service_name, service in services.items() %}
+log "Starting {{ service_name }}..."
+(
+  {% if service.role == "client" %}
+  sleep 5  # Delay to ensure server is ready
+  {% endif %}
+  ip netns exec "{{ service_name }}" \
+  cd {{ deployment_info[service_name]['working_dir'] | replace('/opt/', replacement_path) }}
+  {% if "ivy" in service_name %}
+  timeout  {{ deployment_info.get(service_name, {}).get('timeout', 50) }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }} \
+    >> /app/logs/{{ service_name }}/stdout.log \
+    2>> /app/logs/{{ service_name }}/stderr.log
+  {% else %}
+  timeout  {{ deployment_info.get(service_name, {}).get('timeout', 50) }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }} \
+    >> /app/logs/{{ service_name }}/stdout.log \
+    2>> /app/logs/{{ service_name }}/stderr.log
+  {% endif %}
+  log "{{ service_name }} completed successfully."
+) &
+{% endfor %}
+
+# Wait for all services to finish
+log "Waiting for services to complete..."
+wait
+
+# Clean up namespaces
+log "Cleaning up namespaces..."
+{% for service_name, service in services.items() %}
+delete_namespace "{{ service_name }}"
+{% endfor %}
+
+log "All services have completed."

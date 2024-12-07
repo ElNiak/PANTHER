@@ -1,4 +1,4 @@
-FROM shadow_ns_v1_panther:latest AS shadow_base
+FROM vnet_single_container_v1_panther:latest AS vnet_base
 
 {% for service_name, service in services.items() %}
 
@@ -46,37 +46,43 @@ EOF
 
 
 # Final stage
-FROM shadow_ns_v1_panther:latest
+FROM vnet_single_container_v1_panther:latest
 WORKDIR /
 ENV DEBIAN_FRONTEND=noninteractive
 USER root
+
+# TODO try to install the packages in the base image and keep them in the final image
+RUN apt-get update && \
+    apt-get install -y build-essential git cmake software-properties-common \
+    openssl libssl-dev pkg-config clang python3 net-tools tcpdump \
+    apt-utils  wireshark tshark  libcap2-bin traceroute \
+    iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils iperf 
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common
+
+ARG USER_UID=1000
+ARG USER_GID=1000
+ARG USER_N=elniak
+
+RUN addgroup --gid ${USER_GID} ${USER_N} && \
+    adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
+    usermod -aG wireshark ${USER_N}
+
 
 {% for service_name, service in services.items() %}
 {% if "ivy" in service_name %}
 COPY --from={{ service_name }}_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
 COPY --from={{ service_name }}_stage /opt /opt
-
+COPY --from={{ service_name }}_stage /usr/bin /usr/bin
 {% else %}
 COPY --from={{ service_name }}_stage /opt /opt/{{ service_name }}
 {% endif %}
 {% endfor %}
 
-COPY --from=shadow_ns_v1_panther /shadow /shadow
-COPY --from=shadow_ns_v1_panther /root/.cargo/ /root/.cargo/
-COPY --from=shadow_ns_v1_panther /root/.local/ /root/.local/
-COPY --from=shadow_ns_v1_panther /usr/include/shadow.h /usr/include/shadow.h
-COPY --from=shadow_ns_v1_panther /etc/shadow /etc/shadow
 
 ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
-ENV PATH="/shadow/build:/root/shadow/build/:${PATH}"
-RUN rustup default stable
-RUN rm -rf shadow.data/
-# VOLUME {{ log_dir | realpath }}/shadow.data:/shadow.data
 
-ADD {{ shadow_ns_config_file }} /shadow_ns_config.yml
+ADD {{ vnet_single_container_config_file }} /run.sh
 ENV RUST_BACKTRACE=1
-# ENTRYPOINT [ "/bin/sh", "-l", "-c", "\" \"" ]
-# ENTRYPOINT [ "shadow", "/shadow_ns_config.yml", "--data-directory", "/app/logs/shadow.data" ]
-# CMD [ ">", "/app/logs/shadow_output.log" ]
-ENTRYPOINT [ "/bin/sh", "-c", "shadow /shadow_ns_config.yml --data-directory /app/logs/shadow.data > /app/logs/shadow_stdout.log 2> /app/logs/shadow_stderr.log" ]
+RUN chmod +x /run.sh
+ENTRYPOINT [ "/bin/sh", "-c", "./run.sh > /app/logs/vnet_stdout.log 2> /app/logs/vnet_stderr.log" ]
 
