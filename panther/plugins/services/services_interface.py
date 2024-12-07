@@ -15,7 +15,6 @@ class IServiceManager(IPlugin):
         self,
         config_path: str,
         output_dir: str,
-        environment_settings: Dict[str,Any],
         type: str,
         sub_type: str,
     ):
@@ -25,7 +24,6 @@ class IServiceManager(IPlugin):
         self.output_dir = output_dir
         self.log_dirs = os.path.join(self.output_dir, "logs")
         self.plugin_loader = None
-        self.environment_settings = environment_settings
         self.config = self.load_config()
         self.validate_config()
     

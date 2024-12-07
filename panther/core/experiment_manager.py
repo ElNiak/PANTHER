@@ -12,8 +12,6 @@ from plugins.plugin_loader import PluginLoader
 from core.results.result_handlers.storage_handler import StorageHandler
 from core.test_cases.test_interface import ITestCase
 from core.results.result_collector import ResultCollector
-from plugins.environments.environment_interface import IEnvironmentPlugin
-from plugins.environments.environment_manager import EnvironmentManager
 from plugins.plugin_manager import PluginManager
 from core.observer.event_manager import EventManager
 from core.observer.event import Event
