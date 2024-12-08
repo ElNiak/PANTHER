@@ -17,37 +17,12 @@ from jinja2 import Environment, FileSystemLoader, Template
 class PicoquicServiceManager(IImplementationManager):
     def __init__(
         self,
-        implementation_config_path: str = "plugins/services/implementations/quic/picoquic/",
-        protocol_templates_dir: str = "plugins/services/implementations/quic/picoquic/templates/",
+        type: str,
+        protocol: str,
+        implementation_name: str,
     ):
-        self.process = None
-        self.logger = logging.getLogger("PicoquicServiceManager")
-        self.config_path = implementation_config_path
-        self.config = self.load_config()
-        self.validate_config()
-        
-        self.service_name = None
-        self.protocol = None
-        self.protocol_version = None
-        self.role = None
-        self.protocol_model_path = None
-        self.environments = {}
-
-        self.templates_dir = protocol_templates_dir
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.jinja_env.trim_blocks = True
-        self.jinja_env.lstrip_blocks = True
-        # Debugging: List files in templates_dir
-        if not os.path.isdir(self.templates_dir):
-            self.logger.error(
-                f"Templates directory '{self.templates_dir}' does not exist."
-            )
-        else:
-            templates = os.listdir(self.templates_dir)
-            self.logger.debug(
-                f"Available templates in '{self.templates_dir}': {templates}"
-            )
-
+        super().__init__(type, protocol,implementation_name)
+    
     def get_base_url(self, service_name: str) -> str:
         """
         Returns the base URL for the given service.
@@ -310,96 +285,6 @@ class PicoquicServiceManager(IImplementationManager):
                 f"Failed to render command for service '{service_params.get('name', 'unknown')}': {e}\n{traceback.format_exc()}"
             )
             raise e
-
-    def check_missing_params(self, params: Dict[str, Any], required: list = []) -> list:
-        """
-        Checks for missing parameters in the params dictionary.
-
-        :param params: Dictionary of parameters.
-        :param required: List of required top-level keys.
-        :return: List of missing parameter keys.
-        """
-        missing = []
-        # Check top-level required keys
-        for key in required:
-            if not params.get(key):
-                missing.append(key)
-
-        # Recursively check nested dictionaries
-        def recurse(d, parent_key=""):
-            for k, v in d.items():
-                full_key = f"{parent_key}.{k}" if parent_key else k
-                if isinstance(v, dict):
-                    recurse(v, full_key)
-                elif v is None:
-                    missing.append(full_key)
-
-        recurse(params)
-        return missing
-
-    # TODO setup logs files from environment (change base dir)
-
-    def replace_env_vars(self, value: str) -> str:
-        """
-        Replaces environment variables in the given string with their actual values.
-
-        :param value: String containing environment variables (e.g., $IMPLEM_DIR).
-        :return: String with environment variables replaced by their values.
-        """
-        try:
-            self.logger.debug(f"Replacing environment variables in '{value}'")
-            return os.path.expandvars(value)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to replace environment variables in '{value}': {e}\n{traceback.format_exc()}"
-            )
-            return value
-
-    def start_service(self, parameters: dict):
-        """
-        Starts the Picoquic server or client based on the role.
-        Parameters should include 'role'.
-        # TODO should be in envirnment
-        """
-        role = parameters.get("role")
-        if role not in ["server", "client"]:
-            self.logger.error(f"Unknown role '{role}'. Cannot start service.")
-            return
-
-        cmd = self.generate_deployment_commands(role)
-        if not cmd:
-            self.logger.error(f"Failed to generate command for role '{role}'.")
-            return
-
-        log_path = self.config.get(role, {}).get("log_path", f"/app/logs/{role}.log")
-        self.logger.info(f"Starting Picoquic {role} with command: {cmd}")
-        try:
-            self.process = subprocess.Popen(
-                cmd,
-                shell=True,
-                cwd="/opt/picoquic",  # Ensure this matches your Dockerfile's WORKDIR
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                preexec_fn=os.setsid,
-            )
-            self.logger.info(f"Picoquic {role} started with PID {self.process.pid}")
-        except Exception as e:
-            self.logger.error(
-                f"Failed to start Picoquic {role}: {e}\n{traceback.format_exc()}"
-            )
-
-    def stop_service(self):
-        """
-        Stops the Picoquic service gracefully.
-        """
-        if self.process:
-            self.logger.info(f"Stopping Picoquic service with PID {self.process.pid}")
-            try:
-                os.killpg(os.getpgid(self.process.pid), 15)  # SIGTERM
-                self.process.wait(timeout=10)
-                self.logger.info("Picoquic service stopped successfully.")
-            except Exception as e:
-                self.logger.error(f"Failed to stop Picoquic service: {e}")
 
     def __str__(self) -> str:
         return f" (Picoquic Service Manager - {self.config_path})"

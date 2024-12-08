@@ -1,19 +1,9 @@
 # panther_core/plugins/quic/plugin.py
 
-from plugins.services.services_interface import IServiceManager
-from panther.plugins.services.implementations.quic.picoquic.picoquic import PicoquicServiceManager
+from plugins.services.protocol_interface import IProtocolManager
 
-class QuicProtocolPlugin(IServiceManager):
-    def __init__(self):
-        self.service_managers = {}
-    
-    def get_service_manager(self, implementation_name: str):
-        """
-        Returns an instance of the ServiceManager for the specified implementation.
-        """
-        if implementation_name not in self.service_managers:
-            if implementation_name == "picoquic":
-                self.service_managers[implementation_name] = PicoquicServiceManager()
-            else:
-                raise ValueError(f"Unknown implementation '{implementation_name}' for QUIC protocol.")
-        return self.service_managers[implementation_name]
+class QuicProtocolPlugin(IProtocolManager):
+    def __init__(self,type: str):
+        super().__init__(type)
+        self.available_roles    = ["client", "server"]
+        self.supported_versions = ["rfc9000", "draft29", "draft27"]

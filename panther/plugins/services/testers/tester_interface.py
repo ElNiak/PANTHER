@@ -12,20 +12,11 @@ class ITesterManager(IServiceManager):
     
     def __init__(
         self,
-        config_path: str,
-        output_dir: str,
         type: str,
-        sub_type: str,
+        protocol: str,
+        implementation_name: str,
     ):
-        super().__init__(type, sub_type)
+        super().__init__(type, protocol,implementation_name)
         
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
-        self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
-        self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
-        self.jinja_env.trim_blocks   = True
-        self.jinja_env.lstrip_blocks = True
-        
-    def is_tester(self):
-        return True
     
     

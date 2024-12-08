@@ -5,6 +5,7 @@ from pathlib import Path
 import traceback
 from typing import Any, Dict, Optional
 
+from jinja2 import Environment, FileSystemLoader
 import yaml
 
 from plugins.plugin_loader import PluginLoader
@@ -13,27 +14,57 @@ from plugins.plugin_interface import IPlugin
 class IServiceManager(IPlugin):
     def __init__(
         self,
-        config_path: str,
-        output_dir: str,
         type: str,
-        sub_type: str,
+        protocol: str,
+        implementation_name: str,
     ):
-        super().__init__(type)
-        self.templates_dir: str = f"plugins/services/{type}/{sub_type}/templates"
-        self.config_path = config_path
-        self.output_dir = output_dir
-        self.log_dirs = os.path.join(self.output_dir, "logs")
+        super().__init__()
+        
+        self.available_types = ["testers", "implementations"]
+        self.type = type
+        assert self.type in self.available_types, f"Invalid service type: {self.type}"
+        
+        if self.type == "testers":
+            self.config_path = f"plugins/services/{type}/{implementation_name}/config.yaml"
+            self.templates_dir = f"plugins/services/{type}/{implementation_name}/templates/"
+        else:
+            self.config_path = f"plugins/services/{type}/{protocol}/{implementation_name}/config.yaml"
+            self.templates_dir = f"plugins/services/{type}/{protocol}/{implementation_name}/templates/"
+        
+        
+        if not os.path.isdir(self.templates_dir):
+            self.logger.error(
+                f"Templates directory '{self.templates_dir}' does not exist."
+            )
+        else:
+            templates = os.listdir(self.templates_dir)
+            self.logger.debug(
+                f"Available templates in '{self.templates_dir}': {templates}"
+            )
+        
         self.plugin_loader = None
+        
+        self.service_name = None
+        self.process = None
+        self.available_roles = []
+        self.role = None
+        self.environments = {}
+
         self.config = self.load_config()
         self.validate_config()
+        
+        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
+        self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
+        self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
+        self.jinja_env.trim_blocks   = True
+        self.jinja_env.lstrip_blocks = True
     
     
-    @abstractmethod
     def is_tester(self):
         """
         Returns True if the plugin is a network service.
         """
-        pass
+        return self.type == "testers"
     
     # @abstractmethod
     # def setup_environment(self):
@@ -112,21 +143,3 @@ class IServiceManager(IPlugin):
         """
         pass
     
-    @abstractmethod
-    def start_service(self, service_name: str, command: str):
-        """
-        Starts the service using the provided command.
-
-        :param service_name: Name of the service.
-        :param command: Command string to start the service.
-        """
-        pass
-
-    @abstractmethod
-    def stop_service(self, service_name: str):
-        """
-        Stops the service gracefully.
-
-        :param service_name: Name of the service.
-        """
-        pass

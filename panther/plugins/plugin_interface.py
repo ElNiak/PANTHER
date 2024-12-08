@@ -9,8 +9,7 @@ import yaml
 
 class IPlugin(ABC):
     def __init__(
-        self,
-        type: str,
+        self
     ):
         self.logger = logging.getLogger(__class__.__name__)
 

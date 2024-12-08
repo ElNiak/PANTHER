@@ -18,7 +18,7 @@ class IEnvironmentPlugin(IPlugin):
         type: str,
         sub_type: str,
     ):
-        super().__init__(type)
+        super().__init__()
         self.templates_dir: str = f"plugins/environments/{type}/{sub_type}/templates"
         self.config_path = config_path
         self.output_dir = output_dir

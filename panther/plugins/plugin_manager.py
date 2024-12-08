@@ -21,7 +21,8 @@ class PluginManager:
         self.network_environment_plugins: Dict[str, INetworkEnvironment] = {}
         self.execution_environment_plugins: Dict[str, IExecutionEnvironment] = {}
 
-    def create_service_manager(self, protocol: str, implementation: str, implementation_dir: Path, protocol_templates_dir: Path) -> IImplementationManager:
+    def create_service_manager(self, protocol: str, implementation: str, 
+                               implementation_dir: Path, protocol_templates_dir: Path) -> IServiceManager:
         """
         Creates an instance of a service manager based on the protocol and implementation names.
 
@@ -36,7 +37,7 @@ class PluginManager:
             self.logger.error(f"Service manager file '{service_manager_path}' does not exist.")
             raise FileNotFoundError(f"Service manager file '{service_manager_path}' not found.")
 
-        module_name = f"{protocol}.{implementation}.service_manager"
+        module_name = f"{protocol}.{implementation}.{implementation}"
         spec = importlib.util.spec_from_file_location(module_name, service_manager_path)
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
@@ -51,8 +52,9 @@ class PluginManager:
                     self.logger.error(f"Implementation configuration file '{implementation_config_path}' does not exist.")
                     raise FileNotFoundError(f"Configuration file '{implementation_config_path}' not found.")
                 instance = service_manager_class(
-                    implementation_config_path=str(implementation_config_path),
-                    protocol_templates_dir=str(protocol_templates_dir)
+                    type="implementations" if issubclass(service_manager_class, IImplementationManager) else "testers",
+                    protocol=protocol,
+                    implementation_name=implementation,
                 )
                 self.logger.debug(f"Preparing instance of '{class_name}'")
                 instance.prepare(self.plugins_loader)
