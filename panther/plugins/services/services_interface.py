@@ -44,12 +44,6 @@ class IServiceManager(IPlugin):
         
         self.plugin_loader = None
         
-        self.service_name = None
-        self.process = None
-        self.available_roles = []
-        self.role = None
-        self.environments = {}
-
         self.config = self.load_config()
         self.validate_config()
         
@@ -58,6 +52,27 @@ class IServiceManager(IPlugin):
         self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)
         self.jinja_env.trim_blocks   = True
         self.jinja_env.lstrip_blocks = True
+        
+        # Service-specific attributes
+        # Some attributes are set by the plugin loader, others are set by the plugin itself and the experiment manager
+        self.service_name     = None
+        self.service_protocol = protocol
+        self.service_targets  = []
+        self.service_version  = None
+        self.working_dir      = None
+        self.process          = None
+        self.available_roles  = []
+        self.role = None
+        self.environments = {}
+        
+        self.pre_run_cmds  = []
+        self.compile_cmds  = []
+        self.run_cmd       = {
+            "command_binary": "",
+            "command_args":   "",
+            "timeout": 60
+        }
+        self.post_run_cmds = []
     
     
     def is_tester(self):

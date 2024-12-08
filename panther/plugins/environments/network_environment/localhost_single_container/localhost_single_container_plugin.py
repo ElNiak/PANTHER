@@ -4,9 +4,10 @@ import socket
 import subprocess
 import logging
 import traceback
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
+from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 
@@ -82,65 +83,15 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         }
         return f"LocalhostSingleContainerEnvironment({attributes})"
     
-    def load_config(self) -> dict:
-        """
-        Loads the YAML configuration file.
-        """
-        config_file = Path(self.config_path)
-        if not config_file.exists():
-            self.logger.error(
-                f"Configuration file '{self.config_path}' does not exist."
-            )
-            return {}
-        try:
-            with open(config_file, "r") as f:
-                config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.config_path}'")
-            return config
-        except Exception as e:
-            self.logger.error(
-                f"Failed to load configuration: {e}\n{traceback.format_exc()}"
-            )
-            return {}
-        
-    def build_images(self):
-        """
-        Builds Docker images for all implementations.
-        """
-        self.logger.info("Building Docker images for all implementations")
-        self.logger.info("Docker images built successfully")
-        raise NotImplementedError("Method not implemented - In another module FOR NOW")
-
-    def prepare(self,plugin_loader: Optional[PluginLoader] = None):
+    def prepare_environment(self):
         """
         Prepare the service manager for use.
         """
         self.logger.info("Preparing Localhost service manager...")
         # Additional setup can be implemented here
-        plugin_loader.build_docker_image("localhost_single_container", self.docker_version)
-        self.plugin_loader = plugin_loader
+        self.plugin_loader.build_docker_image("localhost_single_container", self.docker_version)
         
-        
-    def is_port_free(self, port: int) -> bool:
-        """
-        Checks if a given port is free on the host.
-        """
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            return s.connect_ex(("localhost", port)) != 0
-
-    def find_free_port(
-        self, start_port: int = 5000, end_port: int = 6000, assigned_ports: set = None
-    ) -> int:
-        """
-        Finds a free port within the specified range.
-        """
-        for port in range(start_port, end_port):
-            if self.is_port_free(port) and (
-                assigned_ports is None or port not in assigned_ports
-            ):
-                return port
-        raise RuntimeError(f"No free ports available in range {start_port}-{end_port}")
-
+    
     def setup_environment(
         self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
         paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader, execution_environment: List[IExecutionEnvironment]
@@ -155,51 +106,22 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         """
         self.services             = services
         self.deployment_info      = deployment_info
+        self.plugin_loader        = plugin_loader
+        self.execution_environment = execution_environment
         
         self.logger.debug(
             f"Setting up Localhost environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}"
         )
-        self.prepare(plugin_loader)
+        self.prepare_environment()
         self.generate_environment_services(paths=paths, timestamp=timestamp)
         self.logger.info("Localhost environment setup complete")
     
-    def resolve_environment_variables(self, env_vars):
-        """
-        Resolves environment variables incrementally, ensuring no duplication
-        and preserving unresolved tokens. Processes variables in dependency order.
-
-        :param env_vars: dict, environment variables with potential references.
-        :return: dict, resolved environment variables.
-        """
-        resolved_env = {}
-
-        self.logger.debug("Initial environment variables:")
-        for k, v in env_vars.items():
-            self.logger.debug(f"{k}: {v}")
-
-        for key, value in env_vars.items():
-            if isinstance(value, str):
-                resolved_value = value
-                self.logger.debug(f"Resolving variable: {key} - Original value: {value}")
-                for var_name, var_value in resolved_env.items():  # Use already resolved variables
-                    if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
-                        resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
-                        resolved_value = resolved_value.replace(f"${var_name}", var_value)
-                        self.logger.debug(f"Replaced ${var_name} in {key} with {var_value}")
-                resolved_value = resolved_value.replace('$', '$$')
-                resolved_env[key] = resolved_value
-
-        self.logger.debug("Final resolved environment variables without duplication:")
-        for k, v in resolved_env.items():
-            self.logger.debug(f"{k}: {v}")
-
-        return resolved_env
-
+    
 
     def deploy_services(self):
         self.logger.info("Deploying services")
         # self.prepare_tester() # TODO
-        self.launch_localhost_single_container()
+        self.launch_environment_services()
         
 
     def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
@@ -299,7 +221,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             )
             exit(1)
 
-    def launch_localhost_single_container(self):
+    def launch_environment_services(self):
         """
         Launches the Localhost environment using the generated run.sh file.
         """

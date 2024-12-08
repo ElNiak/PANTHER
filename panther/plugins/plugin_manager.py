@@ -22,7 +22,7 @@ class PluginManager:
         self.execution_environment_plugins: Dict[str, IExecutionEnvironment] = {}
 
     def create_service_manager(self, protocol: str, implementation: str, 
-                               implementation_dir: Path, protocol_templates_dir: Path) -> IServiceManager:
+                                     implementation_dir: Path) -> IServiceManager:
         """
         Creates an instance of a service manager based on the protocol and implementation names.
 
@@ -37,14 +37,17 @@ class PluginManager:
             self.logger.error(f"Service manager file '{service_manager_path}' does not exist.")
             raise FileNotFoundError(f"Service manager file '{service_manager_path}' not found.")
 
-        module_name = f"{protocol}.{implementation}.{implementation}"
-        spec = importlib.util.spec_from_file_location(module_name, service_manager_path)
+        service_module_name = f"{protocol}.{implementation}"
+        spec = importlib.util.spec_from_file_location(service_module_name, service_manager_path)
+        self.logger.debug(f"Loading module from '{service_manager_path}' as '{service_module_name}' with spec {spec}")
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
             importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             class_name = f'{implementation.replace("_", " ").title()}ServiceManager'.replace(" ", "")
+            self.logger.debug(f"Loading class '{class_name}' from module '{module}'")
             service_manager_class = getattr(module, class_name, None)
+            service_type = "implementations" if issubclass(service_manager_class, IImplementationManager) else "testers"
             if service_manager_class and \
                     (issubclass(service_manager_class, IImplementationManager) or issubclass(service_manager_class, ITesterManager)):
                 implementation_config_path = implementation_dir / "config.yaml"
@@ -52,7 +55,7 @@ class PluginManager:
                     self.logger.error(f"Implementation configuration file '{implementation_config_path}' does not exist.")
                     raise FileNotFoundError(f"Configuration file '{implementation_config_path}' not found.")
                 instance = service_manager_class(
-                    type="implementations" if issubclass(service_manager_class, IImplementationManager) else "testers",
+                    type=service_type,
                     protocol=protocol,
                     implementation_name=implementation,
                 )
@@ -81,8 +84,9 @@ class PluginManager:
             self.logger.error(f"Environment plugin file '{environment_plugin_path}' does not exist.")
             raise FileNotFoundError(f"Environment plugin file '{environment_plugin_path}' not found.")
 
-        module_name = f"environments.{environment}.environment_plugin"
-        spec = importlib.util.spec_from_file_location(module_name, environment_plugin_path)
+        environment_module_name = f"environments.{environment}"
+        spec = importlib.util.spec_from_file_location(environment_module_name, environment_plugin_path)
+        self.logger.debug(f"Loading module from '{environment_plugin_path}' as '{environment_module_name}' with spec {spec}")
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -110,5 +114,18 @@ class PluginManager:
         else:
             self.logger.error(f"Cannot load module from '{environment_plugin_path}'")
             raise ImportError(f"Cannot load module from '{environment_plugin_path}'")
+        
+    def create_protocol_manager(self, protocol: str, implementation: str, 
+                                     implementation_dir: Path) -> IServiceManager:
+        """
+        Creates an instance of a service manager based on the protocol and implementation names.
+
+        :param protocol: Name of the protocol (e.g., 'quic').
+        :param implementation: Name of the implementation (e.g., 'picoquic').
+        :param implementation_dir: Path to the implementation plugin directory.
+        :param protocol_templates_dir: Path to the protocol's templates directory.
+        :return: An instance of IImplementationManager.
+        """
+        raise NotImplementedError
         
     

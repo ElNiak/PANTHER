@@ -126,7 +126,6 @@ class TestCase(ITestCase):
                         protocol=impl["protocol"]["name"], 
                         implementation=impl["implem"],
                         implementation_dir=implementation_dir,
-                        protocol_templates_dir=protocol_templates_dir
                     )
                     self.service_managers.append(service_manager)
                     self.logger.debug(f"Added service manager for tester '{impl['implem']}' under protocol '{impl['protocol']['name']}'")
@@ -181,7 +180,6 @@ class TestCase(ITestCase):
                             protocol=proto,
                             implementation=impl,
                             implementation_dir=implementation_dir,
-                            protocol_templates_dir=protocol_templates_dir
                         )
                         self.service_managers.append(service_manager)
                         self.logger.debug(f"Added service manager for implementation '{impl}' under protocol '{proto}'")

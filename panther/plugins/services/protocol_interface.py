@@ -19,11 +19,6 @@ class IProtocolManager(IPlugin):
         super().__init__()
         self.config_path = f"plugins/services/{type}/"
         
-        self.service_name = None
-        self.process = None
-        self.available_roles = []
-        self.role = None
-        self.environments = {}
 
         self.config = self.load_config()
         self.validate_config()
