@@ -5,8 +5,10 @@ from datetime import datetime
 import os
 import logging
 from pathlib import Path
+
+from omegaconf import OmegaConf
 from core.experiment_manager import ExperimentManager
-from config.config import ConfigLoader
+from config.config_manager import ConfigLoader
 
 # TODO create singleton plugin_loader ?
 
@@ -44,9 +46,8 @@ def main():
         raise NotImplementedError("Teardown functionality is not implemented yet.")
     else:
         # # Load Configurations
-        config_loader = ConfigLoader(args.config_dir)
-        experiment_config = config_loader.experiment_config
-        
+        config_loader     = ConfigLoader(args.config_dir)
+        experiment_config = config_loader.load_experiment_config()
         # Start the experiment
         experiment_manager = ExperimentManager(
             experiment_config=experiment_config,

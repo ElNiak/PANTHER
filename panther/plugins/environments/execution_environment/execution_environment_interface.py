@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
+from core.observer.event_manager import EventManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
 
 class IExecutionEnvironment(IEnvironmentPlugin):
@@ -12,8 +13,9 @@ class IExecutionEnvironment(IEnvironmentPlugin):
         environment_settings: Dict[str,Any],
         type: str,
         sub_type: str,
+        event_manager: EventManager
     ):
-        super().__init__(config_path, output_dir, environment_settings, type, sub_type)
+        super().__init__(config_path, output_dir, environment_settings, type, sub_type, event_manager)
     
     def is_network_environment(self):
         """

@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 import yaml
 
+from core.observer.event_manager import EventManager
 from plugins.plugin_interface import IPlugin
 
 class IEnvironmentPlugin(IPlugin):
@@ -17,6 +18,7 @@ class IEnvironmentPlugin(IPlugin):
         environment_settings: Dict[str,Any],
         type: str,
         sub_type: str,
+        event_manager: EventManager
     ):
         super().__init__()
         self.templates_dir: str = f"plugins/environments/{type}/{sub_type}/templates"
@@ -25,6 +27,7 @@ class IEnvironmentPlugin(IPlugin):
         self.log_dirs = os.path.join(self.output_dir, "logs")
         self.plugin_loader = None
         self.environment_settings = environment_settings
+        self.event_manager = event_manager
         self.config = self.load_config()
         self.validate_config()
     

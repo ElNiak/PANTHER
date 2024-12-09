@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
 
+from config.config_schema import ServiceConfig
 from plugins.plugin_loader import PluginLoader
 from plugins.plugin_interface import IPlugin
 
@@ -20,7 +21,7 @@ class IServiceManager(IPlugin):
     ):
         super().__init__()
         
-        self.available_types = ["testers", "implementations"]
+        self.available_types = ["testers", "iut"]
         self.type = type
         assert self.type in self.available_types, f"Invalid service type: {self.type}"
         
@@ -149,7 +150,7 @@ class IServiceManager(IPlugin):
         pass 
     
     @abstractmethod
-    def generate_deployment_commands(self, service_params: Dict[str, Any], environment:str) -> Dict[str, str]:
+    def generate_deployment_commands(self, service_params: ServiceConfig, environment:str) -> Dict[str, str]:
         """
         Generates deployment commands based on service parameters.
 

@@ -6,12 +6,14 @@ import logging
 from typing import Dict, Any, List
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from core.observer.event_manager import EventManager
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
 import traceback
+from core.observer.event import Event
 
 
 class DockerComposeEnvironment(INetworkEnvironment):
@@ -22,8 +24,9 @@ class DockerComposeEnvironment(INetworkEnvironment):
         environment_settings: Dict[str,Any],
         type: str,
         sub_type: str,
+        event_manager: EventManager,
     ):
-        super().__init__(config_path, output_dir, environment_settings, type, sub_type)
+        super().__init__(config_path, output_dir, environment_settings, type, sub_type, event_manager)
         self.services_network_config_file_path = Path(os.path.join(
             os.getcwd(),
             "plugins",
@@ -110,7 +113,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         # TODO add timeout in the test config
         try:
             # Ensure the log directory for each service exists
-            for service_name in self.services.keys():
+            for service_name , service in self.services.items():
                 log_dir = os.path.join(self.log_dirs, service_name)
                 if not os.path.exists(log_dir):
                     os.makedirs(log_dir)
@@ -119,15 +122,15 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 additional_command = ""
                 if "ivy" in service_name:
                     # update other service so they wait for ivy to be ready
-                    self.logger.debug(f"Adding wait for Ivy tester to be ready for {service_name}")
-                    for other_service_name in self.services.keys():
+                    self.logger.debug(f"Adding wait for Ivy testers to be ready for {service_name}")
+                    for other_service_name, other_service in self.services.items():
                         if other_service_name != service_name:
                             additional_command = f"""
                             while [ ! -f /app/sync_logs/ivy_ready ]; do
-                                echo "Waiting for Ivy tester to be ready..." >> /app/logs/tester_ready;
+                                echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready;
                                 sleep 2;
                             done;
-                            echo "Ivy tester is ready, starting {other_service_name}..." >> /app/logs/tester_ready;   
+                            echo "Ivy testers is ready, starting {other_service_name}..." >> /app/logs/tester_ready;   
                             """.strip()
                             self.deployment_info[other_service_name]["volumes"].append("shared_logs:/app/sync_logs")
             
@@ -149,7 +152,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             )
             
             # Write the rendered content to docker-compose.generated.yml
-            with open(self.rendered_services_network_config_file_path, "w") as f:
+            with open(self.services_network_config_file_path, "w") as f:
                 f.write(rendered)
                 
             with open(self.rendered_services_network_config_file_path, "w") as f:
@@ -227,10 +230,52 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     # Write both stdout and stderr to the log file
                     log_file.write(result_exp.stdout)
                     log_file_err.write(result_exp.stderr)
-                self.logger.info("Docker Compose environment launched successfully.")
+                self.logger.info("Docker Compose environment logs successfully.")
+                # self.event_manager.notify(Event("experiment_finished_early", {}))
         except subprocess.CalledProcessError as e:
             self.logger.error(
                 f"Failed to launch Docker Compose environment: {e.stderr}"
+            )
+            raise e
+        
+    def monitor_environment(self):
+        """
+        Monitors the Docker Compose environment by checking the status of services.
+        """
+        try:
+            with open(
+                os.path.join(self.output_dir, "logs", "docker-compose-ps.log"), "w"
+            ) as log_file:
+                with open(
+                    os.path.join(self.output_dir, "logs", "docker-compose-ps.err.log"), "w"
+                ) as log_file_err:
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "-f",
+                            str(self.rendered_services_network_config_file_path),
+                            "ps",
+                        ],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,  # Ensures that output is in string format
+                    )
+                    # Write both stdout and stderr to the log file
+                    log_file.write(result.stdout)
+                    log_file_err.write(result.stderr)
+                    # NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
+                    #
+                    self.logger.debug(f"docker-compose ps: {result.stdout}")
+                    if len(result.stdout.split("\n")) == 2:
+                        self.logger.info("Docker Compose environment monitored successfully - experiment_finished_early")
+                        self.event_manager.notify(Event(name="experiment_finished_early", data={}))
+                    
+                self.logger.info("Docker Compose environment monitored successfully.")
+        except subprocess.CalledProcessError as e:
+            self.logger.error(
+                f"Failed to monitor Docker Compose environment: {e.stderr}"
             )
             raise e
 

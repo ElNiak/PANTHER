@@ -5,11 +5,12 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List
+from core.observer.event_manager import EventManager
 from plugins.services.testers.tester_interface import ITesterManager
 from plugins.services.services_interface import IServiceManager
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.services.implementations.implementation_interface import IImplementationManager
+from plugins.services.iut.implementation_interface import IImplementationManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
 from plugins.plugin_loader import PluginLoader
 
@@ -47,7 +48,7 @@ class PluginManager:
             class_name = f'{implementation.replace("_", " ").title()}ServiceManager'.replace(" ", "")
             self.logger.debug(f"Loading class '{class_name}' from module '{module}'")
             service_manager_class = getattr(module, class_name, None)
-            service_type = "implementations" if issubclass(service_manager_class, IImplementationManager) else "testers"
+            service_type = "iut" if issubclass(service_manager_class, IImplementationManager) else "testers"
             if service_manager_class and \
                     (issubclass(service_manager_class, IImplementationManager) or issubclass(service_manager_class, ITesterManager)):
                 implementation_config_path = implementation_dir / "config.yaml"
@@ -71,7 +72,7 @@ class PluginManager:
             raise ImportError(f"Cannot load module from '{service_manager_path}'")
     
     def create_environment_manager(self, environment: str, environment_settings: Dict[str,Any],
-                                   environment_dir: Path, output_dir: Path) -> IEnvironmentPlugin:
+                                   environment_dir: Path, output_dir: Path, event_manager: EventManager) -> IEnvironmentPlugin:
         """
         Creates an instance of an environment manager based on the environment name.
 
@@ -104,7 +105,8 @@ class PluginManager:
                     output_dir=str(output_dir),
                     environment_settings=environment_settings,
                     type=environment_dir.name,
-                    sub_type=environment
+                    sub_type=environment,
+                    event_manager=event_manager,
                 )
                 self.logger.debug(f"Created instance of '{class_name}'")
                 return instance

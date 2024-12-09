@@ -28,16 +28,29 @@ class EventManager(ABC):
         """
         self.observers.remove(observer)
         self.logger.debug(f"Unregistered observer '{observer.__class__.__name__}'")
-
+        
+    def has_event_occurred(self, event: Event) -> bool:
+        event.data = {"action": "check", **event.data}
+        self.logger.debug(f"Checking if event '{event.name}' occurred with data {event.data}")
+        for observer in self.observers:
+            if observer.on_event(event):
+                self.logger.debug(f"Event '{event.name}' occurred")
+                return True
+        self.logger.debug(f"Event '{event.name}' did not occur")
+        return False
+        
     def notify(self, event: Event):
         """
         Notifies all registered observers about an event.
 
         :param event: The event to notify observers about.
         """
+        event.data = {"action": "notify", **event.data}
         self.logger.debug(f"Notifying observers about event '{event.name}' with data {event.data}")
         for observer in self.observers:
             try:
                 observer.on_event(event)
             except Exception as e:
                 self.logger.error(f"Error notifying observer '{observer.__class__.__name__}': {e}")
+                e.with_traceack()
+                

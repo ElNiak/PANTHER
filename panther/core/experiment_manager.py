@@ -13,8 +13,6 @@ from core.results.result_handlers.storage_handler import StorageHandler
 from core.test_cases.test_interface import ITestCase
 from core.results.result_collector import ResultCollector
 from plugins.plugin_manager import PluginManager
-from core.observer.event_manager import EventManager
-from core.observer.event import Event
 from core.test_cases.test_case import TestCase
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
@@ -45,7 +43,6 @@ class ExperimentManager:
         
         self.plugin_dir = plugin_dir
         self.logger = logger or logging.getLogger("ExperimentManager")
-        self.event_manager = EventManager()
         
         self.plugin_dir = Path(plugin_dir)
         self.plugin_loader = PluginLoader(plugin_dir)
@@ -71,36 +68,33 @@ class ExperimentManager:
 
     def _validate_configuration(self):
         """Validates the experiment configuration."""
-        if not self.experiment_config.get("tests"):
+        if not self.experiment_config.tests:
             raise ValueError("Experiment configuration must include at least one test.")
         self.logger.info("Experiment configuration validated.")
 
     def _initialize_test_cases(self):
         """Initializes the test cases from the experiment configuration."""
         try:
-            for test_config in self.experiment_config.get("tests", []):
-                self.logger.info(f"Initializing test case: {test_config.get('name', 'Unnamed Test')}")
-                net_environment_type = test_config.get("network_environment", "localhost")
-                net_setting          = test_config.get(f"{net_environment_type}_settings",{})
+            for test_config in self.experiment_config.tests:
+                self.logger.info(f"Initializing test case: {test_config.name}")
+                net_environment_type = test_config.network_environment
                 self.logger.info(f"Loading network environment: {net_environment_type}")
                 # if not net_environment_type:
                 #     raise ValueError(f"Unknown environment type: {net_environment_type}")
                 execution_environment_types = []
-                exec_environment_types = test_config.get("execution_environment", [])
-                exec_env_settings = {}
+                exec_environment_types = test_config.execution_environment
                 for exec_env in exec_environment_types:
                     self.logger.info(f"Loading execution environment: {exec_env}")
-                    exec_env_settings = test_config.get(f"{exec_env}_settings", {})
-                    execution_environment_types.append((exec_env, exec_env_settings))
+                    execution_environment_types.append(exec_env)
                 # if not exec_environment_type:
                 #     raise ValueError(f"Unknown environment type: {exec_environment_type}")
-                test_experiment_dir = self.experiment_dir / test_config.get("name", "Unnamed Test").replace(" ", "_")
-                self.result_collectors.register_handler(f"storage_{test_config.get('name', 'Unnamed Test').replace(' ', '_')})",  
+                test_experiment_dir = self.experiment_dir / test_config.name.replace(" ", "_")
+                self.result_collectors.register_handler(f"storage_{test_config.name.replace(' ', '_')})",  
                                                         StorageHandler(self.experiment_dir, 
-                                                                       test_config.get("name", "Unnamed Test").replace(" ", "_")))
+                                                                       test_config.name.replace(" ", "_")))
                 
                 environment_types = {
-                    "network": [(net_environment_type, net_setting)],
+                    "network": [net_environment_type],
                     "execution": execution_environment_types 
                 }
                 self.logger.info(f"Initializing environment_types '{environment_types}'")
@@ -108,9 +102,9 @@ class ExperimentManager:
                                      logger=self.logger, 
                                      result_collector=self.result_collectors, 
                                      environment_types=environment_types, 
-                                     event_manager=self.event_manager,
                                      plugin_manager=self.plugin_manager,
-                                     test_experiment_dir=test_experiment_dir)
+                                     test_experiment_dir=test_experiment_dir,
+                                     paths=self.experiment_config.paths)
                 
                 self.logger.info(f"Initialized test case '{test_case}'")
                 self.test_cases.append(test_case)
@@ -123,10 +117,7 @@ class ExperimentManager:
         """Runs the tests defined in the experiment configuration."""
         try:
             self.logger.info("Starting experiment tests...")
-            for test_case in self.test_cases:
-                # Check if new certificates should be generated
-                if self.experiment_config.get('generate_new_certificates', False):
-                    subprocess.run(["bash", 'generate_certificates.sh'])
+            for test_case in self.test_cases:                    
                 test_case.run()
             self.logger.info("All experiment tests completed.")
         except Exception as e:

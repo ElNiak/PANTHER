@@ -1,14 +1,29 @@
 import subprocess
 import logging
 import os
-from plugins.services.implementations.implementation_interface import IImplementationManager
+from plugins.services.iut.implementation_interface import IImplementationManager
 
-class QuicheServiceManager(IImplementationManager):
-    def __init__(self, implementation_config_path: str = "/opt/quiche/config.yaml", protocol_templates_dir: str = "/opt/quiche/templates"):
+class PingPontFailServiceManager(IImplementationManager):
+    def __init__(self):
         self.process = None
-        self.logger = logging.getLogger("QuicheServiceManager")
-        self.config = implementation_config_path
+        self.logger = logging.getLogger("PicoquicServiceManager")
     
+    def build_image(self):
+        """
+        Builds the Picoquic Docker image.
+        """
+        self.logger.info("Building Picoquic Docker image...")
+        try:
+            subprocess.run(
+                "docker build -t picoquic .",
+                shell=True,
+                cwd="/opt/picoquic",  # Adjust based on Dockerfile's location
+                check=True
+            )
+            self.logger.info("Picoquic Docker image built successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to build Picoquic Docker image: {e}")
+            
     def start_service(self, parameters: dict):
         """
         Starts the Picoquic server or client based on the role.

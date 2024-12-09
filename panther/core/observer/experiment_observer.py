@@ -4,7 +4,7 @@ import logging
 from core.observer.observer_interface import IObserver
 from core.observer.event import Event
 
-class LoggerObserver(IObserver):
+class ExperimentObserver(IObserver):
     """
     LoggerObserver is a concrete implementation of the Observer interface that is used to log updates from the subject.
 
@@ -17,8 +17,8 @@ class LoggerObserver(IObserver):
                 NotImplementedError: This method should be overridden in subclasses.
     """
     def __init__(self):
-        self.logger = logging.getLogger("LoggingObserver")
-
+        self.logger = logging.getLogger("ExperimentObserver")
+        self.experiment_finished_early = False
 
 
     def on_event(self, event: Event):
@@ -27,5 +27,15 @@ class LoggerObserver(IObserver):
 
         :param event: The event to handle.
         """
-        self.logger.info(f"Received event '{event.name}' with data: {event.data}")
+        if event.name == "experiment_finished_early":
+            if event.data["action"] == "notify":
+                self.logger.debug(f"Experiment finished early")
+                self.experiment_finished_early = True
+            return self.experiment_finished_early
     
+        if event.name == "step_progress":
+            self.logger.debug(f"Monitoring environment: {self.environment}")
+            self.environment.monitor_environment()
+            
+        if event.name == "services_deployed":
+            self.environment = event.data["environment"]

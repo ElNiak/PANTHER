@@ -159,7 +159,7 @@ class DockerBuilder:
         dockerfiles = {}
         self.plugins_dir = plugins_dir  # Store for later use in dependency builds
         
-        implementations_dir = Path(plugins_dir) / "services" /"implementations"
+        implementations_dir = Path(plugins_dir) / "services" /"iut"
         self.logger.info(f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'")
         if not implementations_dir.exists():
             self.logger.warning(f"Implementations directory '{implementations_dir}' does not exist.")
@@ -186,7 +186,7 @@ class DockerBuilder:
                 if dockerfile.exists():
                     impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
                     dockerfiles[impl_name] = dockerfile.resolve()
-                    self.logger.debug(f"Found Dockerfile for tester '{impl_name}': {dockerfile.resolve()}")
+                    self.logger.debug(f"Found Dockerfile for testers '{impl_name}': {dockerfile.resolve()}")
 
 
         env_dir = Path(plugins_dir) / "environments"
@@ -215,7 +215,7 @@ class DockerBuilder:
         :param version: Version identifier.
         :return: Configuration dictionary if found, else None.
         """
-        config_path = Path(self.plugins_dir) / "implementations" / impl_name / "config.yaml"
+        config_path = Path(self.plugins_dir) / "iut" / impl_name / "config.yaml"
         if not config_path.exists():
             self.logger.error(f"Configuration file '{config_path}' does not exist for implementation '{impl_name}'.")
             return None

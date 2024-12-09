@@ -1,7 +1,7 @@
 import subprocess
 import logging
 import os
-from plugins.services.implementations.implementation_interface import IImplementationManager
+from plugins.services.iut.implementation_interface import IImplementationManager
 
 class PingPongServiceManager(IImplementationManager):
     def __init__(

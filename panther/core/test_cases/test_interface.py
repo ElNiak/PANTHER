@@ -4,8 +4,10 @@ from abc import ABC, abstractmethod
 import logging
 from omegaconf import DictConfig
 
+from config.config_schema import TestConfig
+
 class ITestCase(ABC):
-    def __init__(self, test_config: DictConfig, logger: logging.Logger):
+    def __init__(self, test_config: TestConfig, logger: logging.Logger):
         self.logger = logger
         self.test_config = test_config
 

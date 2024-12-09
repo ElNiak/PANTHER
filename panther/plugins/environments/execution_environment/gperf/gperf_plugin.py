@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from jinja2 import Environment, FileSystemLoader
+from core.observer.event_manager import EventManager
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 
 class GperfEnvironment(IExecutionEnvironment):
@@ -14,8 +15,9 @@ class GperfEnvironment(IExecutionEnvironment):
         environment_settings: Dict[str,Any],
         type: str,
         sub_type: str,
+        event_manager: EventManager
     ):
-        super().__init__(config_path, output_dir, environment_settings, type, sub_type)
+        super().__init__(config_path, output_dir, environment_settings, type, sub_type, event_manager)
         self.logger = logging.getLogger("GPerfEnvironment")
         self.services_network_config_file_path = os.path.join(
             os.getcwd(),
