@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from config.config_schema import ProtocolConfig
+from plugins.services.iut.config_schema import ProtocolConfig
 
 RoleEnum = Enum("RoleEnum", ["server", "client"])
 VersionEnum = Enum("VersionEnum", ["rfc9000", "draft29", "draft27"])

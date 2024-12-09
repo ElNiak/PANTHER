@@ -7,20 +7,21 @@ import traceback
 from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
-from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from core.observer.event_manager import EventManager
+from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 
 class LocalhostSingleContainerEnvironment(INetworkEnvironment):
     def __init__(
         self,
-        config_path: str,
         output_dir: str,
         environment_settings: Dict[str,Any],
-        type: str,
-        sub_type: str,
+        env_type: str,
+        env_sub_type: str,
+        event_manager: EventManager,
     ):
-        super().__init__(config_path, output_dir, environment_settings, type, sub_type)
+        super().__init__(output_dir, environment_settings, env_type, env_sub_type, event_manager)
         
         self.docker_version = "v1"
         self.environment_settings = environment_settings
@@ -30,8 +31,8 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             os.getcwd(),
             "plugins",
             "environments",
-            type,
-            sub_type,
+            env_type,
+            env_sub_type,
             "run.generated.sh",
         ))
         self.rendered_services_network_config_file_path = Path(os.path.join(
@@ -43,7 +44,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             "plugins",
             "environments",
             type,
-            sub_type,
+            env_sub_type,
             "Dockerfile.generated",
         ))
         self.rendered_services_network_docker_file_path = Path(os.path.join(

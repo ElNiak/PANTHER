@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from config.config_schema import ExecutionEnvironmentConfig
+from config.config_experiment_schema import ExecutionEnvironmentConfig
 
 
 @dataclass

@@ -1,8 +1,10 @@
 
+
+
 from dataclasses import dataclass
 from omegaconf import MISSING
 
-# Network Environment Configuration
+# Execution Environment Configuration
 @dataclass
-class NetworkEnvironmentConfig:
+class ExecutionEnvironmentConfig:
     type: str = MISSING

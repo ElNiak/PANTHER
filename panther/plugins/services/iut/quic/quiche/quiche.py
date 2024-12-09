@@ -7,7 +7,7 @@ class QuicheServiceManager(IImplementationManager):
     def __init__(self, implementation_config_path: str = "/opt/quiche/config.yaml", protocol_templates_dir: str = "/opt/quiche/templates"):
         self.process = None
         self.logger = logging.getLogger("QuicheServiceManager")
-        self.config = implementation_config_path
+        self.service_master_config = implementation_config_path
     
     def start_service(self, parameters: dict):
         """

@@ -1,22 +1,16 @@
-from abc import ABC, abstractmethod
-import os
-from pathlib import Path
-import socket
-from typing import Any, Dict, List
-
-from jinja2 import Environment, FileSystemLoader
-
+from config.config_experiment_schema import ServiceConfig
 from plugins.services.services_interface import IServiceManager
 
 class ITesterManager(IServiceManager):
     
     def __init__(
         self,
-        type: str,
+        service_config_to_test: ServiceConfig,
+        service_type: str,
         protocol: str,
         implementation_name: str,
     ):
-        super().__init__(type, protocol,implementation_name)
+        super().__init__(service_config_to_test, service_type, protocol,implementation_name)
         
     
     

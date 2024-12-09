@@ -1,12 +1,6 @@
 from datetime import datetime
-import logging
 from pathlib import Path
-import subprocess
-import time
 from typing import Any, Dict, List, Set
-
-import requests
-from omegaconf import DictConfig
 
 from core.test_cases.test_interface import ITestCase
 from core.observer.event_manager import EventManager
@@ -14,28 +8,56 @@ from core.observer.event import Event
 from core.observer.logger_observer import LoggerObserver
 from core.observer.experiment_observer import ExperimentObserver
 from core.results.result_collector import ResultCollector
+from config.config_experiment_schema import TestConfig
+from config.config_global_schema import GlobalConfig
+from core.results.result_handlers.storage_handler import StorageHandler
 from plugins.services.services_interface import IServiceManager
 from plugins.plugin_manager import PluginManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
 
 
 class TestCase(ITestCase):
-    def __init__(self, test_config: DictConfig, logger: logging.Logger, result_collector: ResultCollector, 
-                 environment_types: Dict[str,Any],  plugin_manager: PluginManager,
-                 test_experiment_dir: Path, paths: Dict[str, Any]):
+    def __init__(self, 
+                 test_config: TestConfig, 
+                 global_config: GlobalConfig,
+                 plugin_manager: PluginManager,
+                 experiment_dir: Path):
         
-        super().__init__(test_config, logger)
-        self.result_collector = result_collector
+        super().__init__(test_config, global_config)
+        
+        self.test_name = test_config.name.replace(" ", "_")
+        self.test_experiment_dir = experiment_dir / test_config.name.replace(" ", "_")
+        
+        self.result_collectors = ResultCollector()
+        self.result_collectors.register_handler(f"storage_{self.test_name})",  
+                                                StorageHandler(experiment_dir, self.test_name))
+        
         self.service_managers: List[IServiceManager] = []
+        
         self.environment_plugin_manager : List[IEnvironmentPlugin] = []
         self.event_manager = EventManager()
+        
+        net_environment_type = test_config.network_environment
+        self.logger.info(f"Loading network environment: {net_environment_type}")
+        
+        execution_environment_types = []
+        exec_environment_types = test_config.execution_environment
+        for exec_env in exec_environment_types:
+            self.logger.info(f"Loading execution environment: {exec_env}")
+            execution_environment_types.append(exec_env)
+
+        environment_types = {
+            "network": [net_environment_type],
+            "execution": execution_environment_types 
+        }
+        self.logger.info(f"Initializing environment_types '{environment_types}'")
+                
         self.environments = environment_types
         self.exectution_environment = []
         self.plugin_manager = plugin_manager
-        self.test_experiment_dir = test_experiment_dir
+        
         self.services = test_config.services
         self.deployment_commands = []
-        self.paths = paths
         
     def __str__(self):
         return (f"TestCase(name={self.test_config.name}, "
@@ -57,148 +79,109 @@ class TestCase(ITestCase):
             self.logger.info(f"Starting Test: {self.test_config.name}")
             self.logger.info(f"Description:   {self.test_config.description}")
             self.register_default_observers()
-            self.setup_test()
+            self.setup_services()
+            self.setup_environment()
             self.deploy_services()
             self.execute_steps()
             self.validate_assertions()
             self.logger.info(f"Test '{self.test_config.name}' completed successfully.")
-            # self.result_collector["storage"].save_test_result(self.test_config.name, {
-            #     "status": "completed",
-            #     "test_config": self.test_config,
-            #     "details": "Test completed successfully."
-            # })
             self.event_manager.notify(Event("test_completed", {"test": self.test_config.name}))
         except Exception as e:
             self.logger.error(f"Test '{self.test_config.name}' failed: {e}")
-            # self.result_collector["storage"].save_test_result(self.test_config.name, {
-            #     "status": "failed",
-            #     "test_config": self.test_config,
-            #     "error": str(e)
-            # })
             raise
         finally:
             self.teardown_environment()
 
     def setup_testers(self):
         """
-        
+        We have as input the services details extracted from the test configuration file.
+        We need to:
+        - Extract the required testers from the services details.
+        - Load the testers plugins.
+            - Should be in the plugins/services/testers directory.
+            - Each tester should have a directory with the same name as the tester.
+        - In the end, we should have a list of service managers that will be used to deploy the services.
         """
-        def get_required_testers(services: Dict[str, Dict[str, Any]]) -> Set[str]:
-            """_summary_
-
-            Args:
-                services (Dict[str, Dict[str, Any]]): _description_
-
-            Returns:
-                Set[str]: _description_
-            """
-            required_implementations = []
-            # TODO add check unicity of the testers [i.e set() like -> unhashable type: 'dict']
-            for service_name, service_details in services.items():
-                implementation = service_details.implementation
-                self.logger.debug(f"Service '{service_name}' uses implementation '{implementation}' with details: {service_details}")
-                if implementation and implementation.type == "testers":
-                    if implementation not in [impl["implem"] for impl in required_implementations]:
-                        print("fuck")
-                        required_implementations.append({"implem":  implementation,
-                                                         "protocol": service_details.protocol})
-                else:
-                    self.logger.warning(f"Service '{service_name}' does not specify an implementation.")
-
-            if not required_implementations:
-                self.logger.error("No testers specified for services. Aborting test. ?")
-                # Skip to the next test
-            return required_implementations
-        
-        testers = get_required_testers(self.services)
-        if len(testers) == 0:
+        self.logger.debug("Setup Testers plugins ...")
+        self.testers_path = Path(self.global_config.paths.plugin_dir) / Path(self.global_config.paths.services_dir) / Path(self.global_config.paths.testers_dir)
+        self.logger.debug(f"Looking for testers plugins at '{self.testers_path}'")
+        self.available_testers = [p.name for p in self.testers_path.iterdir() if p.is_dir() and not p.name.startswith("__")]
+        self.logger.debug(f"Available testers: {self.available_testers}")
+        self.test_defined_testers = [service_details.implementation for service_details in self.services.values() if service_details.implementation.type == "testers"]
+        if len(self.test_defined_testers) == 0:
             self.logger.warning("No testers specified in the test configuration.")
             return
-        self.logger.debug(f"Testers: {testers}")
-        testers_plugin_path = Path(f"plugins/services/testers")
-        if testers_plugin_path.exists() and testers_plugin_path.is_dir():
-            self.logger.debug(f"Found testers plugin at '{testers_plugin_path}'")
+        self.logger.debug(f"Test defined testers: {self.test_defined_testers}")
+        if self.testers_path.exists() and self.testers_path.is_dir():
+            self.logger.debug(f"Found testers plugin at '{self.testers_path}'")
             # Discover and load implementations under this protocol using PluginFactory
             available_testers = self.plugin_manager.plugins_loader.get_testers()
-            for impl in testers:
-                if impl["implem"].name in available_testers:
-                    implementation_dir = testers_plugin_path / impl["implem"].name
-                    protocol_templates_dir = testers_plugin_path / impl["implem"].name /"templates"
+            for tester_config in self.test_defined_testers:
+                if tester_config.name in available_testers:
+                    implementation_dir = self.testers_path / tester_config.name
                     # Create service manager using PluginFactory
-                    print(impl["protocol"])
-                    print(impl["protocol"])
                     service_manager = self.plugin_manager.create_service_manager(
-                        protocol=impl["protocol"].name, 
-                        implementation=impl["implem"].name,
+                        service_config_to_test=tester_config,
+                        protocol="quic", # TODO: This should be dynamic
+                        implementation=tester_config.name,
                         implementation_dir=implementation_dir
                     )
                     self.service_managers.append(service_manager)
-                    self.logger.debug(f"Added service manager for testers '{impl['implem']}' under protocol '{impl['protocol'].name}'")
+                    self.logger.debug(f"Added service manager for testers '{tester_config.name}' under protocol '{'quic'}'")
                 else:
-                    self.logger.warning(f"Tester '{impl['implem']}' for protocol '{impl['protocol'].name}' not found. Skipping.")
+                    self.logger.warning(f"Tester '{tester_config.name}' for protocol '{'quic'}' not found. Skipping.")
         else:
-            self.logger.warning(f"Tester plugin not found at '{testers_plugin_path}'. Skipping.")
+            self.logger.warning(f"Tester plugin not found at '{self.testers_path}'. Skipping.")
         
     def setup_implementations(self):
         """
-        Initializes protocol managers based on the specified protocols and required implementations.
-
-        :param protocols: List of protocol names.
-        :param implementations: Set of implementation names to initialize.
+        We have as input the services details extracted from the test configuration file.
+        We need to:
+        - Extract the required implementations from the services details.
+        - Load the protocol plugins. 
+            - Should be in the plugins/services/iut directory.
+            - Each protocol should have a directory with the same name as the protocol.
+        - In the end, we should have a list of service managers that will be used to deploy the services.
         """
-        def get_required_implementations(services: Dict[str, Dict[str, Any]]) -> Set[str]:
-            """
-            Extracts the required implementations from a dictionary of services.
-
-            :param services: Dictionary of services with their configurations.
-            :return: Set of implementation names.
-            """
-            required_implementations = []
-            # TODO add check unicity of the testers [i.e set() like -> unhashable type: 'dict']
-            for service_name, service_details in services.items():
-                implementation = service_details.implementation
-                if implementation and implementation.type != "testers":
-                    if implementation not in [impl["implem"] for impl in required_implementations]:
-                        print("fuck")
-                        required_implementations.append({"implem":  implementation,
-                                                         "protocol": service_details.protocol})
-                else:
-                    self.logger.warning(f"Service '{service_name}' does not specify an implementation.")
-
-            if not required_implementations:
-                self.logger.error("No testers specified for services. Aborting test. ?")
-                # Skip to the next test
-            return required_implementations
+        self.logger.debug("Setup Implementation Under Tests plugins ...")
+        self.iut_path = Path(self.global_config.paths.plugin_dir) / Path(self.global_config.paths.services_dir) / Path(self.global_config.paths.iut_dir)
+        self.logger.debug(f"Looking for IUT plugins at '{self.iut_path}'")
+        self.available_protocols = [p.name for p in self.iut_path.iterdir() if p.is_dir() and not p.name.startswith("__")]
+        self.logger.debug(f"Available protocols: {self.available_protocols}")  
+        self.available_implementations_per_protocol = {}
+        for protocol in self.available_protocols:
+            self.available_implementations_per_protocol[protocol] = self.plugin_manager.plugins_loader.get_implementations_for_protocol(protocol)
+                
+        self.test_defined_implementation = [service_details.implementation for service_details in self.services.values() if service_details.implementation.type == "iut"]
+        self.logger.debug(f"Test defined implementations: {self.test_defined_implementation}")
         
-        # TODO
-        protocol_path = Path("plugins/services/iut")
-        protocols = [p.name for p in protocol_path.iterdir() if p.is_dir() and not p.name.startswith("__")]
-        implementations = get_required_implementations(self.services)
+        for service_name, service_details in self.services.items():
+            self.logger.debug(f"Service '{service_name}' uses implementation '{service_details.implementation}' with details: {service_details}")
         
-        for proto in protocols:
-            protocol_plugin_path = Path(f"plugins/services/iut/{proto}")
+        for protocol in self.available_protocols:
+            protocol_plugin_path = self.iut_path / protocol
             if protocol_plugin_path.exists() and protocol_plugin_path.is_dir():
                 self.logger.debug(f"Found protocol plugin at '{protocol_plugin_path}'")
                 # Discover and load implementations under this protocol using PluginFactory
-                available_implementations = self.plugin_manager.plugins_loader.get_implementations_for_protocol(proto)
-                for impl in implementations:
-                    self.logger.debug(f"Checking implementation '{impl}' for protocol '{proto}'")
-                    if impl["implem"].name in available_implementations:
-                        implementation_dir = protocol_plugin_path / impl["implem"].name
-                        protocol_templates_dir = protocol_plugin_path / impl["implem"].name /"templates"
+                for implementation_config in self.test_defined_implementation:
+                    self.logger.debug(f"Checking implementation '{implementation_config}' for protocol '{protocol}'")
+                    if implementation_config.name in self.available_implementations_per_protocol[protocol]:
+                        # Question: transfert the global config to the plugin manager ?
+                        implementation_dir = protocol_plugin_path / implementation_config.name
                         # Create service manager using PluginFactory
                         service_manager = self.plugin_manager.create_service_manager(
-                            protocol=proto,
-                            implementation=impl["implem"].name,
+                            service_config_to_test=implementation_config,
+                            protocol=protocol,
+                            implementation=implementation_config.name,
                             implementation_dir=implementation_dir,
                         )
                         self.service_managers.append(service_manager)
-                        self.logger.debug(f"Added service manager for implementation '{impl}' under protocol '{proto}'")
+                        self.logger.debug(f"Added service manager for implementation '{implementation_config}' under protocol '{protocol}'")
                     else:
-                        self.logger.warning(f"Implementation '{impl}' for protocol '{proto}' not found. Skipping.")
+                        self.logger.warning(f"Implementation '{implementation_config}' for protocol '{protocol}' not found. Skipping.")
                         # exit()
             else:
-                self.logger.warning(f"Protocol plugin '{proto}' not found at '{protocol_plugin_path}'. Skipping.")
+                self.logger.warning(f"Protocol plugin '{protocol}' not found at '{protocol_plugin_path}'. Skipping.")
                 exit()
 
     def teardown_services(self):
@@ -248,10 +231,10 @@ class TestCase(ITestCase):
                 if env_manager.is_network_environment():
                     env_manager.setup_environment(self.services, 
                                                  self.deployment_commands, 
-                                                self.test_config, 
-                                                datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-                                                self.plugin_manager.plugins_loader,
-                                                self.exectution_environment)
+                                                 self.test_config, 
+                                                 datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+                                                 self.plugin_manager.plugins_loader,
+                                                 self.exectution_environment)
                     self.logger.info(f"Environment '{env_manager.__class__.__name__}' setup successfully.")
                     self.event_manager.notify(Event("environment_setup", {"environment": env_manager}))
             except Exception as e:
@@ -374,27 +357,25 @@ class TestCase(ITestCase):
         Registers default observers to listen to events.
         """
         # TODO should register event per test
+        self.logger.debug("Registering default observers")
         logging_observer = LoggerObserver()
         self.event_manager.register_observer(logging_observer)
         experiment_observer = ExperimentObserver()
         self.event_manager.register_observer(experiment_observer)
         self.logger.debug("Registered LoggingObserver as a default observer")
     
- 
-    def setup_test(self):
-        """
-        Sets up all environments managed by thfrom core.observer.event import Event
-        e environment managers, providing service configurations and deployment commands.
-        """
-        self.logger.info("Setting up all environments and services")
-        self.setup_services()
-        self.setup_environment()
+
         
     def setup_services(self):
         """_summary_
         """
+        self.logger.debug("Setting up services ...")
+        # We create the service managers for the implementations and testers
         self.setup_implementations()
         self.setup_testers()
+        # Then, we generate the deployment commands for the services. 
+        # Those deployment commands will be used by the environment manager to 
+        # deploy the services.
         self.generate_deployment_commands(self.test_config.network_environment)
 
     def generate_deployment_commands(self, environment:str) -> Dict[str, str]:

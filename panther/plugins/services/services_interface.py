@@ -8,29 +8,30 @@ from typing import Any, Dict, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
 
-from config.config_schema import ServiceConfig
+from config.config_experiment_schema import ServiceConfig
 from plugins.plugin_loader import PluginLoader
 from plugins.plugin_interface import IPlugin
 
 class IServiceManager(IPlugin):
     def __init__(
         self,
-        type: str,
+        service_config_to_test: ServiceConfig,
+        service_type: str,
         protocol: str,
         implementation_name: str,
     ):
         super().__init__()
         
         self.available_types = ["testers", "iut"]
-        self.type = type
-        assert self.type in self.available_types, f"Invalid service type: {self.type}"
+        self.service_type = service_type
+        assert self.service_type in self.available_types, f"Invalid service type: {self.service_type}"
         
-        if self.type == "testers":
-            self.config_path = f"plugins/services/{type}/{implementation_name}/config.yaml"
-            self.templates_dir = f"plugins/services/{type}/{implementation_name}/templates/"
+        if self.service_type == "testers":
+            self.service_master_config_path = f"plugins/services/{service_type}/{implementation_name}/config.yaml"
+            self.templates_dir = f"plugins/services/{service_type}/{implementation_name}/templates/"
         else:
-            self.config_path = f"plugins/services/{type}/{protocol}/{implementation_name}/config.yaml"
-            self.templates_dir = f"plugins/services/{type}/{protocol}/{implementation_name}/templates/"
+            self.service_master_config_path = f"plugins/services/{service_type}/{protocol}/{implementation_name}/config.yaml"
+            self.templates_dir = f"plugins/services/{service_type}/{protocol}/{implementation_name}/templates/"
         
         
         if not os.path.isdir(self.templates_dir):
@@ -45,7 +46,9 @@ class IServiceManager(IPlugin):
         
         self.plugin_loader = None
         
-        self.config = self.load_config()
+        # The service master configuration represents the configuration file for the service defined by the plugin itself
+        self.service_master_config = self.load_config()
+        self.service_config_to_test = service_config_to_test
         self.validate_config()
         
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
@@ -56,6 +59,7 @@ class IServiceManager(IPlugin):
         
         # Service-specific attributes
         # Some attributes are set by the plugin loader, others are set by the plugin itself and the experiment manager
+        self.implementation_name  = implementation_name
         self.service_name     = None
         self.service_protocol = protocol
         self.service_targets  = []
@@ -75,12 +79,20 @@ class IServiceManager(IPlugin):
         }
         self.post_run_cmds = []
     
+    def get_implementation_name(self) -> str:
+        return self.implementation_name
     
     def is_tester(self):
         """
         Returns True if the plugin is a network service.
         """
-        return self.type == "testers"
+        return self.service_type == "testers"
+    
+    def __str__(self):
+        return super().__str__() + f" (service_type={self.service_type}, protocol={self.service_protocol}, implementation_name={self.implementation_name})"
+    
+    def __repr__(self):
+        return self.__str__() + f" (service_type={self.service_type}, protocol={self.service_protocol}, implementation_name={self.implementation_name})"
     
     # @abstractmethod
     # def setup_environment(self):
@@ -100,16 +112,16 @@ class IServiceManager(IPlugin):
         """
         Loads the YAML configuration file.
         """
-        config_file = Path(self.config_path)
+        config_file = Path(self.service_master_config_path)
         if not config_file.exists():
             self.logger.error(
-                f"Configuration file '{self.config_path}' does not exist."
+                f"Configuration file '{self.service_master_config_path}' does not exist."
             )
             return {}
         try:
             with open(config_file, "r") as f:
                 config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.config_path}'")
+            self.logger.info(f"Loaded configuration from '{self.service_master_config_path}'")
             return config
         except Exception as e:
             self.logger.error(
@@ -130,15 +142,6 @@ class IServiceManager(IPlugin):
         Returns the base URL for the given service.
         """
         raise NotImplementedError("Method 'get_base_url' must be implemented in subclasses.")
-    
-    @abstractmethod
-    def get_implementation_name(self) -> str:
-        """
-        Returns the name of the implementation.
-
-        :return: Implementation name as a string.
-        """
-        pass
     
     @abstractmethod
     def prepare(self, plugin_loader: Optional[PluginLoader] = None):

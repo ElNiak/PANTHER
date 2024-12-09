@@ -4,12 +4,14 @@ from abc import ABC, abstractmethod
 import logging
 from omegaconf import DictConfig
 
-from config.config_schema import TestConfig
+from config.config_experiment_schema import TestConfig
+from config.config_global_schema import GlobalConfig
 
 class ITestCase(ABC):
-    def __init__(self, test_config: TestConfig, logger: logging.Logger):
-        self.logger = logger
-        self.test_config = test_config
+    def __init__(self, test_config: TestConfig, global_config: GlobalConfig):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.test_config : TestConfig = test_config
+        self.global_config : GlobalConfig = global_config
 
     @abstractmethod
     def run(self):

@@ -6,7 +6,8 @@ import os
 from typing import Any, Dict, Optional
 import yaml
 import traceback
-from config.config_schema import ServiceConfig
+from config.config_experiment_schema import ServiceConfig
+from plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
 from plugins.plugin_loader import PluginLoader
 from plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
@@ -18,11 +19,12 @@ from jinja2 import Environment, FileSystemLoader, Template
 class PicoquicServiceManager(IImplementationManager):
     def __init__(
         self,
-        type: str,
+        service_config_to_test: PicoquicConfig,
+        service_type: str,
         protocol: str,
         implementation_name: str,
     ):
-        super().__init__(type, protocol,implementation_name)
+        super().__init__(service_config_to_test, service_type, protocol,implementation_name)
     
     def get_base_url(self, service_name: str) -> str:
         """
@@ -41,8 +43,6 @@ class PicoquicServiceManager(IImplementationManager):
             self.logger.error(f"No port mapping found for service '{service_name}'")
             return ""
 
-    def get_implementation_name(self) -> str:
-        return "picoquic"
 
     def get_service_name(self) -> str:
         return self.service_name
@@ -72,14 +72,14 @@ class PicoquicServiceManager(IImplementationManager):
                     return False
             return True
 
-        if not self.config:
+        if not self.service_master_config:
             self.logger.error("Implementation configuration is empty.")
             raise ValueError("Empty implementation configuration.")
         # Additional validation can be implemented here
         # For example, check required keys are present
         required_keys = [["picoquic"], ["picoquic", "versions"]]
         for key in required_keys:
-            if not keys_exists(self.config, key):
+            if not keys_exists(self.service_master_config, key):
                 self.logger.error(f"Missing required key '{key}' in configuration.")
                 raise KeyError(f"Missing required key '{key}' in configuration.")
 
@@ -96,16 +96,16 @@ class PicoquicServiceManager(IImplementationManager):
         """
         Loads the YAML configuration file.
         """
-        config_file = Path(self.config_path)
+        config_file = Path(self.service_master_config_path)
         if not config_file.exists():
             self.logger.error(
-                f"Configuration file '{self.config_path}' does not exist."
+                f"Configuration file '{self.service_master_config_path}' does not exist."
             )
             return {}
         try:
             with open(config_file, "r") as f:
                 config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.config_path}'")
+            self.logger.info(f"Loaded configuration from '{self.service_master_config_path}'")
             return config
         except Exception as e:
             self.logger.error(
@@ -128,7 +128,7 @@ class PicoquicServiceManager(IImplementationManager):
         version = service_params.protocol.version
         self.logger.debug(f"Role: {role}, Version: {version}")
         version_config = (
-            self.config.get("picoquic", {}).get("versions", {}).get(version, {})
+            self.service_master_config.get("picoquic", {}).get("versions", {}).get(version, {})
         )
 
         # Determine if network interface parameters should be included based on environment
@@ -285,7 +285,7 @@ class PicoquicServiceManager(IImplementationManager):
             raise e
 
     def __str__(self) -> str:
-        return f" (Picoquic Service Manager - {self.config_path})"
+        return f" (Picoquic Service Manager - {self.service_master_config_path})"
 
     def __repr__(self):
-        return f" (Picoquic Service Manager - {self.config_path})"
+        return f" (Picoquic Service Manager - {self.service_master_config_path})"

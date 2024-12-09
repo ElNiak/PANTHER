@@ -5,106 +5,72 @@ import logging
 from pathlib import Path
 import subprocess
 from typing import List
-from omegaconf import DictConfig
+from omegaconf import OmegaConf
 
 
+from config.config_experiment_schema import ExperimentConfig
+from config.config_global_schema import GlobalConfig
 from plugins.plugin_loader import PluginLoader
-from core.results.result_handlers.storage_handler import StorageHandler
 from core.test_cases.test_interface import ITestCase
-from core.results.result_collector import ResultCollector
 from plugins.plugin_manager import PluginManager
 from core.test_cases.test_case import TestCase
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
-
 class ExperimentManager:
     def __init__(
         self,
-        experiment_config: DictConfig,
+        global_config: GlobalConfig,
         experiment_name: str = None,
         plugin_dir: str = "plugins",
         logger: logging.Logger = None,
     ):
-        self.experiment_config = experiment_config
+        self.global_config = global_config
         self.experiment_name = (
             f"{experiment_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}" if experiment_name
             else f"experiment_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         )
-        
-        self.experiment_dir = Path(experiment_config.paths.output_dir) / self.experiment_name
+        self.experiment_dir = Path(global_config.paths.output_dir) / self.experiment_name
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save the experiment configuration file in the experiment folder
-        config_file_path = self.experiment_dir / "experiment_config.yaml"
-        with open(config_file_path, 'w') as config_file:
-            config_file.write(str(self.experiment_config))
-            
-        self.logs_dir = self.experiment_dir
         
+        self.logs_dir   = self.experiment_dir
         self.plugin_dir = plugin_dir
         self.logger = logger or logging.getLogger("ExperimentManager")
-        
-        self.plugin_dir = Path(plugin_dir)
-        self.plugin_loader = PluginLoader(plugin_dir)
+        self.plugin_dir     = Path(plugin_dir)
+        self.plugin_loader  = PluginLoader(plugin_dir)
         self.plugin_manager = PluginManager(self.plugin_loader)
-                
-        self.result_collectors = ResultCollector()
         
         self.test_cases: List[ITestCase] = []
+        self._load_logging()
 
-        self._initialize_experiment()
-
-    def _initialize_experiment(self):
+ 
+    def initialize_experiments(self, experiment_config: ExperimentConfig):
         """Initializes plugins, environment, and validates configuration."""
         try:
-            self._load_logging()
-            self._validate_configuration()
+            self.experiment_config = experiment_config
+            self._save_configuration()
             self.plugin_loader.load_plugins()
             self._initialize_test_cases()
         except Exception as e:
             self.logger.error(f"Initialization failed: {e}")
             raise
-
-
-    def _validate_configuration(self):
-        """Validates the experiment configuration."""
-        if not self.experiment_config.tests:
-            raise ValueError("Experiment configuration must include at least one test.")
-        self.logger.info("Experiment configuration validated.")
-
+    
+    def _save_configuration(self):
+        # Save the experiment configuration file in the experiment folder
+        config_file_path = self.experiment_dir / "experiment_config.yaml"
+        with open(config_file_path, 'w') as config_file:
+            config_file.write(OmegaConf.to_yaml(self.global_config))
+            config_file.write(OmegaConf.to_yaml(self.experiment_config))
+            
     def _initialize_test_cases(self):
         """Initializes the test cases from the experiment configuration."""
         try:
             for test_config in self.experiment_config.tests:
                 self.logger.info(f"Initializing test case: {test_config.name}")
-                net_environment_type = test_config.network_environment
-                self.logger.info(f"Loading network environment: {net_environment_type}")
-                # if not net_environment_type:
-                #     raise ValueError(f"Unknown environment type: {net_environment_type}")
-                execution_environment_types = []
-                exec_environment_types = test_config.execution_environment
-                for exec_env in exec_environment_types:
-                    self.logger.info(f"Loading execution environment: {exec_env}")
-                    execution_environment_types.append(exec_env)
-                # if not exec_environment_type:
-                #     raise ValueError(f"Unknown environment type: {exec_environment_type}")
-                test_experiment_dir = self.experiment_dir / test_config.name.replace(" ", "_")
-                self.result_collectors.register_handler(f"storage_{test_config.name.replace(' ', '_')})",  
-                                                        StorageHandler(self.experiment_dir, 
-                                                                       test_config.name.replace(" ", "_")))
-                
-                environment_types = {
-                    "network": [net_environment_type],
-                    "execution": execution_environment_types 
-                }
-                self.logger.info(f"Initializing environment_types '{environment_types}'")
                 test_case = TestCase(test_config=test_config, 
-                                     logger=self.logger, 
-                                     result_collector=self.result_collectors, 
-                                     environment_types=environment_types, 
+                                     global_config=self.global_config,
                                      plugin_manager=self.plugin_manager,
-                                     test_experiment_dir=test_experiment_dir,
-                                     paths=self.experiment_config.paths)
+                                     experiment_dir=self.experiment_dir)
                 
                 self.logger.info(f"Initialized test case '{test_case}'")
                 self.test_cases.append(test_case)
@@ -128,9 +94,10 @@ class ExperimentManager:
     def _load_logging(self):
         """
         Configures logging to output to both console and a log file.
+        # TODO add this behavior into the observer pattern
         """
-        log_level = getattr(logging, self.experiment_config.logging.level.upper(), logging.INFO)
-        log_format = self.experiment_config.logging.format
+        log_level = getattr(logging, self.global_config.logging.level.upper(), logging.INFO)
+        log_format = self.global_config.logging.format
        
         # TODO 2024-11-15 09:17:22,857 [ERROR] - docker_builder - Unexpected error during build of 'picoquic_rfc9000_panther:latest': 'dict' object has no attribute 'decode' 
         # if log_level == logging.DEBUG:

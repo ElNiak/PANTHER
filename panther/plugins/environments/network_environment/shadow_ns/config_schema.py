@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from config.config_schema import NetworkEnvironmentConfig
+from config.config_experiment_schema import NetworkEnvironmentConfig
 
 
 @dataclass

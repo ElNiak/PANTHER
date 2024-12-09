@@ -19,24 +19,23 @@ from core.observer.event import Event
 class DockerComposeEnvironment(INetworkEnvironment):
     def __init__(
         self,
-        config_path: str,
         output_dir: str,
         environment_settings: Dict[str,Any],
-        type: str,
-        sub_type: str,
+        env_type: str,
+        env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(config_path, output_dir, environment_settings, type, sub_type, event_manager)
+        super().__init__(output_dir, environment_settings, env_type, env_sub_type, event_manager)
         self.services_network_config_file_path = Path(os.path.join(
             os.getcwd(),
             "plugins",
             "environments",
-            type,
-            sub_type,
-            f"{sub_type}.generated.yml",
+            env_type,
+            env_sub_type,
+            f"{env_sub_type}.generated.yml",
         ))
         self.rendered_services_network_config_file_path = Path(os.path.join(
-            self.output_dir, f"{sub_type}.yml"
+            self.output_dir, f"{env_sub_type}.yml"
         ))
         
     def __str__(self):

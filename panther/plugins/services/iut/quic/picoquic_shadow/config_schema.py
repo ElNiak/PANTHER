@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
-from config.config_schema import ProtocolConfig, ImplementationType, ImplementationConfig
+
+from plugins.services.iut.config_schema import ImplementationConfig
+from plugins.services.iut.config_schema import ImplementationType
 
 
 @dataclass

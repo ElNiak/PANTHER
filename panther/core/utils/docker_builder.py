@@ -382,8 +382,8 @@ class DockerBuilder:
             self.client.networks.create(
                 name=network_name,
                 driver=driver,
-                ipam=docker.types.IPAMConfig(
-                    pool_configs=[docker.types.IPAMPool(subnet=subnet, gateway=gateway)]
+                ipam=docker.service_types.IPAMConfig(
+                    pool_configs=[docker.service_types.IPAMPool(subnet=subnet, gateway=gateway)]
                 )
             )
             self.logger.info(f"Network '{network_name}' created successfully.")

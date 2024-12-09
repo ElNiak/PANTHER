@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from config.config_schema import ProtocolConfig
+from config.config_experiment_schema import ProtocolConfig
 
 
 @dataclass

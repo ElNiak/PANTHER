@@ -5,11 +5,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from omegaconf import DictConfig, OmegaConf, ValidationError
 import yaml
 from core.utils.docker_builder import DockerBuilder
-from config.config_schema import ImplementationConfig
-
 
 class PluginLoader:
     def __init__(self, plugins_base_dir: str = "plugins"):
@@ -22,99 +19,14 @@ class PluginLoader:
         self.tester_plugins: Dict[str, Path] = {}
         self.dockerfiles = self.docker_builder.find_dockerfiles(self.plugins_base_dir)
         self.logger.info(f"Found Dockerfiles: {self.dockerfiles}")
-        
-    @staticmethod
-    def load_plugin_schema(plugin_type: str, plugin_name: str):
-        """
-        Dynamically load a plugin schema based on its type and name.
-
-        :param plugin_type: The plugin type (e.g., "network_environment").
-        :param plugin_name: The plugin name (e.g., "shadow_ns").
-        :return: The plugin's schema module.
-        :raises ImportError: If the schema module cannot be found.
-        """
-        plugin_module_path = f"plugins.environments.{plugin_type}.{plugin_name}.config_schema"
-        try:
-            class_name_parts = plugin_name.split("_")
-            class_name_parts = [part.capitalize() for part in class_name_parts]
-            class_name = "".join(class_name_parts) + "Config"
-            plugin_module = importlib.import_module(plugin_module_path)
-            config_class = getattr(plugin_module, class_name)
-            return config_class  # Assume PluginConfig is the schema class
-        except ImportError:
-            raise ImportError(f"Plugin schema '{plugin_module_path}' not found.")
-        except AttributeError:
-            raise ImportError(f"Plugin schema '{plugin_module_path}' does not define a 'PluginConfig' class.")
-
-    @staticmethod
-    def load_implementation_config(implementation: dict) -> ImplementationConfig:
-        """
-        Dynamically loads the appropriate implementation configuration class.
-        
-        :param implementation: A dictionary containing `name` and other fields.
-        :return: An instance of the dynamically loaded configuration class.
-        """
-        name = implementation["implementation"]["name"]
-        type = implementation["implementation"]["type"]
-        protocol = implementation["protocol"]["name"]
-        if type == "iut":
-            module_path = f"plugins.services.{type}.{protocol}.{name}.config_schema"  # Assuming schema files are in plugins
-        else:
-            module_path = f"plugins.services.{type}.{name}.config_schema"
-        print(f"Module path: {module_path}")
-        try:
-            # Import the module and dynamically get the class
-            schema_module = importlib.import_module(module_path)
-            class_name_parts = name.split("_")
-            class_name_parts = [part.capitalize() for part in class_name_parts]
-            class_name = "".join(class_name_parts) + "Config"
-            config_class = getattr(schema_module, class_name)
-            print(f"Implementation: {name} - {implementation['implementation']} - {config_class}")
-            return config_class(**implementation["implementation"])
-        except (ImportError, AttributeError) as e:
-            raise ValueError(f"Failed to load implementation config for '{name}': {e}")
     
     @staticmethod
-    def load_protocol_config(implementation: dict) -> ImplementationConfig:
-        """
-        Dynamically loads the appropriate implementation configuration class.
-        
-        :param implementation: A dictionary containing `name` and other fields.
-        :return: An instance of the dynamically loaded configuration class.
-        """
-        protocol = implementation["protocol"]["name"]
-        module_path = f"plugins.services.iut.{protocol}.config_schema"  # Assuming schema files are in plugins
-        try:
-            # Import the module and dynamically get the class
-            schema_module = importlib.import_module(module_path)
-            config_class = getattr(schema_module, f"{protocol.capitalize()}Config")
-            print(f"Protocol: {protocol} - {implementation['protocol']} - {config_class}")
-            return config_class(**implementation["protocol"])
-        except (ImportError, AttributeError) as e:
-            raise ValueError(f"Failed to load protocol config for '{protocol}': {e}")
-        
-    @staticmethod
-    def validate_plugin_config(plugin_type: str, plugin_name: str, plugin_config: DictConfig):
-        """
-        Validate plugin-specific configuration against its schema.
-
-        :param plugin_type: The plugin type (e.g., "network_environment").
-        :param plugin_name: The plugin name (e.g., "shadow_ns").
-        :param plugin_config: The plugin configuration to validate.
-        :return: Validated plugin configuration.
-        :raises ValidationError: If the configuration does not conform to the schema.
-        """
-        print(f"Validating plugin configuration for {plugin_type}/{plugin_name} with {plugin_config}")
-        plugin_schema_class = PluginLoader.load_plugin_schema(plugin_type, plugin_name)
-        print(f"Plugin schema class: {plugin_schema_class}")
-        structured_schema   = OmegaConf.structured(plugin_schema_class)
-        try:
-            return OmegaConf.merge(structured_schema, plugin_config)
-        except ValidationError as e:
-            raise ValidationError(
-                f"Plugin configuration validation failed for {plugin_type}/{plugin_name}: {e}"
-            )
-            
+    def get_class_name(plugin_name, suffix="Config"):
+        class_name_parts = plugin_name.split("_")
+        class_name_parts = [part.capitalize() for part in class_name_parts]
+        class_name = "".join(class_name_parts) + suffix
+        return class_name
+               
     def build_docker_image(self, impl_name: str, version: Optional[str] = None):
         """
         Builds a Docker image for a given implementation and version.

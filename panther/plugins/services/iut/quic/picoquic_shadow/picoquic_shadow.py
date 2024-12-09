@@ -6,7 +6,8 @@ import os
 from typing import Any, Dict, Optional
 import yaml
 import traceback    
-from config.config_schema import ServiceConfig
+from config.config_experiment_schema import ServiceConfig
+from plugins.services.iut.quic.picoquic_shadow.config_schema import PicoquicShadowConfig
 from plugins.plugin_loader import PluginLoader
 from plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
@@ -17,11 +18,12 @@ from jinja2 import Environment, FileSystemLoader, Template
 class PicoquicShadowServiceManager(IImplementationManager):
     def __init__(
         self,
-        type: str,
+        service_config_to_test: PicoquicShadowConfig,
+        service_type: str,
         protocol: str,
         implementation_name: str,
     ):
-        super().__init__(type, protocol,implementation_name)
+        super().__init__(service_config_to_test, service_type, protocol,implementation_name)
         
             
     def get_base_url(self, service_name: str) -> str:
@@ -68,14 +70,14 @@ class PicoquicShadowServiceManager(IImplementationManager):
                     return False
             return True
 
-        if not self.config:
+        if not self.service_master_config:
             self.logger.error("Implementation configuration is empty.")
             raise ValueError("Empty implementation configuration.")
         # Additional validation can be implemented here
         # For example, check required keys are present
         required_keys = [['picoquic_shadow'], ['picoquic_shadow','versions']]
         for key in required_keys:
-            if not keys_exists(self.config, key):
+            if not keys_exists(self.service_master_config, key):
                 self.logger.error(f"Missing required key '{key}' in configuration.")
                 raise KeyError(f"Missing required key '{key}' in configuration.")
             
@@ -92,14 +94,14 @@ class PicoquicShadowServiceManager(IImplementationManager):
         """
         Loads the YAML configuration file.
         """
-        config_file = Path(self.config_path)
+        config_file = Path(self.service_master_config_path)
         if not config_file.exists():
-            self.logger.error(f"Configuration file '{self.config_path}' does not exist.")
+            self.logger.error(f"Configuration file '{self.service_master_config_path}' does not exist.")
             return {}
         try:
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.config_path}'")
+            self.logger.info(f"Loaded configuration from '{self.service_master_config_path}'")
             return config
         except Exception as e:
             self.logger.error(f"Failed to load configuration: {e}\n{traceback.format_exc()}")
@@ -116,7 +118,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         self.logger.debug(f"Generating deployment commands for service: {service_params}")
         role =  service_params.protocol.role
         version =  service_params.protocol.version
-        version_config = self.config.get("picoquic_shadow", {}).get("versions", {}).get(version, {})
+        version_config = self.service_master_config.get("picoquic_shadow", {}).get("versions", {}).get(version, {})
 
         # Determine if network interface parameters should be included based on environment
         # TODO
@@ -230,7 +232,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
             raise e
 
     def __str__(self) -> str:
-        return  f" (PicoquicShadow Service Manager - {self.config_path})"
+        return  f" (PicoquicShadow Service Manager - {self.service_master_config_path})"
     
     def __repr__(self):
-        return super().__repr__() + f" (PicoquicShadow Service Manager - {self.config_path})"
+        return super().__repr__() + f" (PicoquicShadow Service Manager - {self.service_master_config_path})"

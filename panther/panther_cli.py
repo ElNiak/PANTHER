@@ -45,14 +45,19 @@ def main():
             return
         raise NotImplementedError("Teardown functionality is not implemented yet.")
     else:
-        # # Load Configurations
-        config_loader     = ConfigLoader(args.config_dir)
-        experiment_config = config_loader.load_experiment_config()
-        # Start the experiment
+        # We start by loading the configuration
+        config_loader = ConfigLoader(args.config_dir)
+        # We get the global configurations
+        global_config = config_loader.load_and_validate_global_config()
+        # We create the experiment manager
         experiment_manager = ExperimentManager(
-            experiment_config=experiment_config,
+            global_config=global_config,
             experiment_name=args.experiment_name
         )
+        experiment_config = config_loader.load_and_validate_experiment_config()
+        # Once we have the experiments configurations, we can initialize the experiment
+        experiment_manager.initialize_experiments(experiment_config)
+        # Start the experiment
         experiment_manager.run_tests()
         
 

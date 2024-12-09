@@ -14,15 +14,14 @@ class INetworkEnvironment(IEnvironmentPlugin):
     
     def __init__(
         self,
-        config_path: str,
         output_dir: str,
         environment_settings: Dict[str,Any],
-        type: str,
-        sub_type: str,
+        env_type: str,
+        env_sub_type: str,
         event_manager: EventManager
     ):
-        super().__init__(config_path, output_dir, environment_settings, type, sub_type, event_manager)
-        self.network_name = f"{sub_type}_network"
+        super().__init__(output_dir, environment_settings, env_type, env_sub_type, event_manager)
+        self.network_name = f"{env_sub_type}_network"
         self.execution_environments = []
         
         self.services = {}
