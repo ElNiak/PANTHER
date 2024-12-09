@@ -17,7 +17,7 @@ class IProtocolManager(IPlugin):
         service_type: str,
     ):
         super().__init__()
-        self.service_master_config_path = f"plugins/services/{type}/"
+        self.service_master_config_path = f"plugins/protocols/{service_type}/"
         self.service_master_config = self.load_config()
         self.validate_config()
         

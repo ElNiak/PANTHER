@@ -6,9 +6,11 @@ import traceback
 from typing import Any, Dict, Optional
 
 from jinja2 import Environment, FileSystemLoader
+from omegaconf import OmegaConf
 import yaml
 
 from config.config_experiment_schema import ServiceConfig
+from plugins.protocols.config_schema import ProtocolConfig
 from plugins.plugin_loader import PluginLoader
 from plugins.plugin_interface import IPlugin
 
@@ -17,7 +19,7 @@ class IServiceManager(IPlugin):
         self,
         service_config_to_test: ServiceConfig,
         service_type: str,
-        protocol: str,
+        protocol: ProtocolConfig,
         implementation_name: str,
     ):
         super().__init__()
@@ -29,9 +31,11 @@ class IServiceManager(IPlugin):
         if self.service_type == "testers":
             self.service_master_config_path = f"plugins/services/{service_type}/{implementation_name}/config.yaml"
             self.templates_dir = f"plugins/services/{service_type}/{implementation_name}/templates/"
+            self.config_versions_dir = f"plugins/services/{service_type}/{implementation_name}/version_configs/"
         else:
             self.service_master_config_path = f"plugins/services/{service_type}/{protocol}/{implementation_name}/config.yaml"
             self.templates_dir = f"plugins/services/{service_type}/{protocol}/{implementation_name}/templates/"
+            self.config_versions_dir = f"plugins/services/{service_type}/{protocol}/{implementation_name}/version_configs/"
         
         
         if not os.path.isdir(self.templates_dir):
@@ -47,7 +51,7 @@ class IServiceManager(IPlugin):
         self.plugin_loader = None
         
         # The service master configuration represents the configuration file for the service defined by the plugin itself
-        self.service_master_config = self.load_config()
+        self.service_master_config = self.load_version_config()
         self.service_config_to_test = service_config_to_test
         self.validate_config()
         
@@ -79,6 +83,15 @@ class IServiceManager(IPlugin):
         }
         self.post_run_cmds = []
     
+    
+    def load_version_config(self, version: str):
+        """Load the version-specific configuration."""
+        version_file = os.path.join(self.config_versions_dir, f"{version}.yaml")
+        if not os.path.exists(version_file):
+            raise ValueError(f"Version configuration file {version_file} not found.")
+        return OmegaConf.load(version_file)
+
+
     def get_implementation_name(self) -> str:
         return self.implementation_name
     

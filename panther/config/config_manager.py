@@ -10,9 +10,9 @@ import yaml
 
 from config.config_global_schema import DockerConfig, GlobalConfig, LoggingConfig, PathsConfig
 from config.config_experiment_schema import ExperimentConfig, ServiceConfig, TestConfig
-from plugins.services.iut.config_schema import ImplementationConfig, ProtocolConfig
+from plugins.protocols.config_schema import ProtocolConfig
+from plugins.services.iut.config_schema import ImplementationConfig
 from plugins.plugin_loader import PluginLoader
-
 
 class ConfigLoader:
     def __init__(self, config_dir: str):
@@ -103,10 +103,10 @@ class ConfigLoader:
             # Construct services for this test
             services: Dict[str, ServiceConfig] = {}
             for service_name, service_data in test_data["services"].items():
-                implementation = self.load_implementation_config(service_data) 
-                OmegaConf.merge(ImplementationConfig, implementation)
-                protocol = self.load_protocol_config(service_data)   # Resolve protocol subclass
-                OmegaConf.merge(ProtocolConfig, protocol)
+                protocol = self.load_and_validate_protocol_config(service_data)   # Resolve protocol subclass
+                self.logger.debug(f"Protocol: {protocol}")
+                implementation = self.load_and_validate_implementation_config(service_data, protocol) 
+                self.logger.debug(f"Implementation: {implementation}")
                 service = ServiceConfig(
                     name=service_data["name"],
                     implementation=implementation,
@@ -235,34 +235,42 @@ class ConfigLoader:
             raise ImportError(f"Plugin schema '{plugin_module_path}' does not define a 'PluginConfig' class.")
 
     
-    def load_protocol_config(self, implementation: dict) -> ImplementationConfig:
+    def load_and_validate_protocol_config(self, implementation: ServiceConfig) -> ProtocolConfig:
         """
         Dynamically loads the appropriate implementation configuration class.
         
         :param implementation: A dictionary containing `name` and other fields.
         :return: An instance of the dynamically loaded configuration class.
         """
-        protocol = implementation["protocol"]["name"]
-        module_path = f"plugins.services.iut.{protocol}.config_schema"  # Assuming schema files are in plugins
+        self.logger.debug(f"Service: {implementation}")
+        protocol      = implementation.protocol.name
+        if hasattr(implementation.protocol, "protocol_type"):
+            protocol_type = implementation.protocol.protocol_type
+        else:
+            protocol_type = "client_server" # TODO: Default to client-server for now
+        module_path = f"plugins.protocols.{protocol_type}.{protocol}.config_schema"  # Assuming schema files are in plugins
         try:
             # Import the module and dynamically get the class
             schema_module = importlib.import_module(module_path)
             config_class = getattr(schema_module, f"{protocol.capitalize()}Config")
             self.logger.debug(f"Protocol: {protocol} - {implementation['protocol']} - {config_class}")
-            return config_class(**implementation["protocol"])
+            protocol_instance = config_class(**implementation.protocol)
+            return OmegaConf.merge(config_class, protocol_instance)
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Failed to load protocol config for '{protocol}': {e}")
     
-    def load_implementation_config(self, implementation: dict) -> ImplementationConfig:
+    def load_and_validate_implementation_config(self, implementation: dict, protocol_conf: ProtocolConfig) -> ImplementationConfig:
         """
         Dynamically loads the appropriate implementation configuration class.
         
         :param implementation: A dictionary containing `name` and other fields.
         :return: An instance of the dynamically loaded configuration class.
         """
+        self.logger.debug(f"Implementation: {implementation} - {protocol_conf}")
         name = implementation["implementation"]["name"]
         type = implementation["implementation"]["type"]
         protocol = implementation["protocol"]["name"]
+        protocol_version = implementation["protocol"]["version"]
         if type == "iut":
             module_path = f"plugins.services.{type}.{protocol}.{name}.config_schema"  # Assuming schema files are in plugins
         else:
@@ -274,7 +282,38 @@ class ConfigLoader:
             class_name = PluginLoader.get_class_name(name)
             config_class = getattr(schema_module, class_name)
             self.logger.debug(f"Implementation: {name} - {implementation['implementation']} - {config_class}")
-            return config_class(**implementation["implementation"])
+            
+            # Load the version configuration
+            version_class_name = PluginLoader.get_class_name(name, "Version")
+            version_config_class = getattr(schema_module, version_class_name)
+            if type == "iut":
+                version_configs_dir = module_path.replace(".","/").replace("/config_schema","/version_configs/")
+            else:
+                version_configs_dir = module_path.replace(".","/").replace("/config_schema",f"/version_configs/{protocol}/")
+                
+            version_path = os.path.join(version_configs_dir, f"{protocol_version}.yaml")
+            if not os.path.exists(version_path):
+                raise ValueError(f"Version configuration file {version_path} not found.")
+            raw_version_config = OmegaConf.load(version_path)
+            self.logger.debug(f"Version config: {raw_version_config} - {version_config_class}")
+            protocol_version = OmegaConf.to_object(
+                OmegaConf.merge(OmegaConf.structured(version_config_class), raw_version_config)
+            )
+        
+            implementation_instance = config_class(**implementation["implementation"])
+            implementation_instance.version = protocol_version
+            # # Load protocol versions dynamically
+            # if hasattr(implementation_instance, "versions") and hasattr(implementation_instance, "load_versions_from_files"):
+            #     version_configs_dir = module_path.replace(".config_schema","version_configs/")
+            #     implementation_instance.versions = implementation_instance.load_versions_from_files(version_configs_dir)
+            
+            # # Get the specific version configuration
+            # if protocol_version not in implementation_instance.versions:
+            #     raise ValueError(f"Version '{protocol_version}' not found in {name} configuration.")
+            
+            # protocol_version_config = implementation_instance.versions[protocol_version]
+            
+            return OmegaConf.merge(config_class, implementation_instance)
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Failed to load implementation config for '{name}': {e}")
            

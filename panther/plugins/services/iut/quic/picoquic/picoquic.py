@@ -4,6 +4,7 @@ import subprocess
 import logging
 import os
 from typing import Any, Dict, Optional
+from omegaconf import OmegaConf
 import yaml
 import traceback
 from config.config_experiment_schema import ServiceConfig
@@ -25,6 +26,10 @@ class PicoquicServiceManager(IImplementationManager):
         implementation_name: str,
     ):
         super().__init__(service_config_to_test, service_type, protocol,implementation_name)
+        self.logger.debug(f"Initializing Picoquic service manager for '{implementation_name}'")
+        self.config = OmegaConf.merge(PicoquicConfig, self.service_master_config)
+        self.logger.debug(f"Loaded Picoquic configuration: {self.config}")
+        
     
     def get_base_url(self, service_name: str) -> str:
         """
