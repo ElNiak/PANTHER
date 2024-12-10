@@ -1,3 +1,4 @@
+from pathlib import Path
 import subprocess
 import os
 from typing import Any, Dict, Optional
@@ -92,6 +93,12 @@ class PicoquicShadowServiceManager(IImplementationManager):
         Prepare the service manager for use.
         """
         self.logger.debug("Preparing Picoquic service manager...")
+        plugin_loader.build_docker_image_from_path(Path(os.path.join(
+            os.getcwd(),
+            "plugins",
+            "services",
+            "Dockerfile",
+        )),"panther_base","service")
         plugin_loader.build_docker_image(self.get_implementation_name(), self.service_config_to_test.implementation.version)
 
     def generate_deployment_commands(self) -> str:
