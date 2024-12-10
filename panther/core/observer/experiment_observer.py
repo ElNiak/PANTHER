@@ -35,7 +35,10 @@ class ExperimentObserver(IObserver):
     
         if event.name == "step_progress":
             self.logger.debug(f"Monitoring environment: {self.environment}")
-            self.environment.monitor_environment()
+            if hasattr(self.environment, "monitor_environment"):
+                self.environment.monitor_environment()
+            else:
+                self.logger.debug(f"Environment does not support monitoring")
             
         if event.name == "services_deployed":
             self.environment = event.data["environment"]

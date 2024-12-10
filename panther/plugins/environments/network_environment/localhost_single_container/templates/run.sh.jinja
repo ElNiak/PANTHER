@@ -3,10 +3,10 @@ set -e
 
 # Setup logging directory
 mkdir -p /app/logs
-{% for service_name, service in services.items() %}
-mkdir -p /app/logs/{{ service_name }}
-echo "Initializing {{ service_name }} logs..." > /app/logs/{{ service_name }}/stdout.log
-echo "Initializing {{ service_name }} logs..." > /app/logs/{{ service_name }}/stderr.log
+{% for service in services %}
+mkdir -p /app/logs/{{ service.service_name }}
+echo "Initializing {{ service.service_name }} logs..." > /app/logs/{{ service.service_name }}/stdout.log
+echo "Initializing {{ service.service_name }} logs..." > /app/logs/{{ service.service_name }}/stderr.log
 {% endfor %}
 
 # Define helper functions
@@ -25,14 +25,12 @@ start_pcap() {
 # TODO add loop for multiple iterations
 
 set_environment() {
-  {% for service_name, service in services.items() %}
-  log "Setting environment for {{ service_name }}..."
+  {% for service in services %}
+  log "Setting environment for {{ service.service_name }}..."
   export ROLE="{{ service.role }}"
-  {% if "environment" in deployment_info[service_name] %}
-  {% for key, value in deployment_info[service_name]["environment"].items() %}
+  {% for key, value in service.environments.items() %}
   export {{ key }}="{{ value }}"
   {% endfor %}
-  {% endif %}
   {% endfor %}
 }
 
@@ -42,35 +40,27 @@ set_environment
 
 # Start PCAP recording for each service
 log "Starting PCAP recording..."
-{% for service_name, service in services.items() %}
-start_pcap "lo" "/app/logs/{{ service_name }}/pcap_pkt.pcap" {{ deployment_info.get(service_name, {}).get('timeout', 50) }}
+{% for service in services %}
+start_pcap "lo" "/app/logs/{{ service.service_name }}/pcap_pkt.pcap" {{service.run_cmd["run_cmd"]["timeout"]}}
 {% endfor %}
 
 
 # Start all services
 log "Starting all services..."
-{% for service_name, service in services.items() %}
-log "Starting {{ service_name }}..."
+{% for service in services %}
+log "Starting {{ service.service_name }}..."
 (
-    {% if service.role == "client" %}
-    sleep 5  # Delay to ensure server is ready
+    {% if service.role.name == "client" %}
+    sleep 5;  # Delay to ensure server is ready
     {% endif %}
-    {% if not service.type == "testers" %}
-    {% set replacement_path = '/opt/' ~ service_name ~ '/' %}
+    {% if not test_config.services[service.service_name].implementation.type.name == "testers" %}
+    {% set replacement_path = '/opt/' ~ service.service_name ~ '/' %}
     {% else %}
     {% set replacement_path = '/opt/'%}
     {% endif %}
-    cd {{ deployment_info[service_name]['working_dir'] | replace('/opt/', replacement_path) }}
-    {% if "ivy" in service_name %}
-    timeout  {{ deployment_info.get(service_name, {}).get('timeout', 50) }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }} \
-      >> /app/logs/{{ service_name }}/stdout.log \
-      2>> /app/logs/{{ service_name }}/stderr.log
-    {% else %}
-    timeout  {{ deployment_info.get(service_name, {}).get('timeout', 50) }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }} \
-      >> /app/logs/{{ service_name }}/stdout.log \
-      2>> /app/logs/{{ service_name }}/stderr.log
-    {% endif %}
-    log "{{ service_name }} completed successfully."
+    cd {{ service.run_cmd["run_cmd"]["working_dir"] | replace('/opt/', replacement_path) }}
+    timeout {{service.run_cmd["run_cmd"]["timeout"]}} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"] | replace("/app/logs/", "/app/logs/" ~ service.service_name ~ "/")}}
+    log "{{ service.service_name }} completed successfully."
 ) &
 {% endfor %}
 

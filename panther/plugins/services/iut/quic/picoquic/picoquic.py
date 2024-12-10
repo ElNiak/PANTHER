@@ -143,20 +143,20 @@ class PicoquicServiceManager(IImplementationManager):
 
         # Collect volume mappings
         # Only add certificate volumes if the user doesn't want to generate new certificates
-        if not self.service_config_to_test.generate_new_certificates:
-            # Certificates
-            self.volumes.append(
-                {
-                    "local": os.path.abspath(params["certificates"]["cert_local_file"]),
-                    "container": params["certificates"]["cert_file"],
-                }
-            )
-            self.volumes.append(
-                {
-                    "local": os.path.abspath(params["certificates"]["key_local_file"]),
-                    "container": params["certificates"]["key_file"],
-                }
-            )
+        # if not self.service_config_to_test.generate_new_certificates:
+        #     # Certificates
+        #     self.volumes.append(
+        #         {
+        #             "local": os.path.abspath(params["certificates"]["cert_local_file"]),
+        #             "container": params["certificates"]["cert_file"],
+        #         }
+        #     )
+        #     self.volumes.append(
+        #         {
+        #             "local": os.path.abspath(params["certificates"]["key_local_file"]),
+        #             "container": params["certificates"]["key_file"],
+        #         }
+        #     )
 
         # Ticket file (if applicable)
         if params["ticket_file"]["local_file"]:

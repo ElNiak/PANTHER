@@ -165,9 +165,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 
                 self.docker_name = self.docker_name + service.service_name + "_"
                 
-                additional_command = ""
-                if "ivy" in service.service_name:
-                    
+                if "ivy" in service.service_name:                    
                     service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("eth0", "lo")
                     # TODO make this more general
                     if service.role.name == "client":
