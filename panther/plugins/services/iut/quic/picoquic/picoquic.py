@@ -95,7 +95,7 @@ class PicoquicServiceManager(IImplementationManager):
         """
         Generates post-run commands.
         """
-        return super().generate_post_run_commands() + ["&& cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"]
+        return super().generate_post_run_commands() + ["cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"]
 
     def prepare(self, plugin_loader: Optional[PluginLoader] = None):
         """

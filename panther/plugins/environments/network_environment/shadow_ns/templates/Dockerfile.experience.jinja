@@ -1,49 +1,39 @@
 FROM shadow_ns_v1_panther:latest AS shadow_base
 
-{% for service_name, service in services.items() %}
-
-{% if service.type == "testers" %}
-FROM {{ service.implementation }}_{{ service.protocol.version }}_panther:latest AS {{ service_name }}_stage
-{% else %}
-FROM {{ service.implementation }}_{{ service.version }}_panther:latest AS {{ service_name }}_stage
-{% endif %}
+{% for service in services %}
+FROM {{ service.implementation_name }}_{{ service.service_protocol.version.name }}_panther:latest AS {{ service.service_name }}_stage
 
 # Copy files from the service stage to /opt in the final image
-{% for port in service.ports %}
+{% for port in service.service_config_to_test.ports %}
 EXPOSE {{ port }}
-{% endfor %}# Set container working directory
-# WORKDIR "{{ deployment_info[service_name]['working_dir'] }}"
+{% endfor %}
+
+# Set container working directory
+# WORKDIR "{{ service.run_cmd["run_cmd"]["working_dir"] }}"
 
 # Add service-specific environment variables
 ENV ROLE="{{ service.role }}"
 ENV UID=${UID}
 ENV GID=${GID}
-{% if "environment" in deployment_info[service_name] %}
-{% for key, value in deployment_info[service_name]["environment"].items() %}
+{% for key, value in service.environments.items() %}
 ENV {{ key }}="{{ value }}"
 {% endfor %}
-{% endif %}
-
-# # Copy logs and volumes
-# VOLUME {{ log_dir | realpath }}/{{ service_name  }}:/app/logs
-# {% for volume in deployment_info[service_name]['volumes'] %}
-# {% if volume | is_dict %}
-# VOLUME "{{ volume.local | realpath }}:{{ volume.container }}"
-# {% else %}
-# VOLUME "{{ volume }}"
-# {% endif %}
-# {% endfor %}
 
 # Define the command for the service
-# TODO manage that in the Ivy module
-{% if "ivy" in service_name %}
 RUN <<EOF
-{{deployment_info[service_name]["compilation_command"]}}
-EOF
-{% endif %}
-
+echo "Running pre-compilation commands:"
+{% for cmd in service.run_cmd["pre_compile_cmds"] %}
+{{ cmd }}
 {% endfor %}
+EOF
 
+RUN <<EOF
+echo "Running compilation commands:"
+{% for cmd in service.run_cmd["compile_cmds"] %}
+{{ cmd }}
+{% endfor %}
+EOF
+{% endfor %}
 
 # Final stage
 FROM shadow_ns_v1_panther:latest
@@ -51,13 +41,12 @@ WORKDIR /
 ENV DEBIAN_FRONTEND=noninteractive
 USER root
 
-{% for service_name, service in services.items() %}
-{% if "ivy" in service_name %}
-COPY --from={{ service_name }}_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
-COPY --from={{ service_name }}_stage /opt /opt
-
+{% for service in services %}
+{% if "ivy" in service.service_name %}
+COPY --from={{ service.service_name }}_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
+COPY --from={{ service.service_name }}_stage /opt /opt
 {% else %}
-COPY --from={{ service_name }}_stage /opt /opt/{{ service_name }}
+COPY --from={{ service.service_name }}_stage /opt /opt/{{ service.service_name }}
 {% endif %}
 {% endfor %}
 
@@ -71,12 +60,8 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 ENV PATH="/shadow/build:/root/shadow/build/:${PATH}"
 RUN rustup default stable
 RUN rm -rf shadow.data/
-# VOLUME {{ log_dir | realpath }}/shadow.data:/shadow.data
 
 ADD {{ shadow_ns_config_file }} /shadow_ns_config.yml
 ENV RUST_BACKTRACE=1
-# ENTRYPOINT [ "/bin/sh", "-l", "-c", "\" \"" ]
-# ENTRYPOINT [ "shadow", "/shadow_ns_config.yml", "--data-directory", "/app/logs/shadow.data" ]
-# CMD [ ">", "/app/logs/shadow_output.log" ]
-ENTRYPOINT [ "/bin/sh", "-c", "shadow /shadow_ns_config.yml --data-directory /app/logs/shadow.data > /app/logs/shadow_stdout.log 2> /app/logs/shadow_stderr.log" ]
+ENTRYPOINT [ "/bin/sh", "-c", "shadow /shadow_ns_config.yml --data-directory /app/logs/shadow.data > /app/logs/shadow_stdout.log 2> /app/logs/shadow_stderr.log; {% for service in services %}{% if not test_config.services[service.service_name].implementation.type.name == "testers" %}{% set replacement_path = '/opt/' ~ service.service_name ~ '/' %}{% else %}{% set replacement_path = '/opt/'%}{% endif %}{% for cmd in service.run_cmd["post_run_cmds"] %}{{ cmd | replace("\n", "") | replace('/opt/', replacement_path) }}{% endfor -%}{% endfor -%}" ]
 

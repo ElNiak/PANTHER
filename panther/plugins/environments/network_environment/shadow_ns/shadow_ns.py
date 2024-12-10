@@ -6,20 +6,26 @@ import logging
 import traceback
 from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
+from omegaconf import OmegaConf
 import yaml
 from core.observer.event_manager import EventManager
+from config.config_experiment_schema import TestConfig
+from config.config_global_schema import GlobalConfig
+from plugins.services.services_interface import IServiceManager
+from plugins.environments.config_schema import EnvironmentConfig
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
+from core.observer.event import Event
 
 
 class ShadowNsEnvironment(INetworkEnvironment):
     def __init__(
         self,
+        env_config_to_test: EnvironmentConfig,
         output_dir: str,
-        environment_settings: Dict[str, Any],
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
@@ -33,7 +39,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
             os.getcwd(),
             "plugins",
             "environments",
-            type,
+            env_type,
             env_sub_type,
             f"{env_sub_type}.generated.yml",
         ))
@@ -100,13 +106,13 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.plugin_loader.build_docker_image("shadow_ns", self.docker_version)
         
     def setup_environment(
-        self,
-        services: Dict[str, Dict[str, Any]],
-        deployment_info: Dict[str, Dict[str, Any]],
-        paths: Dict[str, str],
-        timestamp: str,
-        plugin_loader: PluginLoader,
-        execution_environment: List[IExecutionEnvironment],
+        self, 
+        services_managers: List[IServiceManager], 
+        test_config: TestConfig, 
+        global_config: GlobalConfig,
+        timestamp: str, 
+        plugin_loader: PluginLoader, 
+        execution_environment: List[IExecutionEnvironment], 
     ):
         """
         Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
@@ -116,25 +122,25 @@ class ShadowNsEnvironment(INetworkEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
-        self.services = services
-        self.deployment_info = deployment_info
-        self.execution_environments = execution_environment
+        self.services_managers : List[IServiceManager] = services_managers
+        self.test_config = test_config
+        self.execution_environment = execution_environment
         self.plugin_loader = plugin_loader
-
-        self.logger.debug(f"Setting up Shadow NS environment with:\n- services: {services}\n- deployment info: {deployment_info}\n- environment settings: {self.environment_settings}")
+        self.global_config = global_config
+        self.logger.debug("Setup environment with:")
+        for service in self.services_managers:
+            self.logger.debug(f"Service: {service}")
+        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
+        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
         self.prepare_environment()
-        self.generate_environment_services(paths=paths, timestamp=timestamp)
-        self.logger.info("Shadow NS environment setup complete")
+        self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
+        self.logger.info("Docker Compose environment setup complete")
 
 
     def deploy_services(self):
         self.logger.info("Deploying services")
         # self.prepare_tester() # TODO
         self.launch_environment_services()
-
-    def retrieve_binaries(self):
-        self.logger.info("Retrieving binaries")
-        raise NotImplementedError("Method not implemented - In another module FOR NOW")
 
     def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
         """
@@ -148,75 +154,51 @@ class ShadowNsEnvironment(INetworkEnvironment):
         # TODo moodify the shadow template to add the timeout also add folder for each service to be added in the multi stage
         try:
             # Ensure the log directory for each service exists
-            for service_name, service in self.services.items():
-                log_dir = os.path.join(self.log_dirs, service_name)
+            for service in self.services_managers:
+                # TODO extract method
+                log_dir = os.path.join(self.log_dirs, service.service_name)
                 if not os.path.exists(log_dir):
                     os.makedirs(log_dir)
                     self.logger.info(f"Created log directory: {log_dir}")
-                self.docker_name = self.docker_name + service_name + "_"
+                
+                self.logger.debug(f"Generating Docker Compose file for {service.service_name}")
+                
+                self.docker_name = self.docker_name + service.service_name + "_"
+                
                 additional_command = ""
-                if "ivy" in service_name:
-                    # TODO make it more generic
-                    self.deployment_info[service_name]["args"] = self.deployment_info[
-                        service_name
-                    ]["args"].replace("eth0", "lo")
-                    if service["role"] == "client":
-                        self.deployment_info[service_name]["args"] = (
-                            self.deployment_info[service_name]["args"].replace(
-                                "$$TARGET_IP_HEX", "184549377"
-                            )
-                        )
-                        self.deployment_info[service_name]["args"] = (
-                            self.deployment_info[service_name]["args"].replace(
-                                "$$IVY_IP_HEX", "184549378"
-                            )
-                        )
+                if "ivy" in service.service_name:
+                    
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("eth0", "lo")
+                    # TODO make this more general
+                    if service.role.name == "client":
+                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "184549377")
+                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "184549378")
                     else:
-                        self.deployment_info[service_name]["args"] = (
-                            self.deployment_info[service_name]["args"].replace(
-                                "$$TARGET_IP_HEX", "184549378"
-                            )
-                        )
-                        self.deployment_info[service_name]["args"] = (
-                            self.deployment_info[service_name]["args"].replace(
-                                "$$IVY_IP_HEX", "184549377"
-                            )
-                        )
+                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "184549378")
+                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "184549377")
                 else:
-                    for other_service_name in self.services.keys():
-                        if other_service_name != service_name:
-                            self.deployment_info[other_service_name][
-                                "args"
-                            ] = self.deployment_info[other_service_name][
-                                "args"
-                            ].replace(
-                                service_name, service_name.replace("_", ".")
-                            )  # .replace("-e eth0", "")
-                            # self.deployment_info[other_service_name]["args"] = self.deployment_info[other_service_name]["args"].replace("/opt/certs", "/opt/"+ service_name + "/certs")
+                    for other_service_name in self.services_managers:
+                        if other_service_name.service_name != service.service_name:
+                            # Shadow does not suport the _ in the service name -> replace by .
+                            # TODO use "." in the service name for all plugins
+                            service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace('_',".")
 
-            for service_name, service in self.services.items():
-                if "environment" in self.deployment_info[service_name]:
-                    self.deployment_info[service_name]["environment"] = (
-                        self.resolve_environment_variables(
-                            self.deployment_info[service_name]["environment"]
-                        )
-                    )
-                    self.deployment_info[service_name]["environment"][
-                        "SHADOW_TEST"
-                    ] = "1"
-
-            self.logger.debug(
-                f"Resolved environment deployment_info: {self.deployment_info}"
-            )
+            for service in self.services_managers:
+                service.environments = self.resolve_environment_variables(service.environments)
+                service.environments["SHADOW_TEST"] = "1"
+                self.logger.debug(f"Service {service.service_name} environment: {service.environments}")
+     
             template = self.jinja_env.get_template("shadow-template.jinja")
+            self.logger.debug(f"Template: {template}")
+            self.logger.debug(f"Services: {self.services_managers}")
+            self.logger.debug(f"Deployment Info: {self.test_config}")
             rendered = template.render(
-                services=self.services,
-                deployment_info=self.deployment_info,
+                services=self.services_managers,
+                test_config=self.test_config,
                 paths=paths,
                 timestamp=timestamp,
                 log_dir=self.log_dirs,
                 experiment_name=self.output_dir.split("/")[-1],
-                environment_settings=self.environment_settings,  # TODO
             )
 
             # Write the rendered content to shadow.generated.yml
@@ -232,13 +214,12 @@ class ShadowNsEnvironment(INetworkEnvironment):
             # Define docker container for experience
             template = self.jinja_env.get_template("Dockerfile.experience.jinja")
             rendered = template.render(
-                services=self.services,
+                services=self.services_managers,
+                test_config=self.test_config,
                 paths=paths,
                 timestamp=timestamp,
-                deployment_info=self.deployment_info,
-                shadow_ns_config_file=self.services_network_config_file_path.name,
                 log_dir=self.log_dirs,
-                additional_command=additional_command,
+                shadow_ns_config_file=self.services_network_config_file_path.name,
                 experiment_name=self.output_dir.split("/")[-1],
             )
 
@@ -335,7 +316,48 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     log_file.write(e.stdout)
                     log_file_err.write(e.stderr)
             # raise e
-
+    
+    def monitor_environment(self):
+        """
+        Monitors the Docker Compose environment by checking the status of services.
+        """
+        try:
+            with open(
+                os.path.join(self.output_dir, "logs", "docker-compose-ps.log"), "w"
+            ) as log_file:
+                with open(
+                    os.path.join(self.output_dir, "logs", "docker-compose-ps.err.log"), "w"
+                ) as log_file_err:
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "ps",
+                            "-f",
+                            f"name={self.docker_name}",
+                        ],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,  # Ensures that output is in string format
+                    )
+                    # Write both stdout and stderr to the log file
+                    log_file.write(result.stdout)
+                    log_file_err.write(result.stderr)
+                    # NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
+                    #
+                    stdsplit = result.stdout.split("\n")
+                    self.logger.debug(f"docker-compose ps: {result.stdout} - {result.stderr} - {len(self.services_managers)}  - {len(stdsplit)}")
+                    if len(stdsplit) < len(self.services_managers)+1:
+                        self.logger.debug("Docker Compose environment monitored successfully - Experiment finished earlier")
+                        self.event_manager.notify(Event(name="experiment_finished_early", data={}))
+                    
+                self.logger.debug("Docker Compose environment monitored successfully.")
+        except subprocess.CalledProcessError as e:
+            self.logger.error(
+                f"Failed to monitor Docker Compose environment: {e.stderr}"
+            )
+            raise e
+        
     def teardown_environment(self):
         """
         Tears down the Shadow NS environment by bringing down services.

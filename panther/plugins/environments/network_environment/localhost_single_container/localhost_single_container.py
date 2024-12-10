@@ -8,6 +8,10 @@ from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
 from core.observer.event_manager import EventManager
+from config.config_experiment_schema import TestConfig
+from config.config_global_schema import GlobalConfig
+from plugins.environments.config_schema import EnvironmentConfig
+from plugins.services.services_interface import IServiceManager
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
@@ -24,7 +28,6 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         
         self.docker_version = "v1"
-        self.environment_settings = environment_settings
         self.docker_name = "localhost_"
         
         self.services_network_config_file_path = Path(os.path.join(
@@ -94,8 +97,13 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         
     
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
-        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader, execution_environment: List[IExecutionEnvironment]
+        self, 
+        services_managers: List[IServiceManager], 
+        test_config: TestConfig, 
+        global_config: GlobalConfig,
+        timestamp: str, 
+        plugin_loader: PluginLoader, 
+        execution_environment: List[IExecutionEnvironment], 
     ):
         """
         Sets up the Localhost environment by generating the run.sh file with deployment commands.

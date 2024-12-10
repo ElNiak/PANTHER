@@ -1,40 +1,43 @@
 FROM shadow_ns_v1_panther:latest AS shadow_base
 
-
 FROM picoquic_shadow_rfc9000_panther:latest AS picoquic_cient_stage
 
 # Copy files from the service stage to /opt in the final image
 EXPOSE 4443:4443
 EXPOSE 8080:8080
+
 # Set container working directory
 # WORKDIR "/opt/picoquic"
 
 # Add service-specific environment variables
-ENV ROLE="client"
+ENV ROLE="RoleEnum.client"
 ENV UID=${UID}
 ENV GID=${GID}
 ENV SHADOW_TEST="1"
 
-# # Copy logs and volumes
-# VOLUME /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-12-08_10-07-57/Shadow_QUIC_IyvServer-Client_Communication_Test/logs/picoquic_cient:/app/logs
-# # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/cert.pem:/opt/certs/cert.pem"
-# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/certs/key.pem:/opt/certs/key.pem"
-# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/ticket.key"
-# # 
 # Define the command for the service
-# TODO manage that in the Ivy module
+RUN <<EOF
+echo "Running pre-compilation commands:"
+set -x;
+export PATH=$$PATH:$$ADDITIONAL_PATH;
+export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
+env >> /app/logs/ivy_setup.log;
+EOF
 
-
+RUN <<EOF
+echo "Running compilation commands:"
+EOF
 FROM panther_ivy_rfc9000_panther:latest AS ivy_server_stage
 
 # Copy files from the service stage to /opt in the final image
 EXPOSE 5000:5000
 EXPOSE 8081:8081
+
 # Set container working directory
 # WORKDIR "/opt/panther_ivy/protocol-testing/quic"
 
 # Add service-specific environment variables
-ENV ROLE="server"
+ENV ROLE="RoleEnum.server"
 ENV UID=${UID}
 ENV GID=${GID}
 ENV PROTOCOL_TESTED="quic"
@@ -67,80 +70,103 @@ ENV INITIAL_VERSION="1"
 ENV TEST_TYPE="client"
 ENV SHADOW_TEST="1"
 
-# # Copy logs and volumes
-# VOLUME /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-12-08_10-07-57/Shadow_QUIC_IyvServer-Client_Communication_Test/logs/ivy_server:/app/logs
-# # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/plugins/services/testers/panther_ivy/ivy/include/1.7:/opt/panther_ivy/ivy/include/1.7"
-# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/plugins/services/testers/panther_ivy/protocol-testing/quic:/opt/panther_ivy/protocol-testing/quic"
-# # # # VOLUME "shared_logs:/app/sync_logs"
-# # # # VOLUME "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/config/tls_keys:/opt/ticket/tester_ticket.key"
-# # 
 # Define the command for the service
-# TODO manage that in the Ivy module
 RUN <<EOF
-
-        echo "Copying QUIC libraries..." >> /app/logs/ivy_setup.log &&
-        cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" &&
-        cp -f -a /opt/picotls/*.a "/opt/panther_ivy/ivy/lib/" &&
-        cp -f /opt/picotls/include/picotls.h "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls.h" &&
-        cp -f /opt/picotls/include/picotls.h "/opt/panther_ivy/ivy/include/picotls.h" &&
-        cp -r -f /opt/picotls/include/picotls/. "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls" &&
-        cp -f "/opt/panther_ivy/protocol-testing/quic/quic_utils/quic_ser_deser.h" "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/" &&
-        
-        update_ivy_tool() {
-            echo "Updating Ivy tool..." >> /app/logs/ivy_setup.log;
-            cd "/opt/panther_ivy" || exit 1;
-            sudo python3.10 setup.py install >> /app/logs/ivy_setup.log 2>&1 &&
-            cp lib/libz3.so submodules/z3/build/python/z3 >> /app/logs/ivy_setup.log 2>&1 &&
-            echo "Copying updated Ivy files..." >> /app/logs/ivy_setup.log &&
-            find /opt/panther_ivy/ivy/include/1.7/ -type f -name "*.ivy" -exec cp {} /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ \; >> /app/logs/ivy_setup.log 2>&1 &&
-            echo "Copying updated Z3 files..." >> /app/logs/ivy_setup.log &&
-            cp -f -a /opt/panther_ivy/ivy/lib/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" >> /app/logs/ivy_setup.log 2>&1;
-        }
-
-        update_ivy_tool &&
-        remove_debug_events() {
-            echo "Removing debug events..." >> /app/logs/ivy_setup.log;
-            printf "%s\n" "$@" | xargs -I {} sh -c "
-                if [ -f \"\$1\" ]; then
-                    sed -i \"s/^\\([^#]*debug_event.*\\)/##\\1/\" \"\$1\";
-                else
-                    echo \"File not found - \$1\" >> /app/logs/ivy_setup.log;
-                fi
-            " _ {};
-        }
-
-
-        restore_debug_events() {
-            echo "Restoring debug events..." >> /app/logs/ivy_setup.log;
-            printf "%s\n" "$@" | xargs -I {} sh -c "
-                if [ -f \"\$1\" ]; then
-                    sed -i \"s/^##\\(.*debug_event.*\\)/\\1/\" \"\\$1\";
-                else
-                    echo \"File not found - \$1\" >> /app/logs/ivy_setup.log;
-                fi
-            " _ {};
-        }
-
-        setup_ivy_model() {
-            echo "Setting up Ivy model..." >> /app/logs/ivy_setup.log &&
-            echo "Updating include path of Python with updated version of the project from /opt/panther_ivy/protocol-testing/quic" >> /app/logs/ivy_setup.log &&
-            echo "Finding .ivy files..." >> /app/logs/ivy_setup.log &&
-            find "/opt/panther_ivy/protocol-testing/quic" -type f -name "*.ivy" -exec sh -c "
-                echo \"Found Ivy file - \$1\" >> /app/logs/ivy_setup.log;
-                if [ 1 -gt 10 ]; then
-                    echo \"Removing debug events from \$1\" >> /app/logs/ivy_setup.log;
-                    remove_debug_events \"\$1\";
-                fi;
-                echo \"Copying Ivy file to include path...\" >> /app/logs/ivy_setup.log;
-                cp -f \"\$1\" \"/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/\";
-            " _ {} \;;
-            ls -l /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
-        }
-
-        setup_ivy_model && (cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests; PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_client_test_max.ivy >> /app/logs/ivy_setup.log 2>&1; ls >> /app/logs/ivy_setup.log 2>&1 ; cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;  ) &&  ( touch /app/sync_logs/ivy_ready )
+echo "Running pre-compilation commands:"
+set -x;
+export PATH=$$PATH:$$ADDITIONAL_PATH;
+export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
+env >> /app/logs/ivy_setup.log;
+TARGET_IP=$(getent hosts picoquic_cient | awk "{ print \$1 }");
+echo "Resolved picoquic_cient IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
+IVY_IP=$(hostname -I | awk "{ print \$1 }");
+echo "Resolved  ivy_server IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
+ 
+ip_to_hex() {
+  echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
+}
+ 
+ip_to_decimal() {
+  echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
+}
+ 
+TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);
+IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);
+echo "Resolved picoquic_cient IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+echo "Resolved ivy_server IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
 EOF
 
-
+RUN <<EOF
+echo "Running compilation commands:"
+echo "Copying QUIC libraries..." >> /app/logs/ivy_setup.log &&
+cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" &&
+cp -f -a /opt/picotls/*.a "/opt/panther_ivy/ivy/lib/" &&
+cp -f /opt/picotls/include/picotls.h "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls.h" &&
+cp -f /opt/picotls/include/picotls.h "/opt/panther_ivy/ivy/include/picotls.h" &&
+cp -r -f /opt/picotls/include/picotls/. "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls" &&
+cp -f "/opt/panther_ivy/protocol-testing/quic/quic_utils/quic_ser_deser.h" "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/" &&
+ 
+update_ivy_tool() {
+	echo "Updating Ivy tool..." >> /app/logs/ivy_setup.log;
+	cd "/opt/panther_ivy" || exit 1;
+	sudo python3.10 setup.py install >> /app/logs/ivy_setup.log 2>&1 &&
+	cp lib/libz3.so submodules/z3/build/python/z3 >> /app/logs/ivy_setup.log 2>&1 &&
+	echo "Copying updated Ivy files..." >> /app/logs/ivy_setup.log;
+	find /opt/panther_ivy/ivy/include/1.7/ -type f -name "*.ivy" -exec cp {} /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ \; >> /app/logs/ivy_setup.log 2>&1;
+	echo "Copying updated Z3 files..." >> /app/logs/ivy_setup.log;
+	cp -f -a /opt/panther_ivy/ivy/lib/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" >> /app/logs/ivy_setup.log 2>&1;
+}
+ 
+update_ivy_tool &&
+ 
+remove_debug_events() {
+	echo "Removing debug events..." >> /app/logs/ivy_setup.log;
+	printf "%s\n" "$@" | xargs -I {} sh -c "
+		if [ -f \"\$1\" ]; then
+			sed -i \"s/^\\([^#]*debug_event.*\\)/##\\1/\" \"\$1\";
+		else
+			echo \"File not found - \$1\" >> /app/logs/ivy_setup.log;
+		fi
+	" _ {};
+}
+ 
+restore_debug_events() {
+	echo "Restoring debug events..." >> /app/logs/ivy_setup.log;
+	printf "%s\n" "$@" | xargs -I {} sh -c "
+		if [ -f \"\$1\" ]; then
+			sed -i \"s/^##\\(.*debug_event.*\\)/\\1/\" \"\$1\";
+		else
+			echo \"File not found - \$1\" >> /app/logs/ivy_setup.log;
+		fi
+	" _ {};
+}
+ 
+setup_ivy_model() {
+	echo "Setting up Ivy model..." >> /app/logs/ivy_setup.log &&
+	echo "Updating include path of Python with updated version of the project from /opt/panther_ivy/protocol-testing/quic" >> /app/logs/ivy_setup.log &&
+	echo "Finding .ivy files..." >> /app/logs/ivy_setup.log &&
+	find "/opt/panther_ivy/protocol-testing/quic" -type f -name "*.ivy" -exec sh -c "
+		echo \"Found Ivy file - \$1\" >> /app/logs/ivy_setup.log;
+		if [ 10 -gt 10 ]; then
+			echo \"Removing debug events from \$1\" >> /app/logs/ivy_setup.log;
+			remove_debug_events \"\$1\";
+		fi;
+		echo \"Copying Ivy file to include path...\" >> /app/logs/ivy_setup.log;
+		cp -f \"\$1\" \"/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/\";
+	" _ {} \;;
+	ls -l /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
+}
+ 
+setup_ivy_model &&
+cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests;
+PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_client_test_max.ivy >> /app/logs/ivy_setup.log 2>&1; 
+(ls >> /app/logs/ivy_setup.log 2>&1 ;
+ 
+cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; 
+ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;) 
+ && 
+ (touch /app/sync_logs/ivy_ready.log ) && 
+EOF
 
 # Final stage
 FROM shadow_ns_v1_panther:latest
@@ -152,7 +178,6 @@ COPY --from=picoquic_cient_stage /opt /opt/picoquic_cient
 COPY --from=ivy_server_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
 COPY --from=ivy_server_stage /opt /opt
 
-
 COPY --from=shadow_ns_v1_panther /shadow /shadow
 COPY --from=shadow_ns_v1_panther /root/.cargo/ /root/.cargo/
 COPY --from=shadow_ns_v1_panther /root/.local/ /root/.local/
@@ -163,11 +188,7 @@ ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 ENV PATH="/shadow/build:/root/shadow/build/:${PATH}"
 RUN rustup default stable
 RUN rm -rf shadow.data/
-# VOLUME /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/outputs/experiment_2024-12-08_10-07-57/Shadow_QUIC_IyvServer-Client_Communication_Test/logs/shadow.data:/shadow.data
 
 ADD shadow_ns.generated.yml /shadow_ns_config.yml
 ENV RUST_BACKTRACE=1
-# ENTRYPOINT [ "/bin/sh", "-l", "-c", "\" \"" ]
-# ENTRYPOINT [ "shadow", "/shadow_ns_config.yml", "--data-directory", "/app/logs/shadow.data" ]
-# CMD [ ">", "/app/logs/shadow_output.log" ]
-ENTRYPOINT [ "/bin/sh", "-c", "shadow /shadow_ns_config.yml --data-directory /app/logs/shadow.data > /app/logs/shadow_stdout.log 2> /app/logs/shadow_stderr.log" ]
+ENTRYPOINT [ "/bin/sh", "-c", "shadow /shadow_ns_config.yml --data-directory /app/logs/shadow.data > /app/logs/shadow_stdout.log 2> /app/logs/shadow_stderr.log; cp /opt/picoquic_cient/picoquic/picoquicdemo /app/logs/picoquicdemo;cp /opt/panther_ivy/protocol-testing/quic/build/quic_client_test_max /app/logs/quic_client_test_max;" ]

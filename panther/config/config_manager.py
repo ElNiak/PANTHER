@@ -109,6 +109,7 @@ class ConfigLoader:
                 self.logger.debug(f"Implementation: {implementation}")
                 service = ServiceConfig(
                     name=service_data["name"],
+                    timeout=service_data.get("timeout", 100),
                     implementation=implementation,
                     protocol=protocol,
                     ports=service_data.get("ports", []),
@@ -135,7 +136,7 @@ class ConfigLoader:
             # Thus we prelinarily validate the network environment configuration,
             # It will thus ignore non defined fields in the schema -> not ideal for validation
             # We will need to find a way to validate nested dataclasses with OmegaConf
-           
+            # TODO if tests name is undefined, use the service name + other parameters
             test = TestConfig(
                 name=test_data["name"],
                 description=test_data["description"],

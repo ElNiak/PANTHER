@@ -134,11 +134,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 
                 self.logger.debug(f"Generating Docker Compose file for {service.service_name}")
                 
-                
-                self.logger.debug(f"Service {service.service_name} is a tester")
-                if service.is_tester():
-                    self.logger.debug(f"Service {service.service_name} is a tester")
-                
+            
                 if "ivy" in service.service_name:
                     self.logger.debug(f"Adding wait for Ivy testers to be ready for {service.service_name}")
                     for other_service in self.services_managers:
@@ -156,8 +152,6 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     "(touch /app/logs/" +service.service_name+".pcap; tshark -a duration:"+str(service.service_config_to_test.timeout)+" -i any -w /app/logs/" +service.service_name+".pcap;) & "
                 ]
                 
-                            
-            
             for service in self.services_managers:
                 service.environments = self.resolve_environment_variables(service.environments)
                 self.logger.debug(f"Service {service.service_name} environment: {service.environments}")
