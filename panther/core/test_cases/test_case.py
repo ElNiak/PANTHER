@@ -7,10 +7,10 @@ from core.observer.event_manager import EventManager
 from core.observer.event import Event
 from core.observer.logger_observer import LoggerObserver
 from core.observer.experiment_observer import ExperimentObserver
-from core.results.result_collector import ResultCollector
 from config.config_experiment_schema import TestConfig
 from config.config_global_schema import GlobalConfig
-from core.results.result_handlers.storage_handler import StorageHandler
+from panther.core.results.result_collector import ResultCollector
+from panther.core.results.result_handlers.storage_handler import StorageHandler
 from plugins.services.services_interface import IServiceManager
 from plugins.plugin_manager import PluginManager
 from plugins.environments.environment_interface import IEnvironmentPlugin
@@ -18,7 +18,7 @@ from plugins.services.iut.config_schema import ImplementationType
 
 class TestCase(ITestCase):
     def __init__(self, 
-                 test_config: TestConfig, 
+                 test_config:   TestConfig, 
                  global_config: GlobalConfig,
                  plugin_manager: PluginManager,
                  experiment_dir: Path):
@@ -31,8 +31,8 @@ class TestCase(ITestCase):
         self.logger.debug(f"Creating test case '{self.test_name}' with experiment directory '{self.test_experiment_dir}' and test configuration '{test_config}'")
         self.result_collectors = ResultCollector()
         self.result_collectors.register_handler(f"storage_{self.test_name})",  
-                                                StorageHandler(experiment_dir, self.test_name))
-        
+                                                 StorageHandler(experiment_dir, self.test_name))
+         
         self.service_managers: List[IServiceManager] = []
         
         self.environment_plugin_manager : List[IEnvironmentPlugin] = []
@@ -202,37 +202,35 @@ class TestCase(ITestCase):
             environment_dir = self.plugin_manager.plugins_loader.plugins_base_dir / "environments" /  f"execution_environment"
             self.logger.debug(f"Creating environment manager for execution environment with {subtype} and settings {settings}")
             environment_manager = self.plugin_manager.create_environment_manager(environment=subtype, 
-                                                                                service_managers=self.service_managers, 
-                                                                                test_config=self.test_config, 
-                                                                                environment_dir=environment_dir, 
-                                                                                output_dir=self.test_experiment_dir,
-                                                                                event_manager=self.event_manager)
+                                                                                 test_config=self.test_config, 
+                                                                                 environment_dir=environment_dir, 
+                                                                                 output_dir=self.test_experiment_dir,
+                                                                                 event_manager=self.event_manager)
             self.environment_plugin_manager.append(environment_manager)
             self.exectution_environment.append(environment_manager)
-            self.logger.debug(f"Added environment manager for environment execution")
+            self.logger.debug(f"Added environment manager for environment execution - {environment_manager}")
             
         # Only one network environment is supported for now
         self.logger.debug(f"Setting up network environments '{self.test_config.network_environment.type}'")
         settings = self.test_config.network_environment
         environment_dir = self.plugin_manager.plugins_loader.plugins_base_dir / "environments" /  f"network_environment"
-        self.logger.debug(f"Creating environment manager for netenvironment with {self.test_config.network_environment.type} and settings {settings}")
+        self.logger.debug(f"Creating environment manager for net environment with {self.test_config.network_environment.type} and settings {settings}")
         environment_manager = self.plugin_manager.create_environment_manager(environment=self.test_config.network_environment.type, 
-                                                                            service_managers=self.service_managers, 
-                                                                            test_config=self.test_config, 
-                                                                            environment_dir=environment_dir, 
-                                                                            output_dir=self.test_experiment_dir,
-                                                                            event_manager=self.event_manager)
+                                                                             test_config=self.test_config, 
+                                                                             environment_dir=environment_dir, 
+                                                                             output_dir=self.test_experiment_dir,
+                                                                             event_manager=self.event_manager)
         self.environment_plugin_manager.append(environment_manager)
         self.logger.debug(f"Added environment manager for environment network")
         
         try:
             if environment_manager.is_network_environment(): # Always True for now (maybe mix network envs in the future)
                 environment_manager.setup_environment(self.service_managers, 
-                                                self.test_config, 
-                                                self.global_config,
-                                                datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-                                                self.plugin_manager.plugins_loader,
-                                                self.exectution_environment)
+                                                      self.test_config, 
+                                                      self.global_config,
+                                                      datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+                                                      self.plugin_manager.plugins_loader,
+                                                      self.exectution_environment)
                 self.logger.info(f"Environment '{environment_manager.__class__.__name__}' setup successfully.")
                 self.event_manager.notify(Event("environment_setup", {"environment": environment_manager}))
         except Exception as e:
@@ -366,35 +364,5 @@ class TestCase(ITestCase):
         """_summary_
         """
         self.logger.debug("Setting up services ...")
-        # We create the service managers for the implementations and testers
         self.setup_implementations()
         self.setup_testers()
-
-    # def generate_deployment_commands(self, environment:str) -> Dict[str, str]:
-    #     """
-    #     Collects deployment commands from all service managers based on the services defined in the tests.
-
-    #     :return: A dictionary mapping service names to their respective command strings.
-    #     """
-    #     deployment_commands = {}
-    #     for service_name, service_details in self.services.items():
-    #         self.logger.debug(f"Generating deployment commands for '{service_name}'")
-    #         # Find the appropriate service manager based on implementation
-    #         implementation = service_details.implementation.name
-    #         self.logger.debug(f"Service '{service_name}' uses implementation '{implementation}' with details: {service_details} - checking service managers {self.service_managers}")
-    #         manager = next((m for m in self.service_managers if m.get_implementation_name() == implementation), None)
-    #         if not manager:
-    #             self.logger.error(f"No service manager found for implementation '{implementation}'")
-    #             exit(1)
-    #         try:
-    #             # Ensure 'name' key exists
-    #             self.logger.debug(f"Generating deployment commands for service '{service_name}' with details: {service_details}")
-    #             if hasattr(service_details, 'name'):
-    #                 service_details.name = service_name
-    #             info_commands = manager.generate_deployment_commands(service_details, environment)
-    #             deployment_commands.update(info_commands)
-    #         except Exception as e:
-    #             self.logger.error(f"Failed to generate deployment command for service '{service_name}': {e}")
-    #             exit(1)
-    #     self.logger.debug(f"Collected deployment commands: {deployment_commands}")
-    #     self.deployment_commands = deployment_commands

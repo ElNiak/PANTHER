@@ -7,6 +7,7 @@ setup(
     version='1.0.0',
     packages=find_packages(),
     install_requires=[
+        'setuptools'
         'omegaconf',
         'cerberus',
         'jinja2',
@@ -16,7 +17,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'panther-cli=panther_cli:main',
+            'panther=panther_cli:main',
         ],
     },
     author='ElNiak',

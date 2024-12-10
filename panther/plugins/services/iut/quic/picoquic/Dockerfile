@@ -6,7 +6,7 @@ RUN apt-get update && \
     apt-get install -y build-essential git cmake software-properties-common \
     openssl libssl-dev pkg-config clang python3 net-tools tcpdump \
     apt-utils  wireshark tshark  libcap2-bin traceroute \
-    iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils iperf 
+    iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils iperf strace
 
 # "yes" answer by 'dpkg-reconfigure wireshark-common' so you can run tshark as normal use
 RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common

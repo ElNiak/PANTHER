@@ -5,6 +5,8 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, Any, List
+
+from omegaconf import OmegaConf
 from core.observer.event_manager import EventManager
 from config.config_experiment_schema import ServiceConfig, TestConfig
 from plugins.protocols.config_schema import ProtocolConfig
@@ -77,7 +79,6 @@ class PluginManager:
             raise ImportError(f"Cannot load module from '{service_manager_path}'")
     
     def create_environment_manager(self, environment: str, 
-                                         service_managers: List[IServiceManager],
                                          test_config: TestConfig,
                                          environment_dir: Path, 
                                          output_dir: Path, 
@@ -104,16 +105,16 @@ class PluginManager:
             class_name = PluginLoader.get_class_name(environment,suffix="Environment")
             environment_class = getattr(module, class_name, None)
             if environment_class and issubclass(environment_class, IEnvironmentPlugin):
-                
-                environment_config_path = environment_dir / environment / "config.yaml"
-                if not environment_config_path.exists():
-                    self.logger.error(f"Environment configuration file '{environment_config_path}' does not exist.")
-                    raise FileNotFoundError(f"Configuration file '{environment_config_path}' not found.")
-                
-                env_config = test_config.execution_environments if environment == "execution_environment" else test_config.network_environment
+                self.logger.debug(f"Loading test configuration for '{environment}' - {environment_dir.name}")
+                env_config = test_config.execution_environments if environment_dir.name == "execution_environment" else test_config.network_environment
+                # env_class_name = PluginLoader.get_class_name(env_config,suffix="Config")
+                # conf_environment_class = getattr(module, class_name, None)
+                # if conf_environment_class and issubclass(environment_class, IEnvironmentPlugin):
+                #     env_config = OmegaConf.merge(env_class_name, env_config)
+                self.logger.debug(f"Loading class '{class_name}' from module '{module}'")
                 instance = environment_class(
-                    output_dir=str(output_dir),
                     env_config_to_test=env_config,
+                    output_dir=str(output_dir),
                     env_type=environment_dir.name,
                     env_sub_type=environment,
                     event_manager=event_manager,

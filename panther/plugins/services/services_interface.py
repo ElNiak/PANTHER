@@ -82,6 +82,7 @@ class IServiceManager(IPlugin):
         self.run_cmd = {
             "pre_compile_cmds": [],
             "compile_cmds": [],
+            "post_compile_cmds": [],
             "pre_run_cmds": [],
             "run_cmd": {"command_binary": "", "command_args": "", "timeout": 60},
             "post_run_cmds": [],
@@ -94,6 +95,7 @@ class IServiceManager(IPlugin):
         self.run_cmd = {
             "pre_compile_cmds": self.generate_pre_compile_commands(),
             "compile_cmds": self.generate_compile_commands(),
+            "post_compile_cmds": self.generate_post_compile_commands(),
             "pre_run_cmds": self.generate_pre_run_commands(),
             "run_cmd": self.generate_run_command(),
             "post_run_cmds": self.generate_post_run_commands(),
@@ -112,6 +114,12 @@ class IServiceManager(IPlugin):
         ]
 
     def generate_compile_commands(self):
+        """
+        Generates compile commands.
+        """
+        return []
+    
+    def generate_post_compile_commands(self):
         """
         Generates compile commands.
         """

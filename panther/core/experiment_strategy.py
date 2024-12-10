@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 
-
 class TestExecutionStrategy(ABC):
     @abstractmethod
     def execute_tests(self, tests):

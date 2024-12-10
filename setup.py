@@ -12,29 +12,33 @@ except:
   # This happens when running tests
   long_description = None
 
-setup(name='panther',
-      version='0.1',
-      description='panther',
-      long_description=long_description,
-      url='https://github.com/ElNiak/PANTHER',
-      author='ElNiak from UCLouvain',
-      author_email='nomail@uclouvain.com',
-      license='MIT', 
-      packages=find_packages(), 
-      setup_requires=['wheel'], # "importlib-metadata", ,"importlib_metadata"
-      install_requires=[
-          'docker',
-          'click',
-          'termcolor',
-          'terminal_banner',
-          "paramiko",
-          "mkgendocs == 0.9.2",
-          "mkdocs-material == 9.1.15",
-          "mkdocs == 1.5.0",
-          "PyYAML == 6.0.1",
-          "omegaconf",
-          'cerberus',
-          'jinja2',
-          'requests'
-          ],
-      zip_safe=False)
+setup(
+    name='Panther',
+    version='1.0.0',
+    packages=find_packages(),
+    install_requires=[
+        'omegaconf',
+        'cerberus',
+        'jinja2',
+        'requests',
+        'PyYAML',
+        "docker",
+        "hypothesis",
+    ],
+    entry_points={
+        'console_scripts': [
+            'panther=panther_cli:main',
+        ],
+    },
+    author='ElNiak',
+    author_email='your.email@example.com',
+    description='Panther: Secure Communication Platform',
+    long_description=long_description,
+    url='https://github.com/ElNiak/PANTHER',
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
+    ],
+)
+

@@ -9,12 +9,9 @@ class Parameter:
     
 @dataclass
 class VersionBase:
+    version: str
     commit: str
     dependencies: List[Dict[str, str]]
-
-    def validate(self):
-        """Common version validation logic."""
-        pass
 
 # Implementation Configuration
 # IUT: Implementation Under Test

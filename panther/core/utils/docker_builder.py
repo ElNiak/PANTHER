@@ -206,30 +206,6 @@ class DockerBuilder:
         self.logger.info(f"Total Dockerfiles found: {len(dockerfiles)}")
         self.logger.debug(f"Dockerfiles found: {dockerfiles}")
         return dockerfiles
-
-    def load_config(self, impl_name: str, version: str) -> Optional[Dict[str, Any]]:
-        """
-        Loads the configuration for a specific implementation and version.
-
-        :param impl_name: Name of the implementation.
-        :param version: Version identifier.
-        :return: Configuration dictionary if found, else None.
-        """
-        config_path = Path(self.plugins_dir) / "iut" / impl_name / "config.yaml"
-        if not config_path.exists():
-            self.logger.error(f"Configuration file '{config_path}' does not exist for implementation '{impl_name}'.")
-            return None
-
-        with open(config_path, 'r') as f:
-            full_config = yaml.safe_load(f)
-
-        impl_config = full_config.get(impl_name, {})
-        version_config = impl_config.get('versions', {}).get(version, {})
-        if not version_config:
-            self.logger.error(f"Version '{version}' not found in configuration for implementation '{impl_name}'.")
-            return None
-
-        return version_config
     
     def push_image_to_registry(self, image_tag: str, registry_url: str = "elniak", tag: str = "latest") -> bool:
         """

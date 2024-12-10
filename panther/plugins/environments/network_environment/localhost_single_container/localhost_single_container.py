@@ -8,6 +8,7 @@ import yaml
 from core.observer.event_manager import EventManager
 from config.config_experiment_schema import TestConfig
 from config.config_global_schema import GlobalConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
 from plugins.environments.config_schema import EnvironmentConfig
 from plugins.services.services_interface import IServiceManager
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
@@ -56,7 +57,6 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
 
     def __str__(self):
         attributes = {
-            "config_path": self.config_path,
             "output_dir": self.output_dir,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
@@ -72,7 +72,6 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
     
     def __repr__(self):
         attributes = {
-            "config_path": self.config_path,
             "output_dir": self.output_dir,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
@@ -145,6 +144,11 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         # TODO check that the implementaion is compatible with shadow (in config file)
         # TODo moodify the shadow template to add the timeout also add folder for each service to be added in the multi stage
         try:
+            for execution_env in self.execution_environment:
+                try:
+                    execution_env.setup_environment(services_managers=self.services_managers, test_config=self.test_config, global_config=self.global_config, timestamp=timestamp, plugin_loader=self.plugin_loader)
+                except Exception as e:
+                    self.logger.error(f"Failed to setup execution environment: {e}\n{traceback.format_exc()}")
             # Ensure the log directory for each service exists
             for service in self.services_managers:
                 # TODO extract method
@@ -223,7 +227,8 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             self.logger.info(f"Localhost file Dockerfile generated at '{self.services_network_docker_file_path}'")
 
             self.docker_name = self.plugin_loader.build_docker_image_from_path(
-                self.services_network_docker_file_path, self.docker_name, self.docker_version
+                # TODO
+                self.services_network_docker_file_path, self.docker_name,  self.docker_version
             )
             self.docker_name = self.docker_name.split(":")[0]
 

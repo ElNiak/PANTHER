@@ -100,6 +100,12 @@ class ConfigLoader:
             validated_network_env = self.validate_plugin_config("network_environment", network_env["type"], network_env)
             self.logger.debug(f"Network environment after validation: {validated_network_env}")
             
+            exec_envs = test_data.get("execution_environment", [])
+            self.logger.debug(f"Execution environment: {exec_envs}")
+            for exec_env in exec_envs:
+                validated_network_env = self.validate_plugin_config("execution_environment", exec_env["type"], exec_env)
+            self.logger.debug(f"Network environment after validation: {validated_network_env}")
+            
             # Construct services for this test
             services: Dict[str, ServiceConfig] = {}
             for service_name, service_data in test_data["services"].items():
@@ -117,7 +123,6 @@ class ConfigLoader:
                 )
                 OmegaConf.merge(ServiceConfig, service)
                 services[service_name] = service
-
             # Construct the test configuration:
             # NOTE: We do not validate with merge here, as the schema is not fully compatible with OmegaConf
             # It is because NetworkEnvironmentConfig is a dataclass, and OmegaConf does not support nested dataclasses
@@ -137,6 +142,7 @@ class ConfigLoader:
             # It will thus ignore non defined fields in the schema -> not ideal for validation
             # We will need to find a way to validate nested dataclasses with OmegaConf
             # TODO if tests name is undefined, use the service name + other parameters
+            # TODO if we use the validated version -> bugs (but it should be enough to validate format)
             test = TestConfig(
                 name=test_data["name"],
                 description=test_data["description"],
@@ -307,16 +313,4 @@ class ConfigLoader:
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Failed to load implementation config for '{name}': {e}")
     
-    # TODO add error complete reporting
-    
-    def get_config(self, config_name: str) -> DictConfig:
-        """
-        Load a specific configuration file by name.
 
-        :param config_name: Name of the configuration file (without .yaml extension).
-        :return: A DictConfig object representing the specified configuration.
-        """
-        config_path = os.path.join(self.config_dir, f"{config_name}.yaml")
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Configuration file '{config_path}' not found.")
-        return OmegaConf.load(config_path)

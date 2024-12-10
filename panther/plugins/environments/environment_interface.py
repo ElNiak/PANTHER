@@ -9,7 +9,6 @@ import yaml
 
 from core.observer.event_manager import EventManager
 from plugins.environments.config_schema import EnvironmentConfig
-from plugins.environments.network_environment.config_schema import NetworkEnvironmentConfig
 from plugins.plugin_interface import IPlugin
 
 class IEnvironmentPlugin(IPlugin):
@@ -22,14 +21,12 @@ class IEnvironmentPlugin(IPlugin):
         event_manager: EventManager
     ):
         super().__init__()
-        self.config_path = f"plugins/environments/{env_type}/{env_sub_type}/config.yaml"
         self.templates_dir: str = f"plugins/environments/{env_type}/{env_sub_type}/templates"
         self.output_dir = output_dir
         self.log_dirs = os.path.join(self.output_dir, "logs")
         self.plugin_loader = None
         self.env_config_to_test = env_config_to_test
         self.event_manager = event_manager
-        self.config = self.load_config()
     
     @abstractmethod
     def is_network_environment(self):
@@ -52,30 +49,3 @@ class IEnvironmentPlugin(IPlugin):
         """
         pass
     
-    def load_config(self) -> dict:
-        """
-        Loads the YAML configuration file.
-        """
-        config_file = Path(self.config_path)
-        if not config_file.exists():
-            self.logger.error(
-                f"Configuration file '{self.config_path}' does not exist."
-            )
-            return {}
-        try:
-            with open(config_file, "r") as f:
-                config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.config_path}'")
-            return config
-        except Exception as e:
-            self.logger.error(
-                f"Failed to load configuration: {e}\n{traceback.format_exc()}"
-            )
-            return {}
-        
-    def validate_config(self):
-        """
-        Validates the configuration.
-        To be implemented by the plugin.
-        """
-        pass

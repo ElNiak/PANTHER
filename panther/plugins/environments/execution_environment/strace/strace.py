@@ -1,0 +1,88 @@
+import os
+import logging
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+
+from omegaconf import OmegaConf
+
+from core.observer.event_manager import EventManager
+from config.config_experiment_schema import TestConfig
+from config.config_global_schema import GlobalConfig
+from plugins.environments.execution_environment.strace.config_schema import StraceConfig
+from plugins.environments.config_schema import EnvironmentConfig
+from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from plugins.plugin_loader import PluginLoader
+from plugins.services.services_interface import IServiceManager
+
+class StraceEnvironment(IExecutionEnvironment):
+    # TODO enforce config in environment
+    def __init__(
+        self,
+        env_config_to_test: StraceConfig,
+        output_dir: str,
+        env_type: str,
+        env_sub_type: str,
+        event_manager: EventManager,
+    ):
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
+        self.env_config_to_test = env_config_to_test
+    
+    def setup_environment(
+        self, 
+        services_managers: List[IServiceManager], 
+        test_config: TestConfig, 
+        global_config: GlobalConfig,
+        timestamp: str, 
+        plugin_loader: PluginLoader, 
+    ):
+        """
+        Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
+
+        :param services: Dictionary of services with their configurations.
+        :param deployment_info: Dictionary containing commands and volumes for each service.
+        :param paths: Dictionary containing various path configurations.
+        :param timestamp: The timestamp string to include in log paths.
+        """
+        self.services_managers : List[IServiceManager] = services_managers
+        self.test_config = test_config
+        self.plugin_loader = plugin_loader
+        self.global_config = global_config
+        self.logger.debug("Setup environment with:")
+        self.logger.debug(f"Services config: {self.env_config_to_test}")
+        for service in self.services_managers:
+            self.logger.debug(f"Service cmds: {service.run_cmd}")
+            service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command()]
+            self.logger.debug(f"Service cmds: {service.run_cmd}")
+            
+            
+        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
+        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+    
+    def to_command(self, pid: Optional[int] = None) -> str:
+        """
+        Generate the strace command for execution.
+        :param pid: Optional process ID to attach to.
+        :return: Strace command as a string.
+        """
+        self.env_config_to_test = StraceConfig()
+        excluded = ",".join(f"{syscall}" for syscall in self.env_config_to_test.excluded_syscalls)
+        command = [self.env_config_to_test.strace_binary, "-k"]  # Include kernel stack if enabled
+        command.append(f"-e trace=\"!{excluded}\"")  # Exclude specified syscalls
+        if pid:
+            command.extend(["-p", str(pid)])
+        # if self.env_config_to_test.trace_network_syscalls:
+        #     command.append("-e trace=network")  # Include network-related syscalls
+        # if self.env_config_to_test.additional_parameters:
+        #     command.extend(self.env_config_to_test.additional_parameters)
+        # command.append(f"-o {self.env_config_to_test.output_file}")
+        return " ".join(command)
+        
+    def teardown_environment(self):
+        raise NotImplementedError
+    
+    def __repr__(self):
+        return (
+            f"StraceEnvironment(env_config_to_test={self.env_config_to_test}, "
+            f"output_dir={self.output_dir}, event_manager={self.event_manager}, "
+            f"services_managers={self.services_managers}, test_config={self.test_config})"
+        )

@@ -44,7 +44,6 @@ class DockerComposeEnvironment(INetworkEnvironment):
         
     def __str__(self):
         attributes = {
-            "config_path": self.config_path,
             "output_dir": self.output_dir,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
@@ -60,7 +59,6 @@ class DockerComposeEnvironment(INetworkEnvironment):
     
     def __repr__(self):
         attributes = {
-            "config_path": self.config_path,
             "output_dir": self.output_dir,
             "templates_dir": self.templates_dir,
             "services_network_config_file_path": self.services_network_config_file_path,
@@ -125,6 +123,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
         """
         try:
             # Ensure the log directory for each service exists
+            for execution_env in self.execution_environment:
+                try:
+                    self.logger.debug(f"Setting up execution environment: {execution_env}")
+                    execution_env.setup_environment(services_managers=self.services_managers, test_config=self.test_config, global_config=self.global_config, timestamp=timestamp, plugin_loader=self.plugin_loader)
+                except Exception as e:
+                    self.logger.error(f"Failed to setup execution environment: {e}\n{traceback.format_exc()}")
+                    
             for service in self.services_managers:
 
                 log_dir = os.path.join(self.log_dirs, service.service_name)
@@ -140,7 +145,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     for other_service in self.services_managers:
                         if other_service.service_name != service.service_name:
                             other_service.volumes.append("shared_logs:/app/sync_logs")
-                            other_service.run_cmd["pre_run_cmds"] = other_service.run_cmd["pre_run_cmds"] + [
+                            other_service.run_cmd["post_compile_cmds"] = other_service.run_cmd["post_compile_cmds"] + [
                                 "while [ ! -f /app/sync_logs/ivy_ready.log ]; do",
                                 '\techo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;',
                                 "\tsleep 2;",
@@ -148,7 +153,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                                 'echo "Ivy testers is ready, starting '+ other_service.service_name + '..." >> /app/logs/tester_ready.log;',
                             ]
             for service in self.services_managers:
-                service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [
+                service.run_cmd["post_compile_cmds"] = service.run_cmd["post_compile_cmds"] + [
                     "(touch /app/logs/" +service.service_name+".pcap; tshark -a duration:"+str(service.service_config_to_test.timeout)+" -i any -w /app/logs/" +service.service_name+".pcap;) & "
                 ]
                 

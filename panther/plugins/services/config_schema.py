@@ -17,4 +17,5 @@ class ServiceConfig:
     ports: List[str]                     = field(default_factory=list)  # List of ports
     generate_new_certificates: bool = field(default=False)  # Flag to generate new certificates
     volumes: List[str] = field(default_factory=list)
+    directories_to_start: List[str] = field(default_factory=list)
     

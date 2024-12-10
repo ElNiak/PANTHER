@@ -15,7 +15,9 @@ class IExecutionEnvironment(IEnvironmentPlugin):
         event_manager: EventManager
     ):
         super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
-    
+        self.services_managers = []
+        self.test_config = None
+
     def is_network_environment(self):
         """
         Returns True if the plugin is an network environment.

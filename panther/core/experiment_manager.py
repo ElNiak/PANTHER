@@ -32,7 +32,6 @@ class ExperimentManager:
         self.experiment_dir = Path(global_config.paths.output_dir) / self.experiment_name
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
         
-        
         self.logs_dir   = self.experiment_dir
         self.plugin_dir = plugin_dir
         self.logger = logger or logging.getLogger("ExperimentManager")

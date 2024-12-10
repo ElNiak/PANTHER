@@ -92,7 +92,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         Prepare the service manager for use.
         """
         self.logger.debug("Preparing Picoquic service manager...")
-        plugin_loader.build_docker_image(self.get_implementation_name())
+        plugin_loader.build_docker_image(self.get_implementation_name(), self.service_config_to_test.implementation.version)
 
     def generate_deployment_commands(self) -> str:
         """
