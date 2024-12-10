@@ -9,13 +9,13 @@ from plugins.environments.execution_environment.execution_environment_interface 
 class PtraceEnvironment(IExecutionEnvironment):
     def __init__(
         self,
+        env_config_to_test: EnvironmentConfig,
         output_dir: str,
-        environment_settings: Dict[str,Any],
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(output_dir, environment_settings, env_type, env_sub_type, event_manager)
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.source_dir = "/opt/panther"
     
     def setup_environment(self, services: Dict[str, Dict[str, Any]]):

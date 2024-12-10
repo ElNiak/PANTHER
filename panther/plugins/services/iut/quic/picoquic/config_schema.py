@@ -14,6 +14,7 @@ from typing import List, Dict
 
 @dataclass
 class PicoquicVersion(VersionBase):
+    version: str = ""
     commit: str = ""
     dependencies: List[Dict[str, str]] = field(default_factory=list)
     client: Optional[Dict] = field(default_factory=dict)

@@ -5,27 +5,31 @@ import subprocess
 import logging
 from typing import Dict, Any, List
 import yaml
-from jinja2 import Environment, FileSystemLoader
 from core.observer.event_manager import EventManager
+from config.config_experiment_schema import TestConfig
+from config.config_global_schema import GlobalConfig
+from plugins.services.services_interface import IServiceManager
+from plugins.environments.config_schema import EnvironmentConfig
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.plugin_loader import PluginLoader
 from plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
+from omegaconf import OmegaConf
 import traceback
 from core.observer.event import Event
-
+from plugins.services.iut.config_schema import ImplementationType
 
 class DockerComposeEnvironment(INetworkEnvironment):
     def __init__(
         self,
+        env_config_to_test: EnvironmentConfig,
         output_dir: str,
-        environment_settings: Dict[str,Any],
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(output_dir, environment_settings, env_type, env_sub_type, event_manager)
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.services_network_config_file_path = Path(os.path.join(
             os.getcwd(),
             "plugins",
@@ -48,7 +52,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             "log_dirs": self.log_dirs,
             "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
             "rendered_services_network_config_file_path": str(self.rendered_services_network_config_file_path),
-            "services": self.services,
+            "services": self.services_managers,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
@@ -64,7 +68,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             "log_dirs": self.log_dirs,
             "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
             "rendered_services_network_config_file_path": str(self.rendered_services_network_config_file_path),
-            "services": self.services,
+            "services": self.services_managers,
             "deployment_commands": self.deployment_commands,
             "timeout": self.timeout,
         }
@@ -77,8 +81,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
         pass
 
     def setup_environment(
-        self, services: Dict[str, Dict[str, Any]], deployment_info: Dict[str, Dict[str, Any]], 
-        paths: Dict[str, str], timestamp: str, plugin_loader: PluginLoader, execution_environment: List[IExecutionEnvironment], 
+        self, 
+        services_managers: List[IServiceManager], 
+        test_config: TestConfig, 
+        global_config: GlobalConfig,
+        timestamp: str, 
+        plugin_loader: PluginLoader, 
+        execution_environment: List[IExecutionEnvironment], 
     ):
         """
         Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
@@ -88,12 +97,17 @@ class DockerComposeEnvironment(INetworkEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
-        self.services = services
-        self.deployment_info = deployment_info
+        self.services_managers : List[IServiceManager] = services_managers
+        self.test_config = test_config
         self.execution_environment = execution_environment
         self.plugin_loader = plugin_loader
-        self.logger.debug( f"Setting up Docker Compose environment with services: {services} and deployment info: {deployment_info}")
-        self.generate_environment_services(paths=paths, timestamp=timestamp)
+        self.global_config = global_config
+        self.logger.debug("Setup environment with:")
+        for service in self.services_managers:
+            self.logger.debug(f"Service: {service}")
+        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
+        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+        self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
         self.logger.info("Docker Compose environment setup complete")
     
     
@@ -109,45 +123,55 @@ class DockerComposeEnvironment(INetworkEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
-        # TODO add timeout in the test config
         try:
             # Ensure the log directory for each service exists
-            for service_name , service in self.services.items():
-                log_dir = os.path.join(self.log_dirs, service_name)
+            for service in self.services_managers:
+
+                log_dir = os.path.join(self.log_dirs, service.service_name)
                 if not os.path.exists(log_dir):
                     os.makedirs(log_dir)
                     self.logger.info(f"Created log directory: {log_dir}")
                 
-                additional_command = ""
-                if "ivy" in service_name:
-                    # update other service so they wait for ivy to be ready
-                    self.logger.debug(f"Adding wait for Ivy testers to be ready for {service_name}")
-                    for other_service_name, other_service in self.services.items():
-                        if other_service_name != service_name:
-                            additional_command = f"""
-                            while [ ! -f /app/sync_logs/ivy_ready ]; do
-                                echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready;
-                                sleep 2;
-                            done;
-                            echo "Ivy testers is ready, starting {other_service_name}..." >> /app/logs/tester_ready;   
-                            """.strip()
-                            self.deployment_info[other_service_name]["volumes"].append("shared_logs:/app/sync_logs")
+                self.logger.debug(f"Generating Docker Compose file for {service.service_name}")
+                
+                
+                self.logger.debug(f"Service {service.service_name} is a tester")
+                if service.is_tester():
+                    self.logger.debug(f"Service {service.service_name} is a tester")
+                
+                if "ivy" in service.service_name:
+                    self.logger.debug(f"Adding wait for Ivy testers to be ready for {service.service_name}")
+                    for other_service in self.services_managers:
+                        if other_service.service_name != service.service_name:
+                            other_service.volumes.append("shared_logs:/app/sync_logs")
+                            other_service.run_cmd["pre_run_cmds"] = other_service.run_cmd["pre_run_cmds"] + [
+                                "while [ ! -f /app/sync_logs/ivy_ready.log ]; do",
+                                '\techo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;',
+                                "\tsleep 2;",
+                                "done;",
+                                'echo "Ivy testers is ready, starting '+ other_service.service_name + '..." >> /app/logs/tester_ready.log;',
+                            ]
+            for service in self.services_managers:
+                service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [
+                    "(touch /app/logs/" +service.service_name+".pcap; tshark -a duration:"+str(service.service_config_to_test.timeout)+" -i any -w /app/logs/" +service.service_name+".pcap;) & "
+                ]
+                
+                            
             
-            
-            for service_name, service in self.services.items():
-                if "environment" in self.deployment_info[service_name]:
-                    self.deployment_info[service_name]["environment"] = self.resolve_environment_variables(self.deployment_info[service_name]["environment"])
+            for service in self.services_managers:
+                service.environments = self.resolve_environment_variables(service.environments)
+                self.logger.debug(f"Service {service.service_name} environment: {service.environments}")
             
             template = self.jinja_env.get_template("docker-compose-template.jinja")
+            self.logger.debug(f"Template: {template}")
+            self.logger.debug(f"Services: {self.services_managers}")
+            self.logger.debug(f"Deployment Info: {self.test_config}")
             rendered = template.render(
-                services=self.services,
-                deployment_info=self.deployment_info,
+                services=self.services_managers,
                 paths=paths,
                 timestamp=timestamp,
                 log_dir=self.log_dirs,
-                additional_command=additional_command,
                 experiment_name=self.output_dir.split("/")[-1],
-                environment_settings=self.environment_settings,
             )
             
             # Write the rendered content to docker-compose.generated.yml
@@ -266,12 +290,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     log_file_err.write(result.stderr)
                     # NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
                     #
-                    self.logger.debug(f"docker-compose ps: {result.stdout}")
-                    if len(result.stdout.split("\n")) == 2:
-                        self.logger.info("Docker Compose environment monitored successfully - experiment_finished_early")
+                    stdsplit = result.stdout.split("\n")
+                    self.logger.debug(f"docker-compose ps: {result.stdout} - {result.stderr} - {len(self.services_managers)}  - {len(stdsplit)}")
+                    if len(stdsplit) < len(self.services_managers)*2:
+                        self.logger.debug("Docker Compose environment monitored successfully - Experiment finished earlier")
                         self.event_manager.notify(Event(name="experiment_finished_early", data={}))
                     
-                self.logger.info("Docker Compose environment monitored successfully.")
+                self.logger.debug("Docker Compose environment monitored successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(
                 f"Failed to monitor Docker Compose environment: {e.stderr}"

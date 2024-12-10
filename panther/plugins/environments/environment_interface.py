@@ -8,13 +8,15 @@ from typing import Any, Dict
 import yaml
 
 from core.observer.event_manager import EventManager
+from plugins.environments.config_schema import EnvironmentConfig
+from plugins.environments.network_environment.config_schema import NetworkEnvironmentConfig
 from plugins.plugin_interface import IPlugin
 
 class IEnvironmentPlugin(IPlugin):
     def __init__(
         self,
+        env_config_to_test: EnvironmentConfig,
         output_dir: str,
-        environment_settings: Dict[str,Any],
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager
@@ -25,10 +27,9 @@ class IEnvironmentPlugin(IPlugin):
         self.output_dir = output_dir
         self.log_dirs = os.path.join(self.output_dir, "logs")
         self.plugin_loader = None
-        self.environment_settings = environment_settings
+        self.env_config_to_test = env_config_to_test
         self.event_manager = event_manager
         self.config = self.load_config()
-        self.validate_config()
     
     @abstractmethod
     def is_network_environment(self):

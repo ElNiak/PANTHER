@@ -1,8 +1,12 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Type
-from omegaconf import MISSING
+from typing import Dict, List, Optional
 
+@dataclass
+class Parameter:
+    value: Optional[str] = None
+    description: Optional[str] = None
+    
 @dataclass
 class VersionBase:
     commit: str

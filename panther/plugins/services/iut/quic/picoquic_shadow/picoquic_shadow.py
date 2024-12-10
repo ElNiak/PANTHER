@@ -42,44 +42,9 @@ class PicoquicShadowServiceManager(IImplementationManager):
         else:
             self.logger.error(f"No port mapping found for service '{service_name}'")
             return ""
-        
-    def get_implementation_name(self) -> str:
-        return "picoquic_shadow"
     
     def get_service_name(self) -> str:
         return self.service_name
-    
-    def validate_config(self):
-        """
-        Validates the loaded implementation configuration.
-        """
-        def keys_exists(element, keys):
-            '''
-            Check if *keys (nested) exists in `element` (dict).
-            '''
-            if not isinstance(element, dict):
-                raise AttributeError('keys_exists() expects dict as first argument.')
-            if len(keys) == 0:
-                raise AttributeError('keys_exists() expects at least two arguments, one given.')
-
-            _element = element
-            for key in keys:
-                try:
-                    _element = _element[key]
-                except KeyError:
-                    return False
-            return True
-
-        if not self.service_master_config:
-            self.logger.error("Implementation configuration is empty.")
-            raise ValueError("Empty implementation configuration.")
-        # Additional validation can be implemented here
-        # For example, check required keys are present
-        required_keys = [['picoquic_shadow'], ['picoquic_shadow','versions']]
-        for key in required_keys:
-            if not keys_exists(self.service_master_config, key):
-                self.logger.error(f"Missing required key '{key}' in configuration.")
-                raise KeyError(f"Missing required key '{key}' in configuration.")
             
     def prepare(self,plugin_loader: Optional[PluginLoader] = None):
         """
@@ -89,24 +54,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         # Additional setup can be implemented here
         plugin_loader.build_docker_image(self.get_implementation_name())
         self.logger.info("PicoquicShadow service manager prepared.")
-
-    def load_config(self) -> dict:
-        """
-        Loads the YAML configuration file.
-        """
-        config_file = Path(self.service_master_config_path)
-        if not config_file.exists():
-            self.logger.error(f"Configuration file '{self.service_master_config_path}' does not exist.")
-            return {}
-        try:
-            with open(config_file, 'r') as f:
-                config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.service_master_config_path}'")
-            return config
-        except Exception as e:
-            self.logger.error(f"Failed to load configuration: {e}\n{traceback.format_exc()}")
-            return {}
-
+        
     def generate_deployment_commands(self, service_params: ServiceConfig, environment: str) -> Dict[str, Any]:
         """
         Generates deployment commands and collects volume mappings based on service parameters.
@@ -118,7 +66,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         self.logger.debug(f"Generating deployment commands for service: {service_params}")
         role =  service_params.protocol.role
         version =  service_params.protocol.version
-        version_config = self.service_master_config.get("picoquic_shadow", {}).get("versions", {}).get(version, {})
+        version_config = self.service_config_to_test.get("picoquic_shadow", {}).get("versions", {}).get(version, {})
 
         # Determine if network interface parameters should be included based on environment
         # TODO
@@ -232,7 +180,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
             raise e
 
     def __str__(self) -> str:
-        return  f" (PicoquicShadow Service Manager - {self.service_master_config_path})"
+        return  f" (PicoquicShadow Service Manager - {self.service_config_to_test_path})"
     
     def __repr__(self):
-        return super().__repr__() + f" (PicoquicShadow Service Manager - {self.service_master_config_path})"
+        return super().__repr__() + f" (PicoquicShadow Service Manager - {self.service_config_to_test_path})"

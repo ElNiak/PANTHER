@@ -7,6 +7,7 @@ from typing import Any, Dict, List
 from jinja2 import Environment, FileSystemLoader
 
 from core.observer.event_manager import EventManager
+from plugins.environments.config_schema import EnvironmentConfig
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from plugins.environments.environment_interface import IEnvironmentPlugin
 
@@ -14,13 +15,13 @@ class INetworkEnvironment(IEnvironmentPlugin):
     
     def __init__(
         self,
+        env_config_to_test: EnvironmentConfig,
         output_dir: str,
-        environment_settings: Dict[str,Any],
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager
     ):
-        super().__init__(output_dir, environment_settings, env_type, env_sub_type, event_manager)
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.network_name = f"{env_sub_type}_network"
         self.execution_environments = []
         
@@ -28,7 +29,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self.deployment_commands = {}
         self.timeout = 60
         
-        self.logger.debug(f"Environment settings: {self.environment_settings} in {self.templates_dir}")
+        self.logger.debug(f"Environment settings: {self.env_config_to_test} in {self.templates_dir}")
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.jinja_env.filters['realpath'] = lambda x: os.path.abspath(x)
         self.jinja_env.filters['is_dict']  = lambda x: isinstance(x, dict)

@@ -83,7 +83,8 @@ class ExperimentManager:
         """Runs the tests defined in the experiment configuration."""
         try:
             self.logger.info("Starting experiment tests...")
-            for test_case in self.test_cases:                    
+            for test_case in self.test_cases:     
+                self.logger.debug(f"Starting test: {test_case}")
                 test_case.run()
             self.logger.info("All experiment tests completed.")
         except Exception as e:

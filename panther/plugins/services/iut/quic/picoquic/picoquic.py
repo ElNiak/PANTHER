@@ -13,6 +13,7 @@ from plugins.plugin_loader import PluginLoader
 from plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template
+from plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 # TODO Tom create test template for QUIC implementations new users
 
@@ -22,15 +23,20 @@ class PicoquicServiceManager(IImplementationManager):
         self,
         service_config_to_test: PicoquicConfig,
         service_type: str,
-        protocol: str,
+        protocol: ProtocolConfig,
         implementation_name: str,
     ):
-        super().__init__(service_config_to_test, service_type, protocol,implementation_name)
-        self.logger.debug(f"Initializing Picoquic service manager for '{implementation_name}'")
-        self.config = OmegaConf.merge(PicoquicConfig, self.service_master_config)
-        self.logger.debug(f"Loaded Picoquic configuration: {self.config}")
-        
-    
+        super().__init__(
+            service_config_to_test, service_type, protocol, implementation_name
+        )
+        self.logger.debug(
+            f"Initializing Picoquic service manager for '{implementation_name}'"
+        )
+        self.logger.debug(
+            f"Loaded Picoquic configuration: {self.service_config_to_test}"
+        )
+        self.initialize_commands()
+
     def get_base_url(self, service_name: str) -> str:
         """
         Returns the base URL for the given service.
@@ -48,77 +54,57 @@ class PicoquicServiceManager(IImplementationManager):
             self.logger.error(f"No port mapping found for service '{service_name}'")
             return ""
 
-
     def get_service_name(self) -> str:
         return self.service_name
 
-    def validate_config(self):
+    def generate_pre_compile_commands(self):
         """
-        Validates the loaded implementation configuration.
-        This validate that the plugins configuration is correct (e.g., required keys are present).
+        Generates pre-compile commands.
         """
+        return super().generate_pre_compile_commands() + []
 
-        def keys_exists(element, keys):
-            """
-            Check if *keys (nested) exists in `element` (dict).
-            """
-            if not isinstance(element, dict):
-                raise AttributeError("keys_exists() expects dict as first argument.")
-            if len(keys) == 0:
-                raise AttributeError(
-                    "keys_exists() expects at least two arguments, one given."
-                )
+    def generate_compile_commands(self):
+        """
+        Generates compile commands.
+        """
+        return super().generate_compile_commands() + []
 
-            _element = element
-            for key in keys:
-                try:
-                    _element = _element[key]
-                except KeyError:
-                    return False
-            return True
+    def generate_pre_run_commands(self):
+        """
+        Generates pre-run commands.
+        """
+        return super().generate_pre_run_commands() + []
 
-        if not self.service_master_config:
-            self.logger.error("Implementation configuration is empty.")
-            raise ValueError("Empty implementation configuration.")
-        # Additional validation can be implemented here
-        # For example, check required keys are present
-        required_keys = [["picoquic"], ["picoquic", "versions"]]
-        for key in required_keys:
-            if not keys_exists(self.service_master_config, key):
-                self.logger.error(f"Missing required key '{key}' in configuration.")
-                raise KeyError(f"Missing required key '{key}' in configuration.")
+    def generate_run_command(self):
+        """
+        Generates the run command.
+        """
+        cmd_args = self.generate_deployment_commands()
+        return {
+            "working_dir": self.working_dir,
+            "command_binary": (
+                self.service_config_to_test.implementation.version.server.binary.name
+                if self.role == RoleEnum.server
+                else self.service_config_to_test.implementation.version.client.binary.name
+            ),
+            "command_args": cmd_args,
+            "timeout": self.service_config_to_test.timeout,
+        }
+
+    def generate_post_run_commands(self):
+        """
+        Generates post-run commands.
+        """
+        return super().generate_post_run_commands() + ["&& cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"]
 
     def prepare(self, plugin_loader: Optional[PluginLoader] = None):
         """
         Prepare the service manager for use.
         """
-        self.logger.info("Preparing Picoquic service manager...")
-        # Additional setup can be implemented here
+        self.logger.debug("Preparing Picoquic service manager...")
         plugin_loader.build_docker_image(self.get_implementation_name())
-        self.logger.info("Picoquic service manager prepared.")
 
-    def load_config(self) -> dict:
-        """
-        Loads the YAML configuration file.
-        """
-        config_file = Path(self.service_master_config_path)
-        if not config_file.exists():
-            self.logger.error(
-                f"Configuration file '{self.service_master_config_path}' does not exist."
-            )
-            return {}
-        try:
-            with open(config_file, "r") as f:
-                config = yaml.safe_load(f)
-            self.logger.info(f"Loaded configuration from '{self.service_master_config_path}'")
-            return config
-        except Exception as e:
-            self.logger.error(
-                f"Failed to load configuration: {e}\n{traceback.format_exc()}"
-            )
-            return {}
-
-    def generate_deployment_commands(self, service_params: ServiceConfig, environment: str) -> Dict[str, Any]:
+    def generate_deployment_commands(self) -> str:
         """
         Generates deployment commands and collects volume mappings based on service parameters.
 
@@ -127,14 +113,11 @@ class PicoquicServiceManager(IImplementationManager):
         :return: A dictionary with service name as key and a dictionary containing command and volumes.
         """
         self.logger.debug(
-            f"Generating deployment commands for service: {service_params} with service parameters: {service_params}"
+            f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )
-        role    = service_params.protocol.role
-        version = service_params.protocol.version
-        self.logger.debug(f"Role: {role}, Version: {version}")
-        version_config = (
-            self.service_master_config.get("picoquic", {}).get("versions", {}).get(version, {})
-        )
+        # Create the command list
+
+        self.logger.debug(f"Role: {self.role}, Version: {self.service_version}")
 
         # Determine if network interface parameters should be included based on environment
         # TODO
@@ -142,93 +125,33 @@ class PicoquicServiceManager(IImplementationManager):
         include_interface = True
 
         # Build parameters for the command template
-        params = {
-            "binary": {
-                "dir": version_config.get(role, {})
-                .get("binary", {})
-                .get("dir", "/opt/picoquic"),
-                "name": version_config.get(role, {})
-                .get("binary", {})
-                .get("name", "./picoquicdemo"),
-            },
-            "initial_version": version_config.get(role, {}).get(
-                "initial_version", "00000001"
-            ),
-            "protocol": {
-                "alpn": version_config.get(role, {})
-                .get("protocol", {})
-                .get("alpn", {}),
-                "additional_parameters": version_config.get(role, {})
-                .get("protocol", {})
-                .get("additional_parameters", ""),
-            },
-            "network": {
-                "interface": version_config.get(role, {})
-                .get("network", {})
-                .get("interface", {}),
-                "port": version_config.get(role, {})
-                .get("network", {})
-                .get("port", 4443),
-                "destination": service_params.protocol.target,
-            },
-            "certificates": {
-                "cert_param": version_config.get(role, {})
-                .get("certificates", {})
-                .get("cert", {})
-                .get("param"),
-                "cert_file": version_config.get(role, {})
-                .get("certificates", {})
-                .get("cert", {})
-                .get("file"),
-                "cert_local_file": version_config.get(role, {})
-                .get("certificates", {})
-                .get("cert", {})
-                .get("local_file"),
-                "key_param": version_config.get(role, {})
-                .get("certificates", {})
-                .get("key", {})
-                .get("param"),
-                "key_file": version_config.get(role, {})
-                .get("certificates", {})
-                .get("key", {})
-                .get("file"),
-                "key_local_file": version_config.get(role, {})
-                .get("certificates", {})
-                .get("key", {})
-                .get("local_file"),
-            },
-            "ticket_file": {
-                "param": version_config.get(role, {})
-                .get("ticket_file", {})
-                .get("param"),
-                "file": version_config.get(role, {}).get("ticket_file", {}).get("file"),
-                "local_file": version_config.get(role, {})
-                .get("ticket_file", {})
-                .get("local_file"),
-            },
-            "logging": version_config.get(role, {}).get("logging", {}),
-        }
-
+        # TODO ensure that the parameters are correctly set
+        if self.role == RoleEnum.server:
+            params = self.service_config_to_test.implementation.version.server
         # For the client, include target and message if available
-        if role == "client":
-            params["target"] = service_params.protocol.target
-
+        elif self.role == RoleEnum.client:
+            params = self.service_config_to_test.implementation.version.client
+        
+        params["target"] = self.service_config_to_test.protocol.target
+        
+        self.logger.debug(f"Parameters for command template: {params}")
+        self.logger.debug(f"Role: {self.role}")
+        self.working_dir = params["binary"]["dir"]
         # Conditionally include network interface parameters
         if not include_interface:
             params["network"].pop("interface", None)
 
         # Collect volume mappings
-        volumes = []
         # Only add certificate volumes if the user doesn't want to generate new certificates
-        if not service_params.generate_new_certificates:
+        if not self.service_config_to_test.generate_new_certificates:
             # Certificates
-            volumes.append(
+            self.volumes.append(
                 {
                     "local": os.path.abspath(params["certificates"]["cert_local_file"]),
                     "container": params["certificates"]["cert_file"],
                 }
             )
-            volumes.append(
+            self.volumes.append(
                 {
                     "local": os.path.abspath(params["certificates"]["key_local_file"]),
                     "container": params["certificates"]["key_file"],
@@ -237,7 +160,7 @@ class PicoquicServiceManager(IImplementationManager):
 
         # Ticket file (if applicable)
         if params["ticket_file"]["local_file"]:
-            volumes.append(
+            self.volumes.append(
                 {
                     "local": os.path.abspath(params["ticket_file"]["local_file"]),
                     "container": params["ticket_file"]["file"],
@@ -245,12 +168,11 @@ class PicoquicServiceManager(IImplementationManager):
             )
         else:
             # TODO add that in the Dockerfile
-            subprocess.run(["bash", 'generate_certificates.sh'])
-            
+            subprocess.run(["bash", "generate_certificates.sh"])
 
         # Render the appropriate template
         try:
-            template_name = f"{role}_command.jinja"
+            template_name = f"{str(self.role.name)}_command.jinja"
             self.logger.debug(
                 f"Rendering command using template '{template_name}' with parameters: {params}"
             )
@@ -260,37 +182,18 @@ class PicoquicServiceManager(IImplementationManager):
             # Clean up the command string
             command_str = command.replace("\t", " ").replace("\n", " ").strip()
 
-            # Create the command list
-            working_dir = (
-                version_config.get(role, {})
-                .get("binary", {})
-                .get("dir", "/opt/picoquic")
-            )
-
-            ending_command = "cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo"
-
-            service_name = service_params.name
+            service_name = self.service_config_to_test.name
             self.logger.debug(f"Generated command for '{service_name}': {command_str}")
-            return {
-                service_name: {
-                    "command_binary": version_config.get(role, {})
-                                .get("binary", {})
-                                .get("name", "./picoquicdemo"),
-                    "args": command_str,
-                    "volumes": volumes,
-                    "working_dir": working_dir,
-                    "environment": self.environments,
-                    "ending_command": ending_command,
-                }
-            }
+            return command_str
+        
         except Exception as e:
             self.logger.error(
-                f"Failed to render command for service '{service_params.name}': {e}\n{traceback.format_exc()}"
+                f"Failed to render command for service '{self.service_config_to_test.name}': {e}\n{traceback.format_exc()}"
             )
             raise e
 
     def __str__(self) -> str:
-        return f" (Picoquic Service Manager - {self.service_master_config_path})"
+        return f"PicoquicServiceManager({self.service_config_to_test_path})"
 
     def __repr__(self):
-        return f" (Picoquic Service Manager - {self.service_master_config_path})"
+        return f"PicoquicServiceManager({self.service_config_to_test_path})"

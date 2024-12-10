@@ -27,8 +27,8 @@ class AssertionConfig:
 class TestConfig:
     name: str        = "Undefined test"  # Test name
     description: str = "Undefined test description"  # Test description
-    network_environment: NetworkEnvironmentConfig           = field(default_factory= NetworkEnvironmentConfig)  # Network environment configuration
-    execution_environment: List[ExecutionEnvironmentConfig] = field(default_factory=lambda: [ExecutionEnvironmentConfig])  # Execution environments
+    network_environment: NetworkEnvironmentConfig            = field(default_factory= NetworkEnvironmentConfig)  # Network environment configuration
+    execution_environments: List[ExecutionEnvironmentConfig] = field(default_factory=lambda: [ExecutionEnvironmentConfig])  # Execution environments
     iterations: int = field(default=1, metadata={"min": 1, "max": 1000})  # Range for iterations
     services: Dict[str, ServiceConfig] = field(default_factory=lambda: { "service_name": ServiceConfig })  # Service configurations
     steps:    Optional[StepConfig]     = None  # Steps configuration

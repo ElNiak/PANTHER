@@ -11,8 +11,10 @@ from plugins.services.iut.config_schema import ImplementationConfig
 @dataclass
 class ServiceConfig:
     name: str # Service name
+    timeout: int = field(default=100)  # Timeout for the service
     implementation: ImplementationConfig = field(default_factory=lambda: ImplementationConfig(name="implem_name"))  # Implementation details
     protocol: ProtocolConfig             = field(default_factory=ProtocolConfig)  # Protocol configuration
     ports: List[str]                     = field(default_factory=list)  # List of ports
-    generate_new_certificates: Optional[bool] = False
+    generate_new_certificates: bool = field(default=False)  # Flag to generate new certificates
+    volumes: List[str] = field(default_factory=list)
     

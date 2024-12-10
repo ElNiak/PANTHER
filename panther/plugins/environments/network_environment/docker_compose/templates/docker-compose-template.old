@@ -1,0 +1,101 @@
+name: {{ experiment_name }}
+services:
+  {% for service_name, service in services.items() %}
+  {{ service_name  }}:
+    image: {{ service.implementation.name }}_{{ service.protocol.version }}_panther:latest
+    container_name: {{ service_name  }}
+    ports:
+      {% for port in service.ports %}
+      - "{{ port }}"
+      {% endfor %}
+    {% if service.role == 'client' %}
+    depends_on:
+      - {{ service.target }}
+    {% endif %}
+    environment:
+      ROLE: {{ service.role }}
+      SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
+      UID: "${UID}"
+      GID: "${GID}"
+      {% if "environment" in deployment_info[service_name] %}
+      {% for key, value in deployment_info[service_name]["environment"].items() %}
+      {{ key }}: "{{ value }}"
+      {% endfor %}
+      {% endif %}
+    tty: true
+    stdin_open: true
+    # TODO fix in the docker
+    cap_add:
+      - CAP_NET_ADMIN
+      - CAP_NET_RAW
+    working_dir: "{{ deployment_info[service_name]['working_dir'] }}"
+    # TODO protocol + duration
+    command: 
+      - /bin/sh -c '
+          set -x;
+          export PATH=$$PATH:$$ADDITIONAL_PATH;
+          export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
+          env >> /app/logs/ivy_setup.log;
+    {% if not "ivy" in service_name  %}
+          {{ additional_command }} 
+          (tshark -a duration:50 -i any -w /app/logs/{{ service_name  }}.pcap;) & 
+          {% if service.role == 'client' %}
+          (sleep 5; {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }})
+          {% else %}
+          ({{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }})
+          {% endif %}
+    {% else %}
+          TARGET_IP=$(getent hosts {{ service.target }} | awk "{ print \$1 }");
+          echo "Resolved {{ service.target }} IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
+          IVY_IP=$(hostname -I | awk "{ print \$1 }");
+          echo "Resolved {{ service_name  }} IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
+          
+          ip_to_hex() {
+              echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
+          }
+
+          ip_to_decimal() {
+              echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
+          }
+
+          TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);
+          IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);
+          
+          echo "Resolved {{ service.target }} IP in HEX - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+          echo "Resolved {{ service_name  }} IP in HEX - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
+          
+          {{ deployment_info[service_name]['compilation_command'] }} && ((touch /app/logs/{{ service_name  }}.pcap; tshark -a duration:50 -i any -w /app/logs/{{ service_name  }}.pcap;) & 
+          {% if service.role == 'client' %}
+          echo "timeout {{ deployment_info[service_name]['timeout'] }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }}" >> /app/logs/ivy_setup.log;
+          (sleep 5; cd {{deployment_info[service_name]['working_dir'] }}; timeout {{ deployment_info[service_name]['timeout'] }}  {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }}))  {% if not deployment_info[service_name]['ending_command'] %}'{% endif %}
+          {% else %}
+          echo "timeout {{ deployment_info[service_name]['timeout'] }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }}" >> /app/logs/ivy_setup.log;
+          (cd {{deployment_info[service_name]['working_dir'] }}; timeout {{ deployment_info[service_name]['timeout'] }} {{ deployment_info[service_name]['command_binary'] }} {{ deployment_info[service_name]['args'] }})) {% if not deployment_info[service_name]['ending_command'] %}'{% endif %}
+          {% endif %}
+    {% endif %}
+          {% if deployment_info[service_name]['ending_command'] %}
+          && {{ deployment_info[service_name]['ending_command'] }}'
+          {% endif %}
+    # TODO fix sudo tshark
+    volumes:
+      - {{ log_dir | realpath }}/{{ service_name  }}:/app/logs/
+      {% for volume in deployment_info[service_name]['volumes'] %}
+      {% if volume | is_dict %}
+      - "{{ volume.local | realpath }}:{{ volume.container }}"
+      {% else %}
+      - "{{ volume }}"
+      {% endif %}
+      {% endfor %}
+    networks:
+      panther_network:
+        aliases: 
+          - {{ service_name  }}
+  {% endfor %}
+
+networks:
+  panther_network:
+    driver: bridge
+
+volumes:
+  shared_logs:
+    driver: local

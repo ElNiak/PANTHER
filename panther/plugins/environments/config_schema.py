@@ -2,9 +2,7 @@
 from dataclasses import dataclass
 from omegaconf import MISSING
 
-from plugins.environments.config_schema import EnvironmentConfig
-
 # Network Environment Configuration
 @dataclass
-class NetworkEnvironmentConfig(EnvironmentConfig):
+class EnvironmentConfig:
     type: str = MISSING

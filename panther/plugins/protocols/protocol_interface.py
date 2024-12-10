@@ -17,8 +17,8 @@ class IProtocolManager(IPlugin):
         service_type: str,
     ):
         super().__init__()
-        self.service_master_config_path = f"plugins/protocols/{service_type}/"
-        self.service_master_config = self.load_config()
+        self.service_config_to_test_path = f"plugins/protocols/{service_type}/"
+        self.service_config_to_test = self.load_config()
         self.validate_config()
         
     def validate_config(self):
@@ -31,12 +31,12 @@ class IProtocolManager(IPlugin):
         """
         Loads the YAML configuration file.
         """
-        config_file = Path(self.service_master_config_path)
+        config_file = Path(self.service_config_to_test_path)
         if not config_file.exists():
             self.logger.error(
-                f"Configuration file '{self.service_master_config_path}' does not exist."
+                f"Configuration file '{self.service_config_to_test_path}' does not exist."
             )
-        with open(self.service_master_config_path, "r") as f:
+        with open(self.service_config_to_test_path, "r") as f:
             return yaml.safe_load(f)
     
     

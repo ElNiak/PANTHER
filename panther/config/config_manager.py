@@ -140,7 +140,7 @@ class ConfigLoader:
                 name=test_data["name"],
                 description=test_data["description"],
                 network_environment=network_env,
-                execution_environment=test_data.get("execution_environment", []),
+                execution_environments=test_data.get("execution_environment", []),
                 iterations=test_data["iterations"],
                 services=services,
                 steps=test_data.get("steps"),
@@ -275,6 +275,7 @@ class ConfigLoader:
             module_path = f"plugins.services.{type}.{protocol}.{name}.config_schema"  # Assuming schema files are in plugins
         else:
             module_path = f"plugins.services.{type}.{name}.config_schema"
+        
         self.logger.debug(f"Module path: {module_path}")
         try:
             # Import the module and dynamically get the class
@@ -296,27 +297,17 @@ class ConfigLoader:
                 raise ValueError(f"Version configuration file {version_path} not found.")
             raw_version_config = OmegaConf.load(version_path)
             self.logger.debug(f"Version config: {raw_version_config} - {version_config_class}")
-            protocol_version = OmegaConf.to_object(
-                OmegaConf.merge(OmegaConf.structured(version_config_class), raw_version_config)
-            )
+            protocol_version = OmegaConf.to_object(OmegaConf.merge(OmegaConf.structured(version_config_class), raw_version_config))
         
             implementation_instance = config_class(**implementation["implementation"])
             implementation_instance.version = protocol_version
-            # # Load protocol versions dynamically
-            # if hasattr(implementation_instance, "versions") and hasattr(implementation_instance, "load_versions_from_files"):
-            #     version_configs_dir = module_path.replace(".config_schema","version_configs/")
-            #     implementation_instance.versions = implementation_instance.load_versions_from_files(version_configs_dir)
-            
-            # # Get the specific version configuration
-            # if protocol_version not in implementation_instance.versions:
-            #     raise ValueError(f"Version '{protocol_version}' not found in {name} configuration.")
-            
-            # protocol_version_config = implementation_instance.versions[protocol_version]
-            
+    
             return OmegaConf.merge(config_class, implementation_instance)
         except (ImportError, AttributeError) as e:
             raise ValueError(f"Failed to load implementation config for '{name}': {e}")
-           
+    
+    # TODO add error complete reporting
+    
     def get_config(self, config_name: str) -> DictConfig:
         """
         Load a specific configuration file by name.
