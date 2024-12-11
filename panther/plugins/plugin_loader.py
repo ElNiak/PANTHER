@@ -12,9 +12,14 @@ from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.plugins.services.iut.config_schema import ImplementationConfig
 
 class PluginLoader:
-    def __init__(self, plugins_base_dir: str = "panther/plugins"):
+    def __init__(self, 
+                 plugins_base_dir: str = "panther/plugins",
+                 plugins_optional_dir: Optional[str] = None):
         self.logger = logging.getLogger("PluginLoader")
         self.plugins_base_dir = Path(plugins_base_dir)
+        # TODO add support for optional plugins 
+        # For now if we want to add a new plugins, we need to add it to the plugins_base_dir
+        self.plugins_optional_dir = Path(plugins_optional_dir) if plugins_optional_dir else None
         self.docker_builder = DockerBuilder()
         self.built_images: Dict[str, str] = {}  # Maps implementation names to image tags
         self.protocol_plugins: Dict[str, Path] = {}

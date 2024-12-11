@@ -1,24 +1,39 @@
 # PANTHER-SCP/panther/config/config.py
 
-from dataclasses import fields, is_dataclass
 import importlib
 import logging
 import os
-from typing import Any, List, Optional, Dict, get_args, get_origin
+from pathlib import Path
+import shutil
+from typing import List, Optional, Dict
 from omegaconf import DictConfig, OmegaConf, ValidationError
 import yaml
 
-from panther.config.config_global_schema import DockerConfig, GlobalConfig, LoggingConfig, PathsConfig
+from panther.config.config_global_schema import AdditionalPathsConfig, DockerConfig, GlobalConfig, LoggingConfig, PathsConfig
 from panther.config.config_experiment_schema import ExperimentConfig, ServiceConfig, TestConfig
 from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.plugins.services.iut.config_schema import ImplementationConfig
 from panther.plugins.plugin_loader import PluginLoader
 
 class ConfigLoader:
-    def __init__(self, config_dir: str):
-        self.config_dir = config_dir
-        # TODO setup logger and config in the ExperimentManager
-        self.logger = logging.getLogger("ConfigLoader")
+    def __init__(self, 
+                 experiment_file: str,
+                 output_dir: Optional[str] = None,
+                 
+                 exec_env_dir: Optional[str] = "",
+                 net_env_dir: Optional[str] = "",
+                 iut_dir: Optional[str] = "",
+                 testers_dir: Optional[str] = ""):
+        
+        self.experiment_file = experiment_file
+        self.output_dir      = output_dir
+        
+        self.exec_env_dir = exec_env_dir
+        self.net_env_dir  = net_env_dir
+        self.iut_dir      = iut_dir
+        self.testers_dir  = testers_dir
+        
+        self.logger        = logging.getLogger("ConfigLoader")
         self.global_config = None
 
     def construct_global_config(self, loaded_config: DictConfig) -> GlobalConfig:
@@ -39,13 +54,86 @@ class ConfigLoader:
 
         # Construct paths configuration
         paths_config = PathsConfig(
-            output_dir=loaded_config["paths"]["output_dir"],
+            output_dir=loaded_config["paths"]["output_dir"] if not self.output_dir else self.output_dir,
             log_dir=loaded_config["paths"]["log_dir"],
             config_dir=loaded_config["paths"]["config_dir"],
             plugin_dir=loaded_config["paths"]["plugin_dir"],
         )
         OmegaConf.merge(PathsConfig, paths_config)
 
+        optional_paths_config = AdditionalPathsConfig( # TODO: Not used for now
+            exec_env_dir=self.exec_env_dir,
+            net_env_dir=self.net_env_dir,
+            iut_dir=self.iut_dir,
+            testers_dir=self.testers_dir,
+        )
+        
+        if self.exec_env_dir:
+            # TODO improve this
+            self.exec_env_dir = Path(self.exec_env_dir)
+            exec_env_target_dir = os.path.join("panther", "plugins", "environments", "execution_environment", self.exec_env_dir.name)
+            if not os.path.exists(exec_env_target_dir):
+                os.makedirs(exec_env_target_dir)
+            for item in os.listdir(self.exec_env_dir):
+                self.logger.debug(f"Copying {item} from {self.exec_env_dir} to {exec_env_target_dir}")
+                s = os.path.join(self.exec_env_dir, item)
+                d = os.path.join(exec_env_target_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d)
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+        
+        if self.net_env_dir:
+            # TODO improve this
+            self.net_env_dir = Path(self.net_env_dir)
+            net_env_target_dir = os.path.join("panther", "plugins", "environments", "network_environment", self.net_env_dir.name)
+            if not os.path.exists(net_env_target_dir):
+                os.makedirs(net_env_target_dir)
+            for item in os.listdir(self.net_env_dir):
+                self.logger.debug(f"Copying {item} from {self.net_env_dir} to {net_env_target_dir}")
+                s = os.path.join(self.net_env_dir, item)
+                d = os.path.join(net_env_target_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d)
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+                    
+        if self.iut_dir:
+            self.iut_dir = Path(self.iut_dir)
+            iut_target_dir = os.path.join("panther", "plugins", "services", "iut", self.iut_dir.name)
+            if not os.path.exists(iut_target_dir):
+                os.makedirs(iut_target_dir)
+            for item in os.listdir(self.iut_dir):
+                self.logger.debug(f"Copying {item} from {self.iut_dir} to {iut_target_dir}")
+                s = os.path.join(self.iut_dir, item)
+                d = os.path.join(iut_target_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d)
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+                    
+        if self.testers_dir:
+            self.testers_dir = Path(self.testers_dir)
+            testers_target_dir = os.path.join("panther", "plugins", "services", "testers", self.testers_dir.name)
+            if not os.path.exists(testers_target_dir):
+                os.makedirs(testers_target_dir)
+            for item in os.listdir(self.testers_dir):
+                self.logger.debug(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
+                s = os.path.join(self.testers_dir, item)
+                d = os.path.join(testers_target_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d)
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+        
         # Construct Docker configuration
         docker_config = DockerConfig(
             build_docker_image=loaded_config["docker"]["build_docker_image"]
@@ -55,6 +143,7 @@ class ConfigLoader:
         global_config = GlobalConfig(
             logging=logging_config,
             paths=paths_config,
+            # optional_paths=optional_paths_config,
             docker=docker_config,
         )
         OmegaConf.merge(GlobalConfig, global_config)
@@ -123,6 +212,7 @@ class ConfigLoader:
                 )
                 OmegaConf.merge(ServiceConfig, service)
                 services[service_name] = service
+            
             # Construct the test configuration:
             # NOTE: We do not validate with merge here, as the schema is not fully compatible with OmegaConf
             # It is because NetworkEnvironmentConfig is a dataclass, and OmegaConf does not support nested dataclasses
@@ -168,7 +258,7 @@ class ConfigLoader:
 
         :return: A validated experiment configuration.
         """
-        experiment_config_path = os.path.join(self.config_dir, "experiment_config.yaml")
+        experiment_config_path = self.experiment_file
         if not os.path.exists(experiment_config_path):
             raise FileNotFoundError(f"Experiment configuration file '{experiment_config_path}' not found.")
 
@@ -198,7 +288,7 @@ class ConfigLoader:
 
         :return: A validated experiment configuration.
         """
-        experiment_config_path = os.path.join(self.config_dir, "experiment_config.yaml")
+        experiment_config_path = self.experiment_file
         if not os.path.exists(experiment_config_path):
             raise FileNotFoundError(f"Experiment configuration file '{experiment_config_path}' not found.")
 

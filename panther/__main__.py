@@ -16,16 +16,37 @@ from panther.webapp.web_app import run
 def main():
     parser = argparse.ArgumentParser(description="Panther CLI")
     parser.add_argument(
-        "--config-dir",
+        "--experiment-config",
         type=str,
-        default="panther/config",
+        default="panther/config/experiment_config.yaml",
         help="Path to the configuration directory.",
     )
     parser.add_argument(
-        "--plugin-dir",
+        "--exec-env-dir",
+        type=str,
+        help="Path to the execution plugin additional directory.",
+    )
+    parser.add_argument(
+        "--net-env-dir",
+        type=str,
+        help="Path to the network plugin additional directory.",
+    )
+    parser.add_argument(
+        "--iut-dir",
+        type=str,
+        help="Path to a new IUT plugin additional directory.",
+    )
+    parser.add_argument(
+        "--tester-dir",
         type=str,
         default="panther/plugins",
-        help="Path to the configuration directory.",
+        help="Path to a new tester plugin additional directory.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="outputs",
+        help="Path to the output directory.",
     )
     parser.add_argument(
         "--experiment-name",
@@ -52,7 +73,7 @@ def main():
         raise NotImplementedError("Teardown functionality is not implemented yet.")
     else:
         # We start by loading the configuration
-        config_loader = ConfigLoader(args.config_dir)      
+        config_loader = ConfigLoader(args.experiment_config, args.output_dir, args.exec_env_dir, args.net_env_dir, args.iut_dir, args.tester_dir)      
         # We get the global configurations
         global_config = config_loader.load_and_validate_global_config()
         if args.webapp:
@@ -77,6 +98,16 @@ def main():
             # Start the experiment
             experiment_manager.run_tests()
         
-
+def main_web():
+    try:
+        run()
+    except Exception as e:
+        logging.error(e)
+    finally:
+        sys.stdout.close()
+        sys.stderr.close()
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+    
 if __name__ == "__main__":
     main()
