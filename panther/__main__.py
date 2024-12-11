@@ -1,17 +1,14 @@
 # PANTHER-SCP/panther/panther_cli.py
 
 import argparse
-from datetime import datetime
-import os
 import logging
-from pathlib import Path
 import sys
-from omegaconf import OmegaConf
 from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
 from panther.webapp.web_app import run
 
 # TODO create singleton plugin_loader ?
+
 
 def main():
     parser = argparse.ArgumentParser(description="Panther CLI")
@@ -39,7 +36,6 @@ def main():
     parser.add_argument(
         "--tester-dir",
         type=str,
-        default="panther/plugins",
         help="Path to a new tester plugin additional directory.",
     )
     parser.add_argument(
@@ -65,20 +61,32 @@ def main():
         help="Start the web app to configurate the experiments.",
     )
     args = parser.parse_args()
-    
+
     if args.teardown:
         if not args.experiment_dir:
-            print("Please provide the experiment directory to teardown using '--experiment-dir'.")
+            print(
+                "Please provide the experiment directory to teardown using '--experiment-dir'."
+            )
             return
         raise NotImplementedError("Teardown functionality is not implemented yet.")
     else:
         # We start by loading the configuration
-        config_loader = ConfigLoader(args.experiment_config, args.output_dir, args.exec_env_dir, args.net_env_dir, args.iut_dir, args.tester_dir)      
+        config_loader = ConfigLoader(
+            args.experiment_config,
+            args.output_dir,
+            args.exec_env_dir,
+            args.net_env_dir,
+            args.iut_dir,
+            args.tester_dir,
+        )
         # We get the global configurations
         global_config = config_loader.load_and_validate_global_config()
         if args.webapp:
             try:
-                run()
+                raise NotImplementedError(
+                    "Webapp functionality is not fully refactored/implemented yet."
+                )
+                run(config_loader, global_config, args)
             except Exception as e:
                 logging.error(e)
             finally:
@@ -89,15 +97,15 @@ def main():
         else:
             # We create the experiment manager
             experiment_manager = ExperimentManager(
-                global_config=global_config,
-                experiment_name=args.experiment_name
+                global_config=global_config, experiment_name=args.experiment_name
             )
             experiment_config = config_loader.load_and_validate_experiment_config()
             # Once we have the experiments configurations, we can initialize the experiment
             experiment_manager.initialize_experiments(experiment_config)
             # Start the experiment
             experiment_manager.run_tests()
-        
+
+
 def main_web():
     try:
         run()
@@ -108,6 +116,7 @@ def main_web():
         sys.stderr.close()
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
-    
+
+
 if __name__ == "__main__":
     main()

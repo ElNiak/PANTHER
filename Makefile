@@ -10,7 +10,7 @@ package:
 	python3.10 -m pip uninstall --yes panther
 	rm -rf build/ dist/ *.egg-info;
 	python3.10 -m build --wheel --no-isolation
-	python3.10 -m pip install --force-reinstall dist/Panther-*.whl
+	python3.10 -m pip install --force-reinstall dist/panther-*.whl
 
 package-dev:
 	python3.10 -m pip install build wheel

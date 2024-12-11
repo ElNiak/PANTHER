@@ -6,70 +6,44 @@ from flask import (
     redirect,
 )
 from flask_cors import CORS
-import logging
+from omegaconf import OmegaConf
 
-from flask_wtf import FlaskForm
-from wtforms import StringField, IntegerField, BooleanField, SelectField
-from wtforms.validators import DataRequired, NumberRange
-from dataclasses import fields
-from enum import Enum
+from panther.config.config_global_schema import GlobalConfig
+from panther.config.config_manager import ConfigLoader
+from panther.core.experiment_manager import ExperimentManager
 
 
-# Utility: Convert Enum to SelectField choices
-def enum_to_choices(enum_cls):
-    return [(e.name, e.value) for e in enum_cls]
-
-
-# Utility: Map Python types to WTForms fields
-def type_to_field(field_type, metadata):
-    if field_type is bool:
-        return BooleanField()
-    elif field_type is int:
-        return IntegerField(
-            validators=[
-                NumberRange(
-                    min=metadata.get("min", None), max=metadata.get("max", None)
-                )
-            ]
-        )
-    elif field_type is str:
-        return StringField(validators=[DataRequired()])
-    elif isinstance(field_type, Enum):
-        return SelectField(choices=enum_to_choices(field_type))
-    return StringField()  # Fallback
-
-
-# Utility: Dynamically generate WTForms from dataclasses
-def dataclass_to_form(dataclass_type):
-    class DynamicForm(FlaskForm):
-        pass
-
-    for field in fields(dataclass_type):
-        field_name = field.name
-        field_type = field.type
-        metadata = field.metadata
-        form_field = type_to_field(field_type, metadata)
-        setattr(DynamicForm, field_name, form_field)
-    return DynamicForm
-
-
-def create_app():
+def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     app = Flask(
-        __name__,
-        static_folder=os.path(os.getcwd, "/panther/webapp/static/"),
-        template_folder=os.path(os.getcwd, "/panther/webapp/templates/"),
+        "panther_webapp",
+        static_folder="panther/webapp/static/",
+        template_folder="panther/webapp/templates/",
     )
-    app.logger.setLevel(logging.DEBUG)
+    # # app.logger.setLevel(logging.DEBUG)
+    print(f"Flask app template - {app.template_folder} - {os.getcwd()}")
     app.secret_key = "ElNiakDummyKey"
     app.config["SESSION_TYPE"] = "filesystem"
     app.config["SESSION_PERMANENT"] = False
-    app.config["APPLICATION_ROOT"] = os.path(os.getcwd, "/panther/webapp/templates/")
+    app.config["APPLICATION_ROOT"] = "panther/webapp/templates/"
     CORS(app, resources={r"/*": {"origins": "*"}})
+
+    app.config["config_loader"] = config_loader
+    app.config["global_config"] = global_config
+    experiment_manager = ExperimentManager(
+        global_config=global_config, experiment_name=args.experiment_name
+    )
+    experiment_manager.test_cases
+    app.config["experiment_manager"] = experiment_manager
+
+    experiment_config = config_loader.load_and_validate_experiment_config()
+    print(f"Experiment Config: {OmegaConf.to_yaml(experiment_config)}")
+    app.config["experiment_config"] = experiment_config
+    # Once we have the experiments configurations, we can initialize the experiment
+    experiment_manager.initialize_experiments(experiment_config)
 
     from .experiment_setup import exp_manager
 
     app.register_blueprint(exp_manager, url_prefix="/")
-
     app.logger.info(f"Flask app template - {app.template_folder}")
 
     @app.after_request
@@ -98,11 +72,14 @@ def create_app():
         It redirects the user to the index.html page
         :return: a redirect to the index.html page.
         """
-        return redirect("index.html", code=302)
+        return redirect("index", code=302)
 
     return app
 
 
-def run():
-    app = create_app()
+def run(config_loader: ConfigLoader, global_config: GlobalConfig, args):
+    print("Running webapp")
+    app = create_app(
+        config_loader=config_loader, global_config=global_config, args=args
+    )
     app.run(host="0.0.0.0", port=8080, use_reloader=True, threaded=True, debug=True)

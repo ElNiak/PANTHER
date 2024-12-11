@@ -1,14 +1,14 @@
-name: Strace___QUIC_IyvClient_Server_Communication_Test
+name: Heap_QUIC_Client_IvyServer_Communication_Test
 services:
-  picoquic_server:
+  picoquic_client:
     image: picoquic_rfc9000_panther:latest
-    container_name: picoquic_server
+    container_name: picoquic_client
     ports:
-      - "4443:4443"
-      - "8080:8080"
+      - "5000:5000"
+      - "8081:8081"
     environment:
-      ROLE: server
-      SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
+      ROLE: client
+      SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt"
       UID: "${UID}"
       GID: "${GID}"
     tty: true
@@ -18,7 +18,7 @@ services:
       - CAP_NET_ADMIN
       - CAP_NET_RAW
     working_dir: "/opt/picoquic"
-    command: 
+    command:
       - /bin/sh -c '
           set -x;
           export PATH=$$PATH:$$ADDITIONAL_PATH;
@@ -28,33 +28,33 @@ services:
           	echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;
           	sleep 2;
           done;
-          echo "Ivy testers is ready, starting picoquic_server..." >> /app/logs/tester_ready.log;
-          (touch /app/logs/picoquic_server.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_server.pcap;) & 
-          echo "Running timeout 100  /usr/bin/strace -k -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time"  ./picoquicdemo -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2> /app/logs/server.err.log" >> /app/logs/picoquic_server_setup.log;
-          (timeout 100  /usr/bin/strace -k -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time"  ./picoquicdemo -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2> /app/logs/server.err.log)
- 
+          echo "Ivy testers is ready, starting picoquic_client..." >> /app/logs/tester_ready.log;
+          (touch /app/logs/picoquic_client.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_client.pcap;) &
+          echo "Running timeout 100 ./picoquicdemo -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e lo   -v 00000001  ivy_server 4443 > /app/logs/client.log 2> /app/logs/client.err.log" >> /app/logs/picoquic_client_setup.log;
+          (sleep 5; timeout 100 ./picoquicdemo -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e lo   -v 00000001  ivy_server 4443 > /app/logs/client.log 2> /app/logs/client.err.log)
+
           && ( cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo; )'
-          
+
 
     # TODO fix sudo tshark
     volumes:
-      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/outputs/experiment_2024-12-11_17-51-09/Strace___QUIC_IyvClient_Server_Communication_Test/logs/picoquic_server:/app/logs/
+      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/outputs/experiment_2024-12-11_23-01-34/Heap_QUIC_Client_IvyServer_Communication_Test/logs/picoquic_client:/app/logs/
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/config/tls_keys:/opt/ticket/ticket.key"
       - "shared_logs:/app/sync_logs"
     networks:
       panther_network:
-        aliases: 
-          - picoquic_server
-  ivy_client:
+        aliases:
+          - picoquic_client
+  ivy_server:
     image: panther_ivy_rfc9000_panther:latest
-    container_name: ivy_client
+    container_name: ivy_server
     ports:
-      - "5000:5000"
+      - "4443:4443"
       - "4987:4987"
-      - "8081:8081"
+      - "8080:8080"
     environment:
-      ROLE: client
-      SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
+      ROLE: server
+      SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt"
       UID: "${UID}"
       GID: "${GID}"
       PROTOCOL_TESTED: "quic"
@@ -84,7 +84,7 @@ services:
       initial_max_stream_data_uni: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_uni.txt"
       initial_max_data: "/opt//panther_ivy/protocol-testing/quic/initial_max_data.txt"
       INITIAL_VERSION: "1"
-      TEST_TYPE: "server"
+      TEST_TYPE: "client"
     tty: true
     stdin_open: true
     # TODO fix in the docker
@@ -92,29 +92,29 @@ services:
       - CAP_NET_ADMIN
       - CAP_NET_RAW
     working_dir: "/opt/panther_ivy/protocol-testing/quic"
-    command: 
+    command:
       - /bin/sh -c '
           set -x;
           export PATH=$$PATH:$$ADDITIONAL_PATH;
           export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
           env >> /app/logs/ivy_setup.log;
-          TARGET_IP=$(getent hosts picoquic_server | awk "{ print \$1 }");
-          echo "Resolved picoquic_server IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
+          TARGET_IP=$(getent hosts  | awk "{ print \$1 }");
+          echo "Resolved  IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
           IVY_IP=$(hostname -I | awk "{ print \$1 }");
-          echo "Resolved  ivy_client IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
-           
+          echo "Resolved  ivy_server IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
+
           ip_to_hex() {
             echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
           }
-           
+
           ip_to_decimal() {
             echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
           }
-           
+
           TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);
           IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);
-          echo "Resolved picoquic_server IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
-          echo "Resolved ivy_client IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
+          echo "Resolved  IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+          echo "Resolved ivy_server IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
           echo "Copying QUIC libraries..." >> /app/logs/ivy_setup.log &&
           cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" &&
           cp -f -a /opt/picotls/*.a "/opt/panther_ivy/ivy/lib/" &&
@@ -122,7 +122,7 @@ services:
           cp -f /opt/picotls/include/picotls.h "/opt/panther_ivy/ivy/include/picotls.h" &&
           cp -r -f /opt/picotls/include/picotls/. "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls" &&
           cp -f "/opt/panther_ivy/protocol-testing/quic/quic_utils/quic_ser_deser.h" "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/" &&
-           
+
           update_ivy_tool() {
           	echo "Updating Ivy tool..." >> /app/logs/ivy_setup.log;
           	cd "/opt/panther_ivy" || exit 1;
@@ -133,9 +133,9 @@ services:
           	echo "Copying updated Z3 files..." >> /app/logs/ivy_setup.log;
           	cp -f -a /opt/panther_ivy/ivy/lib/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" >> /app/logs/ivy_setup.log 2>&1;
           }
-           
+
           update_ivy_tool &&
-           
+
           remove_debug_events() {
           	echo "Removing debug events..." >> /app/logs/ivy_setup.log;
           	printf "%s\n" "$@" | xargs -I {} sh -c "
@@ -146,7 +146,7 @@ services:
           		fi
           	" _ {};
           }
-           
+
           restore_debug_events() {
           	echo "Restoring debug events..." >> /app/logs/ivy_setup.log;
           	printf "%s\n" "$@" | xargs -I {} sh -c "
@@ -157,7 +157,7 @@ services:
           		fi
           	" _ {};
           }
-           
+
           setup_ivy_model() {
           	echo "Setting up Ivy model..." >> /app/logs/ivy_setup.log &&
           	echo "Updating include path of Python with updated version of the project from /opt/panther_ivy/protocol-testing/quic" >> /app/logs/ivy_setup.log &&
@@ -173,34 +173,34 @@ services:
           	" _ {} \;;
           	ls -l /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
           }
-           
+
           setup_ivy_model &&
-          cd /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests;
-          PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_server_test_stream.ivy >> /app/logs/ivy_setup.log 2>&1; 
+          cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests;
+          PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_client_test_max.ivy >> /app/logs/ivy_setup.log 2>&1;
           (ls >> /app/logs/ivy_setup.log 2>&1 ;
-           
-          cp /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests/quic_server_test_stream* /opt/panther_ivy/protocol-testing/quic/build/; 
-          ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;) 
-           && 
-           (touch /app/sync_logs/ivy_ready.log ) && 
+
+          cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/;
+          ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;)
+           &&
+           (touch /app/sync_logs/ivy_ready.log ) &&
           cd /opt/panther_ivy/protocol-testing/quic;
-          (touch /app/logs/ivy_client.pcap; tshark -a duration:100 -i any -w /app/logs/ivy_client.pcap;) & 
-          echo "Running timeout 100  /usr/bin/strace -k -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time"  build/quic_server_test_stream seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=0 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/testers.log 2> /app/logs/testers.err" >> /app/logs/ivy_client_setup.log;
-          (sleep 5; timeout 100  /usr/bin/strace -k -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time"  build/quic_server_test_stream seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=0 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/testers.log 2> /app/logs/testers.err)
- 
-          && ( cp /opt/panther_ivy/protocol-testing/quic/build/quic_server_test_stream /app/logs/quic_server_test_stream; )'
-          
+          (touch /app/logs/ivy_server.pcap; tshark -a duration:60 -i any -w /app/logs/ivy_server.pcap;) &
+          echo "Running timeout 60 build/quic_client_test_max seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX server_cid=0 > /app/logs/testers.log 2> /app/logs/testers.err" >> /app/logs/ivy_server_setup.log;
+          ( HEAPPROFILE=/app/logs/ivy_server_heap.prof timeout 60 build/quic_client_test_max seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX server_cid=0 > /app/logs/testers.log 2> /app/logs/testers.err)
+
+          && ( cp /opt/panther_ivy/protocol-testing/quic/build/quic_client_test_max /app/logs/quic_client_test_max;  pprof --pdf /app/logs/ivy_server_heap.prof > /app/logs/ivy_server_heap.pdf )'
+
 
     # TODO fix sudo tshark
     volumes:
-      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/outputs/experiment_2024-12-11_17-51-09/Strace___QUIC_IyvClient_Server_Communication_Test/logs/ivy_client:/app/logs/
+      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/outputs/experiment_2024-12-11_23-01-34/Heap_QUIC_Client_IvyServer_Communication_Test/logs/ivy_server:/app/logs/
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/plugins/services/testers/panther_ivy/ivy/include/1.7:/opt/panther_ivy/ivy/include/1.7"
       - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-SCP/panther/plugins/services/testers/panther_ivy/protocol-testing/quic:/opt/panther_ivy/protocol-testing/quic"
       - "shared_logs:/app/sync_logs"
     networks:
       panther_network:
-        aliases: 
-          - ivy_client
+        aliases:
+          - ivy_server
 
 networks:
   panther_network:
