@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from core.observer.event import Event
+from panther.core.observer.event import Event
 
 
 class IObserver(ABC):

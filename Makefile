@@ -6,8 +6,11 @@ NPROC := $(shell nproc)
 ###################################################################################################
 
 package:
-	rm -rf build dist *.egg-info;
-	python3.10 -m build --wheel --no-isolation panther/
+	python3.10 -m pip install build wheel
+	python3.10 -m pip uninstall --yes panther
+	rm -rf build/ dist/ *.egg-info;
+	python3.10 -m build --wheel --no-isolation 
+	python3.10 -m pip install --force-reinstall dist/Panther-*.whl
 
 mkdocs:
 	python3.10 automate_mkdocs.py

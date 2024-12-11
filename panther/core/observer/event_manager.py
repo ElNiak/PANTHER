@@ -3,8 +3,8 @@
 from abc import ABC
 import logging
 from typing import List
-from core.observer.event import Event
-from core.observer.observer_interface import IObserver
+from panther.core.observer.event import Event
+from panther.core.observer.observer_interface import IObserver
 
 class EventManager(ABC):
     def __init__(self):

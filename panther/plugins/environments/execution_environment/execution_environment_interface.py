@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from core.observer.event_manager import EventManager
-from plugins.environments.config_schema import EnvironmentConfig
-from plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.core.observer.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 
 class IExecutionEnvironment(IEnvironmentPlugin):
     def __init__(

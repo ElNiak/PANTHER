@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from plugins.environments.execution_environment.config_schema import ExecutionEnvironmentConfig
+from panther.plugins.environments.execution_environment.config_schema import ExecutionEnvironmentConfig
 
 
 @dataclass

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
-from config.config_experiment_schema import ServiceConfig
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.services.services_interface import IServiceManager
+from panther.config.config_experiment_schema import ServiceConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.services_interface import IServiceManager
 
 class IImplementationManager(IServiceManager):
     def __init__(

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from plugins.protocols.config_schema import ProtocolConfig, RoleEnum, ProtocolType
+from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum, ProtocolType
 
 VersionEnum = Enum("VersionEnum", ["rfc9000", "draft29", "draft27"])
 

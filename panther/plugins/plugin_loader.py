@@ -7,12 +7,12 @@ from typing import Dict, Any, List, Optional
 
 from omegaconf import OmegaConf
 import yaml
-from core.utils.docker_builder import DockerBuilder
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.services.iut.config_schema import ImplementationConfig
+from panther.core.utils.docker_builder import DockerBuilder
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.iut.config_schema import ImplementationConfig
 
 class PluginLoader:
-    def __init__(self, plugins_base_dir: str = "plugins"):
+    def __init__(self, plugins_base_dir: str = "panther/plugins"):
         self.logger = logging.getLogger("PluginLoader")
         self.plugins_base_dir = Path(plugins_base_dir)
         self.docker_builder = DockerBuilder()
@@ -39,7 +39,7 @@ class PluginLoader:
         """
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
-            # Load version-specific configurations from config.yaml                
+            # Load version-specific configurations from panther.config.yaml                
             self.logger.debug(f"Found configuration for implementation '{impl_name}': {versions}")
             image_tag = self.docker_builder.build_image(
                 impl_name=impl_name,
@@ -71,7 +71,7 @@ class PluginLoader:
         """
         self.logger.info(f"Building image from path '{path.name}'")
         dockerfile_path = path
-        # Load version-specific configurations from config.yaml
+        # Load version-specific configurations from panther.config.yaml
         versions = {version: {}}
         self.logger.debug(f"Found configuration for path '{path.name}': {versions}")
         for version, version_config in versions.items():

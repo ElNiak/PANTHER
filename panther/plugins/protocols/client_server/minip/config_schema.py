@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional
 from enum import Enum
 
-from plugins.protocols.config_schema import ProtocolConfig, RoleEnum, ProtocolType
+from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum, ProtocolType
 
 # TODO init that directly from folder ?
 VersionEnum = Enum("VersionEnum", ["random","functional","vulnerable","flaky","fail"])

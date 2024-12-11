@@ -3,11 +3,11 @@ import subprocess
 import os
 from typing import Any, Dict, Optional
 import traceback
-from config.config_experiment_schema import ServiceConfig
-from plugins.services.iut.quic.picoquic_shadow.config_schema import PicoquicShadowConfig
-from plugins.plugin_loader import PluginLoader
-from plugins.services.iut.implementation_interface import IImplementationManager
-from plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.config.config_experiment_schema import ServiceConfig
+from panther.plugins.services.iut.quic.picoquic_shadow.config_schema import PicoquicShadowConfig
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
+from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 class PicoquicShadowServiceManager(IImplementationManager):
     def __init__(
@@ -79,6 +79,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         self.logger.debug("Preparing Picoquic service manager...")
         plugin_loader.build_docker_image_from_path(Path(os.path.join(
             os.getcwd(),
+            "panther",
             "plugins",
             "services",
             "Dockerfile",

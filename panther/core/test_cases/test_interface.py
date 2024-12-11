@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 import logging
 from omegaconf import DictConfig
 
-from config.config_experiment_schema import TestConfig
-from config.config_global_schema import GlobalConfig
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
 
 class ITestCase(ABC):
     def __init__(self, test_config: TestConfig, global_config: GlobalConfig):

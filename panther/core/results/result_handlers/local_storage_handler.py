@@ -1,5 +1,5 @@
 
-from core.results.result_handler import ResultHandler
+from panther.core.results.result_handler import ResultHandler
 
 
 class LocalStorageHandler(ResultHandler):

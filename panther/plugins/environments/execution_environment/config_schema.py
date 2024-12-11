@@ -4,7 +4,7 @@
 from dataclasses import dataclass
 from omegaconf import MISSING
 
-from plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.config_schema import EnvironmentConfig
 
 # Execution Environment Configuration
 @dataclass

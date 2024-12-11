@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional
 from jinja2 import Environment, FileSystemLoader
 import yaml
 
-from plugins.plugin_loader import PluginLoader
-from plugins.plugin_interface import IPlugin
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.plugin_interface import IPlugin
 
 class IProtocolManager(IPlugin):
     def __init__(
@@ -17,7 +17,7 @@ class IProtocolManager(IPlugin):
         service_type: str,
     ):
         super().__init__()
-        self.service_config_to_test_path = f"plugins/protocols/{service_type}/"
+        self.service_config_to_test_path = f"panther/plugins/protocols/{service_type}/"
         self.service_config_to_test = self.load_config()
         self.validate_config()
         

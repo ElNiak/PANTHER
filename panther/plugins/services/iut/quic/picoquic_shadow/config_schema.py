@@ -6,8 +6,8 @@ from enum import Enum
 
 from omegaconf import OmegaConf
 
-from plugins.services.iut.config_schema import ImplementationConfig, VersionBase
-from plugins.services.iut.config_schema import ImplementationType
+from panther.plugins.services.iut.config_schema import ImplementationConfig, VersionBase
+from panther.plugins.services.iut.config_schema import ImplementationType
 
 from dataclasses import dataclass, field
 from typing import List, Dict
@@ -29,7 +29,7 @@ class PicoquicShadowConfig(ImplementationConfig):
     version: PicoquicShadowVersion = field(default_factory=lambda: PicoquicShadowConfig.load_versions_from_files())
     
     @staticmethod
-    def load_versions_from_files(version_configs_dir: str = "plugins/services/iut/quic/picoquic/version_configs/") -> PicoquicShadowVersion:
+    def load_versions_from_files(version_configs_dir: str = "panther/plugins/services/iut/quic/picoquic/version_configs/") -> PicoquicShadowVersion:
         """Load version configurations dynamically from YAML files."""
         logging.debug(f"Loading PicoquicShadow versions from {version_configs_dir}")
         for version_file in os.listdir(version_configs_dir):

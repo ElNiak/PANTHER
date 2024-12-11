@@ -3,7 +3,7 @@ import logging
 import os
 from typing import Any, Dict
 import yaml
-from core.results.result_handler import ResultHandler
+from panther.core.results.result_handler import ResultHandler
 
 
 class StorageHandler(ResultHandler):

@@ -1,8 +1,8 @@
 
 import asyncio
 import logging
-from core.observer.observer_interface import IObserver
-from core.observer.event import Event
+from panther.core.observer.observer_interface import IObserver
+from panther.core.observer.event import Event
 
 class LoggerObserver(IObserver):
     """

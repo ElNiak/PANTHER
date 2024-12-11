@@ -14,10 +14,10 @@ class LoggingConfig:
 # Paths Configuration
 @dataclass
 class PathsConfig:
-    output_dir: str = "outputs"
-    log_dir: str = "outputs/logs"
-    config_dir: str = "configs"
-    plugin_dir: str = "plugins"
+    output_dir: str = "panther/outputs"
+    log_dir: str = "panther/outputs/logs"
+    config_dir: str = "panther/configs"
+    plugin_dir: str = "panther/plugins"
     services_dir: str = "services"
     iut_dir: str = "iut"
     testers_dir: str = "testers"

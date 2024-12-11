@@ -1,6 +1,6 @@
 
-from core.observer.observer_interface import IObserver
-from core.experiment import Experiment
+from panther.core.observer.observer_interface import IObserver
+from panther.core.experiment import Experiment
 
 
 class GUIObserver(IObserver):

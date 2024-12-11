@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Type
 
-from plugins.protocols.config_schema import ProtocolBase
+from panther.plugins.protocols.config_schema import ProtocolBase
 
 @dataclass
 class PeerToPeerProtocol(ProtocolBase):

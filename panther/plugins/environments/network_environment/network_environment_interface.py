@@ -6,10 +6,10 @@ from typing import Any, Dict, List
 
 from jinja2 import Environment, FileSystemLoader
 
-from core.observer.event_manager import EventManager
-from plugins.environments.config_schema import EnvironmentConfig
-from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.core.observer.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 
 class INetworkEnvironment(IEnvironmentPlugin):
     

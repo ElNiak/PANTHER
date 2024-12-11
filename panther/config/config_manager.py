@@ -8,11 +8,11 @@ from typing import Any, List, Optional, Dict, get_args, get_origin
 from omegaconf import DictConfig, OmegaConf, ValidationError
 import yaml
 
-from config.config_global_schema import DockerConfig, GlobalConfig, LoggingConfig, PathsConfig
-from config.config_experiment_schema import ExperimentConfig, ServiceConfig, TestConfig
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.services.iut.config_schema import ImplementationConfig
-from plugins.plugin_loader import PluginLoader
+from panther.config.config_global_schema import DockerConfig, GlobalConfig, LoggingConfig, PathsConfig
+from panther.config.config_experiment_schema import ExperimentConfig, ServiceConfig, TestConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.iut.config_schema import ImplementationConfig
+from panther.plugins.plugin_loader import PluginLoader
 
 class ConfigLoader:
     def __init__(self, config_dir: str):
@@ -230,7 +230,7 @@ class ConfigLoader:
         :return: The plugin's schema module.
         :raises ImportError: If the schema module cannot be found.
         """
-        plugin_module_path = f"plugins.environments.{plugin_type}.{plugin_name}.config_schema"
+        plugin_module_path = f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
         try:
             class_name = PluginLoader.get_class_name(plugin_name)
             plugin_module = importlib.import_module(plugin_module_path)
@@ -255,7 +255,7 @@ class ConfigLoader:
             protocol_type = implementation.protocol.protocol_type
         else:
             protocol_type = "client_server" # TODO: Default to client-server for now
-        module_path = f"plugins.protocols.{protocol_type}.{protocol}.config_schema"  # Assuming schema files are in plugins
+        module_path = f"panther.plugins.protocols.{protocol_type}.{protocol}.config_schema"  # Assuming schema files are in plugins
         try:
             # Import the module and dynamically get the class
             schema_module = importlib.import_module(module_path)
@@ -279,9 +279,9 @@ class ConfigLoader:
         protocol = implementation["protocol"]["name"]
         protocol_version = implementation["protocol"]["version"]
         if type == "iut":
-            module_path = f"plugins.services.{type}.{protocol}.{name}.config_schema"  # Assuming schema files are in plugins
+            module_path = f"panther.plugins.services.{type}.{protocol}.{name}.config_schema"  # Assuming schema files are in plugins
         else:
-            module_path = f"plugins.services.{type}.{name}.config_schema"
+            module_path = f"panther.plugins.services.{type}.{name}.config_schema"
         
         self.logger.debug(f"Module path: {module_path}")
         try:

@@ -3,9 +3,9 @@ from omegaconf import MISSING
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Literal, Type
 
-from plugins.environments.execution_environment.config_schema import ExecutionEnvironmentConfig
-from plugins.environments.network_environment.config_schema   import NetworkEnvironmentConfig
-from plugins.services.config_schema import ServiceConfig
+from panther.plugins.environments.execution_environment.config_schema import ExecutionEnvironmentConfig
+from panther.plugins.environments.network_environment.config_schema   import NetworkEnvironmentConfig
+from panther.plugins.services.config_schema import ServiceConfig
                 
 # Step Configuration
 @dataclass

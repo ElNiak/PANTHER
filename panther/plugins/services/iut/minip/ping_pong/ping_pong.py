@@ -7,12 +7,12 @@ from typing import Any, Dict, Optional
 from omegaconf import OmegaConf
 import yaml
 import traceback
-from config.config_experiment_schema import ServiceConfig
-from plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
-from plugins.plugin_loader import PluginLoader
-from plugins.services.iut.implementation_interface import IImplementationManager
+from panther.config.config_experiment_schema import ServiceConfig
+from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
-from plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 class PingPongServiceManager(IImplementationManager):
     def __init__(
@@ -115,6 +115,7 @@ class PingPongServiceManager(IImplementationManager):
         self.logger.debug("Preparing PingPong service manager...")
         plugin_loader.build_docker_image_from_path(Path(os.path.join(
             os.getcwd(),
+            "panther",
             "plugins",
             "services",
             "Dockerfile",

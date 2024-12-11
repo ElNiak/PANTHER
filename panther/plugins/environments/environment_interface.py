@@ -7,9 +7,9 @@ from typing import Any, Dict
 
 import yaml
 
-from core.observer.event_manager import EventManager
-from plugins.environments.config_schema import EnvironmentConfig
-from plugins.plugin_interface import IPlugin
+from panther.core.observer.event_manager import EventManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.plugin_interface import IPlugin
 
 class IEnvironmentPlugin(IPlugin):
     def __init__(
@@ -21,7 +21,7 @@ class IEnvironmentPlugin(IPlugin):
         event_manager: EventManager
     ):
         super().__init__()
-        self.templates_dir: str = f"plugins/environments/{env_type}/{env_sub_type}/templates"
+        self.templates_dir: str = f"panther/plugins/environments/{env_type}/{env_sub_type}/templates"
         self.output_dir = output_dir
         self.log_dirs = os.path.join(self.output_dir, "logs")
         self.plugin_loader = None

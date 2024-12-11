@@ -7,13 +7,13 @@ from typing import Any, Dict, Optional
 from omegaconf import OmegaConf
 import yaml
 import traceback
-from config.config_experiment_schema import ServiceConfig
-from plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
-from plugins.plugin_loader import PluginLoader
-from plugins.services.iut.implementation_interface import IImplementationManager
+from panther.config.config_experiment_schema import ServiceConfig
+from panther.plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, Template
-from plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 # TODO Tom create test template for QUIC implementations new users
 
@@ -88,6 +88,7 @@ class PicoquicServiceManager(IImplementationManager):
         self.logger.debug("Preparing Picoquic service manager...")
         plugin_loader.build_docker_image_from_path(Path(os.path.join(
             os.getcwd(),
+            "panther",
             "plugins",
             "services",
             "Dockerfile",

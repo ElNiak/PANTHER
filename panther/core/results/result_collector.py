@@ -1,6 +1,6 @@
 
 from typing import Callable, Dict, List
-from core.results.result_handler import ResultHandler
+from panther.core.results.result_handler import ResultHandler
 
 
 class ResultCollector:

@@ -6,8 +6,8 @@ from enum import Enum
 
 from omegaconf import OmegaConf
 
-from plugins.services.iut.config_schema import ImplementationConfig, VersionBase
-from plugins.services.iut.config_schema import ImplementationType
+from panther.plugins.services.iut.config_schema import ImplementationConfig, VersionBase
+from panther.plugins.services.iut.config_schema import ImplementationType
 
 from dataclasses import dataclass, field
 from typing import List, Dict
@@ -29,7 +29,7 @@ class PingPongConfig(ImplementationConfig):
     version: PingPongVersion = field(default_factory=lambda: PingPongConfig.load_versions_from_files())
     
     @staticmethod
-    def load_versions_from_files(version_configs_dir: str = "plugins/services/iut/minip/ping_pong/version_configs/") -> PingPongVersion:
+    def load_versions_from_files(version_configs_dir: str = "panther/plugins/services/iut/minip/ping_pong/version_configs/") -> PingPongVersion:
         """Load version configurations dynamically from YAML files."""
         logging.debug(f"Loading PingPong versions from {version_configs_dir}")
         for version_file in os.listdir(version_configs_dir):

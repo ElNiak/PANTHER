@@ -7,17 +7,17 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 from omegaconf import OmegaConf
-from core.observer.event_manager import EventManager
-from config.config_experiment_schema import ServiceConfig, TestConfig
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.services.iut.config_schema import ImplementationConfig
-from plugins.services.testers.tester_interface import ITesterManager
-from plugins.services.services_interface import IServiceManager
-from plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
-from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.services.iut.implementation_interface import IImplementationManager
-from plugins.environments.environment_interface import IEnvironmentPlugin
-from plugins.plugin_loader import PluginLoader
+from panther.core.observer.event_manager import EventManager
+from panther.config.config_experiment_schema import ServiceConfig, TestConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.iut.config_schema import ImplementationConfig
+from panther.plugins.services.testers.tester_interface import ITesterManager
+from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
+from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.plugins.plugin_loader import PluginLoader
 
 class PluginManager:
     def __init__(self, plugins_loader: PluginLoader):

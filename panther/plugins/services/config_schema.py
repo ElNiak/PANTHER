@@ -3,8 +3,8 @@ from omegaconf import MISSING
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Literal, Type
 
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.services.iut.config_schema import ImplementationConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.iut.config_schema import ImplementationConfig
 
 
 # Service Configuration

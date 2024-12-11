@@ -36,10 +36,10 @@ from wtforms.validators import DataRequired, NumberRange
 from dataclasses import fields, is_dataclass
 from enum import Enum
 
-from config.config_global_schema import DockerConfig, GlobalConfig, LoggingConfig, PathsConfig
-from config.config_experiment_schema import ExperimentConfig, ServiceConfig, TestConfig
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.services.iut.config_schema import ImplementationConfig
+from panther.config.config_global_schema import DockerConfig, GlobalConfig, LoggingConfig, PathsConfig
+from panther.config.config_experiment_schema import ExperimentConfig, ServiceConfig, TestConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.iut.config_schema import ImplementationConfig
 
 
 # Utility: Convert Enum to SelectField choices

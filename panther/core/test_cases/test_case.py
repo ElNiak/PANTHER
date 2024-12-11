@@ -2,19 +2,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
-from core.test_cases.test_interface import ITestCase
-from core.observer.event_manager import EventManager
-from core.observer.event import Event
-from core.observer.logger_observer import LoggerObserver
-from core.observer.experiment_observer import ExperimentObserver
-from config.config_experiment_schema import TestConfig
-from config.config_global_schema import GlobalConfig
+from panther.core.test_cases.test_interface import ITestCase
+from panther.core.observer.event_manager import EventManager
+from panther.core.observer.event import Event
+from panther.core.observer.logger_observer import LoggerObserver
+from panther.core.observer.experiment_observer import ExperimentObserver
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
 from panther.core.results.result_collector import ResultCollector
 from panther.core.results.result_handlers.storage_handler import StorageHandler
-from plugins.services.services_interface import IServiceManager
-from plugins.plugin_manager import PluginManager
-from plugins.environments.environment_interface import IEnvironmentPlugin
-from plugins.services.iut.config_schema import ImplementationType
+from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.plugin_manager import PluginManager
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.plugins.services.iut.config_schema import ImplementationType
 
 class TestCase(ITestCase):
     def __init__(self, 

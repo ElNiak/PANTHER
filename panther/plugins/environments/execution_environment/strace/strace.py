@@ -5,14 +5,14 @@ from typing import Dict, Any, List, Optional
 
 from omegaconf import OmegaConf
 
-from core.observer.event_manager import EventManager
-from config.config_experiment_schema import TestConfig
-from config.config_global_schema import GlobalConfig
-from plugins.environments.execution_environment.strace.config_schema import StraceConfig
-from plugins.environments.config_schema import EnvironmentConfig
-from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.plugin_loader import PluginLoader
-from plugins.services.services_interface import IServiceManager
+from panther.core.observer.event_manager import EventManager
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.environments.execution_environment.strace.config_schema import StraceConfig
+from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.services.services_interface import IServiceManager
 
 class StraceEnvironment(IExecutionEnvironment):
     # TODO enforce config in environment

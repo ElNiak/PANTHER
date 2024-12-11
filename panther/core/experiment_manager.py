@@ -8,12 +8,12 @@ from typing import List
 from omegaconf import OmegaConf
 
 
-from config.config_experiment_schema import ExperimentConfig
-from config.config_global_schema import GlobalConfig
-from plugins.plugin_loader import PluginLoader
-from core.test_cases.test_interface import ITestCase
-from plugins.plugin_manager import PluginManager
-from core.test_cases.test_case import TestCase
+from panther.config.config_experiment_schema import ExperimentConfig
+from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.plugin_loader import PluginLoader
+from panther.core.test_cases.test_interface import ITestCase
+from panther.plugins.plugin_manager import PluginManager
+from panther.core.test_cases.test_case import TestCase
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
 class ExperimentManager:
@@ -21,7 +21,7 @@ class ExperimentManager:
         self,
         global_config: GlobalConfig,
         experiment_name: str = None,
-        plugin_dir: str = "plugins",
+        plugin_dir: str = "panther/plugins/",
         logger: logging.Logger = None,
     ):
         self.global_config = global_config

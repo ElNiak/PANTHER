@@ -5,20 +5,20 @@ import subprocess
 import logging
 from typing import Dict, Any, List
 import yaml
-from core.observer.event_manager import EventManager
-from config.config_experiment_schema import TestConfig
-from config.config_global_schema import GlobalConfig
-from plugins.services.services_interface import IServiceManager
-from plugins.environments.config_schema import EnvironmentConfig
-from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.plugin_loader import PluginLoader
-from plugins.environments.network_environment.network_environment_interface import (
+from panther.core.observer.event_manager import EventManager
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
 from omegaconf import OmegaConf
 import traceback
-from core.observer.event import Event
-from plugins.services.iut.config_schema import ImplementationType
+from panther.core.observer.event import Event
+from panther.plugins.services.iut.config_schema import ImplementationType
 
 class DockerComposeEnvironment(INetworkEnvironment):
     def __init__(
@@ -32,6 +32,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.services_network_config_file_path = Path(os.path.join(
             os.getcwd(),
+            "panther",
             "plugins",
             "environments",
             env_type,

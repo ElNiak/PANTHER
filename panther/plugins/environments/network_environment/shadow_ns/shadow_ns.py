@@ -8,18 +8,18 @@ from typing import Dict, Any, List, Optional
 from jinja2 import Environment, FileSystemLoader
 from omegaconf import OmegaConf
 import yaml
-from core.observer.event_manager import EventManager
-from config.config_experiment_schema import TestConfig
-from config.config_global_schema import GlobalConfig
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.services.services_interface import IServiceManager
-from plugins.environments.config_schema import EnvironmentConfig
-from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.plugin_loader import PluginLoader
-from plugins.environments.network_environment.network_environment_interface import (
+from panther.core.observer.event_manager import EventManager
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from core.observer.event import Event
+from panther.core.observer.event import Event
 
 
 class ShadowNsEnvironment(INetworkEnvironment):
@@ -38,6 +38,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         
         self.services_network_config_file_path = Path(os.path.join(
             os.getcwd(),
+            "panther",
             "plugins",
             "environments",
             env_type,
@@ -50,6 +51,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         
         self.services_network_docker_file_path = Path(os.path.join(
             os.getcwd(),
+            "panther",
             "plugins",
             "environments",
             env_type,
@@ -97,6 +99,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.logger.info("Preparing Shadow NS service manager...")
         self.plugin_loader.build_docker_image_from_path(Path(os.path.join(
             os.getcwd(),
+            "panther",
             "plugins",
             "environments",
             "network_environment",
@@ -165,21 +168,19 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 
                 self.docker_name = self.docker_name + service.service_name + "_"
                 
-                if "ivy" in service.service_name:                    
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("eth0", "lo")
-                    # TODO make this more general
-                    if service.role.name == "client":
-                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "184549377")
-                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "184549378")
-                    else:
-                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "184549378")
-                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "184549377")
+                service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("eth0", "lo")
+                # TODO make this more general
+                if service.role.name == "client":
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "184549377")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "184549378")
                 else:
-                    for other_service_name in self.services_managers:
-                        if other_service_name.service_name != service.service_name:
-                            # Shadow does not suport the _ in the service name -> replace by .
-                            # TODO use "." in the service name for all plugins
-                            service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace('_',".")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "184549378")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "184549377")
+                for other_service_name in self.services_managers:
+                    if other_service_name.service_name != service.service_name:
+                        # Shadow does not suport the _ in the service name -> replace by .
+                        # TODO use "." in the service name for all plugins
+                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace('_',".")
 
             for service in self.services_managers:
                 service.environments = self.resolve_environment_variables(service.environments)

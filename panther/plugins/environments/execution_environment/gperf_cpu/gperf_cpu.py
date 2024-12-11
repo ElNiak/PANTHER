@@ -5,13 +5,13 @@ from typing import Dict, Any, List, Optional
 
 from omegaconf import OmegaConf
 
-from core.observer.event_manager import EventManager
-from config.config_experiment_schema import TestConfig
-from config.config_global_schema import GlobalConfig
-from plugins.environments.execution_environment.gperf_cpu.config_schema import GperfCpuConfig
-from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from plugins.plugin_loader import PluginLoader
-from plugins.services.services_interface import IServiceManager
+from panther.core.observer.event_manager import EventManager
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import GperfCpuConfig
+from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.services.services_interface import IServiceManager
 
 class GperfCpuEnvironment(IExecutionEnvironment):
     def __init__(
@@ -52,9 +52,9 @@ class GperfCpuEnvironment(IExecutionEnvironment):
             if service.service_config_to_test.implementation.gperf_compatible:
                 service.environments["GPERF"] = True
                 service.run_cmd["run_cmd"]["command_env"]["LD_PRELOAD"] = "/usr/local/lib/libprofiler.so"
-                service.run_cmd["run_cmd"]["command_env"]["CPUPROFILE"] = f"{service.service_name}_cpu.prof"
+                service.run_cmd["run_cmd"]["command_env"]["CPUPROFILE"] = f"/app/logs/{service.service_name}_cpu.prof"
                 # service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command(service.service_name)]
-                service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [f"pprof --pdf {service.service_name}_cpu.prof > /app/logs/{service.service_name}_cpu.pdf"]
+                service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [f"pprof --pdf /app/logs/{service.service_name}_cpu.prof > /app/logs/{service.service_name}_cpu.pdf"]
                 self.logger.debug(f"Service cmds: {service.run_cmd}")
             else:
                 self.logger.debug(f"Service {service} is not gperf compatible")

@@ -9,10 +9,10 @@ from jinja2 import Environment, FileSystemLoader
 from omegaconf import OmegaConf
 import yaml
 
-from config.config_experiment_schema import ServiceConfig
-from plugins.protocols.config_schema import ProtocolConfig
-from plugins.plugin_loader import PluginLoader
-from plugins.plugin_interface import IPlugin
+from panther.config.config_experiment_schema import ServiceConfig
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.plugin_interface import IPlugin
 
 
 class IServiceManager(IPlugin):
@@ -33,12 +33,12 @@ class IServiceManager(IPlugin):
 
         if self.service_type == "testers":
             self.templates_dir = (
-                f"plugins/services/{service_type}/{implementation_name}/templates/"
+                f"panther/plugins/services/{service_type}/{implementation_name}/templates/"
             )
-            self.config_versions_dir = f"plugins/services/{service_type}/{implementation_name}/version_configs/"
+            self.config_versions_dir = f"panther/plugins/services/{service_type}/{implementation_name}/version_configs/"
         else:
-            self.templates_dir = f"plugins/services/{service_type}/{protocol.name}/{implementation_name}/templates/"
-            self.config_versions_dir = f"plugins/services/{service_type}/{protocol.name}/{implementation_name}/version_configs/"
+            self.templates_dir = f"panther/plugins/services/{service_type}/{protocol.name}/{implementation_name}/templates/"
+            self.config_versions_dir = f"panther/plugins/services/{service_type}/{protocol.name}/{implementation_name}/version_configs/"
 
         if not os.path.isdir(self.templates_dir):
             self.logger.error(
