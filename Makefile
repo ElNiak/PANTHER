@@ -9,8 +9,15 @@ package:
 	python3.10 -m pip install build wheel
 	python3.10 -m pip uninstall --yes panther
 	rm -rf build/ dist/ *.egg-info;
-	python3.10 -m build --wheel --no-isolation 
+	python3.10 -m build --wheel --no-isolation
 	python3.10 -m pip install --force-reinstall dist/Panther-*.whl
+
+package-dev:
+	python3.10 -m pip install build wheel
+	python3.10 -m pip uninstall --yes panther
+	rm -rf build/ dist/ *.egg-info;
+	python3.10 -m build --wheel --no-isolation
+	python3.10 -m pip install --force-reinstall  --editable .
 
 mkdocs:
 	python3.10 automate_mkdocs.py
@@ -19,7 +26,7 @@ mkdocs:
 	cp -r readme-res/ docs/
 	cp README.md docs/home.md
 	mkdocs build --verbose
-	mkdocs serve 
+	mkdocs serve
 
 # Clean Docker images and containers
 clean:
@@ -42,4 +49,3 @@ clean-docker-volume:
 # Fully clean Docker environment
 clean-docker-full:
 	docker system prune -a
-	
