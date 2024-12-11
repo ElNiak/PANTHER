@@ -26,6 +26,10 @@ EOF
 RUN <<EOF
 echo "Running compilation commands:"
 EOF
+
+RUN <<EOF
+echo "Running post-compilation commands:"
+EOF
 FROM panther_ivy_rfc9000_panther:latest AS ivy_server_stage
 
 # Copy files from the service stage to /opt in the final image
@@ -167,33 +171,24 @@ ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1
  (touch /app/sync_logs/ivy_ready.log ) && 
 EOF
 
+RUN <<EOF
+echo "Running post-compilation commands:"
+cd /opt/panther_ivy/protocol-testing/quic;
+EOF
+
 # Final stage
 FROM localhost_single_container_v1_panther:latest
 WORKDIR /
 ENV DEBIAN_FRONTEND=noninteractive
 USER root
 
+# TODO remove -> put that in config
 COPY --from=picoquic_client_stage /opt /opt/picoquic_client
+# TODO remove -> put that in config
 COPY --from=ivy_server_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
 COPY --from=ivy_server_stage /opt /opt
 
 USER root
-
-# TODO try to install the packages in the base image and keep them in the final image
-RUN apt-get update && \
-    apt-get install -y build-essential git cmake software-properties-common \
-    openssl libssl-dev pkg-config clang python3 net-tools tcpdump \
-    apt-utils  wireshark tshark  libcap2-bin traceroute \
-    iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils iperf 
-RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common
-
-ARG USER_UID=1000
-ARG USER_GID=1000
-ARG USER_N=elniak
-
-RUN addgroup --gid ${USER_GID} ${USER_N} && \
-    adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
-    usermod -aG wireshark ${USER_N}
 
 ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
 

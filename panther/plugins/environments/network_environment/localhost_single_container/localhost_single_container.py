@@ -8,7 +8,7 @@ import yaml
 from core.observer.event_manager import EventManager
 from config.config_experiment_schema import TestConfig
 from config.config_global_schema import GlobalConfig
-from panther.plugins.protocols.config_schema import ProtocolConfig
+from plugins.protocols.config_schema import ProtocolConfig
 from plugins.environments.config_schema import EnvironmentConfig
 from plugins.services.services_interface import IServiceManager
 from plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
@@ -91,7 +91,12 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         """
         self.logger.info("Preparing Localhost service manager...")
         # Additional setup can be implemented here
-        self.plugin_loader.build_docker_image("localhost_single_container", self.docker_version)
+        self.plugin_loader.build_docker_image_from_path(Path(os.path.join(
+            os.getcwd(),
+            "plugins",
+            "services",
+            "Dockerfile",
+        )),"localhost_single_container",self.docker_version)
         
     
     def setup_environment(

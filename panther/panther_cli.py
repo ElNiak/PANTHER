@@ -5,10 +5,11 @@ from datetime import datetime
 import os
 import logging
 from pathlib import Path
-
+import sys
 from omegaconf import OmegaConf
 from core.experiment_manager import ExperimentManager
 from config.config_manager import ConfigLoader
+from webapp.web_app import run
 
 # TODO create singleton plugin_loader ?
 
@@ -37,6 +38,11 @@ def main():
         action="store_true",
         help="Flag to teardown an existing experiment.",
     )
+    parser.add_argument(
+        "--webapp",
+        action="store_true",
+        help="Start the web app to configurate the experiments.",
+    )
     args = parser.parse_args()
     
     if args.teardown:
@@ -46,19 +52,30 @@ def main():
         raise NotImplementedError("Teardown functionality is not implemented yet.")
     else:
         # We start by loading the configuration
-        config_loader = ConfigLoader(args.config_dir)
+        config_loader = ConfigLoader(args.config_dir)      
         # We get the global configurations
         global_config = config_loader.load_and_validate_global_config()
-        # We create the experiment manager
-        experiment_manager = ExperimentManager(
-            global_config=global_config,
-            experiment_name=args.experiment_name
-        )
-        experiment_config = config_loader.load_and_validate_experiment_config()
-        # Once we have the experiments configurations, we can initialize the experiment
-        experiment_manager.initialize_experiments(experiment_config)
-        # Start the experiment
-        experiment_manager.run_tests()
+        if args.webapp:
+            try:
+                run()
+            except Exception as e:
+                logging.error(e)
+            finally:
+                sys.stdout.close()
+                sys.stderr.close()
+                sys.stdout = sys.__stdout__
+                sys.stderr = sys.__stderr__
+        else:
+            # We create the experiment manager
+            experiment_manager = ExperimentManager(
+                global_config=global_config,
+                experiment_name=args.experiment_name
+            )
+            experiment_config = config_loader.load_and_validate_experiment_config()
+            # Once we have the experiments configurations, we can initialize the experiment
+            experiment_manager.initialize_experiments(experiment_config)
+            # Start the experiment
+            experiment_manager.run_tests()
         
 
 if __name__ == "__main__":

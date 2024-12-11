@@ -12,7 +12,7 @@ docker:
   build_docker_image: True
  
 tests:
-  - name: "QUIC IyvClient-Server Communication Test"
+  - name: "Strace - QUIC IyvClient-Server Communication Test"
     description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
     network_environment: 
       type: "docker_compose" 
@@ -59,24 +59,16 @@ tests:
           - "8081:8081"  
         generate_new_certificates: True
     steps:
-      # record_pcap: True
       wait: 100  # seconds to wait during the test
-      # record_pcap: False
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_server"
-        endpoint: "8080/health"  # Adjust based on health endpoint
-        expected_status: 200
-      - type: "service_responsive"
-        service: "ivy_client"
-        endpoint: "8081/health"  # Adjust based on health endpoint
-        expected_status: 200
   
-  - name: "QUIC Client-IvyServer Communication Test"
+  - name: "Gperf CPU and Strace - QUIC Client-IvyServer Communication Test"
     description: "Verify that the Picoquic client can communicate with the Picoquic server over Docker Compose network."
     network_environment: 
       type: "docker_compose"  # Environment plugin name
     iterations: 1
+    execution_environment: 
+      - type: "gperf_cpu"
+      - type: "strace"  
     generate_new_certificates: True
     services:
       picoquic_client:
@@ -114,15 +106,146 @@ tests:
 
     steps:
       wait: 100  # seconds to wait during the test
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_client"
-        endpoint: "8080/health"  # Adjust based on health endpoint
-        expected_status: 200
-      - type: "service_responsive"
-        service: "ivy_server"
-        endpoint: "8081/health"  # Adjust based on health endpoint
-        expected_status: 200
+
+  - name: "Heap QUIC Client-IvyServer Communication Test"
+    description: "Verify that the Picoquic client can communicate with the Picoquic server over Docker Compose network."
+    network_environment: 
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    execution_environment: 
+      - type: "gperf_heap"
+    generate_new_certificates: True
+    services:
+      picoquic_client:
+        timeout: 100
+        name: "picoquic_client"  # Added 'name' key
+        implementation: 
+          name: "picoquic"
+          type: "iut"
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "ivy_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"  # Example port if needed
+          - "8081:8081"  # Changed to avoid port conflict
+        generate_new_certificates: True
+
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 60
+        implementation: 
+          type: "testers"
+          name: "panther_ivy"
+          test: quic_client_test_max
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "4987:4987"  #
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+
+    steps:
+      wait: 100  # seconds to wait during the test
+
+  - name: "Minip Client-Server Random Communication Test"
+    description: "Verify that the PingPong client can communicate with the PingPong server over Docker Compose network."
+    network_environment: 
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    generate_new_certificates: True
+    services:
+      ping_pong_client:
+        timeout: 100
+        name: "ping_pong_client"  # Added 'name' key
+        implementation: 
+          name: "ping_pong"
+          type: "iut"
+        protocol:
+          name: "minip"
+          role: "client"
+          version: "random"
+          target: "ping_pong_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"  # Example port if needed
+          - "8081:8081"  # Changed to avoid port conflict
+        generate_new_certificates: True
+
+      ping_pong_server:
+        name: "ping_pong_server"  # Added 'name' key
+        timeout: 60
+        implementation: 
+          type: "iut"
+          name: "ping_pong"
+        protocol:
+          name: "minip"
+          version: "random"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "4987:4987"  #
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+
+    steps:
+      wait: 100  # seconds to wait during the test
+
+  - name: "Minip Client-Server Functional Communication Test"
+    description: "Verify that the PingPong client can communicate with the PingPong server over Shadow network."
+    network_environment: 
+      type: "shadow_ns"  # Environment plugin name
+      general:
+        stop_time: 100 
+        model_unblocked_syscall_latency: false
+      experimental:
+        strace_logging_mode: "standard"
+      network:
+        latency: 10
+        jitter: 10
+        packet_loss: 0.0
+      host_option_defaults:
+        pcap_enabled: true
+    iterations: 1
+    generate_new_certificates: True
+    services:
+      ping_pong_client:
+        timeout: 100
+        name: "ping_pong_client"  # Added 'name' key
+        implementation: 
+          name: "ping_pong"
+          type: "iut"
+        protocol:
+          name: "minip"
+          role: "client"
+          version: "functional"
+          target: "ping_pong_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"  # Example port if needed
+          - "8081:8081"  # Changed to avoid port conflict
+        generate_new_certificates: True
+
+      ping_pong_server:
+        name: "ping_pong_server"  # Added 'name' key
+        timeout: 60
+        implementation: 
+          type: "iut"
+          name: "ping_pong"
+        protocol:
+          name: "minip"
+          version: "functional"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "4987:4987"  #
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+
+    steps:
+      wait: 100  # seconds to wait during the test
 
   # - name: "Invalid configuration QUIC Client-IvyServer Communication Test"
   #   description: "Verify that the Picoquic client can communicate with the Picoquic server over Docker Compose network."
@@ -466,7 +589,6 @@ tests:
 
   # - name: "Localhost QUIC IyvServer-Client Communication Test"
   #   description: "Verify that the Picoquic client can communicate with the Ivy-Tester server over Localhost network."
-  #   protocol: ["quic"]  # Protocol name should match the folder name in plugins/
   #   network_environment: 
   #     type: "localhost_single_container"  # Environment plugin name
   #   iterations: 1

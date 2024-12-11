@@ -89,20 +89,20 @@ class ShadowNsEnvironment(INetworkEnvironment):
             "timeout": self.timeout,
         }
         return f"ShadowNsEnvironment({attributes})"
-
-    def parse_gml(self, gml_file: str):
-        """
-        Parses the GML file and returns the graph.
-        Future: Try to make that format general ?
-        """
-        raise NotImplementedError
     
     def prepare_environment(self):
         """
         Prepare the service manager for use.
         """
         self.logger.info("Preparing Shadow NS service manager...")
-        self.plugin_loader.build_docker_image("shadow_ns", self.docker_version)
+        self.plugin_loader.build_docker_image_from_path(Path(os.path.join(
+            os.getcwd(),
+            "plugins",
+            "environments",
+            "network_environment",
+            "shadow_ns",
+            "Dockerfile",
+        )),"shadow_ns",self.docker_version)
         
     def setup_environment(
         self, 
@@ -129,6 +129,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.logger.debug("Setup environment with:")
         for service in self.services_managers:
             self.logger.debug(f"Service: {service}")
+            assert service.service_config_to_test.implementation.shadow_compatible, f"Service {service.implementation_name} is not compatible with Shadow NS"
         self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
         self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
         self.prepare_environment()

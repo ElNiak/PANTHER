@@ -25,8 +25,8 @@ class TestCase(ITestCase):
         
         super().__init__(test_config, global_config)
         
-        self.test_name = test_config.name.replace(" ", "_")
-        self.test_experiment_dir = experiment_dir / test_config.name.replace(" ", "_")
+        self.test_name = test_config.name.replace(" ", "_").replace(".", "_").replace(":", "_").replace("/", "_").replace("-", "_")
+        self.test_experiment_dir = experiment_dir / self.test_name
         
         self.logger.debug(f"Creating test case '{self.test_name}' with experiment directory '{self.test_experiment_dir}' and test configuration '{test_config}'")
         self.result_collectors = ResultCollector()
@@ -299,6 +299,9 @@ class TestCase(ITestCase):
     def validate_assertions(self):
         """Validates assertions defined in the test configuration."""
         assertions = self.test_config.assertions
+        if not assertions:
+            self.logger.info("No assertions to validate.")
+            return
         for assertion in assertions:
             try:
                 if assertion["type"] == "service_responsive":

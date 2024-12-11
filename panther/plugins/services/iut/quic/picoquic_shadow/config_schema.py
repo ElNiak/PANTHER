@@ -24,6 +24,7 @@ class PicoquicShadowVersion(VersionBase):
 class PicoquicShadowConfig(ImplementationConfig):
     name: str  = "picoquic_shadow" # Implementation name
     type: ImplementationType = ImplementationType.iut  # Default type for picoquic
+    shadow_compatible: bool = field(default=True) 
     # These field must not be included in the experiment configuration file
     version: PicoquicShadowVersion = field(default_factory=lambda: PicoquicShadowConfig.load_versions_from_files())
     

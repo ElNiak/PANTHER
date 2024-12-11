@@ -17,6 +17,7 @@ setup(
     version='1.0.0',
     packages=find_packages(),
     install_requires=[
+        # For panther
         'omegaconf',
         'cerberus',
         'jinja2',
@@ -24,6 +25,30 @@ setup(
         'PyYAML',
         "docker",
         "hypothesis",
+        "pytest",
+        # For panther-web
+        'flask', # malwexp
+        "flask_session",
+        "flask_wtf",
+        "django",
+        "flask-socketio",
+        "requests",
+        "Flask-Cors==4.0.1",
+        "npf-web-extension",
+        'execnet', 
+        'pytest',
+        "pexpect",
+        "chardet",
+        "gperf",
+        "pandas",
+        "scandir",
+        "ply",
+        "plantuml",
+        "pygraphviz",
+        "scapy",
+        "importlib_metadata",
+        'termcolor',
+        'terminal_banner'
     ],
     entry_points={
         'console_scripts': [

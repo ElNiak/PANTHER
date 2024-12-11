@@ -22,3 +22,4 @@ class ImplementationConfig:
     name: str  # Implementation name (e.g., picoquic, panther_ivy)
     type: ImplementationType = ImplementationType.iut  # Must be either "iut" or "testers"
     shadow_compatible: bool = field(default=False)  # This field must be ignored by OmegaConf
+    gperf_compatible: bool = field(default=False) 
