@@ -32,15 +32,11 @@ class IServiceManager(IPlugin):
         ), f"Invalid service type: {self.service_type}"
 
         if self.service_type == "testers":
-            self.service_config_to_test_path = (
-                f"plugins/services/{service_type}/{implementation_name}/config.yaml"
-            )
             self.templates_dir = (
                 f"plugins/services/{service_type}/{implementation_name}/templates/"
             )
             self.config_versions_dir = f"plugins/services/{service_type}/{implementation_name}/version_configs/"
         else:
-            self.service_config_to_test_path = f"plugins/services/{service_type}/{protocol.name}/{implementation_name}/config.yaml"
             self.templates_dir = f"plugins/services/{service_type}/{protocol.name}/{implementation_name}/templates/"
             self.config_versions_dir = f"plugins/services/{service_type}/{protocol.name}/{implementation_name}/version_configs/"
 
@@ -84,7 +80,13 @@ class IServiceManager(IPlugin):
             "compile_cmds": [],
             "post_compile_cmds": [],
             "pre_run_cmds": [],
-            "run_cmd": {"command_binary": "", "command_args": "", "timeout": 60},
+            "run_cmd": {
+                "working_dir": "",
+                "command_binary": "", 
+                "command_args": "", 
+                "timeout": 60, 
+                "command_env": {}
+            },
             "post_run_cmds": [],
         }
 
@@ -136,15 +138,19 @@ class IServiceManager(IPlugin):
         Generates the run command.
         Must be in the form:
         {
-            "command_binary": "",
-            "command_args":   "",
-            "timeout": 60
+            "working_dir": "",
+            "command_binary": "", 
+            "command_args": "", 
+            "timeout": self.service_config_to_test.timeout, 
+            "command_env": {}
         }
         """
         return {
-            "command_binary": "",
-            "command_args": "",
-            "timeout": self.service_config_to_test.timeout,
+            "working_dir": "",
+            "command_binary": "", 
+            "command_args": "", 
+            "timeout": self.service_config_to_test.timeout, 
+            "command_env": {}
         }
 
     def generate_post_run_commands(self):
@@ -161,15 +167,6 @@ class IServiceManager(IPlugin):
         Returns True if the plugin is a network service.
         """
         return self.service_type == "testers"
-
-    @abstractmethod
-    def get_base_url(self, service_name: str) -> str:
-        """
-        Returns the base URL for the given service.
-        """
-        raise NotImplementedError(
-            "Method 'get_base_url' must be implemented in subclasses."
-        )
 
     @abstractmethod
     def prepare(self, plugin_loader: Optional[PluginLoader] = None):

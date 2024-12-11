@@ -5,6 +5,10 @@ NPROC := $(shell nproc)
 # CLEANUP COMMANDS
 ###################################################################################################
 
+package:
+	rm -rf build dist *.egg-info;
+	python3.10 -m build --wheel --no-isolation panther/
+
 mkdocs:
 	python3.10 automate_mkdocs.py
 	gendocs --config mkgendocs.yml
@@ -34,12 +38,5 @@ clean-docker-volume:
 
 # Fully clean Docker environment
 clean-docker-full:
-	# Removes unused Docker images and containers
-	docker image prune
-	docker image prune -a
-	# Fully clean the Docker system (containers, networks, and images)
-	docker system prune -a -f
-	docker volume prune -a
-	# Force removal of all images
-	docker rmi $(docker images -a -q)
+	docker system prune -a
 	

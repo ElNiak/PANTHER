@@ -37,23 +37,6 @@ class PicoquicServiceManager(IImplementationManager):
         )
         self.initialize_commands()
 
-    def get_base_url(self, service_name: str) -> str:
-        """
-        Returns the base URL for the given service.
-        """
-        # Assuming services are accessible via localhost and mapped ports
-        # You might need to adjust this based on your actual setup
-        port_mappings = {
-            "picoquic_server": 8080,
-            "picoquic_client": 8081,
-        }
-        port = port_mappings.get(service_name, None)
-        if port:
-            return f"http://localhost:{port}/"
-        else:
-            self.logger.error(f"No port mapping found for service '{service_name}'")
-            return ""
-
     def get_service_name(self) -> str:
         return self.service_name
 
@@ -89,6 +72,7 @@ class PicoquicServiceManager(IImplementationManager):
             ),
             "command_args": cmd_args,
             "timeout": self.service_config_to_test.timeout,
+            "command_env": {},
         }
 
     def generate_post_run_commands(self):
@@ -199,7 +183,7 @@ class PicoquicServiceManager(IImplementationManager):
             raise e
 
     def __str__(self) -> str:
-        return f"PicoquicServiceManager({self.service_config_to_test_path})"
+        return f"PicoquicServiceManager({self.__dict__})"
 
     def __repr__(self):
-        return f"PicoquicServiceManager({self.service_config_to_test_path})"
+        return f"PicoquicServiceManager({self.__dict__})"

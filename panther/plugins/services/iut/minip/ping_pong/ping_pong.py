@@ -33,22 +33,6 @@ class PingPongServiceManager(IImplementationManager):
         )
         self.initialize_commands()
 
-    def get_base_url(self, service_name: str) -> str:
-        """
-        Returns the base URL for the given service.
-        """
-        # Assuming services are accessible via localhost and mapped ports
-        # You might need to adjust this based on your actual setup
-        port_mappings = {
-            "ping_pong_server": 8080,
-            "ping_pong_client": 8081,
-        }
-        port = port_mappings.get(service_name, None)
-        if port:
-            return f"http://localhost:{port}/"
-        else:
-            self.logger.error(f"No port mapping found for service '{service_name}'")
-            return ""
 
     def get_service_name(self) -> str:
         return self.service_name
@@ -57,7 +41,35 @@ class PingPongServiceManager(IImplementationManager):
         """
         Generates pre-compile commands.
         """
-        return super().generate_pre_compile_commands() + []
+        return super().generate_pre_compile_commands() + [
+            "TARGET_IP=$(getent hosts "
+            + self.service_targets
+            + ' | awk "{ print \$1 }");',
+            'echo "Resolved '
+            + self.service_targets
+            + ' IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;',
+            'IVY_IP=$(hostname -I | awk "{ print \$1 }");',
+            'echo "Resolved  '
+            + self.service_name
+            + ' IP - $$IVY_IP" >> /app/logs/ivy_setup.log;',
+            " ",
+            "ip_to_hex() {",
+            '  echo $1 | awk -F"." "{ printf(\\"%02X%02X%02X%02X\\", \$1, \$2, \$3, \$4) }";',
+            "}",
+            " ",
+            "ip_to_decimal() {",
+            '  echo $1 | awk -F"." "{ printf(\\"%.0f\\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";',
+            "}",
+            " ",
+            "TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);",
+            "IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);",
+            'echo "Resolved '
+            + self.service_targets
+            + ' IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;',
+            'echo "Resolved '
+            + self.service_name
+            + ' IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;',
+        ]
 
     def generate_compile_commands(self):
         """
@@ -85,6 +97,7 @@ class PingPongServiceManager(IImplementationManager):
             ),
             "command_args": cmd_args,
             "timeout": self.service_config_to_test.timeout,
+            "command_env": {},
         }
 
     def generate_post_run_commands(self):
@@ -131,7 +144,7 @@ class PingPongServiceManager(IImplementationManager):
         elif self.role == RoleEnum.client:
             params = self.service_config_to_test.implementation.version.client
         
-        params["target"] = self.service_config_to_test.protocol.target
+        params["target"] = "$$TARGET_IP_HEX"
         
         self.logger.debug(f"Parameters for command template: {params}")
         self.logger.debug(f"Role: {self.role.name}")
@@ -161,7 +174,7 @@ class PingPongServiceManager(IImplementationManager):
             raise e
 
     def __str__(self) -> str:
-        return f"PingPongServiceManager({self.service_config_to_test_path})"
+        return f"PingPongServiceManager({self.__dict__})"
 
     def __repr__(self):
-        return f"PingPongServiceManager({self.service_config_to_test_path})"
+        return f"PingPongServiceManager({self.__dict__})"

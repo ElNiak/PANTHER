@@ -51,7 +51,8 @@ class GperfHeapEnvironment(IExecutionEnvironment):
             self.logger.debug(f"Service cmds: {service.run_cmd}")
             if service.service_config_to_test.implementation.gperf_compatible:
                 service.environments["GPERF"] = True
-                service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command(service.service_name)]
+                service.run_cmd["run_cmd"]["command_env"]["HEAPPROFILE"] = f"{service.service_name}_heap.prof"
+                # service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command(service.service_name)]
                 service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [f"pprof --pdf {service.service_name}_heap.prof > /app/logs/{service.service_name}_heap.pdf"]
                 self.logger.debug(f"Service cmds: {service.run_cmd}")
             else:
@@ -74,8 +75,7 @@ class GperfHeapEnvironment(IExecutionEnvironment):
             # includes=["my_header.h"],
             # other_flags=["--ignore-case"]
         )
-        profile_path = os.path.join(f"{service_name}_heap.prof")
-        command = [f"HEAPPROFILE={profile_path}", "gperf"]
+        command = [ "gperf"]
 
         # Input and output files
         if conf.input_file:

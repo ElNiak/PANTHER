@@ -18,7 +18,7 @@ RUN ./autogen.sh
 RUN ./configure
 RUN make
 RUN sudo make install
-RUN apt-get install -y libunwind-dev google-perftools graphviz gv gperf
+RUN apt-get install -y libunwind-dev google-perftools graphviz gv
 RUN whereis libprofiler
 RUN whereis libtcmalloc
 
