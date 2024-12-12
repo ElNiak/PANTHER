@@ -1,0 +1,198 @@
+FROM localhost_single_container_v1_panther:latest AS shadow_base
+
+FROM picoquic_rfc9000_panther:latest AS picoquic_client_stage
+
+# Copy files from the service stage to /opt in the final image
+EXPOSE 5000:5000
+EXPOSE 8081:8081
+
+# Set container working directory
+# WORKDIR "/opt/picoquic"
+
+# Add service-specific environment variables
+ENV ROLE="RoleEnum.client"
+ENV UID=${UID}
+ENV GID=${GID}
+
+# Define the command for the service
+RUN <<EOF
+echo "Running pre-compilation commands:"
+set -x;
+export PATH=$$PATH:$$ADDITIONAL_PATH;
+export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
+env >> /app/logs/ivy_setup.log;
+EOF
+
+RUN <<EOF
+echo "Running compilation commands:"
+EOF
+
+RUN <<EOF
+echo "Running post-compilation commands:"
+EOF
+FROM panther_ivy_rfc9000_panther:latest AS ivy_server_stage
+
+# Copy files from the service stage to /opt in the final image
+EXPOSE 4443:4443
+EXPOSE 4987:4987
+EXPOSE 8080:8080
+
+# Set container working directory
+# WORKDIR "/opt/panther_ivy/protocol-testing/quic"
+
+# Add service-specific environment variables
+ENV ROLE="RoleEnum.server"
+ENV UID=${UID}
+ENV GID=${GID}
+ENV PROTOCOL_TESTED="quic"
+ENV RUST_LOG="debug"
+ENV RUST_BACKTRACE="1"
+ENV SOURCE_DIR="/opt/"
+ENV IVY_DIR="/opt//panther_ivy"
+ENV PYTHON_IVY_DIR="/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/"
+ENV IVY_INCLUDE_PATH="$$IVY_INCLUDE_PATH:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7"
+ENV Z3_LIBRARY_DIRS="/opt//panther_ivy/submodules/z3/build"
+ENV Z3_LIBRARY_PATH="/opt//panther_ivy/submodules/z3/build"
+ENV LD_LIBRARY_PATH="$$LD_LIBRARY_PATH:/opt//panther_ivy/submodules/z3/build"
+ENV PROOTPATH="/opt/"
+ENV ADDITIONAL_PYTHONPATH="/app/implementations/quic-implementations/aioquic/src/:/opt//panther_ivy/submodules/z3/build/python:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/"
+ENV ADDITIONAL_PATH="/go/bin:/opt//panther_ivy/submodules/z3/build"
+ENV TEST_ALPN="hq-interop"
+ENV ZRTT_SSLKEYLOGFILE="/opt//panther_ivy/protocol-testing/quic/last_tls_key.txt"
+ENV RETRY_TOKEN_FILE="/opt//panther_ivy/protocol-testing/quic/last_retry_token.txt"
+ENV NEW_TOKEN_FILE="/opt//panther_ivy/protocol-testing/quic/last_new_token.txt"
+ENV ENCRYPT_TICKET_FILE="/opt//panther_ivy/protocol-testing/quic/last_encrypt_session_ticket.txt"
+ENV SESSION_TICKET_FILE="/opt//panther_ivy/protocol-testing/quic/last_session_ticket_cb.txt"
+ENV SAVED_PACKET="/opt//panther_ivy/protocol-testing/quic/saved_packet.txt"
+ENV initial_max_stream_id_bidi="/opt//panther_ivy/protocol-testing/quic/initial_max_stream_id_bidi.txt"
+ENV active_connection_id_limit="/opt//panther_ivy/protocol-testing/quic/active_connection_id_limit.txt"
+ENV initial_max_stream_data_bidi_local="/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_bidi_local.txt"
+ENV initial_max_stream_data_bidi_remote="/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_bidi_remote.txt"
+ENV initial_max_stream_data_uni="/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_uni.txt"
+ENV initial_max_data="/opt//panther_ivy/protocol-testing/quic/initial_max_data.txt"
+ENV INITIAL_VERSION="1"
+ENV TEST_TYPE="client"
+
+# Define the command for the service
+RUN <<EOF
+echo "Running pre-compilation commands:"
+set -x;
+export PATH=$$PATH:$$ADDITIONAL_PATH;
+export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
+env >> /app/logs/ivy_setup.log;
+TARGET_IP=$(getent hosts  | awk "{ print \$1 }");
+echo "Resolved  IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
+IVY_IP=$(hostname -I | awk "{ print \$1 }");
+echo "Resolved  ivy_server IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
+ 
+ip_to_hex() {
+  echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
+}
+ 
+ip_to_decimal() {
+  echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
+}
+ 
+TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);
+IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);
+echo "Resolved  IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+echo "Resolved ivy_server IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
+EOF
+
+RUN <<EOF
+echo "Running compilation commands:"
+echo "Copying QUIC libraries..." >> /app/logs/ivy_setup.log &&
+cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" &&
+cp -f -a /opt/picotls/*.a "/opt/panther_ivy/ivy/lib/" &&
+cp -f /opt/picotls/include/picotls.h "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls.h" &&
+cp -f /opt/picotls/include/picotls.h "/opt/panther_ivy/ivy/include/picotls.h" &&
+cp -r -f /opt/picotls/include/picotls/. "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls" &&
+cp -f "/opt/panther_ivy/protocol-testing/quic/quic_utils/quic_ser_deser.h" "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/" &&
+ 
+update_ivy_tool() {
+	echo "Updating Ivy tool..." >> /app/logs/ivy_setup.log;
+	cd "/opt/panther_ivy" || exit 1;
+	sudo python3.10 setup.py install >> /app/logs/ivy_setup.log 2>&1 &&
+	cp lib/libz3.so submodules/z3/build/python/z3 >> /app/logs/ivy_setup.log 2>&1 &&
+	echo "Copying updated Ivy files..." >> /app/logs/ivy_setup.log;
+	find /opt/panther_ivy/ivy/include/1.7/ -type f -name "*.ivy" -exec cp {} /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ \; >> /app/logs/ivy_setup.log 2>&1;
+	echo "Copying updated Z3 files..." >> /app/logs/ivy_setup.log;
+	cp -f -a /opt/panther_ivy/ivy/lib/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" >> /app/logs/ivy_setup.log 2>&1;
+}
+ 
+update_ivy_tool &&
+ 
+remove_debug_events() {
+	echo "Removing debug events..." >> /app/logs/ivy_setup.log;
+	printf "%s\n" "$@" | xargs -I {} sh -c "
+		if [ -f \"\$1\" ]; then
+			sed -i \"s/^\\([^#]*debug_event.*\\)/##\\1/\" \"\$1\";
+		else
+			echo \"File not found - \$1\" >> /app/logs/ivy_setup.log;
+		fi
+	" _ {};
+}
+ 
+restore_debug_events() {
+	echo "Restoring debug events..." >> /app/logs/ivy_setup.log;
+	printf "%s\n" "$@" | xargs -I {} sh -c "
+		if [ -f \"\$1\" ]; then
+			sed -i \"s/^##\\(.*debug_event.*\\)/\\1/\" \"\$1\";
+		else
+			echo \"File not found - \$1\" >> /app/logs/ivy_setup.log;
+		fi
+	" _ {};
+}
+ 
+setup_ivy_model() {
+	echo "Setting up Ivy model..." >> /app/logs/ivy_setup.log &&
+	echo "Updating include path of Python with updated version of the project from /opt/panther_ivy/protocol-testing/quic" >> /app/logs/ivy_setup.log &&
+	echo "Finding .ivy files..." >> /app/logs/ivy_setup.log &&
+	find "/opt/panther_ivy/protocol-testing/quic" -type f -name "*.ivy" -exec sh -c "
+		echo \"Found Ivy file - \$1\" >> /app/logs/ivy_setup.log;
+		if [ 10 -gt 10 ]; then
+			echo \"Removing debug events from \$1\" >> /app/logs/ivy_setup.log;
+			remove_debug_events \"\$1\";
+		fi;
+		echo \"Copying Ivy file to include path...\" >> /app/logs/ivy_setup.log;
+		cp -f \"\$1\" \"/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/\";
+	" _ {} \;;
+	ls -l /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
+}
+ 
+setup_ivy_model &&
+cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests;
+PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_client_test_max.ivy >> /app/logs/ivy_setup.log 2>&1; 
+(ls >> /app/logs/ivy_setup.log 2>&1 ;
+ 
+cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; 
+ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;) 
+ && 
+ (touch /app/sync_logs/ivy_ready.log ) && 
+EOF
+
+RUN <<EOF
+echo "Running post-compilation commands:"
+cd /opt/panther_ivy/protocol-testing/quic;
+EOF
+
+# Final stage
+FROM localhost_single_container_v1_panther:latest
+WORKDIR /
+ENV DEBIAN_FRONTEND=noninteractive
+USER root
+
+# TODO remove -> put that in config
+COPY --from=picoquic_client_stage /opt /opt/picoquic_client
+# TODO remove -> put that in config
+COPY --from=ivy_server_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
+COPY --from=ivy_server_stage /opt /opt
+
+USER root
+
+ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
+
+ADD run.generated.sh /run.sh
+ENV RUST_BACKTRACE=1
+RUN chmod +x /run.sh
+ENTRYPOINT [ "/bin/sh", "-c", "./run.sh > /app/logs/localhost_stdout.log 2> /app/logs/localhost_stderr.log; cp /opt/picoquic_client/picoquic/picoquicdemo /app/logs/picoquic_client/picoquicdemo;cp /opt/panther_ivy/protocol-testing/quic/build/quic_client_test_max /app/logs/ivy_server/quic_client_test_max;" ]

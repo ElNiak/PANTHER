@@ -1,41 +1,59 @@
 # TODOs
 
-* Rename gits
+* Rename gits ?
+
+## PANTHER Ivy
+
+* Merge mcmillan python3.10
+
+* Use Jinja template for ivy_to_cpp
+
+* Improve Lexer + Parser code quality/readibility
+
+* Improve documentations ?
+
+* Refactor models
+   * Add comments
+   * remove deadcode
+
+* Result Handler
 
 ## PANTHER
 
-* refactor
+* Create single container for IUT -> less disk used
+   * Still ok ?
+   * Create new docker-compose/swarm per experience ?
+      * with docker network ? we need to create route
+   * What about when using shddow ? We send binary to shadow container ?
 
-* AVOID creating multiple time the same docker volume
+* Improving config files
+   * removing duplicate
+   * Add classes to save the states
 
-* change os.system with subprocess or with python funct
+* documentation + comments
 
-* add barplot progression
+* Refactor the python code itself
 
-* Complete config file
+* Better outputs managements
 
-* Add template to automatise the addition of new protocols without modifying the code
+* Redo the readmes
 
-    * should remove the <protocol>_runner/tester/stats.py
+* Enable better cli and webapp usage
 
-    * Add envariable to config file and automatise
-
+* Add some tests
 
 ## PANTHER webapp
 
 * refactor /creator with accordingly -> to allow and adapt multiple protocol
+   * https://github.com/Kanaries/pygwalker
 
 * refactor /result with accordingly -> to allow and adapt multiple protocol
 
 * Allow to add new implementation configuration
 
-* https://github.com/Kanaries/pygwalker
-
-* parler du framework
-
 ## PVF architecture
 
-* Make docker internal system match to current system
+* Make docker internal system match to current system ?
 
 * build.py to replace makefile
 

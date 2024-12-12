@@ -1,0 +1,71 @@
+#!/bin/bash
+set -e
+
+# Setup logging directory
+mkdir -p /app/logs
+{% for service in services %}
+mkdir -p /app/logs/{{ service.service_name }}
+echo "Initializing {{ service.service_name }} logs..." > /app/logs/{{ service.service_name }}/stdout.log
+echo "Initializing {{ service.service_name }} logs..." > /app/logs/{{ service.service_name }}/stderr.log
+{% endfor %}
+
+# Define helper functions
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> /app/logs/combined.log
+}
+
+start_pcap() {
+  local interface=$1
+  local output=$2
+  local duration=$3
+  tshark -i "$interface" -a duration:"$duration" -w "$output" &
+  echo $!
+}
+
+# TODO add loop for multiple iterations
+
+set_environment() {
+  {% for service in services %}
+  log "Setting environment for {{ service.service_name }}..."
+  export ROLE="{{ service.role.name }}"
+  {% for key, value in service.environments.items() %}
+  export {{ key }}="{{ value }}"
+  {% endfor %}
+  {% endfor %}
+}
+
+# Initialize environment variables
+log "Setting up environment variables..."
+set_environment
+
+# Start PCAP recording for each service
+log "Starting PCAP recording..."
+{% for service in services %}
+start_pcap "lo" "/app/logs/{{ service.service_name }}/pcap_pkt.pcap" {{service.run_cmd["run_cmd"]["timeout"]}}
+{% endfor %}
+
+
+# Start all services
+log "Starting all services..."
+{% for service in services %}
+log "Starting {{ service.service_name }}..."
+(
+    {% if service.role.name == "client" %}
+    sleep 5;  # Delay to ensure server is ready
+    {% endif %}
+    {% if not test_config.services[service.service_name].implementation.type.name == "testers" %}
+    {% set replacement_path = '/opt/' ~ service.service_name ~ '/' %}
+    {% else %}
+    {% set replacement_path = '/opt/'%}
+    {% endif %}
+    cd {{ service.run_cmd["run_cmd"]["working_dir"] | replace('/opt/', replacement_path) }}
+    {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"] | replace("/app/logs/", "/app/logs/" ~ service.service_name ~ "/")}}
+    log "{{ service.service_name }} completed successfully."
+) &
+{% endfor %}
+
+# Wait for all services to finish
+log "Waiting for services to complete..."
+wait
+
+log "All services have completed."

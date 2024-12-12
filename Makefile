@@ -5,14 +5,42 @@ NPROC := $(shell nproc)
 # CLEANUP COMMANDS
 ###################################################################################################
 
+package:
+	python3.10 -m pip install build wheel
+	python3.10 -m pip uninstall --yes panther
+	rm -rf build/ dist/ *.egg-info;
+	python3.10 -m build --wheel --no-isolation
+	python3.10 -m pip install --force-reinstall dist/panther-*.whl
+
+package-dev:
+	python3.10 -m pip install build wheel
+	python3.10 -m pip uninstall --yes panther
+	rm -rf build/ dist/ *.egg-info;
+	python3.10 -m build --wheel --no-isolation
+	python3.10 -m pip install --force-reinstall  --editable .
+
+package-test:
+	make package
+	pytest
+
 mkdocs:
-	python3 automate_mkdocs.py
-	gendocs --config mkgendocs.yml
-	cp *.md docs/
-	cp -r readme-res/ docs/
-	cp README.md docs/home.md
-	mkdocs build --verbose
-	mkdocs serve 
+	rm -rf build/ dist/ *.egg-info;
+	python3.10 -m pip install .[doc]
+	python3.10 docs-gen/mkdocs/automate_mkdocs.py
+	gendocs --config docs-gen/mkdocs/mkgendocs.yml
+	cp README.md docs/HOME.md
+	cp CHANGELOG.md docs/CHANGELOG.md
+	# cp LICENSE docs/LICENSE.md
+	cp CONTRIBUTING.md docs/CONTRIBUTING.md
+	cp EXPERIMENT_GUIDE.md docs/EXPERIMENT_GUIDE.md
+	cp INSTALL.md docs/INSTALL.md
+	cp USAGE.md docs/USAGE.md
+	cp PACKAGING.md docs/PACKAGING.md
+	cp PLUGIN_GUIDE.md docs/PLUGIN_GUIDE.md
+	cp CONFIG_GUIDE.md docs/CONFIG_GUIDE.md
+	cp DEV_GUIDE.md docs/DEV_GUIDE.md
+	mkdocs build --verbose --config-file docs-gen/mkdocs/mkdocs.yaml
+	mkdocs serve --verbose --config-file docs-gen/mkdocs/mkdocs.yaml
 
 # Clean Docker images and containers
 clean:
@@ -34,12 +62,4 @@ clean-docker-volume:
 
 # Fully clean Docker environment
 clean-docker-full:
-	# Removes unused Docker images and containers
-	docker image prune
-	docker image prune -a
-	# Fully clean the Docker system (containers, networks, and images)
-	docker system prune -a -f
-	docker volume prune -a
-	# Force removal of all images
-	docker rmi $(docker images -a -q)
-	
+	docker system prune -a

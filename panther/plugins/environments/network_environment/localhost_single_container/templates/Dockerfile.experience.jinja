@@ -1,0 +1,69 @@
+FROM localhost_single_container_v1_panther:latest AS shadow_base
+
+{% for service in services %}
+FROM {{ service.implementation_name }}_{{ service.service_protocol.version.name }}_panther:latest AS {{ service.service_name }}_stage
+
+# Copy files from the service stage to /opt in the final image
+{% for port in service.service_config_to_test.ports %}
+EXPOSE {{ port }}
+{% endfor %}
+
+# Set container working directory
+# WORKDIR "{{ service.run_cmd["run_cmd"]["working_dir"] }}"
+
+# Add service-specific environment variables
+ENV ROLE="{{ service.role.name }}"
+ENV UID=${UID}
+ENV GID=${GID}
+{% for key, value in service.environments.items() %}
+ENV {{ key }}="{{ value }}"
+{% endfor %}
+
+# Define the command for the service
+RUN <<EOF
+echo "Running pre-compilation commands:"
+{% for cmd in service.run_cmd["pre_compile_cmds"] %}
+{{ cmd }}
+{% endfor %}
+EOF
+
+RUN <<EOF
+echo "Running compilation commands:"
+{% for cmd in service.run_cmd["compile_cmds"] %}
+{{ cmd }}
+{% endfor %}
+EOF
+
+RUN <<EOF
+echo "Running post-compilation commands:"
+{% for cmd in service.run_cmd["post_compile_cmds"] %}
+{{ cmd }}
+{% endfor %}
+EOF
+{% endfor %}
+
+# Final stage
+FROM localhost_single_container_v1_panther:latest
+WORKDIR /
+ENV DEBIAN_FRONTEND=noninteractive
+USER root
+
+{% for service in services %}
+# TODO remove -> put that in config
+{% if "ivy" in service.service_name %}
+COPY --from={{ service.service_name }}_stage /usr/local/lib/python3.10 /usr/local/lib/python3.10
+COPY --from={{ service.service_name }}_stage /opt /opt
+{% else %}
+COPY --from={{ service.service_name }}_stage /opt /opt/{{ service.service_name }}
+{% endif %}
+{% endfor %}
+
+USER root
+
+ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
+
+ADD {{ additional_param }} /run.sh
+ENV RUST_BACKTRACE=1
+RUN chmod +x /run.sh
+ENTRYPOINT [ "/bin/sh", "-c", "./run.sh > /app/logs/localhost_stdout.log 2> /app/logs/localhost_stderr.log; {% for service in services %}{% if not test_config.services[service.service_name].implementation.type.name == "testers" %}{% set replacement_path = '/opt/' ~ service.service_name ~ '/' %}{% else %}{% set replacement_path = '/opt/'%}{% endif %}{% for cmd in service.run_cmd["post_run_cmds"] %}{{ cmd | replace("\n", "") | replace('/opt/', replacement_path) | replace("/app/logs/", "/app/logs/" ~ service.service_name ~ "/") }}{% endfor -%}{% endfor -%}" ]
+

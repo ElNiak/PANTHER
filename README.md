@@ -1,75 +1,7 @@
-<h1 align="center"> PANTHER </h1>
+# PANTHER: Protocol Analysis and Testing Harness for Extensible Research
 
 ## :tiger: **P**rotocol formal **A**nalysis and formal **N**etwork **T**hreat **E**valuation **R**esources
 
-```
-@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@: .~JG#&@@@@@@@@@@@@@@@@@@@@@@@@@@&BJ~. .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@G   .::: :?5G57~:.........:^!YG5J^.:^:.   5@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@G :.  :~                           ^:  .: Y@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@& .:  ^    .                   .    ^  :. #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@7   .:  .     .^.        ~:     .  ..   ~@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@7      ~~^.  ^7^::~ ~::^7^  .^~~.     !&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@7     :!~??~. :?!: .!?^ .~??~~^     :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@J       .Y5~7J7..^   ^..7J?^YY.       ^&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@^   .   . !P7!^. .~. .^.  ~7!5~ .   :  ..B@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@:.  :~   !^  .:^^  .^.^.  ^^:.  ^J.  ^^  :.#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@P.^  ?^    ..:: :^.       .^^ .:.:.   .J  :~!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@Y^^  5!    :??.  7!!?7!7J7!?.  ??^    ^5. :!!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@#.!  Y5.   :J:^:  ..~P75!..  :^:?^   .YY  ~:G@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@?:. .YY7^. ~^^^^    ...    :^^^!  .!5Y: .: P@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@...  J557 .7:.     .:..    .:7. !5Y~  .^  .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@5  ^7.~55.... ^B5:!?YY57!^J#! ....5. .77 .. Y@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@P :~ .7Y55.  . !@&:!!^.^!!:#@? .  ~Y7JJ^  :Y. #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@J .YJ   .^7:    .^G?5YJ^?J5?G~.    ~~^.     ^5!.?@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@! :Y!             .~~!YYJYY7~~.         .     J5Y.^@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@7 ^5~  :~         .JG!^~:.:~~~GY.         7!:^?5555 .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@5  Y5  .P~        .5!!: ^~:~^ .!~Y.         ~J555555^ ~@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@   Y5!:?57         ?^  .::.::.  :J.            .:!55^  B@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@G   .?5555~          :!^.      .~:        J:       :5^  7@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@Y    .555^      ..     .^~~~~^:.          :~~:.     ~7  !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@#      !P7     .!J^                            :?^    :. .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@.       ~?    .Y^                         ....  :^        !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@P     .   ..   ::                      ^~::....::^^.        .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@~     ~J        !                  .:::^.           ^^.       .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@&.      ~57.     !7        .....::::::.           .:             ?@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@.         .^~^   :.     .!?#^ .:...                              .@@@@@@@@@@@@@@@@@@@@@@@@@@#J7P@
-@@!             :J:        :~G^ .?#~   .:..         :...             @@@@@@@@@@@@@@@@@@@@&G5J~.    P
-@&               :5.        .. .7#!  .^^~   .:.    ^^                @@@@@@@@@@@@@@@@#7.           G
-@Y              .757            !    .?&#..:.    .~     ..           &@@@@@@@@@@@@@#:            .P@
-@J              ....!J?^             ^G:  ~GG  .::      .:^:.        &@@@@@@@@@@@@5         .^75#@@@
-@@:..                :~?!::.         .    PJ^..            ...      Y@@@@@@@@@@@@&        :#@@@@@@@@
-@@@^ .                :   ~~...          ..                      JG#@@@@@@@@@@@@@#        &@@@@@@@@@
-@@@@?.                ..:.5&G.:                                  G@@@@@@@@@@@@@@@@:       &@@@@@@@@@
-@@@@@&5~.         ::  .  :.:J?.                                 ^ .~P&@@@@@@@@@@@@&       7@@@@@@@@@
-@@@@@@@@@&^       .  .~.                                        ^   .~J#@@@@@@@@@@@B    .  ?@@@@@@@@
-@@@@@@@@@@B        : ^G#B! .                    5&.             ^     :^7&@@@@@@@@@@J   :.  P@@@@@@@
-@@@@@@@@@@@Y   .^   :.  .7PP&B!                 @@J^.          ^        ::B@@@@@@@@@&   .   :@@@@@@@
-@@@@@@@@@@@@&. :^  .    :&@@@@@P.               ^&P.~         ~~GY^.     ..P@@@@@@@@J    !. .@@@@@@@
-@@@@@@@@@@@@@7     G&B! J@@@@@@@@?                : .^:.     ~~B@@@5.     . :JGBBBY:    ^P: J@@@@@@@
-@@@@@@@@@@@@@P.  ~7: :5G5G@@@@@@@@@Y            .:    ~..    .:5@@@@&~    ..           .Y? ~@@@@@@@@
-@@@@@@@@@@@@@@&? .YB?^G@@@@@@@@@@@@@&?           :    7        .@@@@@@G:   .^:.      .~J!.5@@@@@@@@@
-@@@@@@@@@@@@@@@@&P7^?G5@@@@@@@@@@@@@@@&Y~:::~: .::    !         P@@@@@@@B~    :^^^^~!!~~5@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&5!:   .!         .&@@@@@@@@@#57~^^^~~7Y#@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#!  ~    .  .   !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&7..        :! #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@!!:.  .: :^~ &@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&?.^?7~7YJ. !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&. .^. ::  .7&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@# :.        :#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@P 7.    ..!~ ?@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@J.~         5@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#!   ..:^~G@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&BPYYG&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-                                            Made with ❤️
-                                For the Community, By the Community
-
-                                ###################################
-
-                                        Made by ElNiak
-                linkedin  - https://www.linkedin.com/in/christophe-crochet-5318a8182/
-                                Github - https://github.com/elniak
-```
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10819552.svg)](https://doi.org/10.5281/zenodo.10819552)
 [![CodeQL](https://github.com/ElNiak/PANTHER/actions/workflows/codeql.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/codeql.yml)
@@ -79,66 +11,188 @@
 [![pages-build-deployment](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment)
 [![Greetings](https://github.com/ElNiak/PANTHER/actions/workflows/greetings.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/greetings.yml)
 [![pre-commit](https://github.com/ElNiak/PANTHER/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pre-commit.yml)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/c8043e5320934d49a688e173db5a331d)](https://app.codacy.com/gh/ElNiak/PANTHER/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white) ![C++](https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white) ![Debian](https://img.shields.io/badge/Debian-D70A53?style=for-the-badge&logo=debian&logoColor=white)
 
-<picture>
-  <source
-    media="(prefers-color-scheme: dark)"
-    srcset="
-      https://api.star-history.com/svg?repos=ElNiak/PANTHER&type=Date&theme=dark
-    "
-  />
-  <source
-    media="(prefers-color-scheme: light)"
-    srcset="
-      https://api.star-history.com/svg?repos=ElNiak/PANTHER&type=Date
-    "
-  />
-  <img
-    alt="Star History Chart"
-    src="https://api.star-history.com/svg?repos=ElNiak/PANTHER&type=Date"
-  />
-</picture>
 
 ## :rocket: Overview
 
-PANTHER combines advanced techniques in network protocol verification, integrating the [Shadow network simulator](https://github.com/shadow/shadow) with the [Ivy formal verification tool](https://github.com/ElNiak/PANTHER-Ivy). This powerful synergy allows for the detailed examination of time properties in network protocols. A specialized time module enhances Ivy's capabilities, enabling it to handle complex quantitative-time properties with greater precision.
+PANTHER is a modular framework designed for testing and validating network protocols in dynamic and extensible environments. It supports protocol implementations, custom plugins, and comprehensive experiment configurations, making it an essential tool for researchers and developers in networking and security.
 
-PANTHER's effectiveness is demonstrated through its application to the QUIC protocol. By refining QUIC's formal specification in Ivy, PANTHER not only verifies essential aspects of the protocol but also identifies real-world implementation errors, showcasing its practical utility. This innovative integration paves the way for more thorough, efficient, and precise protocol testing and verification.
+---
 
-### :heavy_plus_sign: Multi-Protocol Support
+## Features
+- **Extensible Plugin Architecture**: Easily add new implementations, protocols, and environments.
+- **Dynamic Configuration**: Configure experiments using YAML files with structured validation.
+- **Docker Integration**: Seamless environment setup with dynamically built Docker images.
+- **Comprehensive Logging**: Debug and trace experiments with detailed logs.
+- **Multi-Protocol Testing**: Supports complex scenarios across multiple protocols and implementations.
 
-PANTHER supports multiple protocols. To add new protocol specifications, place them in the `protocols` directory following the existing structure. Currently supported protocols include:
-- [X] QUIC
+---
 
-- [X] MiniP
+## Installation
 
-- [ ] BGP
+### Prerequisites
+- Python 3.8 or higher
+- Docker and Docker Compose
+- Recommended: A virtual environment for Python dependencies
 
-- [ ] CoAP
+### Steps
+1. Clone the repository:
 
-### :heavy_plus_sign: Multi-Implementation Support
+  ```bash
+  git clone https://github.com/ElNiak/panther.git;
+  cd panther/;
+  git submodule update --init --recursive;
+  ```
 
-PANTHER supports multiple implementations. To add new implementations, place them in the `implementations` directory following the existing structure.
+2. Install the required Python packages:
 
-### :heavy_plus_sign: Advanced Persistent Threat Simulation
+  ```bash
+  python -m venv .venv;
+  source .venv/bin/activate;
+  make package
+  ```
 
-PANTHER can simulate advanced persistent threats (APTs) in network protocols. By leveraging the Shadow network simulator, PANTHER models and analyzes the behavior of APTs in a controlled environment, providing valuable insights into potential vulnerabilities and attack vectors. Supported simulations include:
-- [X] QUIC
+3. Verify Docker is installed:
 
-- [X] MiniP
+  ```bash
+  docker --version;
+  docker-compose --version;
+  ```
 
-### Useful links
+## Quick Start
 
-- [Usage](USAGE.md)
+1. Set Up Configuration:
 
-- [Installation](INSTALL.md)
+    - Create a sample configuration file:
 
-- [Contributing](CONTRIBUTING.md)
+```
+logging:
+  level: DEBUG
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+paths:
+  output_dir: "outputs"
+  log_dir: "outputs/logs"
+  config_dir: "panther/configs"
+  plugin_dir: "panther/plugins"
+docker:
+  build_docker_image: True
+tests:
+  - name: "Strace - QUIC IyvClient-Server Communication Test"
+    description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
+    network_environment:
+      type: "docker_compose"
+    execution_environment:
+      - type: "strace"
+    iterations: 1
+    services:
+      picoquic_server:
+        name: "picoquic_server"
+        timeout: 100
+        implementation:
+          name: "picoquic" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
+          type: "iut" # plugin is present plugins/services/iut/quic/picoquic
+        protocol:     # plugin is present plugins/protocols/
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "8080:8080"
+        generate_new_certificates: True
+      ivy_client:
+        name: "ivy_client"  # Added 'name' key
+        timeout: 100
+        implementation:
+          name: "panther_ivy"
+          type: "testers" # plugin is present plugins/services/testers/panther_ivy
+          test: quic_server_test_stream
+        protocol:  # plugin is present plugins/services/iut/quic
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "picoquic_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"
+          - "4987:4987"
+          - "8081:8081"
+        generate_new_certificates: True
+    steps:
+      wait: 100  # seconds to wait during the test
+```
 
-- [License](LICENSE)
+    - Modify the file as needed to suit your experiment.
 
+2. Run an Experiment:
+
+    - Execute an experiment:
+
+
+    ```bash
+    panther --config config/experiment_config.yaml;
+    ```
+
+    - View Results:
+      Experiment results are saved in the `outputs/` directory.
+
+## Project Structure
+
+```
+tests/                  # Unit tests
+outputs/                # Experiment results and logs
+panther/
+├── config/              # Configuration files and schemas
+├── core/                # Core experiment logic
+├── plugins/             # Plugin implementations for protocols, environments, etc.
+├──── services/          # Protocol implementations
+├────── iut/             # Protocol-specific implementations
+├────────── quic/        # QUIC protocol implementations
+├──────────── picoquic/  # Picoquic implementation
+├──────────── ...
+├────────── minip/       # MiniP protocol implementations
+├────────── ...
+├────── testers/         # Testers for protocol implementations
+├────────── panther_ivy/ # Ivy tester implementation
+├──── environments/      # Environment configurations
+├────── network_environment/    # Network environment configurations
+├────────── docker_compose/     # Docker Compose configurations
+├────────── shadow_ns/          # Shadow NS configurations
+├────────── localhost_single_container/     # Localhost single container configurations
+├────── execution_environment/  # Execution environment configurations
+├────────── strace/             # Strace configurations
+├────────── gperf_heap/         # Gperf Heap profiling configurations
+├────────── gperf_cpu/          # Gperf CPU profiling configurations
+├──── protocols/         # Protocol definitions
+└── __main__.py          # Command-line interface for PANTHER
+```
+
+## Documentation
+
+For detailed information on using PANTHER, see the:
+
+
+## Contributing
+
+Contributions are welcome! To get started:
+
+  - Fork the repository.
+  - Create a new branch for your feature or bug fix.
+  - Submit a pull request with a clear description of your changes.
+
+For more details, see the Contribution Guide.
+
+## License
+
+PANTHER is licensed under the MIT License. See the LICENSE file for details.
+
+## Contact
+
+For support or inquiries, please contact:
+
+  - ElNiak
+  - Open an issue on the GitHub repository.
 
 
 ---
@@ -148,7 +202,7 @@ PANTHER can simulate advanced persistent threats (APTs) in network protocols. By
 For further reading and context on the topics and methodologies used in this tool, refer to the following articles:
 
 - Rousseaux, T., Crochet, C., Aoga, J., Legay, A. (2024). Network Simulator-Centric Compositional Testing. In: Castiglioni, V., Francalanza, A. (eds) Formal Techniques for Distributed Objects, Components, and Systems. FORTE 2024. Lecture Notes in Computer Science, vol 14678. Springer, Cham. https://doi.org/10.1007/978-3-031-62645-6_10
-  
+
 - Crochet, C., Rousseaux, T., Piraux, M., Sambon, J.-F., & Legay, A. (2021). Verifying quic implementations using ivy. In *Proceedings of the 2021 Workshop on Evolution, Performance and Interoperability of QUIC*. [DOI](10.1145/3488660.3493803)
 
 - Crochet, C., & Sambon, J.-F. (2021). Towards verification of QUIC and its extensions. (Master's thesis, UCL - Ecole polytechnique de Louvain). Available at [UCLouvain](http://hdl.handle.net/2078.1/thesis:30559). Keywords: QUIC, Formal Verification, RFC, IETF, Specification, Ivy, Network.
@@ -171,3 +225,22 @@ For other useful resources, see the following:
 - [Ivy Documentation](https://microsoft.github.io/ivy/)
 
 - [Ivy GitHub Repository](https://github.com/microsoft/ivy)
+
+<picture>
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="
+      https://api.star-history.com/svg?repos=ElNiak/PANTHER&type=Date&theme=dark
+    "
+  />
+  <source
+    media="(prefers-color-scheme: light)"
+    srcset="
+      https://api.star-history.com/svg?repos=ElNiak/PANTHER&type=Date
+    "
+  />
+  <img
+    alt="Star History Chart"
+    src="https://api.star-history.com/svg?repos=ElNiak/PANTHER&type=Date"
+  />
+</picture>

@@ -1,0 +1,90 @@
+general:
+  # stop after  100 simulated seconds
+  stop_time: 100s
+  # old versions of cURL use a busy loop, so to avoid spinning in this busy
+  # loop indefinitely, we add a system call latency to advance the simulated
+  # time when running non-blocking system calls
+  model_unblocked_syscall_latency: false
+
+experimental:
+  strace_logging_mode: "standard"
+
+# TODO improve network configuration -> make more modular
+network:
+  graph:
+    # use a built-in network graph containing
+    # a single vertex with a bandwidth of 1 Gbit
+    # type: 1_gbit_switch
+    type: gml
+    # file:
+    # path: /app/topo.gml
+    inline: |
+      graph [
+        directed 0
+        node [
+          id 0
+          host_bandwidth_down "100 Gbit"
+          host_bandwidth_up "100 Gbit"
+        ]
+        edge [
+          source 0
+          target 0
+          latency "10 ms"
+          jitter "10 ms"
+          packet_loss 0.0
+        ]
+      ]
+
+host_option_defaults:
+  pcap_enabled: true
+
+# TODO improve process configuration -> make more modular (need better config format for experiment paramters and allowed values)
+hosts:
+  picoquic.cient:
+    network_node_id: 0
+    ip_addr: "11.0.0.2"
+    processes:
+    - path: /opt/picoquic_cient/picoquic/./picoquicdemo
+      args: -c /opt/certs/cert.pem -k /opt/certs/key.pem -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e eth0   -v 00000001  ivy_server 4443 
+      start_time: 5s
+      environment:
+        SHADOW_TEST: "1"
+
+  ivy.server:
+    network_node_id: 0
+    ip_addr: "11.0.0.1"
+    processes:
+    - path: /opt/panther_ivy/protocol-testing/quic/build//quic_client_test_max
+      args: seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=184549377 server_cid=0 
+      start_time: 1s
+      environment:
+        PROTOCOL_TESTED: "quic"
+        RUST_LOG: "debug"
+        RUST_BACKTRACE: "1"
+        SOURCE_DIR: "/opt/"
+        IVY_DIR: "/opt//panther_ivy"
+        PYTHON_IVY_DIR: "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/"
+        IVY_INCLUDE_PATH: "$$IVY_INCLUDE_PATH:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7"
+        Z3_LIBRARY_DIRS: "/opt//panther_ivy/submodules/z3/build"
+        Z3_LIBRARY_PATH: "/opt//panther_ivy/submodules/z3/build"
+        LD_LIBRARY_PATH: "$$LD_LIBRARY_PATH:/opt//panther_ivy/submodules/z3/build"
+        PROOTPATH: "/opt/"
+        ADDITIONAL_PYTHONPATH: "/app/implementations/quic-implementations/aioquic/src/:/opt//panther_ivy/submodules/z3/build/python:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/"
+        ADDITIONAL_PATH: "/go/bin:/opt//panther_ivy/submodules/z3/build"
+        TEST_ALPN: "hq-interop"
+        ZRTT_SSLKEYLOGFILE: "/opt//panther_ivy/protocol-testing/quic/last_tls_key.txt"
+        RETRY_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/quic/last_retry_token.txt"
+        NEW_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/quic/last_new_token.txt"
+        ENCRYPT_TICKET_FILE: "/opt//panther_ivy/protocol-testing/quic/last_encrypt_session_ticket.txt"
+        SESSION_TICKET_FILE: "/opt//panther_ivy/protocol-testing/quic/last_session_ticket_cb.txt"
+        SAVED_PACKET: "/opt//panther_ivy/protocol-testing/quic/saved_packet.txt"
+        initial_max_stream_id_bidi: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_id_bidi.txt"
+        active_connection_id_limit: "/opt//panther_ivy/protocol-testing/quic/active_connection_id_limit.txt"
+        initial_max_stream_data_bidi_local: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_bidi_local.txt"
+        initial_max_stream_data_bidi_remote: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_bidi_remote.txt"
+        initial_max_stream_data_uni: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_uni.txt"
+        initial_max_data: "/opt//panther_ivy/protocol-testing/quic/initial_max_data.txt"
+        INITIAL_VERSION: "1"
+        TEST_TYPE: "client"
+        SHADOW_TEST: "1"
+

@@ -2,56 +2,69 @@
 
 Note, before implementation were added as submodule. Now we only consider Docker containers installation. (To be updated)
 
+```bash
+git clone git@github.com:ElNiak/PANTHER.git;
+cd PANTHER;
+git submodule update --init --recursive
+```
+
+## :wrench: Requirements
+
+Tested on:
+
+* Python 3.10
+* Docker version 27.2.1, build 9e34c9b
+* Ubuntu 20.04.3 LTS
+
+```bash
+sudo apt install libgraphviz-dev python3.10-venv python3.10-dev docker docker
+```
 
 ## :gear: Pre-commit and Black
 
+```bash
+cd PANTHER;
+python3.10 -m venv venv
+venv/bin/pip install pre-commit black
+venv/bin/pre-commit install
 ```
-python3 -m pip install pre-commit black
-pre-commit installed at .git/hooks/pre-commit
-```
 
-
-## :computer: Local Installation (Not Recommended)
-
-
-
-See Dockerfile for dependencies and commands
-
-
-
-## :whale: Single implementation
-
-
+## :computer: Local Installation
 
 ```bash
-# For a full installation including all dependencies and configurations:
-IMPLEM="picoquic" make build-docker
+cd PANTHER;
+python3.10 -m venv .venv
+.venv/bin/pip install .
+source .venv/bin/activate
 ```
 
-
-## :whale: WebApp (Recommended)
+## :whale: Pypi Installation
 
 ```bash
-# For first installation
-make install
-
-# For modification:
-# For major update in ivy:
-make build-docker-compose-full
-# For a minor update in some implementation:
-make build-docker-compose
+python3.10 -m venv .venv
+.venv/bin/pip install panther
+source .venv/bin/activate
 ```
+
+## :whale:Docker Installation
+
+The docker image will be automatically built and run when defined in the experiment configuration file.
+
+```bash
+cd PANTHER;
+python3.10 -m venv .venv
+.venv/bin/pip install .
+source .venv/bin/activate
+cd panther;
+```
+
 
 ## :warning: Clean Up
-
 
 
 ```bash
 # To clean Docker images and system:
 make clean-docker-full
 ```
-
-
-
 
 ---

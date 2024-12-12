@@ -1,0 +1,73 @@
+name: {{ experiment_name }}
+services:
+  {% for service in services %}
+  {{ service.service_name  }}:
+    image: {{ service.implementation_name }}_{{ service.service_protocol.version.name }}_panther:latest
+    container_name: {{ service.service_name  }}
+    ports:
+      {% for port in service.service_config_to_test.ports %}
+      - "{{ port }}"
+      {% endfor %}
+    {% if service.role == 'client' %}
+    depends_on:
+      - {{ service.service_targets }}
+    {% endif %}
+    environment:
+      ROLE: {{ service.role.name }}
+      SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
+      UID: "${UID}"
+      GID: "${GID}"
+      {% for key, value in service.environments.items() %}
+      {{ key }}: "{{ value }}"
+      {% endfor %}
+    tty: true
+    stdin_open: true
+    # TODO fix in the docker
+    cap_add:
+      - CAP_NET_ADMIN
+      - CAP_NET_RAW
+    working_dir: "{{ service.run_cmd["run_cmd"]["working_dir"] }}"
+    command: 
+      - /bin/sh -c '
+          {% for cmd in service.run_cmd["pre_compile_cmds"] %}
+          {{ cmd }}
+          {% endfor %}
+          {% for cmd in service.run_cmd["compile_cmds"] %}
+          {{ cmd }}
+          {% endfor %}
+          {% for cmd in service.run_cmd["post_compile_cmds"] %}
+          {{ cmd }}
+          {% endfor %}
+          echo "Running timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}" >> /app/logs/{{service.service_name}}_setup.log;
+          {% if service.role.name == 'client' %}
+          (sleep 5; {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}})
+          {% else %}
+          ({% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}})
+          {% endif %}
+          {% if service.run_cmd["post_run_cmds"] | length > 0 %} 
+          && ({% for cmd in service.run_cmd["post_run_cmds"] %} {{ cmd | replace("\n", "") }} {% endfor -%}){% endif -%}'
+          
+
+    # TODO fix sudo tshark
+    volumes:
+      - {{ log_dir | realpath }}/{{ service.service_name  }}:/app/logs/
+      {% for volume in service.volumes %}
+      {% if volume | is_dict %}
+      - "{{ volume.local | realpath }}:{{ volume.container }}"
+      {% else %}
+      - "{{ volume }}"
+      {% endif %}
+      {% endfor %}
+    networks:
+      panther_network:
+        aliases: 
+          - {{ service.service_name  }}
+  {% endfor %}
+
+networks:
+  panther_network:
+    driver: bridge
+
+volumes:
+  shared_logs:
+    driver: local

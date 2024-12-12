@@ -1,0 +1,74 @@
+general:
+  # stop after  {{ test_config.network_environment["general"]["stop_type"] | default(60) }} simulated seconds
+  stop_time: {{ test_config.network_environment["general"]["stop_type"] | default(60) }}s
+  # old versions of cURL use a busy loop, so to avoid spinning in this busy
+  # loop indefinitely, we add a system call latency to advance the simulated
+  # time when running non-blocking system calls
+  model_unblocked_syscall_latency: {{test_config.network_environment["general"]["model_unblocked_syscall_latency"]}}
+
+
+experimental:
+  strace_logging_mode: "{{ test_config.network_environment["experimental"]["strace_logging_mode"] }}"
+
+# TODO improve network configuration -> make more modular
+network:
+  graph:
+    # use a built-in network graph containing
+    # a single vertex with a bandwidth of 1 Gbit
+    # type: 1_gbit_switch
+    type: gml
+    # file:
+    # path: /app/topo.gml
+    inline: |
+      graph [
+        directed 0
+        node [
+          id 0
+          host_bandwidth_down "100 Gbit"
+          host_bandwidth_up "100 Gbit"
+        ]
+        edge [
+          source 0
+          target 0
+          latency "{{ test_config.network_environment["network"]["latency"] }} ms"
+          jitter "{{ test_config.network_environment["network"]["jitter"] }} ms"
+          packet_loss {{ test_config.network_environment["network"]["packet_loss"] }}
+        ]
+      ]
+
+host_option_defaults:
+  pcap_enabled: {{test_config.network_environment["host_option_defaults"]["pcap_enabled"]}}
+
+
+# TODO improve process configuration -> make more modular (need better config format for experiment paramters and allowed values)
+hosts:
+  {% for service in services %}
+  {{ service.service_name | replace('-', '.') | replace('_', '.') }}:
+    {% if not test_config.services[service.service_name].implementation.type.name == "testers" %}
+    {% set replacement_path = '/opt/' ~ service.service_name ~ '/' %}
+    {% else %}
+    {% set replacement_path = '/opt/'%}
+    {% endif %}
+    {% if service.role.name == "client" %}
+    network_node_id: 0
+    ip_addr: "11.0.0.2"
+    {% else %}
+    network_node_id: 0
+    ip_addr: "11.0.0.1"
+    {% endif %}
+    processes:
+    - path: {{ service.run_cmd["run_cmd"]["working_dir"] | replace('/opt/', replacement_path) }}/{{ service.run_cmd["run_cmd"]["command_binary"] }}
+      args: {{ service.run_cmd["run_cmd"]["command_args"].split('>')[0] }}
+      {% if service.role.name == 'client' %}
+      start_time: 5s
+      {% else %}
+      start_time: 1s
+      {% endif %}
+      {% if service.environments.items() |length  > 0 %}
+      environment:
+        {% for key, value in service.environments.items() %}
+        {{ key }}: "{{ value }}"
+        {% endfor %}
+      {% endif %}
+
+  {% endfor %}
