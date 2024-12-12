@@ -7,17 +7,19 @@ import mkdocs_gen_files
 nav = mkdocs_gen_files.Nav()
 
 # Adjust root to be the top-level directory of the project
-root = Path(__file__).resolve().parent.parent
+root = Path(__file__).resolve().parent.parent.parent
 srcs = [root / "panther"]
 
 for src in srcs:
+    print(f"Generating reference pages for {src}")
     for path in sorted(src.rglob("*.py")):
         if "/panther_ivy/" not in path.as_posix():
             module_path = (
                 path.relative_to(root).with_suffix("").as_posix().replace("/", ".")
             )
             doc_path = path.relative_to(root).with_suffix(".md")
-            full_doc_path = Path("reference", doc_path)
+            full_doc_path = Path("panther", doc_path)
+            print(f"  {module_path} -> {doc_path}")
 
             parts = tuple(module_path.split("."))
 

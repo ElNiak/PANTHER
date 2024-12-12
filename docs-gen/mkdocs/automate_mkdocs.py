@@ -6,10 +6,6 @@ import json
 import yaml
 from collections import defaultdict
 from pathlib import Path
-import sys
-
-
-sys.path.append("panther/")
 
 
 def add_val(indices, value, data):
@@ -159,6 +155,7 @@ def automate_nav_structure(
     )
     # print(structure)
     with open(f"{repo_dir}/{mkdocs_f}", "r+") as mkgen_config:
+        print("Insert string: ", insert_string)
         contents = mkgen_config.readlines()
         if match_string in contents[-1]:
             contents.append(insert_string)
@@ -208,14 +205,14 @@ def main():
 
     structure = automate_mkdocs_from_docstring(
         mkdocs_dir=".",
-        mkgendocs_f="docs-gen/mkdocs/mkgendocs.yml",
+        mkgendocs_f="mkgendocs.yml",
         repo_dir=python_tips_dir,
         match_string="pages:\n",
     )
 
     automate_nav_structure(
         mkdocs_dir=".",
-        mkdocs_f="docs-gen/mkdocs/mkgendocs.yml",
+        mkdocs_f="mkdocs.yaml",
         repo_dir=python_tips_dir,
         match_string="- Home: index.md\n",
         structure=structure,

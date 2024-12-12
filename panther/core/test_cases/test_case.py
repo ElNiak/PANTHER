@@ -128,6 +128,26 @@ class TestCase(ITestCase):
         )
 
     def run(self):
+        """
+        Runs the test case based on the provided configuration.
+
+        This method performs the following steps:
+        1. Logs the start of the test case.
+        2. Registers default observers.
+        3. Sets up necessary services.
+        4. Sets up the test enviironment.
+        5. Deploys the required services.
+        6. Executes the test steps.
+        7. Validates the assertions.
+        8. Logs the successful completion of the test case.
+        9. Notifies the event manager about the test completion.
+
+        If any exception occurs during the execution, it logs the error and raises the exception.
+        Finally, it tears down the test environment.
+
+        Raises:
+            Exception: If any error occurs during the execution of the test case.
+        """
         """Runs the test case based on the provided configuration."""
         try:
             self.logger.info(f"Starting Test: {self.test_config.name}")
@@ -150,13 +170,17 @@ class TestCase(ITestCase):
 
     def setup_testers(self):
         """
-        We have as input the services details extracted from the test configuration file.
-        We need to:
-        - Extract the required testers from the services details.
-        - Load the testers plugins.
-            - Should be in the plugins/services/testers directory.
-            - Each tester should have a directory with the same name as the tester.
-        - In the end, we should have a list of service managers that will be used to deploy the services.
+        Sets up the testers based on the services details extracted from the test configuration file.
+
+        This method performs the following steps:
+        - Extracts the required testers from the services details.
+        - Loads the testers plugins from the plugins/services/testers directory.
+        - Creates a list of service managers that will be used to deploy the services.
+
+        The method logs the progress and any issues encountered during the setup process.
+
+        Returns:
+            None
         """
         self.logger.debug("Setup Testers plugins ...")
         self.testers_path = (
@@ -214,13 +238,24 @@ class TestCase(ITestCase):
 
     def setup_implementations(self):
         """
-        We have as input the services details extracted from the test configuration file.
-        We need to:
-        - Extract the required implementations from the services details.
-        - Load the protocol plugins.
-            - Should be in the plugins/services/iut directory.
-            - Each protocol should have a directory with the same name as the protocol.
-        - In the end, we should have a list of service managers that will be used to deploy the services.
+        Sets up the implementations for the services defined in the test configuration file.
+
+        This method performs the following steps:
+        - Extracts the required implementations from the services details.
+        - Loads the protocol plugins from the plugins/services/iut directory.
+        - Creates a list of service managers that will be used to deploy the services.
+
+        The method logs the progress and details at each step, including:
+        - The path where it looks for IUT plugins.
+        - The available protocols found.
+        - The implementations defined in the test configuration.
+        - The details of each service and its implementation.
+        - The creation of service managers for each implementation under the respective protocol.
+
+        If a protocol plugin or an implementation is not found, appropriate warnings are logged, and the method may exit.
+
+        Raises:
+            SystemExit: If a protocol plugin is not found at the expected path.
         """
         self.logger.debug("Setup Implementation Under Tests plugins ...")
         self.iut_path = (
@@ -322,7 +357,24 @@ class TestCase(ITestCase):
                     )
 
     def setup_environment(self):
-        """Setup the test environment using the plugin."""
+        """
+        Setup the test environment using the plugin.
+
+        This method sets up both execution and network environments as specified in the test configuration.
+        It iterates through the execution environments defined in the test configuration, creates environment managers
+        for each, and appends them to the environment plugin manager and execution environment list.
+
+        For the network environment, it creates an environment manager and appends it to the environment plugin manager.
+        It then attempts to set up the network environment, logging the success or failure of the setup process.
+
+        Raises:
+            Exception: If the environment setup fails.
+
+        Logs:
+            Debug: Information about the setup process for each environment.
+            Info: Successful setup of the environment.
+            Error: Failure to setup the environment.
+        """
         for exec_env in self.test_config.execution_environments:
             self.logger.debug(
                 f"Setting up execution environment type with environments '{exec_env}'"
