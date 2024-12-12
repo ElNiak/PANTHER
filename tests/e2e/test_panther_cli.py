@@ -1,4 +1,8 @@
 import subprocess
+import os
+
+env = os.environ.copy()
+env["COVERAGE_PROCESS_START"] = ".coveragerc"
 
 
 def test_cli_create_experiment_docker_compose_quic():
@@ -12,6 +16,7 @@ def test_cli_create_experiment_docker_compose_quic():
         ],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert result.returncode == 0
     # Should test in the logs -> check with and without the flag
@@ -29,6 +34,7 @@ def test_cli_create_experiment_shadow_ns_quic():
         ],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert result.returncode == 0
 
@@ -44,6 +50,7 @@ def test_cli_create_experiment_shadow_ns_quic_invalid_impl():
         ],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert result.returncode != 0
 
@@ -72,6 +79,7 @@ def test_cli_create_experiment_not_existing():
         ],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert result.returncode != 0
     # assert "Experiment created" in result.stdout
@@ -88,6 +96,7 @@ def test_cli_create_experiment_invalid():
         ],
         capture_output=True,
         text=True,
+        env=env,
     )
     assert result.returncode != 0
     # assert "Experiment created" in result.stdout
@@ -95,7 +104,7 @@ def test_cli_create_experiment_invalid():
 
 def test_cli_invalid_command():
     result = subprocess.run(
-        ["panther", "invalid-command"], capture_output=True, text=True
+        ["panther", "invalid-command"], capture_output=True, text=True, env=env
     )
     assert result.returncode != 0
     # assert "unrecognized arguments" in result.stderr
