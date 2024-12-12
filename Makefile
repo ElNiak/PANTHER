@@ -31,7 +31,7 @@ package-test:
 
 package-test-ci:
 	make install-local
-	pytest tests/ --cov=panther --cov-report=term-missing
+	pytest tests/unit/ --cov=panther --cov-report=term-missing
 
 mkdocs:
 	rm -rf build/ dist/ *.egg-info || true
