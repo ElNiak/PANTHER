@@ -19,9 +19,19 @@ package-dev:
 	python -m build --wheel --no-isolation
 	python -m pip install --force-reinstall  --editable .
 
+install-local:
+	python -m pip install build wheel
+	python -m pip uninstall --yes panther
+	python -m build --wheel --no-isolation
+	python -m pip install --force-reinstall  --editable .
+
 package-test:
 	make package
-	pytest
+	pytest tests/
+
+package-test-ci:
+	make install-local
+	pytest tests/ --cov=panther --cov-report=term-missing
 
 mkdocs:
 	rm -rf build/ dist/ *.egg-info || true
