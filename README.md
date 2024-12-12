@@ -22,7 +22,7 @@ PANTHER is a modular framework designed for testing and validating network proto
 
 ---
 
-## Features
+## :book: Features
 - **Extensible Plugin Architecture**: Easily add new implementations, protocols, and environments.
 - **Dynamic Configuration**: Configure experiments using YAML files with structured validation.
 - **Docker Integration**: Seamless environment setup with dynamically built Docker images.
@@ -31,36 +31,38 @@ PANTHER is a modular framework designed for testing and validating network proto
 
 ---
 
-## Installation
+## :computer: Installation
 
 ### Prerequisites
+
 - Python 3.8 or higher
 - Docker and Docker Compose
 - Recommended: A virtual environment for Python dependencies
 
 ### Steps
+
 1. Clone the repository:
 
-  ```bash
-  git clone https://github.com/ElNiak/panther.git;
-  cd panther/;
-  git submodule update --init --recursive;
-  ```
+```bash
+git clone https://github.com/ElNiak/panther.git;
+cd panther/;
+git submodule update --init --recursive;
+```
 
 2. Install the required Python packages:
 
-  ```bash
-  python -m venv .venv;
-  source .venv/bin/activate;
-  make package
-  ```
+```bash
+python -m venv .venv;
+source .venv/bin/activate;
+make package
+```
 
 3. Verify Docker is installed:
 
-  ```bash
-  docker --version;
-  docker-compose --version;
-  ```
+```bash
+docker --version;
+docker-compose --version;
+```
 
 ## Quick Start
 
@@ -130,9 +132,9 @@ tests:
     - Execute an experiment:
 
 
-    ```bash
-    panther --config config/experiment_config.yaml;
-    ```
+```bash
+panther --config config/experiment_config.yaml;
+```
 
     - View Results:
       Experiment results are saved in the `outputs/` directory.
@@ -177,9 +179,11 @@ For detailed information on using PANTHER, see the:
 
 Contributions are welcome! To get started:
 
-  - Fork the repository.
-  - Create a new branch for your feature or bug fix.
-  - Submit a pull request with a clear description of your changes.
+- Fork the repository.
+
+- Create a new branch for your feature or bug fix.
+
+- Submit a pull request with a clear description of your changes.
 
 For more details, see the Contribution Guide.
 
@@ -191,8 +195,8 @@ PANTHER is licensed under the MIT License. See the LICENSE file for details.
 
 For support or inquiries, please contact:
 
-  - ElNiak
-  - Open an issue on the GitHub repository.
+- ElNiak
+- Open an issue on the GitHub repository.
 
 
 ---
@@ -209,6 +213,7 @@ For further reading and context on the topics and methodologies used in this too
   author={Crochet, Christophe and Aoga, John and Legay, Axel},
   year={2024}
   url={https://dial.uclouvain.be/pr/boreal/object/boreal:292503}
+}
 ```
 
 - Rousseaux, T., Crochet, C., Aoga, J., Legay, A. (2024). Network Simulator-Centric Compositional Testing. In: Castiglioni, V., Francalanza, A. (eds) Formal Techniques for Distributed Objects, Components, and Systems. FORTE 2024. Lecture Notes in Computer Science, vol 14678. Springer, Cham. https://doi.org/10.1007/978-3-031-62645-6_10

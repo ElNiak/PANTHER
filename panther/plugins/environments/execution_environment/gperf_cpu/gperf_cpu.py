@@ -14,6 +14,36 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class GperfCpuEnvironment(IExecutionEnvironment, ABC):
+    """
+    GperfCpuEnvironment is a class that sets up and manages the execution environment
+    for CPU profiling using gperf.
+
+    Attributes:
+        env_config_to_test (GperfCpuConfig): Configuration specific to the environment being tested.
+        output_dir (str): Directory where output files will be stored.
+        env_type (str): Type of the environment.
+        env_sub_type (str): Sub-type of the environment.
+        event_manager (EventManager): Manager for handling events.
+        global_config (GlobalConfig): Global configuration settings.
+        services_managers (list[IServiceManager]): List of service managers.
+        test_config (TestConfig): Configuration for the test.
+        plugin_loader (PluginLoader): Loader for plugins.
+        logger (Logger): Logger for logging information.
+
+    Methods:
+        __init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager):
+            Initializes the GperfCpuEnvironment with the given configuration and parameters.
+
+        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader):
+            Sets up the environment with the provided services managers, test configuration,
+            global configuration, timestamp, and plugin loader.
+
+        to_command(service_name):
+            Generates the gperf command based on the configuration.
+
+        __repr__():
+            Returns a string representation of the GperfCpuEnvironment instance.
+    """
     def __init__(
         self,
         env_config_to_test: GperfCpuConfig,
