@@ -17,13 +17,7 @@ Tested on:
 * Ubuntu 20.04.3 LTS
 
 ```bash
-sudo apt install libgraphviz-dev python3.10-venv python3.10-dev
-```
-
-## :hammer: Plugins
-
-```bash
-
+sudo apt install libgraphviz-dev python3.10-venv python3.10-dev docker docker
 ```
 
 ## :gear: Pre-commit and Black
@@ -35,27 +29,35 @@ venv/bin/pip install pre-commit black
 venv/bin/pre-commit install
 ```
 
-## :computer: Local Installation (Not Recommended)
-
-See Dockerfile for dependencies and commands.
-
-## :whale: Docker Installation
-
-The docker image will be automatically built and run when defined in the experiment configuration file.
+## :computer: Local Installation
 
 ```bash
 cd PANTHER;
-python3.10 -m venv venv
-venv/bin/pip install .
-source venv/bin/activate
-cd panther;
+python3.10 -m venv .venv
+.venv/bin/pip install .
+source .venv/bin/activate
 ```
 
 ## :whale: Pypi Installation
 
 ```bash
-
+python3.10 -m venv .venv
+.venv/bin/pip install panther
+source .venv/bin/activate
 ```
+
+## :whale:Docker Installation
+
+The docker image will be automatically built and run when defined in the experiment configuration file.
+
+```bash
+cd PANTHER;
+python3.10 -m venv .venv
+.venv/bin/pip install .
+source .venv/bin/activate
+cd panther;
+```
+
 
 ## :warning: Clean Up
 

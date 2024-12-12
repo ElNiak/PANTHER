@@ -14,6 +14,38 @@ from panther.core.test_cases.test_case import TestCase
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
 class ExperimentManager:
+    """
+    Manages the lifecycle of an experiment, including initialization, configuration,
+    and execution of test cases.
+
+    Attributes:
+        global_config (GlobalConfig): The global configuration for the experiment.
+        experiment_name (str): The name of the experiment.
+        plugin_dir (str): The directory where plugins are located.
+        logger (logging.Logger): Logger for the experiment manager.
+        experiment_config (ExperimentConfig): Configuration specific to the experiment.
+        experiment_dir (Path): Directory where experiment outputs are stored.
+        logs_dir (Path): Directory where logs are stored.
+        plugin_loader (PluginLoader): Loader for experiment plugins.
+        plugin_manager (PluginManager): Manager for experiment plugins.
+        test_cases (list[ITestCase]): List of test cases to be executed.
+
+    Methods:
+        initialize_experiments(experiment_config: ExperimentConfig):
+            Initializes plugins, environment, and validates configuration.
+
+        _save_configuration():
+            Saves the experiment configuration file in the experiment folder.
+
+        _initialize_test_cases():
+            Initializes the test cases from the experiment configuration.
+
+        run_tests():
+            Runs the tests defined in the experiment configuration.
+
+        _load_logging():
+    """
+
     def __init__(
         self,
         global_config: GlobalConfig,

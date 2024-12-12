@@ -1,7 +1,20 @@
-# PANTHER-SCP/panther/banner.py
+"""
+This module contains a function to display an ASCII art banner with a message and author information.
+"""
 
 
 def display_banner():
+    """
+    Displays an ASCII art banner with a message and author information.
+
+    The banner includes:
+    - An ASCII art design
+    - A message "Made with ❤️ For the Community, By the Community"
+    - Author's name "ElNiak"
+    - Author's LinkedIn and GitHub profile links
+
+    No parameters or return values.
+    """
     banner = """
 @@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@: .~JG#&@@@@@@@@@@@@@@@@@@@@@@@@@@&BJ~. .&@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

@@ -20,6 +20,45 @@ from panther.plugins.environments.network_environment.network_environment_interf
 
 
 class TestCase(ITestCase):
+    """
+    TestCase class represents a test case that is configured and executed based on the provided configurations.
+
+    Attributes:
+        available_implementations_per_protocol (dict): Available implementations per protocol.
+        iut_path (Path): Path to the implementation under test (IUT) directory.
+        test_defined_testers (list): List of testers defined in the test configuration.
+        testers_path (Path): Path to the testers directory.
+        available_testers (list): List of available testers.
+        available_protocols (list): List of available protocols.
+        test_defined_implementation (list): List of implementations defined in the test configuration.
+        test_name (str): Name of the test case.
+        test_experiment_dir (Path): Directory for the test experiment.
+        result_collectors (ResultCollector): Collector for test results.
+        service_managers (list): List of service managers.
+        environment_plugin_manager (list): List of environment plugin managers.
+        event_manager (EventManager): Manager for handling events.
+        exectution_environment (list): List of execution environments.
+        plugin_manager (PluginManager): Manager for handling plugins.
+        services (dict): Dictionary of services defined in the test configuration.
+        deployment_commands (list): List of deployment commands.
+
+    Methods:
+        __str__(): Returns a string representation of the test case.
+        __repr__(): Returns a string representation of the test case.
+        run(): Runs the test case based on the provided configuration.
+        setup_testers(): Sets up the testers based on the test configuration.
+        setup_implementations(): Sets up the implementations based on the test configuration.
+        teardown_services(): Stops all services managed by the service managers.
+        setup_environment(): Sets up the test environment using the plugin.
+        teardown_environment(): Tears down the test environment using the plugin.
+        deploy_services(): Deploys services through environment managers.
+        execute_steps(): Executes the defined steps of a test.
+        validate_assertions(): Validates assertions defined in the test configuration.
+        check_service_responsiveness(service_name, endpoint, expected_status): Checks if a service's endpoint is responsive and returns the expected status code.
+        register_default_observers(): Registers default observers to listen to events.
+        setup_services(): Sets up the services based on the test configuration.
+    """
+
     def __init__(
         self,
         test_config: TestConfig,

@@ -8,10 +8,8 @@ from collections import defaultdict
 from pathlib import Path
 import sys
 
+
 sys.path.append("panther/")
-sys.path.append("panther/panther_scalability/")
-sys.path.append("panther/panther_worker/app/")
-sys.path.append("panther/panther_webapp/app/")
 
 
 def add_val(indices, value, data):
@@ -39,7 +37,7 @@ def automate_mkdocs_from_docstring(
         list: list of created markdown files and their relative paths
 
     """
-    p = repo_dir.glob("**/*.py")
+    p = repo_dir.glob("panther/**/*.py")
     scripts = [x for x in p if x.is_file()]
 
     if (
@@ -52,14 +50,7 @@ def automate_mkdocs_from_docstring(
     full_repo_dir = str(repo_dir) + "/"
     for script in scripts:
         print("Current script: ", script)
-        if (
-            "/panther-ivy/" in str(script)
-            or "/ivy_utils/" in str(script)
-            or "/scripts/" in str(script)
-            or "/outputs/" in str(script)
-            or "/quic-implementations" in str(script)
-            or "/tmp/" in str(script)
-        ):
+        if "/panther_ivy/" in str(script):
             continue
         with open(script) as source:
             tree = ast.parse(source.read())
@@ -100,6 +91,7 @@ def automate_mkdocs_from_docstring(
             funcs.pop("functions")
         if funcs:
             functions[script] = funcs
+
     with open(f"{repo_dir}/{mkgendocs_f}", "r+") as mkgen_config:
         insert_string = ""
         for path, function_names in functions.items():
@@ -209,21 +201,21 @@ def indent(string: str) -> int:
 
 def main():
     """Execute when running this script."""
-    python_tips_dir = Path.cwd().joinpath("")
+    python_tips_dir = Path.cwd().joinpath(".")
     # python_tips_dir = Path.cwd().joinpath("Python tips")
 
     # docstring_from_type_hints(python_tips_dir, overwrite_script=True, test=False)
 
     structure = automate_mkdocs_from_docstring(
         mkdocs_dir=".",
-        mkgendocs_f="mkgendocs.yml",
+        mkgendocs_f="docs-gen/mkdocs/mkgendocs.yml",
         repo_dir=python_tips_dir,
         match_string="pages:\n",
     )
 
     automate_nav_structure(
         mkdocs_dir=".",
-        mkdocs_f="mkdocs.yaml",
+        mkdocs_f="docs-gen/mkdocs/mkgendocs.yml",
         repo_dir=python_tips_dir,
         match_string="- Home: index.md\n",
         structure=structure,

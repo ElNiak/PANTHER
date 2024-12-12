@@ -22,7 +22,6 @@ def service_config():
             version="1.0",
             role="client",
             target="target_service",
-            timeout=60,
         ),
     )
 
@@ -34,7 +33,6 @@ def protocol_config():
         version="1.0",
         role="client",
         target="target_service",
-        timeout=60,
     )
 
 

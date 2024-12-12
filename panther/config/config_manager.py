@@ -135,7 +135,7 @@ class ConfigLoader:
                       should be copied.
 
         Raises:
-        OSError: If the source directory does not exist or if there is an error during
+            OSError: If the source directory does not exist or if there is an error during
              the copying process.
         """
         if not os.path.exists(testers_target_dir):
