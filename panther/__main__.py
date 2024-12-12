@@ -95,15 +95,21 @@ def main():
                 sys.stdout = sys.__stdout__
                 sys.stderr = sys.__stderr__
         else:
-            # We create the experiment manager
-            experiment_manager = ExperimentManager(
-                global_config=global_config, experiment_name=args.experiment_name
-            )
-            experiment_config = config_loader.load_and_validate_experiment_config()
-            # Once we have the experiments configurations, we can initialize the experiment
-            experiment_manager.initialize_experiments(experiment_config)
-            # Start the experiment
-            experiment_manager.run_tests()
+            try:
+                # We create the experiment manager
+                experiment_manager = ExperimentManager(
+                    global_config=global_config, experiment_name=args.experiment_name
+                )
+                experiment_config = config_loader.load_and_validate_experiment_config()
+                # Once we have the experiments configurations, we can initialize the experiment
+                experiment_manager.initialize_experiments(experiment_config)
+                # Start the experiment
+                experiment_manager.run_tests()
+            except Exception as e:
+                logging.error(e)
+                raise e
+            finally:
+                config_loader.cleanup()
 
 
 def main_web():

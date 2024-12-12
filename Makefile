@@ -19,6 +19,9 @@ package-dev:
 	python3.10 -m build --wheel --no-isolation
 	python3.10 -m pip install --force-reinstall  --editable .
 
+package-test:
+	pytest
+
 mkdocs:
 	python3.10 automate_mkdocs.py
 	gendocs --config mkgendocs.yml

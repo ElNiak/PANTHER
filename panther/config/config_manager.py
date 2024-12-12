@@ -82,6 +82,127 @@ class ConfigLoader:
         #     testers_dir=self.testers_dir,
         # )
 
+        self.add_plugin_execution_environment()
+
+        self.add_plugin_network_environment()
+
+        self.add_plugin_iut_service()
+
+        self.add_plugin_tester_service()
+
+        # Construct Docker configuration
+        docker_config = DockerConfig(
+            build_docker_image=loaded_config["docker"]["build_docker_image"]
+        )
+        OmegaConf.merge(DockerConfig, docker_config)
+
+        global_config = GlobalConfig(
+            logging=logging_config,
+            paths=paths_config,
+            # optional_paths=optional_paths_config,
+            docker=docker_config,
+        )
+        OmegaConf.merge(GlobalConfig, global_config)
+        self.global_config = global_config
+        return global_config
+
+    def add_plugin_tester_service(self):
+        if self.testers_dir and self.testers_dir != "":
+            print(f"Copying testers from {self.testers_dir}")
+            self.testers_dir = Path(self.testers_dir)
+            testers_target_dir = os.path.join(
+                "panther", "plugins", "services", "testers", self.testers_dir.name
+            )
+            if not os.path.exists(testers_target_dir):
+                os.makedirs(testers_target_dir)
+            for item in os.listdir(self.testers_dir):
+                print(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
+                s = os.path.join(self.testers_dir, item)
+                d = os.path.join(testers_target_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d)
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+
+    def remove_plugin_tester_service(self):
+        if self.testers_dir and self.testers_dir != "":
+            testers_target_dir = os.path.join(
+                "panther", "plugins", "services", "testers", Path(self.testers_dir).name
+            )
+            if os.path.exists(testers_target_dir):
+                print(f"Removing testers from {testers_target_dir}")
+                shutil.rmtree(testers_target_dir)
+
+    def add_plugin_iut_service(self):
+        if self.iut_dir and self.iut_dir != "":
+            print(f"Copying IUT from {self.iut_dir}")
+            self.iut_dir = Path(self.iut_dir)
+            iut_target_dir = os.path.join(
+                "panther", "plugins", "services", "iut", self.iut_dir.name
+            )
+            if not os.path.exists(iut_target_dir):
+                os.makedirs(iut_target_dir)
+            for item in os.listdir(self.iut_dir):
+                print(f"Copying {item} from {self.iut_dir} to {iut_target_dir}")
+                s = os.path.join(self.iut_dir, item)
+                d = os.path.join(iut_target_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d)
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+
+    def remove_plugin_iut_service(self):
+        if self.iut_dir and self.iut_dir != "":
+            iut_target_dir = os.path.join(
+                "panther", "plugins", "services", "iut", Path(self.iut_dir).name
+            )
+            if os.path.exists(iut_target_dir):
+                print(f"Removing IUT from {iut_target_dir}")
+                shutil.rmtree(iut_target_dir)
+
+    def add_plugin_network_environment(self):
+        if self.net_env_dir and self.net_env_dir != "":
+            # TODO improve this
+            print(f"Copying network environment from {self.net_env_dir}")
+            self.net_env_dir = Path(self.net_env_dir)
+            net_env_target_dir = os.path.join(
+                "panther",
+                "plugins",
+                "environments",
+                "network_environment",
+                self.net_env_dir.name,
+            )
+            if not os.path.exists(net_env_target_dir):
+                os.makedirs(net_env_target_dir)
+            for item in os.listdir(self.net_env_dir):
+                print(f"Copying {item} from {self.net_env_dir} to {net_env_target_dir}")
+                s = os.path.join(self.net_env_dir, item)
+                d = os.path.join(net_env_target_dir, item)
+                if os.path.isdir(s):
+                    if os.path.exists(d):
+                        shutil.rmtree(d)
+                    shutil.copytree(s, d)
+                else:
+                    shutil.copy2(s, d)
+
+    def remove_plugin_network_environment(self):
+        if self.net_env_dir and self.net_env_dir != "":
+            net_env_target_dir = os.path.join(
+                "panther",
+                "plugins",
+                "environments",
+                "network_environment",
+                Path(self.net_env_dir).name,
+            )
+            if os.path.exists(net_env_target_dir):
+                print(f"Removing network environment from {net_env_target_dir}")
+                shutil.rmtree(net_env_target_dir)
+
+    def add_plugin_execution_environment(self):
         if self.exec_env_dir and self.exec_env_dir != "":
             # TODO improve this
             print(f"Copying execution environment from {self.exec_env_dir}")
@@ -108,83 +229,24 @@ class ConfigLoader:
                 else:
                     shutil.copy2(s, d)
 
-        if self.net_env_dir and self.net_env_dir != "":
-            # TODO improve this
-            print(f"Copying network environment from {self.net_env_dir}")
-            self.net_env_dir = Path(self.net_env_dir)
-            net_env_target_dir = os.path.join(
+    def remove_plugin_execution_environment(self):
+        if self.exec_env_dir and self.exec_env_dir != "":
+            exec_env_target_dir = os.path.join(
                 "panther",
                 "plugins",
                 "environments",
-                "network_environment",
-                self.net_env_dir.name,
+                "execution_environment",
+                Path(self.exec_env_dir).name,
             )
-            if not os.path.exists(net_env_target_dir):
-                os.makedirs(net_env_target_dir)
-            for item in os.listdir(self.net_env_dir):
-                print(f"Copying {item} from {self.net_env_dir} to {net_env_target_dir}")
-                s = os.path.join(self.net_env_dir, item)
-                d = os.path.join(net_env_target_dir, item)
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
+            if os.path.exists(exec_env_target_dir):
+                print(f"Removing execution environment from {exec_env_target_dir}")
+                shutil.rmtree(exec_env_target_dir)
 
-        if self.iut_dir and self.iut_dir != "":
-            print(f"Copying IUT from {self.iut_dir}")
-            self.iut_dir = Path(self.iut_dir)
-            iut_target_dir = os.path.join(
-                "panther", "plugins", "services", "iut", self.iut_dir.name
-            )
-            if not os.path.exists(iut_target_dir):
-                os.makedirs(iut_target_dir)
-            for item in os.listdir(self.iut_dir):
-                print(f"Copying {item} from {self.iut_dir} to {iut_target_dir}")
-                s = os.path.join(self.iut_dir, item)
-                d = os.path.join(iut_target_dir, item)
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
-
-        if self.testers_dir and self.testers_dir != "":
-            print(f"Copying testers from {self.testers_dir}")
-            self.testers_dir = Path(self.testers_dir)
-            testers_target_dir = os.path.join(
-                "panther", "plugins", "services", "testers", self.testers_dir.name
-            )
-            if not os.path.exists(testers_target_dir):
-                os.makedirs(testers_target_dir)
-            for item in os.listdir(self.testers_dir):
-                print(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
-                s = os.path.join(self.testers_dir, item)
-                d = os.path.join(testers_target_dir, item)
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
-
-        # Construct Docker configuration
-        docker_config = DockerConfig(
-            build_docker_image=loaded_config["docker"]["build_docker_image"]
-        )
-        OmegaConf.merge(DockerConfig, docker_config)
-
-        global_config = GlobalConfig(
-            logging=logging_config,
-            paths=paths_config,
-            # optional_paths=optional_paths_config,
-            docker=docker_config,
-        )
-        OmegaConf.merge(GlobalConfig, global_config)
-        self.global_config = global_config
-        return global_config
+    def cleanup(self):
+        self.remove_plugin_execution_environment()
+        self.remove_plugin_network_environment()
+        self.remove_plugin_iut_service()
+        self.remove_plugin_tester_service()
 
     def validate_plugin_config(
         self, plugin_type: str, plugin_name: str, plugin_config: DictConfig
