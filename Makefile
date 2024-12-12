@@ -21,7 +21,11 @@ package-dev:
 
 package-test:
 	make package
-	pytest
+	pytest tests/
+
+package-test-ci:
+	make package
+	pytest tests/ --cov=panther --cov-report=term-missing
 
 mkdocs:
 	rm -rf build/ dist/ *.egg-info || true
