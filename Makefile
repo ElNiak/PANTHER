@@ -52,6 +52,25 @@ mkdocs:
 	mkdocs build --verbose --config-file docs-gen/mkdocs/mkdocs.yaml
 	mkdocs serve --verbose --config-file docs-gen/mkdocs/mkdocs.yaml
 
+mkdocs-ci:
+	rm -rf build/ dist/ *.egg-info || true
+	python -m pip install .[doc]
+	python docs-gen/mkdocs/automate_mkdocs.py
+	gendocs --config docs-gen/mkdocs/mkgendocs.yml
+	cp README.md docs/HOME.md
+	cp CHANGELOG.md docs/CHANGELOG.md
+	# cp LICENSE docs/LICENSE.md
+	cp CONTRIBUTING.md docs/CONTRIBUTING.md
+	cp EXPERIMENT_GUIDE.md docs/EXPERIMENT_GUIDE.md
+	cp INSTALL.md docs/INSTALL.md
+	cp USAGE.md docs/USAGE.md
+	cp PACKAGING.md docs/PACKAGING.md
+	cp PLUGIN_GUIDE.md docs/PLUGIN_GUIDE.md
+	cp CONFIG_GUIDE.md docs/CONFIG_GUIDE.md
+	cp DEV_GUIDE.md docs/DEV_GUIDE.md
+	mkdocs build --verbose --config-file docs-gen/mkdocs/mkdocs.yaml
+	mkdocs gh-deploy --force --clean --config-file docs-gen/mkdocs/mkdocs.yaml
+	mv sources docs
 # Clean Docker images and containers
 clean:
 	# This command removes all stopped containers and unused images
