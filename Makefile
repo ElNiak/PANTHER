@@ -23,11 +23,9 @@ package-test:
 	pytest
 
 mkdocs:
-	python3.10 automate_mkdocs.py
-	gendocs --config mkgendocs.yml
-	cp *.md docs/
-	cp -r readme-res/ docs/
-	cp README.md docs/home.md
+	python3.10 docs-gen/mkdocs/automate_mkdocs.py
+	gendocs --config docs-gen/mkdocs/mkgendocs.yml
+	cp README.md docs-gen/home.md
 	mkdocs build --verbose
 	mkdocs serve
 

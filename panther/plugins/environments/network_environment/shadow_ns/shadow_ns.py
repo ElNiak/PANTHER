@@ -197,7 +197,9 @@ class ShadowNsEnvironment(INetworkEnvironment):
         try:
             # Ensure the log directory for each service exists
             for service in self.services_managers:
-                service.service_config_to_test.implementation.shadow_compatible
+                assert (
+                    service.service_config_to_test.implementation.shadow_compatible
+                ), f"Service {service.service_name} is not compatible with Shadow NS. Please check the service configuration."
                 self.create_log_dir(service)
 
                 self.logger.debug(
