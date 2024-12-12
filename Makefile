@@ -26,11 +26,13 @@ install-local:
 	python -m pip install --force-reinstall  --editable .
 
 package-test:
-	make package
+	rm -rf build/ dist/ *.egg-info || true
+	python -m pip install .[tests]
 	pytest tests/
 
 package-test-ci:
-	make install-local
+	rm -rf build/ dist/ *.egg-info || true
+	python -m pip install .[tests]
 	pytest tests/unit/ --cov=panther --cov-report=term-missing
 
 mkdocs:
@@ -46,6 +48,9 @@ mkdocs:
 	cp INSTALL.md docs/INSTALL.md
 	cp USAGE.md docs/USAGE.md
 	cp PACKAGING.md docs/PACKAGING.md
+	cp ADDING_EXEC_ENV.md docs/ADDING_EXEC_ENV.md
+	cp ADDING_NET_ENV.md docs/ADDING_NET_ENV.md
+	cp ADDING_IUT.md docs/ADDING_IUT.md
 	cp PLUGIN_GUIDE.md docs/PLUGIN_GUIDE.md
 	cp CONFIG_GUIDE.md docs/CONFIG_GUIDE.md
 	cp DEV_GUIDE.md docs/DEV_GUIDE.md
@@ -63,6 +68,9 @@ mkdocs-ci:
 	cp CONTRIBUTING.md docs/CONTRIBUTING.md
 	cp EXPERIMENT_GUIDE.md docs/EXPERIMENT_GUIDE.md
 	cp INSTALL.md docs/INSTALL.md
+	cp ADDING_EXEC_ENV.md docs/ADDING_EXEC_ENV.md
+	cp ADDING_NET_ENV.md docs/ADDING_NET_ENV.md
+	cp ADDING_IUT.md docs/ADDING_IUT.md
 	cp USAGE.md docs/USAGE.md
 	cp PACKAGING.md docs/PACKAGING.md
 	cp PLUGIN_GUIDE.md docs/PLUGIN_GUIDE.md

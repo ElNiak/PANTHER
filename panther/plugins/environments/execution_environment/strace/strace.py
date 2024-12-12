@@ -16,6 +16,29 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class StraceEnvironment(IExecutionEnvironment, ABC):
+    """
+    StraceEnvironment is a class that sets up and manages an execution environment using strace for system call tracing.
+
+    Attributes:
+        global_config (GlobalConfig): The global configuration for the environment.
+        env_config_to_test (StraceConfig): The specific configuration for the strace environment to test.
+        services_managers (list[IServiceManager]): List of service managers to handle services within the environment.
+        test_config (TestConfig): Configuration for the test being executed.
+        plugin_loader (PluginLoader): Loader for plugins used in the environment.
+
+    Methods:
+        __init__(env_config_to_test: StraceConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
+            Initializes the StraceEnvironment with the given configuration and parameters.
+
+        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader):
+            Sets up the environment with the provided service managers, test configuration, global configuration, and plugin loader.
+
+        to_command(pid: int | None = None) -> str:
+            Generates the strace command for execution. Optionally attaches to a specific process ID.
+
+        __repr__() -> str:
+            Returns a string representation of the StraceEnvironment instance.
+    """
     # TODO enforce config in environment
     def __init__(
         self,

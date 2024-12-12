@@ -20,7 +20,7 @@ This guide explains how to configure experiments, services, and plugins in PANTH
 ## Structure of `experiment_config.yaml`
 
 ### Example Configuration:
-```yaml
+```
 logging:
   level: DEBUG
   format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
@@ -57,11 +57,6 @@ tests:
         generate_new_certificates: true
     steps:
       wait: 100  # seconds to wait during the test
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_server"
-        endpoint: "8080/health"
-        expected_status: 200
 ```
 
 ---
@@ -114,7 +109,7 @@ Each service includes:
 - **Certificate Management**: Option to generate certificates.
 
 ### Example:
-```yaml
+```
 services:
   picoquic_server:
     name: "picoquic_server"
@@ -140,22 +135,24 @@ services:
 
 ### Adding Custom Steps
 1. Define new actions under `steps`:
-   ```yaml
-   steps:
-     - action: "custom_command"
-       parameters:
-         command: "echo 'Hello, PANTHER!'"
-   ```
+
+```
+steps:
+  - action: "custom_command"
+    parameters:
+      command: "echo 'Hello, PANTHER!'"
+```
 
 ### Adding Assertions
 1. Define conditions to validate test results:
-   ```yaml
-   assertions:
-     - type: "service_responsive"
-       service: "my_service"
-       endpoint: "5000/health"
-       expected_status: 200
-   ```
+
+```
+assertions:
+  - type: "service_responsive"
+    service: "my_service"
+    endpoint: "5000/health"
+    expected_status: 200
+```
 
 ---
 

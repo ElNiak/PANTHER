@@ -16,6 +16,30 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class GperfHeapEnvironment(IExecutionEnvironment, ABC):
+    """ 
+    GperfHeapEnvironment is a class that sets up and manages the execution environment for gperf heap profiling.
+
+    Attributes:
+        global_config (GlobalConfig): The global configuration for the environment.
+        env_config_to_test (GperfHeapConfig): The specific configuration for the environment to test.
+        services_managers (list[IServiceManager]): List of service managers.
+        test_config (TestConfig): The test configuration.
+        plugin_loader (PluginLoader): The plugin loader.
+        logger (Logger): Logger for debugging and information.
+
+    Methods:
+        __init__(env_config_to_test: GperfHeapConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
+            Initializes the GperfHeapEnvironment with the given configurations and event manager.
+
+        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader):
+            Sets up the environment with the provided service managers, test configuration, global configuration, timestamp, and plugin loader.
+
+        to_command(service_name: str) -> str:
+            Generates the gperf command based on the configuration.
+
+        __repr__() -> str:
+            Returns a string representation of the GperfHeapEnvironment instance.
+    """
     def __init__(
         self,
         env_config_to_test: GperfHeapConfig,

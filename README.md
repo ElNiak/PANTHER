@@ -22,7 +22,7 @@ PANTHER is a modular framework designed for testing and validating network proto
 
 ---
 
-## Features
+## :book: Features
 - **Extensible Plugin Architecture**: Easily add new implementations, protocols, and environments.
 - **Dynamic Configuration**: Configure experiments using YAML files with structured validation.
 - **Docker Integration**: Seamless environment setup with dynamically built Docker images.
@@ -31,36 +31,38 @@ PANTHER is a modular framework designed for testing and validating network proto
 
 ---
 
-## Installation
+## :computer: Installation
 
 ### Prerequisites
+
 - Python 3.8 or higher
 - Docker and Docker Compose
 - Recommended: A virtual environment for Python dependencies
 
 ### Steps
+
 1. Clone the repository:
 
-  ```bash
-  git clone https://github.com/ElNiak/panther.git;
-  cd panther/;
-  git submodule update --init --recursive;
-  ```
+```bash
+git clone https://github.com/ElNiak/panther.git;
+cd panther/;
+git submodule update --init --recursive;
+```
 
 2. Install the required Python packages:
 
-  ```bash
-  python -m venv .venv;
-  source .venv/bin/activate;
-  make package
-  ```
+```bash
+python -m venv .venv;
+source .venv/bin/activate;
+make package
+```
 
 3. Verify Docker is installed:
 
-  ```bash
-  docker --version;
-  docker-compose --version;
-  ```
+```bash
+docker --version;
+docker-compose --version;
+```
 
 ## Quick Start
 
@@ -130,9 +132,9 @@ tests:
     - Execute an experiment:
 
 
-    ```bash
-    panther --config config/experiment_config.yaml;
-    ```
+```bash
+panther --config config/experiment_config.yaml;
+```
 
     - View Results:
       Experiment results are saved in the `outputs/` directory.
@@ -168,6 +170,112 @@ panther/
 └── __main__.py          # Command-line interface for PANTHER
 ```
 
+
+## Overview of Existing Plugins in the PANTHER Framework
+
+This document provides an overview of the existing plugins in the PANTHER framework, organized into three categories: Execution Environments, Network Environments, and Protocols/Services.
+
+---
+
+### 1. Execution Environment Plugins
+
+
+#### **GPerf (CPU & Heap)**
+- **Path**: `plugins/environments/execution_environment/gperf_cpu` and `gperf_heap`
+- **Purpose**: Provides performance profiling for CPU and heap usage.
+- **Key Features**:
+  - Tracks system performance metrics during experiments.
+  - Generates detailed profiling reports.
+
+#### **Strace**
+- **Path**: `plugins/environments/execution_environment/strace`
+- **Purpose**: Adds execution tracing capabilities to experiments.
+- **Key Features**:
+  - Monitors system calls and signals during execution.
+
+---
+
+## 2. Network Environment Plugins
+
+#### **Docker Compose for Networking**
+- **Path**: `plugins/environments/network_environment/docker_compose`
+- **Purpose**: Simulates networking scenarios using Docker Compose.
+- **Key Features**:
+  - Allows network latency and bandwidth configuration.
+  - Dynamically generates network configurations via templates.
+
+#### **Shadow Networking Simulation**
+- **Path**: `plugins/environments/network_environment/shadow_ns`
+- **Purpose**: Simulates networking environments for protocols and services.
+- **Key Features**:
+  - Emulates complex network topologies.
+  - Supports distributed and multi-node setups.
+  - Reproducible experiments with controlled network conditions.
+  - But all iut not compatible with shadow_ns
+
+#### **Localhost Single Container**
+- **Path**: `plugins/environments/network_environment/localhost_single_container`
+- **Purpose**: Runs experiments in a single container environment.
+- **Key Features**:
+  - Lightweight setup for quick tests.
+  - Ideal for testing individual components.
+
+---
+
+### 3. Protocol  Plugins
+
+#### **Client-Server Protocols**
+
+##### **QUIC**
+- **Path**: `plugins/protocols/client_server/quic`
+- **Purpose**: Implements and tests the QUIC protocol.
+- **Key Features**:
+  - Supports multiple versions (e.g., Draft29, RFC9000).
+  - Includes configuration schemas for protocol settings.
+
+##### **MinIP**
+- **Path**: `plugins/protocols/client_server/minip`
+- **Purpose**: Implements a minimal IP-based protocol for testing.
+- **Key Features**:
+  - Supports versioning through YAML configurations.
+
+### 4. **Services (IUT)**
+
+#### **PingPong**
+- **Path**: `plugins/services/iut/minip/ping_pong`
+- **Purpose**: Tests the behavior of a ping-pong service implementation.
+- **Key Features**:
+  - Includes multiple versions (e.g., functional, vulnerable).
+  - Provides dynamic command generation through templates.
+
+#### **PicoQUIC**
+- **Path**: `plugins/services/iut/quic/picoquic`
+- **Purpose**: Validates QUIC protocol implementations.
+- **Key Features**:
+  - Supports custom QUIC implementations with configurable parameters.
+
+### 5. **Tester**
+
+#### **Pantherivy**
+- **Path**: `plugins/services/testers/panther_ivy`
+- **Purpose**: Provides testing capabilities for the Ivy framework within the PANTHER environment.
+- **Key Features**:
+  - Integrates Ivy-based tests for protocol verification.
+  - Supports automated test execution and result collection.
+  - Facilitates formal verification of network protocols.
+  - Repository: [https://github.com/ElNiak/PANTHER-Ivy/](https://github.com/ElNiak/PANTHER-Ivy/)
+
+
+---
+
+### Extending Plugins
+
+Each plugin is designed to be modular and extensible. To add a new plugin, follow the tutorials in the respective categories:
+
+- [Adding a New Execution Environment](ADDING_EXEC_ENV.md)
+- [Adding a New Network Environment](ADDING_NET_ENV.md)
+- [Adding a New IUT](ADDING_IUT.md)
+
 ## Documentation
 
 For detailed information on using PANTHER, see the:
@@ -177,22 +285,21 @@ For detailed information on using PANTHER, see the:
 
 Contributions are welcome! To get started:
 
-  - Fork the repository.
-  - Create a new branch for your feature or bug fix.
-  - Submit a pull request with a clear description of your changes.
+- Fork the repository.
+
+- Create a new branch for your feature or bug fix.
+
+- Submit a pull request with a clear description of your changes.
 
 For more details, see the Contribution Guide.
 
-## License
-
-PANTHER is licensed under the MIT License. See the LICENSE file for details.
 
 ## Contact
 
 For support or inquiries, please contact:
 
-  - ElNiak
-  - Open an issue on the GitHub repository.
+- ElNiak
+- Open an issue on the GitHub repository.
 
 
 ---
@@ -209,6 +316,7 @@ For further reading and context on the topics and methodologies used in this too
   author={Crochet, Christophe and Aoga, John and Legay, Axel},
   year={2024}
   url={https://dial.uclouvain.be/pr/boreal/object/boreal:292503}
+}
 ```
 
 - Rousseaux, T., Crochet, C., Aoga, J., Legay, A. (2024). Network Simulator-Centric Compositional Testing. In: Castiglioni, V., Francalanza, A. (eds) Formal Techniques for Distributed Objects, Components, and Systems. FORTE 2024. Lecture Notes in Computer Science, vol 14678. Springer, Cham. https://doi.org/10.1007/978-3-031-62645-6_10
