@@ -70,7 +70,6 @@ mkdocs-ci:
 	cp DEV_GUIDE.md docs/DEV_GUIDE.md
 	mkdocs build --verbose --config-file docs-gen/mkdocs/mkdocs.yaml
 	mkdocs gh-deploy --force --clean --config-file docs-gen/mkdocs/mkdocs.yaml
-	mv sources docs
 # Clean Docker images and containers
 clean:
 	# This command removes all stopped containers and unused images
