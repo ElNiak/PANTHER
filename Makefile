@@ -6,27 +6,27 @@ NPROC := $(shell nproc)
 ###################################################################################################
 
 package:
-	python3.10 -m pip install build wheel
-	python3.10 -m pip uninstall --yes panther
+	python -m pip install build wheel
+	python -m pip uninstall --yes panther
 	rm -rf build/ dist/ *.egg-info;
-	python3.10 -m build --wheel --no-isolation
-	python3.10 -m pip install --force-reinstall dist/panther-*.whl
+	python -m build --wheel --no-isolation
+	python -m pip install --force-reinstall dist/panther-*.whl
 
 package-dev:
-	python3.10 -m pip install build wheel
-	python3.10 -m pip uninstall --yes panther
+	python -m pip install build wheel
+	python -m pip uninstall --yes panther
 	rm -rf build/ dist/ *.egg-info;
-	python3.10 -m build --wheel --no-isolation
-	python3.10 -m pip install --force-reinstall  --editable .
+	python -m build --wheel --no-isolation
+	python -m pip install --force-reinstall  --editable .
 
 package-test:
 	make package
 	pytest
 
 mkdocs:
-	rm -rf build/ dist/ *.egg-info;
-	python3.10 -m pip install .[doc]
-	python3.10 docs-gen/mkdocs/automate_mkdocs.py
+	rm -rf build/ dist/ *.egg-info || true
+	python -m pip install .[doc]
+	python docs-gen/mkdocs/automate_mkdocs.py
 	gendocs --config docs-gen/mkdocs/mkgendocs.yml
 	cp README.md docs/HOME.md
 	cp CHANGELOG.md docs/CHANGELOG.md
