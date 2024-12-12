@@ -20,6 +20,7 @@ package-dev:
 	python3.10 -m pip install --force-reinstall  --editable .
 
 package-test:
+	make package
 	pytest
 
 mkdocs:
