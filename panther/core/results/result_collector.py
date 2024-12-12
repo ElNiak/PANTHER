@@ -1,5 +1,3 @@
-
-from typing import Callable, Dict, List
 from panther.core.results.result_handler import ResultHandler
 
 
@@ -16,16 +14,17 @@ class ResultCollector:
             Args:
                 result (Dict): The result to be processed, which should contain a 'type' key to determine the handlers.
     """
+
     def __init__(self) -> None:
-        self.handlers: Dict[str, List[ResultHandler]] = {}
-    
+        self.handlers: dict[str, list[ResultHandler]] = {}
+
     def register_handler(self, result_type: str, handler: ResultHandler) -> None:
         """Registers a handler for a specific result type."""
         if result_type not in self.handlers:
             self.handlers[result_type] = []
         self.handlers[result_type].append(handler)
-        
-    def collect(self, result: Dict) -> None:
-        # TODO 
-        for handler in self.handlers.get(result.get('type'), []):
+
+    def collect(self, result: dict) -> None:
+        # TODO
+        for handler in self.handlers.get(result.get("type"), []):
             handler.handle(result)

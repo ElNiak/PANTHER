@@ -1,5 +1,3 @@
-# PANTHER-SCP/panther/core/experiment_manager.py
-
 from datetime import datetime
 import logging
 from pathlib import Path
@@ -23,11 +21,12 @@ class ExperimentManager:
         plugin_dir: str = "panther/plugins/",
         logger: logging.Logger = None,
     ):
+        self.experiment_config = None
         self.global_config = global_config
         self.experiment_name = (
             f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{experiment_name}"
             if experiment_name
-            else f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_unamed_experiment"
+            else f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_unnamed_experiment"
         )
         self.experiment_dir = (
             Path(global_config.paths.output_dir) / self.experiment_name
@@ -102,11 +101,6 @@ class ExperimentManager:
             logging, self.global_config.logging.level.upper(), logging.INFO
         )
         log_format = self.global_config.logging.format
-
-        # TODO 2024-11-15 09:17:22,857 [ERROR] - docker_builder - Unexpected error during build of 'picoquic_rfc9000_panther:latest': 'dict' object has no attribute 'decode'
-        # if log_level == logging.DEBUG:
-        #     self.plugin_loader.docker_builder.build_log_file = self.logs_dir / "docker_build.log"
-
         # File Handler
         panther_log_file = self.logs_dir / "experiment.log"
         panther_log_file.parent.mkdir(parents=True, exist_ok=True)

@@ -1,13 +1,10 @@
-# PANTHER-SCP/panther/config/config.py
-
 import importlib
 import logging
 import os
 from pathlib import Path
 import shutil
-from omegaconf import DictConfig, OmegaConf, ValidationError
+from omegaconf import DictConfig, OmegaConf, ValidationError, ListConfig
 import yaml
-
 from panther.config.config_global_schema import (
     DockerConfig,
     GlobalConfig,
@@ -19,8 +16,6 @@ from panther.config.config_experiment_schema import (
     ServiceConfig,
     TestConfig,
 )
-from panther.plugins.protocols.config_schema import ProtocolConfig
-from panther.plugins.services.iut.config_schema import ImplementationConfig
 from panther.plugins.plugin_loader import PluginLoader
 
 
@@ -75,7 +70,8 @@ class ConfigLoader:
         )
         OmegaConf.merge(PathsConfig, paths_config)
 
-        # optional_paths_config = AdditionalPathsConfig(  # TODO: Not used for now
+        # TODO: Not used for now
+        # optional_paths_config = AdditionalPathsConfig(
         #     exec_env_dir=self.exec_env_dir,
         #     net_env_dir=self.net_env_dir,
         #     iut_dir=self.iut_dir,
@@ -107,26 +103,72 @@ class ConfigLoader:
         return global_config
 
     def add_plugin_tester_service(self):
+        """
+        Adds a plugin tester service by copying tester files from the specified directory.
+
+        This method checks if the `testers_dir` attribute is set and not empty. If so, it converts
+        `testers_dir` to a `Path` object and constructs the target directory path for the testers.
+        It then calls the `copy_plugin_files` method to copy the tester files to the target directory.
+
+        Raises:
+            Exception: If the `testers_dir` attribute is not set or is empty.
+        """
         if self.testers_dir and self.testers_dir != "":
             print(f"Copying testers from {self.testers_dir}")
             self.testers_dir = Path(self.testers_dir)
             testers_target_dir = os.path.join(
                 "panther", "plugins", "services", "testers", self.testers_dir.name
             )
-            if not os.path.exists(testers_target_dir):
-                os.makedirs(testers_target_dir)
-            for item in os.listdir(self.testers_dir):
-                print(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
-                s = os.path.join(self.testers_dir, item)
-                d = os.path.join(testers_target_dir, item)
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
+            self.copy_plugin_files(testers_target_dir)
+
+    def copy_plugin_files(self, testers_target_dir):
+        """
+        Copies plugin files from the source directory to the target directory.
+
+        This method checks if the target directory exists, and if not, it creates it.
+        It then iterates through all items in the source directory (self.testers_dir),
+        and copies each item to the target directory. If an item is a directory, it
+        recursively copies the entire directory. If an item is a file, it copies the file.
+
+        Parameters:
+        testers_target_dir (str): The path to the target directory where plugin files
+                      should be copied.
+
+        Raises:
+        OSError: If the source directory does not exist or if there is an error during
+             the copying process.
+        """
+        if not os.path.exists(testers_target_dir):
+            os.makedirs(testers_target_dir)
+        for item in os.listdir(self.testers_dir):
+            print(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
+            s = os.path.join(self.testers_dir, item)
+            d = os.path.join(testers_target_dir, item)
+            if os.path.isdir(s):
+                if os.path.exists(d):
+                    shutil.rmtree(d)
+                shutil.copytree(s, d)
+            else:
+                shutil.copy2(s, d)
 
     def remove_plugin_tester_service(self):
+        """
+        Removes the plugin tester service directory if it exists.
+
+        This method checks if the `testers_dir` attribute is set and not empty.
+        If so, it constructs the path to the target directory within the
+        "panther/plugins/services/testers" directory. If the target directory
+        exists, it removes the directory and all its contents.
+
+        Attributes:
+            testers_dir (str): The directory path of the testers to be removed.
+
+        Side Effects:
+            Deletes the directory specified by `testers_dir` and all its contents.
+
+        Prints:
+            A message indicating the removal of the testers directory.
+        """
         if self.testers_dir and self.testers_dir != "":
             testers_target_dir = os.path.join(
                 "panther", "plugins", "services", "testers", Path(self.testers_dir).name
@@ -142,18 +184,7 @@ class ConfigLoader:
             iut_target_dir = os.path.join(
                 "panther", "plugins", "services", "iut", self.iut_dir.name
             )
-            if not os.path.exists(iut_target_dir):
-                os.makedirs(iut_target_dir)
-            for item in os.listdir(self.iut_dir):
-                print(f"Copying {item} from {self.iut_dir} to {iut_target_dir}")
-                s = os.path.join(self.iut_dir, item)
-                d = os.path.join(iut_target_dir, item)
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
+            self.copy_plugin_files(iut_target_dir)
 
     def remove_plugin_iut_service(self):
         if self.iut_dir and self.iut_dir != "":
@@ -176,18 +207,7 @@ class ConfigLoader:
                 "network_environment",
                 self.net_env_dir.name,
             )
-            if not os.path.exists(net_env_target_dir):
-                os.makedirs(net_env_target_dir)
-            for item in os.listdir(self.net_env_dir):
-                print(f"Copying {item} from {self.net_env_dir} to {net_env_target_dir}")
-                s = os.path.join(self.net_env_dir, item)
-                d = os.path.join(net_env_target_dir, item)
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
+            self.copy_plugin_files(net_env_target_dir)
 
     def remove_plugin_network_environment(self):
         if self.net_env_dir and self.net_env_dir != "":
@@ -214,20 +234,7 @@ class ConfigLoader:
                 "execution_environment",
                 self.exec_env_dir.name,
             )
-            if not os.path.exists(exec_env_target_dir):
-                os.makedirs(exec_env_target_dir)
-            for item in os.listdir(self.exec_env_dir):
-                print(
-                    f"Copying {item} from {self.exec_env_dir} to {exec_env_target_dir}"
-                )
-                s = os.path.join(self.exec_env_dir, item)
-                d = os.path.join(exec_env_target_dir, item)
-                if os.path.isdir(s):
-                    if os.path.exists(d):
-                        shutil.rmtree(d)
-                    shutil.copytree(s, d)
-                else:
-                    shutil.copy2(s, d)
+            self.copy_plugin_files(exec_env_target_dir)
 
     def remove_plugin_execution_environment(self):
         if self.exec_env_dir and self.exec_env_dir != "":
@@ -317,7 +324,7 @@ class ConfigLoader:
                 )  # Resolve protocol subclass
                 self.logger.debug(f"Protocol: {protocol}")
                 implementation = self.load_and_validate_implementation_config(
-                    service_data, protocol
+                    service_data
                 )
                 self.logger.debug(f"Implementation: {implementation}")
                 service = ServiceConfig(
@@ -333,6 +340,7 @@ class ConfigLoader:
                 OmegaConf.merge(ServiceConfig, service)
                 services[service_name] = service
 
+            # ##########################################################################################################
             # Construct the test configuration:
             # NOTE: We do not validate with merge here, as the schema is not fully compatible with OmegaConf
             # It is because NetworkEnvironmentConfig is a dataclass, and OmegaConf does not support nested dataclasses
@@ -342,17 +350,18 @@ class ConfigLoader:
             # And:
             # class DockerComposeConfig(NetworkEnvironmentConfig):
             #     type: str    = "docker_compose"
-            #     version: str = "3.8" # omegaconf.errors.ConfigKeyError: Key 'version' not in 'NetworkEnvironmentConfig'
+            #     version: str = "3.8"#omegaconf.errors.ConfigKeyError: Key 'version' not in 'NetworkEnvironmentConfig'
             #     network_name: str = "default_network"
             #     service_prefix: Optional[str] = None  # Optional prefix for service names
             #     volumes: List[str] = field(default_factory=list)  # List of volume mounts
             #     environment: Dict[str, str] = field(default_factory=dict)  # Environment variables
-
             # Thus we prelinarily validate the network environment configuration,
             # It will thus ignore non defined fields in the schema -> not ideal for validation
             # We will need to find a way to validate nested dataclasses with OmegaConf
             # TODO if tests name is undefined, use the service name + other parameters
             # TODO if we use the validated version -> bugs (but it should be enough to validate format)
+            # ##########################################################################################################
+
             test = TestConfig(
                 name=test_data["name"],
                 description=test_data["description"],
@@ -371,7 +380,7 @@ class ConfigLoader:
         )
         return experiment_config
 
-    def load_and_validate_experiment_config(self) -> DictConfig:
+    def load_and_validate_experiment_config(self) -> ExperimentConfig:
         """
         Load and validate the entire experiment configuration, including plugin-specific validation.
 
@@ -404,7 +413,7 @@ class ConfigLoader:
             self.logger.error(f"Unexpected error during configuration loading: {e}")
             raise
 
-    def load_and_validate_global_config(self) -> DictConfig:
+    def load_and_validate_global_config(self) -> GlobalConfig:
         """
         Load and validate the entire experiment configuration, including plugin-specific validation.
         Note no logger is used here.
@@ -436,7 +445,8 @@ class ConfigLoader:
             print(f"Unexpected error during configuration loading: {e}")
             raise
 
-    def load_plugin_schema(self, plugin_type: str, plugin_name: str):
+    @staticmethod
+    def load_plugin_schema(plugin_type: str, plugin_name: str):
         """
         Dynamically load a plugin schema based on its type and name.
 
@@ -462,7 +472,7 @@ class ConfigLoader:
 
     def load_and_validate_protocol_config(
         self, implementation: ServiceConfig
-    ) -> ProtocolConfig:
+    ) -> ListConfig | DictConfig:
         """
         Dynamically loads the appropriate implementation configuration class.
 
@@ -475,7 +485,10 @@ class ConfigLoader:
             protocol_type = implementation.protocol.protocol_type
         else:
             protocol_type = "client_server"  # TODO: Default to client-server for now
-        module_path = f"panther.plugins.protocols.{protocol_type}.{protocol}.config_schema"  # Assuming schema files are in plugins
+            # Assuming schema files are in plugins
+        module_path = (
+            f"panther.plugins.protocols.{protocol_type}.{protocol}.config_schema"
+        )
         try:
             # Import the module and dynamically get the class
             schema_module = importlib.import_module(module_path)
@@ -489,23 +502,21 @@ class ConfigLoader:
             raise ValueError(f"Failed to load protocol config for '{protocol}': {e}")
 
     def load_and_validate_implementation_config(
-        self, implementation: dict, protocol_conf: ProtocolConfig
-    ) -> ImplementationConfig:
+        self, implementation: dict
+    ) -> ListConfig | DictConfig:
         """
         Dynamically loads the appropriate implementation configuration class.
-
-        :param implementation: A dictionary containing `name` and other fields.
-        :return: An instance of the dynamically loaded configuration class.
         """
-        self.logger.debug(f"Implementation: {implementation} - {protocol_conf}")
+        self.logger.debug(f"Implementation: {implementation}")
         name = implementation["implementation"]["name"]
-        type = implementation["implementation"]["type"]
+        implem_type = implementation["implementation"]["type"]
         protocol = implementation["protocol"]["name"]
         protocol_version = implementation["protocol"]["version"]
-        if type == "iut":
-            module_path = f"panther.plugins.services.{type}.{protocol}.{name}.config_schema"  # Assuming schema files are in plugins
+        if implem_type == "iut":
+            # Assuming schema files are in plugins
+            module_path = f"panther.plugins.services.{implem_type}.{protocol}.{name}.config_schema"
         else:
-            module_path = f"panther.plugins.services.{type}.{name}.config_schema"
+            module_path = f"panther.plugins.services.{implem_type}.{name}.config_schema"
 
         self.logger.debug(f"Module path: {module_path}")
         try:
@@ -520,7 +531,7 @@ class ConfigLoader:
             # Load the version configuration
             version_class_name = PluginLoader.get_class_name(name, "Version")
             version_config_class = getattr(schema_module, version_class_name)
-            if type == "iut":
+            if implem_type == "iut":
                 version_configs_dir = module_path.replace(".", "/").replace(
                     "/config_schema", "/version_configs/"
                 )

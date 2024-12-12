@@ -58,6 +58,3 @@ class ExperimentConfig:
     tests: list[TestConfig] = field(
         default_factory=lambda: [TestConfig]
     )  # Required list of tests
-
-    def __name__(self):
-        return "ExperimentConfig"

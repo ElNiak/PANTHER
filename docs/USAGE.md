@@ -63,12 +63,12 @@
 # Start a Docker container for interactive Bash access
 IMPLEM="picoquic" make start-bash
 python3.10 panther.py --mode client --categories all --update_include_tls \
-		--timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29  
+		--timeout 180 --implementations $(IMPLEM) --iter $(ITER) --compile  --initial_version 29 --alpn hq-29
 # Example: Runs a Docker container with 'picoquic' for interactive Bash access
 ```
 
 
-## :whale: WebApp (Recommended) 
+## :whale: WebApp (Recommended)
 
 Update the `docker-compose.yml` file with the protocol implementation and run the following command:
 
@@ -220,7 +220,7 @@ WORKDIR /PANTHER
     environment:
       - DISPLAY=${DISPLAY}
       - XAUTHORITY=~/.Xauthority
-      - ROOT_PATH=${PWD} 
+      - ROOT_PATH=${PWD}
       - MPLBACKEND='Agg'
     restart: always
     devices:
@@ -262,7 +262,7 @@ TODO
 
 
 ---
- 
+
 -->
 
 
@@ -286,4 +286,4 @@ TODO
 
 
 
---- 
+---

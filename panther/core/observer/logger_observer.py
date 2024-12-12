@@ -1,8 +1,7 @@
-
-import asyncio
 import logging
 from panther.core.observer.observer_interface import IObserver
 from panther.core.observer.event import Event
+
 
 class LoggerObserver(IObserver):
     """
@@ -16,10 +15,9 @@ class LoggerObserver(IObserver):
             Raises:
                 NotImplementedError: This method should be overridden in subclasses.
     """
+
     def __init__(self):
         self.logger = logging.getLogger("LoggingObserver")
-
-
 
     def on_event(self, event: Event):
         """
@@ -28,4 +26,3 @@ class LoggerObserver(IObserver):
         :param event: The event to handle.
         """
         self.logger.info(f"Received event '{event.name}' with data: {event.data}")
-    

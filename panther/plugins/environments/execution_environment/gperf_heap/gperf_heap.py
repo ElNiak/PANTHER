@@ -1,68 +1,70 @@
-import os
-import logging
-from pathlib import Path
-from typing import Dict, Any, List, Optional
+from abc import ABC
 
 from omegaconf import OmegaConf
 
 from panther.core.observer.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
-from panther.plugins.environments.execution_environment.gperf_heap.config_schema import GperfHeapConfig
-from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.environments.execution_environment.gperf_heap.config_schema import (
+    GperfHeapConfig,
+)
+from panther.plugins.environments.execution_environment.execution_environment_interface import (
+    IExecutionEnvironment,
+)
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
 
-class GperfHeapEnvironment(IExecutionEnvironment):
+
+class GperfHeapEnvironment(IExecutionEnvironment, ABC):
     def __init__(
         self,
         env_config_to_test: GperfHeapConfig,
         output_dir: str,
         env_type: str,
         env_sub_type: str,
-        event_manager: EventManager
+        event_manager: EventManager,
     ):
-        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
+        super().__init__(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
+        self.global_config = None
         self.env_config_to_test = env_config_to_test
-    
-    def setup_environment(
-        self, 
-        services_managers: List[IServiceManager], 
-        test_config: TestConfig, 
-        global_config: GlobalConfig,
-        timestamp: str, 
-        plugin_loader: PluginLoader, 
-    ):
-        """
-        Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
 
-        :param services: Dictionary of services with their configurations.
-        :param deployment_info: Dictionary containing commands and volumes for each service.
-        :param paths: Dictionary containing various path configurations.
-        :param timestamp: The timestamp string to include in log paths.
-        """
-        self.services_managers : List[IServiceManager] = services_managers
+    def setup_environment(
+        self,
+        services_managers: list[IServiceManager],
+        test_config: TestConfig,
+        global_config: GlobalConfig,
+        timestamp: str,
+        plugin_loader: PluginLoader,
+    ):
+        """ """
+        self.services_managers: list[IServiceManager] = services_managers
         self.test_config = test_config
         self.plugin_loader = plugin_loader
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
         self.logger.debug(f"Services config: {self.env_config_to_test}")
+
         for service in self.services_managers:
             self.logger.debug(f"Service cmds: {service.run_cmd}")
             if service.service_config_to_test.implementation.gperf_compatible:
                 service.environments["GPERF"] = True
-                service.run_cmd["run_cmd"]["command_env"]["HEAPPROFILE"] = f"/app/logs/{service.service_name}_heap.prof"
+                service.run_cmd["run_cmd"]["command_env"][
+                    "HEAPPROFILE"
+                ] = f"/app/logs/{service.service_name}_heap.prof"
                 # service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command(service.service_name)]
-                service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [f"pprof --pdf /app/logs/{service.service_name}_heap.prof > /app/logs/{service.service_name}_heap.pdf"]
+                service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [
+                    f"pprof --pdf /app/logs/{service.service_name}_heap.prof > /app/logs/{service.service_name}_heap.pdf"
+                ]
                 self.logger.debug(f"Service cmds: {service.run_cmd}")
             else:
                 self.logger.debug(f"Service {service} is not gperf compatible")
-            
-            
+
         self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
         self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
-    
-    def to_command(self,service_name:str) -> str:
+
+    def to_command(self, service_name: str) -> str:
         """
         Generate the gperf command based on the configuration.
         """
@@ -75,7 +77,7 @@ class GperfHeapEnvironment(IExecutionEnvironment):
             # includes=["my_header.h"],
             # other_flags=["--ignore-case"]
         )
-        command = [ "gperf"]
+        command = ["gperf"]
 
         # Input and output files
         if conf.input_file:
@@ -109,16 +111,10 @@ class GperfHeapEnvironment(IExecutionEnvironment):
 
         # Other flags
         command.extend(conf.other_flags)
-        
+
         # Join and return the command
-        return  f" ".join(command)
+        return " ".join(command)
 
-
-
-        
-    def teardown_environment(self):
-        raise NotImplementedError
-    
     def __repr__(self):
         return (
             f"GperfEnvironment("

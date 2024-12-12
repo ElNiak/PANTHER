@@ -5,7 +5,7 @@ from panther.plugins.environments.execution_environment.config_schema import (
 
 
 @dataclass
-class GperfHeapConfig(ExecutionEnvironmentConfig):
+class GperfCpuConfig(ExecutionEnvironmentConfig):
     """
     Configuration for gperf command generation.
     """

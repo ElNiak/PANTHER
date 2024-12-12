@@ -1,19 +1,14 @@
 # PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
 
 import subprocess
-import logging
 import os
-from typing import Any, Dict, Optional
-from omegaconf import OmegaConf
-import yaml
 import traceback
-from panther.config.config_experiment_schema import ServiceConfig
 from panther.plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader, Template
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+
 
 # TODO Tom create test template for QUIC implementations new users
 
@@ -37,27 +32,6 @@ class PicoquicServiceManager(IImplementationManager):
         )
         self.initialize_commands()
 
-    def get_service_name(self) -> str:
-        return self.service_name
-
-    def generate_pre_compile_commands(self):
-        """
-        Generates pre-compile commands.
-        """
-        return super().generate_pre_compile_commands() + []
-
-    def generate_compile_commands(self):
-        """
-        Generates compile commands.
-        """
-        return super().generate_compile_commands() + []
-
-    def generate_pre_run_commands(self):
-        """
-        Generates pre-run commands.
-        """
-        return super().generate_pre_run_commands() + []
-
     def generate_run_command(self):
         """
         Generates the run command.
@@ -79,21 +53,32 @@ class PicoquicServiceManager(IImplementationManager):
         """
         Generates post-run commands.
         """
-        return super().generate_post_run_commands() + ["cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"]
+        return super().generate_post_run_commands() + [
+            "cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"
+        ]
 
-    def prepare(self, plugin_loader: Optional[PluginLoader] = None):
+    def prepare(self, plugin_loader: PluginLoader | None = None):
         """
         Prepare the service manager for use.
         """
         self.logger.debug("Preparing Picoquic service manager...")
-        plugin_loader.build_docker_image_from_path(Path(os.path.join(
-            os.getcwd(),
-            "panther",
-            "plugins",
-            "services",
-            "Dockerfile",
-        )),"panther_base","service")
-        plugin_loader.build_docker_image(self.get_implementation_name(), self.service_config_to_test.implementation.version)
+        plugin_loader.build_docker_image_from_path(
+            Path(
+                os.path.join(
+                    os.getcwd(),
+                    "panther",
+                    "plugins",
+                    "services",
+                    "Dockerfile",
+                )
+            ),
+            "panther_base",
+            "service",
+        )
+        plugin_loader.build_docker_image(
+            self.get_implementation_name(),
+            self.service_config_to_test.implementation.version,
+        )
 
     def generate_deployment_commands(self) -> str:
         """
@@ -111,8 +96,6 @@ class PicoquicServiceManager(IImplementationManager):
         self.logger.debug(f"Role: {self.role}, Version: {self.service_version}")
 
         # Determine if network interface parameters should be included based on environment
-        # TODO
-        # include_interface = environment not in ["docker_compose"]
         include_interface = True
 
         # Build parameters for the command template
@@ -122,41 +105,15 @@ class PicoquicServiceManager(IImplementationManager):
         # For the client, include target and message if available
         elif self.role == RoleEnum.client:
             params = self.service_config_to_test.implementation.version.client
-        
+
         params["target"] = self.service_config_to_test.protocol.target
-        
+
         self.logger.debug(f"Parameters for command template: {params}")
         self.logger.debug(f"Role: {self.role}")
         self.working_dir = params["binary"]["dir"]
         # Conditionally include network interface parameters
         if not include_interface:
             params["network"].pop("interface", None)
-
-        # Collect volume mappings
-        # Only add certificate volumes if the user doesn't want to generate new certificates
-        # if not self.service_config_to_test.generate_new_certificates:
-        #     # Certificates
-        #     self.volumes.append(
-        #         {
-        #             "local": os.path.abspath(params["certificates"]["cert_local_file"]),
-        #             "container": params["certificates"]["cert_file"],
-        #         }
-        #     )
-        #     self.volumes.append(
-        #         {
-        #             "local": os.path.abspath(params["certificates"]["key_local_file"]),
-        #             "container": params["certificates"]["key_file"],
-        #         }
-        #     )
-
-        # Ticket file (if applicable)
-        if params["ticket_file"]["local_file"]:
-            self.volumes.append(
-                {
-                    "local": os.path.abspath(params["ticket_file"]["local_file"]),
-                    "container": params["ticket_file"]["file"],
-                }
-            )
         else:
             # TODO add that in the Dockerfile
             subprocess.run(["bash", "generate_certificates.sh"])
@@ -164,19 +121,7 @@ class PicoquicServiceManager(IImplementationManager):
         # Render the appropriate template
         try:
             template_name = f"{str(self.role.name)}_command.jinja"
-            self.logger.debug(
-                f"Rendering command using template '{template_name}' with parameters: {params}"
-            )
-            template = self.jinja_env.get_template(template_name)
-            command = template.render(**params)
-
-            # Clean up the command string
-            command_str = command.replace("\t", " ").replace("\n", " ").strip()
-
-            service_name = self.service_config_to_test.name
-            self.logger.debug(f"Generated command for '{service_name}': {command_str}")
-            return command_str
-        
+            return super().render_commands(params, template_name)
         except Exception as e:
             self.logger.error(
                 f"Failed to render command for service '{self.service_config_to_test.name}': {e}\n{traceback.format_exc()}"

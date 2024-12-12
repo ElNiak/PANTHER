@@ -1,10 +1,9 @@
-
 from panther.core.results.result_handler import ResultHandler
 
 
 class ValidationHandler(ResultHandler):
     """
-    A handler class for validating experiment results according to the environment 
+    A handler class for validating experiment results according to the environment
     and the implementation under test.
     Attributes:
         validator: An instance of a validator that will be used to validate the request.
@@ -12,9 +11,10 @@ class ValidationHandler(ResultHandler):
         handle(request):
             Validates the given request using the validator instance.
     """
-    
-    def __init__(self, validator) -> None:
+
+    def __init__(self, validator, output_dir: str, experiment_name: str) -> None:
+        super().__init__(output_dir, experiment_name)
         self.validator = validator
-        
+
     def handle(self, request) -> None:
         self.validator.validate(request)

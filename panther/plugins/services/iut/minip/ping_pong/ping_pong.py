@@ -1,18 +1,11 @@
-# PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
-
-import subprocess
-import logging
 import os
-from typing import Any, Dict, Optional
-from omegaconf import OmegaConf
-import yaml
 import traceback
-from panther.config.config_experiment_schema import ServiceConfig
 from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+
 
 class PingPongServiceManager(IImplementationManager):
     def __init__(
@@ -33,10 +26,6 @@ class PingPongServiceManager(IImplementationManager):
         )
         self.initialize_commands()
 
-
-    def get_service_name(self) -> str:
-        return self.service_name
-
     def generate_pre_compile_commands(self):
         """
         Generates pre-compile commands.
@@ -44,21 +33,21 @@ class PingPongServiceManager(IImplementationManager):
         return super().generate_pre_compile_commands() + [
             "TARGET_IP=$(getent hosts "
             + self.service_targets
-            + ' | awk "{ print \$1 }");',
+            + r' | awk "{ print \$1 }");',
             'echo "Resolved '
             + self.service_targets
             + ' IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;',
-            'IVY_IP=$(hostname -I | awk "{ print \$1 }");',
+            r'IVY_IP=$(hostname -I | awk "{ print \$1 }");',
             'echo "Resolved  '
             + self.service_name
             + ' IP - $$IVY_IP" >> /app/logs/ivy_setup.log;',
             " ",
             "ip_to_hex() {",
-            '  echo $1 | awk -F"." "{ printf(\\"%02X%02X%02X%02X\\", \$1, \$2, \$3, \$4) }";',
+            '  echo $1 | awk -F"." "{ printf(\\"%02X%02X%02X%02X\\", \\$1, \\$2, \\$3, \\$4) }";',
             "}",
             " ",
             "ip_to_decimal() {",
-            '  echo $1 | awk -F"." "{ printf(\\"%.0f\\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";',
+            '  echo $1 | awk -F"." "{ printf(\\"%.0f\\", (\\$1 * 256 * 256 * 256) + (\\$2 * 256 * 256) + (\\$3 * 256) + \\$4) }";',
             "}",
             " ",
             "TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);",
@@ -70,18 +59,6 @@ class PingPongServiceManager(IImplementationManager):
             + self.service_name
             + ' IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;',
         ]
-
-    def generate_compile_commands(self):
-        """
-        Generates compile commands.
-        """
-        return super().generate_compile_commands() + []
-
-    def generate_pre_run_commands(self):
-        """
-        Generates pre-run commands.
-        """
-        return super().generate_pre_run_commands() + []
 
     def generate_run_command(self):
         """
@@ -108,19 +85,28 @@ class PingPongServiceManager(IImplementationManager):
             "cp /opt/ping-pong/miniP_* /app/logs/miniP_*;"
         ]
 
-    def prepare(self, plugin_loader: Optional[PluginLoader] = None):
+    def prepare(self, plugin_loader: PluginLoader | None = None):
         """
         Prepare the service manager for use.
         """
         self.logger.debug("Preparing PingPong service manager...")
-        plugin_loader.build_docker_image_from_path(Path(os.path.join(
-            os.getcwd(),
-            "panther",
-            "plugins",
-            "services",
-            "Dockerfile",
-        )),"panther_base","service")
-        plugin_loader.build_docker_image(self.get_implementation_name(), self.service_config_to_test.implementation.version)
+        plugin_loader.build_docker_image_from_path(
+            Path(
+                os.path.join(
+                    os.getcwd(),
+                    "panther",
+                    "plugins",
+                    "services",
+                    "Dockerfile",
+                )
+            ),
+            "panther_base",
+            "service",
+        )
+        plugin_loader.build_docker_image(
+            self.get_implementation_name(),
+            self.service_config_to_test.implementation.version,
+        )
 
     def generate_deployment_commands(self) -> str:
         """
@@ -144,30 +130,17 @@ class PingPongServiceManager(IImplementationManager):
         # For the client, include target and message if available
         elif self.role == RoleEnum.client:
             params = self.service_config_to_test.implementation.version.client
-        
+
         params["target"] = "$$TARGET_IP_HEX"
-        
+
         self.logger.debug(f"Parameters for command template: {params}")
         self.logger.debug(f"Role: {self.role.name}")
         self.working_dir = params["binary"]["dir"]
-        # Conditionally include network interface parameters
-    
+
         # Render the appropriate template
         try:
             template_name = f"{str(self.role.name)}_command.jinja"
-            self.logger.debug(
-                f"Rendering command using template '{template_name}' with parameters: {params}"
-            )
-            template = self.jinja_env.get_template(template_name)
-            command = template.render(**params)
-
-            # Clean up the command string
-            command_str = command.replace("\t", " ").replace("\n", " ").strip()
-
-            service_name = self.service_config_to_test.name
-            self.logger.debug(f"Generated command for '{service_name}': {command_str}")
-            return command_str
-        
+            return super().render_commands(params, template_name)
         except Exception as e:
             self.logger.error(
                 f"Failed to render command for service '{self.service_config_to_test.name}': {e}\n{traceback.format_exc()}"

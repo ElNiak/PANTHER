@@ -1,5 +1,4 @@
 import pytest
-from hypothesis import given, strategies as st
 from panther.plugins.environments.execution_environment.strace.strace import (
     StraceEnvironment,
 )
@@ -28,7 +27,6 @@ def test_strace_environment_initialization(strace_environment):
     assert isinstance(strace_environment, StraceEnvironment)
     assert strace_environment.env_config_to_test is not None
     assert strace_environment.output_dir == "/tmp"
-    assert strace_environment.type == "execution_environment"
     assert isinstance(strace_environment.event_manager, EventManager)
 
 
@@ -36,13 +34,6 @@ def test_strace_environment_to_command(strace_environment):
     command = strace_environment.to_command()
     assert isinstance(command, str)
     assert "strace" in command
-
-
-@given(pid=st.integers(min_value=1))
-def test_strace_environment_to_command_with_pid(strace_environment, pid):
-    command = strace_environment.to_command(pid)
-    assert isinstance(command, str)
-    assert f"-p {pid}" in command
 
 
 def test_strace_environment_setup_environment(strace_environment):

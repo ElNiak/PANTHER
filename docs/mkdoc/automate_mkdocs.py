@@ -2,17 +2,17 @@
 
 import ast
 import importlib
-import re
-import json, yaml
+import json
+import yaml
 from collections import defaultdict
 from pathlib import Path
-from typing import Union, get_type_hints
 import sys
 
-sys.path.append('panther/')
-sys.path.append('panther/panther_scalability/')
-sys.path.append('panther/panther_worker/app/')
-sys.path.append('panther/panther_webapp/app/')
+sys.path.append("panther/")
+sys.path.append("panther/panther_scalability/")
+sys.path.append("panther/panther_worker/app/")
+sys.path.append("panther/panther_webapp/app/")
+
 
 def add_val(indices, value, data):
     if not len(indices):
@@ -22,8 +22,9 @@ def add_val(indices, value, data):
         element = element[index]
     element[indices[-1]] = value
 
+
 def automate_mkdocs_from_docstring(
-    mkdocs_dir: Union[str, Path], mkgendocs_f: str, repo_dir: Path, match_string: str
+    mkdocs_dir: str | Path, mkgendocs_f: str, repo_dir: Path, match_string: str
 ) -> dict:
     """Automates the -pages for mkgendocs package by adding all Python functions in a directory to the mkgendocs config.
     Args:
@@ -38,10 +39,12 @@ def automate_mkdocs_from_docstring(
         list: list of created markdown files and their relative paths
 
     """
-    p = repo_dir.glob('**/*.py')
+    p = repo_dir.glob("**/*.py")
     scripts = [x for x in p if x.is_file()]
 
-    if Path.cwd() != repo_dir:  # look for mkgendocs.yml in the parent file if a subdirectory is used
+    if (
+        Path.cwd() != repo_dir
+    ):  # look for mkgendocs.yml in the parent file if a subdirectory is used
         repo_dir = repo_dir.parent
 
     functions = defaultdict(dict)
@@ -49,21 +52,32 @@ def automate_mkdocs_from_docstring(
     full_repo_dir = str(repo_dir) + "/"
     for script in scripts:
         print("Current script: ", script)
-        if "/panther-ivy/" in str(script) or "/ivy_utils/" in str(script) or "/scripts/" in str(script) or "/outputs/" in str(script) or "/quic-implementations" in str(script) or "/tmp/" in str(script):
+        if (
+            "/panther-ivy/" in str(script)
+            or "/ivy_utils/" in str(script)
+            or "/scripts/" in str(script)
+            or "/outputs/" in str(script)
+            or "/quic-implementations" in str(script)
+            or "/tmp/" in str(script)
+        ):
             continue
-        with open(script, 'r') as source:
+        with open(script) as source:
             tree = ast.parse(source.read())
-        funcs = {
-        "classes":[],
-        "functions":[]
-        }
+        funcs = {"classes": [], "functions": []}
         for child in ast.iter_child_nodes(tree):
             print("Current child: ", child)
             try:
-                if isinstance(child, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-                    if child.name not in ['main']:
+                if isinstance(
+                    child, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)
+                ):
+                    if child.name not in ["main"]:
                         # script = script.replace("/panther/", "/")
-                        relative_path = str(script).replace(full_repo_dir, "").replace("/", ".").replace(".py", "")
+                        relative_path = (
+                            str(script)
+                            .replace(full_repo_dir, "")
+                            .replace("/", ".")
+                            .replace(".py", "")
+                        )
                         print("Relative path: ", relative_path)
                         module = importlib.import_module(relative_path)
                         print("Module: ", module)
@@ -86,25 +100,25 @@ def automate_mkdocs_from_docstring(
             funcs.pop("functions")
         if funcs:
             functions[script] = funcs
-    with open(f'{repo_dir}/{mkgendocs_f}', 'r+') as mkgen_config:
-        insert_string = ''
+    with open(f"{repo_dir}/{mkgendocs_f}", "r+") as mkgen_config:
+        insert_string = ""
         for path, function_names in functions.items():
             relative_path = str(path).replace(full_repo_dir, "").replace(".py", "")
             insert_string += (
                 f'  - page: "{mkdocs_dir}/{relative_path}.md"\n    '
-                f'source: "{relative_path}.py"\n'    #functions:\n'
+                f'source: "{relative_path}.py"\n'  # functions:\n'
             )
             page = f"{mkdocs_dir}/{relative_path}"
             split_page = page.split("/")
             split_page = ["  - " + s for s in split_page]
-            page += f".md"
+            page += ".md"
 
             add_val(split_page, page, structure)
             for class_name, class_list in function_names.items():
-                insert_string += f'    {class_name}:\n'
-                f_string = ''
+                insert_string += f"    {class_name}:\n"
+                f_string = ""
                 for f in class_list:
-                    insert_f_string = f'      - {f}\n'
+                    insert_f_string = f"      - {f}\n"
                     f_string += insert_f_string
 
                 insert_string += f_string
@@ -122,14 +136,18 @@ def automate_mkdocs_from_docstring(
                     contents.append(insert_string)
                     break
 
-    with open(f'{repo_dir}/{mkgendocs_f}', 'w') as mkgen_config:
+    with open(f"{repo_dir}/{mkgendocs_f}", "w") as mkgen_config:
         mkgen_config.writelines(contents)
 
     return structure
 
 
 def automate_nav_structure(
-    mkdocs_dir: Union[str, Path], mkdocs_f: str, repo_dir: Path, match_string: str, structure: dict
+    mkdocs_dir: str | Path,
+    mkdocs_f: str,
+    repo_dir: Path,
+    match_string: str,
+    structure: dict,
 ) -> str:
     """Automates the -pages for mkgendocs package by adding all Python functions in a directory to the mkgendocs config.
     Args:
@@ -144,9 +162,11 @@ def automate_nav_structure(
         str: feedback message
 
     """
-    insert_string = yaml.safe_dump(json.loads(json.dumps(structure, indent=4))).replace("'", "")
+    insert_string = yaml.safe_dump(json.loads(json.dumps(structure, indent=4))).replace(
+        "'", ""
+    )
     # print(structure)
-    with open(f'{repo_dir}/{mkdocs_f}', 'r+') as mkgen_config:
+    with open(f"{repo_dir}/{mkdocs_f}", "r+") as mkgen_config:
         contents = mkgen_config.readlines()
         if match_string in contents[-1]:
             contents.append(insert_string)
@@ -159,7 +179,7 @@ def automate_nav_structure(
                     contents.append(insert_string)
                     break
 
-    with open(f'{repo_dir}/{mkdocs_f}', 'w') as mkgen_config:
+    with open(f"{repo_dir}/{mkdocs_f}", "w") as mkgen_config:
         mkgen_config.writelines(contents)
 
 
@@ -176,7 +196,6 @@ def fix(f):
     return lambda *args, **kwargs: f(fix(f), *args, **kwargs)
 
 
-
 def indent(string: str) -> int:
     """Count the indentation in whitespace characters.
     Args:
@@ -185,30 +204,31 @@ def indent(string: str) -> int:
         int: Number of whitespace indentations
 
     """
-    return sum(4 if char == '\t' else 1 for char in string[: -len(string.lstrip())])
+    return sum(4 if char == "\t" else 1 for char in string[: -len(string.lstrip())])
+
 
 def main():
     """Execute when running this script."""
-    python_tips_dir = Path.cwd().joinpath('')
+    python_tips_dir = Path.cwd().joinpath("")
     # python_tips_dir = Path.cwd().joinpath("Python tips")
 
     # docstring_from_type_hints(python_tips_dir, overwrite_script=True, test=False)
 
     structure = automate_mkdocs_from_docstring(
-        mkdocs_dir='.',
-        mkgendocs_f='mkgendocs.yml',
+        mkdocs_dir=".",
+        mkgendocs_f="mkgendocs.yml",
         repo_dir=python_tips_dir,
-        match_string='pages:\n',
+        match_string="pages:\n",
     )
 
     automate_nav_structure(
-        mkdocs_dir='.',
-        mkdocs_f='mkdocs.yaml',
+        mkdocs_dir=".",
+        mkdocs_f="mkdocs.yaml",
         repo_dir=python_tips_dir,
-        match_string='- Home: index.md\n',
-        structure=structure
+        match_string="- Home: index.md\n",
+        structure=structure,
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

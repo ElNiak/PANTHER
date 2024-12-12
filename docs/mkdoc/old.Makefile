@@ -50,10 +50,10 @@ checkout-git:
     # Specific commits are checked out for each submodule to ensure consistency and reproducibility
 	cd src/Protocols-Ivy/submodules/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76
     # QUIC implementations
-	cd panther/panther_worker/app/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 
+	cd panther/panther_worker/app/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7;
 	cd panther/panther_worker/app/implementations/quic-implementations/quant/; git checkout 9e309c05f79fb6aa3889dcf7df60b550249d2a2a;  git submodule update --init --recursive
-	cd panther/panther_worker/app/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7; 
-	cd panther/panther_worker/app/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76; 
+	cd panther/panther_worker/app/implementations/quic-implementations/picoquic/; git checkout bb67995f2d7c0e577c2c8788313c3b580d3df9a7;
+	cd panther/panther_worker/app/implementations/quic-implementations/picotls/; git checkout 047c5fe20bb9ea91c1caded8977134f19681ec76;
 
 ###################################################################################################
 # Side tools building COMMANDS
@@ -74,7 +74,7 @@ build-docker:
 	sudo chown -R $(USER):$(GROUPS) $(PWD)/src/Protocols-Ivy/
     # Build a series of Docker images, each dependent on the previous, for various testing environments
 	docker build --network=host --rm -t ubuntu-ivy -f src/containers/Dockerfile.ubuntu .
-    # [+] Building 1046.5s (19/19) FINISHED     
+    # [+] Building 1046.5s (19/19) FINISHED
 	docker build --network=host --rm -t ivy -f src/containers/Dockerfile.ivy_1 .
 	docker build --network=host --rm -t shadow-ivy -f src/containers/Dockerfile.shadow .
 	docker build --network=host --rm -t shadow-ivy-picotls -f src/containers/Dockerfile.picotls --build-arg image=shadow-ivy .
@@ -111,7 +111,7 @@ build-docker-compose:
 	# IMPLEM="ping-pong-fail" make build-docker-impem
     # CoAP
     # ...
-    # BGP 
+    # BGP
     # ...
     # QUIC tools
 	# make build-docker-visualizer
@@ -133,7 +133,7 @@ build-docker-compose-full:
 	# IMPLEM="ping-pong-fail" make build-docker-impem
     # CoAP
     # ...
-    # BGP 
+    # BGP
     # ...
     # QUIC tools
 	# make build-docker-visualizer # TODO upgrade nodejs

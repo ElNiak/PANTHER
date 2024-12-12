@@ -14,7 +14,7 @@
 
 * Refactor models
    * Add comments
-   * remove deadcode 
+   * remove deadcode
 
 * Result Handler
 
@@ -23,15 +23,15 @@
 * Create single container for IUT -> less disk used
    * Still ok ?
    * Create new docker-compose/swarm per experience ?
-      * with docker network ? we need to create route 
+      * with docker network ? we need to create route
    * What about when using shddow ? We send binary to shadow container ?
- 
+
 * Improving config files
    * removing duplicate
    * Add classes to save the states
-     
+
 * documentation + comments
-  
+
 * Refactor the python code itself
 
 * Better outputs managements
@@ -45,7 +45,7 @@
 ## PANTHER webapp
 
 * refactor /creator with accordingly -> to allow and adapt multiple protocol
-   * https://github.com/Kanaries/pygwalker 
+   * https://github.com/Kanaries/pygwalker
 
 * refactor /result with accordingly -> to allow and adapt multiple protocol
 

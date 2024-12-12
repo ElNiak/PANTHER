@@ -1,8 +1,7 @@
-# PANTHER-SCP/panther/core/observer/result_observer.py
-
 import logging
 from panther.core.observer.observer_interface import IObserver
 from panther.core.observer.event import Event
+
 
 class ResultObserver(IObserver):
     def __init__(self):

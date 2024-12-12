@@ -1,4 +1,3 @@
-
 from panther.core.results.result_handler import ResultHandler
 
 
@@ -13,9 +12,9 @@ class LocalStorageHandler(ResultHandler):
         handle(request) -> None:
             Stores the request in the local database.
     """
-    
+
     def __init__(self, db) -> None:
         self.db = db
-        
+
     def handle(self, request) -> None:
         self.db.store(request)

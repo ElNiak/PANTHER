@@ -1,16 +1,7 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 import logging
-import os
-from pathlib import Path
-import traceback
-from typing import Any, Dict
 
-import yaml
 
 class IPlugin(ABC):
-    def __init__(
-        self
-    ):
+    def __init__(self):
         self.logger = logging.getLogger(__class__.__name__)
-
-    

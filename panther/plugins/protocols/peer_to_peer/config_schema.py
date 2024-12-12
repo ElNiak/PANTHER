@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Type
 
 from panther.plugins.protocols.config_schema import ProtocolBase
 
+
 @dataclass
 class PeerToPeerProtocol(ProtocolBase):
-    peers: List[str] = field(default_factory=list)
+    peers: list[str] = field(default_factory=list)

@@ -1,11 +1,10 @@
-# PANTHER-SCP/panther/panther_cli.py
-
 import argparse
 import logging
 import sys
 from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
 from panther.webapp.web_app import run
+
 
 # TODO create singleton plugin_loader ?
 
@@ -110,18 +109,6 @@ def main():
                 raise e
             finally:
                 config_loader.cleanup()
-
-
-def main_web():
-    try:
-        run()
-    except Exception as e:
-        logging.error(e)
-    finally:
-        sys.stdout.close()
-        sys.stderr.close()
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
 
 
 if __name__ == "__main__":

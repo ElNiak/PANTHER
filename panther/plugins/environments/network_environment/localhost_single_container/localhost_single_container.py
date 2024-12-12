@@ -2,21 +2,52 @@ import os
 from pathlib import Path
 import subprocess
 import traceback
-from typing import Dict, Any, List
-from omegaconf import OmegaConf
-import yaml
 from panther.core.observer.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
-from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.services.services_interface import IServiceManager
-from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
+from panther.plugins.environments.execution_environment.execution_environment_interface import (
+    IExecutionEnvironment,
+)
 from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
+from panther.plugins.environments.network_environment.network_environment_interface import (
+    INetworkEnvironment,
+)
 from panther.core.observer.event import Event
 
+
 class LocalhostSingleContainerEnvironment(INetworkEnvironment):
+    """
+    LocalhostSingleContainerEnvironment is a class that manages a single container environment on localhost for testing purposes.
+    It extends the INetworkEnvironment interface and provides methods to prepare, set up, deploy, monitor, and tear down the environment.
+
+    Attributes:
+        docker_version (str): The version of Docker to use.
+        docker_name (str): The name prefix for the Docker container.
+        services_network_config_file_path (Path): Path to the generated run.sh file.
+        rendered_services_network_config_file_path (Path): Path to the rendered run.sh file.
+        services_network_docker_file_path (Path): Path to the generated Dockerfile.
+        rendered_services_network_docker_file_path (Path): Path to the rendered Dockerfile.
+
+    Methods:
+        __init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager):
+            Initializes the LocalhostSingleContainerEnvironment with the given configuration.
+        __str__():
+            Returns a string representation of the LocalhostSingleContainerEnvironment instance.
+        __repr__():
+            Returns a string representation of the LocalhostSingleContainerEnvironment instance.
+        prepare_environment():
+            Prepares the service manager for use.
+        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader, execution_environment):
+        deploy_services():
+            Deploys the services in the Localhost environment.
+        generate_environment_services(paths, timestamp):
+        launch_environment_services():
+        monitor_environment():
+        teardown_environment():
+    """
+
     def __init__(
         self,
         env_config_to_test: EnvironmentConfig,
@@ -25,123 +56,99 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
-        
+        super().__init__(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
+
         self.docker_version = "v1"
         self.docker_name = "localhost_"
-        
-        self.services_network_config_file_path = Path(os.path.join(
-            os.getcwd(),
-            "panther",
-            "plugins",
-            "environments",
-            env_type,
-            env_sub_type,
-            "run.generated.sh",
-        ))
-        self.rendered_services_network_config_file_path = Path(os.path.join(
-            self.output_dir, f"run.sh"
-        ))
-        
-        self.services_network_docker_file_path = Path(os.path.join(
-            os.getcwd(),
-            "panther",
-            "plugins",
-            "environments",
-            env_type,
-            env_sub_type,
-            "Dockerfile.generated",
-        ))
-        self.rendered_services_network_docker_file_path = Path(os.path.join(
-            self.output_dir, "Dockerfile.experience"
-        ))
-        
+
+        self.services_network_config_file_path = Path(
+            os.path.join(
+                os.getcwd(),
+                "panther",
+                "plugins",
+                "environments",
+                env_type,
+                env_sub_type,
+                "run.generated.sh",
+            )
+        )
+        self.rendered_services_network_config_file_path = Path(
+            os.path.join(self.output_dir, "run.sh")
+        )
+
+        self.services_network_docker_file_path = Path(
+            os.path.join(
+                os.getcwd(),
+                "panther",
+                "plugins",
+                "environments",
+                env_type,
+                env_sub_type,
+                "Dockerfile.generated",
+            )
+        )
+        self.rendered_services_network_docker_file_path = Path(
+            os.path.join(self.output_dir, "Dockerfile.experience")
+        )
 
     def __str__(self):
-        attributes = {
-            "output_dir": self.output_dir,
-            "templates_dir": self.templates_dir,
-            "services_network_config_file_path": self.services_network_config_file_path,
-            "network_name": self.network_name,
-            "log_dirs": self.log_dirs,
-            "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
-            "services_network_config_file_path": str(self.services_network_config_file_path),
-            "services": self.services,
-            "deployment_commands": self.deployment_commands,
-            "timeout": self.timeout,
-        }
-        return f"LocalhostSingleContainerEnvironment({attributes})"
-    
+        return f"LocalhostSingleContainerEnvironment({self.__dict__})"
+
     def __repr__(self):
-        attributes = {
-            "output_dir": self.output_dir,
-            "templates_dir": self.templates_dir,
-            "services_network_config_file_path": self.services_network_config_file_path,
-            "network_name": self.network_name,
-            "log_dirs": self.log_dirs,
-            "rendered_services_network_config_file_path": self.rendered_services_network_config_file_path,
-            "services_network_config_file_path": str(self.services_network_config_file_path),
-            "services": self.services,
-            "deployment_commands": self.deployment_commands,
-            "timeout": self.timeout,
-        }
-        return f"LocalhostSingleContainerEnvironment({attributes})"
-    
+        return f"LocalhostSingleContainerEnvironment({self.__dict__})"
+
     def prepare_environment(self):
         """
         Prepare the service manager for use.
         """
         self.logger.info("Preparing Localhost service manager...")
         # Additional setup can be implemented here
-        self.plugin_loader.build_docker_image_from_path(Path(os.path.join(
-            os.getcwd(),
-            "panther",
-            "plugins",
-            "services",
-            "Dockerfile",
-        )),"localhost_single_container",self.docker_version)
-        
-    
+        self.plugin_loader.build_docker_image_from_path(
+            Path(
+                os.path.join(
+                    os.getcwd(),
+                    "panther",
+                    "plugins",
+                    "services",
+                    "Dockerfile",
+                )
+            ),
+            "localhost_single_container",
+            self.docker_version,
+        )
+
     def setup_environment(
-        self, 
-        services_managers: List[IServiceManager], 
-        test_config: TestConfig, 
+        self,
+        services_managers: list[IServiceManager],
+        test_config: TestConfig,
         global_config: GlobalConfig,
-        timestamp: str, 
-        plugin_loader: PluginLoader, 
-        execution_environment: List[IExecutionEnvironment], 
+        timestamp: str,
+        plugin_loader: PluginLoader,
+        execution_environment: list[IExecutionEnvironment],
     ):
         """
         Sets up the Localhost environment by generating the run.sh file with deployment commands.
-
-        :param services: Dictionary of services with their configurations.
-        :param deployment_info: Dictionary containing commands and volumes for each service.
-        :param paths: Dictionary containing various path configurations.
-        :param timestamp: The timestamp string to include in log paths.
         """
-        self.services_managers : List[IServiceManager] = services_managers
-        self.test_config = test_config
-        self.execution_environment = execution_environment
-        self.plugin_loader = plugin_loader
-        self.global_config = global_config
-        self.logger.debug("Setup environment with:")
-        for service in self.services_managers:
-            self.logger.debug(f"Service: {service}")
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+        self.update_environment(
+            execution_environment,
+            global_config,
+            plugin_loader,
+            services_managers,
+            test_config,
+        )
         self.prepare_environment()
-        self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
+        self.generate_environment_services(
+            paths=self.global_config.paths, timestamp=timestamp
+        )
         self.logger.info("Localhost environment setup complete")
-    
-    
 
     def deploy_services(self):
         self.logger.info("Deploying services")
-        # self.prepare_tester() # TODO
         self.launch_environment_services()
-        
 
-    def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
+    def generate_environment_services(self, paths: dict[str, str], timestamp: str):
         """
         Generates the run.sh file using the provided services and deployment commands.
 
@@ -152,91 +159,85 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         # TODO check that the implementaion is compatible with shadow (in config file)
         # TODo moodify the shadow template to add the timeout also add folder for each service to be added in the multi stage
         try:
-            for execution_env in self.execution_environment:
-                try:
-                    execution_env.setup_environment(services_managers=self.services_managers, test_config=self.test_config, global_config=self.global_config, timestamp=timestamp, plugin_loader=self.plugin_loader)
-                except Exception as e:
-                    self.logger.error(f"Failed to setup execution environment: {e}\n{traceback.format_exc()}")
+            self.setup_execution_plugins(timestamp)
             # Ensure the log directory for each service exists
             for service in self.services_managers:
-                # TODO extract method
-                log_dir = os.path.join(self.log_dirs, service.service_name)
-                if not os.path.exists(log_dir):
-                    os.makedirs(log_dir)
-                    self.logger.info(f"Created log directory: {log_dir}")
-                
-                self.logger.debug(f"Generating Docker Compose file for {service.service_name}")
-                
+                self.create_log_dir(service)
+
+                self.logger.debug(
+                    f"Generating Docker Compose file for {service.service_name}"
+                )
+
                 self.docker_name = self.docker_name + service.service_name + "_"
-                
-                service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("eth0", "lo")
+
+                service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
+                    "command_args"
+                ].replace("eth0", "lo")
                 # TODO make this more general
                 if service.role.name == "client":
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "0x7f000001")
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "0x7f000001")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
+                        "run_cmd"
+                    ]["command_args"].replace("$$TARGET_IP_HEX", "0x7f000001")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
+                        "run_cmd"
+                    ]["command_args"].replace("$$IVY_IP_HEX", "0x7f000001")
                 else:
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$TARGET_IP_HEX", "0x7f000001")
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace("$$IVY_IP_HEX", "0x7f000001")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
+                        "run_cmd"
+                    ]["command_args"].replace("$$TARGET_IP_HEX", "0x7f000001")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
+                        "run_cmd"
+                    ]["command_args"].replace("$$IVY_IP_HEX", "0x7f000001")
                 for other_service in self.services_managers:
                     if other_service.service_name != service.service_name:
                         # Shadow does not suport the _ in the service name -> replace by .
                         # TODO use "." in the service name for all plugins
-                        service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"]["command_args"].replace(other_service.service_name, "127.0.0.1").replace("eth0", "lo")
-                        other_service.run_cmd["run_cmd"]["command_args"] = other_service.run_cmd["run_cmd"]["command_args"].replace(service.service_name, "127.0.0.1").replace("eth0", "lo")
+                        service.run_cmd["run_cmd"]["command_args"] = (
+                            service.run_cmd["run_cmd"]["command_args"]
+                            .replace(other_service.service_name, "127.0.0.1")
+                            .replace("eth0", "lo")
+                        )
+                        other_service.run_cmd["run_cmd"]["command_args"] = (
+                            other_service.run_cmd["run_cmd"]["command_args"]
+                            .replace(service.service_name, "127.0.0.1")
+                            .replace("eth0", "lo")
+                        )
 
             for service in self.services_managers:
-                service.environments = self.resolve_environment_variables(service.environments)
-                self.logger.debug(f"Service {service.service_name} environment: {service.environments}")
-     
-            template = self.jinja_env.get_template("run.sh.jinja")
-            self.logger.debug(f"Template: {template}")
-            self.logger.debug(f"Services: {self.services_managers}")
-            self.logger.debug(f"Deployment Info: {self.test_config}")
-            rendered = template.render(
-                services=self.services_managers,
-                test_config=self.test_config,
-                paths=paths,
-                timestamp=timestamp,
-                log_dir=self.log_dirs,
-                experiment_name=self.output_dir.split("/")[-1],
+                service.environments = self.resolve_environment_variables(
+                    service.environments
+                )
+                self.logger.debug(
+                    f"Service {service.service_name} environment: {service.environments}"
+                )
+
+            self.generate_from_template(
+                "run.sh.jinja",
+                paths,
+                timestamp,
+                self.rendered_services_network_config_file_path,
+                self.services_network_config_file_path,
             )
 
-            # Write the rendered content to shadow.generated.yml
-            with open(self.services_network_config_file_path, "w") as f:
-                f.write(rendered)
-
-            with open(self.rendered_services_network_config_file_path, "w") as f:
-                f.write(rendered)
-
-            self.logger.info(f"Localhost file generated at '{self.services_network_config_file_path}'")
+            self.logger.info(
+                f"Localhost file generated at '{self.services_network_config_file_path}'"
+            )
 
             self.logger.info("Localhost based environment manager prepared.")
-            # Define docker container for experience
-            template = self.jinja_env.get_template("Dockerfile.experience.jinja")
-            rendered = template.render(
-                services=self.services_managers,
-                test_config=self.test_config,
-                paths=paths,
-                timestamp=timestamp,
-                log_dir=self.log_dirs,
-                localhost_single_container_config_file=self.services_network_config_file_path.name,
-                experiment_name=self.output_dir.split("/")[-1],
+            self.generate_from_template(
+                "Dockerfile.experience.jinja",
+                paths,
+                timestamp,
+                self.rendered_services_network_docker_file_path,
+                self.services_network_docker_file_path,
+                self.services_network_config_file_path.name,
             )
 
-            # Write the rendered content to shadow.generated.yml
-            with open(self.services_network_docker_file_path, "w") as f:
-                f.write(rendered)
-
-            with open(self.rendered_services_network_docker_file_path, "w") as f:
-                f.write(rendered)
-
-            self.logger.info(f"Localhost file Dockerfile generated at '{self.services_network_docker_file_path}'")
-
-            self.docker_name = self.plugin_loader.build_docker_image_from_path(
-                # TODO
-                self.services_network_docker_file_path, self.docker_name,  self.docker_version
+            self.logger.info(
+                f"Localhost file Dockerfile generated at '{self.services_network_docker_file_path}'"
             )
-            self.docker_name = self.docker_name.split(":")[0]
+
+            self.get_docker_name()
 
         except Exception as e:
             self.logger.error(
@@ -256,53 +257,47 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                 with open(
                     os.path.join(self.output_dir, "logs", "localhost.err.log"), "w"
                 ) as log_file_err:
-                    volumes = []
-                    volumes.append("-v")
-                    volumes.append(f"{os.path.abspath(self.log_dirs+'/localhost')}:/app/logs/")
-                    for service_name, service in self.services.items():
-                        for volume in self.deployment_info[service_name]['volumes']:
+                    volumes = [
+                        "-v",
+                        f"{os.path.abspath(self.log_dirs + '/localhost')}:/app/logs/",
+                    ]
+                    for service in self.services:
+                        for volume in service.volumes:
                             volumes.append("-v")
                             if isinstance(volume, dict):
-                                volumes.append(f"{os.path.abspath(volume['local'])}:{volume['container']}")
+                                volumes.append(
+                                    f"{os.path.abspath(volume['local'])}:{volume['container']}"
+                                )
                             else:
                                 volumes.append(f"{volume}")
-                                
+
                     command = [
-                            "docker",
-                            "run",
-                            "--rm",
-                            "-d",
-                            "--privileged",
-                            "--sysctl",
-                            "net.ipv6.conf.all.disable_ipv6=1",
-                            "--name",
-                            self.docker_name,
-                            *volumes,
-                            self.docker_name
-                        ]
+                        "docker",
+                        "run",
+                        "--rm",
+                        "-d",
+                        "--privileged",
+                        "--sysctl",
+                        "net.ipv6.conf.all.disable_ipv6=1",
+                        "--name",
+                        self.docker_name,
+                        *volumes,
+                        self.docker_name,
+                    ]
                     self.logger.debug(f"Executing command: {' '.join(command)}")
-                    
+
                     result = subprocess.run(
                         command,
                         check=True,
-                        # Now in docker build
-                        # env={ # TODO is it dangerous ?
-                        #     "UID": str(os.getuid()),
-                        #     "GID": str(os.getgid()),
-                        # },
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        capture_output=True,
                         text=True,  # Ensures that output is in string format
                     )
                     # Write both stdout and stderr to the log file
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
-                    # TODO localhost.data
                 self.logger.info("Localhost environment launched successfully.")
         except subprocess.CalledProcessError as e:
-            self.logger.error(
-                f"Failed to launch Localhost environment: {e.stderr}"
-            )
+            self.logger.error(f"Failed to launch Localhost environment: {e.stderr}")
             with open(
                 os.path.join(self.output_dir, "logs", "localhost.log"), "w"
             ) as log_file:
@@ -312,6 +307,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                     log_file.write(e.stdout)
                     log_file_err.write(e.stderr)
             # raise e
+
     def monitor_environment(self):
         """
         Monitors the Docker Compose environment by checking the status of services.
@@ -321,7 +317,8 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                 os.path.join(self.output_dir, "logs", "docker-compose-ps.log"), "w"
             ) as log_file:
                 with open(
-                    os.path.join(self.output_dir, "logs", "docker-compose-ps.err.log"), "w"
+                    os.path.join(self.output_dir, "logs", "docker-compose-ps.err.log"),
+                    "w",
                 ) as log_file_err:
                     result = subprocess.run(
                         [
@@ -331,8 +328,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                             f"name={self.docker_name}",
                         ],
                         check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        capture_output=True,
                         text=True,  # Ensures that output is in string format
                     )
                     # Write both stdout and stderr to the log file
@@ -340,19 +336,25 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                     log_file_err.write(result.stderr)
                     # NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
                     #
-                    stdsplit = result.stdout.split("\n")
-                    self.logger.debug(f"docker-compose ps: {result.stdout} - {result.stderr} - {len(self.services_managers)}  - {len(stdsplit)}")
-                    if len(stdsplit) < len(self.services_managers)+1:
-                        self.logger.debug("Docker Compose environment monitored successfully - Experiment finished earlier")
-                        self.event_manager.notify(Event(name="experiment_finished_early", data={}))
-                    
+                    std_split = result.stdout.split("\n")
+                    self.logger.debug(
+                        f"docker-compose ps: {result.stdout} - {result.stderr} - {len(self.services_managers)}  - {len(std_split)}"
+                    )
+                    if len(std_split) < len(self.services_managers) + 1:
+                        self.logger.debug(
+                            "Docker Compose environment monitored successfully - Experiment finished earlier"
+                        )
+                        self.event_manager.notify(
+                            Event(name="experiment_finished_early", data={})
+                        )
+
                 self.logger.debug("Docker Compose environment monitored successfully.")
         except subprocess.CalledProcessError as e:
             self.logger.error(
                 f"Failed to monitor Docker Compose environment: {e.stderr}"
             )
             raise e
-        
+
     def teardown_environment(self):
         """
         Tears down the Localhost environment by bringing down services.
@@ -368,29 +370,35 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                 try:
                     # Stop the running docker container
                     stop_container_command = ["docker", "stop", self.docker_name]
-                    self.logger.debug(f"Executing stop container command: {stop_container_command}")
+                    self.logger.debug(
+                        f"Executing stop container command: {stop_container_command}"
+                    )
                     result = subprocess.run(
                         stop_container_command,
                         check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        capture_output=True,
                         text=True,
                     )
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
-                    
+
                     # Remove the docker image after execution
-                    remove_image_command = ["docker", "rmi", f"{self.docker_name}:latest"]
-                    self.logger.debug(f"Executing remove image command: {remove_image_command}")
+                    remove_image_command = [
+                        "docker",
+                        "rmi",
+                        f"{self.docker_name}:latest",
+                    ]
+                    self.logger.debug(
+                        f"Executing remove image command: {remove_image_command}"
+                    )
                     result = subprocess.run(
                         remove_image_command,
                         check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
+                        capture_output=True,
                         text=True,
                     )
                     self.logger.debug(f"Executing command: {remove_image_command}")
-                   
+
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
                     self.logger.info("Localhost environment torn down successfully")
@@ -399,42 +407,58 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                         f"Failed to tear down Localhost environment: {e.stderr}"
                     )
                     with open(
-                        os.path.join(self.output_dir, "logs", "localhost-teardown.log"), "w"
+                        os.path.join(self.output_dir, "logs", "localhost-teardown.log"),
+                        "w",
                     ) as log_file:
                         with open(
-                            os.path.join(self.output_dir, "logs", "localhost-teardown.err.log"), "w"
+                            os.path.join(
+                                self.output_dir, "logs", "localhost-teardown.err.log"
+                            ),
+                            "w",
                         ) as log_file_err:
                             try:
-                                stop_container_command = ["docker", "stop", self.docker_name]
-                                self.logger.debug(f"Executing stop container command: {stop_container_command}")
+                                stop_container_command = [
+                                    "docker",
+                                    "stop",
+                                    self.docker_name,
+                                ]
+                                self.logger.debug(
+                                    f"Executing stop container command: {stop_container_command}"
+                                )
                                 result = subprocess.run(
                                     stop_container_command,
                                     check=True,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
+                                    capture_output=True,
                                     text=True,
                                 )
                                 log_file.write(result.stdout)
                                 log_file_err.write(result.stderr)
                                 # Remove the docker image after execution
-                                remove_image_command = ["docker", "rmi", "--force" f"{self.docker_name}:latest"]
-                                self.logger.debug(f"Executing remove image command: {remove_image_command}")
+                                remove_image_command = [
+                                    "docker",
+                                    "rmi",
+                                    "--force" f"{self.docker_name}:latest",
+                                ]
+                                self.logger.debug(
+                                    f"Executing remove image command: {remove_image_command}"
+                                )
                                 result = subprocess.run(
                                     remove_image_command,
                                     check=True,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
+                                    capture_output=True,
                                     text=True,
                                 )
-                                self.logger.debug(f"Executing command: {remove_image_command}")
-                            
+                                self.logger.debug(
+                                    f"Executing command: {remove_image_command}"
+                                )
+
                                 log_file.write(result.stdout)
                                 log_file_err.write(result.stderr)
-                                self.logger.info("Localhost environment torn down successfully")
+                                self.logger.info(
+                                    "Localhost environment torn down successfully"
+                                )
                             except subprocess.CalledProcessError as e:
                                 self.logger.error(
                                     f"Failed to tear down Localhost environment: {e.stderr}"
                                 )
                                 raise e
-
-

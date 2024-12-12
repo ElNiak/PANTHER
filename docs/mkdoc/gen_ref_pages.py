@@ -1,4 +1,3 @@
-
 # https://mkdocstrings.github.io/recipes/#automatic-code-reference-pages
 
 """Generate the code reference pages and navigation."""
@@ -9,19 +8,22 @@ nav = mkdocs_gen_files.Nav()
 
 # Adjust root to be the top-level directory of the project
 root = Path(__file__).resolve().parent.parent
-srcs = [
-    root / "panther"]
+srcs = [root / "panther"]
 
 for src in srcs:
     for path in sorted(src.rglob("*.py")):
-        if "/tmp/" not in path.as_posix() and \
-            "setup.py" not in path.as_posix() and \
-            "/panther-ivy/" not in path.as_posix() and \
-            "/panther/outputs/" not in path.as_posix() and \
-            "/quic-implementations" not in path.as_posix() and \
-            "/ivy_utils/" not in path.as_posix() and \
-            "/scripts/" not in path.as_posix():
-            module_path = path.relative_to(root).with_suffix("").as_posix().replace("/", ".")
+        if (
+            "/tmp/" not in path.as_posix()
+            and "setup.py" not in path.as_posix()
+            and "/panther-ivy/" not in path.as_posix()
+            and "/panther/outputs/" not in path.as_posix()
+            and "/quic-implementations" not in path.as_posix()
+            and "/ivy_utils/" not in path.as_posix()
+            and "/scripts/" not in path.as_posix()
+        ):
+            module_path = (
+                path.relative_to(root).with_suffix("").as_posix().replace("/", ".")
+            )
             doc_path = path.relative_to(root).with_suffix(".md")
             full_doc_path = Path("reference", doc_path)
 
@@ -41,7 +43,7 @@ for src in srcs:
                 fd.write(f"::: {ident}")
 
             # mkdocs_gen_files.set_edit_path(full_doc_path, path.relative_to(root))
-            mkdocs_gen_files.set_edit_path(full_doc_path, Path("../") / path)  
+            mkdocs_gen_files.set_edit_path(full_doc_path, Path("../") / path)
 
 
 with mkdocs_gen_files.open("reference/SUMMARY.md", "w") as nav_file:

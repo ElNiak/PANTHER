@@ -4,7 +4,7 @@ Note, before implementation were added as submodule. Now we only consider Docker
 
 ```bash
 git clone git@github.com:ElNiak/PANTHER.git;
-cd PANTHER; 
+cd PANTHER;
 git submodule update --init --recursive
 ```
 
@@ -41,7 +41,7 @@ See Dockerfile for dependencies and commands.
 
 ## :whale: Docker Installation
 
-The docker image will be automatically built and run when defined in the experiment configuration file. 
+The docker image will be automatically built and run when defined in the experiment configuration file.
 
 ```bash
 cd PANTHER;

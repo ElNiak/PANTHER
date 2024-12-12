@@ -1,18 +1,16 @@
-# PANTHER-SCP/panther/utils/docker_builder.py
-
 import json
 import logging
 import subprocess
 import docker
-from docker.errors import DockerException, NotFound, BuildError, APIError
+from docker.errors import DockerException, NotFound, BuildError
 from pathlib import Path
-from typing import Any, Dict, Optional, List
+from typing import Any
 import os
-import yaml
 
 
 class DockerBuilder:
-    def __init__(self, build_log_file: Optional[Path] = None):
+    def __init__(self, build_log_file: Path | None = None):
+        self.plugins_dir = None
         self.logger = logging.getLogger("DockerBuilder")
         self.build_log_file = build_log_file
         try:
@@ -23,17 +21,11 @@ class DockerBuilder:
             self.logger.error(f"Failed to connect to Docker daemon: {e}")
             raise e
 
-    def log_docker_output(self, generator, task_name: str = "docker command execution", log_f = None) -> None:
-        """_summary_
-
-        Args:
-            generator (_type_): _description_
-            task_name (str, optional): _description_. Defaults to "docker command execution".
-
-        Raises:
-            ValueError: _description_
-        """
-
+    def log_docker_output(
+        self, generator, task_name: str = "docker command execution", log_f=None
+    ) -> None:
+        """_summary_"""
+        output = None
         while True:
             try:
                 output = generator.__next__()
@@ -47,54 +39,51 @@ class DockerBuilder:
                         log_f.write(f"{task_name}:{output['error']}\n")
                     self.logger.error(f"Error from {task_name}: {output['error']}")
                     raise ValueError(f'Error from {task_name}: {output["error"]}')
-                
+
             except StopIteration:
                 self.logger.info(f"{task_name} complete.")
                 break
             except ValueError:
                 self.logger.error(f"Error parsing output from {task_name}: {output}")
 
-
-    def build_image(self, impl_name: str, version: str, dockerfile_path: Path, 
-                    context_path: Path, config: Dict[str, Any], 
-                    tag_version: str = "latest", build_image_force: bool = True) -> Optional[str]:
-        """
-        Builds a Docker image for a given implementation and version, considering dependencies.
-
-        :param impl_name: Name of the implementation (e.g., 'picoquic').
-        :param version: Version identifier (e.g., 'draft_29').
-        :param dockerfile_path: Path to the Dockerfile.
-        :param context_path: Build context path.
-        :param config: Configuration dictionary for the specific version.
-        :param tag_version: Tag version for the Docker image.
-        :return: Image tag if build is successful, else None.
-        """
-        # TODO pass control to the service manager -> prepare()
-        
+    def build_image(
+        self,
+        impl_name: str,
+        version: str,
+        dockerfile_path: Path,
+        context_path: Path,
+        config: dict[str, Any],
+        tag_version: str = "latest",
+        build_image_force: bool = True,
+    ) -> str | None:
+        """ """
         image_tag = f"{impl_name}_{version}_panther:{tag_version}"
-        self.logger.info(f"Building Docker image '{image_tag}' from '{dockerfile_path}' with context '{context_path}'")
+        self.logger.info(
+            f"Building Docker image '{image_tag}' from '{dockerfile_path}' with context '{context_path}'"
+        )
 
         if self.image_exists(image_tag) and not build_image_force:
             # TODO pass the force flag to the build_image function in the global config
-            self.logger.info(f"Docker image '{image_tag}' already exists. Skipping build.")
+            self.logger.info(
+                f"Docker image '{image_tag}' already exists. Skipping build."
+            )
             return image_tag
 
         # Extract dependencies
-        dependencies = config.get('dependencies', {})
+        dependencies = config.get("dependencies", {})
         dependencies_json = json.dumps(dependencies) if dependencies else "[]"
-        build_logs = None
         log_f = None
         try:
             build_args = {
-                'VERSION': config.get('commit', 'master'),
-                'DEPENDENCIES': dependencies_json,
-                'USER_UID': str(os.getuid()),
-                'USER_GID': str(os.getgid()),
-                'USER_N':  os.getlogin()
+                "VERSION": config.get("commit", "master"),
+                "DEPENDENCIES": dependencies_json,
+                "USER_UID": str(os.getuid()),
+                "USER_GID": str(os.getgid()),
+                "USER_N": os.getlogin(),
             }
             # Open the build log file if specified
             if self.build_log_file:
-                with open(self.build_log_file, 'w') as log_f:
+                with open(self.build_log_file, "w") as log_f:
                     image, build_logs = self.client.images.build(
                         path=str(context_path),
                         dockerfile=str(dockerfile_path),
@@ -102,9 +91,11 @@ class DockerBuilder:
                         buildargs=build_args,
                         rm=True,
                         network_mode="host",
-                        decode=True
+                        decode=True,
                     )
-                    self.log_docker_output(build_logs, f"Building Docker image '{image_tag}'", log_f)
+                    self.log_docker_output(
+                        build_logs, f"Building Docker image '{image_tag}'", log_f
+                    )
             else:
                 image, build_logs = self.client.images.build(
                     path=str(context_path),
@@ -115,19 +106,23 @@ class DockerBuilder:
                     network_mode="host",
                 )
             self.log_docker_output(build_logs, f"Building Docker image '{image_tag}'")
-            self.logger.info(f"Successfully built Docker image '{image_tag}' with context '{context_path}' and build args '{build_args}'")
+            self.logger.info(
+                f"Successfully built Docker image '{image_tag}' with context '{context_path}' and build args '{build_args}'"
+            )
             return image_tag
-        except (BuildError) as e:
+        except BuildError as e:
             self.logger.error(f"Failed to build Docker image '{image_tag}' : {e}")
-            self.log_docker_output(e.build_log, f"Building Docker image '{image_tag}'", log_f)
+            self.log_docker_output(
+                e.build_log, f"Building Docker image '{image_tag}'", log_f
+            )
             if self.build_log_file:
-                with open(self.build_log_file, 'a') as log_f:
+                with open(self.build_log_file, "a") as log_f:
                     log_f.write(f"ERROR: {e}\n")
             exit(1)
         except Exception as e:
             self.logger.error(f"Unexpected error during build of '{image_tag}': {e}")
             if self.build_log_file:
-                with open(self.build_log_file, 'a') as log_f:
+                with open(self.build_log_file, "a") as log_f:
                     log_f.write(f"ERROR: {e}\n")
             exit(1)
 
@@ -149,7 +144,7 @@ class DockerBuilder:
             self.logger.error(f"Error checking if image exists '{image_tag}': {e}")
             return False
 
-    def find_dockerfiles(self, plugins_dir: str) -> Dict[str, Path]:
+    def find_dockerfiles(self, plugins_dir: str) -> dict[str, Path]:
         """
         Recursively searches for Dockerfiles within the implementations directories.
 
@@ -158,11 +153,15 @@ class DockerBuilder:
         """
         dockerfiles = {}
         self.plugins_dir = plugins_dir  # Store for later use in dependency builds
-        
-        implementations_dir = Path(plugins_dir) / "services" /"iut"
-        self.logger.info(f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'")
+
+        implementations_dir = Path(plugins_dir) / "services" / "iut"
+        self.logger.info(
+            f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'"
+        )
         if not implementations_dir.exists():
-            self.logger.warning(f"Implementations directory '{implementations_dir}' does not exist.")
+            self.logger.warning(
+                f"Implementations directory '{implementations_dir}' does not exist."
+            )
             return dockerfiles
 
         for impl_dir in implementations_dir.rglob("*"):
@@ -171,10 +170,11 @@ class DockerBuilder:
                 if dockerfile.exists():
                     impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
                     dockerfiles[impl_name] = dockerfile.resolve()
-                    self.logger.debug(f"Found Dockerfile for implementation '{impl_name}': {dockerfile.resolve()}")
+                    self.logger.debug(
+                        f"Found Dockerfile for implementation '{impl_name}': {dockerfile.resolve()}"
+                    )
 
-
-        tester_dir = Path(plugins_dir) / "services" /"testers"
+        tester_dir = Path(plugins_dir) / "services" / "testers"
         self.logger.info(f"Scanning for Dockerfiles in '{tester_dir.resolve()}'")
         if not tester_dir.exists():
             self.logger.warning(f"Testers directory '{tester_dir}' does not exist.")
@@ -186,8 +186,9 @@ class DockerBuilder:
                 if dockerfile.exists():
                     impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
                     dockerfiles[impl_name] = dockerfile.resolve()
-                    self.logger.debug(f"Found Dockerfile for testers '{impl_name}': {dockerfile.resolve()}")
-
+                    self.logger.debug(
+                        f"Found Dockerfile for testers '{impl_name}': {dockerfile.resolve()}"
+                    )
 
         env_dir = Path(plugins_dir) / "environments"
         self.logger.info(f"Scanning for Dockerfiles in '{env_dir.resolve()}'")
@@ -201,13 +202,17 @@ class DockerBuilder:
                 if dockerfile.exists():
                     impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
                     dockerfiles[impl_name] = dockerfile.resolve()
-                    self.logger.debug(f"Found Dockerfile for environment '{impl_name}': {dockerfile.resolve()}")
-                    
+                    self.logger.debug(
+                        f"Found Dockerfile for environment '{impl_name}': {dockerfile.resolve()}"
+                    )
+
         self.logger.info(f"Total Dockerfiles found: {len(dockerfiles)}")
         self.logger.debug(f"Dockerfiles found: {dockerfiles}")
         return dockerfiles
-    
-    def push_image_to_registry(self, image_tag: str, registry_url: str = "elniak", tag: str = "latest") -> bool:
+
+    def push_image_to_registry(
+        self, image_tag: str, registry_url: str = "elniak", tag: str = "latest"
+    ) -> bool:
         """
         Pushes a Docker image to a specified registry.
 
@@ -217,7 +222,9 @@ class DockerBuilder:
         :return: True if push is successful, else False.
         """
         registry_image_tag = f"{registry_url}/{image_tag.split(':')[0]}:{tag}"
-        self.logger.info(f"Pushing image '{image_tag}' to registry '{registry_image_tag}'")
+        self.logger.info(
+            f"Pushing image '{image_tag}' to registry '{registry_image_tag}'"
+        )
 
         try:
             # Tag the image for the registry
@@ -226,14 +233,18 @@ class DockerBuilder:
             self.logger.debug(f"Tagged image '{image_tag}' as '{registry_image_tag}'")
 
             # Push the image
-            push_logs = self.client.images.push(registry_url, tag=tag, stream=True, decode=True)
+            push_logs = self.client.images.push(
+                registry_url, tag=tag, stream=True, decode=True
+            )
             for chunk in push_logs:
-                if 'status' in chunk:
+                if "status" in chunk:
                     self.logger.debug(f"Pushing: {chunk['status']}")
-                elif 'error' in chunk:
+                elif "error" in chunk:
                     self.logger.error(f"Pushing Error: {chunk['error']}")
                     return False
-            self.logger.info(f"Successfully pushed image '{registry_image_tag}' to registry.")
+            self.logger.info(
+                f"Successfully pushed image '{registry_image_tag}' to registry."
+            )
             return True
         except (NotFound, DockerException) as e:
             self.logger.error(f"Failed to push image '{image_tag}' to registry: {e}")
@@ -242,7 +253,7 @@ class DockerBuilder:
             self.logger.error(f"Unexpected error during push of '{image_tag}': {e}")
             return False
 
-    def list_panther_containers(self) -> List[str]:
+    def list_panther_containers(self) -> list[str]:
         """
         Retrieves a list of all running containers related to Panther.
 
@@ -272,10 +283,12 @@ class DockerBuilder:
             self.logger.debug(f"Container '{container_name}' does not exist.")
             return False
         except DockerException as e:
-            self.logger.error(f"Error checking container existence '{container_name}': {e}")
+            self.logger.error(
+                f"Error checking container existence '{container_name}': {e}"
+            )
             return False
 
-    def get_container_ip(self, container_name: str) -> Optional[str]:
+    def get_container_ip(self, container_name: str) -> str | None:
         """
         Retrieves the IP address of a Docker container.
 
@@ -289,10 +302,14 @@ class DockerBuilder:
             self.logger.debug(f"Container '{container_name}' IP address: {ip}")
             return ip
         except (NotFound, KeyError, IndexError) as e:
-            self.logger.error(f"Error retrieving IP for container '{container_name}': {e}")
+            self.logger.error(
+                f"Error retrieving IP for container '{container_name}': {e}"
+            )
             return None
         except DockerException as e:
-            self.logger.error(f"Docker error retrieving IP for container '{container_name}': {e}")
+            self.logger.error(
+                f"Docker error retrieving IP for container '{container_name}': {e}"
+            )
             return None
 
     def restore_hosts_file(self) -> bool:
@@ -305,8 +322,7 @@ class DockerBuilder:
             subprocess.run(
                 ["sudo", "cp", "/etc/hosts.bak", "/etc/hosts"],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                capture_output=True,
             )
             self.logger.info("Restored the original /etc/hosts file.")
             return True
@@ -328,8 +344,7 @@ class DockerBuilder:
             subprocess.run(
                 ["sudo", "bash", "-c", f"echo '{entry.strip()}' >> /etc/hosts"],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                capture_output=True,
             )
             self.logger.info(f"Added entry to /etc/hosts: {entry.strip()}")
             return True
@@ -340,7 +355,13 @@ class DockerBuilder:
             self.logger.error(f"Unexpected error adding entry to /etc/hosts: {e}")
             return False
 
-    def create_network(self, network_name: str, driver: str = "bridge", subnet: str = "172.27.1.0/24", gateway: str = "172.27.1.1") -> bool:
+    def create_network(
+        self,
+        network_name: str,
+        driver: str = "bridge",
+        subnet: str = "172.27.1.0/24",
+        gateway: str = "172.27.1.1",
+    ) -> bool:
         """
         Creates a Docker network with specified configurations.
 
@@ -359,8 +380,10 @@ class DockerBuilder:
                 name=network_name,
                 driver=driver,
                 ipam=docker.service_types.IPAMConfig(
-                    pool_configs=[docker.service_types.IPAMPool(subnet=subnet, gateway=gateway)]
-                )
+                    pool_configs=[
+                        docker.service_types.IPAMPool(subnet=subnet, gateway=gateway)
+                    ]
+                ),
             )
             self.logger.info(f"Network '{network_name}' created successfully.")
             return True
@@ -368,7 +391,9 @@ class DockerBuilder:
             self.logger.error(f"Failed to create network '{network_name}': {e}")
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error creating network '{network_name}': {e}")
+            self.logger.error(
+                f"Unexpected error creating network '{network_name}': {e}"
+            )
             return False
 
     def network_exists(self, network_name: str) -> bool:
@@ -389,7 +414,7 @@ class DockerBuilder:
             self.logger.error(f"Error checking network existence '{network_name}': {e}")
             return False
 
-    def get_panther_containers(self) -> List[str]:
+    def get_panther_containers(self) -> list[str]:
         """
         Retrieves a list of all running containers related to Panther.
 
@@ -421,13 +446,17 @@ class DockerBuilder:
             self.logger.warning(f"Container '{container_name}' not found.")
             return False
         except DockerException as e:
-            self.logger.error(f"Error stopping/removing container '{container_name}': {e}")
+            self.logger.error(
+                f"Error stopping/removing container '{container_name}': {e}"
+            )
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error stopping/removing container '{container_name}': {e}")
+            self.logger.error(
+                f"Unexpected error stopping/removing container '{container_name}': {e}"
+            )
             return False
 
-    def cleanup_unused_images(self, keep_tags: List[str]):
+    def cleanup_unused_images(self, keep_tags: list[str]):
         """
         Removes Docker images that are not in the keep_tags list.
 
