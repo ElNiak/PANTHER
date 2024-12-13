@@ -42,7 +42,7 @@ source .venv/bin/activate
 
 ```bash
 python3.10 -m venv .venv
-.venv/bin/pip install panther
+.venv/bin/pip install panther-net
 source .venv/bin/activate
 ```
 

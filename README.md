@@ -70,6 +70,10 @@ docker --version;
 docker-compose --version;
 ```
 
+Or:
+
+- [Pypi Installation](https://pypi.org/project/panther-net/)
+
 - Run the PANTHER CLI:
 
 ```bash
