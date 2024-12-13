@@ -3,9 +3,7 @@
 ## :open_file_folder: Project Structure
 
 
-
 ### :open_file_folder: Directory Structure
-
 
 
 The PANTHER project is organized into the following key directories:

@@ -7,6 +7,8 @@ from panther.plugins.protocols.config_schema import (
     ProtocolType,
 )
 
+
+# TODO manage versions with specificities (e.g draft27, draft27-vuln1, ...)
 VersionEnum = Enum("VersionEnum", ["rfc9000", "draft29", "draft27"])
 
 

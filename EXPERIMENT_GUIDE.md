@@ -110,7 +110,6 @@ tests:
 
 1. **Output Directory**:
    - Results are saved in the `outputs/` directory.
-   - Example: `outputs/results/test_1.json`.
 
 2. **Log Files**:
    - Located in `outputs/logs`.

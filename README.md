@@ -8,10 +8,13 @@
 [![Documentation Generation](https://github.com/ElNiak/PANTHER/actions/workflows/pr-generate-docs.yaml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pr-generate-docs.yaml)
 [![Dependabot Updates](https://github.com/ElNiak/PANTHER/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/dependabot/dependabot-updates)
 [![Python application](https://github.com/ElNiak/PANTHER/actions/workflows/python-app.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/python-app.yml)
+[![Python package](https://github.com/ElNiak/PANTHER/actions/workflows/python-package.yml/badge.svg?branch=production)](https://github.com/ElNiak/PANTHER/actions/workflows/python-package.yml)
 [![pages-build-deployment](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment)
 [![Greetings](https://github.com/ElNiak/PANTHER/actions/workflows/greetings.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/greetings.yml)
 [![pre-commit](https://github.com/ElNiak/PANTHER/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pre-commit.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/c8043e5320934d49a688e173db5a331d)](https://app.codacy.com/gh/ElNiak/PANTHER/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![Qodana](https://github.com/ElNiak/PANTHER/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/qodana_code_quality.yml)
+
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white) ![C++](https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white) ![Debian](https://img.shields.io/badge/Debian-D70A53?style=for-the-badge&logo=debian&logoColor=white)
 
@@ -33,11 +36,13 @@ PANTHER is a modular framework designed for testing and validating network proto
 
 ## :computer: Installation
 
-### Prerequisites
+### Tested on:
 
-- Python 3.8 or higher
-- Docker and Docker Compose
-- Recommended: A virtual environment for Python dependencies
+- Python 3.10 or higher
+- Docker version 27.2.1, build 9e34c9b
+- Ubuntu 20.04.3 LTS
+
+Recommended: A virtual environment for Python dependencies
 
 ### Steps
 
@@ -241,22 +246,40 @@ This document provides an overview of the existing plugins in the PANTHER framew
 
 ### 4. **Services (IUT)**
 
-#### **PingPong**
+#### MiniP
+
+**PingPong**
 - **Path**: `plugins/services/iut/minip/ping_pong`
 - **Purpose**: Tests the behavior of a ping-pong service implementation.
 - **Key Features**:
   - Includes multiple versions (e.g., functional, vulnerable).
   - Provides dynamic command generation through templates.
 
-#### **PicoQUIC**
+#### QUIC
+
+**PicoQUIC**
 - **Path**: `plugins/services/iut/quic/picoquic`
 - **Purpose**: Validates QUIC protocol implementations.
 - **Key Features**:
   - Supports custom QUIC implementations with configurable parameters.
 
+**Quant**
+- **Path**: `plugins/services/iut/quic/quant`
+- **Purpose**: Validates QUIC protocol implementations.
+- **Key Features**:
+  - Supports custom QUIC implementations with configurable parameters.
+
+**Quiche**
+- **Path**: `plugins/services/iut/quic/quiche`
+- **Purpose**: Validates QUIC protocol implementations.
+- **Key Features**:
+  - Supports custom QUIC implementations with configurable parameters.
+
+Note that many of them just need to be upgrade from the old version of [PANTHER](https://github.com/ElNiak/PANTHER/tree/development-formal-attacks/panther/panther_worker/app/implementations).
+
 ### 5. **Tester**
 
-#### **Pantherivy**
+#### **PantherIvy**
 - **Path**: `plugins/services/testers/panther_ivy`
 - **Purpose**: Provides testing capabilities for the Ivy framework within the PANTHER environment.
 - **Key Features**:
