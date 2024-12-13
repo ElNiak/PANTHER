@@ -46,7 +46,7 @@ Recommended: A virtual environment for Python dependencies
 
 ### Steps
 
-1. Clone the repository:
+- Clone the repository:
 
 ```bash
 git clone https://github.com/ElNiak/panther.git;
@@ -54,7 +54,7 @@ cd panther/;
 git submodule update --init --recursive;
 ```
 
-2. Install the required Python packages:
+- Install the required Python packages:
 
 ```bash
 python -m venv .venv;
@@ -62,12 +62,41 @@ source .venv/bin/activate;
 make package
 ```
 
-3. Verify Docker is installed:
+-  Verify Docker is installed:
 
 ```bash
 docker --version;
 docker-compose --version;
 ```
+
+- Run the PANTHER CLI:
+
+```bash
+panther --help
+usage: panther [-h] [--experiment-config EXPERIMENT_CONFIG] [--exec-env-dir EXEC_ENV_DIR] [--net-env-dir NET_ENV_DIR] [--iut-dir IUT_DIR] [--tester-dir TESTER_DIR] [--output-dir OUTPUT_DIR]
+               [--experiment-name EXPERIMENT_NAME] [--teardown] [--webapp]
+
+Panther CLI
+
+options:
+  -h, --help            show this help message and exit
+  --experiment-config EXPERIMENT_CONFIG
+                        Path to the configuration directory.
+  --exec-env-dir EXEC_ENV_DIR
+                        Path to the execution plugin additional directory.
+  --net-env-dir NET_ENV_DIR
+                        Path to the network plugin additional directory.
+  --iut-dir IUT_DIR     Path to a new IUT plugin additional directory.
+  --tester-dir TESTER_DIR
+                        Path to a new tester plugin additional directory.
+  --output-dir OUTPUT_DIR
+                        Path to the output directory.
+  --experiment-name EXPERIMENT_NAME
+                        Name of the experiment.
+  --teardown            Flag to teardown an existing experiment.
+  --webapp              Start the web app to configurate the experiments
+```
+
 
 ## Quick Start
 
@@ -138,7 +167,7 @@ tests:
 
 
 ```bash
-panther --config config/experiment_config.yaml;
+panther --experiment-config experiment-config/experiment_config.yaml;
 ```
 
     - View Results:
