@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 from pathlib import Path
 
 from panther.core.test_cases.test_interface import ITestCase
@@ -40,7 +41,6 @@ class TestCase(ITestCase):
         exectution_environment (list): List of execution environments.
         plugin_manager (PluginManager): Manager for handling plugins.
         services (dict): Dictionary of services defined in the test configuration.
-        deployment_commands (list): List of deployment commands.
 
     Methods:
         __str__(): Returns a string representation of the test case.
@@ -105,8 +105,9 @@ class TestCase(ITestCase):
         self.plugin_manager = plugin_manager
 
         self.services = test_config.services
-        self.deployment_commands = []
-
+        
+        self._panther_dir = Path(os.path.dirname(__file__)).parent.parent.parent
+        
     def __str__(self):
         return (
             f"TestCase(name={self.test_config.name}, "
@@ -184,7 +185,8 @@ class TestCase(ITestCase):
         """
         self.logger.debug("Setup Testers plugins ...")
         self.testers_path = (
-            Path(self.global_config.paths.plugin_dir)
+            self._panther_dir
+            / Path(self.global_config.paths.plugin_dir)
             / Path(self.global_config.paths.services_dir)
             / Path(self.global_config.paths.testers_dir)
         )
@@ -244,6 +246,8 @@ class TestCase(ITestCase):
         - Extracts the required implementations from the services details.
         - Loads the protocol plugins from the plugins/services/iut directory.
         - Creates a list of service managers that will be used to deploy the services.
+        
+        Note: Some part of this function should be in the plugin loader module I think ?
 
         The method logs the progress and details at each step, including:
         - The path where it looks for IUT plugins.
@@ -259,7 +263,8 @@ class TestCase(ITestCase):
         """
         self.logger.debug("Setup Implementation Under Tests plugins ...")
         self.iut_path = (
-            Path(self.global_config.paths.plugin_dir)
+           self._panther_dir
+            / Path(self.global_config.paths.plugin_dir)
             / Path(self.global_config.paths.services_dir)
             / Path(self.global_config.paths.iut_dir)
         )
@@ -341,7 +346,13 @@ class TestCase(ITestCase):
     def teardown_services(self):
         """
         Stops all services managed by the service managers.
+        This method iterates through all service managers and attempts to stop each service
+        if the manager has a 'stop_service' method. It logs the stopping process and notifies
+        the event manager when a service is stopped. If stopping a service fails, it logs an error.
+        Raises:
+            Exception: If stopping a service manager fails.
         """
+        
         self.logger.info("Stopping all services")
         for manager in self.service_managers:
             if hasattr(manager, "stop_service"):
@@ -383,7 +394,8 @@ class TestCase(ITestCase):
             subtype = exec_env.type
             settings = exec_env
             environment_dir = (
-                self.plugin_manager.plugins_loader.plugins_base_dir
+                self._panther_dir
+                / self.plugin_manager.plugins_loader.plugins_base_dir
                 / "environments"
                 / "execution_environment"
             )
@@ -409,7 +421,8 @@ class TestCase(ITestCase):
         )
         settings = self.test_config.network_environment
         environment_dir = (
-            self.plugin_manager.plugins_loader.plugins_base_dir
+            self._panther_dir
+            / self.plugin_manager.plugins_loader.plugins_base_dir
             / "environments"
             / "network_environment"
         )
@@ -451,7 +464,15 @@ class TestCase(ITestCase):
             raise e
 
     def teardown_environment(self):
-        """Tears down the test environment using the plugin."""
+        """
+        Teardown all network environments managed by the environment plugin manager.
+        This method iterates through all environment managers in the environment plugin manager.
+        If an environment manager has a `teardown_environment` method and is identified as a 
+        network environment, it attempts to teardown the environment. Logs the success or 
+        failure of each teardown attempt and notifies the event manager upon successful teardown.
+        Raises:
+            Exception: If an error occurs during the teardown of an environment.
+        """
         self.logger.info("Tearing down all environments")
         for env_manager in self.environment_plugin_manager:
             if (
@@ -477,7 +498,13 @@ class TestCase(ITestCase):
 
     def deploy_services(self):
         """
-        Delegates service deployment to each environment manager.
+        Deploys services through environment managers.
+        This method iterates over the environment plugin managers and attempts to deploy services
+        using each manager that is an instance of INetworkEnvironment. It logs the deployment process
+        and notifies the event manager upon successful deployment. If an error occurs during the 
+        deployment, it logs the error and raises the exception.
+        Raises:
+            Exception: If the deployment of services fails for any environment manager.
         """
         self.logger.info("Deploying services through environment managers")
         for env_manager in self.environment_plugin_manager:
@@ -498,10 +525,23 @@ class TestCase(ITestCase):
 
     def execute_steps(self):
         """
-        Executes the defined steps of a test.
-
-        :param steps: Dictionary of steps to execute.
+        Executes the steps defined in the test configuration.
+        This method iterates over the steps specified in the test configuration and
+        executes them accordingly. Currently, it supports the following steps:
+        - "wait": Pauses execution for a specified duration, periodically checking
+          if an early termination event has occurred.
+        For the "wait" step:
+        - Logs the start and completion of the wait period.
+        - Periodically logs the progress of the wait.
+        - Notifies the event manager of step progress and completion.
+        - Stops waiting early if an "experiment_finished_early" event is detected.
+        TODO:
+        - Assert that the wait duration is greater than or equal to the timeout of the services.
+        - Stop the wait if the services are not failing/ending.
+        Raises:
+            Any exceptions raised by the underlying step execution logic.
         """
+        
         steps = self.test_config.steps
         for step_name, step_details in steps.items():
             if step_name == "wait":
@@ -542,7 +582,27 @@ class TestCase(ITestCase):
             # Add more step handlers as needed
 
     def validate_assertions(self):
-        """Validates assertions defined in the test configuration."""
+        """
+        This method iterates over the assertions specified in the test configuration
+        and performs validation based on the type of assertion. Currently, it supports
+        the "service_responsive" assertion type, which checks if a specified service
+        endpoint is responsive and returns the expected status code.
+
+        Note: This method should be moved to a separate module.
+
+        Raises:
+            Exception: If any assertion fails during validation.
+
+        Logs:
+            Info: If no assertions are defined in the test configuration.
+            Error: If an assertion fails during validation.
+
+        Assertion Types:
+            - service_responsive: Validates if a service endpoint is responsive.
+                - service: The service to check.
+                - endpoint: The endpoint of the service to check.
+                - expected_status: The expected HTTP status code (default is 200).
+        """
         assertions = self.test_config.assertions
         if not assertions:
             self.logger.info("No assertions to validate.")
@@ -564,11 +624,19 @@ class TestCase(ITestCase):
         self, service_name: str, endpoint: str, expected_status: int
     ):
         """
-        Checks if a service's endpoint is responsive and returns the expected status code.
-
-        :param service_name: Name of the service to check.
-        :param endpoint: The endpoint to send the request to.
-        :param expected_status: The expected HTTP status code.
+        Checks the responsiveness of a specified service by sending a GET request to a given endpoint and 
+        comparing the response status code to the expected status code.
+        Args:
+            service_name (str): The name of the service to check.
+            endpoint (str): The endpoint to send the GET request to.
+            expected_status (int): The expected HTTP status code of the response.
+        Returns:
+            None
+        Logs:
+            - Debug: When starting the check and the constructed URL.
+            - Info: If the service responds with the expected status code.
+            - Error: If the service manager is not found, the service responds with an unexpected status code, 
+              or if there is an exception during the request.
         """
         import requests
         from urllib.parse import urljoin
@@ -619,7 +687,11 @@ class TestCase(ITestCase):
 
     def register_default_observers(self):
         """
-        Registers default observers to listen to events.
+        Registers the default observers for the event manager.
+        This method registers two default observers:
+        1. LoggerObserver: Logs events for debugging purposes.
+        2. ExperimentObserver: Observes events related to experiments.
+        The method logs the registration process for debugging.
         """
         self.logger.debug("Registering default observers")
         logging_observer = LoggerObserver()
@@ -629,7 +701,13 @@ class TestCase(ITestCase):
         self.logger.debug("Registered LoggingObserver as a default observer")
 
     def setup_services(self):
-        """_summary_"""
+        """
+        Sets up the necessary services for the test case.
+        This method performs the following actions:
+        1. Logs the initiation of service setup.
+        2. Sets up the implementations required for the test case.
+        3. Sets up the testers required for the test case.
+        """
         self.logger.debug("Setting up services ...")
         self.setup_implementations()
         self.setup_testers()

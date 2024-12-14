@@ -28,13 +28,15 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 
 RUN cd /opt && \
-    git clone https://github.com/cloudflare/quiche . \
+    git clone https://github.com/cloudflare/quiche \
+    cd /opt/quiche && \
     git checkout 4bda0917dd5aa535f39214063ee85c2cad00ceb2 #0.7.0 # master # 0.9.0 for quic client ! TODO\
     git submodule update --init
 
 ADD file_to_change/packet_0.9.0.rs /opt/quiche/src/packet.rs
 
-RUN cargo build --examples \
+RUN cd /opt/quiche && \
+    cargo build --examples \
     cargo test || true
 
 # Expose necessary ports

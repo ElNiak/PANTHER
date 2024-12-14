@@ -100,6 +100,16 @@ class FeatureConfig:
 
 @dataclass
 class GlobalConfig:
+    """
+    GlobalConfig class holds the configuration settings for the application.
+
+    Attributes:
+        logging (LoggingConfig): Configuration for logging.
+        paths (PathsConfig): Configuration for paths.
+        optional_paths (AdditionalPathsConfig): Configuration for optional paths.
+        docker (DockerConfig): Configuration for Docker.
+        features (FeatureConfig): Configuration for features.
+    """
     logging: LoggingConfig = LoggingConfig()
     paths: PathsConfig = PathsConfig()
     optional_paths: AdditionalPathsConfig = AdditionalPathsConfig()

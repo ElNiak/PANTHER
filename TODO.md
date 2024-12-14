@@ -45,6 +45,8 @@
 
 * Allow to add new implementation configuration
 
+* https://peak.telecommunity.com/DevCenter/PkgResources#entrypoint-objects
+
 ## PVF architecture
 
 * Make docker internal system match to current system ?

@@ -100,10 +100,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
 
         self.services_network_config_file_path = Path(
             os.path.join(
-                os.getcwd(),
-                "panther",
-                "plugins",
-                "environments",
+                self._plugin_dir,
                 env_type,
                 env_sub_type,
                 f"{env_sub_type}.generated.yml",
@@ -115,10 +112,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
 
         self.services_network_docker_file_path = Path(
             os.path.join(
-                os.getcwd(),
-                "panther",
-                "plugins",
-                "environments",
+                self._plugin_dir,
                 env_type,
                 env_sub_type,
                 "Dockerfile.generated",
@@ -142,10 +136,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "environments",
+                    self._plugin_dir,
                     "network_environment",
                     "shadow_ns",
                     "Dockerfile",

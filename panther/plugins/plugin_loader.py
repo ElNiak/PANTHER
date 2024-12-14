@@ -1,6 +1,7 @@
 # PANTHER-SCP/panther/utils/plugin_loader.py
 
 import logging
+import os
 from pathlib import Path
 
 from omegaconf import OmegaConf
@@ -35,10 +36,11 @@ class PluginLoader:
 
     def __init__(
         self,
-        plugins_base_dir: str = "panther/plugins",
+        plugins_base_dir: str = "plugins",
         plugins_optional_dir: str | None = None,
     ):
         self.logger = logging.getLogger("PluginLoader")
+        
         self.plugins_base_dir = Path(plugins_base_dir)
         # TODO add support for optional plugins
         # For now if we want to add a new plugins, we need to add it to the plugins_base_dir
@@ -52,11 +54,21 @@ class PluginLoader:
         self.protocol_plugins: dict[str, Path] = {}
         self.environment_plugins: dict[str, Path] = {}
         self.tester_plugins: dict[str, Path] = {}
-        self.dockerfiles = self.docker_builder.find_dockerfiles(self.plugins_base_dir)
+        self.dockerfiles = self.docker_builder.find_dockerfiles(Path(os.path.dirname(__file__)))
         self.logger.info(f"Found Dockerfiles: {self.dockerfiles}")
 
     @staticmethod
     def get_class_name(plugin_name, suffix="Config"):
+        """
+        Generates a class name by capitalizing parts of the plugin name and appending a suffix.
+
+        Args:
+            plugin_name (str): The name of the plugin, with parts separated by underscores.
+            suffix (str, optional): The suffix to append to the generated class name. Defaults to "Config".
+
+        Returns:
+            str: The generated class name.
+        """
         class_name_parts = plugin_name.split("_")
         class_name_parts = [part.capitalize() for part in class_name_parts]
         class_name = "".join(class_name_parts) + suffix
@@ -64,11 +76,20 @@ class PluginLoader:
 
     def build_docker_image(self, impl_name: str, versions: str):
         """
-        Builds a Docker image for a given implementation and version.
-
-        :param impl_name: Name of the implementation.
-        :param version: Version of the implementation.
+        Build a Docker image for the specified implementation and version.
+        Args:
+            impl_name (str): The name of the implementation for which the Docker image is to be built.
+            versions (str): The version information for the implementation. This should include attributes like 'version', 'commit', and 'dependencies'.
+        Returns:
+            None
+        Logs:
+            - Debug: When a configuration for the implementation is found.
+            - Error: If the Docker image build fails or if the Dockerfile for the implementation is not found.
+        Side Effects:
+            - Updates the `built_images` dictionary with the new image tag if the build is successful.
+            - Exits the program with status code 1 if the Dockerfile is not found.
         """
+        
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
             # Load version-specific configurations from panther.config.yaml
@@ -109,11 +130,18 @@ class PluginLoader:
         self, path: Path, name: str, version: str | None = None
     ):
         """
-        Builds a Docker image for a given implementation and version.
-
-        :param impl_name: Name of the implementation.
-        :param version: Version of the implementation.
+        Builds a Docker image from the specified path.
+        This method builds a Docker image using the Dockerfile located at the given path.
+        It also loads version-specific configurations from `panther.config.yaml` and tags
+        the built image with the specified version or "latest" if no version is provided.
+        Args:
+            path (Path): The path to the Dockerfile.
+            name (str): The name of the implementation.
+            version (str | None, optional): The version of the implementation. Defaults to None.
+        Returns:
+            str: The tag of the built Docker image if successful, otherwise None.
         """
+        
         self.logger.info(f"Building image from path '{path.name}'")
         dockerfile_path = path
         # Load version-specific configurations from panther.config.yaml
@@ -142,13 +170,17 @@ class PluginLoader:
 
     def get_implementations_for_protocol(self, protocol: str) -> list[str]:
         """
-        Retrieves a list of implementations under a given protocol.
-
-        :param protocol: Name of the protocol.
-        :return: List of implementation names.
+        Retrieves a list of implementation directories for a given protocol.
+        This method searches for directories within the 'services/iut/<protocol>' 
+        path that represent different implementations of the specified protocol. 
+        It excludes directories that start with '__' or are named 'templates'.
+        Args:
+            protocol (str): The name of the protocol for which to find implementations.
+        Returns:
+            list[str]: A list of directory names representing implementations of the protocol.
         """
         implementations = []
-        implementations_dir = self.plugins_base_dir / "services" / "iut" / protocol
+        implementations_dir = Path(os.path.dirname(__file__))  / "services" / "iut" / protocol
         self.logger.debug(f"Checking for implementations in '{implementations_dir}'")
         if implementations_dir and implementations_dir.exists():
             for item in implementations_dir.iterdir():
@@ -175,7 +207,7 @@ class PluginLoader:
         :return: List of implementation names.
         """
         implementations = []
-        implementations_dir = self.plugins_base_dir / "services" / "testers"
+        implementations_dir = Path(os.path.dirname(__file__))  / "services" / "testers"
         self.logger.debug(f"Checking for testers in '{implementations_dir}'")
         for item in implementations_dir.iterdir():
             self.logger.debug(f"Checking item '{item}'")
@@ -190,14 +222,25 @@ class PluginLoader:
 
     def load_plugins(self):
         """
-        Discovers and registers all protocol and environment plugins.
+        Load plugins from the specified base directory.
+        This method discovers and loads protocol, environment, and tester plugins
+        from the respective directories within the base directory.
+        - Protocol plugins are expected to be in 'services/iut' directory.
+        - Environment plugins are expected to be in 'environments' directory.
+        - Tester plugins are expected to be in 'services/testers' directory.
+        The method logs the discovery process and updates the internal dictionaries
+        `self.protocol_plugins`, `self.environment_plugins`, and `self.tester_plugins`
+        with the discovered plugins.
+        Raises:
+            FileNotFoundError: If the base directory does not exist.
         """
+        
         self.logger.debug(
             f"Loading plugins from base directory '{self.plugins_base_dir}'"
         )
 
         # Discover protocol plugins
-        protocols_dir = self.plugins_base_dir / "services" / "iut"
+        protocols_dir = Path(os.path.dirname(__file__))  / "services" / "iut"
         for protocol in protocols_dir.iterdir():
             self.logger.debug(f"Checking protocol plugin '{protocol}'")
             if protocol.is_dir() and not protocol.name.startswith("__"):
@@ -208,7 +251,7 @@ class PluginLoader:
                     )
 
         # Discover environment plugins
-        environments_dir = self.plugins_base_dir / "environments"
+        environments_dir = Path(os.path.dirname(__file__)) / "environments"
         if environments_dir.exists() and environments_dir.is_dir():
             self.logger.debug(f"Checking environments directory '{environments_dir}'")
             for environment in environments_dir.iterdir():
@@ -229,7 +272,7 @@ class PluginLoader:
             )
 
         # Discover testers plugins
-        testers_dir = self.plugins_base_dir / "services" / "testers"
+        testers_dir = Path(os.path.dirname(__file__)) / "services" / "testers"
         if testers_dir.exists() and testers_dir.is_dir():
             self.logger.debug(f"Checking testers directory '{testers_dir}'")
             for testers in testers_dir.iterdir():

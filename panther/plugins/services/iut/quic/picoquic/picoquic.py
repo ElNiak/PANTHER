@@ -10,9 +10,6 @@ from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 
-# TODO Tom create test template for QUIC implementations new users
-
-
 class PicoquicServiceManager(IImplementationManager):
     def __init__(
         self,
@@ -59,16 +56,16 @@ class PicoquicServiceManager(IImplementationManager):
 
     def prepare(self, plugin_loader: PluginLoader | None = None):
         """
-        Prepare the service manager for use.
+        Prepares the Picoquic service manager by building the necessary Docker images.
+        Args:
+            plugin_loader (PluginLoader | None): An optional PluginLoader instance used to build Docker images.
         """
+        
         self.logger.debug("Preparing Picoquic service manager...")
         plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
+                    self._plugin_dir,
                     "Dockerfile",
                 )
             ),
@@ -82,12 +79,19 @@ class PicoquicServiceManager(IImplementationManager):
 
     def generate_deployment_commands(self) -> str:
         """
-        Generates deployment commands and collects volume mappings based on service parameters.
-
-        :param service_params: Parameters specific to the service.
-        :param environment: The environment in which the services are being deployed.
-        :return: A dictionary with service name as key and a dictionary containing command and volumes.
+        Generates deployment commands for the service based on its configuration and role.
+        This method constructs the necessary deployment commands by rendering a template
+        with the service's configuration parameters. It includes network interface parameters
+        based on the environment and role of the service (server or client).
+        Returns:
+            str: The rendered deployment command string.
+        Raises:
+            Exception: If there is an error rendering the command template.
+        Logs:
+            - Debug information about the service name, parameters, role, and version.
+            - Error information if command rendering fails.
         """
+        
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

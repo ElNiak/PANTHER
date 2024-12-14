@@ -1,0 +1,214 @@
+logging:
+  level: DEBUG
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+  
+paths:
+  output_dir: "outputs"
+  log_dir: "outputs/logs"
+  config_dir: "panther/configs"
+  plugin_dir: "panther/plugins"
+
+docker:
+  build_docker_image: True
+ 
+tests:
+  - name: "Shadow QUIC Client-Server Communication Test"
+    description: "Verify that the Picoquic server can communicate with the Picoquic client over Shadow network."
+    network_environment: 
+      type: "shadow_ns"  # Environment plugin name
+      general:
+        stop_time: 100 # TODO - copy from timeout
+        model_unblocked_syscall_latency: false
+      experimental:
+        strace_logging_mode: "standard"
+      network:
+        latency: 10
+        jitter: 10
+        packet_loss: 0.0
+      host_option_defaults:
+        pcap_enabled: true
+    iterations: 1
+    execution_environment: [] 
+    debug_environment: [ ]
+    services:
+      picoquic_client:
+        timeout: 100
+        name: "picoquic_client"  # Added 'name' key
+        implementation: 
+          name: "picoquic_shadow"
+          type: "iut"
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "ivy_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"  # Example port if needed
+          - "8081:8081"  # Changed to avoid port conflict
+        generate_new_certificates: True
+
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 100
+        implementation: 
+          type: "testers"
+          name: "panther_ivy"
+          test: quic_client_test_max
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "4987:4987"  #
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 100  # seconds to wait during the test
+  
+  - name: "Shadow QUIC IyvClient-Server Communication Test"
+    description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
+    iterations: 1
+    network_environment: 
+      type: "shadow_ns"  # Environment plugin name
+      general:
+        stop_time: 100 # TODO - copy from timeout
+        model_unblocked_syscall_latency: false
+      experimental:
+        strace_logging_mode: "standard"
+      network:
+        latency: 10
+        jitter: 10
+        packet_loss: 0.0
+      host_option_defaults:
+        pcap_enabled: true
+
+    services:
+      picoquic_server:
+        name: "picoquic_server"  # Added 'name' key
+        implementation: 
+          name: "picoquic_shadow" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
+          type: "iut"
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "8080:8080"  # Health check endpoint
+      ivy_client:
+        name: "ivy_client"  # Added 'name' key
+        implementation:
+          name: "panther_ivy"
+          type: "testers"
+          test: quic_server_test_stream
+        protocol:
+          name: "quic"
+          version:  "rfc9000"
+          role: "client"
+          target: "picoquic_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"  # Example port if needed
+          - "8081:8081"  # Changed to avoid port conflict
+    steps:
+      wait: 100  # seconds to wait during the test
+  
+  - name: "Shadow QUIC IyvServer-Client Communication Test"
+    description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
+    iterations: 1
+    network_environment: 
+      type: "shadow_ns"  # Environment plugin name
+      general:
+        stop_time: 100 # TODO - copy from timeout
+        model_unblocked_syscall_latency: false
+      experimental:
+        strace_logging_mode: "standard"
+      network:
+        latency: 10
+        jitter: 10
+        packet_loss: 0.0
+      host_option_defaults:
+        pcap_enabled: true
+    services:
+      picoquic_cient:
+        name: "picoquic_cient"  # Added 'name' key
+        implementation: 
+          name: "picoquic_shadow" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
+          type: "iut"
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "ivy_server"  # Docker Compose service name
+        ports:
+          - "4443:4443"
+          - "8080:8080"  # Health check endpoint
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        protocol:
+          name: "quic"
+          version:  "rfc9000"
+          role: "server"
+          target: "picoquic_cient"  # Docker Compose service name
+        implementation: 
+          name: "panther_ivy"
+          type: "testers"
+          test: quic_client_test_max
+        ports:
+          - "5000:5000"  # Example port if needed
+          - "8081:8081"  # Changed to avoid port conflict
+    steps:
+      wait: 100  # seconds to wait during the test
+
+  - name: "Minip Client-Server Functional Communication Test"
+    description: "Verify that the PingPong client can communicate with the PingPong server over Shadow network."
+    network_environment: 
+      type: "shadow_ns"  # Environment plugin name
+      general:
+        stop_time: 100 
+        model_unblocked_syscall_latency: false
+      experimental:
+        strace_logging_mode: "standard"
+      network:
+        latency: 10
+        jitter: 10
+        packet_loss: 0.0
+      host_option_defaults:
+        pcap_enabled: true
+    iterations: 1
+    generate_new_certificates: True
+    services:
+      ping_pong_client:
+        timeout: 100
+        name: "ping_pong_client"  # Added 'name' key
+        implementation: 
+          name: "ping_pong"
+          type: "iut"
+        protocol:
+          name: "minip"
+          role: "client"
+          version: "functional"
+          target: "ping_pong_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"  # Example port if needed
+          - "8081:8081"  # Changed to avoid port conflict
+        generate_new_certificates: True
+
+      ping_pong_server:
+        name: "ping_pong_server"  # Added 'name' key
+        timeout: 60
+        implementation: 
+          type: "iut"
+          name: "ping_pong"
+        protocol:
+          name: "minip"
+          version: "functional"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "4987:4987"  #
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+
+    steps:
+      wait: 100  # seconds to wait during the test

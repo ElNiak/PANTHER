@@ -121,7 +121,7 @@ Each plugin must include:
 ### Validation
 Run the following command to validate your plugin configuration:
 ```bash
-python panther_cli.py validate-config --plugin my_plugin_name
+panther validate-config --plugin my_plugin_name
 ```
 
 ### Registration
@@ -178,7 +178,7 @@ PANTHER automatically discovers plugins placed in the appropriate directory. Ens
 
 2. **Validation Errors**:
    - Check `config_schema.py` for missing or incorrect parameters.
-   - Use `python panther_cli.py validate-config` for debugging.
+   - Use `panther validate-config` for debugging.
 
 3. **Docker Build Fails**:
    - Confirm the `Dockerfile` path in `config.yaml` is correct.

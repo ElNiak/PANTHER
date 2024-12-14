@@ -9,11 +9,36 @@ from panther.plugins.services.iut.implementation_interface import IImplementatio
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
-
-# TODO Tom create test template for QUIC implementations new users
-
-
 class QuicheServiceManager(IImplementationManager):
+    """
+    QuicheServiceManager is a class responsible for managing the Quiche service implementation.
+
+    Attributes:
+        service_config_to_test (QuicheConfig): Configuration for the Quiche service to be tested.
+        service_type (str): Type of the service.
+        protocol (ProtocolConfig): Protocol configuration.
+        implementation_name (str): Name of the implementation.
+        logger (Logger): Logger instance for logging debug information.
+        working_dir (str): Working directory for the service.
+        role (RoleEnum): Role of the service (server or client).
+        service_version (str): Version of the service.
+        service_name (str): Name of the service.
+
+    Methods:
+        __init__(service_config_to_test, service_type, protocol, implementation_name):
+            Initializes the QuicheServiceManager with the given configuration, service type, protocol, and implementation name.
+        generate_run_command():
+            Generates the run command for the service.
+        generate_post_run_commands():
+            Generates post-run commands for the service.
+        prepare(plugin_loader):
+            Prepares the service manager for use by building Docker images.
+        generate_deployment_commands():
+        __str__():
+            Returns a string representation of the QuicheServiceManager instance.
+        __repr__():
+            Returns a string representation of the QuicheServiceManager instance.
+    """
     def __init__(
         self,
         service_config_to_test: QuicheConfig,
@@ -65,10 +90,7 @@ class QuicheServiceManager(IImplementationManager):
         plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
+                    self._plugin_dir,
                     "Dockerfile",
                 )
             ),
@@ -82,12 +104,17 @@ class QuicheServiceManager(IImplementationManager):
 
     def generate_deployment_commands(self) -> str:
         """
-        Generates deployment commands and collects volume mappings based on service parameters.
-
-        :param service_params: Parameters specific to the service.
-        :param environment: The environment in which the services are being deployed.
-        :return: A dictionary with service name as key and a dictionary containing command and volumes.
+        Generates deployment commands for the QUIC service based on the role and service configuration.
+        This method constructs the necessary deployment commands by rendering a template with the appropriate parameters.
+        It includes network interface parameters conditionally based on the environment and role (server or client).
+        Returns:
+            str: The rendered deployment command string.
+        Raises:
+            Exception: If there is an error rendering the command template.
+        Logs:
+            Various debug information including service name, service parameters, role, version, and parameters for the command template.
         """
+        
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

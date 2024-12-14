@@ -17,7 +17,7 @@ from panther.config.config_experiment_schema import (
     TestConfig,
 )
 from panther.plugins.plugin_loader import PluginLoader
-
+from importlib_resources import files
 
 class ConfigLoader:
     def __init__(
@@ -40,6 +40,8 @@ class ConfigLoader:
 
         self.logger = logging.getLogger("ConfigLoader")
         self.global_config = None
+        
+        self._panther_dir = Path(os.path.dirname(__file__)).parent
 
     def construct_global_config(self, loaded_config: DictConfig) -> GlobalConfig:
         """_summary_
@@ -117,7 +119,7 @@ class ConfigLoader:
             print(f"Copying testers from {self.testers_dir}")
             self.testers_dir = Path(self.testers_dir)
             testers_target_dir = os.path.join(
-                "panther", "plugins", "services", "testers", self.testers_dir.name
+                self._panther_dir , "plugins", "services", "testers", self.testers_dir.name
             )
             self.copy_plugin_files(testers_target_dir)
 
@@ -138,7 +140,7 @@ class ConfigLoader:
             OSError: If the source directory does not exist or if there is an error during
              the copying process.
         """
-        if not os.path.exists(testers_target_dir):
+        if not os.path.exists(os.path.join(self._panther_dir,testers_target_dir)):
             os.makedirs(testers_target_dir)
         for item in os.listdir(self.testers_dir):
             print(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
@@ -171,37 +173,74 @@ class ConfigLoader:
         """
         if self.testers_dir and self.testers_dir != "":
             testers_target_dir = os.path.join(
-                "panther", "plugins", "services", "testers", Path(self.testers_dir).name
+                 self._panther_dir, "plugins", "services", "testers", Path(self.testers_dir).name
             )
             if os.path.exists(testers_target_dir):
                 print(f"Removing testers from {testers_target_dir}")
                 shutil.rmtree(testers_target_dir)
 
     def add_plugin_iut_service(self):
+        """
+        Add the plugin IUTs service directory defined by "iut_dir" inside the application 
+        at panther/plugins/services/iut/{iut_dir}
+        
+        Parameters:
+        testers_iut_dir (str): The path to the target directory where plugin files
+                      should be copied.
+
+        Raises:
+            OSError: If the source directory does not exist or if there is an error during
+             the copying process.
+        """
         if self.iut_dir and self.iut_dir != "":
             print(f"Copying IUT from {self.iut_dir}")
             self.iut_dir = Path(self.iut_dir)
             iut_target_dir = os.path.join(
-                "panther", "plugins", "services", "iut", self.iut_dir.name
+                 self._panther_dir, "plugins", "services", "iut", self.iut_dir.name
             )
             self.copy_plugin_files(iut_target_dir)
 
     def remove_plugin_iut_service(self):
+        """
+        Remove the plugin IUTs service directory defined by "iut_dir" inside the application 
+        at panther/plugins/services/iut/{iut_dir}
+        
+        Attributes:
+            iut_dir (str): The directory path of the testers to be removed.
+
+        Side Effects:
+            Deletes the directory specified by `iut_dir` and all its contents.
+
+        Prints:
+            A message indicating the removal of the testers director
+        """
         if self.iut_dir and self.iut_dir != "":
             iut_target_dir = os.path.join(
-                "panther", "plugins", "services", "iut", Path(self.iut_dir).name
+                 self._panther_dir , "plugins", "services", "iut", Path(self.iut_dir).name
             )
             if os.path.exists(iut_target_dir):
                 print(f"Removing IUT from {iut_target_dir}")
                 shutil.rmtree(iut_target_dir)
 
     def add_plugin_network_environment(self):
+        """
+        Add the plugin network environment directory defined by "net_env_dir" inside the application 
+        at panther/plugins/environments/network_environment/{net_env_dir}
+        
+        Parameters:
+        net_env_dir (str): The path to the target directory where plugin files
+                      should be copied.
+
+        Raises:
+            OSError: If the source directory does not exist or if there is an error during
+             the copying process.
+        """
         if self.net_env_dir and self.net_env_dir != "":
             # TODO improve this
             print(f"Copying network environment from {self.net_env_dir}")
             self.net_env_dir = Path(self.net_env_dir)
             net_env_target_dir = os.path.join(
-                "panther",
+                self._panther_dir,
                 "plugins",
                 "environments",
                 "network_environment",
@@ -210,9 +249,22 @@ class ConfigLoader:
             self.copy_plugin_files(net_env_target_dir)
 
     def remove_plugin_network_environment(self):
+        """
+        Remove the plugin IUTs service directory defined by "iut_dir" inside the application 
+        at panther/plugins/services/iut/{iut_dir}
+        
+        Attributes:
+            iut_dir (str): The directory path of the testers to be removed.
+
+        Side Effects:
+            Deletes the directory specified by `iut_dir` and all its contents.
+
+        Prints:
+            A message indicating the removal of the testers director
+        """
         if self.net_env_dir and self.net_env_dir != "":
             net_env_target_dir = os.path.join(
-                "panther",
+                self._panther_dir,
                 "plugins",
                 "environments",
                 "network_environment",
@@ -228,7 +280,7 @@ class ConfigLoader:
             print(f"Copying execution environment from {self.exec_env_dir}")
             self.exec_env_dir = Path(self.exec_env_dir)
             exec_env_target_dir = os.path.join(
-                "panther",
+                self._panther_dir,
                 "plugins",
                 "environments",
                 "execution_environment",
@@ -239,7 +291,7 @@ class ConfigLoader:
     def remove_plugin_execution_environment(self):
         if self.exec_env_dir and self.exec_env_dir != "":
             exec_env_target_dir = os.path.join(
-                "panther",
+                self._panther_dir,
                 "plugins",
                 "environments",
                 "execution_environment",
@@ -531,12 +583,17 @@ class ConfigLoader:
             # Load the version configuration
             version_class_name = PluginLoader.get_class_name(name, "Version")
             version_config_class = getattr(schema_module, version_class_name)
+            # TODO cleanup  
             if implem_type == "iut":
-                version_configs_dir = module_path.replace(".", "/").replace(
+                version_configs_dir = str(self._panther_dir).replace("/panther","") \
+                    + "/" + \
+                    module_path.replace(".", "/").replace(
                     "/config_schema", "/version_configs/"
                 )
             else:
-                version_configs_dir = module_path.replace(".", "/").replace(
+                version_configs_dir = str(self._panther_dir).replace("/panther","") \
+                    + "/" + \
+                    module_path.replace(".", "/").replace(
                     "/config_schema", f"/version_configs/{protocol}/"
                 )
 
@@ -570,9 +627,10 @@ class ConfigLoader:
         """
         exec_env_classes = []
         exec_env_dir = (
-            Path(self.global_config.paths.plugin_dir)
-            / "environments"
-            / "execution_environment"
+            self._panther_dir /
+            Path(self.global_config.paths.plugin_dir) /
+            "environments" /
+            "execution_environment"
         )
         self.logger.debug(
             f"Searching for execution environment classes in {exec_env_dir}"
@@ -604,9 +662,10 @@ class ConfigLoader:
         """
         exec_env_classes = []
         exec_env_dir = (
-            Path(self.global_config.paths.plugin_dir)
-            / "environments"
-            / "network_environment"
+            self._panther_dir /
+            Path(self.global_config.paths.plugin_dir) /
+            "environments" /
+            "network_environment"
         )
         self.logger.debug(
             f"Searching for network environment classes in {exec_env_dir}"
@@ -637,7 +696,7 @@ class ConfigLoader:
         :return: A list of protocol classes.
         """
         protocol_classes = []
-        protocol_dir = Path(self.global_config.paths.plugin_dir) / "protocols"
+        protocol_dir =  self._panther_dir / Path(self.global_config.paths.plugin_dir) / "protocols"
         self.logger.debug(f"Searching for protocol classes in {protocol_dir}")
         for protocol_type_dir in protocol_dir.iterdir():
             if protocol_type_dir.is_dir():
@@ -665,7 +724,7 @@ class ConfigLoader:
         :return: A dictionary with protocols as keys and list of IUT classes as values.
         """
         iut_classes = {}
-        iut_dir = Path(self.global_config.paths.plugin_dir) / "services" / "iut"
+        iut_dir =  self._panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "iut"
         self.logger.debug(f"Searching for IUT classes in {iut_dir}")
         for protocol_dir in iut_dir.iterdir():
             if protocol_dir.is_dir():
@@ -691,7 +750,8 @@ class ConfigLoader:
         :return: A list of tester classes.
         """
         tester_classes = []
-        tester_dir = Path(self.global_config.paths.plugin_dir) / "services" / "testers"
+        #tester_dir =  self.panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "testers"
+        tester_dir = files(f'{self.global_config.paths.plugin_dir}.services.testers') # .joinpath('resource1.txt')
         self.logger.debug(f"Searching for tester classes in {tester_dir}")
         for plugin_dir in tester_dir.iterdir():
             if plugin_dir.is_dir():
@@ -722,7 +782,8 @@ class ConfigLoader:
         all_plugins = {}
 
         for plugin_type, plugin_path in plugin_types.items():
-            plugin_dir = Path(self.global_config.paths.plugin_dir) / plugin_path
+            
+            plugin_dir =  self._panther_dir / Path(self.global_config.paths.plugin_dir) / plugin_path
             self.logger.debug(f"Searching for plugins in {plugin_dir}")
             plugins = []
             if plugin_type == "iut":

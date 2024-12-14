@@ -38,6 +38,8 @@ PANTHER is a modular framework designed for testing and validating network proto
 
 ## :computer: Installation
 
+See the [Installation Guide](INSTALL.md) for detailed instructions.
+
 ### Tested on:
 
 - Python 3.10 or higher
@@ -46,7 +48,21 @@ PANTHER is a modular framework designed for testing and validating network proto
 
 Recommended: A virtual environment for Python dependencies
 
-### Steps
+### Recommended
+
+- Install the required packages:
+
+```bash
+python3.10 -m venv .venv;
+source .venv/bin/activate;
+pip install panther_net;
+```
+
+
+
+### Local Installation
+
+#### Steps
 
 - Clone the repository:
 
@@ -135,8 +151,8 @@ tests:
         timeout: 100
         implementation:
           name: "picoquic" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
-          type: "iut" # plugin is present plugins/services/iut/quic/picoquic
-        protocol:     # plugin is present plugins/protocols/
+          type: "iut"      # plugin is present plugins/services/iut/quic/picoquic
+        protocol:          # plugin is present plugins/protocols/
           name: "quic"
           version: "rfc9000"
           role: "server"
@@ -149,13 +165,13 @@ tests:
         timeout: 100
         implementation:
           name: "panther_ivy"
-          type: "testers" # plugin is present plugins/services/testers/panther_ivy
+          type: "testers"                  # plugin is present plugins/services/testers/panther_ivy
           test: quic_server_test_stream
-        protocol:  # plugin is present plugins/services/iut/quic
+        protocol:                          # plugin is present plugins/services/iut/quic
           name: "quic"
           version: "rfc9000"
           role: "client"
-          target: "picoquic_server"  # Docker Compose service name
+          target: "picoquic_server"        # Docker Compose service name
         ports:
           - "5000:5000"
           - "4987:4987"
@@ -285,30 +301,44 @@ This document provides an overview of the existing plugins in the PANTHER framew
 
 **PingPong**
 - **Path**: `plugins/services/iut/minip/ping_pong`
-- **Purpose**: Tests the behavior of a ping-pong service implementation.
 - **Key Features**:
   - Includes multiple versions (e.g., functional, vulnerable).
-  - Provides dynamic command generation through templates.
 
 #### QUIC
 
 **PicoQUIC**
 - **Path**: `plugins/services/iut/quic/picoquic`
-- **Purpose**: Validates QUIC protocol implementations.
-- **Key Features**:
-  - Supports custom QUIC implementations with configurable parameters.
+
+**PicoQUIC Shadow**
+- **Path**: `plugins/services/iut/quic/picoquic_shadow`
 
 **Quant**
 - **Path**: `plugins/services/iut/quic/quant`
-- **Purpose**: Validates QUIC protocol implementations.
-- **Key Features**:
-  - Supports custom QUIC implementations with configurable parameters.
+- **Warning**: No tested since PFV (might need to update configuration)
 
 **Quiche**
 - **Path**: `plugins/services/iut/quic/quiche`
-- **Purpose**: Validates QUIC protocol implementations.
-- **Key Features**:
-  - Supports custom QUIC implementations with configurable parameters.
+- **Warning**: No tested since PFV (might need to update configuration)
+
+**Quinn**
+- **Path**: `plugins/services/iut/quic/quinn`
+- **Warning**: No tested since PFV (might need to update configuration)
+
+**Mvfst**
+- **Path**: `plugins/services/iut/quic/mvfst`
+- **Warning**: No tested since PFV (might need to update configuration)
+
+**Aioquic**
+- **Path**: `plugins/services/iut/quic/aioquic`
+- **Warning**: No tested since PFV (might need to update configuration)
+
+**Lsquic**
+- **Path**: `plugins/services/iut/quic/lsquic`
+- **Warning**: No tested since PFV (might need to update configuration)
+
+**Quic-go**
+- **Path**: `plugins/services/iut/quic/quic_go`
+- **Warning**: No tested since PFV (might need to update configuration)
 
 Note that many of them just need to be upgrade from the old version of [PANTHER](https://github.com/ElNiak/PANTHER/tree/development-formal-attacks/panther/panther_worker/app/implementations).
 
@@ -328,15 +358,21 @@ Note that many of them just need to be upgrade from the old version of [PANTHER]
 
 ### Extending Plugins
 
-Each plugin is designed to be modular and extensible. To add a new plugin, follow the tutorials in the respective categories:
+Each plugin is designed to be modular and extensible. 
+
+To add a new plugin, follow the tutorials in the respective categories:
 
 - [Adding a New Execution Environment](ADDING_EXEC_ENV.md)
 - [Adding a New Network Environment](ADDING_NET_ENV.md)
 - [Adding a New IUT](ADDING_IUT.md)
+- [Configuration Guide](CONFIG_GUIDE.md)
+- [Plugin Development Guide](PLUGIN_GUIDE.md)
 
 ## Documentation
 
 For detailed information on using PANTHER, see the:
+
+- [elniak.github.io/PANTHER](elniak.github.io/PANTHER)
 
 
 ## Contributing

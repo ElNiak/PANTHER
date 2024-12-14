@@ -9,11 +9,30 @@ from panther.plugins.services.iut.implementation_interface import IImplementatio
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
-
-# TODO Tom create test template for QUIC implementations new users
-
-
 class QuantServiceManager(IImplementationManager):
+    """
+    QuantServiceManager is a class responsible for managing the QUIC service implementation using the Quant library.
+    It extends the IImplementationManager and provides methods to initialize, prepare, and generate commands for running and deploying the service.
+    Attributes:
+        service_config_to_test (QuantConfig): The configuration for the Quant service to be tested.
+        service_type (str): The type of service being managed.
+        protocol (ProtocolConfig): The protocol configuration.
+        implementation_name (str): The name of the implementation.
+    Methods:
+        __init__(self, service_config_to_test: QuantConfig, service_type: str, protocol: ProtocolConfig, implementation_name: str):
+            Initializes the QuantServiceManager with the provided configuration, service type, protocol, and implementation name.
+        generate_run_command(self):
+            Generates the run command for the service.
+        generate_post_run_commands(self):
+            Generates post-run commands for the service.
+        prepare(self, plugin_loader: PluginLoader | None = None):
+            Prepares the service manager for use, including building Docker images.
+        generate_deployment_commands(self) -> str:
+        __str__(self) -> str:
+            Returns a string representation of the QuantServiceManager instance.
+        __repr__(self):
+            Returns a detailed string representation of the QuantServiceManager instance.
+    """
     def __init__(
         self,
         service_config_to_test: QuantConfig,
@@ -65,10 +84,7 @@ class QuantServiceManager(IImplementationManager):
         plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
+                    self._plugin_dir,
                     "Dockerfile",
                 )
             ),
@@ -82,12 +98,15 @@ class QuantServiceManager(IImplementationManager):
 
     def generate_deployment_commands(self) -> str:
         """
-        Generates deployment commands and collects volume mappings based on service parameters.
-
-        :param service_params: Parameters specific to the service.
-        :param environment: The environment in which the services are being deployed.
-        :return: A dictionary with service name as key and a dictionary containing command and volumes.
+        Generates deployment commands for the QUIC service based on the role and service configuration.
+        This method constructs the necessary deployment commands by rendering a template with the appropriate parameters.
+        It logs the process of generating these commands and handles any exceptions that may occur during the rendering.
+        Returns:
+            str: The rendered deployment command string.
+        Raises:
+            Exception: If there is an error during the rendering of the command template.
         """
+        
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

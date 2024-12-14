@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 from enum import Enum
 
@@ -29,7 +30,7 @@ class PingPongConfig(ImplementationConfig):
     version: PingPongVersion = field(default_factory=lambda: PingPongConfig.load_versions_from_files())
     
     @staticmethod
-    def load_versions_from_files(version_configs_dir: str = "panther/plugins/services/iut/minip/ping_pong/version_configs/") -> PingPongVersion:
+    def load_versions_from_files(version_configs_dir: str =f"{Path(os.path.dirname(__file__))}/version_configs/") -> PingPongVersion:
         """Load version configurations dynamically from YAML files."""
         logging.debug(f"Loading PingPong versions from {version_configs_dir}")
         for version_file in os.listdir(version_configs_dir):

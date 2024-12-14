@@ -56,10 +56,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         )
         self.services_network_config_file_path = Path(
             os.path.join(
-                os.getcwd(),
-                "panther",
-                "plugins",
-                "environments",
+                self._plugin_dir,
                 env_type,
                 env_sub_type,
                 f"{env_sub_type}.generated.yml",

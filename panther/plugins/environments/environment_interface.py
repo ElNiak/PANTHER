@@ -1,5 +1,6 @@
 from abc import abstractmethod
 import os
+from pathlib import Path
 from panther.core.observer.event_manager import EventManager
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.plugin_interface import IPlugin
@@ -39,8 +40,9 @@ class IEnvironmentPlugin(IPlugin):
         event_manager: EventManager,
     ):
         super().__init__()
+        self._plugin_dir = Path(os.path.dirname(__file__))
         self.templates_dir: str = (
-            f"panther/plugins/environments/{env_type}/{env_sub_type}/templates"
+            f"{self._plugin_dir}/{env_type}/{env_sub_type}/templates"
         )
         self.output_dir = output_dir
         self.env_type = env_type

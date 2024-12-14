@@ -5,17 +5,19 @@ from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
 from panther.webapp.web_app import run
 
-
-# TODO create singleton plugin_loader ?
-
-
 def main():
     parser = argparse.ArgumentParser(description="Panther CLI")
+    # TODO manage dir of the experiments configs
     parser.add_argument(
         "--experiment-config",
         type=str,
         default="panther/config/experiment_config.yaml",
         help="Path to the configuration directory.",
+    )
+    parser.add_argument(
+        "--validate-config",
+        action="store_true",
+        help="Flag to validate the configuration.",
     )
     parser.add_argument(
         "--exec-env-dir",
@@ -68,6 +70,17 @@ def main():
             )
             return
         raise NotImplementedError("Teardown functionality is not implemented yet.")
+    elif args.validate_config:
+        config_loader = ConfigLoader(
+            args.experiment_config,
+            args.output_dir,
+            args.exec_env_dir,
+            args.net_env_dir,
+            args.iut_dir,
+            args.tester_dir,
+        )
+        config_loader.load_and_validate_global_config()
+        config_loader.load_and_validate_experiment_config()
     else:
         # We start by loading the configuration
         config_loader = ConfigLoader(

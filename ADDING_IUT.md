@@ -72,6 +72,15 @@ class PingPongServiceManager(IImplementationManager):
     def generate_pre_compile_commands(self):
         # Return commands to run before compilation
 
+    def generate_compile_commands(self):
+        # Return commands to run compilation
+
+    def generate_post_compile_commands(self):
+        # Return commands to execute after compilation
+
+    def generate_pre_run_commands(self):
+        # Return commands to run before the service starts
+
     def generate_run_command(self):
         # Return the main command to run the service
 
@@ -84,6 +93,9 @@ class PingPongServiceManager(IImplementationManager):
 
 - **Key Methods**:
   - `generate_pre_compile_commands`: Sets up the environment before compilation.
+  - `generate_compile_commands`: Compiles the IUT.
+  - `generate_post_compile_commands`: Cleans up after compilation.
+  - `generate_pre_run_commands`: Prepares the service before execution.
   - `generate_run_command`: Generates the command to run the IUT.
   - `generate_post_run_commands`: Cleans up after execution.
   - `prepare`: Prepares the service using the `plugin_loader`.

@@ -7,21 +7,28 @@ NPROC := $(shell nproc)
 
 package:
 	python -m pip install build wheel
-	python -m pip uninstall --yes panther
+	python -m pip uninstall --yes panther_net
+	rm -rf build/
+	python -m build --wheel --no-isolation
+	python -m pip install dist/panther_net-*.whl
+
+package-rm:
+	python -m pip install build wheel
+	python -m pip uninstall --yes panther_net
 	rm -rf build/ dist/ *.egg-info;
 	python -m build --wheel --no-isolation
-	python -m pip install --force-reinstall dist/panther-*.whl
+	python -m pip install --force-reinstall dist/panther_net-*.whl
 
 package-dev:
 	python -m pip install build wheel
-	python -m pip uninstall --yes panther
+	python -m pip uninstall --yes panther_net
 	rm -rf build/ dist/ *.egg-info;
 	python -m build --wheel --no-isolation
 	python -m pip install --force-reinstall  --editable .
 
 install-local:
 	python -m pip install build wheel
-	python -m pip uninstall --yes panther
+	python -m pip uninstall --yes panther_net
 	python -m build --wheel --no-isolation
 	python -m pip install --force-reinstall  --editable .
 

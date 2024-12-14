@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import logging
 import os
+from pathlib import Path
 
 from omegaconf import OmegaConf
 
@@ -27,7 +28,7 @@ class PicoquicShadowConfig(ImplementationConfig):
         shadow_compatible (bool): Indicates if the implementation is shadow compatible, default is True.
         version (PicoquicShadowVersion): Version configuration loaded dynamically from YAML files.
     Methods:
-        load_versions_from_files(version_configs_dir: str = "panther/plugins/services/iut/quic/picoquic/version_configs/") -> PicoquicShadowVersion:
+        load_versions_from_files(version_configs_dir: str =f"{ Path(os.path.dirname(__file__))}/quic/picoquic/version_configs/") -> PicoquicShadowVersion:
             Loads version configurations dynamically from YAML files located in the specified directory.
     """
 
@@ -41,7 +42,7 @@ class PicoquicShadowConfig(ImplementationConfig):
 
     @staticmethod
     def load_versions_from_files(
-        version_configs_dir: str = "panther/plugins/services/iut/quic/picoquic/version_configs/",
+        version_configs_dir: str =f"{Path(os.path.dirname(__file__))}/version_configs/",
     ) -> PicoquicShadowVersion:
         """Load version configurations dynamically from YAML files."""
         logging.debug(f"Loading PicoquicShadow versions from {version_configs_dir}")

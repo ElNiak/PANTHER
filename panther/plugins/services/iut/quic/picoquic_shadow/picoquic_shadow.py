@@ -94,16 +94,17 @@ class PicoquicShadowServiceManager(IImplementationManager):
 
     def prepare(self, plugin_loader: PluginLoader | None = None):
         """
-        Prepare the service manager for use.
+        Prepares the Picoquic service manager by building the necessary Docker images.
+        Args:
+            plugin_loader (PluginLoader | None): An optional PluginLoader instance used to build Docker images.
+        Raises:
+            Any exceptions raised by the plugin_loader methods.
         """
         self.logger.debug("Preparing Picoquic service manager...")
         plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
+                    self._plugin_dir,
                     "Dockerfile",
                 )
             ),
@@ -117,12 +118,17 @@ class PicoquicShadowServiceManager(IImplementationManager):
 
     def generate_deployment_commands(self) -> str:
         """
-        Generates deployment commands and collects volume mappings based on service parameters.
-
-        :param service_params: Parameters specific to the service.
-        :param environment: The environment in which the services are being deployed.
-        :return: A dictionary with service name as key and a dictionary containing command and volumes.
+        Generates deployment commands for the service based on its configuration and role.
+        This method constructs the necessary deployment commands by rendering a template
+        with the service parameters. It logs the process of generating these commands,
+        including the service name, service parameters, role, and version. Depending on
+        the environment, it may include network interface parameters.
+        Returns:
+            str: The rendered deployment command string.
+        Raises:
+            Exception: If there is an error rendering the command template.
         """
+        
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

@@ -111,7 +111,6 @@ Each service includes:
 - **Implementation**: Plugin type and name.
 - **Protocol**: Details like name, version, role, and associated target.
 - **Ports**: Exposed ports for communication.
-- **Certificate Management**: Option to generate certificates.
 
 ### Example:
 ```yaml
@@ -162,7 +161,7 @@ services:
 ## Validation
 To validate your configuration, run:
 ```bash
-python panther_cli.py validate-config --config config/experiment_config.yaml
+panther --validate-config --config config/experiment_config.yaml
 ```
 
 ---
@@ -176,7 +175,7 @@ For plugin-specific configurations, refer to `plugins/`. Each plugin directory c
 1. **Missing Configuration Keys**:
    - Ensure all required fields are present. Refer to this guide or sample files.
 2. **Validation Errors**:
-   - Use `python panther_cli.py validate-config` to debug.
+   - Use `panther --validate-config` to debug.
 3. **Docker Build Issues**:
    - Verify that `config.yaml` in plugin directories includes valid `Dockerfile` paths.
 

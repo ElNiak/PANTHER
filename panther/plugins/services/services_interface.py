@@ -1,5 +1,6 @@
 from abc import abstractmethod
 import os
+from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from panther.config.config_experiment_schema import ServiceConfig
 from panther.plugins.protocols.config_schema import ProtocolConfig
@@ -125,13 +126,13 @@ class IServiceManager(IPlugin):
         assert (
             self.service_type in self.available_types
         ), f"Invalid service type: {self.service_type}"
-
+        self._plugin_dir = Path(os.path.dirname(__file__))
         if self.service_type == "testers":
-            self.templates_dir = f"panther/plugins/services/{service_type}/{implementation_name}/templates/"
-            self.config_versions_dir = f"panther/plugins/services/{service_type}/{implementation_name}/version_configs/"
+            self.templates_dir = f"{os.path.dirname(__file__)}/{service_type}/{implementation_name}/templates/"
+            self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type}/{implementation_name}/version_configs/"
         else:
-            self.templates_dir = f"panther/plugins/services/{service_type}/{protocol.name}/{implementation_name}/templates/"
-            self.config_versions_dir = f"panther/plugins/services/{service_type}/{protocol.name}/{implementation_name}/version_configs/"
+            self.templates_dir = f"{os.path.dirname(__file__)}/{service_type}/{protocol.name}/{implementation_name}/templates/"
+            self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type}/{protocol.name}/{implementation_name}/version_configs/"
 
         if not os.path.isdir(self.templates_dir):
             self.logger.error(

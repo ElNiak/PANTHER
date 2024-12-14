@@ -65,10 +65,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
 
         self.services_network_config_file_path = Path(
             os.path.join(
-                os.getcwd(),
-                "panther",
-                "plugins",
-                "environments",
+                self._plugin_dir,
                 env_type,
                 env_sub_type,
                 "run.generated.sh",
@@ -80,10 +77,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
 
         self.services_network_docker_file_path = Path(
             os.path.join(
-                os.getcwd(),
-                "panther",
-                "plugins",
-                "environments",
+                self._plugin_dir,
                 env_type,
                 env_sub_type,
                 "Dockerfile.generated",
@@ -108,10 +102,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         self.plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
+                    self._plugin_dir,
                     "Dockerfile",
                 )
             ),

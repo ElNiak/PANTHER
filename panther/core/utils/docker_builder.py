@@ -6,9 +6,49 @@ from docker.errors import DockerException, NotFound, BuildError
 from pathlib import Path
 from typing import Any
 import os
-
+from panther.core.exceptions import EnvironmentPluginNotFound, ServicePluginNotFound
+from importlib_resources import files
 
 class DockerBuilder:
+    """
+    DockerBuilder is a utility class for managing Docker images and containers. It provides methods to build, push, and manage Docker images and containers, as well as manipulate the /etc/hosts file and Docker networks.
+
+    Methods:
+        __init__(self, build_log_file: Path | None = None):
+            Initializes the DockerBuilder instance, sets up logging, and connects to the Docker daemon.
+
+        log_docker_output(self, generator, task_name: str = "docker command execution", log_f=None) -> None:
+            Logs the output of Docker commands.
+
+        build_image(self, impl_name: str, version: str, dockerfile_path: Path, context_path: Path, config: dict[str, Any], tag_version: str = "latest", build_image_force: bool = False) -> str | None:
+            Builds a Docker image for the specified implementation.
+
+        image_exists(self, image_tag: str) -> bool:
+
+        find_dockerfiles(self, plugins_dir: str) -> dict[str, Path]:
+
+        push_image_to_registry(self, image_tag: str, registry_url: str = "elniak", tag: str = "latest") -> bool:
+
+        list_panther_containers(self) -> list[str]:
+
+        container_exists(self, container_name: str) -> bool:
+
+        get_container_ip(self, container_name: str) -> str | None:
+
+        restore_hosts_file(self) -> bool:
+
+        append_to_hosts_file(self, entry: str) -> bool:
+
+        create_network(self, network_name: str, driver: str = "bridge", subnet: str = "172.27.1.0/24", gateway: str = "172.27.1.1") -> bool:
+
+        network_exists(self, network_name: str) -> bool:
+
+        get_panther_containers(self) -> list[str]:
+
+        stop_and_remove_container(self, container_name: str) -> bool:
+
+        cleanup_unused_images(self, keep_tags: list[str]):
+    """
     def __init__(self, build_log_file: Path | None = None):
         self.plugins_dir = None
         self.logger = logging.getLogger("DockerBuilder")
@@ -24,7 +64,17 @@ class DockerBuilder:
     def log_docker_output(
         self, generator, task_name: str = "docker command execution", log_f=None
     ) -> None:
-        """_summary_"""
+        """
+        Logs the output of a Docker command execution.
+        This method processes the output from a generator that yields Docker command
+        execution results. It logs the output to a specified log file and the logger.
+        Args:
+            generator (Generator): A generator that yields Docker command execution results.
+            task_name (str, optional): The name of the task being executed. Defaults to "docker command execution".
+            log_f (file object, optional): A file object to write log output to. Defaults to None.
+        Raises:
+            ValueError: If an error is encountered in the Docker command execution output.
+        """
         output = None
         while True:
             try:
@@ -33,7 +83,7 @@ class DockerBuilder:
                     output_str = output["stream"].strip("\r\n").strip("\n")
                     if log_f:
                         log_f.write(f"{task_name}:{output_str}\n")
-                    self.logger.info(f"{task_name}: {output_str}")
+                    self.logger.debug(f"{task_name}: {output_str}")
                 elif "error" in output:
                     if log_f:
                         log_f.write(f"{task_name}:{output['error']}\n")
@@ -54,11 +104,23 @@ class DockerBuilder:
         context_path: Path,
         config: dict[str, Any],
         tag_version: str = "latest",
-        build_image_force: bool = True,
+        build_image_force: bool = False, 
     ) -> str | None:
-        """ """
+        """
+        Build a Docker image for the specified implementation.
+        Args:
+            impl_name (str): The name of the implementation.
+            version (str): The version of the implementation.
+            dockerfile_path (Path): The path to the Dockerfile.
+            context_path (Path): The path to the build context.
+            config (dict[str, Any]): Configuration dictionary containing build parameters.
+            tag_version (str, optional): The tag version for the Docker image. Defaults to "latest".
+            build_image_force (bool, optional): Force rebuild of the Docker image even if it already exists. Defaults to False.
+        Returns:
+            str | None: The tag of the built Docker image, or None if the build was skipped.
+        """
         image_tag = f"{impl_name}_{version}_panther:{tag_version}"
-        self.logger.info(
+        self.logger.debug(
             f"Building Docker image '{image_tag}' from '{dockerfile_path}' with context '{context_path}'"
         )
 
@@ -146,15 +208,28 @@ class DockerBuilder:
 
     def find_dockerfiles(self, plugins_dir: str) -> dict[str, Path]:
         """
-        Recursively searches for Dockerfiles within the implementations directories.
-
-        :param plugins_dir: Base directory where plugins are located.
-        :return: Dictionary mapping implementation names to Dockerfile paths.
+        Scans the specified plugins directory and its subdirectories for Dockerfiles.
+        This method searches for Dockerfiles in three main locations within the plugins directory:
+        - services/iut
+        - services/testers
+        - environments
+        For each Dockerfile found, it adds an entry to the returned dictionary with the implementation
+        name as the key and the resolved path to the Dockerfile as the value.
+        Args:
+            plugins_dir (str): The path to the plugins directory to scan for Dockerfiles.
+        Returns:
+            dict[str, Path]: A dictionary where keys are implementation names and values are paths to the Dockerfiles.
+        Raises:
+            ServicePluginNotFound: If the 'services/iut' directory does not exist.
+            EnvironmentPluginNotFound: If the 'environments' directory does not exist.
         """
+        
         dockerfiles = {}
-        self.plugins_dir = plugins_dir  # Store for later use in dependency builds
+        self.plugins_dir = str(plugins_dir)  # Store for later use in dependency builds
 
-        implementations_dir = Path(plugins_dir) / "services" / "iut"
+        # implementations_dir =  Path(os.path.dirname(__file__)) / Path(plugins_dir) / "services" / "iut"
+        implementations_dir = Path(self.plugins_dir) / "services" / "iut"
+
         self.logger.info(
             f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'"
         )
@@ -162,7 +237,7 @@ class DockerBuilder:
             self.logger.warning(
                 f"Implementations directory '{implementations_dir}' does not exist."
             )
-            return dockerfiles
+            raise ServicePluginNotFound()
 
         for impl_dir in implementations_dir.rglob("*"):
             if impl_dir.is_dir():
@@ -174,8 +249,9 @@ class DockerBuilder:
                         f"Found Dockerfile for implementation '{impl_name}': {dockerfile.resolve()}"
                     )
 
-        tester_dir = Path(plugins_dir) / "services" / "testers"
+        tester_dir = Path(self.plugins_dir) / "services" / "testers"
         self.logger.info(f"Scanning for Dockerfiles in '{tester_dir.resolve()}'")
+        print(f"Scanning for Dockerfiles in '{tester_dir.resolve()}'")
         if not tester_dir.exists():
             self.logger.warning(f"Testers directory '{tester_dir}' does not exist.")
             return dockerfiles
@@ -194,7 +270,7 @@ class DockerBuilder:
         self.logger.info(f"Scanning for Dockerfiles in '{env_dir.resolve()}'")
         if not env_dir.exists():
             self.logger.warning(f"Environment directory '{env_dir}' does not exist.")
-            return dockerfiles
+            raise EnvironmentPluginNotFound()
 
         for impl_dir in env_dir.rglob("*"):
             if impl_dir.is_dir():
@@ -215,11 +291,16 @@ class DockerBuilder:
     ) -> bool:
         """
         Pushes a Docker image to a specified registry.
-
-        :param image_tag: Tag of the Docker image to push.
-        :param registry_url: URL of the Docker registry.
-        :param tag: Tag version for the registry.
-        :return: True if push is successful, else False.
+        Args:
+            image_tag (str): The tag of the image to be pushed.
+            registry_url (str, optional): The URL of the registry to push the image to. Defaults to "elniak".
+            tag (str, optional): The tag to apply to the image in the registry. Defaults to "latest".
+        Returns:
+            bool: True if the image was successfully pushed, False otherwise.
+        Logs:
+            - Info: When starting to push the image and upon successful push.
+            - Debug: When tagging the image and during the push process.
+            - Error: If there is an error during the push process.
         """
         registry_image_tag = f"{registry_url}/{image_tag.split(':')[0]}:{tag}"
         self.logger.info(
@@ -270,11 +351,15 @@ class DockerBuilder:
 
     def container_exists(self, container_name: str) -> bool:
         """
-        Checks if a Docker container with the given name exists.
-
-        :param container_name: Name of the Docker container.
-        :return: True if exists, else False.
+        Check if a Docker container with the given name exists.
+        Args:
+            container_name (str): The name of the Docker container to check.
+        Returns:
+            bool: True if the container exists, False otherwise.
+        Raises:
+            DockerException: If there is an error while checking the container existence.
         """
+        
         try:
             self.client.containers.get(container_name)
             self.logger.debug(f"Container '{container_name}' exists.")
@@ -290,10 +375,14 @@ class DockerBuilder:
 
     def get_container_ip(self, container_name: str) -> str | None:
         """
-        Retrieves the IP address of a Docker container.
-
-        :param container_name: Name of the Docker container.
-        :return: IP address as a string if found, else None.
+        Retrieve the IP address of a Docker container by its name.
+        Args:
+            container_name (str): The name of the Docker container.
+        Returns:
+            str | None: The IP address of the container if found, otherwise None.
+        Logs:
+            Debug: Logs the IP address of the container if successfully retrieved.
+            Error: Logs an error message if the container is not found, or if there is an issue retrieving the IP address.
         """
         try:
             container = self.client.containers.get(container_name)
@@ -315,9 +404,17 @@ class DockerBuilder:
     def restore_hosts_file(self) -> bool:
         """
         Restores the original /etc/hosts file from a backup.
-
-        :return: True if successful, else False.
+        This method attempts to copy the backup file /etc/hosts.bak to /etc/hosts
+        using the `sudo cp` command. If the operation is successful, it logs an
+        informational message and returns True. If there is an error during the
+        process, it logs an error message and returns False.
+        Returns:
+            bool: True if the /etc/hosts file was successfully restored, False otherwise.
+        Raises:
+            subprocess.CalledProcessError: If the subprocess command fails.
+            Exception: For any other unexpected errors.
         """
+        
         try:
             subprocess.run(
                 ["sudo", "cp", "/etc/hosts.bak", "/etc/hosts"],
@@ -335,11 +432,18 @@ class DockerBuilder:
 
     def append_to_hosts_file(self, entry: str) -> bool:
         """
-        Appends a new entry to the /etc/hosts file.
-
-        :param entry: The entry to append.
-        :return: True if successful, else False.
+        Appends a given entry to the /etc/hosts file.
+        This method uses a subprocess to run a command that appends the provided entry
+        to the /etc/hosts file. It requires sudo privileges to execute the command.
+        Args:
+            entry (str): The entry to be added to the /etc/hosts file.
+        Returns:
+            bool: True if the entry was successfully added, False otherwise.
+        Raises:
+            subprocess.CalledProcessError: If the subprocess command fails.
+            Exception: For any other unexpected errors.
         """
+        
         try:
             subprocess.run(
                 ["sudo", "bash", "-c", f"echo '{entry.strip()}' >> /etc/hosts"],
@@ -363,13 +467,17 @@ class DockerBuilder:
         gateway: str = "172.27.1.1",
     ) -> bool:
         """
-        Creates a Docker network with specified configurations.
-
-        :param network_name: Name of the Docker network.
-        :param driver: Network driver (default: bridge).
-        :param subnet: Subnet for the network.
-        :param gateway: Gateway for the network.
-        :return: True if network is created successfully or already exists, else False.
+        Creates a Docker network with the specified parameters.
+        Args:
+            network_name (str): The name of the network to create.
+            driver (str, optional): The network driver to use. Defaults to "bridge".
+            subnet (str, optional): The subnet for the network. Defaults to "172.27.1.0/24".
+            gateway (str, optional): The gateway for the network. Defaults to "172.27.1.1".
+        Returns:
+            bool: True if the network was created successfully or already exists, False otherwise.
+        Raises:
+            DockerException: If there is an error creating the network.
+            Exception: If there is an unexpected error.
         """
         try:
             if self.network_exists(network_name):
@@ -398,11 +506,16 @@ class DockerBuilder:
 
     def network_exists(self, network_name: str) -> bool:
         """
-        Checks if a Docker network with the given name exists.
-
-        :param network_name: Name of the Docker network.
-        :return: True if exists, else False.
+        Check if a Docker network exists.
+        Args:
+            network_name (str): The name of the Docker network to check.
+        Returns:
+            bool: True if the network exists, False otherwise.
+        Logs:
+            Debug: Logs whether the network exists or not.
+            Error: Logs any DockerException encountered during the check.
         """
+       
         try:
             self.client.networks.get(network_name)
             self.logger.debug(f"Network '{network_name}' exists.")
