@@ -249,7 +249,8 @@ class TestCase(ITestCase):
         - Loads the protocol plugins from the plugins/services/iut directory.
         - Creates a list of service managers that will be used to deploy the services.
         
-        Note: Some part of this function should be in the plugin loader module I think ?
+        Note: 
+            Some part of this function should be in the plugin loader module I think ?
 
         The method logs the progress and details at each step, including:
         - The path where it looks for IUT plugins.
@@ -590,7 +591,8 @@ class TestCase(ITestCase):
         the "service_responsive" assertion type, which checks if a specified service
         endpoint is responsive and returns the expected status code.
 
-        Note: This method should be moved to a separate module.
+        Note: 
+            This method should be moved to a separate module.
 
         Raises:
             Exception: If any assertion fails during validation.

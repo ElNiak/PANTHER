@@ -13,7 +13,8 @@ srcs = [root / "panther"]
 for src in srcs:
     print(f"Generating reference pages for {src}")
     for path in sorted(src.rglob("*.py")):
-        if "/panther_ivy/" not in path.as_posix():
+        if ("/panther_ivy/" not in path.as_posix() or 
+            ("/panther_ivy/panther_ivy.py" in path.as_posix() or "/panther_ivy/config_schema.py" in path.as_posix())):
             module_path = (
                 path.relative_to(root).with_suffix("").as_posix().replace("/", ".")
             )
