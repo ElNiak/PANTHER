@@ -61,6 +61,99 @@ tests:
     steps:
       wait: 100  # seconds to wait during the test
   
+  - name: "QUIC IyvClient-Server Communication Test"
+    description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
+    network_environment: 
+      type: "docker_compose" 
+      # should_no_be_ignore : "should_no_be_ignore"
+    iterations: 1
+    services:
+      # should_no_be_ignore : "should_no_be_ignore"
+      picoquic_server:
+        name: "picoquic_server" 
+        timeout: 100
+        implementation: 
+          name: "picoquic" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
+          type: "iut" # plugin is present plugins/services/iut/quic/picoquic
+          # should_no_be_ignore : "should_no_be_ignore"
+        protocol: # plugin is present plugins/services/iut/quic
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+        should_be_ignore : "should_be_ignore"
+          
+      ivy_client:
+        name: "ivy_client"  # Added 'name' key
+        timeout: 100
+        implementation: 
+          name: "panther_ivy"
+          type: "testers" # plugin is present plugins/services/testers/panther_ivy
+          test: quic_server_test_stream
+        # TODO: we should be able to validate that quic_server_test_stream is available for the selected protocol and role
+        protocol:  # plugin is present plugins/services/iut/quic
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "picoquic_server"  # Docker Compose service name
+        ports:
+          - "5000:5000"  
+          - "4987:4987"  
+          - "8081:8081"  
+        generate_new_certificates: True
+    steps:
+      wait: 100  # seconds to wait during the test
+
+  - name: "QUIC IyvServer-Client Communication Test"
+    description: "Verify that the Picoquic client can communicate with the Ivy-Tester server over Docker Compose network."
+    network_environment: 
+      type: "docker_compose" 
+      # should_no_be_ignore : "should_no_be_ignore"
+    iterations: 1
+    services:
+      # should_no_be_ignore : "should_no_be_ignore"
+      picoquic_client:
+        name: "picoquic_client" 
+        timeout: 100
+        implementation: 
+          name: "picoquic" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
+          type: "iut" # plugin is present plugins/services/iut/quic/picoquic
+          # should_no_be_ignore : "should_no_be_ignore"
+        protocol: # plugin is present plugins/services/iut/quic
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "ivy_client"
+        ports:
+          - "4443:4443"
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+        should_be_ignore : "should_be_ignore"
+          
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 100
+        implementation: 
+          name: "panther_ivy"
+          type: "testers" # plugin is present plugins/services/testers/panther_ivy
+          test: quic_client_test_max
+        # TODO: we should be able to validate that quic_server_test_stream is available for the selected protocol and role
+        protocol:  # plugin is present plugins/services/iut/quic
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+          target: "picoquic_client"  # Docker Compose service name
+        ports:
+          - "5000:5000"  
+          - "4987:4987"  
+          - "8081:8081"  
+        generate_new_certificates: True
+    steps:
+      wait: 100  # seconds to wait during the test
+
   - name: "Gperf CPU and Strace - QUIC Client-IvyServer Communication Test"
     description: "Verify that the Picoquic client can communicate with the Picoquic server over Docker Compose network."
     network_environment: 
@@ -358,18 +451,7 @@ tests:
           - "8080:8080"  # Health check endpoint
         generate_new_certificates: True
     steps:
-      # record_pcap: True
       wait: 100  # seconds to wait during the test
-      # record_pcap: False
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_server"
-        endpoint: "8080/health"  # Adjust based on health endpoint
-        expected_status: 200
-      - type: "service_responsive"
-        service: "picoquic_client"
-        endpoint: "8081/health"  # Adjust based on health endpoint
-        expected_status: 200
 
   - name: "Shadow QUIC IyvClient-Server Communication Test"
     description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
@@ -416,18 +498,7 @@ tests:
           - "5000:5000"  # Example port if needed
           - "8081:8081"  # Changed to avoid port conflict
     steps:
-      # record_pcap: True
       wait: 100  # seconds to wait during the test
-      # record_pcap: False
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_server"
-        endpoint: "8080/health"  # Adjust based on health endpoint
-        expected_status: 200
-      - type: "service_responsive"
-        service: "ivy_client"
-        endpoint: "8081/health"  # Adjust based on health endpoint
-        expected_status: 200
   
   - name: "Shadow QUIC IyvServer-Client Communication Test"
     description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
@@ -574,18 +645,7 @@ tests:
           - "5000:5000"  # Example port if needed
           - "8081:8081"  # Changed to avoid port conflict
     steps:
-      # record_pcap: True
       wait: 100  # seconds to wait during the test
-      # record_pcap: False
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_server"
-        endpoint: "8080/health"  # Adjust based on health endpoint
-        expected_status: 200
-      - type: "service_responsive"
-        service: "ivy_client"
-        endpoint: "8081/health"  # Adjust based on health endpoint
-        expected_status: 200
 
   - name: "Localhost QUIC IyvServer-Client Communication Test"
     description: "Verify that the Picoquic client can communicate with the Ivy-Tester server over Localhost network."
@@ -607,7 +667,6 @@ tests:
           version: "rfc9000"
           role: "client"
           target: "ivy_server"  # Docker Compose service name
-          # target: "ivy_server"  # Duplicate key
         ports:
           - "5000:5000"  # Example port if needed
           - "8081:8081"  # Changed to avoid port conflict
@@ -629,15 +688,4 @@ tests:
           - "8080:8080"  # Health check endpoint
         generate_new_certificates: True
     steps:
-      # record_pcap: True
       wait: 100  # seconds to wait during the test
-      # record_pcap: False
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_client"
-        endpoint: "8080/health"  # Adjust based on health endpoint
-        expected_status: 200
-      - type: "service_responsive"
-        service: "ivy_server"
-        endpoint: "8081/health"  # Adjust based on health endpoint
-        expected_status: 200

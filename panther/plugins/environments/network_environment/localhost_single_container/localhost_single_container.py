@@ -102,7 +102,8 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         self.plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    self._plugin_dir,
+                    self._plugin_dir.parent,
+                    "services",
                     "Dockerfile",
                 )
             ),
@@ -376,7 +377,29 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                     # Remove the docker image after execution
                     remove_image_command = [
                         "docker",
+                        "rm",
+                        "--force",
+                        f"{self.docker_name}",
+                    ]
+                    self.logger.debug(
+                        f"Executing remove container command: {remove_image_command}"
+                    )
+                    result = subprocess.run(
+                        remove_image_command,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.logger.debug(f"Executing command: {remove_image_command}")
+
+                    log_file.write(result.stdout)
+                    log_file_err.write(result.stderr)
+                    
+                    # Remove the docker image after execution
+                    remove_image_command = [
+                        "docker",
                         "rmi",
+                        "--force",
                         f"{self.docker_name}:latest",
                     ]
                     self.logger.debug(

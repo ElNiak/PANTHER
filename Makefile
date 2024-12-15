@@ -8,7 +8,7 @@ NPROC := $(shell nproc)
 package:
 	python -m pip install build wheel
 	python -m pip uninstall --yes panther_net
-	rm -rf build/
+	rm -rf build/ dist/ *.egg-info;
 	python -m build --wheel --no-isolation
 	python -m pip install dist/panther_net-*.whl
 

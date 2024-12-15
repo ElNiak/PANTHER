@@ -106,6 +106,8 @@ class TestCase(ITestCase):
 
         self.services = test_config.services
         
+        self._fail_on_error = global_config.features.fast_fail
+        
         self._panther_dir = Path(os.path.dirname(__file__)).parent.parent.parent
         
     def __str__(self):

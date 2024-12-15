@@ -93,10 +93,7 @@ class PingPongServiceManager(IImplementationManager):
         plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
+                    self._plugin_dir,
                     "Dockerfile",
                 )
             ),

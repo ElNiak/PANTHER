@@ -7,6 +7,7 @@ from omegaconf import DictConfig, OmegaConf, ValidationError, ListConfig
 import yaml
 from panther.config.config_global_schema import (
     DockerConfig,
+    FeatureConfig,
     GlobalConfig,
     LoggingConfig,
     PathsConfig,
@@ -93,12 +94,23 @@ class ConfigLoader:
             build_docker_image=loaded_config["docker"]["build_docker_image"]
         )
         OmegaConf.merge(DockerConfig, docker_config)
+        
+        if "features" not in loaded_config:
+            feature_config = FeatureConfig()
+        else:
+            feature_config = FeatureConfig(
+                logger_observer=loaded_config["features"]["logger_observer"] if "logger_observer" in loaded_config["features"] else True,
+                storage_handler=loaded_config["features"]["storage_handler"] if "storage_handler" in loaded_config["features"] else True,
+                fast_fail=loaded_config["features"]["fast_fail"] if "fast_fail" in loaded_config["features"] else True
+            )
+        OmegaConf.merge(FeatureConfig, feature_config)
 
         global_config = GlobalConfig(
             logging=logging_config,
             paths=paths_config,
             # optional_paths=optional_paths_config,
             docker=docker_config,
+            features=feature_config
         )
         OmegaConf.merge(GlobalConfig, global_config)
         self.global_config = global_config

@@ -11,7 +11,7 @@ def main():
     parser.add_argument(
         "--experiment-config",
         type=str,
-        default="panther/config/experiment_config.yaml",
+        default="experiment-config/experiment_config.yaml",
         help="Path to the configuration directory.",
     )
     parser.add_argument(
@@ -71,6 +71,7 @@ def main():
             return
         raise NotImplementedError("Teardown functionality is not implemented yet.")
     elif args.validate_config:
+        print("Validating the configuration.")
         config_loader = ConfigLoader(
             args.experiment_config,
             args.output_dir,
@@ -79,7 +80,12 @@ def main():
             args.iut_dir,
             args.tester_dir,
         )
-        config_loader.load_and_validate_global_config()
+        # We get the global configurations
+        global_config = config_loader.load_and_validate_global_config()
+        # We create the experiment manager
+        experiment_manager = ExperimentManager(
+            global_config=global_config, experiment_name=args.experiment_name
+        )
         config_loader.load_and_validate_experiment_config()
     else:
         # We start by loading the configuration

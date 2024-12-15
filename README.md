@@ -67,8 +67,8 @@ pip install panther_net;
 - Clone the repository:
 
 ```bash
-git clone https://github.com/ElNiak/panther.git;
-cd panther/;
+git clone https://github.com/ElNiak/PANTHER.git;
+cd PANTHER/;
 git submodule update --init --recursive;
 ```
 

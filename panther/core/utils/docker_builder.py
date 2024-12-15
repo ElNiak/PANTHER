@@ -104,7 +104,7 @@ class DockerBuilder:
         context_path: Path,
         config: dict[str, Any],
         tag_version: str = "latest",
-        build_image_force: bool = False, 
+        build_image_force: bool = True, 
     ) -> str | None:
         """
         Build a Docker image for the specified implementation.
@@ -233,6 +233,7 @@ class DockerBuilder:
         self.logger.info(
             f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'"
         )
+        print(f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'")
         if not implementations_dir.exists():
             self.logger.warning(
                 f"Implementations directory '{implementations_dir}' does not exist."
@@ -268,6 +269,7 @@ class DockerBuilder:
 
         env_dir = Path(plugins_dir) / "environments"
         self.logger.info(f"Scanning for Dockerfiles in '{env_dir.resolve()}'")
+        print(f"Scanning for Dockerfiles in '{env_dir.resolve()}'")
         if not env_dir.exists():
             self.logger.warning(f"Environment directory '{env_dir}' does not exist.")
             raise EnvironmentPluginNotFound()
@@ -283,7 +285,9 @@ class DockerBuilder:
                     )
 
         self.logger.info(f"Total Dockerfiles found: {len(dockerfiles)}")
+        print(f"Total Dockerfiles found: {len(dockerfiles)}")
         self.logger.debug(f"Dockerfiles found: {dockerfiles}")
+        print(f"Dockerfiles found: {dockerfiles}")
         return dockerfiles
 
     def push_image_to_registry(
@@ -531,7 +535,8 @@ class DockerBuilder:
         """
         Retrieves a list of all running containers related to Panther.
 
-        :return: List of container names.
+        Returns:
+            List of container names.
         """
         try:
             containers = self.client.containers.list(filters={"name": "panther"})

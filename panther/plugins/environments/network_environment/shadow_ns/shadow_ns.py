@@ -238,8 +238,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 "shadow-template.jinja",
                 paths,
                 timestamp,
-                self.rendered_services_network_docker_file_path,
-                self.services_network_docker_file_path,
+                self.rendered_services_network_config_file_path,
+                self.services_network_config_file_path,
             )
 
             self.logger.info(
@@ -254,7 +254,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 timestamp,
                 self.rendered_services_network_docker_file_path,
                 self.services_network_docker_file_path,
-                self.services_network_config_file_path.name,
+                str(self.services_network_config_file_path.name),
             )
 
             self.logger.info(

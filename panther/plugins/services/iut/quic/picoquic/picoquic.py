@@ -116,11 +116,11 @@ class PicoquicServiceManager(IImplementationManager):
         self.logger.debug(f"Role: {self.role}")
         self.working_dir = params["binary"]["dir"]
         # Conditionally include network interface parameters
-        if not include_interface:
-            params["network"].pop("interface", None)
-        else:
-            # TODO add that in the Dockerfile
-            subprocess.run(["bash", "generate_certificates.sh"])
+        # if not include_interface:
+        #     params["network"].pop("interface", None)
+        # else:
+        #     # TODO add that in the Dockerfile
+        #     subprocess.run(["bash", "generate_certificates.sh"])
 
         # Render the appropriate template
         try:

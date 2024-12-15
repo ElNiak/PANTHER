@@ -93,9 +93,9 @@ class FeatureConfig:
         logger_observer (bool): Indicates whether the logger observer feature is enabled. Default is True.
         storage_handler (bool): Indicates whether the storage handler feature is enabled. Default is True.
     """
-
     logger_observer: bool = True
     storage_handler: bool = True
+    fast_fail: bool = True
 
 
 @dataclass

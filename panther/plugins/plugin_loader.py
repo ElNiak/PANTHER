@@ -89,7 +89,6 @@ class PluginLoader:
             - Updates the `built_images` dictionary with the new image tag if the build is successful.
             - Exits the program with status code 1 if the Dockerfile is not found.
         """
-        
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
             # Load version-specific configurations from panther.config.yaml
@@ -201,11 +200,14 @@ class PluginLoader:
 
     def get_testers(self) -> list[str]:
         """
-        Retrieves a list of implementations under a given protocol.
-
-        :param protocol: Name of the protocol.
-        :return: List of implementation names.
+        Scans the 'services/testers' directory for subdirectories that represent testers.
+        This method iterates through the 'services/testers' directory, checking each item.
+        It collects the names of all subdirectories that do not start with '__' and are not named 'templates'.
+        The collected names are considered as testers.
+        Returns:
+            list[str]: A list of tester names found in the 'services/testers' directory.
         """
+        
         implementations = []
         implementations_dir = Path(os.path.dirname(__file__))  / "services" / "testers"
         self.logger.debug(f"Checking for testers in '{implementations_dir}'")
