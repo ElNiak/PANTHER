@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 import os
 from panther.core.exceptions import EnvironmentPluginNotFound, ServicePluginNotFound
-from importlib_resources import files
+
 
 class DockerBuilder:
     """
@@ -49,6 +49,7 @@ class DockerBuilder:
 
         cleanup_unused_images(self, keep_tags: list[str]):
     """
+
     def __init__(self, build_log_file: Path | None = None):
         self.plugins_dir = None
         self.logger = logging.getLogger("DockerBuilder")
@@ -104,7 +105,7 @@ class DockerBuilder:
         context_path: Path,
         config: dict[str, Any],
         tag_version: str = "latest",
-        build_image_force: bool = True, 
+        build_image_force: bool = True,
     ) -> str | None:
         """
         Build a Docker image for the specified implementation.
@@ -223,7 +224,7 @@ class DockerBuilder:
             ServicePluginNotFound: If the 'services/iut' directory does not exist.
             EnvironmentPluginNotFound: If the 'environments' directory does not exist.
         """
-        
+
         dockerfiles = {}
         self.plugins_dir = str(plugins_dir)  # Store for later use in dependency builds
 
@@ -259,13 +260,21 @@ class DockerBuilder:
 
         for impl_dir in tester_dir.rglob("*"):
             if impl_dir.is_dir():
-                dockerfile = impl_dir / "Dockerfile"
+                dockerfile = impl_dir / "Dockerfile.panther"
                 if dockerfile.exists():
                     impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
                     dockerfiles[impl_name] = dockerfile.resolve()
                     self.logger.debug(
                         f"Found Dockerfile for testers '{impl_name}': {dockerfile.resolve()}"
                     )
+                else:
+                    dockerfile = impl_dir / "Dockerfile"
+                    if dockerfile.exists():
+                        impl_name = impl_dir.name
+                        dockerfiles[impl_name] = dockerfile.resolve()
+                        self.logger.debug(
+                            f"Found Dockerfile for testers '{impl_name}': {dockerfile.resolve()}"
+                        )
 
         env_dir = Path(plugins_dir) / "environments"
         self.logger.info(f"Scanning for Dockerfiles in '{env_dir.resolve()}'")
@@ -363,7 +372,7 @@ class DockerBuilder:
         Raises:
             DockerException: If there is an error while checking the container existence.
         """
-        
+
         try:
             self.client.containers.get(container_name)
             self.logger.debug(f"Container '{container_name}' exists.")
@@ -418,7 +427,7 @@ class DockerBuilder:
             subprocess.CalledProcessError: If the subprocess command fails.
             Exception: For any other unexpected errors.
         """
-        
+
         try:
             subprocess.run(
                 ["sudo", "cp", "/etc/hosts.bak", "/etc/hosts"],
@@ -447,7 +456,7 @@ class DockerBuilder:
             subprocess.CalledProcessError: If the subprocess command fails.
             Exception: For any other unexpected errors.
         """
-        
+
         try:
             subprocess.run(
                 ["sudo", "bash", "-c", f"echo '{entry.strip()}' >> /etc/hosts"],
@@ -519,7 +528,7 @@ class DockerBuilder:
             Debug: Logs whether the network exists or not.
             Error: Logs any DockerException encountered during the check.
         """
-       
+
         try:
             self.client.networks.get(network_name)
             self.logger.debug(f"Network '{network_name}' exists.")

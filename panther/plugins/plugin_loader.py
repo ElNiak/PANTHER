@@ -40,7 +40,7 @@ class PluginLoader:
         plugins_optional_dir: str | None = None,
     ):
         self.logger = logging.getLogger("PluginLoader")
-        
+
         self.plugins_base_dir = Path(plugins_base_dir)
         # TODO add support for optional plugins
         # For now if we want to add a new plugins, we need to add it to the plugins_base_dir
@@ -54,7 +54,9 @@ class PluginLoader:
         self.protocol_plugins: dict[str, Path] = {}
         self.environment_plugins: dict[str, Path] = {}
         self.tester_plugins: dict[str, Path] = {}
-        self.dockerfiles = self.docker_builder.find_dockerfiles(Path(os.path.dirname(__file__)))
+        self.dockerfiles = self.docker_builder.find_dockerfiles(
+            Path(os.path.dirname(__file__))
+        )
         self.logger.info(f"Found Dockerfiles: {self.dockerfiles}")
 
     @staticmethod
@@ -91,6 +93,13 @@ class PluginLoader:
         """
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
+
+            if not dockerfile_path.exists():
+                self.logger.error(
+                    f"Dockerfile not found for implementation '{impl_name}' in {self.dockerfiles}. Skipping."
+                )
+                exit(1)
+
             # Load version-specific configurations from panther.config.yaml
             self.logger.debug(
                 f"Found configuration for implementation '{impl_name}': {versions}"
@@ -140,10 +149,17 @@ class PluginLoader:
         Returns:
             str: The tag of the built Docker image if successful, otherwise None.
         """
-        
+
         self.logger.info(f"Building image from path '{path.name}'")
         dockerfile_path = path
         # Load version-specific configurations from panther.config.yaml
+
+        if not dockerfile_path.exists():
+            self.logger.error(
+                f"Dockerfile not found for implementation '{name}' in {self.dockerfiles}. Skipping."
+            )
+            exit(1)
+
         versions = {version: {}}
         self.logger.debug(f"Found configuration for path '{path.name}': {versions}")
         for version, version_config in versions.items():
@@ -170,8 +186,8 @@ class PluginLoader:
     def get_implementations_for_protocol(self, protocol: str) -> list[str]:
         """
         Retrieves a list of implementation directories for a given protocol.
-        This method searches for directories within the 'services/iut/<protocol>' 
-        path that represent different implementations of the specified protocol. 
+        This method searches for directories within the 'services/iut/<protocol>'
+        path that represent different implementations of the specified protocol.
         It excludes directories that start with '__' or are named 'templates'.
         Args:
             protocol (str): The name of the protocol for which to find implementations.
@@ -179,7 +195,9 @@ class PluginLoader:
             list[str]: A list of directory names representing implementations of the protocol.
         """
         implementations = []
-        implementations_dir = Path(os.path.dirname(__file__))  / "services" / "iut" / protocol
+        implementations_dir = (
+            Path(os.path.dirname(__file__)) / "services" / "iut" / protocol
+        )
         self.logger.debug(f"Checking for implementations in '{implementations_dir}'")
         if implementations_dir and implementations_dir.exists():
             for item in implementations_dir.iterdir():
@@ -207,9 +225,9 @@ class PluginLoader:
         Returns:
             list[str]: A list of tester names found in the 'services/testers' directory.
         """
-        
+
         implementations = []
-        implementations_dir = Path(os.path.dirname(__file__))  / "services" / "testers"
+        implementations_dir = Path(os.path.dirname(__file__)) / "services" / "testers"
         self.logger.debug(f"Checking for testers in '{implementations_dir}'")
         for item in implementations_dir.iterdir():
             self.logger.debug(f"Checking item '{item}'")
@@ -236,13 +254,13 @@ class PluginLoader:
         Raises:
             FileNotFoundError: If the base directory does not exist.
         """
-        
+
         self.logger.debug(
             f"Loading plugins from base directory '{self.plugins_base_dir}'"
         )
 
         # Discover protocol plugins
-        protocols_dir = Path(os.path.dirname(__file__))  / "services" / "iut"
+        protocols_dir = Path(os.path.dirname(__file__)) / "services" / "iut"
         for protocol in protocols_dir.iterdir():
             self.logger.debug(f"Checking protocol plugin '{protocol}'")
             if protocol.is_dir() and not protocol.name.startswith("__"):

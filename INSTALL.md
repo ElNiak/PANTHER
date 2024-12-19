@@ -17,16 +17,27 @@ Tested on:
 * Ubuntu 20.04.3 LTS
 
 ```bash
-sudo apt install libgraphviz-dev python3.10-venv python3.10-dev docker docker
+# https://www.cherryservers.com/blog/install-python-on-ubuntu
+sudo apt install build-essential software-properties-common -y;
+sudo add-apt-repository ppa:deadsnakes/ppa;
+sudo apt update;
+sudo apt install libgraphviz-dev python3.10-venv python3.10-dev docker python3.10-venv
+wget  https://bootstrap.pypa.io/get-pip.py;
 ```
+
+This might interest you:
+- [WLS](https://learn.microsoft.com/en-us/windows/wsl/install)
+- [WSL docker](https://docs.docker.com/desktop/features/wsl/#prerequisites)
+- `docker context use desktop-linux`
 
 ## :gear: Pre-commit and Black
 
 ```bash
 cd PANTHER;
-python3.10 -m venv venv
-venv/bin/pip install pre-commit black
-venv/bin/pre-commit install
+python3.10 -m venv .venv
+.venv/bin/python3.10 get-pip.py;
+.venv/bin/pip install pre-commit black
+.venv/bin/pre-commit install
 ```
 
 ## :computer: Local Installation
@@ -42,7 +53,7 @@ source .venv/bin/activate
 
 ```bash
 python3.10 -m venv .venv
-.venv/bin/pip install panther_net
+.venv/bin/pip install panther-net
 source .venv/bin/activate
 ```
 

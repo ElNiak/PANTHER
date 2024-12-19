@@ -13,7 +13,7 @@ class ProtocolBase:
 
 
 ProtocolType = Enum("ProtocolType", ["peer_to_peer", "client_server"])
-RoleEnum = Enum("RoleEnum", ["server", "client", "peer"])
+RoleEnum = Enum("RoleEnum", ["server", "client", "peer", "mitm"])
 
 
 @dataclass
