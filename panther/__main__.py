@@ -3,7 +3,6 @@ import logging
 import sys
 from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
-from panther.webapp.web_app import run
 
 def main():
     parser = argparse.ArgumentParser(description="Panther CLI")
@@ -104,6 +103,7 @@ def main():
                 raise NotImplementedError(
                     "Webapp functionality is not fully refactored/implemented yet."
                 )
+                from panther.webapp.web_app import run
                 run(config_loader, global_config, args)
             except Exception as e:
                 logging.error(e)

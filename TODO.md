@@ -2,6 +2,10 @@
 
 * Rename gits ?
 
+* Add loading bar 
+
+* detached mode
+
 ## PANTHER Ivy
 
 * Use Jinja template for ivy_to_cpp
