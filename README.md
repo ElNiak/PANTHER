@@ -353,6 +353,7 @@ Note that many of them just need to be upgrade from the old version of [PANTHER]
   - Facilitates formal verification of network protocols.
   - Repository: [https://github.com/ElNiak/PANTHER-Ivy/](https://github.com/ElNiak/PANTHER-Ivy/)
 
+**Note:** the statefull fuzzer is still not available in public.
 
 ---
 
