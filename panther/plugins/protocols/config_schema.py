@@ -22,4 +22,5 @@ class ProtocolConfig:
     version: str | None = None
     role: str | None = None
     target: str | None = None
+    target_port: int | None = None
     protocol_type: ProtocolType = ProtocolType.client_server

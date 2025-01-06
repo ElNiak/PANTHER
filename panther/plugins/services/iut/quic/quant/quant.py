@@ -126,6 +126,7 @@ class QuantServiceManager(IImplementationManager):
             params = self.service_config_to_test.implementation.version.client
 
         params["target"] = self.service_config_to_test.protocol.target
+        params["target_port"] = self.service_config_to_test.protocol.target_port
 
         self.logger.debug(f"Parameters for command template: {params}")
         self.logger.debug(f"Role: {self.role}")

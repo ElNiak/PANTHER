@@ -120,7 +120,8 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     f"Generating Docker Compose file for {service.service_name}"
                 )
 
-                if "ivy" in service.service_name:
+                # TODO make more general
+                if "ivy" in service.service_name or "fuzz" in service.service_name:
                     self.logger.debug(
                         f"Adding wait for Ivy testers to be ready for {service.service_name}"
                     )
@@ -149,7 +150,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     + str(service.service_config_to_test.timeout)
                     + " -i any -w /app/logs/"
                     + service.service_name
-                    + ".pcap;) & "
+                    + ".pcap > /app/logs/tshark_logs.log) & "
                 ]
 
             for service in self.services_managers:

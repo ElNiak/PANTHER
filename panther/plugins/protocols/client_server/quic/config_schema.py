@@ -28,4 +28,5 @@ class QuicConfig(ProtocolConfig):
     version: VersionEnum = VersionEnum.rfc9000  # Protocol version (e.g., rfc9000)
     role: RoleEnum = RoleEnum.server  # Role (server or client)
     target: str | None = None  # Optional target service name
+    target_port: int = 4443  # Optional target port
     protocol_type: ProtocolType = ProtocolType.client_server

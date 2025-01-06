@@ -8,7 +8,7 @@ services:
       {% for port in service.service_config_to_test.ports %}
       - "{{ port }}"
       {% endfor %}
-    {% if service.role == 'client' %}
+    {% if service.role.name == 'client' %}
     depends_on:
       - {{ service.service_targets }}
     {% endif %}
@@ -20,6 +20,7 @@ services:
       {% for key, value in service.environments.items() %}
       {{ key }}: "{{ value }}"
       {% endfor %}
+      DISPLAY: "${DISPLAY}"
     tty: true
     stdin_open: true
     # TODO fix in the docker
@@ -38,11 +39,11 @@ services:
           {% for cmd in service.run_cmd["post_compile_cmds"] %}
           {{ cmd }}
           {% endfor %}
-          echo "Running timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}" >> /app/logs/{{service.service_name}}_setup.log;
+          (echo "Running {% if not service.service_type == 'testers' %}  timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% endif %} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}" >> /app/logs/{{service.service_name}}_setup.log;) &
           {% if service.role.name == 'client' %}
-          (sleep 5; {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}})
+          (sleep 5; cd {{ service.run_cmd["run_cmd"]["working_dir"] }}; {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} {% if not service.service_type == 'testers' %}  timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% endif %} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}})
           {% else %}
-          ({% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}})
+          (cd {{ service.run_cmd["run_cmd"]["working_dir"] }}; {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} {% if not service.service_type == 'testers' %}  timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% endif %} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}})
           {% endif %}
           {% if service.run_cmd["post_run_cmds"] | length > 0 %} 
           && ({% for cmd in service.run_cmd["post_run_cmds"] %} {{ cmd | replace("\n", "") }} {% endfor -%}){% endif -%}'
