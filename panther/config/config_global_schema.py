@@ -1,5 +1,5 @@
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Logging Configuration
 LoggingLevel = Enum("LoggingLevel", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
@@ -110,8 +110,18 @@ class GlobalConfig:
         docker (DockerConfig): Configuration for Docker.
         features (FeatureConfig): Configuration for features.
     """
-    logging: LoggingConfig = LoggingConfig()
-    paths: PathsConfig = PathsConfig()
-    optional_paths: AdditionalPathsConfig = AdditionalPathsConfig()
-    docker: DockerConfig = DockerConfig()
-    features: FeatureConfig = FeatureConfig()
+    logging: LoggingConfig = field(
+        default_factory=LoggingConfig
+    )
+    paths: PathsConfig = field(
+        default_factory=PathsConfig
+    )
+    optional_paths: AdditionalPathsConfig = field(
+        default_factory=AdditionalPathsConfig
+    )
+    docker: DockerConfig = field(
+        default_factory=DockerConfig
+    )
+    features: FeatureConfig = field(
+        default_factory=FeatureConfig
+    )
