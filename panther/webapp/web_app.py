@@ -1,9 +1,16 @@
+
 #!/usr/bin/env python3.9
 
 import os
+import json
+import logging
 from flask import (
     Flask,
     redirect,
+    render_template,
+    request,
+    jsonify,
+    session,
 )
 from flask_cors import CORS
 from omegaconf import OmegaConf
@@ -45,6 +52,64 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
     app.register_blueprint(exp_manager, url_prefix="/")
     app.logger.info(f"Flask app template - {app.template_folder}")
+    
+    # API endpoints for the dynamic UI
+    @app.route("/api/plugins", methods=["GET"])
+    def get_plugins():
+        """Return all available plugins"""
+        plugins = config_loader.load_all_plugins()
+        return jsonify(plugins)
+    
+    @app.route("/api/experiments", methods=["GET"])
+    def get_experiments():
+        """Return all experiments"""
+        return jsonify(OmegaConf.to_container(experiment_config))
+    
+    @app.route("/api/run-experiment", methods=["POST"])
+    def run_experiment():
+        """Run an experiment"""
+        try:
+            test_name = request.json.get("test_name")
+            if test_name:
+                # Run specific test
+                for test in experiment_manager.test_cases:
+                    if test.name == test_name:
+                        result = experiment_manager.run_test(test)
+                        return jsonify({"status": "success", "result": result})
+                return jsonify({"status": "error", "message": f"Test {test_name} not found"})
+            else:
+                # Run all tests
+                results = experiment_manager.run_tests()
+                return jsonify({"status": "success", "results": results})
+        except Exception as e:
+            logging.error(f"Error running experiment: {e}")
+            return jsonify({"status": "error", "message": str(e)})
+
+    @app.route("/api/protocols", methods=["GET"])
+    def get_protocols():
+        """Return all available protocols"""
+        protocols = config_loader.get_all_protocol_classes()
+        return jsonify(protocols)
+    
+    @app.route("/api/environments", methods=["GET"])
+    def get_environments():
+        """Return all available network and execution environments"""
+        net_envs = config_loader.get_all_net_env_classes()
+        exec_envs = config_loader.get_all_exec_env_classes()
+        return jsonify({
+            "network_environments": net_envs,
+            "execution_environments": exec_envs
+        })
+    
+    @app.route("/api/implementations", methods=["GET"])
+    def get_implementations():
+        """Return all available implementations"""
+        iuts = config_loader.get_all_iut_classes()
+        testers = config_loader.get_all_tester_classes()
+        return jsonify({
+            "iuts": iuts,
+            "testers": testers
+        })
 
     @app.after_request
     def add_header(r):

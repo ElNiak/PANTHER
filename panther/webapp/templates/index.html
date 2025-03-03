@@ -223,3 +223,293 @@
       <script src="/static/js/datatables-simple-demo.js"></script>
    </body>
 </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PANTHER - Protocol Analysis and Testing Harness</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">
+                    <img src="{{ url_for('static', filename='img/panther-logo.png') }}" alt="PANTHER" height="40" class="d-inline-block align-text-top me-2">
+                    PANTHER
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" @click="currentView = 'dashboard'">Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" @click="currentView = 'experiments'">Experiments</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" @click="currentView = 'plugins'">Plugins</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" @click="currentView = 'configurations'">Configurations</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="container-fluid mt-3">
+            <!-- Dashboard View -->
+            <div v-if="currentView === 'dashboard'">
+                <div class="row">
+                    <div class="col-12">
+                        <h2>PANTHER Dashboard</h2>
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Overview</h5>
+                                <p class="card-text">Welcome to PANTHER: Protocol Analysis and Network Threat Evaluation Resources.</p>
+                                <div class="row mt-4">
+                                    <div class="col-md-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 class="card-title">${ experiments.length }</h3>
+                                                <p class="card-text">Experiments</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 class="card-title">${ Object.keys(plugins.protocols || {}).length }</h3>
+                                                <p class="card-text">Protocols</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h3 class="card-title">${ 
+                                                    (Object.keys(plugins.iut || {}).length || 0) + 
+                                                    (Object.keys(plugins.testers || {}).length || 0)
+                                                }</h3>
+                                                <p class="card-text">Implementations</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <h3>Recent Experiment Results</h3>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Experiment</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="exp in experiments" :key="exp.name">
+                                        <td>${ exp.name }</td>
+                                        <td><span class="badge bg-success">Ready</span></td>
+                                        <td>Today</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary" @click="runExperiment(exp.name)">Run</button>
+                                            <button class="btn btn-sm btn-info">View Details</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Experiments View -->
+            <div v-if="currentView === 'experiments'">
+                <div class="row">
+                    <div class="col-12">
+                        <h2>Experiments</h2>
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between mb-3">
+                                    <h5 class="card-title">Available Experiments</h5>
+                                    <button class="btn btn-primary">New Experiment</button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Description</th>
+                                                <th>Environment</th>
+                                                <th>Iterations</th>
+                                                <th>Services</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="test in experimentsData.tests" :key="test.name">
+                                                <td>${ test.name }</td>
+                                                <td>${ test.description }</td>
+                                                <td>${ test.network_environment?.type || 'N/A' }</td>
+                                                <td>${ test.iterations }</td>
+                                                <td>${ Object.keys(test.services || {}).length }</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-primary" @click="runExperiment(test.name)">Run</button>
+                                                    <button class="btn btn-sm btn-info">Edit</button>
+                                                    <button class="btn btn-sm btn-danger">Delete</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plugins View -->
+            <div v-if="currentView === 'plugins'">
+                <div class="row">
+                    <div class="col-12">
+                        <h2>Plugins</h2>
+                        
+                        <!-- Network Environments -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h5 class="m-0">Network Environments</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div v-for="plugin in plugins.network_environment" class="col-md-4 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h5 class="card-title">${ plugin }</h5>
+                                                <p class="card-text">Network environment plugin</p>
+                                            </div>
+                                            <div class="card-footer bg-transparent">
+                                                <button class="btn btn-sm btn-info">View Details</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Execution Environments -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h5 class="m-0">Execution Environments</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div v-for="plugin in plugins.execution_environment" class="col-md-4 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h5 class="card-title">${ plugin }</h5>
+                                                <p class="card-text">Execution environment plugin</p>
+                                            </div>
+                                            <div class="card-footer bg-transparent">
+                                                <button class="btn btn-sm btn-info">View Details</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- IUT Implementations -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h5 class="m-0">Implementation Under Test (IUT)</h5>
+                            </div>
+                            <div class="card-body">
+                                <div v-for="(implList, protocol) in plugins.iut" class="mb-4">
+                                    <h6 class="text-muted mb-3">${ protocol }</h6>
+                                    <div class="row">
+                                        <div v-for="impl in implList" class="col-md-4 mb-3">
+                                            <div class="card h-100">
+                                                <div class="card-body">
+                                                    <h5 class="card-title">${ impl.split('/')[1] }</h5>
+                                                    <p class="card-text">${ protocol } implementation</p>
+                                                </div>
+                                                <div class="card-footer bg-transparent">
+                                                    <button class="btn btn-sm btn-info">View Details</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Testers -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h5 class="m-0">Testers</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div v-for="tester in plugins.testers" class="col-md-4 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h5 class="card-title">${ tester }</h5>
+                                                <p class="card-text">Tester plugin</p>
+                                            </div>
+                                            <div class="card-footer bg-transparent">
+                                                <button class="btn btn-sm btn-info">View Details</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configurations View -->
+            <div v-if="currentView === 'configurations'">
+                <div class="row">
+                    <div class="col-12">
+                        <h2>Configurations</h2>
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Global Configuration</h5>
+                                <pre class="bg-light p-3 rounded"><code>${ JSON.stringify(globalConfig, null, 2) }</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer mt-5 py-3 bg-light">
+            <div class="container text-center">
+                <span class="text-muted">PANTHER - Protocol Analysis and Network Threat Evaluation Resources - v1.0.3</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

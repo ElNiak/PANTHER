@@ -276,3 +276,62 @@ def create_experiment():
         return redirect("/index")
 
     return render_template("index.html", form=form, exp_form=exp_form)
+from flask import Blueprint, render_template, request, redirect, url_for, current_app, jsonify
+import logging
+from omegaconf import OmegaConf
+
+# Create a blueprint
+exp_manager = Blueprint('exp_manager', __name__)
+
+@exp_manager.route('/index')
+def index():
+    """
+    Renders the index.html template which contains the main UI interface
+    """
+    return render_template('index.html')
+
+@exp_manager.route('/api/global-config')
+def global_config():
+    """
+    Returns the global configuration
+    """
+    global_config = current_app.config.get('global_config')
+    return jsonify(OmegaConf.to_container(global_config))
+
+@exp_manager.route('/api/test-cases')
+def test_cases():
+    """
+    Returns all test cases
+    """
+    experiment_manager = current_app.config.get('experiment_manager')
+    test_cases = experiment_manager.test_cases
+    
+    # Convert test cases to a simple dict for JSON serialization
+    test_cases_dict = []
+    for test in test_cases:
+        test_cases_dict.append({
+            'name': test.name,
+            'description': test.description,
+            'network_environment': test.network_environment.type,
+            'iterations': test.iterations,
+            'service_count': len(test.services) if hasattr(test, 'services') else 0
+        })
+    
+    return jsonify(test_cases_dict)
+
+@exp_manager.route('/api/run-test/<test_name>', methods=['POST'])
+def run_test(test_name):
+    """
+    Runs a specific test
+    """
+    try:
+        experiment_manager = current_app.config.get('experiment_manager')
+        for test in experiment_manager.test_cases:
+            if test.name == test_name:
+                result = experiment_manager.run_test(test)
+                return jsonify({'status': 'success', 'result': 'Test executed successfully'})
+        
+        return jsonify({'status': 'error', 'message': f'Test {test_name} not found'})
+    except Exception as e:
+        logging.error(f"Error running test {test_name}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)})
