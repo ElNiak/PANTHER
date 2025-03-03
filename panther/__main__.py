@@ -100,9 +100,6 @@ def main():
         global_config = config_loader.load_and_validate_global_config()
         if args.webapp:
             try:
-                raise NotImplementedError(
-                    "Webapp functionality is not fully refactored/implemented yet."
-                )
                 from panther.webapp.web_app import run
                 run(config_loader, global_config, args)
             except Exception as e:
