@@ -8,7 +8,7 @@
  */
 
 function nyanCat(width) {
-    if(width.length > 0) {
+    if(width && width.length > 0) {
         this.width = parseInt(width);
     } else {
         this.width = 100;
@@ -20,6 +20,7 @@ function nyanCat(width) {
         return; // Exit early if element doesn't exist
     }
     
+    // Only proceed if the element exists
     console.log(progressContainer.style.width);
     progressContainer.style.width = 75 + "%";
 
