@@ -1,0 +1,269 @@
+
+{% extends "base.html" %}
+
+{% block title %}PANTHER - Experiments{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Experiments</h1>
+        <button class="btn btn-success" id="runAllTests">
+            <i class="fas fa-play-circle me-1"></i> Run All Tests
+        </button>
+    </div>
+    
+    <div class="row">
+        {% for test in tests %}
+        <div class="col-md-6 mb-4">
+            <div class="card test-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ test.name }}</h5>
+                    <div>
+                        <button class="btn btn-sm btn-primary run-test" data-test-name="{{ test.name }}">
+                            <i class="fas fa-play me-1"></i> Run
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p>{{ test.description }}</p>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <div class="p-2 border rounded">
+                                <small class="text-muted d-block">Network Environment</small>
+                                <span class="badge bg-info">{{ test.network_environment.type }}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-2 border rounded">
+                                <small class="text-muted d-block">Iterations</small>
+                                <span class="badge bg-secondary">{{ test.iterations }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6>Services:</h6>
+                    <ul class="list-group">
+                        {% for service_name, service in test.services.items() %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ service_name }}
+                            <div>
+                                <span class="badge bg-primary">{{ service.protocol.name }}</span>
+                                <span class="badge bg-success">{{ service.protocol.role }}</span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <button class="btn btn-sm btn-info view-test" data-test-name="{{ test.name }}">
+                        <i class="fas fa-eye me-1"></i> View Details
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Test Detail Modal - same as in index.html -->
+    <div class="modal fade" id="testDetailModal" tabindex="-1" aria-labelledby="testDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="testDetailModalLabel">Test Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="testDetailContent">
+                    <!-- Content will be loaded dynamically -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="runTestFromModal">Run Test</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Execution Status Modal - same as in index.html -->
+    <div class="modal fade" id="executionStatusModal" tabindex="-1" aria-labelledby="executionStatusModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="executionStatusModalLabel">Test Execution</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="executionLog" class="code-block">
+                        <!-- Log output will be displayed here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Same JavaScript as in index.html
+    function loadTestDetails(testName) {
+        $.ajax({
+            url: `/api/test/${testName}`,
+            method: 'GET',
+            success: function(data) {
+                let content = `
+                    <h4>${data.name}</h4>
+                    <p>${data.description}</p>
+                    
+                    <h5 class="mt-4">Network Environment</h5>
+                    <div class="code-block">
+                        <pre>${JSON.stringify(data.network_environment, null, 2)}</pre>
+                    </div>
+                    
+                    <h5 class="mt-4">Services</h5>
+                `;
+                
+                for (const [serviceName, service] of Object.entries(data.services)) {
+                    content += `
+                        <div class="card service-card mt-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">${serviceName}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <p><strong>Name:</strong> ${service.name}</p>
+                                        <p><strong>Timeout:</strong> ${service.timeout}s</p>
+                                        <p><strong>Protocol:</strong> ${service.protocol.name} (${service.protocol.version})</p>
+                                        <p><strong>Role:</strong> ${service.protocol.role}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <p><strong>Implementation:</strong> ${service.implementation.name}</p>
+                                        <p><strong>Type:</strong> ${service.implementation.type}</p>
+                                        <p><strong>Ports:</strong> ${service.ports.join(', ') || 'None'}</p>
+                                        <p><strong>Generate certificates:</strong> ${service.generate_new_certificates ? 'Yes' : 'No'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                if (data.steps) {
+                    content += `
+                        <h5 class="mt-4">Steps</h5>
+                        <div class="code-block">
+                            <pre>${JSON.stringify(data.steps, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+                
+                if (data.assertions) {
+                    content += `
+                        <h5 class="mt-4">Assertions</h5>
+                        <div class="code-block">
+                            <pre>${JSON.stringify(data.assertions, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+                
+                $('#testDetailContent').html(content);
+                $('#runTestFromModal').data('test-name', testName);
+                $('#testDetailModal').modal('show');
+            },
+            error: function(xhr, status, error) {
+                alert(`Error loading test details: ${error}`);
+            }
+        });
+    }
+    
+    function runTest(testName) {
+        $('#executionStatusModalLabel').text(`Running Test: ${testName}`);
+        $('#executionLog').html('Starting test execution...\n');
+        $('.progress-bar').css('width', '10%');
+        $('#executionStatusModal').modal('show');
+        
+        $.ajax({
+            url: '/api/run-experiment',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                test_name: testName
+            }),
+            success: function(data) {
+                if (data.status === 'success') {
+                    $('.progress-bar').css('width', '100%');
+                    $('#executionLog').append(`\nTest execution completed successfully!\n`);
+                    $('#executionLog').append(`\nResults: ${JSON.stringify(data.result, null, 2)}`);
+                } else {
+                    $('.progress-bar').css('width', '100%').removeClass('bg-success').addClass('bg-danger');
+                    $('#executionLog').append(`\nTest execution failed: ${data.message}\n`);
+                }
+            },
+            error: function(xhr, status, error) {
+                $('.progress-bar').css('width', '100%').removeClass('bg-success').addClass('bg-danger');
+                $('#executionLog').append(`\nError: ${error}\n`);
+            }
+        });
+    }
+    
+    function runAllTests() {
+        $('#executionStatusModalLabel').text('Running All Tests');
+        $('#executionLog').html('Starting execution of all tests...\n');
+        $('.progress-bar').css('width', '10%');
+        $('#executionStatusModal').modal('show');
+        
+        $.ajax({
+            url: '/api/run-experiment',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({}),
+            success: function(data) {
+                if (data.status === 'success') {
+                    $('.progress-bar').css('width', '100%');
+                    $('#executionLog').append(`\nAll tests completed successfully!\n`);
+                    $('#executionLog').append(`\nResults: ${JSON.stringify(data.results, null, 2)}`);
+                } else {
+                    $('.progress-bar').css('width', '100%').removeClass('bg-success').addClass('bg-danger');
+                    $('#executionLog').append(`\nExecution failed: ${data.message}\n`);
+                }
+            },
+            error: function(xhr, status, error) {
+                $('.progress-bar').css('width', '100%').removeClass('bg-success').addClass('bg-danger');
+                $('#executionLog').append(`\nError: ${error}\n`);
+            }
+        });
+    }
+    
+    $(document).ready(function() {
+        // View test details
+        $('.view-test').click(function() {
+            const testName = $(this).data('test-name');
+            loadTestDetails(testName);
+        });
+        
+        // Run test from card
+        $('.run-test').click(function() {
+            const testName = $(this).data('test-name');
+            runTest(testName);
+        });
+        
+        // Run test from modal
+        $('#runTestFromModal').click(function() {
+            const testName = $(this).data('test-name');
+            $('#testDetailModal').modal('hide');
+            runTest(testName);
+        });
+        
+        // Run all tests
+        $('#runAllTests').click(function() {
+            runAllTests();
+        });
+    });
+</script>
+{% endblock %}
