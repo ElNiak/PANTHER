@@ -1,34 +1,57 @@
+
 import jinja2
+from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 import os
-from omegaconf import OmegaConf
 
 class JinjaManager:
-    def __init__(self, template_dir=None):
-        if template_dir is None:
-            # Default to a templates directory in the current working directory
-            template_dir = Path(os.getcwd()) / "templates"
-
-        self.env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(template_dir),
-            autoescape=jinja2.select_autoescape(['html', 'xml'])
+    """
+    A utility class for managing Jinja2 templates.
+    """
+    
+    def __init__(self, template_dir):
+        """
+        Initialize the JinjaManager with a template directory.
+        
+        Args:
+            template_dir: Path to the template directory
+        """
+        self.template_dir = template_dir
+        self.env = Environment(
+            loader=FileSystemLoader(self.template_dir),
+            trim_blocks=True,
+            lstrip_blocks=True
         )
-
+        
         # Add helper functions to safely access nested attributes
         self.env.globals['safe_getattr'] = self.safe_getattr
         self.env.globals['hasattr'] = hasattr
         self.env.globals['get_nested_attr'] = self.get_nested_attr
         self.env.globals['safe_length'] = self.safe_length
+        self.env.globals['safe_dict_access'] = self.safe_dict_access
+        self.env.globals['has_key'] = self.has_key
+        
+        # Add filters for attribute access
+        self.env.filters['attr'] = self.safe_getattr
+        self.env.filters['has_attr'] = hasattr
+        self.env.filters['get_nested'] = self.get_nested_attr
+        self.env.filters['safe_len'] = self.safe_length
 
     def get_nested_attr(self, obj, attr_path, default=None):
         """Safely access a nested attribute path, returning default if any part is not found"""
+        if obj is None:
+            return default
+            
         attrs = attr_path.split('.')
         current = obj
         
         for attr in attrs:
-            if not hasattr(current, attr):
+            if hasattr(current, attr):
+                current = getattr(current, attr)
+            elif isinstance(current, dict) and attr in current:
+                current = current[attr]
+            else:
                 return default
-            current = getattr(current, attr)
             
         return current
             
@@ -42,71 +65,42 @@ class JinjaManager:
     def safe_getattr(self, obj, attr, default=None):
         """Safely access an attribute of an object, returning default if not found"""
         try:
-            attrs = attr.split('.')
-            for a in attrs:
-                obj = getattr(obj, a)
-            return obj
+            if hasattr(obj, attr):
+                return getattr(obj, attr)
+            elif isinstance(obj, dict) and attr in obj:
+                return obj[attr]
+            return default
         except (AttributeError, TypeError):
             return default
-
-    def prepare_data(self, data):
-        """
-        Prepare data for template rendering
-
-        Args:
-            data: Data to prepare (can be a list, dict, or object)
-
-        Returns:
-            Data prepared for template rendering
-        """
-        if hasattr(data, "__dict__"):
-            # Convert objects to dictionaries
-            result = {}
-            # Include all attributes except methods and private attributes
-            for key, value in data.__dict__.items():
-                if not key.startswith('_') and not callable(value):
-                    result[key] = self.prepare_data(value)
-            return result
-        elif isinstance(data, list):
-            return [self.prepare_data(item) for item in data]
-        elif isinstance(data, dict):
-            return {key: self.prepare_data(value) for key, value in data.items()}
-        elif hasattr(data, 'to_container'):
-            # Handle OmegaConf objects
-            return OmegaConf.to_container(data)
-        else:
-            return data
+            
+    def safe_dict_access(self, dictionary, key, default=None):
+        """Safely access a dictionary key, returning default if not found"""
+        if dictionary is None:
+            return default
+        try:
+            return dictionary.get(key, default)
+        except (AttributeError, TypeError):
+            return default
+            
+    def has_key(self, dictionary, key):
+        """Check if a dictionary has a key"""
+        if dictionary is None:
+            return False
+        try:
+            return key in dictionary
+        except (TypeError, AttributeError):
+            return False
 
     def render_template(self, template_name, **context):
         """
-        Render a template with the given context
-
+        Render a template with the given context.
+        
         Args:
-            template_name: Name of the template file
-            context: Variables to pass to the template
-
+            template_name: Name of the template to render
+            **context: Template context variables
+            
         Returns:
-            Rendered template as string
+            Rendered template as a string
         """
-        # Prepare context data
-        prepared_context = {key: self.prepare_data(value) for key, value in context.items()}
-
         template = self.env.get_template(template_name)
-        return template.render(**prepared_context)
-
-    def render_string(self, template_string, **context):
-        """
-        Render a template string with the given context
-
-        Args:
-            template_string: Template as a string
-            context: Variables to pass to the template
-
-        Returns:
-            Rendered template as string
-        """
-        # Prepare context data
-        prepared_context = {key: self.prepare_data(value) for key, value in context.items()}
-
-        template = self.env.from_string(template_string)
-        return template.render(**prepared_context)
+        return template.render(**context)
