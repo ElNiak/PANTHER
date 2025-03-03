@@ -20,13 +20,21 @@ Tested on:
 sudo apt install libgraphviz-dev python3.10-venv python3.10-dev docker docker
 ```
 
-## :gear: Pre-commit and Black
+
+-  Verify Docker is installed:
+
+```bash
+docker --version;
+docker-compose --version;
+```
+
+### :gear: Pre-commit and Black
 
 ```bash
 cd PANTHER;
-python3.10 -m venv venv
-venv/bin/pip install pre-commit black
-venv/bin/pre-commit install
+python3.10 -m venv .venv
+.venv/bin/pip install pre-commit black
+.venv/bin/pre-commit install
 ```
 
 ## :computer: Local Installation
@@ -39,6 +47,8 @@ source .venv/bin/activate
 ```
 
 ## :whale: Pypi Installation
+
+- [Pypi Installation](https://pypi.org/project/panther-net/)
 
 ```bash
 python3.10 -m venv .venv
@@ -55,7 +65,6 @@ cd PANTHER;
 python3.10 -m venv .venv
 .venv/bin/pip install .
 source .venv/bin/activate
-cd panther;
 ```
 
 

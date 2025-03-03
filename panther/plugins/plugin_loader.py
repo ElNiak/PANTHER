@@ -47,7 +47,11 @@ class PluginLoader:
         self.plugins_optional_dir = (
             Path(plugins_optional_dir) if plugins_optional_dir else None
         )
-        self.docker_builder = DockerBuilder()
+        try:
+            self.docker_builder = DockerBuilder()
+        except Exception as e:
+            self.logger.error(f"Failed to create DockerBuilder: {e}")
+            # exit()
         self.built_images: dict[str, str] = (
             {}
         )  # Maps implementation names to image tags

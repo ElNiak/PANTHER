@@ -48,52 +48,11 @@ See the [Installation Guide](INSTALL.md) for detailed instructions.
 
 Recommended: A virtual environment for Python dependencies
 
-### Recommended
-
-- Install the required packages:
-
-```bash
-python3.10 -m venv .venv;
-source .venv/bin/activate;
-pip install panther_net;
-```
-
-
-
-### Local Installation
-
-#### Steps
-
-- Clone the repository:
-
-```bash
-git clone https://github.com/ElNiak/PANTHER.git;
-cd PANTHER/;
-git submodule update --init --recursive;
-```
-
-- Install the required Python packages:
-
-```bash
-python -m venv .venv;
-source .venv/bin/activate;
-make package
-```
-
--  Verify Docker is installed:
-
-```bash
-docker --version;
-docker-compose --version;
-```
-
-Or:
-
-- [Pypi Installation](https://pypi.org/project/panther-net/)
-
 - Run the PANTHER CLI:
 
 ```bash
+python3 -m panther --help
+# or 
 panther --help
 usage: panther [-h] [--experiment-config EXPERIMENT_CONFIG] [--exec-env-dir EXEC_ENV_DIR] [--net-env-dir NET_ENV_DIR] [--iut-dir IUT_DIR] [--tester-dir TESTER_DIR] [--output-dir OUTPUT_DIR]
                [--experiment-name EXPERIMENT_NAME] [--teardown] [--webapp]
@@ -126,7 +85,7 @@ options:
 
     - Create a sample configuration file:
 
-```
+```yaml
 logging:
   level: DEBUG
   format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
