@@ -51,6 +51,8 @@ Recommended: A virtual environment for Python dependencies
 - Run the PANTHER CLI:
 
 ```bash
+python3 -m panther --help
+# or 
 panther --help
 usage: panther [-h] [--experiment-config EXPERIMENT_CONFIG] [--exec-env-dir EXEC_ENV_DIR] [--net-env-dir NET_ENV_DIR] [--iut-dir IUT_DIR] [--tester-dir TESTER_DIR] [--output-dir OUTPUT_DIR]
                [--experiment-name EXPERIMENT_NAME] [--teardown] [--webapp]
@@ -83,7 +85,7 @@ options:
 
     - Create a sample configuration file:
 
-```
+```yaml
 logging:
   level: DEBUG
   format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"

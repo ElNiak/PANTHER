@@ -189,6 +189,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     os.path.join(self.output_dir, "logs", "docker-compose-up.err.log"),
                     "w",
                 ) as log_file_err:
+                    # TODO check if previous containers are running and stop them
                     result = subprocess.run(
                         [
                             "docker",

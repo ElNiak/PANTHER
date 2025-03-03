@@ -27,9 +27,9 @@ start_pcap() {
 
 set_environment() {
   log "Setting environment for picoquic_client..."
-  export ROLE="RoleEnum.client"
+  export ROLE="client"
   log "Setting environment for ivy_server..."
-  export ROLE="RoleEnum.server"
+  export ROLE="server"
   export PROTOCOL_TESTED="quic"
   export RUST_LOG="debug"
   export RUST_BACKTRACE="1"
@@ -76,13 +76,13 @@ log "Starting picoquic_client..."
 (
     sleep 5;  # Delay to ensure server is ready
     cd /opt/picoquic_client/picoquic
-    timeout 100 ./picoquicdemo -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e lo   -v 00000001  127.0.0.1 4443 > /app/logs/picoquic_client/client.log 2> /app/logs/picoquic_client/client.err.log
+timeout 100 ./picoquicdemo -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e lo   -v 00000001  127.0.0.1 4443 > /app/logs/picoquic_client/client.log 2> /app/logs/picoquic_client/client.err.log
     log "picoquic_client completed successfully."
 ) &
 log "Starting ivy_server..."
 (
-    cd /opt/panther_ivy/protocol-testing/quic
-    timeout 100 build/quic_client_test_max seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=0x7f000001 server_cid=0 > /app/logs/ivy_server/testers.log 2> /app/logs/ivy_server/testers.err
+    cd /opt/panther_ivy/protocol-testing/apt/
+timeout 100 build/quic_client_test_max seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=0x7f000001 server_cid=0 > /app/logs/ivy_server/testers.log 2> /app/logs/ivy_server/testers.err
     log "ivy_server completed successfully."
 ) &
 

@@ -37,12 +37,16 @@ This guide explains how to set up, run, and interpret experiments in PANTHER. Le
    - Build Docker images for the required services:
      ```bash
      panther build-docker-images
+     # or 
+     python3 -m panther build-docker-images
      ```
 
 3. **Validate Configuration**:
    - Ensure the configuration is valid before execution:
      ```bash
      panther validate-config --config config/experiment_config.yaml
+     # or 
+     python3 -m panther validate-config --config config/experiment_config.yaml
      ```
 
 ---
@@ -52,6 +56,8 @@ This guide explains how to set up, run, and interpret experiments in PANTHER. Le
 1. Execute the experiment:
    ```bash
    panther run-experiment --config config/experiment_config.yaml
+   # or 
+   python3 -m panther run-experiment --config config/experiment_config.yaml
    ```
 
 2. Monitor the logs for real-time updates:
