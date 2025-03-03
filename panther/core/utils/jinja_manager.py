@@ -16,6 +16,7 @@ class JinjaManager:
 
         # Add helper functions to safely access nested attributes
         self.env.globals['safe_getattr'] = self.safe_getattr
+        self.env.globals['hasattr'] = hasattr
 
     def safe_getattr(self, obj, attr, default=None):
         """Safely access an attribute of an object, returning default if not found"""
