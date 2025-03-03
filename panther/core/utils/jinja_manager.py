@@ -17,7 +17,28 @@ class JinjaManager:
         # Add helper functions to safely access nested attributes
         self.env.globals['safe_getattr'] = self.safe_getattr
         self.env.globals['hasattr'] = hasattr
+        self.env.globals['get_nested_attr'] = self.get_nested_attr
+        self.env.globals['safe_length'] = self.safe_length
 
+    def get_nested_attr(self, obj, attr_path, default=None):
+        """Safely access a nested attribute path, returning default if any part is not found"""
+        attrs = attr_path.split('.')
+        current = obj
+        
+        for attr in attrs:
+            if not hasattr(current, attr):
+                return default
+            current = getattr(current, attr)
+            
+        return current
+            
+    def safe_length(self, obj, default=0):
+        """Safely get the length of an object, returning default if not possible"""
+        try:
+            return len(obj) if obj is not None else default
+        except (TypeError, AttributeError):
+            return default
+            
     def safe_getattr(self, obj, attr, default=None):
         """Safely access an attribute of an object, returning default if not found"""
         try:

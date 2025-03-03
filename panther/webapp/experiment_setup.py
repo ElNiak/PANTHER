@@ -294,10 +294,13 @@ def index():
     services_count = 0
 
     for test in test_cases:
-        services_count += len(test.services)
-        for service_name, service in test.services.items():
-            protocols.add(service.protocol.name)
-            implementations.add(service.implementation.name)
+        if hasattr(test, 'services'):
+            services_count += len(test.services)
+            for service_name, service in test.services.items():
+                if hasattr(service, 'protocol') and hasattr(service.protocol, 'name'):
+                    protocols.add(service.protocol.name)
+                if hasattr(service, 'implementation') and hasattr(service.implementation, 'name'):
+                    implementations.add(service.implementation.name)
 
     return render_template(
         'index.html',
