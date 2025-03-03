@@ -285,6 +285,8 @@ exp_manager = Blueprint('exp_manager', __name__)
 def index():
     experiment_manager = current_app.config.get('experiment_manager')
     test_cases = experiment_manager.test_cases
+    
+    jinja_manager = JinjaManager(current_app.template_folder)
 
     # Count unique protocols and implementations
     protocols = set()
@@ -310,11 +312,25 @@ def index():
 def experiments():
     experiment_manager = current_app.config.get('experiment_manager')
     test_cases = experiment_manager.test_cases
+    
+    # Convert test cases to a simpler format for the template
+    simplified_tests = []
+    for test in test_cases:
+        test_data = {
+            'name': test.test_config.name,
+            'description': test.test_config.description,
+            'network_environment': {
+                'type': test.test_config.network_environment.type if hasattr(test.test_config.network_environment, 'type') else 'N/A'
+            },
+            'iterations': test.test_config.iterations,
+            'services': test.services
+        }
+        simplified_tests.append(test_data)
 
     return render_template(
         'experiments.html',
         active_page='experiments',
-        tests=test_cases
+        tests=simplified_tests
     )
 
 @exp_manager.route('/plugins')

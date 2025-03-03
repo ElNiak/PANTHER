@@ -1,66 +1,77 @@
-# TODO centralize all jinja logic here
-import os
-from pathlib import Path
 import jinja2
+from pathlib import Path
+import os
+from omegaconf import OmegaConf
 
 class JinjaManager:
-    """
-    Centralized manager for all Jinja2 template operations in the application.
-    
-    This class provides a unified interface for loading and rendering Jinja2 templates
-    across the application, ensuring consistent template handling.
-    """
-    
     def __init__(self, template_dir=None):
-        """
-        Initialize the JinjaManager with optional custom template directory.
-        
-        Args:
-            template_dir (str, optional): Path to the template directory.
-                If not provided, uses the default templates directory.
-        """
         if template_dir is None:
-            # Use default templates directory
-            self.template_dir = os.path.join(
-                Path(os.path.dirname(__file__)).parent.parent, 
-                "webapp", 
-                "templates"
-            )
-        else:
-            self.template_dir = template_dir
-            
-        # Configure Jinja2 environment
+            # Default to a templates directory in the current working directory
+            template_dir = Path(os.getcwd()) / "templates"
+
         self.env = jinja2.Environment(
-            loader=jinja2.FileSystemLoader(self.template_dir),
-            autoescape=True,
-            trim_blocks=True,
-            lstrip_blocks=True
+            loader=jinja2.FileSystemLoader(template_dir),
+            autoescape=jinja2.select_autoescape(['html', 'xml'])
         )
-        
+
+    def prepare_data(self, data):
+        """
+        Prepare data for template rendering
+
+        Args:
+            data: Data to prepare (can be a list, dict, or object)
+
+        Returns:
+            Data prepared for template rendering
+        """
+        if hasattr(data, "__dict__"):
+            # Convert objects to dictionaries
+            result = {}
+            # Include all attributes except methods and private attributes
+            for key, value in data.__dict__.items():
+                if not key.startswith('_') and not callable(value):
+                    result[key] = self.prepare_data(value)
+            return result
+        elif isinstance(data, list):
+            return [self.prepare_data(item) for item in data]
+        elif isinstance(data, dict):
+            return {key: self.prepare_data(value) for key, value in data.items()}
+        elif hasattr(data, 'to_container'):
+            # Handle OmegaConf objects
+            return OmegaConf.to_container(data)
+        else:
+            return data
+
     def render_template(self, template_name, **context):
         """
-        Render a template with the given context.
-        
+        Render a template with the given context
+
         Args:
-            template_name (str): Name of the template file.
-            **context: Variables to pass to the template.
-            
+            template_name: Name of the template file
+            context: Variables to pass to the template
+
         Returns:
-            str: The rendered template as a string.
+            Rendered template as string
         """
+        # Prepare context data
+        prepared_context = {key: self.prepare_data(value) for key, value in context.items()}
+
         template = self.env.get_template(template_name)
-        return template.render(**context)
-    
+        return template.render(**prepared_context)
+
     def render_string(self, template_string, **context):
         """
-        Render a template string with the given context.
-        
+        Render a template string with the given context
+
         Args:
-            template_string (str): The template string to render.
-            **context: Variables to pass to the template.
-            
+            template_string: Template as a string
+            context: Variables to pass to the template
+
         Returns:
-            str: The rendered template as a string.
+            Rendered template as string
         """
+        # Prepare context data
+        prepared_context = {key: self.prepare_data(value) for key, value in context.items()}
+
         template = self.env.from_string(template_string)
-        return template.render(**context)
+        return template.render(**prepared_context)
