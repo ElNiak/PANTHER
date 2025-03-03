@@ -48,6 +48,12 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
     app.register_blueprint(exp_manager, url_prefix="/")
     app.logger.info(f"Flask app template - {app.template_folder}")
+    
+    # Add Jinja helper functions
+    from panther.core.utils.jinja_manager import JinjaManager
+    jinja_manager = JinjaManager(app.template_folder)
+    app.jinja_env.globals['has_attr'] = jinja_manager.has_attr
+    app.jinja_env.globals['safe_getattr'] = jinja_manager.safe_getattr
 
     # API endpoints for the dynamic UI
     @app.route("/api/plugins", methods=["GET"])

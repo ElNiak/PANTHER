@@ -287,6 +287,9 @@ def index():
     test_cases = experiment_manager.test_cases
     
     jinja_manager = JinjaManager(current_app.template_folder)
+    # Add jinja globals
+    current_app.jinja_env.globals['has_attr'] = jinja_manager.has_attr
+    current_app.jinja_env.globals['safe_getattr'] = jinja_manager.safe_getattr
 
     # Count unique protocols and implementations
     protocols = set()
