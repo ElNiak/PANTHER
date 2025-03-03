@@ -400,13 +400,29 @@ def test_cases_api():
 
     test_cases_dict = []
     for test in test_cases:
-        test_cases_dict.append({
-            'name': test.name,
-            'description': test.description,
-            'network_environment': test.network_environment,
-            'iterations': test.iterations,
-            'service_count': len(test.services) if hasattr(test, 'services') else 0
-        })
+        # Extract test data from the test_config property
+        if hasattr(test, 'test_config'):
+            test_data = {
+                'name': test.test_config.name,
+                'description': test.test_config.description,
+                'network_environment': {
+                    'type': test.test_config.network_environment.type if hasattr(test.test_config.network_environment, 'type') else 'N/A'
+                },
+                'iterations': test.test_config.iterations,
+                'services': test.services if hasattr(test, 'services') else {}
+            }
+        else:
+            # Fallback for older test case format
+            test_data = {
+                'name': getattr(test, 'name', 'N/A'),
+                'description': getattr(test, 'description', 'N/A'),
+                'network_environment': {
+                    'type': getattr(test.network_environment, 'type', 'N/A') if hasattr(test, 'network_environment') else 'N/A'
+                },
+                'iterations': getattr(test, 'iterations', 0),
+                'services': test.services if hasattr(test, 'services') else {}
+            }
+        test_cases_dict.append(test_data)
 
     return jsonify(test_cases_dict)
 

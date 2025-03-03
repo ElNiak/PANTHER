@@ -6,7 +6,13 @@ createApp({
     setup() {
         // State
         const currentView = ref('dashboard');
-        const plugins = ref({});
+        const plugins = ref({
+            protocols: {},
+            iut: {},
+            testers: {},
+            network_environment: {},
+            execution_environment: {}
+        });
         const experimentsData = ref({ tests: [] });
         const globalConfig = ref({});
         const loading = ref(false);
@@ -23,9 +29,28 @@ createApp({
             ]);
         });
 
+        // Helper functions for Vue template usage
+        const getObjectLength = (obj) => {
+            if (!obj) return 0;
+            return Object.keys(obj).length;
+        };
+        
+        const getServicesLength = (test) => {
+            if (!test || !test.services) return 0;
+            return Object.keys(test.services).length;
+        };
+
         // Computed properties
         const experiments = computed(() => {
             return experimentsData.value.tests || [];
+        });
+        
+        const protocolsCount = computed(() => {
+            return getObjectLength(plugins.value.protocols);
+        });
+        
+        const implementationsCount = computed(() => {
+            return getObjectLength(plugins.value.iut) + getObjectLength(plugins.value.testers);
         });
 
         // Methods
@@ -33,7 +58,13 @@ createApp({
             try {
                 loading.value = true;
                 const response = await axios.get('/api/plugins');
-                plugins.value = response.data;
+                plugins.value = response.data || {
+                    protocols: {},
+                    iut: {},
+                    testers: {},
+                    network_environment: {},
+                    execution_environment: {}
+                };
             } catch (error) {
                 showNotification('Failed to load plugins: ' + error.message, 'danger');
             } finally {
