@@ -285,11 +285,20 @@ exp_manager = Blueprint('exp_manager', __name__)
 def index():
     experiment_manager = current_app.config.get('experiment_manager')
     test_cases = experiment_manager.test_cases
-    
+
     jinja_manager = JinjaManager(current_app.template_folder)
     # Add jinja globals
     current_app.jinja_env.globals['has_attr'] = jinja_manager.has_attr
     current_app.jinja_env.globals['safe_getattr'] = jinja_manager.safe_getattr
+    current_app.jinja_env.globals['safe_length'] = jinja_manager.safe_length
+
+    # Also add as filters
+    current_app.jinja_env.filters['has_attr'] = jinja_manager.has_attr
+    current_app.jinja_env.filters['safe_getattr'] = jinja_manager.safe_getattr
+    current_app.jinja_env.filters['safe_length'] = jinja_manager.safe_length
+
+    # Make sure length filter works too (as an alias for safe_length)
+    current_app.jinja_env.filters['length'] = jinja_manager.safe_length
 
     # Count unique protocols and implementations
     protocols = set()
@@ -318,7 +327,7 @@ def index():
 def experiments():
     experiment_manager = current_app.config.get('experiment_manager')
     test_cases = experiment_manager.test_cases
-    
+
     # Convert test cases to a simpler format for the template
     simplified_tests = []
     for test in test_cases:
