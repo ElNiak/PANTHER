@@ -15,6 +15,10 @@ from dataclasses import MISSING, is_dataclass
 from enum import Enum
 from panther.config.config_global_schema import GlobalConfig
 import typing
+from panther.core.utils.jinja_manager import JinjaManager #Import JinjaManager
+from flask import Blueprint, render_template, request, redirect, url_for, current_app, jsonify
+import logging
+from omegaconf import OmegaConf
 
 
 # Utility: Convert Enum to SelectField choices
@@ -255,15 +259,10 @@ exp_manager = Blueprint("experiment-manager", __name__)
 
 @exp_manager.route("/index", methods=["GET", "POST"])
 def create_experiment():
-    """
-    It creates a folder for the project, and then calls the upload function
-    :return: the upload function.
-    """
     form_class = generate_form(GlobalConfig)
     form = form_class()
 
     current_app.logger.info(f"Flask app template - {current_app.template_folder}")
-    # print(current_app.config["config_loader"].load_all_plugins())
 
     exp_form_class = generate_form(current_app.config["experiment_config"])
     exp_form = exp_form_class()
@@ -276,62 +275,136 @@ def create_experiment():
         return redirect("/index")
 
     return render_template("index.html", form=form, exp_form=exp_form)
-from flask import Blueprint, render_template, request, redirect, url_for, current_app, jsonify
-import logging
-from omegaconf import OmegaConf
+
+
 
 # Create a blueprint
 exp_manager = Blueprint('exp_manager', __name__)
 
 @exp_manager.route('/index')
 def index():
-    """
-    Renders the index.html template which contains the main UI interface
-    """
-    return render_template('index.html')
+    experiment_manager = current_app.config.get('experiment_manager')
+    test_cases = experiment_manager.test_cases
+
+    # Count unique protocols and implementations
+    protocols = set()
+    implementations = set()
+    services_count = 0
+
+    for test in test_cases:
+        services_count += len(test.services)
+        for service_name, service in test.services.items():
+            protocols.add(service.protocol.name)
+            implementations.add(service.implementation.name)
+
+    return render_template(
+        'index.html',
+        active_page='dashboard',
+        tests=test_cases,
+        protocols_count=len(protocols),
+        implementations_count=len(implementations),
+        services_count=services_count
+    )
+
+@exp_manager.route('/experiments')
+def experiments():
+    experiment_manager = current_app.config.get('experiment_manager')
+    test_cases = experiment_manager.test_cases
+
+    return render_template(
+        'experiments.html',
+        active_page='experiments',
+        tests=test_cases
+    )
+
+@exp_manager.route('/plugins')
+def plugins():
+    config_loader = current_app.config.get('config_loader')
+    plugins = config_loader.load_all_plugins()
+
+    return render_template(
+        'plugins.html',
+        active_page='plugins',
+        plugins=plugins
+    )
+
+@exp_manager.route('/configuration')
+def configuration():
+    global_config = current_app.config.get('global_config')
+    experiment_config = current_app.config.get('experiment_config')
+
+    return render_template(
+        'configuration.html',
+        active_page='configuration',
+        global_config=global_config,
+        experiment_config=experiment_config
+    )
+
+@exp_manager.route('/logs')
+def logs():
+    global_config = current_app.config.get('global_config')
+    log_dir = global_config.paths.log_dir
+
+    # This is a placeholder - you would need to implement actual log fetching
+    recent_logs = []
+
+    return render_template(
+        'logs.html',
+        active_page='logs',
+        log_dir=log_dir,
+        recent_logs=recent_logs
+    )
+
+# API Endpoints
 
 @exp_manager.route('/api/global-config')
-def global_config():
-    """
-    Returns the global configuration
-    """
+def global_config_api():
     global_config = current_app.config.get('global_config')
     return jsonify(OmegaConf.to_container(global_config))
 
 @exp_manager.route('/api/test-cases')
-def test_cases():
-    """
-    Returns all test cases
-    """
+def test_cases_api():
     experiment_manager = current_app.config.get('experiment_manager')
     test_cases = experiment_manager.test_cases
-    
-    # Convert test cases to a simple dict for JSON serialization
+
     test_cases_dict = []
     for test in test_cases:
         test_cases_dict.append({
             'name': test.name,
             'description': test.description,
-            'network_environment': test.network_environment.type,
+            'network_environment': test.network_environment,
             'iterations': test.iterations,
             'service_count': len(test.services) if hasattr(test, 'services') else 0
         })
-    
+
     return jsonify(test_cases_dict)
 
-@exp_manager.route('/api/run-test/<test_name>', methods=['POST'])
-def run_test(test_name):
-    """
-    Runs a specific test
-    """
+@exp_manager.route('/api/test/<test_name>')
+def get_test(test_name):
+    experiment_manager = current_app.config.get('experiment_manager')
+
+    for test in experiment_manager.test_cases:
+        if test.name == test_name:
+            return jsonify(OmegaConf.to_container(test))
+
+    return jsonify({'error': 'Test not found'}), 404
+
+@exp_manager.route('/api/run-experiment', methods=['POST'])
+def run_experiment():
     try:
+        test_name = request.json.get('test_name')
         experiment_manager = current_app.config.get('experiment_manager')
-        for test in experiment_manager.test_cases:
-            if test.name == test_name:
-                result = experiment_manager.run_test(test)
-                return jsonify({'status': 'success', 'result': 'Test executed successfully'})
-        
-        return jsonify({'status': 'error', 'message': f'Test {test_name} not found'})
+
+        if test_name:
+            for test in experiment_manager.test_cases:
+                if test.name == test_name:
+                    result = experiment_manager.run_test(test)
+                    return jsonify({"status": "success", "result": "Test executed successfully"})
+
+            return jsonify({"status": "error", "message": f"Test {test_name} not found"})
+        else:
+            results = experiment_manager.run_tests()
+            return jsonify({"status": "success", "results": "All tests executed successfully"})
     except Exception as e:
-        logging.error(f"Error running test {test_name}: {e}")
-        return jsonify({'status': 'error', 'message': str(e)})
+        logging.error(f"Error running experiment: {e}")
+        return jsonify({"status": "error", "message": str(e)})
