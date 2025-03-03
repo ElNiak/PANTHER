@@ -14,6 +14,19 @@ class JinjaManager:
             autoescape=jinja2.select_autoescape(['html', 'xml'])
         )
 
+        # Add helper functions to safely access nested attributes
+        self.env.globals['safe_getattr'] = self.safe_getattr
+
+    def safe_getattr(self, obj, attr, default=None):
+        """Safely access an attribute of an object, returning default if not found"""
+        try:
+            attrs = attr.split('.')
+            for a in attrs:
+                obj = getattr(obj, a)
+            return obj
+        except (AttributeError, TypeError):
+            return default
+
     def prepare_data(self, data):
         """
         Prepare data for template rendering
