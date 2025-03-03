@@ -1,5 +1,8 @@
 {pkgs}: {
   deps = [
+    pkgs.docker
+    pkgs.docker-client
+    pkgs.docker-compose
     pkgs.pkg-config
     pkgs.coreutils
     pkgs.cacert

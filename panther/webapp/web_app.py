@@ -1,6 +1,3 @@
-
-#!/usr/bin/env python3.9
-
 import os
 import json
 import logging
@@ -37,8 +34,7 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     app.config["config_loader"] = config_loader
     app.config["global_config"] = global_config
     experiment_manager = ExperimentManager(
-        global_config=global_config, experiment_name=args.experiment_name
-    )
+        global_config=global_config, experiment_name=args.experiment_name)
     experiment_manager.test_cases
     app.config["experiment_manager"] = experiment_manager
 
@@ -52,19 +48,19 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
     app.register_blueprint(exp_manager, url_prefix="/")
     app.logger.info(f"Flask app template - {app.template_folder}")
-    
+
     # API endpoints for the dynamic UI
     @app.route("/api/plugins", methods=["GET"])
     def get_plugins():
         """Return all available plugins"""
         plugins = config_loader.load_all_plugins()
         return jsonify(plugins)
-    
+
     @app.route("/api/experiments", methods=["GET"])
     def get_experiments():
         """Return all experiments"""
         return jsonify(OmegaConf.to_container(experiment_config))
-    
+
     @app.route("/api/run-experiment", methods=["POST"])
     def run_experiment():
         """Run an experiment"""
@@ -76,7 +72,10 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
                     if test.name == test_name:
                         result = experiment_manager.run_test(test)
                         return jsonify({"status": "success", "result": result})
-                return jsonify({"status": "error", "message": f"Test {test_name} not found"})
+                return jsonify({
+                    "status": "error",
+                    "message": f"Test {test_name} not found"
+                })
             else:
                 # Run all tests
                 results = experiment_manager.run_tests()
@@ -90,7 +89,7 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
         """Return all available protocols"""
         protocols = config_loader.get_all_protocol_classes()
         return jsonify(protocols)
-    
+
     @app.route("/api/environments", methods=["GET"])
     def get_environments():
         """Return all available network and execution environments"""
@@ -100,16 +99,13 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
             "network_environments": net_envs,
             "execution_environments": exec_envs
         })
-    
+
     @app.route("/api/implementations", methods=["GET"])
     def get_implementations():
         """Return all available implementations"""
         iuts = config_loader.get_all_iut_classes()
         testers = config_loader.get_all_tester_classes()
-        return jsonify({
-            "iuts": iuts,
-            "testers": testers
-        })
+        return jsonify({"iuts": iuts, "testers": testers})
 
     @app.after_request
     def add_header(r):
@@ -123,7 +119,8 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
         r.headers["Pragma"] = "no-cache"
         r.headers["Expires"] = "0"
         r.headers["Cache-Control"] = "public, max-age=0"
-        r.headers.add("Access-Control-Allow-Headers", "authorization,content-type")
+        r.headers.add("Access-Control-Allow-Headers",
+                      "authorization,content-type")
         r.headers.add(
             "Access-Control-Allow-Methods",
             "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT",
@@ -144,7 +141,11 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
 def run(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     print("Running webapp")
-    app = create_app(
-        config_loader=config_loader, global_config=global_config, args=args
-    )
-    app.run(host="0.0.0.0", port=8080, use_reloader=True, threaded=True, debug=True)
+    app = create_app(config_loader=config_loader,
+                     global_config=global_config,
+                     args=args)
+    app.run(host="0.0.0.0",
+            port=8080,
+            use_reloader=True,
+            threaded=True,
+            debug=True)
