@@ -285,6 +285,8 @@ exp_manager = Blueprint('exp_manager', __name__)
 def index():
     experiment_manager = current_app.config.get('experiment_manager')
     test_cases = experiment_manager.test_cases
+    
+    jinja_manager = JinjaManager(current_app.template_folder)
 
     # Count unique protocols and implementations
     protocols = set()
@@ -292,10 +294,13 @@ def index():
     services_count = 0
 
     for test in test_cases:
-        services_count += len(test.services)
-        for service_name, service in test.services.items():
-            protocols.add(service.protocol.name)
-            implementations.add(service.implementation.name)
+        if hasattr(test, 'services'):
+            services_count += len(test.services)
+            for service_name, service in test.services.items():
+                if hasattr(service, 'protocol') and hasattr(service.protocol, 'name'):
+                    protocols.add(service.protocol.name)
+                if hasattr(service, 'implementation') and hasattr(service.implementation, 'name'):
+                    implementations.add(service.implementation.name)
 
     return render_template(
         'index.html',
@@ -310,11 +315,25 @@ def index():
 def experiments():
     experiment_manager = current_app.config.get('experiment_manager')
     test_cases = experiment_manager.test_cases
+    
+    # Convert test cases to a simpler format for the template
+    simplified_tests = []
+    for test in test_cases:
+        test_data = {
+            'name': test.test_config.name,
+            'description': test.test_config.description,
+            'network_environment': {
+                'type': test.test_config.network_environment.type if hasattr(test.test_config.network_environment, 'type') else 'N/A'
+            },
+            'iterations': test.test_config.iterations,
+            'services': test.services
+        }
+        simplified_tests.append(test_data)
 
     return render_template(
         'experiments.html',
         active_page='experiments',
-        tests=test_cases
+        tests=simplified_tests
     )
 
 @exp_manager.route('/plugins')
