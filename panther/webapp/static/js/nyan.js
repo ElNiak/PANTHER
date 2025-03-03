@@ -1,3 +1,4 @@
+
 /**
  * Created by JetBrains PhpStorm.
  * User: bjost
@@ -7,28 +8,37 @@
  */
 
 function nyanCat(width) {
-	if(width.length > 0) {
-		this.width = parseInt(width);
-	} else {
-		this.width = 100;
-	}
-	
-	progressContainer = document.getElementById('rainbowContainer');
-	console.log(progressContainer.style.width);
-	progressContainer.style.width = 75 + "%";
+    if(width && width.length > 0) {
+        this.width = parseInt(width);
+    } else {
+        this.width = 100;
+    }
+    
+    var progressContainer = document.getElementById('rainbowContainer');
+    if (!progressContainer) {
+        console.warn("rainbowContainer element not found");
+        return; // Exit early if element doesn't exist
+    }
+    
+    // Only proceed if the element exists
+    console.log(progressContainer.style.width);
+    progressContainer.style.width = 75 + "%";
 
-	this.setPercent = function(percent) {
-		this.percent = parseInt(percent);
+    this.setPercent = function(percent) {
+        this.percent = parseInt(percent);
+        
+        var progress = document.getElementById('rainbow');
+        var cat = document.getElementById('nyanCat');
+        
+        if (!progress || !cat) {
+            console.warn("rainbow or nyanCat element not found");
+            return;
+        }
 
-        this.pixels = (this.percent / 100) * progressContainer.offsetWidth
+        this.pixels = (this.percent / 100) * progressContainer.offsetWidth;
+        progress.style.width = this.pixels.toString() + "px";
 
-		progress = document.getElementById('rainbow');
-		cat = document.getElementById('nyanCat');
-
-		progress.style.width = this.pixels.toString() + "px";
-
-		catProgress = this.pixels;
-
-		cat.style.left = catProgress.toString() + "px";
-	} //percent
+        var catProgress = this.pixels;
+        cat.style.left = catProgress.toString() + "px";
+    }; //percent
 } //nyanCat
