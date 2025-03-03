@@ -22,6 +22,7 @@ class JinjaManager:
         # Register custom global functions
         self.env.globals['has_attr'] = self.has_attr
         self.env.globals['safe_getattr'] = self.safe_getattr
+        self.env.globals['safe_length'] = self.safe_length
 
         # Configure environment
         self.env.trim_blocks = True
@@ -32,10 +33,23 @@ class JinjaManager:
         """Check if an object has an attribute."""
         return hasattr(obj, attr)
 
-    @staticmethod
-    def safe_getattr(obj, attr, default=None):
-        """Safely get an attribute from an object, returning default if not found."""
-        return getattr(obj, attr, default)
+    def safe_getattr(self, obj, attr, default=None):
+        """Returns the value of an attribute, or a default if it doesn't exist or can't be accessed."""
+        if hasattr(obj, attr):
+            try:
+                return getattr(obj, attr)
+            except (AttributeError, TypeError):
+                return default
+        return default
+
+    def safe_length(self, obj, default=0):
+        """Returns the length of an object, or a default if it doesn't exist or has no length."""
+        if obj is None:
+            return default
+        try:
+            return len(obj)
+        except (TypeError, ValueError):
+            return default
 
     def render_template(self, template_name, **context):
         """Render a template with the given context."""
