@@ -2,7 +2,7 @@ from datetime import datetime
 import logging
 from pathlib import Path
 from omegaconf import OmegaConf
-
+from colorlog import ColoredFormatter
 
 from panther.config.config_experiment_schema import ExperimentConfig
 from panther.config.config_global_schema import GlobalConfig
@@ -137,11 +137,31 @@ class ExperimentManager:
         panther_log_file = self.logs_dir / "experiment.log"
         panther_log_file.parent.mkdir(parents=True, exist_ok=True)
 
+        # Define a colored formatter
+        colored_formatter = ColoredFormatter(
+            "%(log_color)s" + log_format,
+            log_colors={
+            "DEBUG": "cyan",
+            "INFO": "green",
+            "WARNING": "yellow",
+            "ERROR": "red",
+            "CRITICAL": "bold_red",
+            },
+        )
+
+        # Console Handler with color
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(colored_formatter)
+
+        # File Handler without color
+        file_handler = logging.FileHandler(panther_log_file)
+
+        # Configure logging
         logging.basicConfig(
             level=log_level,
             format=log_format,
             handlers=[
-                logging.StreamHandler(),
-                logging.FileHandler(panther_log_file),
+            console_handler,
+            file_handler,
             ],
         )

@@ -1,6 +1,3 @@
-# Determine the number of processing cores available
-NPROC := $(shell nproc)
-
 ###################################################################################################
 # CLEANUP COMMANDS
 ###################################################################################################
@@ -8,21 +5,32 @@ NPROC := $(shell nproc)
 package:
 	python -m pip install build wheel
 	python -m pip uninstall --yes panther_net
-	rm -rf build/ dist/ *.egg-info;
+	@if [ -d "build" ] || [ -d "dist" ] || [ -n "$(wildcard *.egg-info)" ]; then \
+		rm -rf build/ dist/ *.egg-info || true \
+	fi
 	python -m build --wheel --no-isolation
-	python -m pip install dist/panther_net-*.whl
+	@if ls dist/panther_net-*.whl 1> /dev/null 2>&1; then \
+		python -m pip install dist/panther_net-*.whl; \
+	else \
+		echo "Error: No matching wheel file found in dist/"; \
+		exit 1; \
+	fi
 
 package-rm:
 	python -m pip install build wheel
 	python -m pip uninstall --yes panther_net
-	rm -rf build/ dist/ *.egg-info;
+	@if [ -d "build" ] || [ -d "dist" ] || [ -n "$(wildcard *.egg-info)" ]; then \
+		rm -rf build/ dist/ *.egg-info|| true \
+	fi
 	python -m build --wheel --no-isolation
-	python -m pip install --force-reinstall dist/panther_net-*.whl
+	python -m pip uninstall dist/panther_net-*.whl
 
 package-dev:
 	python -m pip install build wheel
 	python -m pip uninstall --yes panther_net
-	rm -rf build/ dist/ *.egg-info;
+	@if [ -d "build" ] || [ -d "dist" ] || [ -n "$(wildcard *.egg-info)" ]; then \
+		rm -rf build/ dist/ *.egg-info || true \
+	fi
 	python -m build --wheel --no-isolation
 	python -m pip install --force-reinstall  --editable .
 
@@ -33,17 +41,23 @@ install-local:
 	python -m pip install --force-reinstall  --editable .
 
 package-test:
-	rm -rf build/ dist/ *.egg-info || true
+	@if [ -d "build" ] || [ -d "dist" ] || [ -n "$(wildcard *.egg-info)" ]; then \
+		rm -rf build/ dist/ *.egg-info || true \
+	fi
 	python -m pip install .[tests]
 	pytest tests/
 
 package-test-ci:
-	rm -rf build/ dist/ *.egg-info || true
+	@if [ -d "build" ] || [ -d "dist" ] || [ -n "$(wildcard *.egg-info)" ]; then \
+		rm -rf build/ dist/ *.egg-info || true \
+	fi
 	python -m pip install .[tests]
 	pytest tests/unit/ --cov=panther --cov-report=term-missing
 
 mkdocs:
-	rm -rf build/ dist/ *.egg-info || true
+	@if [ -d "build" ] || [ -d "dist" ] || [ -n "$(wildcard *.egg-info)" ]; then \
+		rm -rf build/ dist/ *.egg-info || true \
+	fi
 	python -m pip install .[doc]
 	python docs-gen/mkdocs/automate_mkdocs.py
 	gendocs --config docs-gen/mkdocs/mkgendocs.yml
@@ -85,24 +99,44 @@ mkdocs-ci:
 	cp DEV_GUIDE.md docs/DEV_GUIDE.md
 	mkdocs build --verbose --config-file mkdocs.yaml
 	mkdocs gh-deploy --force --clean --config-file mkdocs.yaml
+
+zip-outputs:
+	@zip -r outputs_$(shell date +%Y%m%d).zip outputs/*
+	@rm -rf outputs/*
+	@mkdir -p outputs
+
 # Clean Docker images and containers
-clean:
-	# This command removes all stopped containers and unused images
-	docker image prune -a
+remove-images-all:
+	# Remove Docker images related to "panther" in the name
+	docker images --format "{{.Repository}}:{{.Tag}}" | grep "panther " | xargs -r docker rmi
+	# Remove all unnamed Docker images
+	docker images --filter "dangling=true" -q | xargs -r docker rmi
+
+remove-images-services:
+	# Remove Docker images related to "_panther" in the name -> It means it is a service
+	docker images --format "{{.Repository}}:{{.Tag}}" | grep "_panther " | xargs -r docker rmi
+	# Remove all unnamed Docker images
+	docker images --filter "dangling=true" -q | xargs -r docker rmi
 
 # Remove all unused Docker images
-clean-docker:
-	# Removes unused Docker images
-	docker image prune
-	# Removes all Docker images
-	docker image prune -a
-	# Force removal of all images
-	docker rmi $(docker images -a -q)
+remove-system-all:
+	# Removes unused Docker images related to "panther"
+	docker images --format "{{.Repository}}:{{.Tag}}" | grep "panther" | xargs -r docker rmi
+	# Remove all unnamed Docker images
+	docker images --filter "dangling=true" -q | xargs -r docker rmi
+	# Prune unused Docker system data related to "panther"
+	docker system prune --filter "label=panther" -f
 
-clean-docker-volume:
-	# Removes all Docker volumes
-	docker volume prune -f
+# Remove all unused Docker images related to "_panther"
+remove-system-services:
+	# Removes unused Docker images related to "_panther"
+	docker images --format "{{.Repository}}:{{.Tag}}" | grep "_panther" | xargs -r docker rmi
+	# Remove all unnamed Docker images
+	docker images --filter "dangling=true" -q | xargs -r docker rmi
+	# Prune unused Docker system data related to "panther"
+	docker system prune --filter "label=_panther" -f
 
-# Fully clean Docker environment
-clean-docker-full:
-	docker system prune -a
+remove-volume:
+	# Removes Docker volumes related to "panther" in the name
+	docker volume ls --format "{{.Name}}" | grep "panther" | xargs -r docker volume rm
+

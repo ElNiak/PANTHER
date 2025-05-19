@@ -29,7 +29,7 @@ This guide explains how to set up, run, and interpret experiments in PANTHER. Le
 1. **Prepare Configuration**:
    - Use the provided sample configuration file:
      ```bash
-     cp config/experiment_config.yaml.example config/experiment_config.yaml
+     cp experiment-config/experiment_config.yaml.example experiment-config/experiment_config.yaml
      ```
    - Update the configuration file to define your test cases, services, and assertions.
 
@@ -44,9 +44,9 @@ This guide explains how to set up, run, and interpret experiments in PANTHER. Le
 3. **Validate Configuration**:
    - Ensure the configuration is valid before execution:
      ```bash
-     panther validate-config --config config/experiment_config.yaml
+     panther --validate-config --experiment-config experiment-config/experiment_config.yaml
      # or 
-     python3 -m panther validate-config --config config/experiment_config.yaml
+     python3 -m panther --validate-config --experiment-config experiment-config/experiment_config.yaml
      ```
 
 ---
@@ -55,9 +55,9 @@ This guide explains how to set up, run, and interpret experiments in PANTHER. Le
 
 1. Execute the experiment:
    ```bash
-   panther run-experiment --config config/experiment_config.yaml
+   panther --experiment-config experiment-config/experiment_config.yaml
    # or 
-   python3 -m panther run-experiment --config config/experiment_config.yaml
+   python3 -m panther --experiment-config experiment-config/experiment_config.yaml
    ```
 
 2. Monitor the logs for real-time updates:
@@ -101,14 +101,12 @@ tests:
 ```
 
 ### Execution
-1. Build Docker images for Picoquic:
+1. Run the experiment:
    ```bash
-   panther build-docker-images
+   panther --experiment-config experiment-config/experiment_config.yaml
    ```
-2. Run the experiment:
-   ```bash
-   panther run-experiment --config config/experiment_config.yaml
-   ```
+
+   **Note**: automatically builds the Docker images if not already built.
 
 ---
 

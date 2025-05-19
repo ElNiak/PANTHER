@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 from pathlib import Path
+from typing import Literal
 
 from panther.core.test_cases.test_interface import ITestCase
 from panther.core.observer.event_manager import EventManager
@@ -109,6 +110,9 @@ class TestCase(ITestCase):
         self._fail_on_error = global_config.features.fast_fail
         
         self._panther_dir = Path(os.path.dirname(__file__)).parent.parent.parent
+        
+        self.state: Literal["PENDING","RUNNING","COLLECTING","DONE","ERROR"] = "PENDING"
+        # TODO add time for setup the services and the test itself
         
     def __str__(self):
         return (

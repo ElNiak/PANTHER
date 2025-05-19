@@ -345,7 +345,7 @@ def experiments():
     return render_template(
         'experiments.html',
         active_page='experiments',
-        tests=simplified_tests
+        tests=experiment_manager.test_cases
     )
 
 @exp_manager.route('/plugins')

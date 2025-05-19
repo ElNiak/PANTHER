@@ -36,7 +36,7 @@ class StraceConfig(ExecutionEnvironmentConfig):
             "time",
         ]
     )  # List of syscalls to exclude
-    include_kernel_stack: bool = True  # Include kernel stack in the trace output
+    include_kernel_stack: bool = False  # Include kernel stack in the trace output
     trace_network_syscalls: bool = True  # Focus on network-related syscalls (connect, send, recv, etc.)
     timeout: Optional[int] = 60  # Timeout for strace execution in seconds
     output_file: str = "/app/logs/strace.log"  # Path to the strace log output
