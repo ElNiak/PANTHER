@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import logging
 import os
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
@@ -27,6 +28,10 @@ RUN_CMD_SCHEMA = {
 def validate_cmd(func):
     def wrapper(*args, **kwargs):
         command = func(*args, **kwargs)
+        logging.debug(
+            f"Validating command structure: {command} against schema: {RUN_CMD_SCHEMA}"
+        )
+        # Validate the command structure
         validate_structure(command, RUN_CMD_SCHEMA)
         return command
 
@@ -242,6 +247,8 @@ class IServiceManager(IPlugin):
 
         return [
             "set -x;",
+            'PS4="+ [${BASH_SOURCE:-sh}:${LINENO}] "; export PS4;',
+            "export SHELLOPTS",
             "export PATH=$$PATH:$$ADDITIONAL_PATH;",
             "export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;",
             "env >> /app/logs/ivy_setup.log;",

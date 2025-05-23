@@ -47,4 +47,4 @@ RUN mkdir -p /opt/certs
 RUN mkdir -p /opt/ticket
 
 # Set entrypoint (can be overridden)
-ENTRYPOINT [ "/bin/sh", "-l", "-c" ]
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

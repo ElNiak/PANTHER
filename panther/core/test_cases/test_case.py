@@ -1,4 +1,5 @@
 from datetime import datetime
+import logging
 import os
 from pathlib import Path
 from typing import Literal
@@ -86,6 +87,7 @@ class TestCase(ITestCase):
         )
         self.test_experiment_dir = experiment_dir / self.test_name
 
+
         self.logger.debug(
             f"Creating test case '{self.test_name}' with experiment directory '{self.test_experiment_dir}' and test configuration '{test_config}'"
         )
@@ -93,6 +95,12 @@ class TestCase(ITestCase):
         self.result_collectors.register_handler(
             f"storage_{self.test_name})", StorageHandler(experiment_dir, self.test_name)
         )
+
+        # File Handler
+        panther_log_file = self.test_experiment_dir / "experiment.log"
+        panther_log_file.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(panther_log_file)
+        self.logger.addHandler(file_handler)
 
         self.service_managers: list[IServiceManager] = []
 

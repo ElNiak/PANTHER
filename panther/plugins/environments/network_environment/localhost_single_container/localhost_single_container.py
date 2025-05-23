@@ -271,6 +271,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                         "--privileged",
                         "--sysctl",
                         "net.ipv6.conf.all.disable_ipv6=1",
+                        "--platform=linux/amd64",
                         "--name",
                         self.docker_name,
                         *volumes,

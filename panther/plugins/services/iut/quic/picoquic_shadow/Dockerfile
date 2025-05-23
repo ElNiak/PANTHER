@@ -12,7 +12,7 @@ RUN echo install Test::TCP | perl -MCPAN -
 RUN echo install Scope::Guard | perl -MCPAN -
 
 # Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq
+RUN apt-get install --fix-missing -y jq libtest-tcp-perl
 
 USER ${USER_N}
 
@@ -59,4 +59,4 @@ RUN mkdir -p /opt/certs
 RUN mkdir -p /opt/ticket
 
 # Set entrypoint (can be overridden)
-ENTRYPOINT [ "/bin/sh", "-l", "-c" ]
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

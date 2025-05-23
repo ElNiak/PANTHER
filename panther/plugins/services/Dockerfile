@@ -9,7 +9,7 @@ RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     build-essential git cmake software-properties-common \
     openssl libssl-dev pkg-config python3 net-tools tcpdump iperf traceroute \
     wireshark tshark clang libcap2-bin iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils \
-    wget sudo radare2 strace automake autoconf libtool 
+    wget sudo radare2 strace automake autoconf libtool valgrind
 
 # https://github.com/gperftools/gperftools
 RUN git clone https://github.com/gperftools/gperftools
@@ -31,9 +31,9 @@ ARG USER_UID=1000
 ARG USER_GID=1000
 ARG USER_N=crochetch
 
-RUN addgroup --gid ${USER_GID} ${USER_N} && \
-    adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
-    usermod -aG wireshark ${USER_N}
+RUN getent group ${USER_N} || addgroup --gid ${USER_GID} ${USER_N} && \
+    id -u ${USER_N} || adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
+    id -nG ${USER_N} | grep -qw wireshark || usermod -aG wireshark ${USER_N}
 
 RUN usermod -aG wireshark root
 

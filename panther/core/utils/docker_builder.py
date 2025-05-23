@@ -92,8 +92,8 @@ class DockerBuilder:
                         log_f.write(f"{task_name}:{output['error']}\n")
                     self.logger.error(
                         f"Error from {task_name}: {output['error']}")
-                    raise ValueError(
-                        f'Error from {task_name}: {output["error"]}')
+                    # raise ValueError(
+                    #     f'Error from {task_name}: {output["error"]}')
 
             except StopIteration:
                 self.logger.info(f"{task_name} complete.")
@@ -158,6 +158,8 @@ class DockerBuilder:
                         buildargs=build_args,
                         rm=True,
                         network_mode="host",
+                        platform="linux/amd64",
+                        # platform="linux/arm64",
                         decode=True,
                     )
                     self.log_docker_output(
@@ -170,6 +172,8 @@ class DockerBuilder:
                     tag=image_tag,
                     buildargs=build_args,
                     rm=True,
+                    platform="linux/amd64",
+                    # platform="linux/arm64",
                     network_mode="host",
                 )
             self.log_docker_output(build_logs,

@@ -20,6 +20,8 @@ from panther.config.config_experiment_schema import (
 from panther.plugins.plugin_loader import PluginLoader
 from importlib_resources import files
 
+
+
 class ConfigLoader:
     def __init__(
         self,
@@ -40,7 +42,7 @@ class ConfigLoader:
         self.testers_dir = testers_dir
 
         self.logger = logging.getLogger("ConfigLoader")
-        self.global_config = None
+        self.global_config : GlobalConfig = None
         
         self._panther_dir = Path(os.path.dirname(__file__)).parent
 
@@ -768,7 +770,7 @@ class ConfigLoader:
         for plugin_dir in tester_dir.iterdir():
             if plugin_dir.is_dir():
                 plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                if plugin_file.exists():
+                if plugin_file.exists(): # type: ignore
                     self.logger.debug(f"Found tester class: {plugin_dir.name}")
                     tester_classes.append(
                         PluginLoader.get_class_name(plugin_dir.name, "Config")

@@ -4,6 +4,7 @@ services:
   {{ service.service_name  }}:
     image: {{ service.implementation_name }}_{{ service.service_protocol.version.name }}_panther:latest
     container_name: {{ service.service_name  }}
+    stop_grace_period: 30s
     ports:
       {% for port in service.service_config_to_test.ports %}
       - "{{ port }}"
@@ -28,7 +29,7 @@ services:
       - CAP_NET_RAW
     working_dir: "{{ service.run_cmd["run_cmd"]["working_dir"] }}"
     command: 
-      - /bin/sh -c '
+      - /bin/bash -x -c '
           {% for cmd in service.run_cmd["pre_compile_cmds"] %}
           {{ cmd }}
           {% endfor %}
@@ -40,9 +41,9 @@ services:
           {% endfor %}
           echo "Running timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}" >> /app/logs/{{service.service_name}}_setup.log;
           {% if service.role.name == 'client' %}
-          (sleep 5; {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}) &&
+          (sleep 5; exec {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}) ;
           {% else %}
-          ({% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}) &&
+          (exec {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}) ;
           {% endif %}
           {% if service.run_cmd["post_run_cmds"] | length > 0 %} 
           ({% for cmd in service.run_cmd["post_run_cmds"] %} {{ cmd | replace("\n", "") }} {% endfor -%}){% endif -%}'

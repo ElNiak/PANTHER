@@ -1,13 +1,14 @@
-name: quic_client_server_communication_test
+name: quic_ivyclient_server_communication_test___strace___use_system_models
 services:
-  picoquic_client:
+  picoquic_server:
     image: picoquic_rfc9000_panther:latest
-    container_name: picoquic_client
+    container_name: picoquic_server
+    stop_grace_period: 30s
     ports:
-      - "5000:5000"
-      - "8081:8081"
+      - "4443:4443"
+      - "8080:8080"
     environment:
-      ROLE: client
+      ROLE: server
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
@@ -19,8 +20,10 @@ services:
       - CAP_NET_RAW
     working_dir: "/opt/picoquic"
     command: 
-      - /bin/sh -c '
+      - /bin/bash -x -c '
           set -x;
+          PS4="+ [${BASH_SOURCE:-sh}:${LINENO}] "; export PS4;
+          export SHELLOPTS
           export PATH=$$PATH:$$ADDITIONAL_PATH;
           export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
           env >> /app/logs/ivy_setup.log;
@@ -28,31 +31,32 @@ services:
           	echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;
           	sleep 2;
           done;
-          echo "Ivy testers is ready, starting picoquic_client..." >> /app/logs/tester_ready.log;
-          (touch /app/logs/picoquic_client.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_client.pcap;) & 
-          echo "Running timeout 100 ./picoquicdemo -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e lo   -v 00000001  ivy_server 4443 > /app/logs/client.log 2> /app/logs/client.err.log" >> /app/logs/picoquic_client_setup.log;
-          (sleep 5; timeout 100 /opt/picoquic/./picoquicdemo -T /opt/ticket/ticket.key -a hq-interop -l - -D -L  -e lo   -v 00000001  ivy_server 4443 > /app/logs/client.log 2> /app/logs/client.err.log) &&
+          echo "Ivy testers is ready, starting picoquic_server..." >> /app/logs/tester_ready.log;
+          (touch /app/logs/picoquic_server.pcap; tshark -a duration:150 -i any -w /app/logs/picoquic_server.pcap;) & 
+          echo "Running timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  ./picoquicdemo -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2> /app/logs/server.err.log" >> /app/logs/picoquic_server_setup.log;
+          (exec timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  /opt/picoquic/./picoquicdemo -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2> /app/logs/server.err.log) ;
  
           ( cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo; )'
           
 
     # TODO fix sudo tshark
     volumes:
-      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-HTTP/outputs/2025-03-03_17-57-56_unnamed_experiment/QUIC_Client_Server_Communication_Test/logs/picoquic_client:/app/logs/
+      - /Users/elniak/Documents/Project/PANTHER/outputs/2025-05-23_23-46-35/QUIC_IvyClient_Server_Communication_Test___Strace___use_system_models/logs/picoquic_server:/app/logs/
       - "shared_logs:/app/sync_logs"
     networks:
       panther_network:
         aliases: 
-          - picoquic_client
-  ivy_server:
+          - picoquic_server
+  ivy_client:
     image: panther_ivy_rfc9000_panther:latest
-    container_name: ivy_server
+    container_name: ivy_client
+    stop_grace_period: 30s
     ports:
-      - "4443:4443"
+      - "5000:5000"
       - "4987:4987"
-      - "8080:8080"
+      - "8081:8081"
     environment:
-      ROLE: server
+      ROLE: client
       SSLKEYLOGFILE: "/app/logs/sslkeylogfile.txt" 
       UID: "${UID}"
       GID: "${GID}"
@@ -61,29 +65,29 @@ services:
       RUST_BACKTRACE: "1"
       SOURCE_DIR: "/opt/"
       IVY_DIR: "/opt//panther_ivy"
-      PYTHON_IVY_DIR: "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/"
-      IVY_INCLUDE_PATH: "$$IVY_INCLUDE_PATH:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7"
+      PYTHON_IVY_DIR: "/usr/local/lib/python3.10/dist-packages/"
+      IVY_INCLUDE_PATH: "$$IVY_INCLUDE_PATH:/usr/local/lib/python3.10/dist-packages/ivy/include/1.7"
       Z3_LIBRARY_DIRS: "/opt//panther_ivy/submodules/z3/build"
       Z3_LIBRARY_PATH: "/opt//panther_ivy/submodules/z3/build"
       LD_LIBRARY_PATH: "$$LD_LIBRARY_PATH:/opt//panther_ivy/submodules/z3/build"
       PROOTPATH: "/opt/"
-      ADDITIONAL_PYTHONPATH: "/app/implementations/quic-implementations/aioquic/src/:/opt//panther_ivy/submodules/z3/build/python:/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/"
+      ADDITIONAL_PYTHONPATH: "/app/implementations/quic-implementations/aioquic/src/:/opt//panther_ivy/submodules/z3/build/python:/usr/local/lib/python3.10/dist-packages/"
       ADDITIONAL_PATH: "/go/bin:/opt//panther_ivy/submodules/z3/build"
       TEST_ALPN: "hq-interop"
-      ZRTT_SSLKEYLOGFILE: "/opt//panther_ivy/protocol-testing/quic/last_tls_key.txt"
-      RETRY_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/quic/last_retry_token.txt"
-      NEW_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/quic/last_new_token.txt"
-      ENCRYPT_TICKET_FILE: "/opt//panther_ivy/protocol-testing/quic/last_encrypt_session_ticket.txt"
-      SESSION_TICKET_FILE: "/opt//panther_ivy/protocol-testing/quic/last_session_ticket_cb.txt"
-      SAVED_PACKET: "/opt//panther_ivy/protocol-testing/quic/saved_packet.txt"
-      initial_max_stream_id_bidi: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_id_bidi.txt"
-      active_connection_id_limit: "/opt//panther_ivy/protocol-testing/quic/active_connection_id_limit.txt"
-      initial_max_stream_data_bidi_local: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_bidi_local.txt"
-      initial_max_stream_data_bidi_remote: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_bidi_remote.txt"
-      initial_max_stream_data_uni: "/opt//panther_ivy/protocol-testing/quic/initial_max_stream_data_uni.txt"
-      initial_max_data: "/opt//panther_ivy/protocol-testing/quic/initial_max_data.txt"
+      ZRTT_SSLKEYLOGFILE: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/last_tls_key.txt"
+      RETRY_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/last_retry_token.txt"
+      NEW_TOKEN_FILE: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/last_new_token.txt"
+      ENCRYPT_TICKET_FILE: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/last_encrypt_session_ticket.txt"
+      SESSION_TICKET_FILE: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/last_session_ticket_cb.txt"
+      SAVED_PACKET: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/saved_packet.txt"
+      initial_max_stream_id_bidi: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/initial_max_stream_id_bidi.txt"
+      active_connection_id_limit: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/active_connection_id_limit.txt"
+      initial_max_stream_data_bidi_local: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/initial_max_stream_data_bidi_local.txt"
+      initial_max_stream_data_bidi_remote: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/initial_max_stream_data_bidi_remote.txt"
+      initial_max_stream_data_uni: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/initial_max_stream_data_uni.txt"
+      initial_max_data: "/opt//panther_ivy/protocol-testing/apt/apt_protocols/quic/initial_max_data.txt"
       INITIAL_VERSION: "1"
-      TEST_TYPE: "client"
+      TEST_TYPE: "server"
     tty: true
     stdin_open: true
     # TODO fix in the docker
@@ -92,52 +96,60 @@ services:
       - CAP_NET_RAW
     working_dir: "/opt/panther_ivy/protocol-testing/apt/"
     command: 
-      - /bin/sh -c '
+      - /bin/bash -x -c '
           set -x;
+          PS4="+ [${BASH_SOURCE:-sh}:${LINENO}] "; export PS4;
+          export SHELLOPTS
           export PATH=$$PATH:$$ADDITIONAL_PATH;
           export PYTHONPATH=$$PYTHONPATH:$$ADDITIONAL_PYTHONPATH;
           env >> /app/logs/ivy_setup.log;
-          TARGET_IP=$(getent hosts  | awk "{ print \$1 }");
-          echo "Resolved  IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
+          TARGET_IP=$(getent hosts picoquic_server | awk "{ print \$1 }");
+          echo "Resolved picoquic_server IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;
           IVY_IP=$(hostname -I | awk "{ print \$1 }");
-          echo "Resolved  ivy_server IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
+          echo "Resolved  ivy_client IP - $$IVY_IP" >> /app/logs/ivy_setup.log;
            
           ip_to_hex() {
+          PS4="[<ip_to_hex>:${LINENO}] "; export PS4; set -x;
             echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
           }
            
           ip_to_decimal() {
+          PS4="[<ip_to_decimal>:${LINENO}] "; export PS4; set -x;
             echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
           }
            
           TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);
           IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);
-          echo "Resolved  IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
-          echo "Resolved ivy_server IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
+          echo "Resolved picoquic_server IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+          echo "Resolved ivy_client IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;
+           
+          rm -rf /opt/panther_ivy/protocol-testing/apt/build/*;
           echo "Copying QUIC libraries..." >> /app/logs/ivy_setup.log &&
-          cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" &&
+          cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ivy/lib/" &&
           cp -f -a /opt/picotls/*.a "/opt/panther_ivy/ivy/lib/" &&
-          cp -f /opt/picotls/include/picotls.h "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls.h" &&
+          cp -f /opt/picotls/include/picotls.h "/usr/local/lib/python3.10/dist-packages/ivy/include/picotls.h" &&
           cp -f /opt/picotls/include/picotls.h "/opt/panther_ivy/ivy/include/picotls.h" &&
-          cp -r -f /opt/picotls/include/picotls/. "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/picotls" &&
-          cp -f "/opt/panther_ivy/protocol-testing/apt//apt_protocols/quic/quic_utils/quic_ser_deser.h" "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/" &&
+          cp -r -f /opt/picotls/include/picotls/. "/usr/local/lib/python3.10/dist-packages/ivy/include/picotls" &&
+          cp -f "/opt/panther_ivy/protocol-testing/apt//apt_protocols/quic/quic_utils/quic_ser_deser.h" "/usr/local/lib/python3.10/dist-packages/ivy/include/1.7/" &&
            
           update_ivy_tool() {
+          PS4="[<update_ivy_tool>:${LINENO}] "; export PS4; set -x;
           	echo "Updating Ivy tool..." >> /app/logs/ivy_setup.log;
           	cd "/opt/panther_ivy" || exit 1;
           	cat setup.py >> /app/logs/ivy_setup.log;
           	sudo python3.10 setup.py install >> /app/logs/ivy_setup.log 2>&1 &&
           	cp lib/libz3.so submodules/z3/build/python/z3 >> /app/logs/ivy_setup.log 2>&1 &&
           	echo "Copying updated Ivy files..." >> /app/logs/ivy_setup.log;
-          	find /opt/panther_ivy/ivy/include/1.7/ -type f -name "*.ivy" -exec cp {} /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ \; >> /app/logs/ivy_setup.log 2>&1;
-          	echo "Copying updated Z3 files..." >> /app/logs/ivy_setup.log;
-          	cp -f -a /opt/panther_ivy/ivy/lib/*.a "/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/lib/" >> /app/logs/ivy_setup.log 2>&1;
+          	find /opt/panther_ivy/ivy/include/1.7/ -type f -name "*.ivy" -exec cp {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \; >> /app/logs/ivy_setup.log 2>&1;
+          	echo "Copying updated Z3 files..." >> /app/logs/ivy_setup.log 2>&1;
+          	cp -f -a /opt/panther_ivy/ivy/lib/*.a "/usr/local/lib/python3.10/dist-packages/ivy/lib/" >> /app/logs/ivy_setup.log 2>&1;
           }
            
           update_ivy_tool &&
           
            
           remove_debug_events() {
+          PS4="[<remove_debug_events>:${LINENO}] "; export PS4; set -x;
           	echo "Removing debug events..." >> /app/logs/ivy_setup.log;
           	printf "%s\n" "$@" | xargs -I {} sh -c "
           		if [ -f \"\$1\" ]; then
@@ -149,6 +161,7 @@ services:
           }
            
           restore_debug_events() {
+          PS4="[<restore_debug_events>:${LINENO}] "; export PS4; set -x;
           	echo "Restoring debug events..." >> /app/logs/ivy_setup.log;
           	printf "%s\n" "$@" | xargs -I {} sh -c "
           		if [ -f \"\$1\" ]; then
@@ -160,6 +173,7 @@ services:
           }
            
           setup_ivy_model() {
+          PS4="[<setup_ivy_model>:${LINENO}] "; export PS4; set -x;
           	echo "Setting up Ivy model..." >> /app/logs/ivy_setup.log &&
           	echo "Updating include path of Python with updated version of the project from /opt/panther_ivy/protocol-testing/apt/" >> /app/logs/ivy_setup.log &&
           	echo "Finding .ivy files..." >> /app/logs/ivy_setup.log &&
@@ -170,38 +184,39 @@ services:
           			remove_debug_events \"\$1\";
           		fi;
           		echo \"Copying Ivy file to include path...\" >> /app/logs/ivy_setup.log;
-          		cp -f \"\$1\" \"/usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/\";
+          		cp -f \"\$1\" \"/usr/local/lib/python3.10/dist-packages/ivy/include/1.7/\";
           	" _ {} \;;
-          	ls -l /usr/local/lib/python3.10/dist-packages/ms_ivy-1.8.25-py3.10-linux-x86_64.egg/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
+          	ls -l /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
           }
            
-          setup_ivy_model &&
-          cd /opt/panther_ivy/protocol-testing/apt/apt_protocols/quic/quic_tests/client_tests;
-          PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=100 quic_client_test_max.ivy >> /app/logs/ivy_setup.log 2>&1; 
+          setup_ivy_model && 
+           
+          cd /opt/panther_ivy/protocol-testing/apt/apt_protocols/quic/quic_tests/server_tests;
+          PYTHONPATH=$$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=300 quic_server_test_stream.ivy >> /app/logs/ivy_setup.log 2>&1 || exit 1;
           (ls >> /app/logs/ivy_setup.log 2>&1 ;
            
-          cp /opt/panther_ivy/protocol-testing/apt/apt_protocols/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/apt/build/; 
+          cp /opt/panther_ivy/protocol-testing/apt/apt_protocols/quic/quic_tests/server_tests/quic_server_test_stream* /opt/panther_ivy/protocol-testing/apt/build/; 
           ls /opt/panther_ivy/protocol-testing/apt/build/ >> /app/logs/ivy_setup.log 2>&1 ;) 
            && 
            (touch /app/sync_logs/ivy_ready.log) && 
           cd /opt/panther_ivy/protocol-testing/apt/;
-          (touch /app/logs/ivy_server.pcap; tshark -a duration:100 -i any -w /app/logs/ivy_server.pcap;) & 
-          echo "Running timeout 100 build/quic_client_test_max seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX server_cid=0 > /app/logs/testers.log 2> /app/logs/testers.err" >> /app/logs/ivy_server_setup.log;
-          (timeout 100 /opt/panther_ivy/protocol-testing/apt//build/quic_client_test_max seed=0 the_cid=0 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX server_cid=0 > /app/logs/testers.log 2> /app/logs/testers.err) &&
+          (touch /app/logs/ivy_client.pcap; tshark -a duration:150 -i any -w /app/logs/ivy_client.pcap;) & 
+          echo "Running timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err" >> /app/logs/ivy_client_setup.log;
+          (sleep 5; exec timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  /opt/panther_ivy/protocol-testing/apt//build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err) ;
  
-          ( cp /opt/panther_ivy/protocol-testing/apt/build/quic_client_test_max /app/logs/quic_client_test_max; )'
+          ( cp /opt/panther_ivy/protocol-testing/apt/build/quic_server_test_stream /app/logs/quic_server_test_stream &&   rm /opt/panther_ivy/protocol-testing/apt/build/quic_server_test_stream*; )'
           
 
     # TODO fix sudo tshark
     volumes:
-      - /home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-HTTP/outputs/2025-03-03_17-57-56_unnamed_experiment/QUIC_Client_Server_Communication_Test/logs/ivy_server:/app/logs/
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-HTTP/panther/plugins/services/testers/panther_ivy/ivy/include/1.7:/opt/panther_ivy/ivy/include/1.7"
-      - "/home/crochetch/Documents/Projects/VerificationQUIC/PANTHER-HTTP/panther/plugins/services/testers/panther_ivy/protocol-testing/apt:/opt/panther_ivy/protocol-testing/quic"
+      - /Users/elniak/Documents/Project/PANTHER/outputs/2025-05-23_23-46-35/QUIC_IvyClient_Server_Communication_Test___Strace___use_system_models/logs/ivy_client:/app/logs/
+      - "/Users/elniak/Documents/Project/PANTHER/panther/plugins/services/testers/panther_ivy/ivy/include/1.7:/opt/panther_ivy/ivy/include/1.7"
+      - "/Users/elniak/Documents/Project/PANTHER/panther/plugins/services/testers/panther_ivy/protocol-testing/apt:/opt/panther_ivy/protocol-testing/apt"
       - "shared_logs:/app/sync_logs"
     networks:
       panther_network:
         aliases: 
-          - ivy_server
+          - ivy_client
 
 networks:
   panther_network:

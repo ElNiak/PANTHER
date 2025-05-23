@@ -302,6 +302,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                         "run",
                         "--rm",
                         "-d",
+                        "--platform=linux/amd64",
                         "--sysctl",
                         "net.ipv6.conf.all.disable_ipv6=1",
                         "--security-opt",

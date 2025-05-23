@@ -8,7 +8,7 @@ from panther.config.config_global_schema import GlobalConfig
 
 class ITestCase(ABC):
     def __init__(self, test_config: TestConfig, global_config: GlobalConfig):
-        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger = logging.getLogger(f"{self.__class__.__name__}.{test_config.name}")
         self.test_config: TestConfig = test_config
         self.global_config: GlobalConfig = global_config
 

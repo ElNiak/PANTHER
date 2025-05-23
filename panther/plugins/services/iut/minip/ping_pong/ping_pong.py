@@ -128,7 +128,7 @@ class PingPongServiceManager(IImplementationManager):
         elif self.role == RoleEnum.client:
             params = self.service_config_to_test.implementation.version.client
 
-        params["target"] = "$$TARGET_IP_HEX"
+        params["target"] = "$$TARGET_IP"
 
         self.logger.debug(f"Parameters for command template: {params}")
         self.logger.debug(f"Role: {self.role.name}")

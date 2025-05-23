@@ -3,6 +3,9 @@ import logging
 from pathlib import Path
 from omegaconf import OmegaConf
 from colorlog import ColoredFormatter
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
+from tqdm import trange
 
 from panther.config.config_experiment_schema import ExperimentConfig
 from panther.config.config_global_schema import GlobalConfig
@@ -10,6 +13,7 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.core.test_cases.test_interface import ITestCase
 from panther.plugins.plugin_manager import PluginManager
 from panther.core.test_cases.test_case import TestCase
+import sys
 
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
@@ -58,7 +62,7 @@ class ExperimentManager:
         self.experiment_name = (
             f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_{experiment_name}"
             if experiment_name
-            else f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_unnamed_experiment"
+            else f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         )
         self.experiment_dir = (
             Path(global_config.paths.output_dir) / self.experiment_name
@@ -116,9 +120,23 @@ class ExperimentManager:
         """Runs the tests defined in the experiment configuration."""
         try:
             self.logger.info("Starting experiment tests...")
-            for test_case in self.test_cases:
-                self.logger.debug(f"Starting test: {test_case}")
-                test_case.run()
+            # Use tqdm.write to log messages so the progress bar is not overwritten by logs
+            with logging_redirect_tqdm():
+                with tqdm(
+                    self.test_cases,
+                    total=len(self.test_cases),
+                    desc="Processing Tests",
+                    position=1,
+                    leave=True,
+                    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
+                    dynamic_ncols=True,
+                    file=sys.stdout,
+                ) as progress_bar:
+                    for test_case in progress_bar:
+                        self.logger.info(f"Running: {test_case}")
+                        test_case.run()
+                        progress_bar.set_postfix_str(f"Running: {test_case}")
+            tqdm.write("")  # Ensures the bar stays at the bottom after completion
             self.logger.info("All experiment tests completed.")
         except Exception as e:
             self.logger.error(f"Failed during test execution: {e}")
@@ -141,11 +159,11 @@ class ExperimentManager:
         colored_formatter = ColoredFormatter(
             "%(log_color)s" + log_format,
             log_colors={
-            "DEBUG": "cyan",
-            "INFO": "green",
-            "WARNING": "yellow",
-            "ERROR": "red",
-            "CRITICAL": "bold_red",
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "bold_red",
             },
         )
 
@@ -161,7 +179,7 @@ class ExperimentManager:
             level=log_level,
             format=log_format,
             handlers=[
-            console_handler,
-            file_handler,
+                console_handler,
+                file_handler,
             ],
         )

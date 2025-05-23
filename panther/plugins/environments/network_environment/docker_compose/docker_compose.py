@@ -115,6 +115,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             self.setup_execution_plugins(timestamp)
 
             for service in self.services_managers:
+                # TODO: move this to the service manager
                 self.create_log_dir(service)
                 self.logger.debug(
                     f"Generating Docker Compose file for {service.service_name}"
@@ -159,6 +160,49 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 self.logger.debug(
                     f"Service {service.service_name} environment: {service.environments}"
                 )
+
+            for service in self.services_managers:
+                # Add debugging to declared functions in run_cmds (if any)
+                for cmd_key, cmds in service.run_cmd.items():
+                    self.logger.debug(
+                        f"Service {service.service_name} command key: {cmd_key} - {cmds}"
+                    )
+
+                    def insert_debug(cmd):
+                        # Add a debug log for each command processed
+                        self.logger.debug(f"Inserting debug into command: {cmd!r}")
+                        stripped = cmd.strip()
+                        if (
+                            "(" in stripped
+                            and stripped.endswith("{")
+                            and not stripped.startswith("#")
+                            and not stripped.startswith("}")
+                        ):
+                            # Extract function name for PS4
+                            func_name = stripped.split()[0].split('(')[0]
+                            debug_line = f'PS4="[<{func_name}>:$' + '{LINENO}] "; export PS4; set -x;'
+                            return cmd, debug_line
+                        return cmd, None
+
+                    if isinstance(cmds, list):
+                        new_cmds = []
+                        for cmd in cmds:
+                            processed_cmd, debug_line = insert_debug(cmd)
+                            new_cmds.append(processed_cmd)
+                            if debug_line:
+                                new_cmds.append(debug_line)
+                        service.run_cmd[cmd_key] = new_cmds
+                    elif isinstance(cmds, str):
+                        processed_cmd, debug_line = insert_debug(cmds)
+                        if debug_line:
+                            service.run_cmd[cmd_key] = f"{processed_cmd}\n{debug_line}"
+                        else:
+                            service.run_cmd[cmd_key] = processed_cmd
+
+                    self.logger.debug(
+                        f"Service {service.service_name} command key: {cmd_key} - {service.run_cmd[cmd_key]}"
+                    )
+
 
             self.generate_from_template(
                 "docker-compose-template.jinja",

@@ -1,0 +1,104 @@
+from abc import ABC
+
+from omegaconf import OmegaConf
+
+from panther.core.observer.event_manager import EventManager
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.environments.execution_environment.memcheck.config_schema import (
+    MemcheckConfig,
+)
+from panther.plugins.environments.execution_environment.execution_environment_interface import (
+    IExecutionEnvironment,
+)
+from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.services.services_interface import IServiceManager
+
+
+class MemcheckEnvironment(IExecutionEnvironment, ABC):
+    """ 
+    MemcheckEnvironment is a class that sets up and manages the execution environment for Helgrind profiling.
+
+    Attributes:
+        global_config (GlobalConfig): The global configuration for the environment.
+        env_config_to_test (MemcheckConfig): The specific configuration for the environment to test.
+        services_managers (list[IServiceManager]): List of service managers.
+        test_config (TestConfig): The test configuration.
+        plugin_loader (PluginLoader): The plugin loader.
+        logger (Logger): Logger for debugging and information.
+
+    Methods:
+        __init__(env_config_to_test: MemcheckConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
+            Initializes the MemcheckEnvironment with the given configurations and event manager.
+
+        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader):
+            Sets up the environment with the provided service managers, test configuration, global configuration, timestamp, and plugin loader.
+
+        to_command(service_name: str) -> str:
+            Generates the gperf command based on the configuration.
+
+        __repr__() -> str:
+            Returns a string representation of the GperfHeapEnvironment instance.
+    """
+    def __init__(
+        self,
+        env_config_to_test: MemcheckConfig,
+        output_dir: str,
+        env_type: str,
+        env_sub_type: str,
+        event_manager: EventManager,
+    ):
+        super().__init__(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
+        self.global_config = None
+        self.env_config_to_test = env_config_to_test
+
+    def setup_environment(
+        self,
+        services_managers: list[IServiceManager],
+        test_config: TestConfig,
+        global_config: GlobalConfig,
+        timestamp: str,
+        plugin_loader: PluginLoader,
+    ):
+        self.services_managers: list[IServiceManager] = services_managers
+        self.test_config = test_config
+        self.plugin_loader = plugin_loader
+        self.global_config = global_config
+        self.logger.debug("Setup environment with:")
+        self.logger.debug(f"Services config: {self.env_config_to_test}")
+        for service in self.services_managers:
+            self.logger.debug(f"Service cmds: {service.run_cmd}")
+            service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [
+                self.to_command()
+            ]
+            self.logger.debug(f"Service cmds: {service.run_cmd}")
+
+        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
+        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+
+    def to_command(self, 
+                   pid: int | None = None) -> str:
+        """
+        Generate the strace command for execution.
+        :param pid: Optional process ID to attach to.
+        :return: Strace command as a string.
+        """
+        self.env_config_to_test = MemcheckConfig()
+        command = [
+            "valgrind",
+            "--tool=memcheck",
+            "--leak-check=full",
+            "--track-origins=yes",
+            "--show-leak-kinds=all",
+        ]
+        return " ".join(command)
+
+    def __repr__(self):
+        return (
+            f"MemcheckEnvironment(env_config_to_test={self.env_config_to_test}, "
+            f"output_dir={self.output_dir}, event_manager={self.event_manager}, "
+            f"services_managers={self.services_managers}, test_config={self.test_config})"
+        )
+
