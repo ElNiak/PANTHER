@@ -97,8 +97,23 @@ mkdocs-ci:
 	cp PLUGIN_GUIDE.md docs/PLUGIN_GUIDE.md
 	cp CONFIG_GUIDE.md docs/CONFIG_GUIDE.md
 	cp DEV_GUIDE.md docs/DEV_GUIDE.md
+	# Generate documentation inventory
+	python docs-gen/generate_plugin_inventory.py --format markdown --output docs/plugin_inventory.md
+	# Verify documentation references
+	python docs-gen/verify_docs.py --root docs --report
 	mkdocs build --verbose --config-file mkdocs.yaml
 	mkdocs gh-deploy --force --clean --config-file mkdocs.yaml
+
+docs-verify:
+	python docs-gen/verify_docs.py --root docs
+
+docs-inventory:
+	python docs-gen/generate_plugin_inventory.py --format markdown --output docs/plugin_inventory.md
+
+docs-template:
+	bash docs-gen/generate_plugin_docs.sh
+
+docs: docs-inventory docs-verify mkdocs
 
 zip-outputs:
 	@zip -r outputs_$(shell date +%Y%m%d).zip outputs/*

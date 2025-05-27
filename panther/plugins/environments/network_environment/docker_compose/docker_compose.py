@@ -66,6 +66,18 @@ class DockerComposeEnvironment(INetworkEnvironment):
             os.path.join(self.output_dir, f"{env_sub_type}.yml")
         )
 
+        self.services_network_script_file_path = Path(
+            os.path.join(
+                self._plugin_dir,
+                env_type,
+                env_sub_type,
+                "entrypoint.generated.sh",
+            )
+        )
+        self.rendered_services_network_script_file_path = Path(
+            os.path.join(self.output_dir, "entrypoint.sh")
+        )
+
     def __str__(self):
         return f"DockerComposeEnvironment({self.__dict__})"
 
@@ -168,6 +180,18 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         f"Service {service.service_name} command key: {cmd_key} - {cmds}"
                     )
 
+                    def replace_double_dollar(cmd):
+                        if isinstance(cmd, str):
+                            return cmd.replace("$$", "$")
+                        elif isinstance(cmd, list):
+                            return [replace_double_dollar(c) for c in cmd]
+                        return cmd
+
+                    if isinstance(cmds, list):
+                        cmds = [replace_double_dollar(c) for c in cmds]
+                    elif isinstance(cmds, str):
+                        cmds = replace_double_dollar(cmds)
+
                     def insert_debug(cmd):
                         # Add a debug log for each command processed
                         self.logger.debug(f"Inserting debug into command: {cmd!r}")
@@ -203,6 +227,19 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         f"Service {service.service_name} command key: {cmd_key} - {service.run_cmd[cmd_key]}"
                     )
 
+            for service in self.services_managers:
+                self.generate_from_template(
+                    "entrypoint.sh.jinja",
+                    paths,
+                    timestamp,
+                    Path(str(self.rendered_services_network_script_file_path).replace(
+                        ".sh", f"_{service.service_name}.sh"
+                    )),
+                    Path(str(self.services_network_script_file_path).replace(
+                        ".sh", f"_{service.service_name}.sh"
+                    )),
+                    additional_param=service,
+                )
 
             self.generate_from_template(
                 "docker-compose-template.jinja",
@@ -211,6 +248,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 self.rendered_services_network_config_file_path,
                 self.services_network_config_file_path,
             )
+
+            # Delete the file self.services_network_script_file_path
+            if self.services_network_script_file_path.exists():
+                self.services_network_script_file_path.unlink()
+                self.logger.debug(
+                    f"Deleted the file {self.services_network_script_file_path}"
+                )
 
             self.logger.info(
                 f"Docker Compose file generated at '{self.rendered_services_network_config_file_path}'"

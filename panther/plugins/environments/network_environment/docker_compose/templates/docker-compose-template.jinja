@@ -28,30 +28,17 @@ services:
       - CAP_NET_ADMIN
       - CAP_NET_RAW
     working_dir: "{{ service.run_cmd["run_cmd"]["working_dir"] }}"
-    command: 
-      - /bin/bash -x -c '
-          {% for cmd in service.run_cmd["pre_compile_cmds"] %}
-          {{ cmd }}
-          {% endfor %}
-          {% for cmd in service.run_cmd["compile_cmds"] %}
-          {{ cmd }}
-          {% endfor %}
-          {% for cmd in service.run_cmd["post_compile_cmds"] %}
-          {{ cmd }}
-          {% endfor %}
-          echo "Running timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}" >> /app/logs/{{service.service_name}}_setup.log;
-          {% if service.role.name == 'client' %}
-          (sleep 5; exec {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}) ;
-          {% else %}
-          (exec {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ service.run_cmd["run_cmd"]["working_dir"] }}/{{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"]}}) ;
-          {% endif %}
-          {% if service.run_cmd["post_run_cmds"] | length > 0 %} 
-          ({% for cmd in service.run_cmd["post_run_cmds"] %} {{ cmd | replace("\n", "") }} {% endfor -%}){% endif -%}'
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        chmod +x /app/entrypoint.sh \
+        && exec /app/entrypoint.sh
           
-
     # TODO fix sudo tshark
     volumes:
       - {{ log_dir | realpath }}/{{ service.service_name  }}:/app/logs/
+      - {{ output_dir | realpath }}/entrypoint_{{ service.service_name  }}.sh:/app/entrypoint.sh
       {% for volume in service.volumes %}
       {% if volume | is_dict %}
       - "{{ volume.local | realpath }}:{{ volume.container }}"

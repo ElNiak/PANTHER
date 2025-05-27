@@ -44,7 +44,43 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 9. [Web-app Interface](webapp_interface.md)  
 10. [Output Analysis](output_analysis.md)  
 11. [Developer Guide](developer_guide.md)  
-12. [Plugin Developer Guide](plugin_guide.md)
+12. [Plugin Developer Guide](plugin_guide.md)  
+13. [Comprehensive Workflows](PANTHER_WORKFLOWS.md)
+
+---
+
+## 🔄 Quick Workflow Overview
+
+PANTHER experiments follow a **4-phase execution model**:
+
+### Phase 1: Initialization
+- Load configurations and validate experiment setup
+- Initialize plugin system and service managers
+- Create test case instances
+
+### Phase 2: Plugin Loading & Service Setup
+- Discover and load protocol/implementation plugins
+- Create service managers for each IUT (Implementation Under Test)
+- Generate deployment and execution commands
+
+### Phase 3: Environment Deployment
+- Setup network environment (Docker Compose, localhost, or Shadow NS)
+- Build container images for protocol implementations
+- Deploy services with proper networking and monitoring
+
+### Phase 4: Test Execution
+- Start services and execute test scenarios
+- Monitor execution with automatic packet capture
+- Collect results, logs, and performance metrics
+- Teardown environment and generate reports
+
+**Key Features:**
+- **Reproducible**: Every experiment defined in single YAML configuration
+- **Containerized**: Isolated execution environments with Docker
+- **Event-driven**: Real-time monitoring and coordination
+- **Extensible**: Plugin architecture for new protocols and environments
+
+For detailed workflow documentation, see [PANTHER_WORKFLOWS.md](PANTHER_WORKFLOWS.md).
 
 ---
 
@@ -88,7 +124,6 @@ For support or inquiries, please contact:
 
 - ElNiak
 - Open an issue on the GitHub repository.
-
 
 ---
 

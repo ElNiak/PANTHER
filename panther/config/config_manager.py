@@ -837,3 +837,88 @@ class ConfigLoader:
             all_plugins[plugin_type] = sorted(plugins)
 
         return all_plugins
+
+    def list_plugin_parameters(self, plugin_type: str, plugin_name: str, protocol: str = None):
+        """
+        List all configurable parameters for a specified plugin.
+        
+        :param plugin_type: The plugin type (e.g., "network_environment", "execution_environment", "iut", "tester").
+        :param plugin_name: The plugin name (e.g., "shadow_ns", "picoquic").
+        :param protocol: Optional protocol name for IUT/tester plugins (e.g., "quic", "http").
+        :return: Dictionary of parameters with their types, defaults, and descriptions.
+        """
+        try:
+            # Determine the correct module path based on plugin type
+            if plugin_type in ["iut", "tester"]:
+                # For IUT and tester plugins, they're in the services directory
+                # For IUT plugins, they might be nested under a protocol directory
+                # Try first the direct path (for simpler plugins)
+                try:
+                    module_path = f"panther.plugins.services.{plugin_type}.{plugin_name}.config_schema"
+                    plugin_module = importlib.import_module(module_path)
+                except ImportError:
+                    # If not found, it might be under a protocol subdirectory
+                    # Look for it in different protocol directories
+                    found = False
+                    for protocol_dir in ["quic", "http", "minip"]:
+                        try:
+                            module_path = f"panther.plugins.services.{plugin_type}.{protocol_dir}.{plugin_name}.config_schema"
+                            plugin_module = importlib.import_module(module_path)
+                            found = True
+                            break
+                        except ImportError:
+                            continue
+                    
+                    if not found:
+                        raise ImportError(f"Could not find plugin schema for {plugin_name}")
+            else:
+                # For environment plugins
+                module_path = f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
+                plugin_module = importlib.import_module(module_path)
+                
+            self.logger.debug(f"Found plugin schema at {module_path}")
+            
+            # Get the class name using the plugin loader helper
+            class_name = PluginLoader.get_class_name(plugin_name)
+            config_class = getattr(plugin_module, class_name)
+            
+            # Format and return the parameters
+            parameters = {}
+            
+            # Use dataclasses introspection to get fields
+            import dataclasses
+            import inspect
+            from typing import get_type_hints
+            
+            if dataclasses.is_dataclass(config_class):
+                fields = dataclasses.fields(config_class)
+                type_hints = get_type_hints(config_class)
+                
+                for field in fields:
+                    param_info = {
+                        "type": str(type_hints.get(field.name, "unknown")),
+                        "default": field.default if field.default is not dataclasses.MISSING else None,
+                        "required": field.default is dataclasses.MISSING,
+                        "description": inspect.getdoc(field) or "No description available"
+                    }
+                    parameters[field.name] = param_info
+                    
+            return parameters
+            
+        except ImportError as e:
+            print(f"Plugin schema for '{plugin_name}' not found. Check if the plugin name is correct.")
+            print(f"Error details: {e}")
+            
+            # Let's provide more helpful guidance for IUT/tester plugins
+            if plugin_type in ["iut", "tester"]:
+                print("\nFor IUT/tester plugins, try specifying the protocol if applicable.")
+                print("Example: quiche is under the 'quic' protocol, so use:")
+                print(f"panther --list-plugin-params {plugin_name} --plugin-type {plugin_type} --protocol quic")
+            
+            return {}
+        except AttributeError as e:
+            print(f"Error retrieving parameters for plugin '{plugin_name}': {e}")
+            return {}
+        except Exception as e:
+            print(f"Unexpected error while listing parameters for plugin '{plugin_name}': {e}")
+            return {}

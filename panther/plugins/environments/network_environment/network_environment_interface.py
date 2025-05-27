@@ -211,6 +211,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
             timestamp=timestamp,
             additional_param=additional_param,
             log_dir=self.log_dirs,
+            output_dir=self.output_dir,
             experiment_name=self.output_dir.split("/")[-1],
         )
         # Write the rendered content to shadow.generated.yml

@@ -4,6 +4,8 @@
 ## Overview
 The `plugins` module is a key component of the PANTHER framework, enabling modular and extensible functionality for environments, protocols, and services. It allows dynamic loading and management of plugins to adapt to various testing scenarios and requirements.
 
+> **Documentation Note**: For complete documentation of the plugin system, see the [PANTHER Plugin Documentation](../../docs/index.md).
+
 ## Contents
 
 ### 1. Plugin Interface and Management

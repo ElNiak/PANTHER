@@ -1,0 +1,32 @@
+#!/bin/bash -x
+# -x: trace every command (with expansions)
+
+set_environment() {
+  log "Setting environment for {{ additional_param.service_name }}..."
+  export ROLE="{{ additional_param.role.name }}"
+  {% for key, value in additional_param.environments.items() %}
+  export {{ key }}="{{ value }}"
+  {% endfor %}
+}
+
+# Initialize environment variables
+log "Setting up environment variables..."
+set_environment
+
+{% for cmd in additional_param.run_cmd["pre_compile_cmds"] %}
+{{ cmd }}
+{% endfor %}
+{% for cmd in additional_param.run_cmd["compile_cmds"] %}
+{{ cmd }}
+{% endfor %}
+{% for cmd in additional_param.run_cmd["post_compile_cmds"] %}
+{{ cmd }}
+{% endfor %}
+echo "Running timeout {{additional_param.run_cmd["run_cmd"]["timeout"]}} {% for cmd in additional_param.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{additional_param.run_cmd["run_cmd"]["command_binary"]}} {{additional_param.run_cmd["run_cmd"]["command_args"]}}" >> /app/logs/{{additional_param.service_name}}_setup.log;
+{% if additional_param.role.name == 'client' %}
+(sleep 5; exec {% for key, val in additional_param.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{additional_param.run_cmd["run_cmd"]["timeout"]}} {% for cmd in additional_param.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ additional_param.run_cmd["run_cmd"]["working_dir"] }}/{{additional_param.run_cmd["run_cmd"]["command_binary"]}} {{additional_param.run_cmd["run_cmd"]["command_args"]}}) ;
+{% else %}
+(exec {% for key, val in additional_param.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{additional_param.run_cmd["run_cmd"]["timeout"]}} {% for cmd in additional_param.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{ additional_param.run_cmd["run_cmd"]["working_dir"] }}/{{additional_param.run_cmd["run_cmd"]["command_binary"]}} {{additional_param.run_cmd["run_cmd"]["command_args"]}}) ;
+{% endif %}
+{% if additional_param.run_cmd["post_run_cmds"] | length > 0 %} 
+({% for cmd in additional_param.run_cmd["post_run_cmds"] %} {{ cmd | replace("\n", "") }} {% endfor -%}){% endif -%}'
