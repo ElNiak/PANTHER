@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER tests_ressources tests.
 
-This package contains the panther application and its modules.
+This package contains tests_ressources tests for the PANTHER framework.
 """

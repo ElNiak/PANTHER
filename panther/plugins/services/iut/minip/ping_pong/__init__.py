@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER Ping Pong protocol.
 
-This package contains the panther application and its modules.
+This package contains the Ping Pong protocol implementation.
 """

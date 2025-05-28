@@ -6,6 +6,8 @@
 
 * detached mode
 
+* Analysis plugins (perf report, qvis etc)
+
 ## PANTHER Ivy
 
 * Use Jinja template for ivy_to_cpp

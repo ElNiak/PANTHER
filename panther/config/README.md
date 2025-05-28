@@ -1,184 +1,396 @@
+# Configuration Guide — Writing & Validating PANTHER YAML 📜
 
-# Configuration Guide for PANTHER
+> **Purpose:** Comprehensive guide for designing experiment configurations and understanding PANTHER's validation system  
+> **Target:** Newcomers designing tests; plugin authors adding schemas; advanced users optimizing configurations  
+> **Schema System:** Dynamic plugin-based configuration with OmegaConf validation
 
-This guide explains how to configure experiments, services, and plugins in PANTHER. Configuration is managed using YAML files, ensuring flexibility and readability.
-
----
-
-## Configuration Files
-
-### 1. **Main Configuration File**
-- **Path**: `config/experiment_config.yaml`
-- **Purpose**: Defines the overall experiment setup, including logging, paths, tests, and Docker options.
-
-### 2. **Plugin-Specific Configurations**
-- **Path**: Resides in `plugins/` subdirectories.
-- **Purpose**: Defines parameters for specific plugins like implementations, protocols, and environments.
+A **PANTHER configuration** is a single YAML file that defines what to run, where to run it, and how to instrument it. This guide covers the complete configuration system, from basic setups to advanced plugin-specific options.
 
 ---
 
-## Structure of `experiment_config.yaml`
+## Configuration Architecture
 
-### Example Configuration:
+PANTHER uses a **hierarchical configuration system** with the following key principles:
+
+1. **Plugin-Based Schemas**: Each plugin contributes its own configuration schema via `config_schema.py`
+2. **Dynamic Validation**: Schemas are merged at runtime and validated with OmegaConf
+3. **Type Safety**: Strong typing with dataclass-based configuration models
+4. **Extensibility**: New plugins automatically extend the configuration space
+
+### Configuration Structure
+
 ```yaml
+# Global settings that apply to all tests
 logging:
-  level: DEBUG
-  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 paths:
-  output_dir: "outputs"
-  log_dir: "outputs/logs"
-  config_dir: "configs"
-  plugin_dir: "plugins"
+  output_dir: "./outputs"
+  temp_dir: "./temp"
 
 docker:
-  build_docker_image: true
+  pull_images: true
+  cleanup_on_exit: true
 
+# Array of individual test configurations
 tests:
-  - name: "QUIC Server-Client Communication Test"
-    description: "Test Picoquic server and client communication over Docker."
+  - name: "quic_basic_test"
     network_environment:
       type: "docker_compose"
+      config:
+        compose_file: "docker-compose.yml"
+    
     execution_environment:
-      - type: "gperf"
-    iterations: 1
+      type: "docker_container"
+      config:
+        image: "panther/test-env"
+    
     services:
-      picoquic_server:
-        name: "picoquic_server"
-        implementation:
-          name: "picoquic"
-          type: "iut"
-        protocol:
-          name: "quic"
-          version: "rfc9000"
-          role: "server"
-        ports:
-          - "4443:4443"
-        generate_new_certificates: true
-    steps:
-      wait: 100  # seconds to wait during the test
-    assertions:
-      - type: "service_responsive"
-        service: "picoquic_server"
-        endpoint: "8080/health"
-        expected_status: 200
+      - name: "quic_server"
+        type: "iut"
+        implementation: "quiche"
+        role: "server"
+        config:
+          port: 4433
+          cert_file: "/certs/server.crt"
+          key_file: "/certs/server.key"
+      
+      - name: "quic_client"
+        type: "iut"
+        implementation: "quiche"
+        role: "client"
+        config:
+          target: "quic_server"
+          
+      - name: "formal_verifier"
+        type: "tester"
+        implementation: "panther_ivy"
+        config:
+          protocol: "quic"
+          test_suite: "basic_conformance"
 ```
 
 ---
 
-## Key Sections
+## Configuration Sections
 
-### 1. **Logging**
-Configures the verbosity and format of logs.
+### 1. Global Settings
+
+#### Logging Configuration
 ```yaml
 logging:
-  level: DEBUG  # Options: DEBUG, INFO, WARNING, ERROR
-  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+  level: INFO                    # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+  file: "./logs/panther.log"     # Optional: log to file
+  console: true                  # Enable console output
 ```
 
-### 2. **Paths**
-Defines directories for output, logs, and plugins.
+#### Path Configuration
 ```yaml
 paths:
-  output_dir: "outputs"
-  log_dir: "outputs/logs"
-  config_dir: "configs"
-  plugin_dir: "plugins"
+  output_dir: "./outputs"        # Where test results are stored
+  temp_dir: "./temp"            # Temporary files directory
+  config_dir: "./configs"       # Additional configuration files
+  data_dir: "./data"            # Test data and resources
 ```
 
-### 3. **Docker Options**
-Controls Docker behavior for test environments.
+#### Docker Configuration
 ```yaml
 docker:
-  build_docker_image: true
+  pull_images: true             # Pull latest images before tests
+  cleanup_on_exit: true         # Clean up containers after tests
+  registry: "docker.io"         # Custom registry (optional)
+  build_timeout: 300            # Build timeout in seconds
+  network_name: "panther_net"   # Custom network name
 ```
 
-### 4. **Tests**
-Each test case defines:
-- **Name**: A unique identifier.
-- **Description**: Brief details about the test.
-- **Network Environment**: The type of environment (e.g., Docker Compose).
-- **Services**: Definitions for each service involved in the test.
-- **Steps**: Actions such as waiting or running commands.
-- **Assertions**: Validations for test success.
+### 2. Network Environments
 
----
+Network environments define where and how containers communicate.
 
-## Services Configuration
+#### Docker Compose Environment
+```yaml
+network_environment:
+  type: "docker_compose"
+  config:
+    compose_file: "docker-compose.yml"
+    project_name: "panther_test"
+    services:
+      - "quic_server"
+      - "quic_client"
+    networks:
+      - name: "test_network"
+        driver: "bridge"
+        ipam:
+          config:
+            - subnet: "172.20.0.0/16"
+```
 
-Each service includes:
-- **Name**: A unique identifier.
-- **Implementation**: Plugin type and name.
-- **Protocol**: Details like name, version, role, and associated target.
-- **Ports**: Exposed ports for communication.
+#### Localhost Single Container
+```yaml
+network_environment:
+  type: "localhost_single_container"
+  config:
+    container_name: "panther_test"
+    network_mode: "host"
+    exposed_ports:
+      - "4433:4433"
+      - "8080:8080"
+```
 
-### Example:
+#### Shadow Network Simulator
+```yaml
+network_environment:
+  type: "shadow"
+  config:
+    hosts:
+      - name: "server"
+        processes:
+          - path: "/app/server"
+            args: ["--port", "4433"]
+      - name: "client"
+        processes:
+          - path: "/app/client"
+            args: ["server", "4433"]
+    network:
+      topology: "1_gbit_ethernet"
+      latency: "10ms"
+      bandwidth: "1000mbit"
+```
+
+### 3. Execution Environments
+
+Execution environments define the runtime context for services.
+
+#### Docker Container Environment
+```yaml
+execution_environment:
+  type: "docker_container"
+  config:
+    image: "panther/test-env:latest"
+    dockerfile: "./Dockerfile"
+    build_context: "./build"
+    environment:
+      - "DEBUG=1"
+      - "RUST_LOG=debug"
+    volumes:
+      - "./certs:/certs:ro"
+      - "./logs:/app/logs:rw"
+    capabilities:
+      - "NET_ADMIN"
+      - "SYS_PTRACE"
+```
+
+#### Host Environment
+```yaml
+execution_environment:
+  type: "host"
+  config:
+    working_dir: "/tmp/panther"
+    environment:
+      PATH: "/usr/local/bin:$PATH"
+      LD_LIBRARY_PATH: "/usr/local/lib"
+```
+
+### 4. Services Configuration
+
+Services define the actual implementations being tested or doing the testing.
+
+#### IUT (Implementation Under Test) Services
+
+##### QUIC Implementations
+
+**Quiche Configuration:**
 ```yaml
 services:
-  picoquic_server:
-    name: "picoquic_server"
-    implementation:
-      name: "picoquic"
-      type: "iut"
-    protocol:
-      name: "quic"
-      version: "rfc9000"
-      role: "server"
-    ports:
-      - "4443:4443"
-    generate_new_certificates: true
+  - name: "quiche_server"
+    type: "iut"
+    implementation: "quiche"
+    role: "server"
+    config:
+      binary:
+        path: "/app/quiche-server"
+        args: ["--cert", "/certs/cert.pem", "--key", "/certs/key.pem"]
+      network:
+        port: 4433
+        interface: "0.0.0.0"
+      protocol:
+        alpn: ["h3", "hq-29"]
+        version: "draft-29"
+        max_packet_size: 1350
+      certificates:
+        cert_file: "/certs/server.crt"
+        key_file: "/certs/server.key"
+      logging:
+        log_path: "/app/logs/server.log"
+        err_path: "/app/logs/server.err"
+        level: "debug"
+```
+
+**Picoquic Configuration:**
+```yaml
+services:
+  - name: "picoquic_client"
+    type: "iut"
+    implementation: "picoquic"
+    role: "client"
+    config:
+      binary:
+        path: "/app/picoquic_sample"
+        args: ["-l", "/app/logs/client.log"]
+      target: "quiche_server"
+      network:
+        port: 4433
+      protocol:
+        alpn: ["hq-29"]
+        initial_version: "ff00001d"
+      certificates:
+        ca_file: "/certs/ca.pem"
+        verify_certificate: false
+```
+
+**Aioquic Configuration:**
+```yaml
+services:
+  - name: "aioquic_server"
+    type: "iut"
+    implementation: "aioquic"
+    role: "server"
+    config:
+      binary:
+        path: "/app/http3_server.py"
+        interpreter: "python3"
+      network:
+        port: 4433
+        host: "0.0.0.0"
+      protocol:
+        alpn: ["h3"]
+        quic_logger: true
+      certificates:
+        cert_file: "/certs/cert.pem"
+        key_file: "/certs/key.pem"
+```
+
+#### Tester Services
+
+##### Panther Ivy Formal Verification
+```yaml
+services:
+  - name: "ivy_verifier"
+    type: "tester"
+    implementation: "panther_ivy"
+    config:
+      protocol: "quic"
+      ivy_files:
+        - "/app/protocols/quic/quic_protocol.ivy"
+        - "/app/protocols/quic/quic_tests.ivy"
+      test_config:
+        seed: 12345
+        max_steps: 1000
+        timeout: 300
+      verification:
+        check_safety: true
+        check_liveness: true
+        bounded_check: true
+        bound: 10
+      logging:
+        log_path: "/app/logs/ivy.log"
+        err_path: "/app/logs/ivy.err"
+        trace_file: "/app/logs/trace.txt"
 ```
 
 ---
 
-## Writing Custom Configurations
+## Configuration Validation
 
-### Adding a New Test Case
-1. Copy the structure from an existing test case.
-2. Update fields like `name`, `description`, and `services`.
+PANTHER provides comprehensive configuration validation through its schema system:
 
-### Adding Custom Steps
-1. Define new actions under `steps`:
-   ```yaml
-   steps:
-     - action: "custom_command"
-       parameters:
-         command: "echo 'Hello, PANTHER!'"
-   ```
+### Schema Definition
+Each plugin defines its configuration schema using Python dataclasses:
 
-### Adding Assertions
-1. Define conditions to validate test results:
-   ```yaml
-   assertions:
-     - type: "service_responsive"
-       service: "my_service"
-       endpoint: "5000/health"
-       expected_status: 200
-   ```
+```python
+# Example: panther/plugins/services/iut/quic/quiche/config_schema.py
+from dataclasses import dataclass
+from typing import Optional, List
 
----
+@dataclass
+class QuicheBinaryConfig:
+    path: str
+    args: Optional[List[str]] = None
+    dir: str = "/app"
 
-## Validation
-To validate your configuration, run:
+@dataclass
+class QuicheNetworkConfig:
+    port: int = 4433
+    interface: str = "0.0.0.0"
+
+@dataclass
+class QuicheProtocolConfig:
+    alpn: List[str]
+    version: Optional[str] = None
+    max_packet_size: int = 1350
+
+@dataclass
+class QuicheConfig:
+    binary: QuicheBinaryConfig
+    network: QuicheNetworkConfig
+    protocol: QuicheProtocolConfig
+    certificates: CertificateConfig
+    logging: LoggingConfig
+```
+
+### Validation Process
+
+1. **Schema Discovery**: PANTHER automatically discovers all plugin schemas
+2. **Schema Merging**: Schemas are combined into a unified configuration model
+3. **Type Validation**: OmegaConf validates types and required fields
+4. **Custom Validation**: Plugins can provide custom validation logic
+5. **Error Reporting**: Clear error messages with field-level details
+
+### Validation Commands
+
 ```bash
-panther --validate-config --config config/experiment_config.yaml
+# Validate configuration before running
+panther --validate-config --experiment-config config.yaml
+
+# Validate and show merged schema
+panther --show-schema --experiment-config config.yaml
+
+# Validate specific plugin configuration
+panther --validate-plugin quiche --config plugin_config.yaml
+
+# List available parameters for a specific plugin
+panther --list-plugin-params quiche  # Plugin type and protocol will be auto-detected
 ```
 
+### Inspecting Plugin Parameters
+
+To view all available configuration parameters for a specific plugin, use:
+
+```bash
+panther --list-plugin-params PLUGIN_NAME [--plugin-type PLUGIN_TYPE] [--protocol PROTOCOL]
+```
+
+Where:
+- `PLUGIN_NAME` is the name of the plugin (e.g., `quiche`, `docker_compose`)
+- `PLUGIN_TYPE` (optional) is one of: `iut`, `tester`, `network_environment`, or `execution_environment`
+  - If not provided, PANTHER will auto-detect the plugin type
+- `PROTOCOL` (optional) for IUT/tester plugins, specifies the protocol (e.g., `quic`, `http`, `minip`)
+  - If not provided, PANTHER will auto-detect the protocol for protocol-specific plugins
+
+This command displays all parameters, their types, default values, whether they're required, and their descriptions:
+
+```text
+Parameter           Type                           Default              Required   Description
+----------------------------------------------------------------------------------------------------
+binary              QuicheBinaryConfig             None                 Yes        Binary configuration
+network             QuicheNetworkConfig            None                 Yes        Network settings
+protocol            QuicheProtocolConfig           None                 Yes        Protocol parameters
+certificates        CertificateConfig              None                 Yes        Certificate settings
+logging             LoggingConfig                  None                 Yes        Logging configuration
+```
+
+This feature helps you understand exactly what parameters are available and required for each plugin without having to examine the source code directly.
+
 ---
-
-## Advanced Configuration: Plugins
-For plugin-specific configurations, refer to `plugins/`. Each plugin directory contains a `config.yaml` file with additional parameters.
-
----
-
-## Troubleshooting
-1. **Missing Configuration Keys**:
-   - Ensure all required fields are present. Refer to this guide or sample files.
-2. **Validation Errors**:
-   - Use `panther --validate-config` to debug.
-3. **Docker Build Issues**:
-   - Verify that `config.yaml` in plugin directories includes valid `Dockerfile` paths.
-
----
-
-For more advanced configurations or examples, consult the [Plugin Development Guide](PLUGIN_GUIDE.md) or reach out to the development team.

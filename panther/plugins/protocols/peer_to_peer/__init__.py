@@ -1,4 +1,4 @@
-"""panther package.
+"""peer_to_peer package.
 
-This package contains the panther application and its modules.
+This package is part of the PANTHER framework.
 """

@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER core package.
 
-This package contains the panther application and its modules.
+This package contains the core functionality of the PANTHER framework.
 """

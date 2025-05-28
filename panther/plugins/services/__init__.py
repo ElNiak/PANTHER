@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER service plugins.
 
-This package contains the panther application and its modules.
+This package contains service plugins for different network services.
 """

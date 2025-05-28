@@ -81,4 +81,4 @@ The MinIP protocol can be extended with:
 ## References
 
 - MinIP Protocol Specification (internal documentation)
-- [PANTHER Client-Server Protocol Interface](../../../docs/protocols/client_server/index.md)
+- [PANTHER Client-Server Protocol Interface](panther/plugins/docs/protocols/client_server/index.md)

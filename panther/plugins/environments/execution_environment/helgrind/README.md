@@ -78,4 +78,4 @@ This configuration provides comprehensive detection of thread synchronization is
 ## References
 
 - [Valgrind Helgrind Documentation](https://valgrind.org/docs/manual/hg-manual.html)
-- [PANTHER Execution Environment Interface](../../../../docs/environments/execution_environment/index.md)
+- [PANTHER Execution Environment Interface](panther/docs/environments/execution_environment/index.md)

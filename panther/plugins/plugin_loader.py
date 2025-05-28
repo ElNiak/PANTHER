@@ -2,7 +2,9 @@
 
 import logging
 import os
+from importlib.metadata import entry_points
 from pathlib import Path
+from typing import Dict, List, Optional
 
 from omegaconf import OmegaConf
 from panther.core.utils.docker_builder import DockerBuilder
@@ -11,6 +13,9 @@ from panther.core.utils.docker_builder import DockerBuilder
 class PluginLoader:
     """
     PluginLoader is responsible for discovering, registering, and building Docker images for protocol, environment, and tester plugins.
+    
+    This class supports both file-based (legacy) plugin discovery and entry points-based plugin discovery.
+    
     Attributes:
         logger (logging.Logger): Logger instance for the PluginLoader.
         plugins_base_dir (Path): Base directory for plugins.
@@ -21,17 +26,6 @@ class PluginLoader:
         environment_plugins (Dict[str, Path]): Dictionary mapping environment plugin names to their paths.
         tester_plugins (Dict[str, Path]): Dictionary mapping tester plugin names to their paths.
         dockerfiles (Dict[str, Path]): Dictionary mapping implementation names to Dockerfile paths.
-    Methods:
-        get_class_name(plugin_name: str, suffix: str = "Config") -> str:
-            Generates a class name from a plugin name with an optional suffix.
-        build_docker_image(impl_name: str, versions: str):
-        build_docker_image_from_path(path: Path, name: str, version: Optional[str] = None):
-            Builds a Docker image for a given implementation and version from a specified path.
-        get_implementations_for_protocol(protocol: str) -> List[str]:
-        get_testers() -> List[str]:
-            Retrieves a list of tester implementations.
-        load_plugins():
-            Discovers and registers all protocol, environment, and tester plugins.
     """
 
     def __init__(
@@ -42,25 +36,23 @@ class PluginLoader:
         self.logger = logging.getLogger("PluginLoader")
         
         self.plugins_base_dir = Path(plugins_base_dir)
-        # TODO add support for optional plugins
-        # For now if we want to add a new plugins, we need to add it to the plugins_base_dir
+        # Support for optional plugins
         self.plugins_optional_dir = (
             Path(plugins_optional_dir) if plugins_optional_dir else None
         )
         try:
             self.docker_builder = DockerBuilder()
         except Exception as e:
-            self.logger.error(f"Failed to create DockerBuilder: {e}")
-            # exit()
-        self.built_images: dict[str, str] = (
-            {}
-        )  # Maps implementation names to image tags
-        self.protocol_plugins: dict[str, Path] = {}
-        self.environment_plugins: dict[str, Path] = {}
-        self.tester_plugins: dict[str, Path] = {}
-        self.dockerfiles = self.docker_builder.find_dockerfiles(Path(os.path.dirname(__file__)))
-        self.logger.info(f"Found Dockerfiles: {self.dockerfiles}")
-
+            self.logger.warning(f"Failed to initialize DockerBuilder: {e}")
+            self.docker_builder = None
+            
+        # Dictionaries to store plugins
+        self.built_images = {}
+        self.protocol_plugins = {}
+        self.environment_plugins = {}
+        self.tester_plugins = {}
+        self.dockerfiles = {}
+            
     @staticmethod
     def get_class_name(plugin_name, suffix="Config"):
         """
@@ -226,21 +218,68 @@ class PluginLoader:
         self.logger.debug(f"Found testers: {implementations}")
         return implementations
 
-    def load_plugins(self):
+    def discover_entry_point_plugins(self) -> None:
         """
-        Load plugins from the specified base directory.
-        This method discovers and loads protocol, environment, and tester plugins
-        from the respective directories within the base directory.
-        - Protocol plugins are expected to be in 'services/iut' directory.
-        - Environment plugins are expected to be in 'environments' directory.
-        - Tester plugins are expected to be in 'services/testers' directory.
-        The method logs the discovery process and updates the internal dictionaries
-        `self.protocol_plugins`, `self.environment_plugins`, and `self.tester_plugins`
-        with the discovered plugins.
-        Raises:
-            FileNotFoundError: If the base directory does not exist.
+        Discovers plugins registered via entry points.
+        This is the modern way to discover plugins and should be preferred over file-based discovery.
         """
+        self.logger.info("Discovering plugins via entry points...")
         
+        # Discover protocol plugins
+        try:
+            protocol_eps = entry_points(group='panther.plugins.protocols')
+            for ep in protocol_eps:
+                self.logger.info(f"Found protocol plugin: {ep.name}")
+                try:
+                    # We don't load the plugin here, just register its existence
+                    plugin_path = Path(ep.value.split(':')[0].replace('.', '/'))
+                    self.protocol_plugins[ep.name] = plugin_path
+                except Exception as e:
+                    self.logger.warning(f"Failed to register protocol plugin {ep.name}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error discovering protocol plugins: {e}")
+            
+        # Discover execution environment plugins
+        try:
+            exec_env_eps = entry_points(group='panther.plugins.environments.execution')
+            for ep in exec_env_eps:
+                self.logger.info(f"Found execution environment plugin: {ep.name}")
+                try:
+                    plugin_path = Path(ep.value.split(':')[0].replace('.', '/'))
+                    self.environment_plugins[f"execution_{ep.name}"] = plugin_path
+                except Exception as e:
+                    self.logger.warning(f"Failed to register execution environment plugin {ep.name}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error discovering execution environment plugins: {e}")
+            
+        # Discover network environment plugins
+        try:
+            net_env_eps = entry_points(group='panther.plugins.environments.network')
+            for ep in net_env_eps:
+                self.logger.info(f"Found network environment plugin: {ep.name}")
+                try:
+                    plugin_path = Path(ep.value.split(':')[0].replace('.', '/'))
+                    self.environment_plugins[f"network_{ep.name}"] = plugin_path
+                except Exception as e:
+                    self.logger.warning(f"Failed to register network environment plugin {ep.name}: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error discovering network environment plugins: {e}")
+    
+    def load_plugins(self) -> None:
+        """
+        Discovers and registers all protocol, environment, and tester plugins.
+        Uses both entry points-based discovery (preferred) and file-based discovery (for backward compatibility).
+        """
+        self.logger.info("Loading plugins...")
+        
+        # First try entry points-based discovery (modern approach)
+        self.discover_entry_point_plugins()
+        
+        # Then fall back to file-based discovery (legacy approach)
+        self._legacy_file_based_plugin_discovery()
+        
+    def _legacy_file_based_plugin_discovery(self) -> None:
+        """Legacy file-based plugin discovery method for backward compatibility."""
         self.logger.debug(
             f"Loading plugins from base directory '{self.plugins_base_dir}'"
         )

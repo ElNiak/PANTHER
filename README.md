@@ -34,18 +34,17 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 
 ## 📑 Table of Contents
 1. [Quick Start](quick_start.md)  
-2. [Core Component](core_component.md)  
-3. [Configuration Guide](configuration_guide.md)  
-4. [Execution-Environment Modules](execution_environment_modules.md)  
-5. [Network-Environment Modules](network_environment_modules.md)  
-6. [Protocol Modules](protocol_modules.md)  
-7. [Service (IUT) Modules](service_modules.md)  
-8. [Tester Modules](tester_modules.md)  
-9. [Web-app Interface](webapp_interface.md)  
-10. [Output Analysis](output_analysis.md)  
-11. [Developer Guide](developer_guide.md)  
-12. [Plugin Developer Guide](plugin_guide.md)  
-13. [Comprehensive Workflows](PANTHER_WORKFLOWS.md)
+2. [Installation Guide](install.md)
+3. [Core Components](panther/core/README.md)  
+4. [Configuration Guide](panther/config/README.md)  
+5. [Execution & Network Environments](panther/plugins/environments/README.md)  
+6. [Protocol Modules](panther/plugins/protocols/README.md)  
+7. [Service Modules](panther/plugins/services/README.md)  
+8. [Plugin Development](panther/plugins/development.md)  
+9. [Documentation System](DOCUMENTATION.md)
+10. [Contributing](CONTRIBUTING.md)  
+11. [Packaging & Distribution](PACKAGING.md)  
+12. [Workflow Documentation](workflow.md)
 
 ---
 
@@ -80,7 +79,7 @@ PANTHER experiments follow a **4-phase execution model**:
 - **Event-driven**: Real-time monitoring and coordination
 - **Extensible**: Plugin architecture for new protocols and environments
 
-For detailed workflow documentation, see [PANTHER_WORKFLOWS.md](PANTHER_WORKFLOWS.md).
+For detailed workflow documentation, see [workflow.md](workflow.md).
 
 ---
 
@@ -88,7 +87,7 @@ For detailed workflow documentation, see [PANTHER_WORKFLOWS.md](PANTHER_WORKFLOW
 
 | Component | Minimum | Notes |
 |-----------|---------|-------|
-| Python    | 3.10    | Use `venv` for isolation. |
+| Python    | 3.10    | Use `venv` for isolation for main functionality. |
 | Docker    | 27.x    | Required for all orchestration modes. |
 
 `pyproject.toml` is the source of truth for Python dependencies.
@@ -110,12 +109,10 @@ For detailed information on using PANTHER, see the:
 Contributions are welcome! To get started:
 
 - Fork the repository.
-
 - Create a new branch for your feature or bug fix.
-
 - Submit a pull request with a clear description of your changes.
 
-For more details, see the Contribution Guide.
+For more details, see the [Contribution Guide](CONTRIBUTING.md).
 
 
 ## Contact

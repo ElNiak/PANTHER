@@ -89,5 +89,5 @@ This approach is particularly useful for:
 
 ## References
 
-- [PANTHER Execution Environment Interface](../../../../docs/environments/execution_environment/index.md)
-- [Statistical Test Analysis Guide](../../../../docs/environments/execution_environment/statistics.md)
+- [PANTHER Execution Environment Interface](panther/docs/environments/execution_environment/index.md)
+- [Statistical Test Analysis Guide](panther/docs/environments/execution_environment/statistics.md)
