@@ -395,7 +395,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
 
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
-                    
+
                     # Remove the docker image after execution
                     remove_image_command = [
                         "docker",
@@ -452,7 +452,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                                 remove_image_command = [
                                     "docker",
                                     "rmi",
-                                    "--force" f"{self.docker_name}:latest",
+                                    f"--force{self.docker_name}:latest",
                                 ]
                                 self.logger.debug(
                                     f"Executing remove image command: {remove_image_command}"

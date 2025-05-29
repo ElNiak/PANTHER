@@ -99,17 +99,17 @@ class ITester(ABC):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.test_results = []
-        
+
     @abstractmethod
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize the tester with configuration"""
         pass
-        
+
     @abstractmethod
     def run_tests(self) -> Dict[str, Any]:
         """Execute the test suite"""
         pass
-        
+
     @abstractmethod
     def generate_report(self) -> str:
         """Generate test report"""
@@ -194,7 +194,7 @@ testers:
       - name: "picoquic"
         role: "server"
         config: {port: 4433}
-      - name: "quic_go" 
+      - name: "quic_go"
         role: "client"
         config: {server_addr: "picoquic:4433"}
     test_matrix:
@@ -246,7 +246,7 @@ jobs:
             --protocol quic \
             --implementation picoquic \
             --specification specs/quic_rfc9000.ivy
-            
+
   conformance_testing:
     runs-on: ubuntu-latest
     strategy:
@@ -280,7 +280,7 @@ campaign.add_phase("formal_verification", {
 
 # Add performance testing phase
 campaign.add_phase("performance", {
-    "tester": "load_generator", 
+    "tester": "load_generator",
     "implementations": ["lsquic", "mvfst"],
     "load_profiles": ["light", "moderate", "heavy"]
 })
@@ -328,34 +328,34 @@ class CustomProtocolTester(ITester):
         super().__init__()
         self.test_scenarios = []
         self.target_implementation = None
-        
+
     def initialize(self, config: Dict[str, Any]) -> None:
         """Initialize tester with configuration"""
         self.target_implementation = config.get('implementation')
         self.test_scenarios = config.get('test_scenarios', [])
         self.logger.info(f"Initialized tester for {self.target_implementation}")
-        
+
     def run_tests(self) -> Dict[str, Any]:
         """Execute test scenarios"""
         results = []
-        
+
         for scenario in self.test_scenarios:
             self.logger.info(f"Running scenario: {scenario}")
             result = self._execute_scenario(scenario)
             results.append(result)
-            
+
         return {
             "total_tests": len(results),
             "passed": len([r for r in results if r['status'] == 'PASS']),
             "failed": len([r for r in results if r['status'] == 'FAIL']),
             "results": results
         }
-        
+
     def _execute_scenario(self, scenario: str) -> Dict[str, Any]:
         """Execute individual test scenario"""
         # Implementation-specific test logic
         pass
-        
+
     def generate_report(self) -> str:
         """Generate comprehensive test report"""
         # Report generation logic
@@ -397,13 +397,13 @@ def notify_test_completion(results):
     notifier = SlackNotifier()
     message = f"""
     🧪 Test Campaign Completed
-    
+
     **Results Summary:**
     • Total Tests: {results['total_tests']}
     • Passed: {results['passed']} ✅
     • Failed: {results['failed']} ❌
     • Success Rate: {results['success_rate']}%
-    
+
     View detailed results: {results['report_url']}
     """
     notifier.send_message(message, channel="#testing")

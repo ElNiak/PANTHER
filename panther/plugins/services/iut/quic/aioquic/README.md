@@ -1,7 +1,7 @@
 # aioquic QUIC Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Verified Source Location**: `plugins/services/iut/quic/aioquic/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Verified Source Location**: `plugins/services/iut/quic/aioquic/`
 
 ## Purpose and Overview
 

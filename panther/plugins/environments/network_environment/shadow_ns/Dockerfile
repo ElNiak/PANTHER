@@ -25,7 +25,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     wget \
     curl \
-    rsync 
+    rsync
 
 # rustup: https://rustup.rs
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none --profile minimal
@@ -44,9 +44,9 @@ RUN ln -s shadow/ci/rust-toolchain-stable.toml rust-toolchain.toml; rustup toolc
 
 RUN go install -buildmode=shared -linkshared std
 
-RUN cd shadow; ./setup build -g --clean --test 
+RUN cd shadow; ./setup build -g --clean --test
 
-RUN cd shadow; ./setup install 
+RUN cd shadow; ./setup install
 #
     # ./setup test && # This command is not working # --test
 

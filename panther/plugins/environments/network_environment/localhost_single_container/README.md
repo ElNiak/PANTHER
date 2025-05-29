@@ -1,7 +1,7 @@
 # Localhost Single Container Environment
 
-> **Plugin Type**: Network Environment  
-> **Verified Source Location**: `plugins/environments/network_environment/localhost_single_container/`  
+> **Plugin Type**: Network Environment
+> **Verified Source Location**: `plugins/environments/network_environment/localhost_single_container/`
 
 ## Purpose and Overview
 
@@ -62,17 +62,17 @@ network_environment:
 ```yaml
 tests:
   - name: "Basic Localhost Test"
-    network_environment: 
+    network_environment:
       type: "localhost_single_container"
     services:
       server:
-        name: "http_server" 
-        implementation: 
+        name: "http_server"
+        implementation:
           name: "nginx"
           type: "iut"
       client:
-        name: "http_client" 
-        implementation: 
+        name: "http_client"
+        implementation:
           name: "curl"
           type: "tester"
 ```
@@ -82,7 +82,7 @@ tests:
 ```yaml
 tests:
   - name: "Advanced Localhost Test"
-    network_environment: 
+    network_environment:
       type: "localhost_single_container"
       service_prefix: "debug_"
       environment:
@@ -91,15 +91,15 @@ tests:
         TRACE_PACKETS: "1"
     services:
       server:
-        name: "quic_server" 
-        implementation: 
+        name: "quic_server"
+        implementation:
           name: "picoquic"
           type: "iut"
         ports:
           - "4443:4443"
       client:
-        name: "quic_client" 
-        implementation: 
+        name: "quic_client"
+        implementation:
           name: "picoquic"
           type: "iut"
         protocol:
@@ -119,12 +119,12 @@ from panther.plugins.environments.network_environment.localhost_single_container
 
 class EnhancedLocalhostEnvironment(LocalhostSingleContainerEnvironment):
     """Enhanced localhost environment with additional features."""
-    
+
     def prepare_environment(self):
         """Custom setup with additional container configuration."""
         super().prepare_environment()
         # Add custom setup code
-        
+
     def generate_environment_services(self, paths, timestamp):
         """Generate enhanced service configuration."""
         base_config = super().generate_environment_services(paths, timestamp)
@@ -164,7 +164,7 @@ To test the Localhost Single Container environment plugin:
 
 #### Port Conflicts
 
-**Problem**: Services fail to start due to port binding issues  
+**Problem**: Services fail to start due to port binding issues
 **Solution**: Check for port conflicts with other running containers or processes and adjust port mappings in the configuration.
 
 ```yaml
@@ -176,7 +176,7 @@ services:
 
 #### Inter-Service Communication Issues
 
-**Problem**: Services can't communicate with each other  
+**Problem**: Services can't communicate with each other
 **Solution**: Ensure proper service name resolution by using the correct target service name:
 
 ```yaml
@@ -188,7 +188,7 @@ services:
 
 #### Resource Constraints
 
-**Problem**: Container crashes or becomes unresponsive due to resource limits  
+**Problem**: Container crashes or becomes unresponsive due to resource limits
 **Solution**: Adjust Docker resource limits for the container:
 
 ```bash

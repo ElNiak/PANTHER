@@ -221,11 +221,13 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     if other_service_name.service_name != service.service_name:
                         # Shadow does not suport the _ in the service name -> replace by .
                         # TODO use "." in the service name for all plugins
-                        if not "ivy" in service.service_name:
+                        if "ivy" not in service.service_name:
                             # TODO
-                            service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
-                                "run_cmd"
-                            ]["command_args"].replace("_", ".")
+                            service.run_cmd["run_cmd"]["command_args"] = (
+                                service.run_cmd["run_cmd"]["command_args"].replace(
+                                    "_", "."
+                                )
+                            )
 
             for service in self.services_managers:
                 service.environments = self.resolve_environment_variables(

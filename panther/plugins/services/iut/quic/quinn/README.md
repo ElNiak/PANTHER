@@ -1,7 +1,7 @@
 # Quinn QUIC Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Verified Source Location**: `plugins/services/iut/quic/quinn/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Verified Source Location**: `plugins/services/iut/quic/quinn/`
 
 ## Purpose and Overview
 
@@ -217,14 +217,14 @@ use tokio;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: SocketAddr = "127.0.0.1:4433".parse()?;
-    
+
     let (endpoint, mut incoming) = Endpoint::server(
         ServerConfig::default(),
         addr
     )?;
-    
+
     println!("Server listening on {}", addr);
-    
+
     while let Some(connecting) = incoming.next().await {
         tokio::spawn(async move {
             match connecting.await {
@@ -233,7 +233,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     }
-    
+
     Ok(())
 }
 
@@ -257,20 +257,20 @@ use std::net::SocketAddr;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let endpoint = Endpoint::client("0.0.0.0:0".parse()?)?;
-    
+
     let connection = endpoint.connect(
         "127.0.0.1:4433".parse()?,
         "localhost"
     )?.await?;
-    
+
     let (mut send, mut recv) = connection.open_bi().await?;
-    
+
     send.write_all(b"Hello Quinn!").await?;
     send.finish().await?;
-    
+
     let response = recv.read_to_end(1024).await?;
     println!("Response: {}", String::from_utf8_lossy(&response));
-    
+
     Ok(())
 }
 ```
@@ -305,28 +305,28 @@ fn create_server_config() -> ServerConfig {
 mod tests {
     use super::*;
     use quinn::{Endpoint, ServerConfig, ClientConfig};
-    
+
     #[tokio::test]
     async fn test_basic_connection() {
         let server_addr = "127.0.0.1:0".parse().unwrap();
         let (endpoint, mut incoming) = Endpoint::server(
-            ServerConfig::default(), 
+            ServerConfig::default(),
             server_addr
         ).unwrap();
-        
+
         let actual_addr = endpoint.local_addr().unwrap();
-        
+
         tokio::spawn(async move {
             if let Some(connecting) = incoming.next().await {
                 let connection = connecting.await.unwrap();
                 // Handle test connection
             }
         });
-        
+
         let client = Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();
         let connection = client.connect(actual_addr, "localhost")
             .unwrap().await.unwrap();
-        
+
         assert!(connection.close_reason().is_none());
     }
 }
@@ -354,7 +354,7 @@ use quinn::{Endpoint, ServerConfig, ClientConfig};
 
 fn bench_connection_setup(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
+
     c.bench_function("quinn_connection_setup", |b| {
         b.iter(|| {
             rt.block_on(async {

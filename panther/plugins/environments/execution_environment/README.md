@@ -1,7 +1,7 @@
 # Execution Environment Modules 🔧
 
-> **Purpose:** Comprehensive guide to PANTHER's execution environments and profiling tools  
-> **Target:** Developers implementing performance analysis; researchers studying system behavior; DevOps teams optimizing deployments  
+> **Purpose:** Comprehensive guide to PANTHER's execution environments and profiling tools
+> **Target:** Developers implementing performance analysis; researchers studying system behavior; DevOps teams optimizing deployments
 
 Execution environments in PANTHER define **where and how** your implementations run during testing. They provide containerized environments, performance profiling, debugging tools, and systematic analysis capabilities.
 
@@ -241,20 +241,20 @@ from typing import Optional, List, Dict
 class ExecutionEnvironmentConfig:
     type: str
     config: Dict[str, Any]
-    
+
     # Common options
     timeout: Optional[int] = 300
     retry_count: Optional[int] = 1
     cleanup_on_exit: Optional[bool] = True
-    
+
     # Resource limits
     memory_limit: Optional[str] = None
     cpu_limit: Optional[float] = None
-    
+
     # Networking
     network_mode: Optional[str] = "bridge"
     exposed_ports: Optional[List[str]] = None
-    
+
     # Volumes and mounts
     volumes: Optional[List[str]] = None
     tmpfs: Optional[List[str]] = None
@@ -503,18 +503,18 @@ panther --experiment-config config.yaml
 class CustomProfiling(IExecutionEnvironment):
     def __init__(self):
         self.metrics = []
-    
+
     def execute(self, command, config):
         start_time = time.time()
         result = super().execute(command, config)
         end_time = time.time()
-        
+
         self.metrics.append({
             'duration': end_time - start_time,
             'command': command,
             'timestamp': start_time
         })
-        
+
         return result
 ```
 

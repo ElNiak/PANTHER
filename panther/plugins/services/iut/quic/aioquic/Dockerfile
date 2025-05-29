@@ -12,13 +12,13 @@ RUN echo install Test::TCP | perl -MCPAN -
 RUN echo install Scope::Guard | perl -MCPAN -
 
 # Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq 
+RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 
 # Function to parse and build dependencies
 # TODO make more modular
-RUN cd /opt && \ 
+RUN cd /opt && \
     echo "Starting dependency installation..." && \
     echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
         DEP_NAME=$(echo $dep | jq -r '.name'); \

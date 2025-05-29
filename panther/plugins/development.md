@@ -19,7 +19,7 @@ PANTHER provides tools to easily create new plugins from templates:
 
 ### Tutorial Launcher (Recommended):
 
-```bash 
+```bash
 # From the PANTHER root directory
 python -m panther --interactive-tutorials
 ```
@@ -123,17 +123,17 @@ from panther.plugins.<plugin_type>.<type>_interface import <Type>Interface
 
 class MyPlugin(<Type>Plugin):
     """My custom PANTHER plugin."""
-    
+
     def initialize(self, config):
         """Initialize the plugin with configuration."""
         self.config = config
         # Perform setup tasks
-        
+
     def execute(self):
         """Execute the plugin's main functionality."""
         # Implement main functionality
         pass
-        
+
     def cleanup(self):
         """Clean up resources."""
         # Release resources, close connections, etc.
@@ -181,7 +181,7 @@ def test_plugin_initialization():
     config = {"required_param": "test"}
     plugin.initialize(config)
     # Assert expected behavior
-    
+
 def test_plugin_execution():
     plugin = MyPlugin()
     plugin.initialize({"required_param": "test"})

@@ -1,7 +1,7 @@
 # Network Environment Plugins
 
-> **Plugin Type**: Network Environment  
-> **Verified Source Location**: `plugins/environments/network_environment/`  
+> **Plugin Type**: Network Environment
+> **Verified Source Location**: `plugins/environments/network_environment/`
 
 ## Overview
 

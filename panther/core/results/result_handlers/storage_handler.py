@@ -1,7 +1,6 @@
-
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
 import yaml
 from panther.core.results.result_handler import ResultHandler
 
@@ -17,22 +16,24 @@ class StorageHandler(ResultHandler):
         handle(request) -> None:
             Stores the request in the database.
     """
-    
+
     def handle(self, request) -> None:
         self.save_experiment_result(request)
         for test_name, result_data in request.items():
             if test_name != "experiment_result":
                 self.save_test_result(test_name, result_data)
-                self.save_implementation_logs(test_name, result_data.get("implementation_logs", ""))
-        
-    def save_experiment_result(self, result_data: Dict[str, Any]):
+                self.save_implementation_logs(
+                    test_name, result_data.get("implementation_logs", "")
+                )
+
+    def save_experiment_result(self, result_data: dict[str, Any]):
         """Saves the overall experiment result data to a YAML file."""
         results_file = os.path.join(self.output_dir, "experiment_result.yaml")
         with open(results_file, "w") as f:
             yaml.dump(result_data, f)
         logging.info(f"Experiment results saved to {results_file}.")
 
-    def save_test_result(self, test_name: str, result_data: Dict[str, Any]):
+    def save_test_result(self, test_name: str, result_data: dict[str, Any]):
         """Saves the result data for a specific test case to a YAML file in a subfolder."""
         test_output_dir = os.path.join(self.output_dir, test_name)
         os.makedirs(test_output_dir, exist_ok=True)

@@ -10,9 +10,6 @@ from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 
-
-
-
 class MvfstServiceManager(IImplementationManager):
     def __init__(
         self,
@@ -27,9 +24,7 @@ class MvfstServiceManager(IImplementationManager):
         self.logger.debug(
             f"Initializing Mvfst service manager for '{implementation_name}'"
         )
-        self.logger.debug(
-            f"Loaded Mvfst configuration: {self.service_config_to_test}"
-        )
+        self.logger.debug(f"Loaded Mvfst configuration: {self.service_config_to_test}")
         self.initialize_commands()
 
     def generate_run_command(self):

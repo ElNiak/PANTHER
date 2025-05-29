@@ -34,7 +34,7 @@ createApp({
             if (!obj) return 0;
             return Object.keys(obj).length;
         };
-        
+
         const getServicesLength = (test) => {
             if (!test || !test.services) return 0;
             return Object.keys(test.services).length;
@@ -44,11 +44,11 @@ createApp({
         const experiments = computed(() => {
             return experimentsData.value.tests || [];
         });
-        
+
         const protocolsCount = computed(() => {
             return getObjectLength(plugins.value.protocols);
         });
-        
+
         const implementationsCount = computed(() => {
             return getObjectLength(plugins.value.iut) + getObjectLength(plugins.value.testers);
         });
@@ -117,9 +117,9 @@ createApp({
                 loading.value = true;
                 runningExperiment.value = testName;
                 showNotification(`Starting experiment: ${testName}`, 'info');
-                
+
                 const response = await axios.post('/api/run-experiment', { test_name: testName });
-                
+
                 if (response.data.status === 'success') {
                     showNotification(`Experiment ${testName} completed successfully`, 'success');
                     experimentResults.value.unshift({
@@ -145,7 +145,7 @@ createApp({
                 message,
                 type
             };
-            
+
             setTimeout(() => {
                 notification.value.show = false;
             }, 5000);

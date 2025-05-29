@@ -29,7 +29,7 @@ class QuicheConfig(ImplementationConfig):
 
     @staticmethod
     def load_versions_from_files(
-        version_configs_dir: str =f"{Path(os.path.dirname(__file__))}/version_configs/",
+        version_configs_dir: str = f"{Path(os.path.dirname(__file__))}/version_configs/",
     ) -> QuicheVersion:
         """Load version configurations dynamically from YAML files."""
         logging.debug(f"Loading Quiche versions from {version_configs_dir}")
@@ -37,9 +37,7 @@ class QuicheConfig(ImplementationConfig):
             if version_file.endswith(".yaml"):
                 version_path = os.path.join(version_configs_dir, version_file)
                 raw_version_config = OmegaConf.load(version_path)
-                logging.debug(
-                    f"Loaded raw Quiche version config: {raw_version_config}"
-                )
+                logging.debug(f"Loaded raw Quiche version config: {raw_version_config}")
                 version_config = OmegaConf.to_object(
                     OmegaConf.merge(QuicheVersion, raw_version_config)
                 )

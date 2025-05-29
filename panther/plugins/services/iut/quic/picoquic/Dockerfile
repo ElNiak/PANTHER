@@ -18,7 +18,7 @@ USER ${USER_N}
 
 # Function to parse and build dependencies
 # TODO make more modular
-RUN cd /opt && \ 
+RUN cd /opt && \
     echo "Starting dependency installation..." && \
     echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
         DEP_NAME=$(echo $dep | jq -r '.name'); \
@@ -44,7 +44,7 @@ RUN cd /opt && \
 RUN cd /opt && \
     git clone https://github.com/private-octopus/picoquic.git && \
     cd /opt/picoquic && \
-    git checkout ${VERSION} 
+    git checkout ${VERSION}
 
 
 ADD file_to_change/rfc9000/picoquic_internal.h /opt/picoquic/picoquic/picoquic_internal.h

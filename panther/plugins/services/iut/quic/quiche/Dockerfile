@@ -10,12 +10,12 @@ ENV DEPENDENCIES=${DEPENDENCIES}
 
 
 # Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq 
+RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 
 # Function to parse and build dependencies
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.12.4/cmake-3.12.4-Linux-x86_64.sh 
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.12.4/cmake-3.12.4-Linux-x86_64.sh
 RUN chmod +x cmake-3.12.4-Linux-x86_64.sh
 RUN mkdir /opt/cmake
 RUN bash cmake-3.12.4-Linux-x86_64.sh --skip-license --prefix=/opt/cmake

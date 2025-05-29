@@ -1,6 +1,5 @@
 # PANTHER-SCP/panther/plugins/services/implementations/aioquic_rfc9000/service_manager.py
 
-import subprocess
 import os
 import traceback
 from panther.plugins.services.iut.quic.aioquic.config_schema import AioquicConfig
@@ -8,9 +7,6 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
-
-
-
 
 
 class AioquicServiceManager(IImplementationManager):
@@ -96,7 +92,6 @@ class AioquicServiceManager(IImplementationManager):
         self.logger.debug(f"Role: {self.role}, Version: {self.service_version}")
 
         # Determine if network interface parameters should be included based on environment
-        include_interface = True
 
         # Build parameters for the command template
         # TODO ensure that the parameters are correctly set
@@ -111,7 +106,7 @@ class AioquicServiceManager(IImplementationManager):
         self.logger.debug(f"Parameters for command template: {params}")
         self.logger.debug(f"Role: {self.role}")
         self.working_dir = params["binary"]["dir"]
-        
+
         # Conditionally include network interface parameters
         # if not include_interface:
         #     params["network"].pop("interface", None)

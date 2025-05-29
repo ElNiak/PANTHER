@@ -4,7 +4,6 @@ import logging
 import os
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from omegaconf import OmegaConf
 from panther.core.utils.docker_builder import DockerBuilder
@@ -13,9 +12,9 @@ from panther.core.utils.docker_builder import DockerBuilder
 class PluginLoader:
     """
     PluginLoader is responsible for discovering, registering, and building Docker images for protocol, environment, and tester plugins.
-    
+
     This class supports both file-based (legacy) plugin discovery and entry points-based plugin discovery.
-    
+
     Attributes:
         logger (logging.Logger): Logger instance for the PluginLoader.
         plugins_base_dir (Path): Base directory for plugins.
@@ -34,7 +33,7 @@ class PluginLoader:
         plugins_optional_dir: str | None = None,
     ):
         self.logger = logging.getLogger("PluginLoader")
-        
+
         self.plugins_base_dir = Path(plugins_base_dir)
         # Support for optional plugins
         self.plugins_optional_dir = (
@@ -45,14 +44,14 @@ class PluginLoader:
         except Exception as e:
             self.logger.warning(f"Failed to initialize DockerBuilder: {e}")
             self.docker_builder = None
-            
+
         # Dictionaries to store plugins
         self.built_images = {}
         self.protocol_plugins = {}
         self.environment_plugins = {}
         self.tester_plugins = {}
         self.dockerfiles = {}
-            
+
     @staticmethod
     def get_class_name(plugin_name, suffix="Config"):
         """
@@ -136,7 +135,7 @@ class PluginLoader:
         Returns:
             str: The tag of the built Docker image if successful, otherwise None.
         """
-        
+
         self.logger.info(f"Building image from path '{path.name}'")
         dockerfile_path = path
         # Load version-specific configurations from panther.config.yaml
@@ -166,8 +165,8 @@ class PluginLoader:
     def get_implementations_for_protocol(self, protocol: str) -> list[str]:
         """
         Retrieves a list of implementation directories for a given protocol.
-        This method searches for directories within the 'services/iut/<protocol>' 
-        path that represent different implementations of the specified protocol. 
+        This method searches for directories within the 'services/iut/<protocol>'
+        path that represent different implementations of the specified protocol.
         It excludes directories that start with '__' or are named 'templates'.
         Args:
             protocol (str): The name of the protocol for which to find implementations.
@@ -175,7 +174,9 @@ class PluginLoader:
             list[str]: A list of directory names representing implementations of the protocol.
         """
         implementations = []
-        implementations_dir = Path(os.path.dirname(__file__))  / "services" / "iut" / protocol
+        implementations_dir = (
+            Path(os.path.dirname(__file__)) / "services" / "iut" / protocol
+        )
         self.logger.debug(f"Checking for implementations in '{implementations_dir}'")
         if implementations_dir and implementations_dir.exists():
             for item in implementations_dir.iterdir():
@@ -203,9 +204,9 @@ class PluginLoader:
         Returns:
             list[str]: A list of tester names found in the 'services/testers' directory.
         """
-        
+
         implementations = []
-        implementations_dir = Path(os.path.dirname(__file__))  / "services" / "testers"
+        implementations_dir = Path(os.path.dirname(__file__)) / "services" / "testers"
         self.logger.debug(f"Checking for testers in '{implementations_dir}'")
         for item in implementations_dir.iterdir():
             self.logger.debug(f"Checking item '{item}'")
@@ -224,60 +225,66 @@ class PluginLoader:
         This is the modern way to discover plugins and should be preferred over file-based discovery.
         """
         self.logger.info("Discovering plugins via entry points...")
-        
+
         # Discover protocol plugins
         try:
-            protocol_eps = entry_points(group='panther.plugins.protocols')
+            protocol_eps = entry_points(group="panther.plugins.protocols")
             for ep in protocol_eps:
                 self.logger.info(f"Found protocol plugin: {ep.name}")
                 try:
                     # We don't load the plugin here, just register its existence
-                    plugin_path = Path(ep.value.split(':')[0].replace('.', '/'))
+                    plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.protocol_plugins[ep.name] = plugin_path
                 except Exception as e:
-                    self.logger.warning(f"Failed to register protocol plugin {ep.name}: {e}")
+                    self.logger.warning(
+                        f"Failed to register protocol plugin {ep.name}: {e}"
+                    )
         except Exception as e:
             self.logger.warning(f"Error discovering protocol plugins: {e}")
-            
+
         # Discover execution environment plugins
         try:
-            exec_env_eps = entry_points(group='panther.plugins.environments.execution')
+            exec_env_eps = entry_points(group="panther.plugins.environments.execution")
             for ep in exec_env_eps:
                 self.logger.info(f"Found execution environment plugin: {ep.name}")
                 try:
-                    plugin_path = Path(ep.value.split(':')[0].replace('.', '/'))
+                    plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.environment_plugins[f"execution_{ep.name}"] = plugin_path
                 except Exception as e:
-                    self.logger.warning(f"Failed to register execution environment plugin {ep.name}: {e}")
+                    self.logger.warning(
+                        f"Failed to register execution environment plugin {ep.name}: {e}"
+                    )
         except Exception as e:
             self.logger.warning(f"Error discovering execution environment plugins: {e}")
-            
+
         # Discover network environment plugins
         try:
-            net_env_eps = entry_points(group='panther.plugins.environments.network')
+            net_env_eps = entry_points(group="panther.plugins.environments.network")
             for ep in net_env_eps:
                 self.logger.info(f"Found network environment plugin: {ep.name}")
                 try:
-                    plugin_path = Path(ep.value.split(':')[0].replace('.', '/'))
+                    plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.environment_plugins[f"network_{ep.name}"] = plugin_path
                 except Exception as e:
-                    self.logger.warning(f"Failed to register network environment plugin {ep.name}: {e}")
+                    self.logger.warning(
+                        f"Failed to register network environment plugin {ep.name}: {e}"
+                    )
         except Exception as e:
             self.logger.warning(f"Error discovering network environment plugins: {e}")
-    
+
     def load_plugins(self) -> None:
         """
         Discovers and registers all protocol, environment, and tester plugins.
         Uses both entry points-based discovery (preferred) and file-based discovery (for backward compatibility).
         """
         self.logger.info("Loading plugins...")
-        
+
         # First try entry points-based discovery (modern approach)
         self.discover_entry_point_plugins()
-        
+
         # Then fall back to file-based discovery (legacy approach)
         self._legacy_file_based_plugin_discovery()
-        
+
     def _legacy_file_based_plugin_discovery(self) -> None:
         """Legacy file-based plugin discovery method for backward compatibility."""
         self.logger.debug(
@@ -285,7 +292,7 @@ class PluginLoader:
         )
 
         # Discover protocol plugins
-        protocols_dir = Path(os.path.dirname(__file__))  / "services" / "iut"
+        protocols_dir = Path(os.path.dirname(__file__)) / "services" / "iut"
         for protocol in protocols_dir.iterdir():
             self.logger.debug(f"Checking protocol plugin '{protocol}'")
             if protocol.is_dir() and not protocol.name.startswith("__"):

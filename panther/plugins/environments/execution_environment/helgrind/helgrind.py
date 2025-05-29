@@ -16,7 +16,7 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class HelgrindEnvironment(IExecutionEnvironment, ABC):
-    """ 
+    """
     HelgrindEnvironment is a class that sets up and manages the execution environment for Helgrind profiling.
 
     Attributes:
@@ -40,6 +40,7 @@ class HelgrindEnvironment(IExecutionEnvironment, ABC):
         __repr__() -> str:
             Returns a string representation of the GperfHeapEnvironment instance.
     """
+
     def __init__(
         self,
         env_config_to_test: HelgrindConfig,
@@ -78,8 +79,7 @@ class HelgrindEnvironment(IExecutionEnvironment, ABC):
         self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
         self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
 
-    def to_command(self, 
-                   pid: int | None = None) -> str:
+    def to_command(self, pid: int | None = None) -> str:
         """
         Generate the strace command for execution.
         :param pid: Optional process ID to attach to.
@@ -102,4 +102,3 @@ class HelgrindEnvironment(IExecutionEnvironment, ABC):
             f"output_dir={self.output_dir}, event_manager={self.event_manager}, "
             f"services_managers={self.services_managers}, test_config={self.test_config})"
         )
-

@@ -70,7 +70,7 @@ PROTOCOL_CONFIG_SCHEMA = {
 ```text
 protocols/
 ├── README.md                    # This file
-├── development.md              # Development guide  
+├── development.md              # Development guide
 ├── protocol_interface.py       # Base protocol interface
 ├── config_schema.py           # Configuration validation
 ├── client_server/             # Client-server protocols
@@ -95,19 +95,19 @@ from panther.plugins.plugin_interface import IPlugin
 
 class ProtocolInterface(IPlugin):
     """Base interface for protocol testing plugins."""
-    
+
     def get_test_scenarios(self):
         """Return available test scenarios for this protocol."""
         pass
-        
+
     def validate_configuration(self, config):
         """Validate protocol-specific configuration."""
         pass
-    
+
     def setup_test_environment(self, config):
         """Setup testing environment for this protocol."""
         pass
-    
+
     def execute_test(self, scenario, config):
         """Execute a specific test scenario."""
         pass

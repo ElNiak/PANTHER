@@ -44,6 +44,7 @@ class GperfCpuEnvironment(IExecutionEnvironment, ABC):
         __repr__():
             Returns a string representation of the GperfCpuEnvironment instance.
     """
+
     def __init__(
         self,
         env_config_to_test: GperfCpuConfig,

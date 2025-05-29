@@ -10,7 +10,7 @@ ENV DEPENDENCIES=${DEPENDENCIES}
 
 
 # Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq 
+RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 

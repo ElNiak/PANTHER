@@ -1,7 +1,7 @@
 # QUIC Protocol Plugin
 
-> **Plugin Type**: Client-Server Protocol  
-> **Verified Source Location**: `plugins/protocols/client_server/quic/`  
+> **Plugin Type**: Client-Server Protocol
+> **Verified Source Location**: `plugins/protocols/client_server/quic/`
 
 ## Purpose and Overview
 
@@ -61,18 +61,18 @@ protocols:
 ```yaml
 tests:
   - name: "QUIC Server Test"
-    network_environment: 
+    network_environment:
       type: "docker_compose"
     services:
       quic_server:
         name: "quic_server"
         timeout: 100
-        implementation: 
+        implementation:
           name: "picoquic"
           type: "iut"
         protocol:
           name: "quic_protocol"
-          type: "protocol" 
+          type: "protocol"
           implementation: "client_server/quic"
           config:
             version: "rfc9000"
@@ -84,17 +84,17 @@ tests:
 ```yaml
 tests:
   - name: "QUIC Client Test"
-    network_environment: 
+    network_environment:
       type: "docker_compose"
     services:
       quic_client:
         name: "quic_client"
         timeout: 100
-        implementation: 
+        implementation:
           name: "picoquic"
           type: "tester"
         protocol:
-          name: "quic_protocol" 
+          name: "quic_protocol"
           type: "protocol"
           implementation: "client_server/quic"
           config:
@@ -117,8 +117,8 @@ from panther.plugins.protocols.client_server.quic.config_schema import VersionEn
 
 # Add a new version
 VersionEnum = Enum("VersionEnum", [
-    "rfc9000", 
-    "draft29", 
+    "rfc9000",
+    "draft29",
     "draft27",
     "rfc9000_v2"  # New version
 ])
@@ -132,7 +132,7 @@ The plugin can be extended to support QUIC extensions or custom features:
 @dataclass
 class ExtendedQuicConfig(QuicConfig):
     """Extended QUIC configuration with additional features."""
-    
+
     # Support for QUIC extensions
     datagram_support: bool = False
     multipath_support: bool = False

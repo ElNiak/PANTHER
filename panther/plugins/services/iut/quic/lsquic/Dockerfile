@@ -12,7 +12,7 @@ RUN echo install Test::TCP | perl -MCPAN -
 RUN echo install Scope::Guard | perl -MCPAN -
 
 # Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq 
+RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 
@@ -22,14 +22,14 @@ RUN git clone https://boringssl.googlesource.com/boringssl;  \
     git checkout 9fc1c33e9c21439ce5f87855a6591a9324e569fd; \
     git submodule init; \
     git submodule update; \
-    cmake . &&  make 
+    cmake . &&  make
 
 ENV BORINGSSL=/src/boringssl/
 
 RUN git clone https://github.com/litespeedtech/lsquic.git;  \
     cd lsquic;    \
     git checkout v4.0.9; \
-    git submodule update --init; 
+    git submodule update --init;
 
 RUN cd /opt/lsquic && \
     cmake -DBORINGSSL_DIR=/src/boringssl/ .; \

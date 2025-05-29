@@ -9,6 +9,7 @@ from panther.plugins.services.iut.implementation_interface import IImplementatio
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
+
 class QuantServiceManager(IImplementationManager):
     """
     QuantServiceManager is a class responsible for managing the QUIC service implementation using the Quant library.
@@ -33,6 +34,7 @@ class QuantServiceManager(IImplementationManager):
         __repr__(self):
             Returns a detailed string representation of the QuantServiceManager instance.
     """
+
     def __init__(
         self,
         service_config_to_test: QuantConfig,
@@ -46,9 +48,7 @@ class QuantServiceManager(IImplementationManager):
         self.logger.debug(
             f"Initializing Quant service manager for '{implementation_name}'"
         )
-        self.logger.debug(
-            f"Loaded Quant configuration: {self.service_config_to_test}"
-        )
+        self.logger.debug(f"Loaded Quant configuration: {self.service_config_to_test}")
         self.initialize_commands()
 
     def generate_run_command(self):
@@ -106,7 +106,7 @@ class QuantServiceManager(IImplementationManager):
         Raises:
             Exception: If there is an error during the rendering of the command template.
         """
-        
+
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

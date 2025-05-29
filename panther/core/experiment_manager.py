@@ -5,14 +5,13 @@ from omegaconf import OmegaConf
 from colorlog import ColoredFormatter
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-from tqdm import trange
 
 from panther.config.config_experiment_schema import ExperimentConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.plugin_loader import PluginLoader
-from panther.core.test_cases.test_interface import ITestCase
+from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.plugin_manager import PluginManager
-from panther.core.test_cases.test_case import TestCase
+from panther.core.test_cases.test_case_impl import TestCase
 import sys
 
 

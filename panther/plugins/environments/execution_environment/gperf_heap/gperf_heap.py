@@ -16,7 +16,7 @@ from panther.plugins.services.services_interface import IServiceManager
 
 
 class GperfHeapEnvironment(IExecutionEnvironment, ABC):
-    """ 
+    """
     GperfHeapEnvironment is a class that sets up and manages the execution environment for gperf heap profiling.
 
     Attributes:
@@ -40,6 +40,7 @@ class GperfHeapEnvironment(IExecutionEnvironment, ABC):
         __repr__() -> str:
             Returns a string representation of the GperfHeapEnvironment instance.
     """
+
     def __init__(
         self,
         env_config_to_test: GperfHeapConfig,

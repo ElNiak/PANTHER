@@ -1,7 +1,7 @@
 # Tester Service Plugins
 
-> **Plugin Type**: Tester Service  
-> **Verified Source Location**: `plugins/services/testers/`  
+> **Plugin Type**: Tester Service
+> **Verified Source Location**: `plugins/services/testers/`
 
 ## Overview
 

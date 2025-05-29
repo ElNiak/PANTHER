@@ -98,7 +98,7 @@ func main() {
 			//Tracer:      qlog.NewTracer(getLogWriter),
 			//DisablePathMTUDiscovery: true,
 		}
-	} 
+	}
 
 	tlsConf :=  &tls.Config{
 		RootCAs:            pool,
@@ -115,7 +115,7 @@ func main() {
 	}
 
 	defer roundTripper.Close()
-	
+
 	// hclient := &http.Client{
 	// 	Transport: roundTripper,
 	// }
@@ -169,7 +169,7 @@ func main() {
 	}
 
 	wg.Wait()
-	
+
 	// wait for the session ticket to arrive
 	select {
 	case <-time.NewTimer(10 * time.Second).C:
@@ -180,7 +180,7 @@ func main() {
 
 	if *use0RTT {
 		log.Printf("0RTT Body:")
-		
+
 		if err := roundTripper.Close(); err != nil {
 			log.Fatal("Error closing connection")
 		}
@@ -205,7 +205,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				
+
 				rsp, err := roundTripper.RoundTrip(req)
 				if err != nil {
 					log.Fatal(err)

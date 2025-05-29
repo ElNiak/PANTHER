@@ -8,9 +8,7 @@ This module provides the command-line interface for the PANTHER framework.
 import argparse
 import logging
 import sys
-import os
 from pathlib import Path
-from typing import Optional
 
 # Import the plugin creation utility functions
 try:
@@ -18,17 +16,19 @@ try:
         is_development_mode,
         create_plugin,
         run_tutorial,
-        launch_interactive_tutorials
+        launch_interactive_tutorials,
     )
 except ImportError:
     # Fallback if the import fails (can happen during development)
     import importlib.util
     import sys
-    
+
     # Try to load the module directly
     plugin_creator_path = Path(__file__).parent / "plugins" / "plugin_creator.py"
     if plugin_creator_path.exists():
-        spec = importlib.util.spec_from_file_location("plugin_creator", plugin_creator_path)
+        spec = importlib.util.spec_from_file_location(
+            "plugin_creator", plugin_creator_path
+        )
         if spec is not None and spec.loader is not None:
             plugin_creator = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(plugin_creator)
@@ -78,7 +78,7 @@ def main():
         type=str,
         help="Protocol for IUT/tester plugins (e.g., quic, http, minip). Optional - will be auto-detected if not provided.",
     )
-    
+
     # Plugin creation and tutorial subcommands
     create_group = parser.add_argument_group("Plugin Creation and Tutorials")
     create_group.add_argument(
@@ -92,8 +92,8 @@ def main():
         nargs=3,
         metavar=("PLUGIN_TYPE", "PLUGIN_NAME", "SUBPLUGIN_TYPE"),
         help="Create a new subplugin within an existing plugin. PLUGIN_TYPE can be service, environment, or protocol. "
-             "PLUGIN_NAME is the name of the existing plugin. SUBPLUGIN_TYPE is the type of subplugin to create "
-             "(e.g., iut, tester, network_environment, execution_environment).",
+        "PLUGIN_NAME is the name of the existing plugin. SUBPLUGIN_TYPE is the type of subplugin to create "
+        "(e.g., iut, tester, network_environment, execution_environment).",
     )
     create_group.add_argument(
         "--with-subplugins",
@@ -121,7 +121,7 @@ def main():
         action="store_true",
         help="Force production mode for plugin creation (put plugins in user directory).",
     )
-    
+
     parser.add_argument(
         "--exec-env-dir",
         type=str,
@@ -169,45 +169,50 @@ def main():
     # Handle plugin creation
     if args.create_plugin:
         plugin_type, plugin_name = args.create_plugin
-        
+
         # Determine mode based on arguments or auto-detect
         dev_mode = None  # Auto-detect by default
         if args.dev_mode:
             dev_mode = True
         elif args.production_mode:
             dev_mode = False
-        
+
         try:
             # Pass the with_subplugins flag
-            success = create_plugin(plugin_type, plugin_name, 
-                                   in_development_mode=dev_mode,
-                                   create_subplugins=args.with_subplugins)
+            success = create_plugin(
+                plugin_type,
+                plugin_name,
+                in_development_mode=dev_mode,
+                create_subplugins=args.with_subplugins,
+            )
             return 0 if success else 1
         except Exception as e:
             print(f"❌ Error creating plugin: {e}")
             return 1
-            
+
     # Handle subplugin creation
     if args.create_subplugin:
         plugin_type, plugin_name, subplugin_type = args.create_subplugin
-        
+
         # Determine mode based on arguments or auto-detect
         dev_mode = None  # Auto-detect by default
         if args.dev_mode:
             dev_mode = True
         elif args.production_mode:
             dev_mode = False
-        
+
         try:
             # Import the subplugin creation function
             from panther.plugins.plugin_creator import create_subplugin
-            success = create_subplugin(plugin_type, plugin_name, subplugin_type, 
-                                     in_development_mode=dev_mode)
+
+            success = create_subplugin(
+                plugin_type, plugin_name, subplugin_type, in_development_mode=dev_mode
+            )
             return 0 if success else 1
         except Exception as e:
             print(f"❌ Error creating subplugin: {e}")
             return 1
-    
+
     # Handle tutorial execution
     if args.tutorial:
         try:
@@ -215,12 +220,13 @@ def main():
         except Exception as e:
             print(f"❌ Error running tutorial: {e}")
             return 1
-            
+
     # Handle interactive tutorial menu
     if args.interactive_tutorials:
         try:
             # Import the interactive tutorials function
             from panther.plugins.plugin_creator import launch_interactive_tutorials
+
             launch_interactive_tutorials()
             return 0
         except Exception as e:
@@ -236,25 +242,27 @@ def main():
             args.iut_dir,
             args.tester_dir,
         )
-        
+
         # Use the dedicated function for listing plugin parameters
         params = list_plugin_parameters(
             plugin_name=args.list_plugin_params,
             plugin_type=args.plugin_type,
-            protocol=args.protocol  # Pass the protocol parameter
+            protocol=args.protocol,  # Pass the protocol parameter
         )
-        
+
         if not params:
             return 1
-            
+
         # Print parameters in a readable format
-        print(f"\n{'Parameter':<20} {'Type':<30} {'Default':<20} {'Required':<10} Description")
+        print(
+            f"\n{'Parameter':<20} {'Type':<30} {'Default':<20} {'Required':<10} Description"
+        )
         print("-" * 100)
         for name, info in params.items():
-            default = str(info['default']) if info['default'] is not None else "None"
-            required = "Yes" if info['required'] else "No"
-            desc = info['description']
-            
+            default = str(info["default"]) if info["default"] is not None else "None"
+            required = "Yes" if info["required"] else "No"
+            desc = info["description"]
+
             # Handle special version field with additional information
             if name == "version" and "value" in info:
                 version_info = info["value"]
@@ -264,17 +272,17 @@ def main():
                     desc += f" (Commit: {version_info.commit})"
                 if info.get("note"):
                     desc += f" - {info['note']}"
-                    
+
             print(f"{name:<20} {info['type']:<30} {default:<20} {required:<10} {desc}")
-            
+
             # If this is a version field with client/server details, show them
             if name == "version" and "value" in info:
                 version_info = info["value"]
                 if hasattr(version_info, "client") and version_info.client:
-                    print(f"  ├─ client: Configuration for client role")
+                    print("  ├─ client: Configuration for client role")
                 if hasattr(version_info, "server") and version_info.server:
-                    print(f"  └─ server: Configuration for server role")
-        
+                    print("  └─ server: Configuration for server role")
+
         return 0
     elif args.teardown:
         experiment_dir = getattr(args, "experiment_dir", None)
@@ -315,8 +323,12 @@ def main():
         # We get the global configurations
         global_config = config_loader.load_and_validate_global_config()
         if args.webapp:
+            raise NotImplementedError(
+                "WebApplication functionality is not fully implemented yet."
+            )
             try:
                 from panther.webapp.web_app import run
+
                 run(config_loader, global_config, args)
                 return 0
             except Exception as e:
@@ -344,7 +356,7 @@ def main():
                 return 1
             finally:
                 config_loader.cleanup()
-                
+
     return 0
 
 

@@ -306,7 +306,7 @@ pub struct Transmit {
 const LOC_CID_COUNT: u64 = 8;
 const RESET_TOKEN_SIZE: usize = 16;
 //update chris
-const MAX_CID_SIZE: usize = 16; 
+const MAX_CID_SIZE: usize = 16;
 const MIN_INITIAL_SIZE: u16 = 1200;
 /// <https://www.rfc-editor.org/rfc/rfc9000.html#name-datagram-size>
 const INITIAL_MTU: u16 = 1200;

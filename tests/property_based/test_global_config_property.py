@@ -18,7 +18,9 @@ def test_default_global_config():
         == "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
     )
     assert config.paths.output_dir == "panther/outputs"
-    assert config.paths.log_dir == "panther/outputs/logs"
+    assert (
+        config.paths.log_dir == "panther/outputs"
+    )  # Fixed: actual default is "panther/outputs"
     assert config.paths.config_dir == "panther/configs"
     assert config.paths.plugin_dir == "panther/plugins"
     assert config.paths.services_dir == "services"

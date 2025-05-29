@@ -8,9 +8,6 @@ from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 
-
-
-
 class QuicGoServiceManager(IImplementationManager):
     def __init__(
         self,
@@ -25,9 +22,7 @@ class QuicGoServiceManager(IImplementationManager):
         self.logger.debug(
             f"Initializing QuicGo service manager for '{implementation_name}'"
         )
-        self.logger.debug(
-            f"Loaded QuicGo configuration: {self.service_config_to_test}"
-        )
+        self.logger.debug(f"Loaded QuicGo configuration: {self.service_config_to_test}")
         self.initialize_commands()
 
     def generate_run_command(self):
@@ -63,7 +58,7 @@ class QuicGoServiceManager(IImplementationManager):
         Raises:
             Any exceptions raised by the plugin_loader methods.
         """
-        
+
         self.logger.debug("Preparing QuicGo service manager...")
         plugin_loader.build_docker_image_from_path(
             Path(
@@ -93,7 +88,7 @@ class QuicGoServiceManager(IImplementationManager):
             - Debug information about the service name, service parameters, role, version, and command parameters.
             - Error information if command rendering fails.
         """
-        
+
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

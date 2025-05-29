@@ -99,19 +99,19 @@ from panther.plugins.plugin_interface import IPlugin
 
 class ServiceInterface(IPlugin):
     """Base interface for all service plugins."""
-    
+
     def initialize(self, config):
         """Initialize the service with configuration."""
         pass
-        
+
     def start(self):
         """Start the service."""
         pass
-    
+
     def stop(self):
         """Stop the service."""
         pass
-    
+
     def get_status(self):
         """Get current service status."""
         pass

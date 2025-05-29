@@ -1,7 +1,7 @@
 # Strace System Call Tracer
 
-> **Plugin Type**: Environment (execution_environment)  
-> **Verified Source Location**: `plugins/environments/execution_environment/strace/`  
+> **Plugin Type**: Environment (execution_environment)
+> **Verified Source Location**: `plugins/environments/execution_environment/strace/`
 
 ## Purpose and Overview
 
@@ -82,8 +82,8 @@ tests:
         implementation: "strace"
     services:
       server:
-        name: "quic_server" 
-        implementation: 
+        name: "quic_server"
+        implementation:
           name: "picoquic"
           type: "iut"
 ```
@@ -111,13 +111,13 @@ tests:
             - "-f"       # Follow forks
     services:
       server:
-        name: "http_server" 
-        implementation: 
+        name: "http_server"
+        implementation:
           name: "nginx"
           type: "iut"
       client:
-        name: "http_client" 
-        implementation: 
+        name: "http_client"
+        implementation:
           name: "curl"
           type: "tester"
 ```
@@ -135,11 +135,11 @@ from panther.plugins.environments.execution_environment.strace.strace import Str
 
 class EnhancedStraceAnalyzer(StraceEnvironment):
     """Extended strace environment with analysis capabilities."""
-    
+
     def setup_environment(self, services_managers, test_config, global_config, timestamp, plugin_loader):
         """Set up with custom analysis options."""
         super().setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader)
-        
+
         for service in self.services_managers:
             # Add post-processing commands for analysis
             service.run_cmd["post_run_cmds"].append(
@@ -183,7 +183,7 @@ To test the Strace environment plugin:
 
 #### Permission Denied
 
-**Problem**: "Permission denied" errors when strace tries to attach to processes  
+**Problem**: "Permission denied" errors when strace tries to attach to processes
 **Solution**: Ensure the container is running with appropriate capabilities:
 
 ```yaml
@@ -196,7 +196,7 @@ network_environment:
 
 #### Missing Strace Binary
 
-**Problem**: "Command not found" errors when trying to run strace  
+**Problem**: "Command not found" errors when trying to run strace
 **Solution**: Ensure strace is installed in your container:
 
 ```yaml
@@ -210,7 +210,7 @@ services:
 
 #### High System Load
 
-**Problem**: System becomes very slow when tracing all system calls  
+**Problem**: System becomes very slow when tracing all system calls
 **Solution**: Filter system calls to only trace those relevant to your analysis:
 
 ```yaml

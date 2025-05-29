@@ -52,7 +52,7 @@ This guide provides standards and procedures for contributing to PANTHER documen
 
 PANTHER's documentation is organized into several categories:
 
-1. **Core Documentation**: Main project documents like README.md, CONTRIBUTING.md, and workflow.md
+1. **Core Documentation**: Main project documents like README.md, CONTRIBUTING.md, and WORKFLOW.md
 2. **Plugin Documentation**: README.md files in each plugin directory
 3. **API Documentation**: Generated from Python docstrings
 4. **User Guides**: Step-by-step tutorials in the docs directory
@@ -100,27 +100,27 @@ The documentation CI pipeline will:
 3. Validate source references against the current codebase
 4. Check markdown formatting compliance
 
-Details on the CI pipeline can be found in the [Documentation CI file](docs-gen/documentation-ci.yml).
+Details on the CI pipeline can be found in the [Documentation CI file](dev/docs-gen/documentation-ci.yml).
 
 ## Documentation Tools and Workflow
 
 PANTHER provides several tools to help with documentation management:
 
-1. **Documentation Update Script** - [update_docs.sh](docs-gen/update_docs.sh): All-in-one script to update documentation in the correct order
-2. **Link Verification** - [verify_links.py](docs-gen/verify_links.py): Validates and fixes links in Markdown files
-3. **Cross-References** - [add_cross_references.py](docs-gen/add_cross_references.py): Adds "See Also" sections to connect related docs
-4. **MkDocs Configuration** - [enhance_mkdocs_config.py](docs-gen/enhance_mkdocs_config.py): Enhances the MkDocs configuration
+1. **Documentation Update Script** - [update_docs.sh](dev/docs-gen/update_docs.sh): All-in-one script to update documentation in the correct order
+2. **Link Verification** - [verify_links.py](dev/docs-gen/verify_links.py): Validates and fixes links in Markdown files
+3. **Cross-References** - [add_cross_references.py](dev/docs-gen/add_cross_references.py): Adds "See Also" sections to connect related docs
+4. **MkDocs Configuration** - [enhance_mkdocs_config.py](dev/docs-gen/enhance_mkdocs_config.py): Enhances the MkDocs configuration
 
 For a complete understanding of the documentation system, refer to:
 
-- [Documentation Workflow Guide](docs-gen/documentation_workflow.md): Step-by-step guides for updating documentation
-- [Documentation Integration Guide](docs-gen/documentation_integration.md): How documentation tools work together
-- [Documentation Link Management](docs-gen/documentation_links.md): How to manage and verify links
-- [Documentation System Enhancements](docs-gen/documentation_enhancements.md): Overview of recent enhancements
+- [Documentation Workflow Guide](dev/docs-gen/documentation_WORKFLOW.md): Step-by-step guides for updating documentation
+- [Documentation Integration Guide](dev/docs-gen/documentation_integration.md): How documentation tools work together
+- [Documentation Link Management](dev/docs-gen/documentation_links.md): How to manage and verify links
+- [Documentation System Enhancements](dev/docs-gen/documentation_enhancements.md): Overview of recent enhancements
 
 ## Writing Style
 
-Follow the [PANTHER Style Guide](docs-gen/style_guide.md) for detailed formatting instructions. General guidelines:
+Follow the [PANTHER Style Guide](dev/docs-gen/style_guide.md) for detailed formatting instructions. General guidelines:
 
 1. Use active voice and present tense
 2. Specify language for all code blocks
@@ -139,5 +139,5 @@ Follow the [PANTHER Style Guide](docs-gen/style_guide.md) for detailed formattin
 
 - [MkDocs Material Theme Reference](https://squidfunk.github.io/mkdocs-material/reference/)
 - [Markdown Lint Rules](https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md)
-- [PANTHER Style Guide](docs-gen/style_guide.md)
+- [PANTHER Style Guide](dev/docs-gen/style_guide.md)
 - [Plugin Documentation Template](panther/plugins/plugin_template.md)

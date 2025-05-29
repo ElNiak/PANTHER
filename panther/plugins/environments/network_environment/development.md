@@ -134,8 +134,8 @@ Create a comprehensive README.md file following the PANTHER documentation templa
 ```markdown
 # Your Plugin Name
 
-> **Plugin Type**: Network Environment  
-> **Verified Source Location**: `plugins/environments/network_environment/your_plugin_name/`  
+> **Plugin Type**: Network Environment
+> **Verified Source Location**: `plugins/environments/network_environment/your_plugin_name/`
 
 ## Purpose and Overview
 
@@ -183,14 +183,14 @@ __all__ = ["YourPluginEnvironment"]
 ```yaml
 tests:
   - name: "Test with Your Plugin"
-    network_environment: 
+    network_environment:
       type: "your_plugin_name"
       parameter1: "value1"
       parameter2: 200
     services:
       server:
-        name: "test_server" 
-        implementation: 
+        name: "test_server"
+        implementation:
           name: "test_implementation"
           type: "iut"
 ```

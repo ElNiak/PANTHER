@@ -24,19 +24,19 @@ from panther.plugins.services.services_interface import ServiceInterface
 
 class TesterInterface(ServiceInterface):
     """Interface for tester plugins."""
-    
+
     def initialize(self, config):
         """Initialize the tester with configuration."""
         pass
-        
+
     def execute(self):
         """Execute the tests."""
         pass
-    
+
     def get_test_results(self):
         """Get the results of the tests."""
         pass
-    
+
     def cleanup(self):
         """Clean up resources."""
         pass
@@ -68,13 +68,13 @@ from panther.plugins.services.services_interface import ServiceInterface
 
 class MyTester(ServiceInterface):
     """My custom tester implementation."""
-    
+
     def initialize(self, config):
         """Initialize the tester with configuration."""
         self.config = config
         self.test_results = {}
         # Tester initialization
-        
+
     def execute(self):
         """Execute the tests."""
         # Test execution logic
@@ -83,16 +83,16 @@ class MyTester(ServiceInterface):
             "failed": 0,
             "details": []
         }
-        
+
         # Execute tests and collect results
         # ...
-        
+
         return self.test_results
-    
+
     def get_test_results(self):
         """Get the results of the tests."""
         return self.test_results
-        
+
     def cleanup(self):
         """Clean up resources."""
         # Release resources, close connections, etc.
@@ -141,7 +141,7 @@ def test_tester_initialization():
     config = {"test_suite": "basic"}
     tester.initialize(config)
     # Assert expected initialization behavior
-    
+
 def test_tester_execution():
     tester = MyTester()
     tester.initialize({"test_suite": "basic"})

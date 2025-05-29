@@ -15,27 +15,27 @@ class ServiceInterface(PluginInterface):
     def initialize(self, config):
         """Initialize the service with the given configuration."""
         pass
-        
+
     def start(self):
         """Start the service."""
         pass
-    
+
     def stop(self):
         """Stop the service."""
         pass
-    
+
     def restart(self):
         """Restart the service."""
         pass
-        
+
     def get_status(self):
         """Get the status of the service."""
         pass
-        
+
     def execute(self):
         """Execute the service's main functionality."""
         pass
-        
+
     def cleanup(self):
         """Clean up any resources used by the service."""
         pass
@@ -53,19 +53,19 @@ from panther.plugins.services.services_interface import ServiceInterface
 
 class IServiceManager(ServiceInterface, ABC):
     """Interface for service managers."""
-    
+
     def is_tester(self):
         """Returns True if this service is a tester, False otherwise."""
         pass
-    
+
     def get_container_name(self):
         """Get the name of the container running this service."""
         pass
-    
+
     def get_service_endpoints(self):
         """Get the network endpoints for this service."""
         pass
-    
+
     def get_service_logs(self):
         """Get logs from the service."""
         pass
@@ -82,15 +82,15 @@ from panther.plugins.services.services_interface import IServiceManager
 
 class IImplementationManager(IServiceManager):
     """Interface for implementation under test managers."""
-    
+
     def is_tester(self):
         """Returns False indicating this is not a tester."""
         return False
-    
+
     def get_implementation_version(self):
         """Get the version of the implementation."""
         pass
-    
+
     def get_implementation_capabilities(self):
         """Get the capabilities of the implementation."""
         pass
@@ -103,15 +103,15 @@ from panther.plugins.services.services_interface import IServiceManager
 
 class ITesterManager(IServiceManager):
     """Interface for tester service managers."""
-    
+
     def is_tester(self):
         """Returns True indicating this is a tester."""
         return True
-    
+
     def run_test(self, test_case):
         """Run a specific test case."""
         pass
-    
+
     def get_test_results(self):
         """Get the results of the tests."""
         pass

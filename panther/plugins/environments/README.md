@@ -55,7 +55,7 @@ gperf_cpu.initialize(config)
 ### Using a Network Environment
 
 ```python
-# filepath: example_network_env.py  
+# filepath: example_network_env.py
 from panther.plugins.plugin_loader import PluginLoader
 
 # Load Docker Compose environment
@@ -84,7 +84,7 @@ environments/
 │   ├── config_schema.py
 │   ├── execution_environment_interface.py
 │   ├── gperf_cpu/            # CPU profiling
-│   ├── gperf_heap/           # Memory profiling  
+│   ├── gperf_heap/           # Memory profiling
 │   ├── strace/               # System call tracing
 │   ├── memcheck/             # Memory error detection
 │   └── helgrind/             # Thread error detection
@@ -104,15 +104,15 @@ from panther.plugins.plugin_interface import IPlugin
 
 class EnvironmentInterface(IPlugin):
     """Base interface for environment plugins."""
-    
+
     def setup_environment(self, config):
         """Setup the testing environment."""
         pass
-        
+
     def teardown_environment(self):
         """Clean up the testing environment."""
         pass
-    
+
     def get_environment_status(self):
         """Get current environment status."""
         pass
@@ -126,15 +126,15 @@ from panther.plugins.environments.environment_interface import EnvironmentInterf
 
 class ExecutionEnvironmentInterface(EnvironmentInterface):
     """Interface for execution monitoring environments."""
-    
+
     def start_monitoring(self, target_process):
         """Start monitoring target process."""
         pass
-        
+
     def stop_monitoring(self):
         """Stop monitoring and collect results."""
         pass
-    
+
     def get_monitoring_data(self):
         """Retrieve collected monitoring data."""
         pass

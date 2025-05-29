@@ -1,7 +1,7 @@
 # GPerf CPU Profiling Environment
 
-> **Plugin Type**: Execution Environment  
-> **Verified Source Location**: `plugins/environments/execution_environment/gperf_cpu/`  
+> **Plugin Type**: Execution Environment
+> **Verified Source Location**: `plugins/environments/execution_environment/gperf_cpu/`
 
 ## Purpose and Overview
 
@@ -111,12 +111,12 @@ from panther.plugins.environments.execution_environment.gperf_cpu.gperf_cpu impo
 
 class EnhancedCpuProfiler(GperfCpuEnvironment):
     """Enhanced CPU profiler with additional metrics."""
-    
+
     def start_monitoring(self):
         """Start CPU profiling with additional metrics."""
         super().start_monitoring()
         # Add custom metric collection
-        
+
     def get_metrics(self):
         """Return enhanced metrics."""
         base_metrics = super().get_metrics()

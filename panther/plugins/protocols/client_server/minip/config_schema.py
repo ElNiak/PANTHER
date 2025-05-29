@@ -25,6 +25,7 @@ class MinipConfig(ProtocolConfig):
         target (str | None): An optional target service name, default is None.
         protocol_type (ProtocolType): The type of protocol, default is ProtocolType.client_server.
     """
+
     name: str = "MiniP"
     version: VersionEnum = VersionEnum.random  # Protocol version (e.g., rfc9000)
     role: RoleEnum = RoleEnum.server  # Role (server or client)

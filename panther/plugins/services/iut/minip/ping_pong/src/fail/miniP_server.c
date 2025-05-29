@@ -80,19 +80,19 @@ int main(int argc, char* argv[])
         printf("socket: socket\n");
         exit(EXIT_FAILURE);
     }
-    
+
     struct sockaddr_in v_dst = {};
     inet_pton(AF_INET, ip, &v_dst.sin_addr.s_addr);
     v_dst.sin_port = htons(port);
     v_dst.sin_family = AF_INET;
-    
+
     if (bind(fd, (struct sockaddr*) &v_dst, sizeof(struct sockaddr_in)) != 0) {
             char s[100];
             sprintf(s, "bind to addr %s", ip);
             perror(s);
         exit(EXIT_FAILURE);
     }
-  
+
     struct msg buf;
     struct sockaddr_in from;
     socklen_t fromlen = sizeof(from);

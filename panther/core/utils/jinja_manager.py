@@ -1,6 +1,5 @@
-import jinja2
 from jinja2 import Environment, FileSystemLoader
-import os
+
 
 class JinjaManager:
     def __init__(self, template_folder, **kwargs):
@@ -11,18 +10,15 @@ class JinjaManager:
             **kwargs: Additional arguments to pass to Jinja Environment
         """
         self.template_folder = template_folder
-        self.env = Environment(
-            loader=FileSystemLoader(template_folder),
-            **kwargs
-        )
+        self.env = Environment(loader=FileSystemLoader(template_folder), **kwargs)
 
         # Register custom filters
-        self.env.filters['safe_getattr'] = self.safe_getattr
+        self.env.filters["safe_getattr"] = self.safe_getattr
 
         # Register custom global functions
-        self.env.globals['has_attr'] = self.has_attr
-        self.env.globals['safe_getattr'] = self.safe_getattr
-        self.env.globals['safe_length'] = self.safe_length
+        self.env.globals["has_attr"] = self.has_attr
+        self.env.globals["safe_getattr"] = self.safe_getattr
+        self.env.globals["safe_length"] = self.safe_length
 
         # Configure environment
         self.env.trim_blocks = True

@@ -13,23 +13,23 @@ function nyanCat(width) {
     } else {
         this.width = 100;
     }
-    
+
     var progressContainer = document.getElementById('rainbowContainer');
     if (!progressContainer) {
         console.warn("rainbowContainer element not found");
         return; // Exit early if element doesn't exist
     }
-    
+
     // Only proceed if the element exists
     console.log(progressContainer.style.width);
     progressContainer.style.width = 75 + "%";
 
     this.setPercent = function(percent) {
         this.percent = parseInt(percent);
-        
+
         var progress = document.getElementById('rainbow');
         var cat = document.getElementById('nyanCat');
-        
+
         if (!progress || !cat) {
             console.warn("rainbow or nyanCat element not found");
             return;

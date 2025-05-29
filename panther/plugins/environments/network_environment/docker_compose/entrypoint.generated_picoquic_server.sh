@@ -21,8 +21,8 @@ while [ ! -f /app/sync_logs/ivy_ready.log ]; do
 	sleep 2;
 done;
 echo "Ivy testers is ready, starting picoquic_server..." >> /app/logs/tester_ready.log;
-(touch /app/logs/picoquic_server.pcap; tshark -a duration:150 -i any -w /app/logs/picoquic_server.pcap;) & 
+(touch /app/logs/picoquic_server.pcap; tshark -a duration:150 -i any -w /app/logs/picoquic_server.pcap;) &
 echo "Running timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  ./picoquicdemo -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2> /app/logs/server.err.log" >> /app/logs/picoquic_server_setup.log;
 (exec timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  /opt/picoquic/./picoquicdemo -a hq-interop -l - -n servername -D -L  -e eth0  -p 4443 > /app/logs/server.log 2> /app/logs/server.err.log) ;
- 
+
 ( cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo; )'

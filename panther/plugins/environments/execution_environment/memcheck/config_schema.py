@@ -34,6 +34,7 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
         malloc_fill (str): Fill malloc'd blocks with the specified byte (hex). Default is None.
         free_fill (str): Fill freed blocks with the specified byte (hex). Default is None.
     """
+
     leak_check: str = field(
         default="summary",
         metadata={
@@ -69,13 +70,13 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
         metadata={
             "description": "Alternative way to specify leak kinds to show. yes or no."
         },
-    ) # type: ignore
+    )  # type: ignore
     show_possibly_lost: str = field(
         default=None,
         metadata={
             "description": "Alternative way to specify leak kinds to show. yes or no."
         },
-    ) # type: ignore
+    )  # type: ignore
     xtree_leak: bool = field(
         default=False,
         metadata={
@@ -84,21 +85,15 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
     )
     xtree_leak_file: str = field(
         default="xtleak.kcg.%p",
-        metadata={
-            "description": "Filename for xtree leak report."
-        },
+        metadata={"description": "Filename for xtree leak report."},
     )
     undef_value_errors: bool = field(
         default=True,
-        metadata={
-            "description": "Report uses of undefined value errors."
-        },
+        metadata={"description": "Report uses of undefined value errors."},
     )
     track_origins: bool = field(
         default=False,
-        metadata={
-            "description": "Track the origin of uninitialized values."
-        },
+        metadata={"description": "Track the origin of uninitialized values."},
     )
     partial_loads_ok: bool = field(
         default=True,
@@ -141,7 +136,7 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
         metadata={
             "description": "Range of offsets below the stack pointer to ignore, e.g. '8192-8189'."
         },
-    ) # type: ignore
+    )  # type: ignore
     show_mismatched_frees: bool = field(
         default=True,
         metadata={
@@ -150,25 +145,19 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
     )
     show_realloc_size_zero: bool = field(
         default=True,
-        metadata={
-            "description": "Check for uses of realloc with a size of zero."
-        },
+        metadata={"description": "Check for uses of realloc with a size of zero."},
     )
     ignore_ranges: str = field(
         default=None,
         metadata={
             "description": "Comma separated address ranges to ignore, e.g. '0xPP-0xQQ,0xRR-0xSS'."
         },
-    ) # type: ignore
+    )  # type: ignore
     malloc_fill: str = field(
         default=None,
-        metadata={
-            "description": "Fill malloc'd blocks with the specified byte (hex)."
-        },
-    ) # type: ignore
+        metadata={"description": "Fill malloc'd blocks with the specified byte (hex)."},
+    )  # type: ignore
     free_fill: str = field(
         default=None,
-        metadata={
-            "description": "Fill freed blocks with the specified byte (hex)."
-        },
-    ) # type: ignore
+        metadata={"description": "Fill freed blocks with the specified byte (hex)."},
+    )  # type: ignore

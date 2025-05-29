@@ -39,6 +39,7 @@ class StraceEnvironment(IExecutionEnvironment, ABC):
         __repr__() -> str:
             Returns a string representation of the StraceEnvironment instance.
     """
+
     # TODO enforce config in environment
     def __init__(
         self,

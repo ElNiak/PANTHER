@@ -70,11 +70,11 @@ class YourIUT(IIUT):
         event_manager: EventManager,
     ):
         super().__init__(service_config, output_dir, service_type, service_sub_type, event_manager)
-        
+
     def setup_service(self):
         """Set up the service for execution."""
         self.logger.info(f"Setting up {self.__class__.__name__}")
-        
+
         # Build command based on role (client/server)
         if self.service_config.protocol.role == "server":
             self.setup_server()
@@ -83,9 +83,9 @@ class YourIUT(IIUT):
         else:
             self.logger.error(f"Unknown role: {self.service_config.protocol.role}")
             return False
-        
+
         return True
-        
+
     def setup_server(self):
         """Set up the server configuration."""
         # Configure server-specific settings
@@ -108,12 +108,12 @@ class YourIUT(IIUT):
                 # Add any commands to run after the service completes
             ]
         }
-    
+
     def setup_client(self):
         """Set up the client configuration."""
         # Get target server information
         target_server = self.get_target_server()
-        
+
         # Configure client-specific settings
         self.run_cmd = {
             "run_cmd": {
@@ -134,7 +134,7 @@ class YourIUT(IIUT):
                 # Add any commands to run after the service completes
             ]
         }
-    
+
     def get_target_server(self):
         """Get the target server address from configuration."""
         if not self.service_config.protocol.target:
@@ -180,8 +180,8 @@ Create a comprehensive README.md file following the PANTHER documentation templa
 ```markdown
 # Your IUT Name
 
-> **Plugin Type**: Service (IUT)  
-> **Verified Source Location**: `plugins/services/iut/protocol_name/your_iut_name/`  
+> **Plugin Type**: Service (IUT)
+> **Verified Source Location**: `plugins/services/iut/protocol_name/your_iut_name/`
 
 ## Purpose and Overview
 
@@ -229,12 +229,12 @@ __all__ = ["YourIUT"]
 ```yaml
 tests:
   - name: "Test with Your IUT"
-    network_environment: 
+    network_environment:
       type: "docker_compose"
     services:
       server:
-        name: "your_server" 
-        implementation: 
+        name: "your_server"
+        implementation:
           name: "your_iut_name"
           type: "iut"
           binary_path: "/usr/local/bin/your_binary"
@@ -246,8 +246,8 @@ tests:
         ports:
           - "8080:8080"
       client:
-        name: "your_client" 
-        implementation: 
+        name: "your_client"
+        implementation:
           name: "your_iut_name"
           type: "iut"
         protocol:

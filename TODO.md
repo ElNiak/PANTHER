@@ -2,7 +2,7 @@
 
 * Rename gits ?
 
-* Add loading bar 
+* Add loading bar
 
 * detached mode
 

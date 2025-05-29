@@ -1,7 +1,7 @@
 # GPerf Heap Profiler
 
-> **Plugin Type**: Environment (execution_environment)  
-> **Verified Source Location**: `plugins/environments/execution_environment/gperf_heap/`  
+> **Plugin Type**: Environment (execution_environment)
+> **Verified Source Location**: `plugins/environments/execution_environment/gperf_heap/`
 
 ## Purpose and Overview
 
@@ -80,8 +80,8 @@ tests:
         implementation: "gperf_heap"
     services:
       server:
-        name: "quic_server" 
-        implementation: 
+        name: "quic_server"
+        implementation:
           name: "picoquic"
           type: "iut"
           gperf_compatible: true  # Must be set for profiling
@@ -102,14 +102,14 @@ tests:
           other_flags: ["--debug", "--verbose"]
     services:
       server:
-        name: "http_server" 
-        implementation: 
+        name: "http_server"
+        implementation:
           name: "nginx"
           type: "iut"
           gperf_compatible: true
       client:
-        name: "http_client" 
-        implementation: 
+        name: "http_client"
+        implementation:
           name: "curl"
           type: "tester"
           gperf_compatible: true
@@ -128,11 +128,11 @@ from panther.plugins.environments.execution_environment.gperf_heap.gperf_heap im
 
 class CustomHeapVisualizer(GperfHeapEnvironment):
     """Custom heap profiler with enhanced visualization."""
-    
+
     def setup_environment(self, services_managers, test_config, global_config, timestamp, plugin_loader):
         """Set up with custom visualization options."""
         super().setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader)
-        
+
         for service in self.services_managers:
             if service.service_config_to_test.implementation.gperf_compatible:
                 # Add custom visualization commands
@@ -176,12 +176,12 @@ To test the GPerf Heap environment plugin:
 
 #### Missing Profiling Output
 
-**Problem**: No `.prof` files are generated in the output  
+**Problem**: No `.prof` files are generated in the output
 **Solution**: Ensure the service is marked as `gperf_compatible: true` and is dynamically linked.
 
 #### Incomplete Profiling Data
 
-**Problem**: Profiling data is incomplete or missing allocations  
+**Problem**: Profiling data is incomplete or missing allocations
 **Solution**: The service might be using non-standard memory allocation functions. Set environment variables to capture all allocation types:
 
 ```yaml
@@ -195,7 +195,7 @@ execution_environment:
 
 #### PDF Generation Errors
 
-**Problem**: PDF visualization fails to generate  
+**Problem**: PDF visualization fails to generate
 **Solution**: Ensure that pprof and graphviz are properly installed in the environment:
 
 ```yaml

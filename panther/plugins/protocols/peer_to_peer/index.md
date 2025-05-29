@@ -1,7 +1,7 @@
 # Peer-to-Peer Protocol Plugins
 
-> **Plugin Type**: Peer-to-Peer Protocol  
-> **Verified Source Location**: `plugins/protocols/peer_to_peer/`  
+> **Plugin Type**: Peer-to-Peer Protocol
+> **Verified Source Location**: `plugins/protocols/peer_to_peer/`
 
 ## Overview
 

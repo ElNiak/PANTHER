@@ -203,8 +203,11 @@ class DockerComposeEnvironment(INetworkEnvironment):
                             and not stripped.startswith("}")
                         ):
                             # Extract function name for PS4
-                            func_name = stripped.split()[0].split('(')[0]
-                            debug_line = f'PS4="[<{func_name}>:$' + '{LINENO}] "; export PS4; set -x;'
+                            func_name = stripped.split()[0].split("(")[0]
+                            debug_line = (
+                                f'PS4="[<{func_name}>:$'
+                                + '{LINENO}] "; export PS4; set -x;'
+                            )
                             return cmd, debug_line
                         return cmd, None
 
@@ -232,12 +235,16 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     "entrypoint.sh.jinja",
                     paths,
                     timestamp,
-                    Path(str(self.rendered_services_network_script_file_path).replace(
-                        ".sh", f"_{service.service_name}.sh"
-                    )),
-                    Path(str(self.services_network_script_file_path).replace(
-                        ".sh", f"_{service.service_name}.sh"
-                    )),
+                    Path(
+                        str(self.rendered_services_network_script_file_path).replace(
+                            ".sh", f"_{service.service_name}.sh"
+                        )
+                    ),
+                    Path(
+                        str(self.services_network_script_file_path).replace(
+                            ".sh", f"_{service.service_name}.sh"
+                        )
+                    ),
                     additional_param=service,
                 )
 

@@ -1,13 +1,10 @@
 import os
-import json
 import logging
 from flask import (
     Flask,
     redirect,
-    render_template,
     request,
     jsonify,
-    session,
 )
 from flask_cors import CORS
 from omegaconf import OmegaConf
@@ -34,7 +31,8 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     app.config["config_loader"] = config_loader
     app.config["global_config"] = global_config
     experiment_manager = ExperimentManager(
-        global_config=global_config, experiment_name=args.experiment_name)
+        global_config=global_config, experiment_name=args.experiment_name
+    )
     experiment_manager.test_cases
     app.config["experiment_manager"] = experiment_manager
 
@@ -51,15 +49,16 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
     # Add Jinja helper functions
     from panther.core.utils.jinja_manager import JinjaManager
+
     jinja_manager = JinjaManager(app.template_folder)
-    app.jinja_env.globals['has_attr'] = jinja_manager.has_attr
-    app.jinja_env.globals['safe_getattr'] = jinja_manager.safe_getattr
+    app.jinja_env.globals["has_attr"] = jinja_manager.has_attr
+    app.jinja_env.globals["safe_getattr"] = jinja_manager.safe_getattr
 
     # Also add as filters
-    app.jinja_env.filters['has_attr'] = jinja_manager.has_attr
-    app.jinja_env.filters['safe_getattr'] = jinja_manager.safe_getattr
-    app.jinja_env.filters['safe_length'] = jinja_manager.safe_length
-    app.jinja_env.filters['length'] = jinja_manager.safe_length
+    app.jinja_env.filters["has_attr"] = jinja_manager.has_attr
+    app.jinja_env.filters["safe_getattr"] = jinja_manager.safe_getattr
+    app.jinja_env.filters["safe_length"] = jinja_manager.safe_length
+    app.jinja_env.filters["length"] = jinja_manager.safe_length
 
     # API endpoints for the dynamic UI
     @app.route("/api/plugins", methods=["GET"])
@@ -84,10 +83,9 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
                     if test.name == test_name:
                         result = experiment_manager.run_test(test)
                         return jsonify({"status": "success", "result": result})
-                return jsonify({
-                    "status": "error",
-                    "message": f"Test {test_name} not found"
-                })
+                return jsonify(
+                    {"status": "error", "message": f"Test {test_name} not found"}
+                )
             else:
                 # Run all tests
                 results = experiment_manager.run_tests()
@@ -107,10 +105,9 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
         """Return all available network and execution environments"""
         net_envs = config_loader.get_all_net_env_classes()
         exec_envs = config_loader.get_all_exec_env_classes()
-        return jsonify({
-            "network_environments": net_envs,
-            "execution_environments": exec_envs
-        })
+        return jsonify(
+            {"network_environments": net_envs, "execution_environments": exec_envs}
+        )
 
     @app.route("/api/implementations", methods=["GET"])
     def get_implementations():
@@ -131,8 +128,7 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
         r.headers["Pragma"] = "no-cache"
         r.headers["Expires"] = "0"
         r.headers["Cache-Control"] = "public, max-age=0"
-        r.headers.add("Access-Control-Allow-Headers",
-                      "authorization,content-type")
+        r.headers.add("Access-Control-Allow-Headers", "authorization,content-type")
         r.headers.add(
             "Access-Control-Allow-Methods",
             "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT",
@@ -153,11 +149,7 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
 def run(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     print("Running webapp")
-    app = create_app(config_loader=config_loader,
-                     global_config=global_config,
-                     args=args)
-    app.run(host="0.0.0.0",
-            port=8080,
-            use_reloader=True,
-            threaded=True,
-            debug=True)
+    app = create_app(
+        config_loader=config_loader, global_config=global_config, args=args
+    )
+    app.run(host="0.0.0.0", port=8080, use_reloader=True, threaded=True, debug=True)

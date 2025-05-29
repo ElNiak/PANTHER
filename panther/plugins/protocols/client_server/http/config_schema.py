@@ -8,9 +8,7 @@ from panther.plugins.protocols.config_schema import (
 )
 
 # TODO init that directly from folder ?
-VersionEnum = Enum(
-    "VersionEnum", ["0.9", "2", "3"]
-)
+VersionEnum = Enum("VersionEnum", ["0.9", "2", "3"])
 
 
 @dataclass
@@ -25,6 +23,7 @@ class HttpConfig(ProtocolConfig):
         target (str | None): An optional target service name, default is None.
         protocol_type (ProtocolType): The type of protocol, default is ProtocolType.client_server.
     """
+
     name: str = "HTTP"
     version: VersionEnum = VersionEnum.random  # Protocol version (e.g., rfc9000)
     role: RoleEnum = RoleEnum.server  # Role (server or client)

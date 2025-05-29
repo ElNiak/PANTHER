@@ -1,7 +1,7 @@
 # MinIP Ping-Pong Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Verified Source Location**: `plugins/services/iut/minip/ping_pong/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Verified Source Location**: `plugins/services/iut/minip/ping_pong/`
 
 ## Purpose and Overview
 

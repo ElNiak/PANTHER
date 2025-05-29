@@ -23,7 +23,7 @@ RUN export PATH="$PATH:/usr/local/go/bin"
 RUN cd /opt && \
     git clone https://github.com/lucas-clemente/quic-go; \
     cd quic-go; \
-    git fetch; \ 
+    git fetch; \
     git checkout v0.45.2;  \
     git submodule update --init --recursive; \
     mkdir client server

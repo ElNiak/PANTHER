@@ -140,7 +140,7 @@ def prepare(self, plugin_loader: PluginLoader):
         "panther_base",
         "service"
     )
-    
+
     # Build implementation-specific image
     plugin_loader.build_docker_image(
         self.get_implementation_name(),
@@ -191,9 +191,9 @@ Each service manager generates multiple command types:
 #### 4. Run Commands
 Generated from Jinja2 templates with parameters:
 ```jinja
-{{ certificates.cert_param }} {{ certificates.cert_file }} 
-{{ certificates.key_param }} {{ certificates.key_file }} 
-{{ protocol.alpn.param }} {{ protocol.alpn.value }} 
+{{ certificates.cert_param }} {{ certificates.cert_file }}
+{{ certificates.key_param }} {{ certificates.key_file }}
+{{ protocol.alpn.param }} {{ protocol.alpn.value }}
 -p {{ network.port }} > {{ logging.log_path }} 2> {{ logging.err_path }}
 ```
 
@@ -287,22 +287,22 @@ def render_commands(self, params: dict, template_name: str) -> str:
 def generate_environment_services(self, paths: dict, timestamp: str):
     # Setup execution plugins
     self.setup_execution_plugins(timestamp)
-    
+
     # Create log directories for each service
     for service in self.services_managers:
         self.create_log_dir(service)
-    
+
     # Handle Ivy tester synchronization
     if "ivy" in service.service_name:
         # Add wait conditions for other services
         # Setup shared volume for synchronization
-    
+
     # Add packet capture to all services
     for service in self.services_managers:
         service.run_cmd["post_compile_cmds"].append(
             f"tshark -a duration:{service.timeout} -i any -w /app/logs/{service.service_name}.pcap"
         )
-    
+
     # Resolve environment variables
     for service in self.services_managers:
         service.environments = self.resolve_environment_variables(service.environments)
@@ -398,13 +398,13 @@ class ExperimentConfig:
     name: str
     description: str
     tests: List[TestConfig]
-    
+
 @dataclass
 class TestConfig:
     name: str
     services: List[ServiceConfig]
     environment: EnvironmentConfig
-    
+
 @dataclass
 class ServiceConfig:
     name: str

@@ -1,7 +1,7 @@
 # HTTP Implementation Under Test
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Source Location**: `plugins/services/iut/http/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Source Location**: `plugins/services/iut/http/`
 
 ## Overview
 
@@ -113,7 +113,7 @@ http/
 ├── __init__.py              # Plugin initialization and base classes
 ├── config_schema.py         # HTTP IUT configuration schema
 ├── apache/                  # Apache HTTP Server implementation
-├── nginx/                   # Nginx implementation  
+├── nginx/                   # Nginx implementation
 ├── nodejs/                  # Node.js HTTP implementation
 └── custom/                  # Custom minimal HTTP implementation
 ```
@@ -139,11 +139,11 @@ from panther.plugins.services.iut.http import HTTPImplementationBase
 
 class MyHTTPImplementation(HTTPImplementationBase):
     """Custom HTTP implementation."""
-    
+
     def start_server(self):
         """Start the HTTP server."""
         pass
-        
+
     def stop_server(self):
         """Stop the HTTP server."""
         pass

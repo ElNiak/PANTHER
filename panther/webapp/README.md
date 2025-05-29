@@ -1,7 +1,10 @@
 # Web Application Interface — PANTHER Dashboard & APIs 🌐
 
-> **Purpose:** Complete guide to PANTHER's web interface for experiment management, result visualization, and real-time monitoring  
-> **Target:** Users wanting to design experiments graphically; researchers analyzing results; teams needing collaborative experiment management  
+> **⚠️ DISCLAIMER: This documentation is currently under development and not yet complete. Features described may be partially implemented or planned for future releases. Check back for updates as we continue to improve the web application interface.**
+
+
+> **Purpose:** Complete guide to PANTHER's web interface for experiment management, result visualization, and real-time monitoring
+> **Target:** Users wanting to design experiments graphically; researchers analyzing results; teams needing collaborative experiment management
 > **Technology:** Flask-based web application with Bootstrap UI, Chart.js visualizations, and RESTful APIs
 
 PANTHER provides a **comprehensive web interface** that allows you to design, execute, monitor, and analyze experiments through an intuitive dashboard. The web application complements the CLI tools with visual experiment creation, real-time monitoring, and interactive result analysis.
@@ -14,7 +17,7 @@ PANTHER provides a **comprehensive web interface** that allows you to design, ex
 
 1. **Experiment Designer**: Visual interface for creating test configurations
 2. **Real-time Monitor**: Live experiment execution tracking with progress indicators
-3. **Results Dashboard**: Interactive data visualization and analysis tools  
+3. **Results Dashboard**: Interactive data visualization and analysis tools
 4. **API Gateway**: RESTful endpoints for programmatic access
 5. **Static Analysis**: Embedded tools for packet capture analysis and formal verification results
 
@@ -119,7 +122,7 @@ The experiment creator provides a **drag-and-drop interface** for building test 
 <!-- Service Configuration Example -->
 <div class="service-config">
     <h3>📦 Services Configuration</h3>
-    
+
     <!-- IUT Services -->
     <div class="card-group">
         <div class="card">
@@ -131,12 +134,12 @@ The experiment creator provides a **drag-and-drop interface** for building test 
                     <option value="aioquic">Aioquic</option>
                     <option value="quinn">Quinn</option>
                 </select>
-                
+
                 <div class="port-config">
                     <label>Port:</label>
                     <input type="number" value="4433" min="1024" max="65535">
                 </div>
-                
+
                 <div class="protocol-config">
                     <label>ALPN:</label>
                     <input type="text" value="h3,hq-29" placeholder="Protocol identifiers">
@@ -144,7 +147,7 @@ The experiment creator provides a **drag-and-drop interface** for building test 
             </div>
         </div>
     </div>
-    
+
     <!-- Tester Services -->
     <div class="card-group">
         <div class="card">
@@ -154,7 +157,7 @@ The experiment creator provides a **drag-and-drop interface** for building test 
                     <option value="panther_ivy">Panther Ivy</option>
                     <option value="custom_tester">Custom Tester</option>
                 </select>
-                
+
                 <div class="test-config">
                     <label>Test Suite:</label>
                     <select name="test_suite">
@@ -173,7 +176,7 @@ The experiment creator provides a **drag-and-drop interface** for building test 
 ```html
 <div class="environment-config">
     <h3>🌐 Environment Setup</h3>
-    
+
     <!-- Network Environment -->
     <div class="network-env">
         <h4>Network Environment</h4>
@@ -190,7 +193,7 @@ The experiment creator provides a **drag-and-drop interface** for building test 
             <label>Shadow Simulator</label>
         </div>
     </div>
-    
+
     <!-- Execution Environment -->
     <div class="exec-env">
         <h4>Execution Environment</h4>
@@ -210,7 +213,7 @@ The creator automatically generates forms based on plugin schemas:
 // Dynamic form generation based on plugin configuration
 function generatePluginForm(pluginConfig) {
     const formContainer = document.getElementById('plugin-config');
-    
+
     // Generate form fields based on schema
     for (const [fieldName, fieldConfig] of Object.entries(pluginConfig.schema)) {
         const fieldElement = createFormField(fieldName, fieldConfig);
@@ -221,14 +224,14 @@ function generatePluginForm(pluginConfig) {
 function createFormField(name, config) {
     const field = document.createElement('div');
     field.className = 'form-group';
-    
+
     // Field type-specific rendering
     switch (config.type) {
         case 'string':
             field.innerHTML = `
                 <label for="${name}">${config.label}</label>
-                <input type="text" id="${name}" name="${name}" 
-                       value="${config.default || ''}" 
+                <input type="text" id="${name}" name="${name}"
+                       value="${config.default || ''}"
                        class="form-control">
                 <small class="form-text text-muted">${config.help}</small>
             `;
@@ -236,9 +239,9 @@ function createFormField(name, config) {
         case 'integer':
             field.innerHTML = `
                 <label for="${name}">${config.label}</label>
-                <input type="range" id="${name}" name="${name}" 
+                <input type="range" id="${name}" name="${name}"
                        min="${config.min || 0}" max="${config.max || 100}"
-                       value="${config.default || 50}" 
+                       value="${config.default || 50}"
                        class="form-range">
                 <output>${config.default || 50}</output>
             `;
@@ -246,15 +249,15 @@ function createFormField(name, config) {
         case 'boolean':
             field.innerHTML = `
                 <div class="form-check">
-                    <input type="checkbox" id="${name}" name="${name}" 
-                           ${config.default ? 'checked' : ''} 
+                    <input type="checkbox" id="${name}" name="${name}"
+                           ${config.default ? 'checked' : ''}
                            class="form-check-input">
                     <label for="${name}" class="form-check-label">${config.label}</label>
                 </div>
             `;
             break;
         case 'enum':
-            const options = config.choices.map(choice => 
+            const options = config.choices.map(choice =>
                 `<option value="${choice}" ${choice === config.default ? 'selected' : ''}>${choice}</option>`
             ).join('');
             field.innerHTML = `
@@ -265,7 +268,7 @@ function createFormField(name, config) {
             `;
             break;
     }
-    
+
     return field;
 }
 ```
@@ -278,7 +281,7 @@ Real-time validation as users build configurations:
 // Real-time configuration validation
 function validateConfiguration() {
     const config = gatherFormData();
-    
+
     fetch('/api/validate-config', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -298,7 +301,7 @@ function validateConfiguration() {
 
 function showValidationErrors(errors) {
     const errorContainer = document.getElementById('validation-errors');
-    errorContainer.innerHTML = errors.map(error => 
+    errorContainer.innerHTML = errors.map(error =>
         `<div class="alert alert-danger">${error.field}: ${error.message}</div>`
     ).join('');
 }
@@ -335,15 +338,15 @@ Export created configurations in multiple formats:
 ```html
 <div class="experiment-monitor">
     <h2>🔄 Experiment: {{ experiment_name }}</h2>
-    
+
     <!-- Overall Progress -->
     <div class="progress mb-3">
-        <div class="progress-bar progress-bar-animated" 
+        <div class="progress-bar progress-bar-animated"
              style="width: {{ progress_percentage }}%">
             {{ progress_percentage }}% Complete
         </div>
     </div>
-    
+
     <!-- Individual Test Progress -->
     <div class="test-progress">
         {% for test in test_cases %}
@@ -351,13 +354,13 @@ Export created configurations in multiple formats:
             <div class="card-body">
                 <h5>{{ test.name }}</h5>
                 <div class="progress">
-                    <div class="progress-bar bg-{{ test.status_color }}" 
+                    <div class="progress-bar bg-{{ test.status_color }}"
                          style="width: {{ test.progress }}%">
                         {{ test.status }}
                     </div>
                 </div>
                 <small class="text-muted">
-                    Started: {{ test.start_time }} | 
+                    Started: {{ test.start_time }} |
                     Duration: {{ test.elapsed_time }}
                 </small>
             </div>
@@ -388,7 +391,7 @@ Export created configurations in multiple formats:
             </div>
         </div>
     </div>
-    
+
     <div class="container-status">
         <h5>🐳 Container Status</h5>
         <table class="table">
@@ -430,7 +433,7 @@ Export created configurations in multiple formats:
         <button onclick="clearLogs()">Clear</button>
         <button onclick="downloadLogs()">Download</button>
     </div>
-    
+
     <div id="log-output" class="log-output">
         <!-- Live log content -->
     </div>
@@ -471,7 +474,7 @@ function appendLogEntry(logData) {
 ```html
 <div class="results-dashboard">
     <h1>📊 QUIC Test Results</h1>
-    
+
     <!-- Filter Controls -->
     <div class="filter-panel">
         <div class="row">
@@ -511,7 +514,7 @@ function appendLogEntry(logData) {
             </div>
         </div>
     </div>
-    
+
     <!-- Charts and Visualizations -->
     <div class="visualization-grid">
         <div class="row">
@@ -582,11 +585,11 @@ function appendLogEntry(logData) {
                 <td>{{ result.duration }}</td>
                 <td>{{ result.packet_count }}</td>
                 <td>
-                    <button class="btn btn-sm btn-info" 
+                    <button class="btn btn-sm btn-info"
                             onclick="viewDetails('{{ result.id }}')">
                         👁️ View
                     </button>
-                    <button class="btn btn-sm btn-success" 
+                    <button class="btn btn-sm btn-success"
                             onclick="downloadResult('{{ result.id }}')">
                         💾 Download
                     </button>
@@ -604,14 +607,14 @@ function appendLogEntry(logData) {
 ```html
 <div class="pcap-analysis">
     <h4>📡 Packet Capture Analysis</h4>
-    
+
     <!-- Embedded Wireshark-like viewer -->
-    <iframe class="pcap-frame" 
-            src="{{ pcap_analyzer_url }}#/stats" 
-            style="width: 100%; height: 500px" 
+    <iframe class="pcap-frame"
+            src="{{ pcap_analyzer_url }}#/stats"
+            style="width: 100%; height: 500px"
             title="PCAP Analysis">
     </iframe>
-    
+
     <!-- Quick Statistics -->
     <div class="pcap-stats">
         <div class="row">
@@ -648,14 +651,14 @@ function appendLogEntry(logData) {
 ```html
 <div class="ivy-results">
     <h4>🔍 Formal Verification Results</h4>
-    
+
     <div class="verification-summary">
         <div class="alert alert-{{ verification_status_color }}">
             <h5>Verification Status: {{ verification_status }}</h5>
             <p>{{ verification_summary }}</p>
         </div>
     </div>
-    
+
     <!-- Property Check Results -->
     <div class="property-results">
         <h5>Property Verification Results</h5>
@@ -679,7 +682,7 @@ function appendLogEntry(logData) {
                     </td>
                     <td>
                         {% if property.counterexample %}
-                        <button class="btn btn-sm btn-warning" 
+                        <button class="btn btn-sm btn-warning"
                                 onclick="showCounterexample('{{ property.id }}')">
                             ⚠️ View
                         </button>
@@ -688,7 +691,7 @@ function appendLogEntry(logData) {
                         {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-info" 
+                        <button class="btn btn-sm btn-info"
                                 onclick="showPropertyDetails('{{ property.id }}')">
                             📋 Details
                         </button>
@@ -698,7 +701,7 @@ function appendLogEntry(logData) {
             </tbody>
         </table>
     </div>
-    
+
     <!-- Trace Visualization -->
     <div class="trace-viewer">
         <h5>Execution Trace</h5>
@@ -870,7 +873,7 @@ const experimentSocket = new WebSocket('ws://localhost:8080/ws/experiments');
 
 experimentSocket.onmessage = function(event) {
     const update = JSON.parse(event.data);
-    
+
     switch(update.type) {
         case 'experiment_started':
             updateExperimentStatus(update.experiment_id, 'running');

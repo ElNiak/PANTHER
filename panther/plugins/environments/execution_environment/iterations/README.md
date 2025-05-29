@@ -1,7 +1,7 @@
 # Iterations Execution Environment Plugin
 
-> **Plugin Type**: Execution Environment  
-> **Verified Source Location**: `plugins/environments/execution_environment/iterations/`  
+> **Plugin Type**: Execution Environment
+> **Verified Source Location**: `plugins/environments/execution_environment/iterations/`
 
 ## Overview
 

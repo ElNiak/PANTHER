@@ -15,19 +15,19 @@ class EnvironmentInterface(PluginInterface):
     def initialize(self, config):
         """Initialize the environment with configuration."""
         pass
-        
+
     def setup(self):
         """Set up the environment for execution."""
         pass
-        
+
     def teardown(self):
         """Tear down the environment after execution."""
         pass
-        
+
     def execute(self):
         """Execute the environment's main functionality."""
         pass
-        
+
     def cleanup(self):
         """Clean up resources."""
         pass
@@ -44,15 +44,15 @@ from panther.plugins.environments.environment_interface import EnvironmentInterf
 
 class ExecutionEnvironmentInterface(EnvironmentInterface):
     """Interface for execution environment plugins."""
-    
+
     def start_monitoring(self):
         """Start monitoring the execution."""
         pass
-        
+
     def stop_monitoring(self):
         """Stop monitoring the execution."""
         pass
-        
+
     def get_metrics(self):
         """Get metrics from the execution."""
         pass
@@ -69,15 +69,15 @@ from panther.plugins.environments.environment_interface import EnvironmentInterf
 
 class NetworkEnvironmentInterface(EnvironmentInterface):
     """Interface for network environment plugins."""
-    
+
     def get_network_info(self):
         """Get information about the network environment."""
         pass
-        
+
     def apply_network_conditions(self, conditions):
         """Apply specific network conditions."""
         pass
-        
+
     def reset_network_conditions(self):
         """Reset network conditions to default."""
         pass

@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 
-# TODOS - Question should we set '--not-install-recommends' -> might introduce issues 
+# TODOS - Question should we set '--not-install-recommends' -> might introduce issues
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \

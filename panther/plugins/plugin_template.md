@@ -1,7 +1,7 @@
 # {Plugin Name}
 
-> **Plugin Type**: {Protocol|Environment|Service|Tester}  
-> **Verified Source Location**: `plugins/{plugin_type}/{plugin_category}/{plugin_name}/`  
+> **Plugin Type**: {Protocol|Environment|Service|Tester}
+> **Verified Source Location**: `plugins/{plugin_type}/{plugin_category}/{plugin_name}/`
 > **Framework Compliance**: PANTHER Documentation Framework v2.0
 
 ## Purpose and Overview
@@ -257,11 +257,11 @@ experiment_config = {
 class {PluginName}{DevelopmentType}:
     def __init__(self, config):
         self.config = config
-        
+
     def {method1}(self, {params}):
         """{Method description}"""
         {method_implementation}
-        
+
     def {method2}(self, {params}):
         """{Method description}"""
         {method_implementation}
@@ -315,7 +315,7 @@ Include configuration snippets and expected output.
 
 ## Extension Points
 
-<!-- 
+<!--
 Document how this plugin can be extended:
 - Interface methods that can be overridden
 - Hook points for customization
@@ -324,7 +324,7 @@ Document how this plugin can be extended:
 
 ## Testing and Verification
 
-<!-- 
+<!--
 Explain how to test this plugin:
 - Unit test coverage
 - Integration test scenarios
@@ -333,7 +333,7 @@ Explain how to test this plugin:
 
 ## Troubleshooting
 
-<!-- 
+<!--
 Common issues and their solutions:
 - Error messages and their meaning
 - Debugging techniques

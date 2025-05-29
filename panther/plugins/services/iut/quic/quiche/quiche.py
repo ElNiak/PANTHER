@@ -9,6 +9,7 @@ from panther.plugins.services.iut.implementation_interface import IImplementatio
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
+
 class QuicheServiceManager(IImplementationManager):
     """
     QuicheServiceManager is a class responsible for managing the Quiche service implementation.
@@ -39,6 +40,7 @@ class QuicheServiceManager(IImplementationManager):
         __repr__():
             Returns a string representation of the QuicheServiceManager instance.
     """
+
     def __init__(
         self,
         service_config_to_test: QuicheConfig,
@@ -52,9 +54,7 @@ class QuicheServiceManager(IImplementationManager):
         self.logger.debug(
             f"Initializing Quiche service manager for '{implementation_name}'"
         )
-        self.logger.debug(
-            f"Loaded Quiche configuration: {self.service_config_to_test}"
-        )
+        self.logger.debug(f"Loaded Quiche configuration: {self.service_config_to_test}")
         self.initialize_commands()
 
     def generate_run_command(self):
@@ -114,7 +114,7 @@ class QuicheServiceManager(IImplementationManager):
         Logs:
             Various debug information including service name, service parameters, role, version, and parameters for the command template.
         """
-        
+
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

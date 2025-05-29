@@ -33,31 +33,31 @@ from panther.plugins.plugin_interface import PluginInterface
 
 class ServiceInterface(PluginInterface):
     """Base interface for all service plugins."""
-    
+
     def initialize(self, config):
         """Initialize the service with configuration."""
         pass
-        
+
     def start(self):
         """Start the service."""
         pass
-    
+
     def stop(self):
         """Stop the service."""
         pass
-    
+
     def restart(self):
         """Restart the service."""
         pass
-        
+
     def get_status(self):
         """Get the status of the service."""
         pass
-        
+
     def execute(self):
         """Execute the service's main functionality."""
         pass
-        
+
     def cleanup(self):
         """Clean up resources."""
         pass
@@ -72,15 +72,15 @@ from panther.plugins.services.services_interface import IServiceManager
 
 class IImplementationManager(IServiceManager):
     """Interface for implementation under test managers."""
-    
+
     def is_tester(self):
         """Returns False indicating this is not a tester."""
         return False
-    
+
     def get_implementation_version(self):
         """Get the version of the implementation."""
         pass
-    
+
     def get_implementation_capabilities(self):
         """Get the capabilities of the implementation."""
         pass
@@ -95,15 +95,15 @@ from panther.plugins.services.services_interface import IServiceManager
 
 class ITesterManager(IServiceManager):
     """Interface for tester service managers."""
-    
+
     def is_tester(self):
         """Returns True indicating this is a tester."""
         return True
-    
+
     def run_test(self, test_case):
         """Run a specific test case."""
         pass
-    
+
     def get_test_results(self):
         """Get the results of the tests."""
         pass
@@ -148,27 +148,27 @@ from panther.plugins.services.iut.implementation_interface import IImplementatio
 
 class MyImplementation(IImplementationManager):
     """My custom implementation under test."""
-    
+
     def initialize(self, config):
         """Initialize the implementation with configuration."""
         self.config = config
         # Implementation initialization
-        
+
     def start(self):
         """Start the implementation."""
         # Service startup logic
         pass
-    
+
     def stop(self):
         """Stop the implementation."""
         # Service shutdown logic
         pass
-        
+
     def execute(self):
         """Execute the implementation's main functionality."""
         # Implementation execution logic
         pass
-        
+
     def cleanup(self):
         """Clean up resources."""
         # Release resources
@@ -183,27 +183,27 @@ from panther.plugins.services.testers.tester_interface import ITesterManager
 
 class MyTester(ITesterManager):
     """My custom tester service."""
-    
+
     def initialize(self, config):
         """Initialize the tester with configuration."""
         self.config = config
         self.test_results = {}
         # Tester initialization
-        
+
     def run_test(self, test_case):
         """Run a specific test case."""
         # Test execution logic
         pass
-    
+
     def get_test_results(self):
         """Get the test results."""
         return self.test_results
-        
+
     def execute(self):
         """Execute the tester's main functionality."""
         # Tester execution logic
         pass
-        
+
     def cleanup(self):
         """Clean up resources."""
         # Release resources
@@ -277,7 +277,7 @@ def test_service_initialization():
     config = {"port": 8080}
     service.initialize(config)
     # Assert expected initialization behavior
-    
+
 def test_service_execution():
     service = MyImplementation()
     service.initialize({"port": 8080})

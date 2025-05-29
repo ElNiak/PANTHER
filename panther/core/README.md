@@ -122,7 +122,7 @@ experiment:
 execution:
   parallel_tests: false
   continue_on_failure: true
-  
+
 monitoring:
   collect_metrics: true
   event_logging: true
@@ -138,7 +138,7 @@ results:
 The core framework provides standardized error handling:
 
 - **[ConfigurationError](panther/core/exceptions)**: Invalid configuration issues
-- **[ExecutionError](panther/core/exceptions)**: Test execution failures  
+- **[ExecutionError](panther/core/exceptions)**: Test execution failures
 - **[ValidationError](panther/core/exceptions)**: Result validation problems
 - **[EnvironmentError](panther/core/exceptions)**: Environment setup issues
 
@@ -443,7 +443,7 @@ PANTHER's core modules are designed to be **extended** in various ways:
    ```python
    from panther.core.observer.observer_interface import IObserver
    from panther.core.observer.event import Event
-   
+
    class PerformanceObserver(IObserver):
        def on_event(self, event: Event):
            if event.name == "test_complete":
@@ -455,13 +455,13 @@ PANTHER's core modules are designed to be **extended** in various ways:
 2. **Custom Result Handlers**: Extend result processing by implementing custom handlers.
    ```python
    from panther.core.results.result_handler import ResultHandler
-   
+
    class MetricAnalyzer(ResultHandler):
        def handle(self, result):
            if "metrics" in result:
                # Analyze metrics
                # ... implementation details ...
-           
+
            # Pass to next handler
            super().handle(result)
    ```
@@ -469,12 +469,12 @@ PANTHER's core modules are designed to be **extended** in various ways:
 3. **Custom Test Cases**: Create specialized test cases for specific testing needs.
    ```python
    from panther.core.test_cases.test_case import TestCase
-   
+
    class ProtocolFuzzingTest(TestCase):
        def deploy_services(self):
            # Custom deployment logic
            # ... implementation details ...
-       
+
        def execute_steps(self):
            # Fuzzing-specific test steps
            # ... implementation details ...

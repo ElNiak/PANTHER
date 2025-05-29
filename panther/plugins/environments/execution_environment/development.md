@@ -88,18 +88,18 @@ class YourPluginEnvironment(IExecutionEnvironment, ABC):
         self.plugin_loader = plugin_loader
         self.global_config = global_config
         self.logger.debug("Setting up execution environment...")
-        
+
         # Modify service commands or environment variables as needed
         for service in self.services_managers:
             if self.is_service_compatible(service):
                 # Add environment variables, wrappers, or modify commands
                 service.environments["YOUR_ENV_VAR"] = "value"
-                
+
                 # Modify run commands if needed
                 service.run_cmd["pre_run_cmds"].append(
                     self.generate_command(service.service_name)
                 )
-                
+
                 # Add post-processing commands if needed
                 service.run_cmd["post_run_cmds"].append(
                     f"process_output {service.service_name}"
@@ -123,8 +123,8 @@ Create a comprehensive README.md file following the PANTHER documentation templa
 ```markdown
 # Your Plugin Name
 
-> **Plugin Type**: Environment (execution_environment)  
-> **Verified Source Location**: `plugins/environments/execution_environment/your_plugin_name/`  
+> **Plugin Type**: Environment (execution_environment)
+> **Verified Source Location**: `plugins/environments/execution_environment/your_plugin_name/`
 
 ## Purpose and Overview
 
@@ -181,8 +181,8 @@ tests:
           parameter2: 200
     services:
       server:
-        name: "test_server" 
-        implementation: 
+        name: "test_server"
+        implementation:
           name: "test_implementation"
           type: "iut"
           your_plugin_compatible: true

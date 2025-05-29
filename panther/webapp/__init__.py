@@ -8,7 +8,4 @@ from . import web_app
 from . import experiment_setup
 
 # Define the public API
-__all__ = [
-    "web_app",
-    "experiment_setup"
-]
+__all__ = ["web_app", "experiment_setup"]

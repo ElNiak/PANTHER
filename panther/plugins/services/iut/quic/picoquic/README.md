@@ -1,7 +1,7 @@
 # Picoquic QUIC Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Verified Source Location**: `plugins/services/iut/quic/picoquic/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Verified Source Location**: `plugins/services/iut/quic/picoquic/`
 
 ## Purpose and Overview
 
@@ -61,18 +61,18 @@ services:
 ```yaml
 tests:
   - name: "Picoquic Server Test"
-    network_environment: 
+    network_environment:
       type: "docker_compose"
     services:
       picoquic_server:
-        name: "picoquic_server" 
+        name: "picoquic_server"
         timeout: 100
-        implementation: 
+        implementation:
           name: "picoquic"
           type: "iut"
         protocol:
           name: "quic_protocol"
-          type: "protocol" 
+          type: "protocol"
           implementation: "client_server/quic"
           config:
             version: "rfc9000"
@@ -84,15 +84,15 @@ tests:
 ```yaml
 tests:
   - name: "Advanced Picoquic Test"
-    network_environment: 
+    network_environment:
       type: "docker_compose"
     execution_environment:
       - type: "gperf_cpu"
     services:
       picoquic_server:
-        name: "picoquic_server" 
+        name: "picoquic_server"
         timeout: 120
-        implementation: 
+        implementation:
           name: "picoquic"
           type: "iut"
           config:
@@ -103,7 +103,7 @@ tests:
             extra_args: ["-L", "/logs/quic.log", "-r"]
         protocol:
           name: "quic_protocol"
-          type: "protocol" 
+          type: "protocol"
           implementation: "client_server/quic"
           config:
             version: "rfc9000"
@@ -123,12 +123,12 @@ from panther.plugins.services.iut.quic.picoquic.picoquic import PicoquicServiceM
 
 class EnhancedPicoquicServiceManager(PicoquicServiceManager):
     """Enhanced Picoquic service manager with additional features."""
-    
+
     def initialize_commands(self):
         """Initialize with custom command configurations."""
         super().initialize_commands()
         # Add custom command initialization
-        
+
     def generate_client_command(self):
         """Generate enhanced client command."""
         base_cmd = super().generate_client_command()

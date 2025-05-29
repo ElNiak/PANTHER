@@ -1,7 +1,7 @@
 # Memcheck Execution Environment Plugin
 
-> **Plugin Type**: Execution Environment  
-> **Verified Source Location**: `plugins/environments/execution_environment/memcheck/`  
+> **Plugin Type**: Execution Environment
+> **Verified Source Location**: `plugins/environments/execution_environment/memcheck/`
 
 ## Overview
 

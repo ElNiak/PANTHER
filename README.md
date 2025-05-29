@@ -20,31 +20,69 @@
 
 PANTHER is a **plugin‑based, research‑grade test harness** that lets you design, reproduce, and analyse complex **network‑protocol experiments** without hand‑rolling scripts or bespoke infrastructure.
 
-* **What it solves:**  
-  - Validating that a new QUIC or custom protocol implementation behaves correctly under failure, jitter, or adverse timing.  
-  - Profiling performance characteristics (CPU, heap, syscall mix) across different builds or OS kernels.  
-  - Running formal conformance checks (Ivy) inside a deterministic network simulator (Shadow) to catch logic bugs early.  
+* **What it solves:**
+  - Validating that a new QUIC or custom protocol implementation behaves correctly under failure, jitter, or adverse timing.
+  - Profiling performance characteristics (CPU, heap, syscall mix) across different builds or OS kernels.
+  - Running formal conformance checks (Ivy) inside a deterministic network simulator (Shadow) to catch logic bugs early.
 
-* **Core characteristics:**  
-  ▸ **Reproducible:** every experiment is defined in a single YAML file and executed in an isolated container environment.  
-  ▸ **Extensible:** a plugin system adds new protocols, services, profilers, or network back‑ends with minimal boilerplate.  
+* **Core characteristics:**
+  ▸ **Reproducible:** every experiment is defined in a single YAML file and executed in an isolated container environment.
+  ▸ **Extensible:** a plugin system adds new protocols, services, profilers, or network back‑ends with minimal boilerplate.
   ▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.
 
 ---
 
 ## 📑 Table of Contents
-1. [Quick Start](quick_start.md)  
-2. [Installation Guide](install.md)
-3. [Core Components](panther/core/README.md)  
-4. [Configuration Guide](panther/config/README.md)  
-5. [Execution & Network Environments](panther/plugins/environments/README.md)  
-6. [Protocol Modules](panther/plugins/protocols/README.md)  
-7. [Service Modules](panther/plugins/services/README.md)  
-8. [Plugin Development](panther/plugins/development.md)  
-9. [Documentation System](DOCUMENTATION.md)
-10. [Contributing](CONTRIBUTING.md)  
-11. [Packaging & Distribution](PACKAGING.md)  
-12. [Workflow Documentation](workflow.md)
+
+### Getting Started
+1. [Quick Start](QUICK_START.md)
+2. [Installation Guide](INSTALL.md)
+3. [Configuration](panther/config/README.md)
+4. [Workflows](WORKFLOW.md)
+5. [Core](panther/core/README.md)
+6. [Web Application Workflows](panther/webapp/README.md)
+
+### Plugins
+7. [Overview](panther/plugins/README.md)
+8. [Inventory](dev/docs-gen/plugins_inventory.md)
+9. **Environment Plugins**
+   - [Overview](panther/plugins/environments/README.md)
+   - [Network Environment](panther/plugins/environments/network_environment/README.md)
+   - [Execution Environment](panther/plugins/environments/execution_environment/README.md)
+10. **Protocol Plugins**
+    - [Overview](panther/plugins/protocols/README.md)
+    - [Client-Server Protocols](panther/plugins/protocols/client_server/README.md)
+    - [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md)
+11. **Service Plugins**
+    - [Overview](panther/plugins/services/README.md)
+    - [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md)
+    - [Testing Services](panther/plugins/services/testers/README.md)
+
+### Developer Guide
+12. [Contributing](CONTRIBUTING.md)
+13. **Plugin Development**
+    - [Overview](panther/plugins/development.md)
+    - **Environment Plugins**
+      - [Overview](panther/plugins/environments/development.md)
+      - [Network Environment](panther/plugins/environments/network_environment/development.md)
+      - [Execution Environment](panther/plugins/environments/execution_environment/development.md)
+    - [Protocol Plugins](panther/plugins/protocols/development.md)
+    - **Service Plugins**
+      - [Overview](panther/plugins/services/development.md)
+      - [Implementation Under Tests (IUTs)](panther/plugins/services/iut/development.md)
+      - [Testing Services](panther/plugins/services/testers/development.md)
+14. **Documentation**
+    - [Overview](dev/docs-gen/README.md)
+    - [Workflow](dev/docs-gen/documentation_WORKFLOW.md)
+    - [Style Guide](dev/docs-gen/style_guide.md)
+    - [Integration](dev/docs-gen/documentation_integration.md)
+    - [Links](dev/docs-gen/documentation_links.md)
+    - [Enhancements](dev/docs-gen/documentation_enhancements.md)
+
+### Project Information
+15. [Changelog](CHANGELOG.md)
+16. [License](LICENSE.md)
+17. [Code Reference](https://elniak.github.io/PANTHER/panther/)
 
 ---
 
@@ -79,7 +117,7 @@ PANTHER experiments follow a **4-phase execution model**:
 - **Event-driven**: Real-time monitoring and coordination
 - **Extensible**: Plugin architecture for new protocols and environments
 
-For detailed workflow documentation, see [workflow.md](workflow.md).
+For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 
 ---
 

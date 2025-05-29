@@ -1,7 +1,7 @@
 # Client-Server Protocol Plugins
 
-> **Plugin Type**: Client-Server Protocol  
-> **Verified Source Location**: `plugins/protocols/client_server/`  
+> **Plugin Type**: Client-Server Protocol
+> **Verified Source Location**: `plugins/protocols/client_server/`
 
 ## Overview
 

@@ -17,9 +17,7 @@ from panther.config.config_experiment_schema import (
     ServiceConfig,
     TestConfig,
 )
-from panther.plugins.plugin_loader import PluginLoader
 from importlib_resources import files
-
 
 
 class ConfigLoader:
@@ -32,7 +30,6 @@ class ConfigLoader:
         iut_dir: str | None = "",
         testers_dir: str | None = "",
     ):
-
         self.experiment_file = experiment_file
         self.output_dir = output_dir
 
@@ -42,8 +39,8 @@ class ConfigLoader:
         self.testers_dir = testers_dir
 
         self.logger = logging.getLogger("ConfigLoader")
-        self.global_config : GlobalConfig = None
-        
+        self.global_config: GlobalConfig = None
+
         self._panther_dir = Path(os.path.dirname(__file__)).parent
 
     def construct_global_config(self, loaded_config: DictConfig) -> GlobalConfig:
@@ -96,14 +93,26 @@ class ConfigLoader:
             build_docker_image=loaded_config["docker"]["build_docker_image"]
         )
         OmegaConf.merge(DockerConfig, docker_config)
-        
+
         if "features" not in loaded_config:
             feature_config = FeatureConfig()
         else:
             feature_config = FeatureConfig(
-                logger_observer=loaded_config["features"]["logger_observer"] if "logger_observer" in loaded_config["features"] else True,
-                storage_handler=loaded_config["features"]["storage_handler"] if "storage_handler" in loaded_config["features"] else True,
-                fast_fail=loaded_config["features"]["fast_fail"] if "fast_fail" in loaded_config["features"] else True
+                logger_observer=(
+                    loaded_config["features"]["logger_observer"]
+                    if "logger_observer" in loaded_config["features"]
+                    else True
+                ),
+                storage_handler=(
+                    loaded_config["features"]["storage_handler"]
+                    if "storage_handler" in loaded_config["features"]
+                    else True
+                ),
+                fast_fail=(
+                    loaded_config["features"]["fast_fail"]
+                    if "fast_fail" in loaded_config["features"]
+                    else True
+                ),
             )
         OmegaConf.merge(FeatureConfig, feature_config)
 
@@ -112,7 +121,7 @@ class ConfigLoader:
             paths=paths_config,
             # optional_paths=optional_paths_config,
             docker=docker_config,
-            features=feature_config
+            features=feature_config,
         )
         OmegaConf.merge(GlobalConfig, global_config)
         self.global_config = global_config
@@ -133,7 +142,11 @@ class ConfigLoader:
             print(f"Copying testers from {self.testers_dir}")
             self.testers_dir = Path(self.testers_dir)
             testers_target_dir = os.path.join(
-                self._panther_dir , "plugins", "services", "testers", self.testers_dir.name
+                self._panther_dir,
+                "plugins",
+                "services",
+                "testers",
+                self.testers_dir.name,
             )
             self.copy_plugin_files(testers_target_dir)
 
@@ -154,7 +167,7 @@ class ConfigLoader:
             OSError: If the source directory does not exist or if there is an error during
              the copying process.
         """
-        if not os.path.exists(os.path.join(self._panther_dir,testers_target_dir)):
+        if not os.path.exists(os.path.join(self._panther_dir, testers_target_dir)):
             os.makedirs(testers_target_dir)
         for item in os.listdir(self.testers_dir):
             print(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
@@ -187,7 +200,11 @@ class ConfigLoader:
         """
         if self.testers_dir and self.testers_dir != "":
             testers_target_dir = os.path.join(
-                 self._panther_dir, "plugins", "services", "testers", Path(self.testers_dir).name
+                self._panther_dir,
+                "plugins",
+                "services",
+                "testers",
+                Path(self.testers_dir).name,
             )
             if os.path.exists(testers_target_dir):
                 print(f"Removing testers from {testers_target_dir}")
@@ -195,9 +212,9 @@ class ConfigLoader:
 
     def add_plugin_iut_service(self):
         """
-        Add the plugin IUTs service directory defined by "iut_dir" inside the application 
+        Add the plugin IUTs service directory defined by "iut_dir" inside the application
         at panther/plugins/services/iut/{iut_dir}
-        
+
         Parameters:
         testers_iut_dir (str): The path to the target directory where plugin files
                       should be copied.
@@ -210,15 +227,15 @@ class ConfigLoader:
             print(f"Copying IUT from {self.iut_dir}")
             self.iut_dir = Path(self.iut_dir)
             iut_target_dir = os.path.join(
-                 self._panther_dir, "plugins", "services", "iut", self.iut_dir.name
+                self._panther_dir, "plugins", "services", "iut", self.iut_dir.name
             )
             self.copy_plugin_files(iut_target_dir)
 
     def remove_plugin_iut_service(self):
         """
-        Remove the plugin IUTs service directory defined by "iut_dir" inside the application 
+        Remove the plugin IUTs service directory defined by "iut_dir" inside the application
         at panther/plugins/services/iut/{iut_dir}
-        
+
         Attributes:
             iut_dir (str): The directory path of the testers to be removed.
 
@@ -230,7 +247,7 @@ class ConfigLoader:
         """
         if self.iut_dir and self.iut_dir != "":
             iut_target_dir = os.path.join(
-                 self._panther_dir , "plugins", "services", "iut", Path(self.iut_dir).name
+                self._panther_dir, "plugins", "services", "iut", Path(self.iut_dir).name
             )
             if os.path.exists(iut_target_dir):
                 print(f"Removing IUT from {iut_target_dir}")
@@ -238,9 +255,9 @@ class ConfigLoader:
 
     def add_plugin_network_environment(self):
         """
-        Add the plugin network environment directory defined by "net_env_dir" inside the application 
+        Add the plugin network environment directory defined by "net_env_dir" inside the application
         at panther/plugins/environments/network_environment/{net_env_dir}
-        
+
         Parameters:
         net_env_dir (str): The path to the target directory where plugin files
                       should be copied.
@@ -264,9 +281,9 @@ class ConfigLoader:
 
     def remove_plugin_network_environment(self):
         """
-        Remove the plugin IUTs service directory defined by "iut_dir" inside the application 
+        Remove the plugin IUTs service directory defined by "iut_dir" inside the application
         at panther/plugins/services/iut/{iut_dir}
-        
+
         Attributes:
             iut_dir (str): The directory path of the testers to be removed.
 
@@ -521,6 +538,8 @@ class ConfigLoader:
         :return: The plugin's schema module.
         :raises ImportError: If the schema module cannot be found.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         plugin_module_path = (
             f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
         )
@@ -573,6 +592,8 @@ class ConfigLoader:
         """
         Dynamically loads the appropriate implementation configuration class.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         self.logger.debug(f"Implementation: {implementation}")
         name = implementation["implementation"]["name"]
         implem_type = implementation["implementation"]["type"]
@@ -597,18 +618,22 @@ class ConfigLoader:
             # Load the version configuration
             version_class_name = PluginLoader.get_class_name(name, "Version")
             version_config_class = getattr(schema_module, version_class_name)
-            # TODO cleanup  
+            # TODO cleanup
             if implem_type == "iut":
-                version_configs_dir = str(self._panther_dir).replace("/panther","") \
-                    + "/" + \
-                    module_path.replace(".", "/").replace(
-                    "/config_schema", "/version_configs/"
+                version_configs_dir = (
+                    str(self._panther_dir).replace("/panther", "")
+                    + "/"
+                    + module_path.replace(".", "/").replace(
+                        "/config_schema", "/version_configs/"
+                    )
                 )
             else:
-                version_configs_dir = str(self._panther_dir).replace("/panther","") \
-                    + "/" + \
-                    module_path.replace(".", "/").replace(
-                    "/config_schema", f"/version_configs/{protocol}/"
+                version_configs_dir = (
+                    str(self._panther_dir).replace("/panther", "")
+                    + "/"
+                    + module_path.replace(".", "/").replace(
+                        "/config_schema", f"/version_configs/{protocol}/"
+                    )
                 )
 
             version_path = os.path.join(version_configs_dir, f"{protocol_version}.yaml")
@@ -639,12 +664,14 @@ class ConfigLoader:
 
         :return: A list of execution environment classes.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         exec_env_classes = []
         exec_env_dir = (
-            self._panther_dir /
-            Path(self.global_config.paths.plugin_dir) /
-            "environments" /
-            "execution_environment"
+            self._panther_dir
+            / Path(self.global_config.paths.plugin_dir)
+            / "environments"
+            / "execution_environment"
         )
         self.logger.debug(
             f"Searching for execution environment classes in {exec_env_dir}"
@@ -674,12 +701,14 @@ class ConfigLoader:
 
         :return: A list of network environment classes.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         exec_env_classes = []
         exec_env_dir = (
-            self._panther_dir /
-            Path(self.global_config.paths.plugin_dir) /
-            "environments" /
-            "network_environment"
+            self._panther_dir
+            / Path(self.global_config.paths.plugin_dir)
+            / "environments"
+            / "network_environment"
         )
         self.logger.debug(
             f"Searching for network environment classes in {exec_env_dir}"
@@ -709,8 +738,12 @@ class ConfigLoader:
 
         :return: A list of protocol classes.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         protocol_classes = []
-        protocol_dir =  self._panther_dir / Path(self.global_config.paths.plugin_dir) / "protocols"
+        protocol_dir = (
+            self._panther_dir / Path(self.global_config.paths.plugin_dir) / "protocols"
+        )
         self.logger.debug(f"Searching for protocol classes in {protocol_dir}")
         for protocol_type_dir in protocol_dir.iterdir():
             if protocol_type_dir.is_dir():
@@ -737,8 +770,15 @@ class ConfigLoader:
 
         :return: A dictionary with protocols as keys and list of IUT classes as values.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         iut_classes = {}
-        iut_dir =  self._panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "iut"
+        iut_dir = (
+            self._panther_dir
+            / Path(self.global_config.paths.plugin_dir)
+            / "services"
+            / "iut"
+        )
         self.logger.debug(f"Searching for IUT classes in {iut_dir}")
         for protocol_dir in iut_dir.iterdir():
             if protocol_dir.is_dir():
@@ -763,14 +803,18 @@ class ConfigLoader:
 
         :return: A list of tester classes.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         tester_classes = []
-        #tester_dir =  self.panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "testers"
-        tester_dir = files(f'{self.global_config.paths.plugin_dir}.services.testers') # .joinpath('resource1.txt')
+        # tester_dir =  self.panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "testers"
+        tester_dir = files(
+            f"{self.global_config.paths.plugin_dir}.services.testers"
+        )  # .joinpath('resource1.txt')
         self.logger.debug(f"Searching for tester classes in {tester_dir}")
         for plugin_dir in tester_dir.iterdir():
             if plugin_dir.is_dir():
                 plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                if plugin_file.exists(): # type: ignore
+                if plugin_file.exists():  # type: ignore
                     self.logger.debug(f"Found tester class: {plugin_dir.name}")
                     tester_classes.append(
                         PluginLoader.get_class_name(plugin_dir.name, "Config")
@@ -796,8 +840,11 @@ class ConfigLoader:
         all_plugins = {}
 
         for plugin_type, plugin_path in plugin_types.items():
-            
-            plugin_dir =  self._panther_dir / Path(self.global_config.paths.plugin_dir) / plugin_path
+            plugin_dir = (
+                self._panther_dir
+                / Path(self.global_config.paths.plugin_dir)
+                / plugin_path
+            )
             self.logger.debug(f"Searching for plugins in {plugin_dir}")
             plugins = []
             if plugin_type == "iut":
@@ -838,15 +885,19 @@ class ConfigLoader:
 
         return all_plugins
 
-    def list_plugin_parameters(self, plugin_type: str, plugin_name: str, protocol: str = None):
+    def list_plugin_parameters(
+        self, plugin_type: str, plugin_name: str, protocol: str = None
+    ):
         """
         List all configurable parameters for a specified plugin.
-        
+
         :param plugin_type: The plugin type (e.g., "network_environment", "execution_environment", "iut", "tester").
         :param plugin_name: The plugin name (e.g., "shadow_ns", "picoquic").
         :param protocol: Optional protocol name for IUT/tester plugins (e.g., "quic", "http").
         :return: Dictionary of parameters with their types, defaults, and descriptions.
         """
+        from panther.plugins.plugin_loader import PluginLoader
+
         try:
             # Determine the correct module path based on plugin type
             if plugin_type in ["iut", "tester"]:
@@ -868,57 +919,72 @@ class ConfigLoader:
                             break
                         except ImportError:
                             continue
-                    
+
                     if not found:
-                        raise ImportError(f"Could not find plugin schema for {plugin_name}")
+                        raise ImportError(
+                            f"Could not find plugin schema for {plugin_name}"
+                        )
             else:
                 # For environment plugins
                 module_path = f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
                 plugin_module = importlib.import_module(module_path)
-                
+
             self.logger.debug(f"Found plugin schema at {module_path}")
-            
+
             # Get the class name using the plugin loader helper
             class_name = PluginLoader.get_class_name(plugin_name)
             config_class = getattr(plugin_module, class_name)
-            
+
             # Format and return the parameters
             parameters = {}
-            
+
             # Use dataclasses introspection to get fields
             import dataclasses
             import inspect
             from typing import get_type_hints
-            
+
             if dataclasses.is_dataclass(config_class):
                 fields = dataclasses.fields(config_class)
                 type_hints = get_type_hints(config_class)
-                
+
                 for field in fields:
                     param_info = {
                         "type": str(type_hints.get(field.name, "unknown")),
-                        "default": field.default if field.default is not dataclasses.MISSING else None,
+                        "default": (
+                            field.default
+                            if field.default is not dataclasses.MISSING
+                            else None
+                        ),
                         "required": field.default is dataclasses.MISSING,
-                        "description": inspect.getdoc(field) or "No description available"
+                        "description": inspect.getdoc(field)
+                        or "No description available",
                     }
                     parameters[field.name] = param_info
-                    
+
             return parameters
-            
+
         except ImportError as e:
-            print(f"Plugin schema for '{plugin_name}' not found. Check if the plugin name is correct.")
+            print(
+                f"Plugin schema for '{plugin_name}' not found. Check if the plugin name is correct."
+            )
             print(f"Error details: {e}")
-            
+
             # Let's provide more helpful guidance for IUT/tester plugins
             if plugin_type in ["iut", "tester"]:
-                print("\nFor IUT/tester plugins, try specifying the protocol if applicable.")
+                print(
+                    "\nFor IUT/tester plugins, try specifying the protocol if applicable."
+                )
                 print("Example: quiche is under the 'quic' protocol, so use:")
-                print(f"panther --list-plugin-params {plugin_name} --plugin-type {plugin_type} --protocol quic")
-            
+                print(
+                    f"panther --list-plugin-params {plugin_name} --plugin-type {plugin_type} --protocol quic"
+                )
+
             return {}
         except AttributeError as e:
             print(f"Error retrieving parameters for plugin '{plugin_name}': {e}")
             return {}
         except Exception as e:
-            print(f"Unexpected error while listing parameters for plugin '{plugin_name}': {e}")
+            print(
+                f"Unexpected error while listing parameters for plugin '{plugin_name}': {e}"
+            )
             return {}

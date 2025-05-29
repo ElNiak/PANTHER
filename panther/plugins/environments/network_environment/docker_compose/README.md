@@ -1,7 +1,7 @@
 # Docker Compose Environment
 
-> **Plugin Type**: Network Environment  
-> **Verified Source Location**: `plugins/environments/network_environment/docker_compose/`  
+> **Plugin Type**: Network Environment
+> **Verified Source Location**: `plugins/environments/network_environment/docker_compose/`
 
 ## Purpose and Overview
 
@@ -63,18 +63,18 @@ network_environment:
 ```yaml
 tests:
   - name: "Basic Network Test"
-    network_environment: 
+    network_environment:
       type: "docker_compose"
       network_name: "test_network"
     services:
       server:
-        name: "http_server" 
-        implementation: 
+        name: "http_server"
+        implementation:
           name: "nginx"
           type: "iut"
       client:
-        name: "http_client" 
-        implementation: 
+        name: "http_client"
+        implementation:
           name: "curl"
           type: "tester"
 ```
@@ -84,7 +84,7 @@ tests:
 ```yaml
 tests:
   - name: "Advanced Network Test"
-    network_environment: 
+    network_environment:
       type: "docker_compose"
       network_name: "secure_network"
       service_prefix: "secure_"
@@ -96,13 +96,13 @@ tests:
         TLS_ENABLED: "true"
     services:
       server:
-        name: "quic_server" 
-        implementation: 
+        name: "quic_server"
+        implementation:
           name: "picoquic"
           type: "iut"
       client:
-        name: "quic_client" 
-        implementation: 
+        name: "quic_client"
+        implementation:
           name: "picoquic"
           type: "tester"
 ```
@@ -120,12 +120,12 @@ from panther.plugins.environments.network_environment.docker_compose.docker_comp
 
 class CustomNetworkEnvironment(DockerComposeEnvironment):
     """Custom network environment with advanced features."""
-    
+
     def setup(self):
         """Custom setup with additional network configuration."""
         super().setup()
         # Add custom network configuration
-        
+
     def get_network_info(self):
         """Return enhanced network information."""
         base_info = super().get_network_info()

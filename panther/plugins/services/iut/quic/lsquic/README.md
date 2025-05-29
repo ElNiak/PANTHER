@@ -1,7 +1,7 @@
 # LiteSpeed QUIC (lsquic) Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Verified Source Location**: `plugins/services/iut/quic/lsquic/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Verified Source Location**: `plugins/services/iut/quic/lsquic/`
 
 ## Purpose and Overview
 
@@ -11,7 +11,7 @@ The lsquic plugin provides integration with LiteSpeed's QUIC implementation, a h
 
 The lsquic implementation plugin is designed for:
 - High-performance QUIC server evaluation
-- Production-grade HTTP/3 testing scenarios  
+- Production-grade HTTP/3 testing scenarios
 - CDN and edge server compatibility validation
 - Load testing and throughput benchmarking
 - Commercial deployment scenario simulation
@@ -306,7 +306,7 @@ services:
 perf record -g ./lsquic_server
 perf report
 
-# Memory profiling  
+# Memory profiling
 valgrind --tool=massif ./lsquic_server
 
 # Network analysis

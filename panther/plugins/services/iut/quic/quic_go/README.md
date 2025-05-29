@@ -1,7 +1,7 @@
 # QUIC-Go Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Verified Source Location**: `plugins/services/iut/quic/quic_go/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Verified Source Location**: `plugins/services/iut/quic/quic_go/`
 
 ## Purpose and Overview
 
@@ -200,7 +200,7 @@ import (
     "crypto/tls"
     "log"
     "net/http"
-    
+
     "github.com/quic-go/quic-go/http3"
 )
 
@@ -209,7 +209,7 @@ func main() {
     mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         w.Write([]byte("Hello QUIC-Go!"))
     })
-    
+
     server := http3.Server{
         Addr:    ":8443",
         Handler: mux,
@@ -217,7 +217,7 @@ func main() {
             Certificates: []tls.Certificate{cert},
         },
     }
-    
+
     log.Fatal(server.ListenAndServe())
 }
 ```
@@ -232,7 +232,7 @@ import (
     "fmt"
     "io"
     "net/http"
-    
+
     "github.com/quic-go/quic-go/http3"
 )
 
@@ -244,13 +244,13 @@ func main() {
             },
         },
     }
-    
+
     resp, err := client.Get("https://localhost:8443/")
     if err != nil {
         panic(err)
     }
     defer resp.Body.Close()
-    
+
     body, _ := io.ReadAll(resp.Body)
     fmt.Println(string(body))
 }
@@ -286,7 +286,7 @@ func TestQUICGoServer(t *testing.T) {
     // Test server implementation
     server := setupTestServer()
     defer server.Close()
-    
+
     client := &http.Client{
         Transport: &http3.RoundTripper{
             TLSClientConfig: &tls.Config{
@@ -294,7 +294,7 @@ func TestQUICGoServer(t *testing.T) {
             },
         },
     }
-    
+
     resp, err := client.Get(server.URL + "/test")
     assert.NoError(t, err)
     assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -322,7 +322,7 @@ services:
 func BenchmarkConcurrentConnections(b *testing.B) {
     server := setupPerfTestServer()
     defer server.Close()
-    
+
     b.ResetTimer()
     b.RunParallel(func(pb *testing.PB) {
         client := setupTestClient()

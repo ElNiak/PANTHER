@@ -48,7 +48,7 @@ PANTHER uses a hierarchical plugin system:
 The plugin system provides dynamic loading and lifecycle management:
 
 - **[Plugin Loader](panther/plugins/plugin_loader.py)**: Dynamic plugin discovery and loading
-- **[Plugin Manager](panther/plugins/plugin_manager.py)**: Plugin lifecycle and dependency management  
+- **[Plugin Manager](panther/plugins/plugin_manager.py)**: Plugin lifecycle and dependency management
 - **[Plugin Interface](panther/plugins/plugin_interface.py)**: Base interfaces and contracts
 
 ## Plugin Categories
@@ -66,7 +66,7 @@ Service plugins represent either implementations being tested or testing tools:
 
 **Documentation**: [Services Plugin Guide](panther/plugins/services)
 
-### Protocol Plugins  
+### Protocol Plugins
 
 Protocol plugins provide testing logic and configuration for specific network protocols:
 
@@ -97,12 +97,12 @@ graph TB
     subgraph "Experiment Layer"
         E[Experiment Configuration]
     end
-    
+
     subgraph "Plugin Manager Layer"
         PM[Plugin Manager]
         PL[Plugin Loader]
     end
-    
+
     subgraph "Environment Layer"
         EE[Execution Environment]
         NE[Network Environment]
@@ -110,25 +110,25 @@ graph TB
         SS[Shadow Simulator]
         LC[Localhost Container]
     end
-    
+
     subgraph "Service Layer"
         IUT[Implementation Under Test]
         TESTER[Tester Services]
     end
-    
+
     subgraph "Protocol Layer"
         QUIC[QUIC Protocol]
         HTTP[HTTP Protocol]
         MINIP[MinIP Protocol]
     end
-    
+
     subgraph "Implementation Layer"
         PQ[Picoquic]
         QC[Quiche]
         MV[mvfst]
         IVY[Panther Ivy]
     end
-    
+
     E --> PM
     PM --> PL
     PL --> EE
@@ -146,12 +146,12 @@ graph TB
     QUIC --> QC
     QUIC --> MV
     TESTER --> IVY
-    
+
     classDef environment fill:#e1f5fe
     classDef service fill:#f3e5f5
     classDef protocol fill:#e8f5e8
     classDef implementation fill:#fff3e0
-    
+
     class EE,NE,DC,SS,LC environment
     class IUT,TESTER service
     class QUIC,HTTP,MINIP protocol
@@ -170,25 +170,25 @@ sequenceDiagram
     participant IUT as IUT Service
     participant TESTER as Tester Service
     participant PROTOCOL as Protocol Plugin
-    
+
     EM->>PM: Load experiment configuration
     PM->>NE: Initialize network environment
     PM->>IUT: Load implementation plugin
     PM->>TESTER: Load tester plugin
     PM->>PROTOCOL: Configure protocol
-    
+
     NE->>NE: Create network topology
     IUT->>PROTOCOL: Register protocol capabilities
     TESTER->>PROTOCOL: Register testing capabilities
-    
+
     EM->>NE: Start environment
     EM->>IUT: Start implementation
     EM->>TESTER: Start tester
-    
+
     TESTER->>IUT: Send test traffic
     IUT->>TESTER: Respond to tests
     PROTOCOL->>EM: Report protocol events
-    
+
     EM->>TESTER: Stop tester
     EM->>IUT: Stop implementation
     EM->>NE: Stop environment

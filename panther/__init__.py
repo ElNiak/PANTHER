@@ -1,14 +1,15 @@
 """PANTHER package.
 
-PANTHER (Protocol Analysis and Network Testing Harness for Extensive Research) is a 
+PANTHER (Protocol Analysis and Network Testing Harness for Extensive Research) is a
 framework for network protocol testing and research.
 """
 
-__version__ = "1.1.1"  # Keep this in sync with pyproject.toml
+__version__ = "1.1.2"  # Keep this in sync with pyproject.toml
 
 # When installed, try to get the version from the package metadata
 try:
     import importlib.metadata
+
     __version__ = importlib.metadata.version("panther-net")
 except (importlib.metadata.PackageNotFoundError, ImportError):
     # Package is not installed, use the hardcoded version

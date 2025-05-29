@@ -1,8 +1,8 @@
 # MinIP Ping-Pong Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Parent Plugin**: [MinIP IUT](panther/plugins/services/iut/minip/README.md)  
-> **Source Location**: `plugins/services/iut/minip/ping_pong/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Parent Plugin**: [MinIP IUT](panther/plugins/services/iut/minip/README.md)
+> **Source Location**: `plugins/services/iut/minip/ping_pong/`
 
 ## Overview
 
@@ -25,7 +25,7 @@ The plugin provides multiple implementation variants for different testing scena
 - **Behavior**: Follows MinIP specification exactly
 - **Use Case**: Baseline conformance testing
 
-### Vulnerable Variant  
+### Vulnerable Variant
 - **Purpose**: Implementation with intentional security vulnerabilities
 - **Behavior**: Contains specific security flaws for testing
 - **Use Case**: Security testing and penetration testing scenarios
@@ -124,7 +124,7 @@ tests:
 The ping-pong implementation consists of:
 
 1. **Client Component**: Sends ping requests and handles pong responses
-2. **Server Component**: Listens for ping requests and sends pong responses  
+2. **Server Component**: Listens for ping requests and sends pong responses
 3. **Protocol Handler**: Manages MinIP packet formatting and parsing
 4. **Version Manager**: Switches between implementation variants
 

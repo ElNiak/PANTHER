@@ -54,7 +54,7 @@ extern "C" {
 #define PICOQUIC_TARGET_RENO_RTT 100000ull /* 100 ms */
 #define PICOQUIC_TARGET_SATELLITE_RTT 610000ull /* 610 ms, practical maximum for non-pathological RTT */
 #define PICOQUIC_INITIAL_RETRANSMIT_TIMER 10000000ull /* 250 ms chris: 10 sec */
-#define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 10000000ull /* one second CHRIS 10 sec*/ 
+#define PICOQUIC_INITIAL_MAX_RETRANSMIT_TIMER 10000000ull /* one second CHRIS 10 sec*/
 #define PICOQUIC_LARGE_RETRANSMIT_TIMER 7000000ull /* two seconds CHRIS 7 sec */
 #define PICOQUIC_MIN_RETRANSMIT_TIMER 2000000ull /* 50 ms -> 1 sec */
 #define PICOQUIC_ACK_DELAY_MAX 10000ull /* 10 ms */
@@ -270,7 +270,7 @@ typedef struct st_picoquic_packet_header_t {
     size_t offset; /* offset to the first byte of the payload.*/
     size_t pn_offset; /* offset to the first byte of the packet number */
     picoquic_packet_type_enum ptype;
-    uint64_t pnmask; 
+    uint64_t pnmask;
     uint64_t pn64;
     size_t payload_length;
     int version_index;
@@ -457,7 +457,7 @@ int picoquic_store_ticket(picoquic_stored_ticket_t** p_first_ticket,
     const uint8_t* ip_addr_client, uint8_t ip_addr_client_length,
     uint8_t* ticket, uint16_t ticket_length, picoquic_tp_t const * tp);
 picoquic_stored_ticket_t* picoquic_get_stored_ticket(picoquic_stored_ticket_t* p_first_ticket,
-    uint64_t current_time, char const* sni, uint16_t sni_length, 
+    uint64_t current_time, char const* sni, uint16_t sni_length,
     char const* alpn, uint16_t alpn_length, uint32_t version, int need_unused, uint64_t ticket_id);
 int picoquic_get_ticket(picoquic_stored_ticket_t* p_first_ticket,
     uint64_t current_time,
@@ -542,35 +542,35 @@ picoquic_issued_ticket_t* picoquic_retrieve_issued_ticket(picoquic_quic_t* quic,
  * We changed that to using macro for definition.
  */
 typedef uint64_t picoquic_tp_enum;
-#define picoquic_tp_original_connection_id 0 
-#define picoquic_tp_idle_timeout 1 
-#define picoquic_tp_stateless_reset_token 2 
-#define picoquic_tp_max_packet_size 3 
-#define picoquic_tp_initial_max_data 4 
-#define picoquic_tp_initial_max_stream_data_bidi_local 5 
-#define picoquic_tp_initial_max_stream_data_bidi_remote 6 
-#define picoquic_tp_initial_max_stream_data_uni 7 
-#define picoquic_tp_initial_max_streams_bidi 8 
-#define picoquic_tp_initial_max_streams_uni 9 
-#define picoquic_tp_ack_delay_exponent 10 
-#define picoquic_tp_max_ack_delay 11 
-#define picoquic_tp_disable_migration 12 
-#define picoquic_tp_server_preferred_address 13 
-#define picoquic_tp_active_connection_id_limit 14 
-#define picoquic_tp_handshake_connection_id 15 
-#define picoquic_tp_retry_connection_id 16 
-#define picoquic_tp_max_datagram_frame_size 32 /* per draft-pauly-quic-datagram-05 */ 
-#define picoquic_tp_test_large_chello 3127 
-#define picoquic_tp_enable_loss_bit_old 0x1055 
-#define picoquic_tp_enable_loss_bit 0x1057 
-#define picoquic_tp_min_ack_delay 0xff02de1aull 
+#define picoquic_tp_original_connection_id 0
+#define picoquic_tp_idle_timeout 1
+#define picoquic_tp_stateless_reset_token 2
+#define picoquic_tp_max_packet_size 3
+#define picoquic_tp_initial_max_data 4
+#define picoquic_tp_initial_max_stream_data_bidi_local 5
+#define picoquic_tp_initial_max_stream_data_bidi_remote 6
+#define picoquic_tp_initial_max_stream_data_uni 7
+#define picoquic_tp_initial_max_streams_bidi 8
+#define picoquic_tp_initial_max_streams_uni 9
+#define picoquic_tp_ack_delay_exponent 10
+#define picoquic_tp_max_ack_delay 11
+#define picoquic_tp_disable_migration 12
+#define picoquic_tp_server_preferred_address 13
+#define picoquic_tp_active_connection_id_limit 14
+#define picoquic_tp_handshake_connection_id 15
+#define picoquic_tp_retry_connection_id 16
+#define picoquic_tp_max_datagram_frame_size 32 /* per draft-pauly-quic-datagram-05 */
+#define picoquic_tp_test_large_chello 3127
+#define picoquic_tp_enable_loss_bit_old 0x1055
+#define picoquic_tp_enable_loss_bit 0x1057
+#define picoquic_tp_min_ack_delay 0xff02de1aull
 #define picoquic_tp_enable_time_stamp 0x7158  /* x&1 */
 #define picoquic_tp_grease_quic_bit 0x2ab2
 #define picoquic_tp_enable_multipath 0xbabf
 #define picoquic_tp_version_negotiation 0xff73db
 #define picoquic_tp_enable_bdp_frame 0xebd9 /* per draft-kuhn-quic-0rtt-bdp-09 */
 
-/* Callback for converting binary log to quic log at the end of a connection. 
+/* Callback for converting binary log to quic log at the end of a connection.
  * This is kept private for now; and will only be set through the "set quic log"
  * API.
  */
@@ -808,9 +808,9 @@ typedef struct st_picoquic_stream_head_t {
 
 /*
  * Frame queue. This is used for miscellaneous packets. It is also used for
- * various tests, allowing for fault injection. 
+ * various tests, allowing for fault injection.
  *
- * Misc frames are sent at the next opportunity. 
+ * Misc frames are sent at the next opportunity.
  * TODO: consider flagging MISC frames with expected packet type or epoch,
  * to avoid creating unexpected protocol errors.
  *
@@ -887,7 +887,7 @@ typedef struct st_picoquic_ack_context_t {
 
 /* Local CID.
  * Local CID are created on demand, and stashed in the CID list.
- * When the CID is created, it is registered in the QUIC context as 
+ * When the CID is created, it is registered in the QUIC context as
  * pointing to the local connection. We manage collisions, so two
  * connections do not use the same context.
  * When a CID is associated with a path, we set a pointer from the
@@ -905,7 +905,7 @@ typedef struct st_picoquic_local_cnxid_t {
 } picoquic_local_cnxid_t;
 
 /* Remote CID.
- * Remote CID are received from the peer. RCID #0 is received during the 
+ * Remote CID are received from the peer. RCID #0 is received during the
  * handshake, RCID#1 MAY be received as part of server's transport parameters,
  * all other RCID are received in New CID frames. */
 typedef struct st_picoquic_remote_cnxid_t {
@@ -939,7 +939,7 @@ typedef struct st_picoquic_remote_cnxid_t {
 */
 
 typedef struct st_picoquic_path_t {
-    picoquic_local_cnxid_t* p_local_cnxid; 
+    picoquic_local_cnxid_t* p_local_cnxid;
     picoquic_remote_cnxid_t* p_remote_cnxid;
 
     struct st_picoquic_net_id_key_t* first_net_id;
@@ -1105,7 +1105,7 @@ typedef struct st_picoquic_path_t {
     uint64_t cwin_remote;
     uint8_t ip_client_remote[16];
     uint8_t ip_client_remote_length;
-    
+
 } picoquic_path_t;
 
 /* Crypto context. There are four such contexts:
@@ -1472,7 +1472,7 @@ void picoquic_reset_packet_context(picoquic_cnx_t* cnx,
     picoquic_packet_context_enum pc);
 
 /* Notify error on connection */
-int picoquic_connection_error(picoquic_cnx_t* cnx, uint64_t local_error, uint64_t frame_type); 
+int picoquic_connection_error(picoquic_cnx_t* cnx, uint64_t local_error, uint64_t frame_type);
 int picoquic_connection_error_ex(picoquic_cnx_t* cnx, uint64_t local_error, uint64_t frame_type, char const* local_reason);
 
 
@@ -1579,7 +1579,7 @@ int picoquic_parse_header_and_decrypt(
 /* handling of ACK logic */
 void picoquic_init_ack_ctx(picoquic_cnx_t* cnx, picoquic_ack_context_t* ack_ctx);
 
-int picoquic_is_ack_needed(picoquic_cnx_t* cnx,  uint64_t current_time, uint64_t * next_wake_time, 
+int picoquic_is_ack_needed(picoquic_cnx_t* cnx,  uint64_t current_time, uint64_t * next_wake_time,
     picoquic_packet_context_enum pc, int is_opportunistic);
 
 int picoquic_is_pn_already_received(picoquic_cnx_t* cnx, picoquic_packet_context_enum pc,
@@ -1604,7 +1604,7 @@ picoquic_sack_item_t* picoquic_sack_first_item(picoquic_sack_list_t* sack_list);
 picoquic_sack_item_t* picoquic_sack_last_item(picoquic_sack_list_t* sack_list);
 picoquic_sack_item_t* picoquic_sack_next_item(picoquic_sack_item_t * sack);
 picoquic_sack_item_t* picoquic_sack_previous_item(picoquic_sack_item_t* sack);
-int picoquic_sack_insert_item(picoquic_sack_list_t* sack_list, uint64_t range_min, 
+int picoquic_sack_insert_item(picoquic_sack_list_t* sack_list, uint64_t range_min,
     uint64_t range_max, uint64_t current_time);
 
 int picoquic_sack_list_is_empty(picoquic_sack_list_t* sack_list);
@@ -1617,7 +1617,7 @@ picoquic_sack_item_t* picoquic_sack_list_first_range(picoquic_sack_list_t* first
 
 void picoquic_sack_list_init(picoquic_sack_list_t* first_sack);
 
-int picoquic_sack_list_reset(picoquic_sack_list_t* first_sack, 
+int picoquic_sack_list_reset(picoquic_sack_list_t* first_sack,
     uint64_t range_min, uint64_t range_max, uint64_t current_time);
 
 void picoquic_sack_list_free(picoquic_sack_list_t* first_sack);
@@ -1678,14 +1678,14 @@ int picoquic_is_tls_stream_ready(picoquic_cnx_t* cnx);
 const uint8_t* picoquic_decode_stream_frame(picoquic_cnx_t* cnx, const uint8_t* bytes,
     const uint8_t* bytes_max, picoquic_stream_data_node_t* received_data, uint64_t current_time);
 
-uint8_t* picoquic_format_stream_frame(picoquic_cnx_t* cnx, picoquic_stream_head_t* stream, 
+uint8_t* picoquic_format_stream_frame(picoquic_cnx_t* cnx, picoquic_stream_head_t* stream,
     uint8_t* bytes, uint8_t* bytes_max, int* more_data, int* is_pure_ack, int* is_still_active, int* ret);
 
 void picoquic_update_max_stream_ID_local(picoquic_cnx_t* cnx, picoquic_stream_head_t* stream);
 
 /* Handling of retransmission of frames.
  * When a packet is deemed lost, the code looks at the frames that it contained and
- * calls "picoquic_check_frame_needs_repeat" to see whether a given frame needs to 
+ * calls "picoquic_check_frame_needs_repeat" to see whether a given frame needs to
  * be retransmitted. This is different from checking whether a frame needs to be acked.
  * For example, a "MAX DATA" frame needs to be acked, but it will only be retransmitted
  * if it was not superceded by a similar frame carrying a larger max value.
@@ -1696,7 +1696,7 @@ int picoquic_check_frame_needs_repeat(picoquic_cnx_t* cnx, const uint8_t* bytes,
     int* no_need_to_repeat, int* do_not_detect_spurious, int is_preemptive);
 uint8_t* picoquic_format_available_stream_frames(picoquic_cnx_t* cnx, uint8_t* bytes_next, uint8_t* bytes_max,
     int* more_data, int* is_pure_ack, int* stream_tried_and_failed, int* ret);
-uint8_t* picoquic_format_stream_frame_for_retransmit(picoquic_cnx_t* cnx, 
+uint8_t* picoquic_format_stream_frame_for_retransmit(picoquic_cnx_t* cnx,
     uint8_t* bytes_next, uint8_t* bytes_max, int* is_pure_ack);
 uint8_t* picoquic_format_stream_frames_queued_for_retransmit(picoquic_cnx_t* cnx, uint8_t* bytes_next, uint8_t* bytes_max, int* more_data, int* is_pure_ack);
 int picoquic_copy_before_retransmit(picoquic_packet_t * old_p,

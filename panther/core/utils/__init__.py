@@ -9,7 +9,4 @@ from . import jinja_manager
 from .sequence_diagram import *
 
 # Define the public API
-__all__ = [
-    "docker_builder",
-    "jinja_manager"
-]
+__all__ = ["docker_builder", "jinja_manager"]

@@ -10,9 +10,6 @@ from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 
-
-
-
 class LsquicServiceManager(IImplementationManager):
     def __init__(
         self,
@@ -27,9 +24,7 @@ class LsquicServiceManager(IImplementationManager):
         self.logger.debug(
             f"Initializing Lsquic service manager for '{implementation_name}'"
         )
-        self.logger.debug(
-            f"Loaded Lsquic configuration: {self.service_config_to_test}"
-        )
+        self.logger.debug(f"Loaded Lsquic configuration: {self.service_config_to_test}")
         self.initialize_commands()
 
     def generate_run_command(self):
@@ -53,9 +48,7 @@ class LsquicServiceManager(IImplementationManager):
         """
         Generates post-run commands.
         """
-        return super().generate_post_run_commands() + [
-            "cp /opt/lsquic/bin /app/logs/;"
-        ]
+        return super().generate_post_run_commands() + ["cp /opt/lsquic/bin /app/logs/;"]
 
     def prepare(self, plugin_loader: PluginLoader | None = None):
         """

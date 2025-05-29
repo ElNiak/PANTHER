@@ -18,7 +18,7 @@ USER ${USER_N}
 
 # Function to parse and build dependencies
 # TODO make more modular
-RUN cd /opt && \ 
+RUN cd /opt && \
     echo "Starting dependency installation..." && \
     echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
         DEP_NAME=$(echo $dep | jq -r '.name'); \

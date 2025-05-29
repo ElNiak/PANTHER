@@ -48,22 +48,22 @@ TARGET_IP=$(getent hosts picoquic_server | awk "{ print \$1 }");
 echo "Resolved picoquic_server IP - $TARGET_IP" >> /app/logs/ivy_setup.log;
 IVY_IP=$(hostname -I | awk "{ print \$1 }");
 echo "Resolved  ivy_client IP - $IVY_IP" >> /app/logs/ivy_setup.log;
- 
+
 ip_to_hex() {
 PS4="[<ip_to_hex>:${LINENO}] "; export PS4; set -x;
   echo $1 | awk -F"." "{ printf(\"%02X%02X%02X%02X\", \$1, \$2, \$3, \$4) }";
 }
- 
+
 ip_to_decimal() {
 PS4="[<ip_to_decimal>:${LINENO}] "; export PS4; set -x;
   echo $1 | awk -F"." "{ printf(\"%.0f\", (\$1 * 256 * 256 * 256) + (\$2 * 256 * 256) + (\$3 * 256) + \$4) }";
 }
- 
+
 TARGET_IP_HEX=$(ip_to_decimal $TARGET_IP);
 IVY_IP_HEX=$(ip_to_decimal $IVY_IP);
 echo "Resolved picoquic_server IP in hex - $TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
 echo "Resolved ivy_client IP in hex - $IVY_IP_HEX" >> /app/logs/ivy_setup.log;
- 
+
 rm -rf /opt/panther_ivy/protocol-testing/quic/build/*;
 echo "Copying QUIC libraries..." >> /app/logs/ivy_setup.log &&
 cp -f -a /opt/picotls/*.a "/usr/local/lib/python3.10/dist-packages/ivy/lib/" &&
@@ -72,7 +72,7 @@ cp -f /opt/picotls/include/picotls.h "/usr/local/lib/python3.10/dist-packages/iv
 cp -f /opt/picotls/include/picotls.h "/opt/panther_ivy/ivy/include/picotls.h" &&
 cp -r -f /opt/picotls/include/picotls/. "/usr/local/lib/python3.10/dist-packages/ivy/include/picotls" &&
 cp -f "/opt/panther_ivy/protocol-testing/quic//quic_utils/quic_ser_deser.h" "/usr/local/lib/python3.10/dist-packages/ivy/include/1.7/" &&
- 
+
 update_ivy_tool() {
 PS4="[<update_ivy_tool>:${LINENO}] "; export PS4; set -x;
 	echo "Updating Ivy tool..." >> /app/logs/ivy_setup.log;
@@ -85,10 +85,10 @@ PS4="[<update_ivy_tool>:${LINENO}] "; export PS4; set -x;
 	echo "Copying updated Z3 files..." >> /app/logs/ivy_setup.log 2>&1;
 	cp -f -a /opt/panther_ivy/ivy/lib/*.a "/usr/local/lib/python3.10/dist-packages/ivy/lib/" >> /app/logs/ivy_setup.log 2>&1;
 }
- 
+
 update_ivy_tool &&
 
- 
+
 remove_debug_events() {
 PS4="[<remove_debug_events>:${LINENO}] "; export PS4; set -x;
 	echo "Removing debug events..." >> /app/logs/ivy_setup.log;
@@ -100,7 +100,7 @@ PS4="[<remove_debug_events>:${LINENO}] "; export PS4; set -x;
 		fi
 	" _ {};
 }
- 
+
 restore_debug_events() {
 PS4="[<restore_debug_events>:${LINENO}] "; export PS4; set -x;
 	echo "Restoring debug events..." >> /app/logs/ivy_setup.log;
@@ -112,7 +112,7 @@ PS4="[<restore_debug_events>:${LINENO}] "; export PS4; set -x;
 		fi
 	" _ {};
 }
- 
+
 setup_ivy_model() {
 PS4="[<setup_ivy_model>:${LINENO}] "; export PS4; set -x;
 	echo "Setting up Ivy model..." >> /app/logs/ivy_setup.log &&
@@ -129,20 +129,20 @@ PS4="[<setup_ivy_model>:${LINENO}] "; export PS4; set -x;
 	" _ {} \;;
 	ls -l /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ >> /app/logs/ivy_setup.log;
 }
- 
-setup_ivy_model && 
- 
+
+setup_ivy_model &&
+
 cd /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests;
 PYTHONPATH=$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=300 quic_server_test_stream.ivy >> /app/logs/ivy_setup.log 2>&1;
 (ls >> /app/logs/ivy_setup.log 2>&1 ;
- 
-cp /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests/quic_server_test_stream* /opt/panther_ivy/protocol-testing/quic/build/; 
+
+cp /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests/quic_server_test_stream* /opt/panther_ivy/protocol-testing/quic/build/;
 ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1 ;)
  && \
- (touch /app/sync_logs/ivy_ready.log) 
+ (touch /app/sync_logs/ivy_ready.log)
 cd /opt/panther_ivy/protocol-testing/quic/;
-(touch /app/logs/ivy_client.pcap; tshark -a duration:150 -i any -w /app/logs/ivy_client.pcap;) & 
+(touch /app/logs/ivy_client.pcap; tshark -a duration:150 -i any -w /app/logs/ivy_client.pcap;) &
 echo "Running timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err" >> /app/logs/ivy_client_setup.log;
 (sleep 5; exec timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  /opt/panther_ivy/protocol-testing/quic//build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err) ;
- 
+
 ( cp /opt/panther_ivy/protocol-testing/quic/build/quic_server_test_stream /app/logs/quic_server_test_stream && \  rm /opt/panther_ivy/protocol-testing/quic/build/quic_server_test_stream*; )'

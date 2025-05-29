@@ -1,4 +1,3 @@
-
 class TesterPluginNotFound(Exception):
     """Exception raised when a tester plugin is not found."""
 

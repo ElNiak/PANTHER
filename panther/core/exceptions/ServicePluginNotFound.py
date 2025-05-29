@@ -1,4 +1,3 @@
-
 class ServicePluginNotFound(Exception):
     """Exception raised when a service plugin is not found."""
 

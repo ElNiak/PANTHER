@@ -1,8 +1,8 @@
 # Picoquic Shadow Plugin
 
-> **Plugin Type**: Service (IUT - Implementation Under Test)  
-> **Protocol**: QUIC  
-> **Verified Source Location**: `plugins/services/iut/quic/picoquic_shadow/`  
+> **Plugin Type**: Service (IUT - Implementation Under Test)
+> **Protocol**: QUIC
+> **Verified Source Location**: `plugins/services/iut/quic/picoquic_shadow/`
 
 ## Purpose and Overview
 
@@ -357,19 +357,19 @@ class PicoquicShadowResearch:
     def __init__(self, config):
         self.config = config
         self.shadow_interface = ShadowInterface()
-        
+
     def run_parameter_sweep(self, parameters):
         """Run experiments with parameter variations"""
         results = []
         for param_set in parameters:
             shadow_config = self.generate_shadow_config(param_set)
             picoquic_config = self.generate_picoquic_config(param_set)
-            
+
             result = self.run_experiment(shadow_config, picoquic_config)
             results.append(result)
-            
+
         return self.analyze_results(results)
-    
+
     def analyze_protocol_behavior(self, traces):
         """Analyze QUIC protocol behavior from Shadow traces"""
         metrics = {
@@ -378,10 +378,10 @@ class PicoquicShadowResearch:
             'migration_events': [],
             'congestion_window_evolution': []
         }
-        
+
         for trace in traces:
             metrics.update(self.extract_metrics(trace))
-            
+
         return self.generate_analysis_report(metrics)
 ```
 

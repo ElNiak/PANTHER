@@ -1,6 +1,5 @@
 # PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
 
-import subprocess
 import os
 import traceback
 from panther.plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
@@ -60,7 +59,7 @@ class PicoquicServiceManager(IImplementationManager):
         Args:
             plugin_loader (PluginLoader | None): An optional PluginLoader instance used to build Docker images.
         """
-        
+
         self.logger.debug("Preparing Picoquic service manager...")
         plugin_loader.build_docker_image_from_path(
             Path(
@@ -91,7 +90,7 @@ class PicoquicServiceManager(IImplementationManager):
             - Debug information about the service name, parameters, role, and version.
             - Error information if command rendering fails.
         """
-        
+
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )
@@ -100,7 +99,6 @@ class PicoquicServiceManager(IImplementationManager):
         self.logger.debug(f"Role: {self.role}, Version: {self.service_version}")
 
         # Determine if network interface parameters should be included based on environment
-        include_interface = True
 
         # Build parameters for the command template
         # TODO ensure that the parameters are correctly set

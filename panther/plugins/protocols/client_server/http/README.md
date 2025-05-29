@@ -1,7 +1,7 @@
 # HTTP Protocol
 
-> **Plugin Type**: Protocol (client_server)  
-> **Verified Source Location**: `plugins/protocols/client_server/http/`  
+> **Plugin Type**: Protocol (client_server)
+> **Verified Source Location**: `plugins/protocols/client_server/http/`
 
 ## Purpose and Overview
 
@@ -55,8 +55,8 @@ tests:
   - name: "Basic HTTP Server Test"
     services:
       server:
-        name: "http_server" 
-        implementation: 
+        name: "http_server"
+        implementation:
           name: "nginx"
           type: "iut"
         protocol:
@@ -74,8 +74,8 @@ tests:
   - name: "HTTP Client Test"
     services:
       client:
-        name: "http_client" 
-        implementation: 
+        name: "http_client"
+        implementation:
           name: "curl"
           type: "iut"
         protocol:
@@ -134,7 +134,7 @@ To test the HTTP protocol plugin:
 
 #### Version Compatibility
 
-**Problem**: Incompatible HTTP versions between client and server  
+**Problem**: Incompatible HTTP versions between client and server
 **Solution**: Ensure client and server are configured with compatible HTTP versions
 
 ```yaml
@@ -149,7 +149,7 @@ client:
 
 #### Missing Target
 
-**Problem**: HTTP client fails to connect because target is not specified  
+**Problem**: HTTP client fails to connect because target is not specified
 **Solution**: Always specify the target service in client configuration
 
 ```yaml
@@ -161,7 +161,7 @@ client:
 
 #### Port Configuration
 
-**Problem**: HTTP server not accessible  
+**Problem**: HTTP server not accessible
 **Solution**: Check port mapping configuration
 
 ```yaml

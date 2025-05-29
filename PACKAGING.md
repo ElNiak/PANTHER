@@ -105,4 +105,4 @@ make docs
 
 # Test the documentation locally
 mkdocs serve
-``` 
+```

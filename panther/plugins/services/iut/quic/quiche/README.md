@@ -1,8 +1,8 @@
 # Quiche QUIC Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)  
-> **Source Location**: `plugins/services/iut/quic/quiche/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+> **Source Location**: `plugins/services/iut/quic/quiche/`
 
 ## Overview
 
@@ -192,7 +192,7 @@ from panther.plugins.services.iut.quic.quiche.quiche import QuicheServiceManager
 
 class CustomQuicheServiceManager(QuicheServiceManager):
     """Enhanced Quiche service manager with custom congestion control."""
-    
+
     def configure_congestion_control(self, algorithm: str):
         """Configure custom congestion control algorithm."""
         # Implementation for custom CC algorithms

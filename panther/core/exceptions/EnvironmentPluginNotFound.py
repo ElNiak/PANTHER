@@ -1,4 +1,3 @@
-
 class EnvironmentPluginNotFound(Exception):
     """Exception raised when the specified environment plugin is not found."""
 

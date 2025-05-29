@@ -1,7 +1,7 @@
 # MinIP Protocol Plugin
 
-> **Plugin Type**: Client-Server Protocol  
-> **Verified Source Location**: `plugins/protocols/client_server/minip/`  
+> **Plugin Type**: Client-Server Protocol
+> **Verified Source Location**: `plugins/protocols/client_server/minip/`
 
 ## Overview
 

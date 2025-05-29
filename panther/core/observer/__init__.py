@@ -20,5 +20,5 @@ __all__ = [
     "gui_observer",
     "logger_observer",
     "observer_interface",
-    "result_observer"
+    "result_observer",
 ]

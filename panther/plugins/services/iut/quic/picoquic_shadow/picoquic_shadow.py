@@ -128,7 +128,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         Raises:
             Exception: If there is an error rendering the command template.
         """
-        
+
         self.logger.debug(
             f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
         )

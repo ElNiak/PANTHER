@@ -1,7 +1,7 @@
 # Quant QUIC Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Verified Source Location**: `plugins/services/iut/quic/quant/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Verified Source Location**: `plugins/services/iut/quic/quant/`
 
 ## Purpose and Overview
 
@@ -205,7 +205,7 @@ typedef struct custom_frame {
 } custom_frame_t;
 
 // Register custom frame handler
-int register_custom_frame(quant_conn_t *conn, 
+int register_custom_frame(quant_conn_t *conn,
                          custom_frame_handler_t handler);
 ```
 

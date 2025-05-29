@@ -9,7 +9,4 @@ from . import result_handler
 from .result_handlers import *
 
 # Define the public API
-__all__ = [
-    "result_collector", 
-    "result_handler"
-]
+__all__ = ["result_collector", "result_handler"]

@@ -1,8 +1,8 @@
 # mvfst QUIC Implementation
 
-> **Plugin Type**: Service (Implementation Under Test)  
-> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)  
-> **Source Location**: `plugins/services/iut/quic/mvfst/`  
+> **Plugin Type**: Service (Implementation Under Test)
+> **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+> **Source Location**: `plugins/services/iut/quic/mvfst/`
 
 ## Overview
 
@@ -223,12 +223,12 @@ from panther.plugins.services.iut.quic.mvfst.mvfst import MvfstServiceManager
 
 class EnhancedMvfstServiceManager(MvfstServiceManager):
     """Enhanced mvfst service manager with advanced CC algorithms."""
-    
+
     def configure_copa_cc(self):
         """Configure COPA congestion control algorithm."""
         # Implementation for COPA-specific testing
         pass
-    
+
     def configure_bbr_settings(self, variant: str):
         """Configure BBR algorithm variants."""
         # Implementation for BBR tuning
@@ -333,7 +333,7 @@ For C++ level debugging, compile mvfst with debug symbols and use gdb or lldb:
 # Debug with gdb
 gdb --args mvfst_server --config server.json
 
-# Debug with lldb  
+# Debug with lldb
 lldb -- mvfst_server --config server.json
 ```
 

@@ -1,7 +1,7 @@
 # Implementation Under Test (IUT) Plugins
 
-> **Plugin Type**: IUT Service  
-> **Verified Source Location**: `plugins/services/iut/`  
+> **Plugin Type**: IUT Service
+> **Verified Source Location**: `plugins/services/iut/`
 
 ## Overview
 

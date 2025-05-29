@@ -1,7 +1,7 @@
 # Shadow NS Environment
 
-> **Plugin Type**: Network Environment  
-> **Verified Source Location**: `plugins/environments/network_environment/shadow_ns/`  
+> **Plugin Type**: Network Environment
+> **Verified Source Location**: `plugins/environments/network_environment/shadow_ns/`
 
 ## Purpose and Overview
 
@@ -75,19 +75,19 @@ network_environment:
 ```yaml
 tests:
   - name: "Basic Shadow Network Test"
-    network_environment: 
+    network_environment:
       type: "shadow_ns"
       general:
         stop_time: 100
     services:
       server:
-        name: "quic_server" 
-        implementation: 
+        name: "quic_server"
+        implementation:
           name: "picoquic_shadow"
           type: "iut"
       client:
-        name: "quic_client" 
-        implementation: 
+        name: "quic_client"
+        implementation:
           name: "picoquic_shadow"
           type: "iut"
 ```
@@ -97,7 +97,7 @@ tests:
 ```yaml
 tests:
   - name: "Shadow Network Test with Impairments"
-    network_environment: 
+    network_environment:
       type: "shadow_ns"
       general:
         stop_time: 200
@@ -112,13 +112,13 @@ tests:
         pcap_enabled: true
     services:
       server:
-        name: "quic_server" 
-        implementation: 
+        name: "quic_server"
+        implementation:
           name: "picoquic_shadow"
           type: "iut"
       client:
-        name: "quic_client" 
-        implementation: 
+        name: "quic_client"
+        implementation:
           name: "picoquic_shadow"
           type: "iut"
 ```
@@ -136,7 +136,7 @@ from panther.plugins.environments.network_environment.shadow_ns.shadow_ns import
 
 class CustomTopologyEnvironment(ShadowNsEnvironment):
     """Custom network environment with advanced topology features."""
-    
+
     def generate_environment_services(self, paths, timestamp):
         """Generate a custom network topology."""
         # Create a custom topology configuration
@@ -177,21 +177,21 @@ To test the Shadow NS environment plugin:
 
 #### System Call Issues
 
-**Problem**: Service crashes with "Unsupported system call" messages.  
+**Problem**: Service crashes with "Unsupported system call" messages.
 **Solution**: Not all system calls are supported by Shadow. Check the Shadow documentation for supported calls or use an alternative implementation that relies on supported system calls.
 
 #### Performance Problems
 
-**Problem**: Slow simulation execution  
+**Problem**: Slow simulation execution
 **Solution**: Reduce simulation complexity, decrease simulation time, or restrict packet capture to specific hosts.
 
 #### Container Limits
 
-**Problem**: "Resource temporarily unavailable" errors  
+**Problem**: "Resource temporarily unavailable" errors
 **Solution**: Shadow may need higher resource limits. Adjust Docker container resources:
 
 ```yaml
-network_environment: 
+network_environment:
   type: "shadow_ns"
   container_resources:
     memory: "4G"

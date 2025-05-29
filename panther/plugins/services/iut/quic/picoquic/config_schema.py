@@ -29,7 +29,7 @@ class PicoquicConfig(ImplementationConfig):
 
     @staticmethod
     def load_versions_from_files(
-        version_configs_dir: str =f"{Path(os.path.dirname(__file__))}/version_configs/",
+        version_configs_dir: str = f"{Path(os.path.dirname(__file__))}/version_configs/",
     ) -> PicoquicVersion:
         """Load version configurations dynamically from YAML files."""
         logging.debug(f"Loading Picoquic versions from {version_configs_dir}")

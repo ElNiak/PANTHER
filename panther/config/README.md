@@ -1,7 +1,7 @@
 # Configuration Guide — Writing & Validating PANTHER YAML 📜
 
-> **Purpose:** Comprehensive guide for designing experiment configurations and understanding PANTHER's validation system  
-> **Target:** Newcomers designing tests; plugin authors adding schemas; advanced users optimizing configurations  
+> **Purpose:** Comprehensive guide for designing experiment configurations and understanding PANTHER's validation system
+> **Target:** Newcomers designing tests; plugin authors adding schemas; advanced users optimizing configurations
 > **Schema System:** Dynamic plugin-based configuration with OmegaConf validation
 
 A **PANTHER configuration** is a single YAML file that defines what to run, where to run it, and how to instrument it. This guide covers the complete configuration system, from basic setups to advanced plugin-specific options.
@@ -40,12 +40,12 @@ tests:
       type: "docker_compose"
       config:
         compose_file: "docker-compose.yml"
-    
+
     execution_environment:
       type: "docker_container"
       config:
         image: "panther/test-env"
-    
+
     services:
       - name: "quic_server"
         type: "iut"
@@ -55,14 +55,14 @@ tests:
           port: 4433
           cert_file: "/certs/server.crt"
           key_file: "/certs/server.key"
-      
+
       - name: "quic_client"
         type: "iut"
         implementation: "quiche"
         role: "client"
         config:
           target: "quic_server"
-          
+
       - name: "formal_verifier"
         type: "tester"
         implementation: "panther_ivy"

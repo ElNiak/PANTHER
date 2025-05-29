@@ -38,7 +38,7 @@ class MemcheckEnvironment(IExecutionEnvironment, ABC):
         __repr__():
             Returns a string representation of the MemcheckEnvironment instance.
     """
-    
+
     def __init__(
         self,
         env_config_to_test: MemcheckConfig,
@@ -102,8 +102,7 @@ class MemcheckEnvironment(IExecutionEnvironment, ABC):
         self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
         self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
 
-    def to_command(self, 
-                   pid: int | None = None) -> str:
+    def to_command(self, pid: int | None = None) -> str:
         """
         Generate the Valgrind Memcheck command for execution.
         :param pid: Optional process ID to attach to.
@@ -125,4 +124,3 @@ class MemcheckEnvironment(IExecutionEnvironment, ABC):
             f"output_dir={self.output_dir}, event_manager={self.event_manager}, "
             f"services_managers={self.services_managers}, test_config={self.test_config})"
         )
-

@@ -9,8 +9,4 @@ from .ServicePluginNotFound import ServicePluginNotFound
 from .TesterPluginNotFound import TesterPluginNotFound
 
 # Define the public API
-__all__ = [
-    "EnvironmentPluginNotFound",
-    "ServicePluginNotFound",
-    "TesterPluginNotFound"
-]
+__all__ = ["EnvironmentPluginNotFound", "ServicePluginNotFound", "TesterPluginNotFound"]

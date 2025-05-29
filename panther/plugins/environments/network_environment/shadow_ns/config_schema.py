@@ -1,13 +1,16 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from panther.config.config_experiment_schema import NetworkEnvironmentConfig
 
 
 @dataclass
 class GeneralConfig:
-    stop_time: str = "300s"  # The total simulation time in seconds -> use experiment duration
-    model_unblocked_syscall_latency: bool = False  # Add latency for unblocked system calls
+    stop_time: str = (
+        "300s"  # The total simulation time in seconds -> use experiment duration
+    )
+    model_unblocked_syscall_latency: bool = (
+        False  # Add latency for unblocked system calls
+    )
 
 
 @dataclass
@@ -34,8 +37,8 @@ class NetworkEdgeConfig:
 @dataclass
 class NetworkGraphConfig:
     type: str = "gml"  # Options: '1_gbit_switch', 'gml'
-    nodes: List[NetworkNodeConfig] = field(default_factory=list)
-    edges: List[NetworkEdgeConfig] = field(default_factory=list)
+    nodes: list[NetworkNodeConfig] = field(default_factory=list)
+    edges: list[NetworkEdgeConfig] = field(default_factory=list)
 
 
 @dataclass
@@ -62,15 +65,27 @@ class HostConfig:
 @dataclass
 class HostsConfig:
     server: HostConfig = field(default_factory=HostConfig)  # Server configuration
-    client: HostConfig = field(default_factory=lambda: HostConfig(ip_addr="11.0.0.2", start_time="5s"))  # Client configuration
+    client: HostConfig = field(
+        default_factory=lambda: HostConfig(ip_addr="11.0.0.2", start_time="5s")
+    )  # Client configuration
 
 
 @dataclass
 class ShadowNsConfig(NetworkEnvironmentConfig):
     type: str = "shadow_ns"
-    incompatibility: List[str] = field(default_factory=lambda: ["strace", "gperf"] , metadata={"omegaconf_ignore": True})  # Incompatibilities
-    general: GeneralConfig = field(default_factory=GeneralConfig)  # General configuration
-    experimental: ExperimentalConfig = field(default_factory=ExperimentalConfig)  # Experimental features
-    network: NetworkConfig = field(default_factory=NetworkConfig)  # Network configuration
-    host_option_defaults: HostOptionDefaultsConfig = field(default_factory=HostOptionDefaultsConfig)  # Default host options
+    incompatibility: list[str] = field(
+        default_factory=lambda: ["strace", "gperf"], metadata={"omegaconf_ignore": True}
+    )  # Incompatibilities
+    general: GeneralConfig = field(
+        default_factory=GeneralConfig
+    )  # General configuration
+    experimental: ExperimentalConfig = field(
+        default_factory=ExperimentalConfig
+    )  # Experimental features
+    network: NetworkConfig = field(
+        default_factory=NetworkConfig
+    )  # Network configuration
+    host_option_defaults: HostOptionDefaultsConfig = field(
+        default_factory=HostOptionDefaultsConfig
+    )  # Default host options
     hosts: HostsConfig = field(default_factory=HostsConfig)  # Hosts configuration

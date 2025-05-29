@@ -4,6 +4,7 @@
 This document provides instructions for installing and setting up the PANTHER system on your environment.
 
 ## Prerequisites
+
 - Operating System: Linux, macOS
 - Python 3.10 or higher
 - pip (Python package manager)
@@ -14,19 +15,78 @@ This document provides instructions for installing and setting up the PANTHER sy
 
 ## Installation Steps
 
-### 1. Clone the Repository
+### Option A — From PyPI *(easiest)*
+
+```bash
+python -m venv .venv              # optional but recommended
+source .venv/bin/activate
+pip install panther_net
+```
+
+`panther_net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
+Upgrade later with `pip install -U panther_net`.
+
+### Option B — From Source *(for dev)*
+
+#### Clone the Repository
+```bash
+git clone https://github.com/ElNiak/PANTHER.git;
+cd PANTHER;
+python -m venv .venv && source .venv/bin/activate;
+```
+
+#### 🔧 **Recommended: Using the Builder Script** *(cross-platform)*
+
+For development work, we **highly recommend** using the included Python builder script instead of the traditional Makefile:
+
+
 ```bash
 git clone https://github.com/ElNiak/PANTHER.git
 cd PANTHER
+python -m venv .venv && source .venv/bin/activate
+# After cloning and setting up your environment:
+python panther_builder.py package-dev    # Install in development mode
+python panther_builder.py docs           # Build documentation
+python panther_builder.py check          # Run code quality checks
+python panther_builder.py clean          # Clean build artifacts
 ```
 
-### 2. Set Up a Virtual Environment (Recommended)
+More details with:
 ```bash
-python -m venv venv
-source venv/bin/activate
+python panther_builder.py --help         # See all available commands
+usage: panther_builder.py [-h] [-v]
+                          [{package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,check,zip-outputs,remove-images-all,remove-images-services,remove-system-all,remove-system-services,remove-volume,help}]
+
+PANTHER Build Script - A portable Python-based build system
+
+positional arguments:
+  {package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,check,zip-outputs,remove-images-all,remove-images-services,remove-system-all,remove-system-services,remove-volume,help}
+                        Command to execute
+
+options:
+  -h, --help            show this help message and exit
+  -v, --verbose         Enable verbose output
+
+Examples:
+    python panther_builder.py package           # Build and install package
+    python panther_builder.py package-dev       # Install in development mode
+    python panther_builder.py clean             # Clean build artifacts
+    python panther_builder.py docs              # Build documentation
+    python panther_builder.py serve-docs        # Serve documentation locally
+    python panther_builder.py deploy-docs       # Deploy documentation to GitHub Pages
+    python panther_builder.py check             # Run code quality checks
+    python panther_builder.py zip-outputs       # Archive outputs directory
+    python panther_builder.py remove-images-all # Remove all Docker images with 'panther'
 ```
 
-### 3. Install Dependencies
+**Why use the builder?**
+- ✅ **Cross-platform**: Works on Linux, macOS, and Windows
+- ✅ **Smart checks**: Automatically validates Python ≥3.10 and Docker ≥27.0
+- ✅ **Integrated**: Replaces Makefile with better error handling
+- ✅ **Developer-friendly**: Includes quality checks, documentation builds, and cleanup
+- ✅ **Docker management**: Built-in Docker image and volume cleanup commands
+
+#### Manually
 
 ```bash
 # For regular installation
@@ -45,7 +105,10 @@ pip install -e ".[doc]"    # Install with documentation dependencies (Python 3.8
 pip install -e ".[tests,lint,doc]"
 ```
 
-### 4. Verify Installation
+Both methods read dependencies from **`pyproject.toml`**—**do not
+manually edit `requirements.txt`**, it’s just a frozen lock.
+
+### Verify Installation
 
 After installation, you can verify that PANTHER was installed correctly:
 
@@ -55,26 +118,6 @@ python -c "import panther; print(panther.__version__)"
 
 # Run the CLI help command
 panther --help
-```
-
-## Configuration
-1. Copy the example configuration file:
-    ```bash
-    cp experiment-config/experiment_config_example experiment-config/config.yml
-    ```
-
-2. Edit the configuration file with your preferred settings:
-
-    ```bash
-    nano experiment-config/config.yml
-    ```
-
-## Verification
-
-To verify that PANTHER was installed correctly:
-
-```bash
-python -m panther --version
 ```
 
 ## Troubleshooting

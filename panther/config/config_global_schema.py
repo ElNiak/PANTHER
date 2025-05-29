@@ -93,6 +93,7 @@ class FeatureConfig:
         logger_observer (bool): Indicates whether the logger observer feature is enabled. Default is True.
         storage_handler (bool): Indicates whether the storage handler feature is enabled. Default is True.
     """
+
     logger_observer: bool = True
     storage_handler: bool = True
     fast_fail: bool = True
@@ -110,18 +111,9 @@ class GlobalConfig:
         docker (DockerConfig): Configuration for Docker.
         features (FeatureConfig): Configuration for features.
     """
-    logging: LoggingConfig = field(
-        default_factory=LoggingConfig
-    )
-    paths: PathsConfig = field(
-        default_factory=PathsConfig
-    )
-    optional_paths: AdditionalPathsConfig = field(
-        default_factory=AdditionalPathsConfig
-    )
-    docker: DockerConfig = field(
-        default_factory=DockerConfig
-    )
-    features: FeatureConfig = field(
-        default_factory=FeatureConfig
-    )
+
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
+    paths: PathsConfig = field(default_factory=PathsConfig)
+    optional_paths: AdditionalPathsConfig = field(default_factory=AdditionalPathsConfig)
+    docker: DockerConfig = field(default_factory=DockerConfig)
+    features: FeatureConfig = field(default_factory=FeatureConfig)

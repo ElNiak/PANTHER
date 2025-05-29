@@ -75,27 +75,27 @@ from panther.plugins.plugin_interface import IPlugin
 
 class ProtocolInterface(IPlugin):
     """Base interface for all protocol plugins."""
-    
+
     @abstractmethod
     def get_supported_versions(self) -> list:
         """Return list of supported protocol versions."""
         pass
-        
+
     @abstractmethod
     def get_test_scenarios(self) -> dict:
         """Return available test scenarios by category."""
         pass
-    
+
     @abstractmethod
     def validate_configuration(self, config: dict) -> bool:
         """Validate protocol-specific configuration."""
         pass
-    
+
     @abstractmethod
     def setup_test_environment(self, config: dict):
         """Setup testing environment for this protocol."""
         pass
-    
+
     @abstractmethod
     def execute_test_scenario(self, scenario: str, config: dict):
         """Execute a specific test scenario."""
@@ -117,19 +117,19 @@ from panther.plugins.protocols.config_schema import ProtocolConfig
 @dataclass
 class YourProtocolConfig(ProtocolConfig):
     """Configuration schema for YourProtocol."""
-    
+
     # Protocol version
     version: str = "1.0"
-    
+
     # Protocol-specific parameters
     connection_timeout: int = 30
     max_packet_size: int = 1500
     enable_feature_x: bool = True
-    
+
     # Test configuration
     test_scenarios: List[str] = field(default_factory=lambda: ["handshake", "data_transfer"])
     validation_rules: List[str] = field(default_factory=lambda: ["conformance"])
-    
+
     # Advanced options
     custom_parameters: Dict[str, str] = field(default_factory=dict)
 ```
@@ -146,22 +146,22 @@ from .config_schema import YourProtocolConfig
 
 class YourProtocolPlugin(ProtocolInterface):
     """Protocol plugin for YourProtocol testing."""
-    
+
     def __init__(self):
         super().__init__()
         self.config = None
         self.supported_versions = ["1.0", "1.1", "2.0"]
-    
+
     def get_supported_versions(self) -> List[str]:
         """Return supported protocol versions."""
         return self.supported_versions
-    
+
     def get_test_scenarios(self) -> Dict[str, List[str]]:
         """Return available test scenarios by category."""
         return {
             "conformance": [
                 "handshake",
-                "data_transfer", 
+                "data_transfer",
                 "error_handling",
                 "connection_close"
             ],
@@ -175,7 +175,7 @@ class YourProtocolPlugin(ProtocolInterface):
                 "extension_support"
             ]
         }
-    
+
     def validate_configuration(self, config: dict) -> bool:
         """Validate protocol configuration."""
         try:
@@ -187,16 +187,16 @@ class YourProtocolPlugin(ProtocolInterface):
         except Exception as e:
             self.logger.error(f"Configuration validation failed: {e}")
             return False
-    
+
     def setup_test_environment(self, config: dict):
         """Setup testing environment."""
         if not self.validate_configuration(config):
             raise ValueError("Invalid configuration")
-        
+
         # Setup protocol-specific environment
         self._setup_protocol_handlers()
         self._configure_test_parameters()
-    
+
     def execute_test_scenario(self, scenario: str, config: dict):
         """Execute a test scenario."""
         if scenario == "handshake":
@@ -204,12 +204,12 @@ class YourProtocolPlugin(ProtocolInterface):
         elif scenario == "data_transfer":
             return self._test_data_transfer()
         # ... other scenarios
-        
+
     def _test_handshake(self):
         """Test protocol handshake."""
         # Implement handshake testing logic
         pass
-    
+
     def _test_data_transfer(self):
         """Test data transfer functionality."""
         # Implement data transfer testing logic
@@ -226,7 +226,7 @@ from typing import Dict, Any
 
 class ConformanceTests:
     """Conformance test scenarios for YourProtocol."""
-    
+
     @staticmethod
     def handshake_test(config: Dict[str, Any]) -> Dict[str, Any]:
         """Test protocol handshake conformance."""
@@ -235,7 +235,7 @@ class ConformanceTests:
             "description": "Verify protocol handshake follows specification",
             "steps": [
                 "initiate_connection",
-                "exchange_parameters", 
+                "exchange_parameters",
                 "verify_handshake_completion"
             ],
             "success_criteria": [
@@ -275,27 +275,27 @@ import pytest
 from panther.plugins.protocols.your_protocol import YourProtocolPlugin
 
 class TestYourProtocolPlugin:
-    
+
     def setup_method(self):
         self.plugin = YourProtocolPlugin()
-    
+
     def test_supported_versions(self):
         versions = self.plugin.get_supported_versions()
         assert "1.0" in versions
         assert len(versions) > 0
-    
+
     def test_configuration_validation(self):
         valid_config = {
             "version": "1.0",
             "connection_timeout": 30
         }
         assert self.plugin.validate_configuration(valid_config)
-        
+
         invalid_config = {
             "version": "invalid_version"
         }
         assert not self.plugin.validate_configuration(invalid_config)
-    
+
     def test_test_scenarios(self):
         scenarios = self.plugin.get_test_scenarios()
         assert "conformance" in scenarios
@@ -462,7 +462,7 @@ For detailed API documentation:
 - **[Configuration Schema](panther/plugins/config_schema.py)**: Base configuration structure
 - **[Plugin Loader](panther/plugins/plugin_loader.py)**: Plugin discovery and loading
 - **[Test Examples](test_scenarios/)**: Example test implementations
-        
+
     def cleanup(self):
         """Clean up resources."""
         pass
@@ -498,25 +498,25 @@ from panther.plugins.protocols.protocol_interface import ProtocolInterface
 
 class MyProtocol(ProtocolInterface):
     """My custom protocol implementation."""
-    
+
     def initialize(self, config):
         """Initialize the protocol with configuration."""
         self.config = config
-        # Protocol initialization 
-        
+        # Protocol initialization
+
     def execute(self):
         """Execute the protocol's main functionality."""
         # Protocol execution logic
         pass
-    
+
     def get_protocol_version(self):
         """Get the version of the protocol."""
         return self.config.get("version", "1.0")
-    
+
     def get_protocol_parameters(self):
         """Get the protocol parameters."""
         return self.config.get("parameters", {})
-        
+
     def cleanup(self):
         """Clean up resources."""
         # Release resources, close connections, etc.
@@ -566,7 +566,7 @@ def test_protocol_initialization():
     config = {"version": "1.0"}
     protocol.initialize(config)
     assert protocol.get_protocol_version() == "1.0"
-    
+
 def test_protocol_execution():
     protocol = MyProtocol()
     protocol.initialize({"version": "1.0"})
