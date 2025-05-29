@@ -1,10 +1,16 @@
 # Contributing
 
+!!! info "Quick Navigation"
+    - :material-file-tree: [Project Structure](#open_file_folder-project-structure)
+    - :material-book-open: [Documentation Guidelines](#contributing-to-panther-documentation)
+    - :material-palette: [Admonitions Guide](#admonitions-usage-guide)
+    - :material-workflow: [Review Process](#documentation-review-process)
+
 ## :open_file_folder: Project Structure
 
 The PANTHER project is organized into the following key directories:
 
-```tree
+```text
 experiment-config/      # Experiments configurations files
 tests/                  # Unit tests
 outputs/                # Experiment results and logs
@@ -36,7 +42,7 @@ panther/
 
 ---
 
-# Contributing to PANTHER Documentation
+## Contributing to PANTHER Documentation
 
 This guide provides standards and procedures for contributing to PANTHER documentation.
 
@@ -63,6 +69,9 @@ All documentation should follow the established hierarchy and use relative links
 ## Adding New Documentation
 
 ### For New Plugins
+
+!!! warning "Plugin Development Requirements"
+    Before creating a new plugin, ensure you understand the plugin architecture by reading the [Plugin Developer Guide](panther/plugins/development.md). All plugins must implement the required interfaces and follow naming conventions.
 
 1. Create a README.md in your plugin directory using the [plugin template](panther/plugins/plugin_template.md).
 2. Add a corresponding entry in the appropriate index.md file.
@@ -127,6 +136,137 @@ Follow the [PANTHER Style Guide](dev/docs-gen/style_guide.md) for detailed forma
 3. Use second person for instructions
 4. Include tables for parameter documentation
 5. Use admonitions for important information
+
+## Admonitions Usage Guide
+
+PANTHER documentation uses Material for MkDocs admonitions (call-out blocks) to highlight important information. Use admonitions strategically to improve readability and user experience.
+
+### Admonition Types Reference
+
+The most commonly used admonition types in PANTHER documentation:
+
+| Type | Purpose | Use Cases |
+|------|---------|-----------|
+| `info` | General information | System requirements, platform notes |
+| `tip` | Helpful suggestions | Best practices, recommended approaches |
+| `note` | Additional details | Clarifications, alternative methods |
+| `warning` | Important cautions | Prerequisites, potential issues |
+| `danger` | Critical alerts | Failures, security issues, data loss |
+| `example` | Demonstrations | Code samples, configurations |
+
+### Best Practices
+
+!!! tip "Strategic Placement Guidelines"
+    - **Maximum one admonition per screenful** to avoid visual clutter
+    - Place admonitions **before** the content they relate to
+    - Use **specific, descriptive titles** rather than generic ones
+    - Keep admonition content **concise and focused**
+
+### Basic Syntax
+
+```markdown
+!!! type "Descriptive Title"
+    Content goes here with proper 4-space indentation.
+
+    Can include multiple paragraphs and code blocks.
+```
+
+### Examples
+
+**System Requirements:**
+
+```markdown
+!!! info "System Requirements"
+    **Target platform:** Linux (x86-64) with Docker >= 27
+```
+
+**Best Practices:**
+
+```markdown
+!!! tip "Recommended Setup"
+    Using a virtual environment is highly recommended.
+```
+
+**Critical Warnings:**
+
+```markdown
+!!! danger "Common Failure Points"
+    Most issues occur during plugin loading or container builds.
+```
+
+## Admonitions Usage Guide
+
+Admonitions are colored call-out blocks that help highlight important information in documentation. Use them strategically to improve user experience and information scannability.
+
+### Available Admonition Types
+
+| Type | Purpose | Use Cases |
+|------|---------|-----------|
+| `note` | General information | Additional context, alternative methods |
+| `tip` | Helpful suggestions | Best practices, recommended approaches |
+| `warning` | Important cautions | Prerequisites, potential issues |
+| `danger` | Critical warnings | Data loss risks, security concerns |
+| `example` | Code examples | Sample configurations, usage demos |
+| `info` | Neutral information | System requirements, version notes |
+| `success` | Positive outcomes | Successful completion indicators |
+| `question` | Interactive queries | User decision points |
+
+### Admonition Syntax
+
+```markdown
+!!! note "Optional Custom Title"
+    Content goes here. Maintain proper indentation (4 spaces).
+
+    You can include:
+    - Lists
+    - Code blocks
+    - Multiple paragraphs
+```
+
+### Admonition Guidelines
+
+1. **Strategic Placement**: Maximum one admonition per screenful to avoid visual clutter
+2. **Clear Titles**: Use descriptive titles when the default doesn't fit
+3. **Proper Indentation**: Content must be indented with 4 spaces
+4. **Code Blocks**: Maintain proper indentation within admonitions
+
+### Template Examples
+
+**System Requirements:**
+```markdown
+!!! info "System Requirements"
+    **Target platform:** Linux (x86-64) with Docker >= 27
+    **Estimated time:** ≈ 30 minutes per test
+```
+
+**Installation Tips:**
+```markdown
+!!! tip "Recommended Setup"
+    Using a virtual environment is highly recommended:
+
+    ```bash
+    python -m venv .venv
+    source .venv/bin/activate
+    ```
+```
+
+**Important Warnings:**
+```markdown
+!!! warning "Prerequisites Required"
+    Ensure you have Docker access and at least 10GB free disk space before proceeding.
+```
+
+**Code Examples:**
+```markdown
+!!! example "Sample Configuration"
+    Create `config.yaml`:
+
+    ```yaml
+    tests:
+      - name: "Basic Test"
+        protocol: quic
+    ```
+```
 
 ## Documentation Review Process
 

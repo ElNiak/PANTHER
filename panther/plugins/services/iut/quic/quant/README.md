@@ -1,5 +1,8 @@
 # Quant QUIC Implementation
 
+!!! warning "Development Status"
+    This plugin is currently in development phase.
+
 > **Plugin Type**: Service (Implementation Under Test)
 
 > **Verified Source Location**: `plugins/services/iut/quic/quant/`

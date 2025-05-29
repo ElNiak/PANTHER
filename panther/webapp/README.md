@@ -1,10 +1,12 @@
 # Web Application Interface — PANTHER Dashboard & APIs 🌐
 
-> **⚠️ DISCLAIMER: This documentation is currently under development and not yet complete. Features described may be partially implemented or planned for future releases. Check back for updates as we continue to improve the web application interface.**
+!!! warning "Development Status"
+    This documentation is currently under development and not yet complete. Features described may be partially implemented or planned for future releases. Check back for updates as we continue to improve the web application interface.
 
-> **Purpose:** Complete guide to PANTHER's web interface for experiment management, result visualization, and real-time monitoring
-> **Target:** Users wanting to design experiments graphically; researchers analyzing results; teams needing collaborative experiment management
-> **Technology:** Flask-based web application with Bootstrap UI, Chart.js visualizations, and RESTful APIs
+!!! info "Web Interface Purpose"
+    **Purpose:** Complete guide to PANTHER's web interface for experiment management, result visualization, and real-time monitoring
+    **Target:** Users wanting to design experiments graphically; researchers analyzing results; teams needing collaborative experiment management
+    **Technology:** Flask-based web application with Bootstrap UI, Chart.js visualizations, and RESTful APIs
 
 PANTHER provides a **comprehensive web interface** that allows you to design, execute, monitor, and analyze experiments through an intuitive dashboard. The web application complements the CLI tools with visual experiment creation, real-time monitoring, and interactive result analysis.
 

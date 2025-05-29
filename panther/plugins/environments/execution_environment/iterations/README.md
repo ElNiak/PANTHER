@@ -1,5 +1,8 @@
 # Iterations Execution Environment Plugin
 
+!!! info "Iterative Testing Plugin"
+    The Iterations plugin enables repeated execution of test scenarios for statistical analysis, stress testing, and parameter variation studies. Essential for collecting robust experimental data.
+
 > **Plugin Type**: Execution Environment
 
 > **Verified Source Location**: `plugins/environments/execution_environment/iterations/`
@@ -9,6 +12,9 @@
 The Iterations Execution Environment plugin provides a framework for running test scenarios multiple times with varying parameters. This plugin is essential for collecting statistical data, performing stress tests, and evaluating system behavior under consistent or varying conditions over multiple execution cycles.
 
 ## Features
+
+!!! tip "Statistical Testing Best Practices"
+    For meaningful statistical analysis, run at least 10-30 iterations per test scenario. Consider varying parameters between iterations to explore different system behaviors and edge cases.
 
 - Configurable number of test iterations
 - Support for parameter variation between iterations

@@ -1,5 +1,8 @@
 # PANTHER Documentation Generator Tools
 
+!!! info "Documentation Automation"
+    This directory contains automated tools for generating, validating, and maintaining PANTHER's comprehensive documentation ecosystem. These tools ensure documentation stays synchronized with code changes.
+
 This directory contains tools for generating, validating, and maintaining documentation for the PANTHER project.
 
 ## Documentation Structure
@@ -27,6 +30,9 @@ The documentation is organized into the following main sections:
 | `mkdocs/mkdocs.yml.j2` | Jinja2 template for MkDocs configuration |
 
 ## How to Rebuild and Audit Docs Locally
+
+!!! tip "Quick Documentation Update"
+    Use `make docs` for a complete documentation rebuild, or individual scripts for targeted updates. Always run `docs-verify` after making documentation changes to catch broken links.
 
 For a complete documentation update:
 

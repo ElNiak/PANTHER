@@ -1,4 +1,7 @@
-MIT License
+# MIT License
+
+!!! info "Open Source License"
+    PANTHER is released under the MIT License, allowing free use, modification, and distribution with proper attribution.
 
 Copyright (c) 2024 ElNiak
 

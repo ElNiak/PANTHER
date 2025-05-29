@@ -1,5 +1,8 @@
 # MinIP Ping-Pong Implementation
 
+!!! info "Educational Protocol Plugin"
+    MinIP (Minimal Internet Protocol) is a lightweight protocol implementation designed for educational purposes and basic networking tests. It provides an excellent starting point for understanding protocol testing concepts.
+
 > **Plugin Type**: Service (Implementation Under Test)
 
 > **Verified Source Location**: `plugins/services/iut/minip/ping_pong/`
@@ -18,6 +21,9 @@ The MinIP Ping-Pong implementation is particularly valuable for:
 - Demonstrating protocol implementation concepts
 
 ## Requirements and Dependencies
+
+!!! warning "System Requirements"
+    MinIP requires a C compiler and standard networking libraries. Ensure your system has GCC or compatible compiler installed before deployment.
 
 The plugin requires:
 

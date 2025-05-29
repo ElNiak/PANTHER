@@ -1,14 +1,23 @@
 # Strace System Call Tracer
 
-> **Plugin Type**: Environment (execution_environment)
-
-> **Verified Source Location**: `plugins/environments/execution_environment/strace/`
-
-## Purpose and Overview
-
 The Strace Environment plugin enables system call tracing for PANTHER services. It leverages the Linux `strace` utility to track, log, and analyze system calls made by protocol implementations, providing deep insights into program behavior and interaction with the operating system.
 
+!!! info "Plugin Information"
+    **Plugin Type**: Environment (execution_environment)
+    **Source Location**: `plugins/environments/execution_environment/strace/`
+
+!!! warning "Linux-Only Tool"
+    Strace is a Linux-specific tool and requires appropriate permissions to attach to processes. Ensure the execution environment has strace installed and accessible.
+
 <!-- src: /panther/plugins/environments/execution_environment/strace/strace.py -->
+
+!!! tip "Strace Use Cases"
+    Strace is particularly valuable for:
+
+    - **Debugging**: Understanding protocol implementation issues
+    - **Performance Analysis**: Identifying system call bottlenecks
+    - **Security Auditing**: Monitoring file and network operations
+    - **Development**: Analyzing application-OS interactions
 
 This execution environment plugin is valuable for:
 

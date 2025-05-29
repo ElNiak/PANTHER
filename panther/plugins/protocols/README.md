@@ -1,6 +1,9 @@
 <!-- filepath: /Users/elniak/Documents/Project/PANTHER/panther/plugins/protocols/README.md -->
 # PANTHER Protocol Plugins
 
+!!! info "Protocol Testing Framework"
+    Protocol plugins define testing logic, validation rules, and configurations for specific network protocols. They work together with service plugins to provide comprehensive protocol testing capabilities.
+
 **Protocol-specific testing logic and configurations**
 
 Protocol plugins provide testing frameworks and configurations for specific network protocols. These plugins define how protocols should be tested, what parameters to validate, and how to interpret test results for different protocol specifications.
@@ -8,6 +11,9 @@ Protocol plugins provide testing frameworks and configurations for specific netw
 <!-- src: /panther/plugins/protocols/protocol_interface.py -->
 
 ## Protocol Categories
+
+!!! tip "Protocol Selection Guide"
+    Choose client-server protocols for traditional request-response testing, or peer-to-peer protocols for distributed system evaluation. Each category has specific testing methodologies and validation approaches.
 
 ### Client-Server Protocols
 

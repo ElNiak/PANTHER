@@ -1,5 +1,11 @@
 # QUIC-Go Implementation
 
+!!! warning "Development Status"
+    This plugin is currently in development phase.
+
+!!! info "Go-based QUIC Implementation"
+    QUIC-Go is a high-performance, pure Go implementation of the QUIC protocol, ideal for cloud-native applications and microservices requiring modern transport capabilities.
+
 > **Plugin Type**: Service (Implementation Under Test)
 
 > **Verified Source Location**: `plugins/services/iut/quic/quic_go/`
@@ -19,6 +25,9 @@ The QUIC-Go implementation plugin enables:
 - Cross-platform QUIC implementation validation
 
 ## Requirements and Dependencies
+
+!!! warning "Go Runtime Requirements"
+    QUIC-Go requires Go 1.19+ and active internet access for module downloads during build. Ensure your build environment has proper Go toolchain setup and module proxy access.
 
 The plugin requires:
 

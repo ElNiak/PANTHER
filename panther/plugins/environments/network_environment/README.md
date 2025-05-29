@@ -1,5 +1,8 @@
 # Network Environment Plugins
 
+!!! info "Network Topology Management"
+    Network environment plugins define the network topology, conditions, and characteristics for experiments. They enable realistic network scenarios including containerized environments and network simulation.
+
 > **Plugin Type**: Network Environment
 
 > **Verified Source Location**: `plugins/environments/network_environment/`

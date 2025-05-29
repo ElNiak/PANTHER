@@ -1,5 +1,8 @@
 # CLI Interface — Command-Line Operations 🖥️
 
+!!! info "PANTHER Command-Line Interface"
+    The CLI provides unified access to all PANTHER framework functionality including experiment execution, plugin management, and development tools. This is the primary interface for framework operations.
+
 **Purpose:** Primary user interface for PANTHER framework operations
 **Components:** Argument parsing, command routing, plugin management CLI
 **Dependencies:** Configuration system, plugin system, experiment engine
@@ -27,6 +30,9 @@ def main():
 ---
 
 ## Core Commands
+
+!!! tip "Getting Started with PANTHER CLI"
+    Start with `panther --help` to see all available commands, then use `--validate-config` to check your experiment configuration before running full experiments.
 
 ### Experiment Execution
 

@@ -2,11 +2,14 @@
 
 This document provides comprehensive guidance for developing service plugins for the PANTHER framework, covering both Implementation Under Test (IUT) services and Tester services.
 
+!!! warning "Prerequisites"
+    Before developing service plugins, ensure you understand the PANTHER architecture by reading the [Plugin Development Guide](../development.md) and have a working PANTHER installation.
+
 ## Service Plugin Architecture
 
 PANTHER service plugins are organized into two primary categories:
 
-```
+```text
 plugins/services/
 ├── iut/                 # Implementation Under Test plugins
 │   ├── http/

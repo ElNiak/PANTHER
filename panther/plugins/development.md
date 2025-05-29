@@ -2,6 +2,9 @@
 
 This guide provides detailed instructions for creating new plugins for the PANTHER framework across all plugin types.
 
+!!! warning "Development Prerequisites"
+    Before starting plugin development, ensure you understand PANTHER's architecture by reading the [WORKFLOW.md](../../WORKFLOW.md) and have a working PANTHER installation following the [INSTALL.md](../../INSTALL.md) guide.
+
 ## Development Guides
 
 Comprehensive development documentation for each plugin category:
@@ -18,6 +21,9 @@ Comprehensive development documentation for each plugin category:
 PANTHER provides tools to easily create new plugins from templates:
 
 ### Tutorial Launcher (Recommended)
+
+!!! tip "Recommended Method"
+    The tutorial launcher is the easiest way to get started with plugin development:
 
 ```bash
 # From the PANTHER root directory
@@ -104,9 +110,12 @@ Determine which category your plugin belongs to:
 
 ### 2. Set Up the Plugin Directory
 
+!!! note "Plugin Directory Structure"
+    This directory structure is automatically created when using the `--create-plugin` command, but you can also create it manually.
+
 Create a directory for your plugin in the appropriate location:
 
-```
+```text
 plugins/<plugin_type>/<plugin_name>/
 ├── __init__.py
 ├── plugin.py           # Main plugin implementation

@@ -1,21 +1,18 @@
 # GPerf CPU Profiling Environment
 
-> **Plugin Type**: Execution Environment
-
-> **Verified Source Location**: `plugins/environments/execution_environment/gperf_cpu/`
-
-## Purpose and Overview
-
 The GPerf CPU Profiling Environment plugin provides CPU usage monitoring and profiling capabilities for services running within PANTHER. It uses Google's gperftools to collect detailed CPU profiling information, helping identify performance bottlenecks and optimization opportunities in implementations under test.
 
-<!-- src: /panther/plugins/environments/execution_environment/gperf_cpu/gperf_cpu.py -->
+!!! info "Plugin Information"
+    **Plugin Type**: Execution Environment
+    **Source Location**: `plugins/environments/execution_environment/gperf_cpu/`
 
-This execution environment plugin is particularly useful for:
+!!! tip "Performance Analysis"
+    This plugin is particularly useful for:
 
-- Identifying CPU-intensive operations in protocol implementations
-- Benchmarking different implementation strategies
-- Detecting performance regressions across versions
-- Optimizing resource usage in protocol stacks
+    - **Identifying Bottlenecks**: Find CPU-intensive operations in protocol implementations
+    - **Benchmarking**: Compare performance across different implementation strategies
+    - **Regression Detection**: Monitor performance changes across versions
+    - **Resource Optimization**: Optimize CPU usage in protocol stacks
 
 ## Requirements and Dependencies
 

@@ -1,5 +1,11 @@
 # BitTorrent Protocol Plugin
 
+!!! info "Peer-to-Peer File Sharing Protocol"
+    BitTorrent enables distributed file sharing testing scenarios within PANTHER, allowing evaluation of peer-to-peer network protocols and distributed content delivery systems.
+
+!!! warning "Development Status"
+    This plugin is currently in development phase. Core BitTorrent functionality is being implemented and may not be fully stable for production testing scenarios.
+
 > **Plugin Type**: Peer-to-Peer Protocol
 
 > **Verified Source Location**: `plugins/protocols/peer_to_peer/bittorrent/`

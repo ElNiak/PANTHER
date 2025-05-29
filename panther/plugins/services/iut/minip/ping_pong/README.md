@@ -1,5 +1,8 @@
 # MinIP Ping-Pong Implementation
 
+!!! info "Educational Protocol Implementation"
+    MinIP Ping-Pong is a simplified protocol implementation designed for learning and testing basic networking concepts. It provides multiple behavioral variants for comprehensive testing scenarios.
+
 > **Plugin Type**: Service (Implementation Under Test)
 
 > **Parent Plugin**: [MinIP IUT](panther/plugins/services/iut/minip/README.md)

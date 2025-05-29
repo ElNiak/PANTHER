@@ -9,13 +9,16 @@ We use **QUIC** as a concrete example because multiple ready-made QUIC
 implementations ship with PANTHER, **yet the exact same steps apply to
 MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 
-> **Target platform:** Linux (x86-64) with Docker ≥ 27
-
-> **Estimated time:** ≈ 30 minutes per test the first time (due to build times of implementation), then around 2 minutes.
+!!! info "System Requirements"
+    **Target platform:** Linux (x86-64) with Docker >= 27
+    **Estimated time:** ≈ 30 minutes per test the first time (due to build times of implementation), then around 2 minutes.
 
 ---
 
 ## 1 — Install PANTHER
+
+!!! tip "Recommended Setup"
+    Using a virtual environment is highly recommended to avoid dependency conflicts:
 
 ```bash
 python -m venv .venv              # optional but recommended
@@ -28,7 +31,8 @@ Upgrade later with `pip install -U panther_net`.
 
 ## 2 — Write a Minimal Experiment (YAML)
 
-Create `quic_demo.yaml` (swap `quic` for `minip` , … to test other protocols):
+!!! example "Your First Experiment Configuration"
+    Create `quic_demo.yaml` (swap `quic` for `minip` to test other protocols):
 
 ```yaml
 logging:
@@ -109,12 +113,12 @@ PANTHER validates the YAML, builds images if absent, launches the two
 containers under Docker Compose, runs the handshake for 15 s, and writes
 results to `outputs/`.
 
-**Note:**
-You can also test with:
+!!! note "Alternative Test Configuration"
+    You can also test with:
 
-```bash
-python -m panther  --experiment-config experiment-config/experiment_config_example.yaml
-```
+    ```bash
+    python -m panther  --experiment-config experiment-config/experiment_config_example.yaml
+    ```
 
 ---
 
@@ -122,7 +126,7 @@ python -m panther  --experiment-config experiment-config/experiment_config_examp
 
 PANTHER creates a timestamped output directory with subfolders for each test:
 
-```
+```text
 outputs/
 └── 2025-…_experiment_run/
     ├── experiment.log              # high-level timeline + any errors

@@ -1,5 +1,8 @@
 # Peer-to-Peer Protocol Plugins
 
+!!! info "Distributed Protocol Framework"
+    Peer-to-peer protocol plugins enable testing of distributed systems where nodes communicate directly without central coordination. These protocols are essential for distributed system research and validation.
+
 > **Plugin Type**: Peer-to-Peer Protocol
 
 > **Verified Source Location**: `plugins/protocols/peer_to_peer/`

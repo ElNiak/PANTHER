@@ -1,5 +1,8 @@
 # Adding an Execution Environment Plugin to PANTHER
 
+!!! warning "Advanced Development Guide"
+    This guide covers advanced plugin development for execution environments. Ensure you have experience with Python development, PANTHER architecture, and execution monitoring concepts before proceeding.
+
 This guide walks through the process of creating a new execution environment plugin for the PANTHER framework.
 
 ## Overview
@@ -7,6 +10,9 @@ This guide walks through the process of creating a new execution environment plu
 Execution environment plugins provide control over the runtime context where services execute. These plugins enable resource monitoring, performance profiling, and execution control for PANTHER experiments.
 
 ## Implementation Steps
+
+!!! tip "Development Prerequisites"
+    Before starting development, familiarize yourself with the PANTHER plugin architecture and review existing execution environment plugins like `strace` or `gperf_cpu` for implementation patterns.
 
 ### 1. Create the Plugin Directory Structure
 

@@ -1,5 +1,8 @@
 # HTTP Protocol
 
+!!! warning "Development Status"
+    This plugin is currently in development phase.
+
 > **Plugin Type**: Protocol (client_server)
 
 > **Verified Source Location**: `plugins/protocols/client_server/http/`

@@ -6,18 +6,25 @@ This document provides instructions for installing and setting up the PANTHER sy
 
 ## Prerequisites
 
+!!! warning "System requirements"
+    Running PANTHER requires root-level Docker access and can consume significant system resources during protocol testing. Ensure adequate disk space (>=20GB) for container images.
+
 - Operating System: Linux, macOS
 - Docker v27 or higher
 - Python 3.10 or higher
 - pip (Python package manager)
 - Git (for cloning the repository)
 
-`pyproject.toml` is the source of truth for Python dependencies.
-`requirements.txt` is a frozen snapshot—**do not edit**.
+!!! note "Dependencies"
+    `pyproject.toml` is the source of truth for Python dependencies.
+    `requirements.txt` is a frozen snapshot—**do not edit**.
 
 ## Installation Steps
 
 ### Option A — From PyPI *(easiest)*
+
+!!! tip "Recommended for most users"
+    This is the simplest installation method and includes all core functionality and built-in plugins.
 
 ```bash
 python -m venv .venv              # optional but recommended

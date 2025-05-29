@@ -4,6 +4,9 @@
 
 PANTHER (Protocol Analysis and Network Testing Framework) is a comprehensive testing framework designed for protocol implementations, particularly focusing on network protocols like QUIC. This document provides a detailed explanation of PANTHER's workflows, including container building processes, experiment execution, and overall system architecture.
 
+!!! info "Documentation Purpose"
+    This document is intended for developers and contributors who need to understand PANTHER's internal architecture and workflows. For getting started with using PANTHER, see the [Quick Start Guide](QUICK_START.md).
+
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
@@ -18,6 +21,9 @@ PANTHER (Protocol Analysis and Network Testing Framework) is a comprehensive tes
 10. [Configuration Management](#configuration-management)
 
 ## Architecture Overview
+
+!!! warning "Development Architecture"
+    The architecture described here reflects the current implementation. Some components may change as the framework evolves. Always refer to the source code for the most current implementation details.
 
 PANTHER follows a modular, plugin-based architecture that enables testing of various protocol implementations across different network environments. The framework consists of several key components:
 
@@ -66,6 +72,9 @@ Each test case:
 ## Experiment Execution Workflow
 
 ### Phase 1: Initialization
+
+!!! tip "Understanding the Initialization Flow"
+    The initialization phase is critical for proper experiment setup. Each step must complete successfully before proceeding to the next phase. Monitor the logs during this phase to identify any configuration issues early.
 
 ```mermaid
 graph TD
@@ -127,6 +136,9 @@ graph TD
 ```
 
 ## Container Building and Deployment
+
+!!! warning "Docker Requirements"
+    Container building requires Docker to be running and accessible. Ensure your user has proper Docker permissions and that sufficient disk space is available for image builds.
 
 ### Docker Compose Environment Workflow
 
@@ -470,6 +482,9 @@ class ServiceConfig:
 - **Configuration Caching**: Parsed configurations
 
 ## Troubleshooting Guide
+
+!!! danger "Common Failure Points"
+    Most PANTHER issues occur during plugin loading, container builds, or service communication. Always check these areas first when troubleshooting failed experiments.
 
 ### Common Issues
 

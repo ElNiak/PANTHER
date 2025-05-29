@@ -1,12 +1,13 @@
 # HTTP Implementation Under Test
 
-> **Plugin Type**: Service (Implementation Under Test)
-
-> **Source Location**: `plugins/services/iut/http/`
-
-## Overview
-
 The HTTP IUT plugin provides HTTP protocol implementations for testing web server and client behavior within the PANTHER framework. This plugin enables testing of HTTP/1.1 and HTTP/2 implementations for compliance, performance, and security analysis.
+
+!!! info "Plugin Information"
+    **Plugin Type**: Service (Implementation Under Test)
+    **Source Location**: `plugins/services/iut/http/`
+
+!!! warning "Development Status"
+    HTTP implementations are currently in development. Most functionality is planned for future releases. For immediate protocol testing, consider using the QUIC plugins which are production-ready.
 
 <!-- src: /panther/plugins/services/iut/http/__init__.py -->
 
@@ -170,5 +171,5 @@ python -m pytest panther/plugins/services/iut/http/tests/performance/
 ## See Also
 
 - [Services Plugin Documentation](panther/plugins/services/README.md) - Parent plugin system
-- [IUT Development Guide](panther/plugins/services/iut/development_iut.md) - IUT-specific development guidelines
+- [IUT Development Guide](panther/plugins/services/iut/development.md) - IUT-specific development guidelines
 - [HTTP Protocol Plugin](panther/plugins/protocols/client_server/http/README.md) - HTTP protocol implementation

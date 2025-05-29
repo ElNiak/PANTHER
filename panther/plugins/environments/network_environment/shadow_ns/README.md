@@ -1,5 +1,8 @@
 # Shadow NS Environment
 
+!!! info "High-Fidelity Network Simulation"
+    Shadow NS provides discrete-event network simulation for reproducible protocol testing. It runs real applications in simulated networks with precise control over network conditions.
+
 > **Plugin Type**: Network Environment
 
 > **Verified Source Location**: `plugins/environments/network_environment/shadow_ns/`
@@ -19,7 +22,8 @@ The Shadow NS environment is designed for:
 
 Shadow intercepts and emulates system calls made by the co-opted processes, connecting them through an internal network using simulated implementations of common network protocols (e.g., TCP and UDP). This provides high reproducibility for networking experiments.
 
-> **Note**: Not all implementations under test are compatible with Shadow due to potential missing system call implementations.
+!!! warning "Implementation Compatibility"
+    Not all implementations under test are compatible with Shadow due to potential missing system call implementations. Test compatibility before deploying production experiments.
 
 ## Requirements and Dependencies
 

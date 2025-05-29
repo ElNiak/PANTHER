@@ -4,6 +4,9 @@
 
 The core modules provide the essential functionality that powers the PANTHER framework, including experiment orchestration, configuration management, event-driven communication, and command-line operations.
 
+!!! info "For Framework Developers"
+    This documentation is intended for developers working on PANTHER's core framework or those needing to understand the internal architecture. For plugin development, see the [Plugin Development Guide](../plugins/development.md).
+
 ---
 
 ## Core Functional Groups
@@ -22,6 +25,9 @@ PANTHER's core is organized into focused functional groups, each with comprehens
 ## Module Organization
 
 ### Core Components by Directory
+
+!!! note "Modular Architecture"
+    Each core component is designed to be independent and replaceable. This modular design allows for future enhancements without breaking existing functionality.
 
 ```text
 panther/core/

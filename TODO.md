@@ -1,5 +1,8 @@
 # TODOs
 
+!!! note "Development Roadmap"
+    This document tracks planned improvements and known issues. Contributions are welcome for any of these items.
+
 * Rename gits ?
 
 * Add loading bar
@@ -9,6 +12,9 @@
 * Analysis plugins (perf report, qvis etc)
 
 ## PANTHER Ivy
+
+!!! warning "Ivy Integration Status"
+    The Ivy integration is currently under active development. Some features may be unstable.
 
 * Use Jinja template for ivy_to_cpp
 

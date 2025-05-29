@@ -4,6 +4,9 @@
 
 This document provides instructions for building, packaging, and publishing the PANTHER system to PyPI and other distribution channels. PANTHER uses modern Python packaging practices based on PEP-517 and PEP-518, with setuptools as the build backend.
 
+!!! warning "For Maintainers Only"
+    This guide is intended for PANTHER maintainers and contributors who need to package and publish releases. Regular users should follow the [Installation Guide](INSTALL.md) instead.
+
 ## Package Structure
 
 PANTHER follows the [PyOpenSci package structure guidelines](https://www.pyopensci.org/python-package-guide/package-structure-code/python-package-structure.html).
@@ -39,6 +42,9 @@ PANTHER plugins can be discovered through two mechanisms:
 2. **File-based discovery (legacy)**: Place plugin files in the appropriate directories under `panther/plugins/`
 
 ## Building the Package
+
+!!! tip "Recommended Build Method"
+    Use the included builder script for consistent, cross-platform builds:
 
 To build the package distribution files:
 

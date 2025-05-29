@@ -1,5 +1,8 @@
 # Picoquic QUIC Implementation
 
+!!! info "Production QUIC Implementation"
+    Picoquic is a mature, production-ready QUIC implementation by Christian Huitema. It provides excellent conformance to QUIC specifications and is actively maintained for both research and deployment use.
+
 > **Plugin Type**: Service (Implementation Under Test)
 
 > **Verified Source Location**: `plugins/services/iut/quic/picoquic/`
@@ -18,6 +21,9 @@ The Picoquic implementation plugin is particularly valuable for:
 - Security analysis of Picoquic's cryptographic components
 
 ## Requirements and Dependencies
+
+!!! warning "Build Dependencies"
+    Picoquic requires development tools (GCC, CMake) and OpenSSL 1.1.1+ to be available on the system. Docker deployment automatically handles these requirements but manual installation requires careful dependency management.
 
 The plugin requires:
 

@@ -1,5 +1,8 @@
 # Localhost Single Container Environment
 
+!!! info "Lightweight Testing Environment"
+    This plugin provides a simple, single-container environment for rapid protocol testing and development. All services run on localhost within one Docker container for minimal complexity.
+
 > **Plugin Type**: Network Environment
 
 > **Verified Source Location**: `plugins/environments/network_environment/localhost_single_container/`
@@ -11,6 +14,9 @@ The Localhost Single Container Environment plugin provides a lightweight contain
 <!-- src: /panther/plugins/environments/network_environment/localhost_single_container/localhost_single_container.py -->
 
 This network environment plugin is particularly useful for:
+
+!!! tip "Ideal Use Cases"
+    Perfect for rapid development iterations, debugging protocol implementations, and initial validation before moving to more complex multi-container or simulated network environments.
 
 - Rapid development iterations and testing of protocol implementations
 - Testing client-server interactions in a controlled, local environment

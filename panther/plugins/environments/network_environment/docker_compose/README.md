@@ -1,12 +1,13 @@
 # Docker Compose Environment
 
-> **Plugin Type**: Network Environment
-
-> **Verified Source Location**: `plugins/environments/network_environment/docker_compose/`
-
-## Purpose and Overview
-
 The Docker Compose Environment plugin provides containerized network environments for testing protocol implementations in isolated, reproducible settings. This plugin leverages Docker Compose to create multi-container Docker applications, enabling complex network topologies and controlled testing environments.
+
+!!! info "Plugin Information"
+    **Plugin Type**: Network Environment
+    **Source Location**: `plugins/environments/network_environment/docker_compose/`
+
+!!! warning "System Requirements"
+    This plugin requires Docker Engine (27.03.0+) and Docker Compose (v1.27.0+) to be installed and accessible. Ensure your user has proper Docker permissions.
 
 <!-- src: /panther/plugins/environments/network_environment/docker_compose/docker_compose.py -->
 

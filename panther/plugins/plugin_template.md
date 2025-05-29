@@ -1,5 +1,8 @@
 # {Plugin Name}
 
+!!! warning "Plugin Development Template"
+    This is a template file for creating new PANTHER plugin documentation. Replace all placeholder text in `{braces}` with your plugin-specific information before finalizing documentation.
+
 > **Plugin Type**: {Protocol|Environment|Service|Tester}
 
 > **Verified Source Location**: `plugins/{plugin_type}/{plugin_category}/{plugin_name}/`
@@ -71,6 +74,9 @@ The plugin automatically manages the following external dependencies:
 - **{Library/Framework}**: {Description and purpose}
 
 ## Configuration Options
+
+!!! tip "Configuration Parameters"
+    All PANTHER plugins support standardized configuration parameters. Customize the table below with your plugin's specific parameters and their validation rules.
 
 The {Plugin Name} plugin accepts the following configuration parameters:
 

@@ -4,11 +4,19 @@
 
 The PANTHER plugin system provides a flexible architecture for extending testing capabilities across different protocols, implementations, and environments. This modular design enables researchers and developers to add new testing scenarios, protocol implementations, and deployment environments without modifying the core framework.
 
+!!! tip "Getting Started with Plugins"
+    New to PANTHER plugin development? Start with the [Plugin Development Guide](development.md) and use the interactive plugin creation tools:
+
+    ```bash
+    python -m panther --create-plugin service my_protocol
+    python -m panther --interactive-tutorials
+    ```
+
 ## Plugin Architecture
 
 PANTHER uses a consistent plugin architecture across all plugin types:
 
-```
+```text
 plugins/
 ├── environments/         # Environment plugins
 │   ├── execution_environment/

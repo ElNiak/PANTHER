@@ -4,6 +4,9 @@
 
 This guide provides comprehensive instructions for developing protocol plugins that define testing logic and configurations for specific network protocols within the PANTHER framework.
 
+!!! warning "Advanced Development Topic"
+    Protocol plugin development requires deep understanding of both the target protocol and PANTHER's architecture. Consider starting with [Service Plugin Development](../services/development.md) if you're new to PANTHER plugin development.
+
 ## Overview
 
 Protocol plugins enable PANTHER to test different network protocols by defining:

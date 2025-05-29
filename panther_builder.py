@@ -24,7 +24,13 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-import docker
+
+try:
+    import docker
+
+    docker_available = True
+except ImportError:
+    docker_available = False
 
 
 class BuildManager:
@@ -55,22 +61,23 @@ class BuildManager:
             )
 
         # Check if Docker is available and running
-        self.docker_available = False
-        try:
-            client = docker.from_env()
-            client.ping()
-            self.docker_available = True
-            # Check Docker version
-            self._check_docker_version(client)
-            print("Docker is available and running.")
-        except (ImportError, ModuleNotFoundError):
-            print(
-                "Warning: Docker Python package not installed. Docker-dependent features will not work."
-            )
-        except Exception:
-            print(
-                "Warning: Docker daemon is not running or not accessible. Docker-dependent features will not work."
-            )
+        if docker_available:
+            self.docker_available = False
+            try:
+                client = docker.from_env()
+                client.ping()
+                self.docker_available = True
+                # Check Docker version
+                self._check_docker_version(client)
+                print("Docker is available and running.")
+            except (ImportError, ModuleNotFoundError):
+                print(
+                    "Warning: Docker Python package not installed. Docker-dependent features will not work."
+                )
+            except Exception:
+                print(
+                    "Warning: Docker daemon is not running or not accessible. Docker-dependent features will not work."
+                )
 
     def _check_docker_version(self, client) -> None:
         """Check if Docker version meets minimum requirements."""

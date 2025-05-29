@@ -5,6 +5,12 @@
 
 Environment plugins manage where and how tests execute within PANTHER. They provide abstractions for different deployment scenarios, from localhost testing to containerized environments and network simulation platforms.
 
+!!! info "Environment Types"
+    PANTHER supports two main environment categories:
+
+    - **Execution Environments**: Add monitoring, profiling, and analysis during test runs
+    - **Network Environments**: Manage network topology, containers, and simulation infrastructure
+
 <!-- src: /panther/plugins/environments/environment_interface.py -->
 
 ## Environment Categories

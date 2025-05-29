@@ -1,5 +1,8 @@
 # Helgrind Execution Environment Plugin
 
+!!! info "Thread Error Detection Plugin"
+    Helgrind integrates Valgrind's thread error detector for finding race conditions, deadlocks, and synchronization errors in multi-threaded applications during PANTHER experiments.
+
 > **Plugin Type**: Execution Environment
 
 > **Verified Source Location**: `plugins/environments/execution_environment/helgrind/`
@@ -9,6 +12,9 @@
 The Helgrind Execution Environment plugin integrates Valgrind's Helgrind tool into the PANTHER testing framework. Helgrind is a thread error detector designed to find synchronization errors in C, C++, and other threaded applications.
 
 ## Features
+
+!!! warning "System Requirements"
+    Helgrind requires Valgrind to be installed on the host system and may significantly impact application performance during analysis. Use only for debugging and testing scenarios.
 
 - Detects race conditions in multi-threaded programs
 - Identifies lock order violations that could lead to deadlocks
