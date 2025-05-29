@@ -1,6 +1,7 @@
 # GPerf Heap Profiler
 
 > **Plugin Type**: Environment (execution_environment)
+
 > **Verified Source Location**: `plugins/environments/execution_environment/gperf_heap/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The GPerf Heap Environment plugin provides heap memory profiling capabilities fo
 <!-- src: /panther/plugins/environments/execution_environment/gperf_heap/gperf_heap.py -->
 
 This execution environment plugin is valuable for:
+
 - Analyzing memory usage patterns of protocol implementations
 - Identifying and diagnosing memory leaks
 - Optimizing memory usage in protocol stacks
@@ -28,6 +30,7 @@ The plugin requires:
   - dataclasses
 
 Services being profiled must be compatible with GPerf heap profiling:
+
 - Implementations must set `gperf_compatible: true` in their configuration
 - Services must be dynamically linked (for gperftools to intercept memory allocations)
 
@@ -161,6 +164,7 @@ To test the GPerf Heap environment plugin:
 
 1. **Unit Tests**: Located in `/tests/unit/plugins/environments/execution_environment/gperf_heap/`
 2. **Integration Tests**: Run a test configuration with the plugin enabled:
+
    ```bash
    python -m panther -c experiment-config/experiment_config_memory_profiling.yaml
    ```

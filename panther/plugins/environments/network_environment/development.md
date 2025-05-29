@@ -135,6 +135,7 @@ Create a comprehensive README.md file following the PANTHER documentation templa
 # Your Plugin Name
 
 > **Plugin Type**: Network Environment
+
 > **Verified Source Location**: `plugins/environments/network_environment/your_plugin_name/`
 
 ## Purpose and Overview

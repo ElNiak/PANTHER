@@ -1,7 +1,9 @@
 # Quiche QUIC Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+
 > **Source Location**: `plugins/services/iut/quic/quiche/`
 
 ## Overview
@@ -11,6 +13,7 @@ The Quiche plugin provides integration with Cloudflare's Quiche QUIC implementat
 <!-- src: /panther/plugins/services/iut/quic/quiche/quiche.py -->
 
 Quiche implementation features:
+
 - **Rust-based Implementation**: Memory-safe and performance-focused implementation
 - **RFC 9000 Compliance**: Full QUIC specification compliance
 - **HTTP/3 Support**: Built-in HTTP/3 protocol support
@@ -68,6 +71,7 @@ services:
 The plugin supports multiple QUIC specification versions:
 
 ### RFC 9000
+
 - **Description**: Final QUIC specification
 - **Features**: Complete QUIC 1.0 implementation
 - **Use Case**: Production and conformance testing

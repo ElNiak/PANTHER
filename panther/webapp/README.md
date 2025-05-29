@@ -2,7 +2,6 @@
 
 > **⚠️ DISCLAIMER: This documentation is currently under development and not yet complete. Features described may be partially implemented or planned for future releases. Check back for updates as we continue to improve the web application interface.**
 
-
 > **Purpose:** Complete guide to PANTHER's web interface for experiment management, result visualization, and real-time monitoring
 > **Target:** Users wanting to design experiments graphically; researchers analyzing results; teams needing collaborative experiment management
 > **Technology:** Flask-based web application with Bootstrap UI, Chart.js visualizations, and RESTful APIs
@@ -35,6 +34,7 @@ PANTHER provides a **comprehensive web interface** that allows you to design, ex
 ## Starting the Web Application
 
 ### Command Line Launch
+
 ```bash
 # Start web interface with default configuration
 panther --web --experiment-config experiment_config.yaml
@@ -47,6 +47,7 @@ panther --web --debug --experiment-config config.yaml
 ```
 
 ### Configuration Options
+
 ```yaml
 # In your experiment configuration
 webapp:
@@ -59,6 +60,7 @@ webapp:
 ```
 
 ### Access URLs
+
 - **Main Dashboard**: `http://localhost:8080/`
 - **API Documentation**: `http://localhost:8080/api/docs`
 - **Results Browser**: `http://localhost:8080/results`
@@ -83,12 +85,14 @@ webapp:
 ### Home Page Features
 
 #### Current Experiment Status
+
 - **Progress Indicators**: Visual progress bars for running experiments
 - **Test Queue**: List of pending and active tests
 - **Resource Usage**: CPU, memory, and container status
 - **Recent Results**: Quick access to latest experiment outputs
 
 #### Quick Actions
+
 ```html
 <!-- Example UI Elements -->
 <div class="quick-actions">
@@ -105,6 +109,7 @@ webapp:
 ```
 
 #### Protocol Selection
+
 - **Dynamic Protocol Menu**: Automatically populated from available plugins
 - **Implementation Matrix**: Shows available IUT implementations for each protocol
 - **Compatibility Check**: Validates implementation combinations
@@ -118,6 +123,7 @@ webapp:
 The experiment creator provides a **drag-and-drop interface** for building test configurations:
 
 #### Service Configuration Panel
+
 ```html
 <!-- Service Configuration Example -->
 <div class="service-config">
@@ -173,6 +179,7 @@ The experiment creator provides a **drag-and-drop interface** for building test 
 ```
 
 #### Environment Configuration
+
 ```html
 <div class="environment-config">
     <h3>🌐 Environment Setup</h3>
@@ -335,6 +342,7 @@ Export created configurations in multiple formats:
 ### Live Execution Dashboard
 
 #### Progress Tracking
+
 ```html
 <div class="experiment-monitor">
     <h2>🔄 Experiment: {{ experiment_name }}</h2>
@@ -371,6 +379,7 @@ Export created configurations in multiple formats:
 ```
 
 #### Resource Monitoring
+
 ```html
 <div class="resource-monitor">
     <div class="row">
@@ -413,6 +422,7 @@ Export created configurations in multiple formats:
 ```
 
 #### Live Log Streaming
+
 ```html
 <div class="log-viewer">
     <h4>📋 Live Logs</h4>
@@ -471,6 +481,7 @@ function appendLogEntry(logData) {
 ### Interactive Data Visualization
 
 #### Test Results Overview
+
 ```html
 <div class="results-dashboard">
     <h1>📊 QUIC Test Results</h1>
@@ -554,6 +565,7 @@ function appendLogEntry(logData) {
 ```
 
 #### Detailed Test Results Table
+
 ```html
 <div class="results-table">
     <h3>📋 Detailed Results</h3>
@@ -604,6 +616,7 @@ function appendLogEntry(logData) {
 ### Embedded Analysis Tools
 
 #### PCAP Analysis Integration
+
 ```html
 <div class="pcap-analysis">
     <h4>📡 Packet Capture Analysis</h4>
@@ -648,6 +661,7 @@ function appendLogEntry(logData) {
 ```
 
 #### Formal Verification Results
+
 ```html
 <div class="ivy-results">
     <h4>🔍 Formal Verification Results</h4>
@@ -719,10 +733,13 @@ function appendLogEntry(logData) {
 ### Experiment Management APIs
 
 #### Get Available Plugins
+
 ```http
 GET /api/plugins
 ```
+
 **Response:**
+
 ```json
 {
     "iut_implementations": [
@@ -741,6 +758,7 @@ GET /api/plugins
 ```
 
 #### Create Experiment Configuration
+
 ```http
 POST /api/experiments
 Content-Type: application/json
@@ -766,6 +784,7 @@ Content-Type: application/json
 ```
 
 #### Run Experiment
+
 ```http
 POST /api/run-experiment
 Content-Type: application/json
@@ -777,10 +796,13 @@ Content-Type: application/json
 ```
 
 #### Get Experiment Status
+
 ```http
 GET /api/experiments/{experiment_id}/status
 ```
+
 **Response:**
+
 ```json
 {
     "experiment_id": "exp_123",
@@ -806,20 +828,25 @@ GET /api/experiments/{experiment_id}/status
 ### Results API
 
 #### Get Test Results
+
 ```http
 GET /api/results?implementation=quiche&start_date=2024-01-01&end_date=2024-01-31
 ```
 
 #### Download Result Data
+
 ```http
 GET /api/results/{result_id}/download?format=csv
 ```
 
 #### Get Result Summary
+
 ```http
 GET /api/results/{result_id}/summary
 ```
+
 **Response:**
+
 ```json
 {
     "result_id": "result_456",
@@ -846,6 +873,7 @@ GET /api/results/{result_id}/summary
 ### Configuration API
 
 #### Validate Configuration
+
 ```http
 POST /api/validate-config
 Content-Type: application/json
@@ -856,6 +884,7 @@ Content-Type: application/json
 ```
 
 #### Get Plugin Schema
+
 ```http
 GET /api/plugins/{plugin_name}/schema
 ```
@@ -867,6 +896,7 @@ GET /api/plugins/{plugin_name}/schema
 ### Real-time Updates
 
 #### Experiment Progress
+
 ```javascript
 // Subscribe to experiment updates
 const experimentSocket = new WebSocket('ws://localhost:8080/ws/experiments');
@@ -892,6 +922,7 @@ experimentSocket.onmessage = function(event) {
 ```
 
 #### Live Log Streaming
+
 ```javascript
 // Subscribe to log updates
 const logSocket = new WebSocket('ws://localhost:8080/ws/logs');
@@ -937,6 +968,7 @@ document.querySelectorAll('.widget').forEach(widget => {
 ### Integration with External Tools
 
 #### Jupyter Notebook Integration
+
 ```python
 # Access PANTHER results in Jupyter notebooks
 import pandas as pd
@@ -952,6 +984,7 @@ print(success_rate)
 ```
 
 #### CI/CD Integration
+
 ```yaml
 # GitHub Actions example
 name: QUIC Protocol Tests
@@ -981,6 +1014,7 @@ jobs:
 ## Security and Access Control
 
 ### Authentication and Authorization
+
 ```yaml
 # Security configuration
 security:
@@ -992,6 +1026,7 @@ security:
 ```
 
 ### HTTPS Configuration
+
 ```yaml
 # HTTPS setup
 server:
@@ -1009,6 +1044,7 @@ server:
 ### Common Issues
 
 **Web Interface Not Starting:**
+
 ```bash
 # Check if port is in use
 netstat -tulpn | grep :8080
@@ -1018,6 +1054,7 @@ panther --web --debug --experiment-config config.yaml
 ```
 
 **WebSocket Connection Issues:**
+
 ```javascript
 // Check WebSocket status
 if (socket.readyState === WebSocket.CLOSED) {
@@ -1027,6 +1064,7 @@ if (socket.readyState === WebSocket.CLOSED) {
 ```
 
 **API Authentication Errors:**
+
 ```bash
 # Test API endpoint
 curl -H "Authorization: Bearer YOUR_TOKEN" \
@@ -1036,12 +1074,14 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 ### Performance Optimization
 
 **Large Result Sets:**
+
 - Enable pagination for result tables
 - Use data streaming for live updates
 - Implement client-side filtering
 - Cache frequently accessed data
 
 **WebSocket Performance:**
+
 - Limit message frequency for high-volume logs
 - Use message batching for multiple updates
 - Implement selective subscriptions

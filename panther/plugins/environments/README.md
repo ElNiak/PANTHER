@@ -15,11 +15,11 @@ Execution environment plugins provide monitoring, profiling, and analysis capabi
 
 | Tool | Purpose | Documentation |
 |------|---------|---------------|
-| **gperf_cpu** | CPU profiling and performance analysis | [Documentation](panther/plugins/environments/execution_environment/gperf_cpu) |
-| **gperf_heap** | Memory allocation profiling | [Documentation](panther/plugins/environments/execution_environment/gperf_heap) |
-| **strace** | System call tracing | [Documentation](panther/plugins/environments/execution_environment/strace) |
-| **memcheck** | Memory error detection | [Documentation](panther/plugins/environments/execution_environment/memcheck) |
-| **helgrind** | Thread error detection | [Documentation](panther/plugins/environments/execution_environment/helgrind) |
+| **gperf_cpu** | CPU profiling and performance analysis | [Documentation](panther/plugins/environments/execution_environment/gperf_cpu/README.md) |
+| **gperf_heap** | Memory allocation profiling | [Documentation](panther/plugins/environments/execution_environment/gperf_heap/README.md) |
+| **strace** | System call tracing | [Documentation](panther/plugins/environments/execution_environment/strace/README.md) |
+| **memcheck** | Memory error detection | [Documentation](panther/plugins/environments/execution_environment/memcheck/README.md) |
+| **helgrind** | Thread error detection | [Documentation](panther/plugins/environments/execution_environment/helgrind/README.md) |
 
 ### Network Environments
 
@@ -27,8 +27,8 @@ Network environment plugins manage network topology, containerization, and simul
 
 | Environment | Purpose | Documentation |
 |-------------|---------|---------------|
-| **docker_compose** | Multi-container testing environments | [Documentation](panther/plugins/environments/network_environment/docker_compose) |
-| **shadow_ns** | Network simulation and emulation | [Documentation](panther/plugins/environments/network_environment/shadow_ns) |
+| **docker_compose** | Multi-container testing environments | [Documentation](panther/plugins/environments/network_environment/docker_compose/README.md) |
+| **shadow_ns** | Network simulation and emulation | [Documentation](panther/plugins/environments/network_environment/shadow_ns/README.md) |
 
 ## Quick Start
 
@@ -203,11 +203,3 @@ For information on creating new environment plugins:
 - **[Environment Plugin Development Guide](panther/plugins/environments/development.md)**: Comprehensive development documentation
 - **[Execution Environment Development](panther/plugins/environments/execution_environment/development.md)**: Creating monitoring tools
 - **[Network Environment Development](panther/plugins/environments/network_environment/development.md)**: Creating deployment environments
-
-## API Reference
-
-Detailed API documentation for environment plugins:
-
-- **[Environment Interfaces](./index.md)**: Auto-generated API reference
-- **[Configuration Schema](panther/plugins/environments/config_schema.py)**: Configuration validation
-- **[Execution Environment API](panther/plugins/environments/execution_environment)**: Monitoring and profiling interfaces

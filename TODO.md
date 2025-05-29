@@ -21,14 +21,14 @@
 ## PANTHER
 
 * Create single container for IUT -> less disk used
-   * Still ok ?
-   * Create new docker-compose/swarm per experience ?
-      * with docker network ? we need to create route
-   * What about when using shddow ? We send binary to shadow container ?
+  * Still ok ?
+  * Create new docker-compose/swarm per experience ?
+    * with docker network ? we need to create route
+  * What about when using shddow ? We send binary to shadow container ?
 
 * Improving config files
-   * removing duplicate
-   * Add classes to save the states
+  * removing duplicate
+  * Add classes to save the states
 
 * documentation + comments
 
@@ -45,13 +45,13 @@
 ## PANTHER webapp
 
 * refactor /creator with accordingly -> to allow and adapt multiple protocol
-   * https://github.com/Kanaries/pygwalker
+  * <https://github.com/Kanaries/pygwalker>
 
 * refactor /result with accordingly -> to allow and adapt multiple protocol
 
 * Allow to add new implementation configuration
 
-* https://peak.telecommunity.com/DevCenter/PkgResources#entrypoint-objects
+* <https://peak.telecommunity.com/DevCenter/PkgResources#entrypoint-objects>
 
 ## PVF architecture
 

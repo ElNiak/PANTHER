@@ -1,4 +1,4 @@
-# Quick Start — Your First Experiment in ≈5 min 🚀
+# Quick Start — Your First Experiment in ≈30 min 🚀
 
 *(Example: QUIC — but PANTHER supports **any** protocol plugin)*
 
@@ -10,12 +10,12 @@ implementations ship with PANTHER, **yet the exact same steps apply to
 MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 
 > **Target platform:** Linux (x86-64) with Docker ≥ 27
+
 > **Estimated time:** ≈ 30 minutes per test the first time (due to build times of implementation), then around 2 minutes.
 
 ---
 
 ## 1 — Install PANTHER
-
 
 ```bash
 python -m venv .venv              # optional but recommended
@@ -111,6 +111,7 @@ results to `outputs/`.
 
 **Note:**
 You can also test with:
+
 ```bash
 python -m panther  --experiment-config experiment-config/experiment_config_example.yaml
 ```
@@ -118,6 +119,7 @@ python -m panther  --experiment-config experiment-config/experiment_config_examp
 ---
 
 ## 4 — Inspect Results
+
 PANTHER creates a timestamped output directory with subfolders for each test:
 
 ```

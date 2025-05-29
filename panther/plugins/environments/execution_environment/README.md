@@ -36,6 +36,7 @@ PANTHER's execution environments use a **plugin-based architecture** where each 
 **Purpose:** Basic containerized execution environment for consistent testing.
 
 **Configuration:**
+
 ```yaml
 execution_environment:
   type: "docker_container"
@@ -57,6 +58,7 @@ execution_environment:
 ```
 
 **Features:**
+
 - Environment variable injection
 - Volume mounting for data persistence
 - Security capability management
@@ -67,6 +69,7 @@ execution_environment:
 **Purpose:** Detailed CPU performance analysis using Google Performance Tools.
 
 **Configuration:**
+
 ```yaml
 execution_environment:
   type: "gperf_cpu"
@@ -83,12 +86,14 @@ execution_environment:
 ```
 
 **Generated Artifacts:**
+
 - CPU profile data (`.prof` files)
 - Call graphs and flame graphs
 - Function-level timing statistics
 - Hot path identification
 
 **Use Cases:**
+
 - Performance optimization
 - Bottleneck identification
 - Algorithm comparison
@@ -99,6 +104,7 @@ execution_environment:
 **Purpose:** Memory allocation and heap usage analysis.
 
 **Configuration:**
+
 ```yaml
 execution_environment:
   type: "gperf_heap"
@@ -115,6 +121,7 @@ execution_environment:
 ```
 
 **Generated Artifacts:**
+
 - Heap profiles (`.heap` files)
 - Memory leak reports
 - Allocation pattern analysis
@@ -125,6 +132,7 @@ execution_environment:
 **Purpose:** System call monitoring and debugging.
 
 **Configuration:**
+
 ```yaml
 execution_environment:
   type: "strace"
@@ -141,6 +149,7 @@ execution_environment:
 ```
 
 **Generated Artifacts:**
+
 - System call traces
 - Timing analysis
 - File descriptor tracking
@@ -151,6 +160,7 @@ execution_environment:
 **Purpose:** Detection of threading errors and race conditions.
 
 **Configuration:**
+
 ```yaml
 execution_environment:
   type: "helgrind"
@@ -167,6 +177,7 @@ execution_environment:
 ```
 
 **Generated Artifacts:**
+
 - Race condition reports
 - Deadlock detection
 - Lock ordering analysis
@@ -177,6 +188,7 @@ execution_environment:
 **Purpose:** Memory error detection using Valgrind.
 
 **Configuration:**
+
 ```yaml
 execution_environment:
   type: "memcheck"
@@ -193,6 +205,7 @@ execution_environment:
 ```
 
 **Generated Artifacts:**
+
 - Memory leak reports
 - Invalid memory access detection
 - Uninitialized variable usage
@@ -203,6 +216,7 @@ execution_environment:
 **Purpose:** Repeated execution runs for statistical analysis.
 
 **Configuration:**
+
 ```yaml
 execution_environment:
   type: "iterations"
@@ -222,6 +236,7 @@ execution_environment:
 ```
 
 **Generated Artifacts:**
+
 - Statistical summaries
 - Performance distributions
 - Reliability metrics
@@ -432,6 +447,7 @@ execution_environment:
 ### Common Issues
 
 **Environment Build Failures:**
+
 ```bash
 # Check Docker build logs
 docker build --no-cache -t test-env .
@@ -441,6 +457,7 @@ docker pull panther/base:latest
 ```
 
 **Permission Issues:**
+
 ```yaml
 execution_environment:
   config:
@@ -449,6 +466,7 @@ execution_environment:
 ```
 
 **Memory Constraints:**
+
 ```yaml
 execution_environment:
   config:
@@ -457,6 +475,7 @@ execution_environment:
 ```
 
 **Profiling Overhead:**
+
 ```yaml
 execution_environment:
   type: "gperf_cpu"

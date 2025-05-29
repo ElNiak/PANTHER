@@ -1,11 +1,13 @@
 # PANTHER Installation Guide
 
 ## Overview
+
 This document provides instructions for installing and setting up the PANTHER system on your environment.
 
 ## Prerequisites
 
 - Operating System: Linux, macOS
+- Docker v27 or higher
 - Python 3.10 or higher
 - pip (Python package manager)
 - Git (for cloning the repository)
@@ -29,16 +31,16 @@ Upgrade later with `pip install -U "panther-net"`.
 ### Option B — From Source *(for dev)*
 
 #### Clone the Repository
+
 ```bash
-git clone https://github.com/ElNiak/PANTHER.git;
-cd PANTHER;
+git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git;
+cd PANTHER
 python -m venv .venv && source .venv/bin/activate;
 ```
 
 #### 🔧 **Recommended: Using the Builder Script** *(cross-platform)*
 
 For development work, we **highly recommend** using the included Python builder script instead of the traditional Makefile:
-
 
 ```bash
 git clone https://github.com/ElNiak/PANTHER.git
@@ -52,6 +54,7 @@ python panther_builder.py clean          # Clean build artifacts
 ```
 
 More details with:
+
 ```bash
 python panther_builder.py --help         # See all available commands
 usage: panther_builder.py [-h] [-v]
@@ -80,6 +83,7 @@ Examples:
 ```
 
 **Why use the builder?**
+
 - ✅ **Cross-platform**: Works on Linux, macOS, and Windows
 - ✅ **Smart checks**: Automatically validates Python ≥3.10 and Docker ≥27.0
 - ✅ **Integrated**: Replaces Makefile with better error handling
@@ -134,4 +138,5 @@ panther --help
 - Issues: [GitHub Issues](https://github.com/ElNiak/PANTHER/issues)
 
 ## License
+
 PANTHER is licensed under MIT. See the LICENSE file for more details.

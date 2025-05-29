@@ -124,6 +124,7 @@ Create a comprehensive README.md file following the PANTHER documentation templa
 # Your Plugin Name
 
 > **Plugin Type**: Environment (execution_environment)
+
 > **Verified Source Location**: `plugins/environments/execution_environment/your_plugin_name/`
 
 ## Purpose and Overview

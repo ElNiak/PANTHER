@@ -41,9 +41,11 @@ This command runs the entire documentation process from collection to building.
 The process can also be broken down into individual steps:
 
 1. **Collect and Refine Documentation**:
+
    ```bash
    make docs-collect
    ```
+
    This runs the `scripts/collect_docs.py` script which:
    - Discovers all markdown files in the repository
    - Maps them to the proper location in the docs structure
@@ -53,27 +55,35 @@ The process can also be broken down into individual steps:
    - Updates the MkDocs navigation structure
 
 2. **Generate Documentation Inventory**:
+
    ```bash
    make docs-inventory
    ```
+
    Updates the plugin inventory for reference.
 
 3. **Verify Documentation**:
+
    ```bash
    make docs-verify
    ```
+
    Checks for broken links, missing anchors, and other issues.
 
 4. **Build and Preview**:
+
    ```bash
    make mkdocs
    ```
+
    Builds the documentation with MkDocs and starts a local server.
 
 5. **Check Documentation Manually**:
+
    ```bash
    python scripts/check_docs.py
    ```
+
    Performs a thorough check of the documentation for common issues.
 
 ## Writing Documentation Best Practices

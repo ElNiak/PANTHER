@@ -1,7 +1,9 @@
 # Picoquic Shadow Plugin
 
 > **Plugin Type**: Service (IUT - Implementation Under Test)
+
 > **Protocol**: QUIC
+
 > **Verified Source Location**: `plugins/services/iut/quic/picoquic_shadow/`
 
 ## Purpose and Overview
@@ -11,6 +13,7 @@ The Picoquic Shadow plugin provides a specialized integration of the Picoquic QU
 <!-- src: /panther/plugins/services/iut/quic/picoquic_shadow/picoquic_shadow.py -->
 
 This implementation is valuable for:
+
 - **Large-scale network simulation**: Simulating thousands of QUIC connections in Shadow
 - **Network topology research**: Testing QUIC behavior across complex network topologies
 - **Performance analysis at scale**: Evaluating QUIC performance under various network conditions
@@ -22,12 +25,14 @@ The Shadow integration allows for deterministic, repeatable experiments with pre
 ## Key Features
 
 ### Shadow Network Simulator Integration
+
 - **Deterministic simulation**: Reproducible experiments with controlled network conditions
 - **Scalable architecture**: Support for thousands of simulated nodes and connections
 - **Network topology simulation**: Complex network topologies with realistic latency and bandwidth
 - **Event-driven simulation**: Precise timing control for protocol analysis
 
 ### Picoquic Core Features (Shadow-Compatible)
+
 - **QUIC version support**: QUIC v1 (RFC 9000) and draft versions
 - **HTTP/3 support**: Full HTTP/3 implementation over QUIC
 - **Connection migration**: Seamless connection migration across network paths
@@ -35,6 +40,7 @@ The Shadow integration allows for deterministic, repeatable experiments with pre
 - **Congestion control**: Multiple congestion control algorithms (NewReno, BBR, Cubic)
 
 ### Research and Development Features
+
 - **Protocol experimentation**: Support for custom QUIC extensions and modifications
 - **Performance metrics**: Detailed simulation metrics and performance analysis
 - **Debugging support**: Enhanced logging and state inspection for simulation environments
@@ -43,12 +49,14 @@ The Shadow integration allows for deterministic, repeatable experiments with pre
 ## Requirements and Dependencies
 
 ### System Requirements
+
 - **Shadow Network Simulator**: Compatible version with QUIC support
 - **Build tools**: CMake, GCC/Clang, Make
 - **Libraries**: OpenSSL, libev, picotls
 - **Container runtime**: Docker (for containerized Shadow experiments)
 
 ### Python Dependencies
+
 ```bash
 # Core dependencies from requirements
 omegaconf>=2.0
@@ -56,7 +64,9 @@ dataclasses-json
 ```
 
 ### Build Dependencies
+
 The plugin automatically manages the following build dependencies:
+
 - **Picotls**: TLS 1.3 implementation (configured via dependencies)
 - **OpenSSL**: Cryptographic library
 - **CMake build system**: For compilation management
@@ -77,6 +87,7 @@ The Picoquic Shadow plugin accepts the following configuration parameters:
 | `version.server` | Dict | `{}` | Server-specific configuration |
 
 ### Version Configuration Schema
+
 ```yaml
 version:
   version: "master"           # Git branch or tag
@@ -250,6 +261,7 @@ experiment_config = {
 ### Common Issues and Solutions
 
 #### Shadow Compatibility Issues
+
 ```bash
 # Verify Shadow simulator installation
 shadow --version
@@ -262,6 +274,7 @@ grep -r "shadow_compatible" /path/to/config/
 ```
 
 #### Build and Dependency Issues
+
 ```bash
 # Check dependency resolution
 cat /opt/picoquic_shadow/dependencies.json
@@ -275,6 +288,7 @@ docker build --no-cache -f Dockerfile --target debug .
 ```
 
 #### Performance and Scaling Issues
+
 ```bash
 # Monitor Shadow simulation performance
 shadow --log-level debug --template-directory /etc/shadow
@@ -388,12 +402,14 @@ class PicoquicShadowResearch:
 ## Performance Considerations
 
 ### Shadow Simulation Optimization
+
 - **Memory usage**: Shadow simulations can be memory-intensive with many nodes
 - **CPU utilization**: Multi-threaded Shadow simulations benefit from high core counts
 - **Simulation time**: Large-scale experiments may require extended simulation periods
 - **Result storage**: Simulation outputs can generate substantial data volumes
 
 ### Network Topology Considerations
+
 - **Node scaling**: Test with progressively larger node counts to identify scaling limits
 - **Bandwidth simulation**: Ensure realistic bandwidth constraints for accurate results
 - **Latency modeling**: Use appropriate latency distributions for target scenarios
@@ -402,6 +418,7 @@ class PicoquicShadowResearch:
 ## Integration with Testing Framework
 
 This plugin integrates with PANTHER's testing infrastructure through:
+
 - **Shadow environment plugins**: Seamless integration with Shadow network simulator
 - **Protocol testing**: Compatible with QUIC protocol test suites
 - **Performance monitoring**: Integration with execution environment plugins

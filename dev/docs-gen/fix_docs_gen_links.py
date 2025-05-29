@@ -34,7 +34,7 @@ def get_relative_path_to_root(file_path: Path, project_root: Path) -> str:
             len(rel_path.parents) - 1
         )  # -1 because parents includes the file itself
         # Return the appropriate number of '../' to get to root
-        return "../" * levels
+        return "../../" * levels
     except ValueError:
         # File is not under project root
         return ""
@@ -163,8 +163,8 @@ def process_markdown_file(
         link_text = match.group(1)
         link_url = match.group(2)
         fixed_url = fix_markdown_link(link_url, path_to_root, file_path, project_root)
-
         if fixed_url != link_url:
+            print(f"Fixing link: {link_url} → {fixed_url}")
             changes.append((link_url, fixed_url))
 
         return f"[{link_text}]({fixed_url})"
@@ -179,19 +179,42 @@ def process_markdown_file(
     return changes
 
 
-def find_markdown_files(docs_gen_dir: Path) -> list[Path]:
-    """Find all markdown files in the dev/docs-gen directory."""
+def find_markdown_files(project_root: Path) -> list[Path]:
+    """Find all markdown files in the root and panther/ directory."""
     md_files = []
-    for root, dirs, files in os.walk(docs_gen_dir):
-        for file in files:
-            if file.endswith(".md"):
-                md_files.append(Path(root) / file)
+
+    # Find markdown files in root directory
+    for file in project_root.glob("*.md"):
+        md_files.append(file)
+
+    # Find markdown files in panther/ directory
+    panther_dir = project_root / "panther"
+    excluded_paths = [
+        "panther_ivy/submodules",
+        "panther_ivy/examples",
+        "panther_ivy/doc",
+        "panther_ivy/ivy",
+    ]
+
+    if panther_dir.exists():
+        for root, _, files in os.walk(panther_dir):
+            # Convert to relative path from project root for easier comparison
+            rel_path = Path(root).relative_to(project_root)
+            rel_path_str = str(rel_path)
+            # Skip excluded paths
+            if any(excl in rel_path_str for excl in excluded_paths):
+                continue
+
+            for file in files:
+                if file.endswith(".md"):
+                    md_files.append(Path(root) / file)
+
     return sorted(md_files)
 
 
 def main():
     # Determine project root (assumes script is in project root)
-    script_dir = Path(__file__).parent.absolute()
+    script_dir = Path(__file__).parent.absolute().parent.parent
     project_root = script_dir
     docs_gen_dir = project_root / "dev" / "docs-gen"
 
@@ -213,7 +236,7 @@ def main():
     print()
 
     # Find all markdown files
-    md_files = find_markdown_files(docs_gen_dir)
+    md_files = find_markdown_files(project_root)
     print(f"Found {len(md_files)} markdown files in dev/docs-gen/")
 
     if not md_files:

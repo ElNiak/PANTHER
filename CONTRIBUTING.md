@@ -4,7 +4,7 @@
 
 The PANTHER project is organized into the following key directories:
 
-```
+```tree
 experiment-config/      # Experiments configurations files
 tests/                  # Unit tests
 outputs/                # Experiment results and logs

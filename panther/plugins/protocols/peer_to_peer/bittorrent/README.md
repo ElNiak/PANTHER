@@ -1,7 +1,9 @@
 # BitTorrent Protocol Plugin
 
 > **Plugin Type**: Peer-to-Peer Protocol
+
 > **Verified Source Location**: `plugins/protocols/peer_to_peer/bittorrent/`
+
 > **Status**: Planned/In Development
 
 ## Overview

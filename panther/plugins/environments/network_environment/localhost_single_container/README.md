@@ -1,6 +1,7 @@
 # Localhost Single Container Environment
 
 > **Plugin Type**: Network Environment
+
 > **Verified Source Location**: `plugins/environments/network_environment/localhost_single_container/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The Localhost Single Container Environment plugin provides a lightweight contain
 <!-- src: /panther/plugins/environments/network_environment/localhost_single_container/localhost_single_container.py -->
 
 This network environment plugin is particularly useful for:
+
 - Rapid development iterations and testing of protocol implementations
 - Testing client-server interactions in a controlled, local environment
 - Simplified debugging with direct access to all services in one container
@@ -27,6 +29,7 @@ The plugin requires:
   - pathlib (standard library)
 
 The plugin also integrates with:
+
 - PANTHER event management system
 - Service plugins that can operate in a containerized environment
 
@@ -149,6 +152,7 @@ To test the Localhost Single Container environment plugin:
 
 1. **Unit Tests**: Located in `/tests/unit/plugins/environments/network_environment/localhost_single_container/`
 2. **Integration Tests**: Run the example configuration to verify proper operation:
+
    ```bash
    python -m panther -c experiment-config/experiment_config_localhost.yaml
    ```

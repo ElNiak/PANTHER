@@ -1,20 +1,46 @@
-<!-- filepath: /Users/elniak/Documents/Project/PANTHER/panther/plugins/services/iut/README.md -->
-# Iut Plugin
+# Implementation Under Test (IUT) Plugins
 
-## Description
+> **Plugin Type**: IUT Service
 
-PANTHER Implementation Under Test (IUT) services.
+> **Verified Source Location**: `plugins/services/iut/`
 
-This package contains services that can be used as implementations under test.
+## Overview
 
-## Usage
+Implementation Under Test (IUT) plugins represent the actual protocol implementations being evaluated within the PANTHER framework. These implementations can be tested for standards conformance, performance characteristics, or security vulnerabilities.
 
-```python
-from plugins.services.iut import *
+<!-- src: /panther/plugins/services/iut/ -->
+
+## Available Plugins
+
+| Plugin | Description | Documentation |
+|--------|-------------|---------------|
+| picoquic | QUIC protocol implementation in C | [Documentation](panther/plugins/services/iut/quic/picoquic/README.md) |
+| ping_pong | Simple ping-pong service for basic testing | [Documentation](panther/plugins/services/iut/minip/ping_pong/README.md) |
+
+## Common Configuration
+
+IUT plugins typically share these configuration patterns:
+
+```yaml
+services:
+  - name: "quic_implementation"
+    type: "iut"
+    implementation: "quic/picoquic"
+    config:
+      binary_path: "/usr/local/bin/picoquicdemo"
+      server_port: 4443
+      certificate_file: "cert.pem"
+      private_key_file: "key.pem"
 ```
 
-## Components
+## Integration Points
 
-- [Http](panther/plugins/services/iut/http)
-- [Quic](panther/plugins/services/iut/quic)
-- [Minip](panther/plugins/services/iut/minip)
+IUT plugins integrate with:
+
+1. **Protocol plugins**: They implement specific protocol versions/behaviors
+2. **Environment plugins**: They run within specific execution and network environments
+3. **Tester plugins**: They are validated by tester plugins
+
+## Development
+
+To create a new IUT plugin, see the [Adding IUT](panther/plugins/services/iut/development.md) guide.

@@ -1,6 +1,7 @@
 # HTTP Implementation Under Test
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Source Location**: `plugins/services/iut/http/`
 
 ## Overview
@@ -10,6 +11,7 @@ The HTTP IUT plugin provides HTTP protocol implementations for testing web serve
 <!-- src: /panther/plugins/services/iut/http/__init__.py -->
 
 This implementation supports:
+
 - **HTTP/1.1 Protocol Testing**: Standard HTTP protocol compliance testing
 - **HTTP/2 Protocol Testing**: Modern HTTP protocol features and performance
 - **Security Testing**: Analysis of HTTP security mechanisms and vulnerabilities
@@ -20,6 +22,7 @@ This implementation supports:
 The HTTP IUT plugin serves as a base for specific HTTP implementation plugins:
 
 ### Planned Implementations
+
 - **Apache HTTP Server**: Industry-standard web server implementation
 - **Nginx**: High-performance web server and reverse proxy
 - **Node.js HTTP**: JavaScript-based HTTP server implementation

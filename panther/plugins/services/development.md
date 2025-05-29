@@ -140,7 +140,7 @@ plugins/services/testers/<tester_name>/
 
 ### 3. Implement the Service Interface
 
-#### For IUT Service:
+#### For IUT Service
 
 ```python
 # plugins/services/iut/<protocol>/<implementation>/plugin.py
@@ -175,7 +175,7 @@ class MyImplementation(IImplementationManager):
         pass
 ```
 
-#### For Tester Service:
+#### For Tester Service
 
 ```python
 # plugins/services/testers/<tester_name>/plugin.py
@@ -212,7 +212,7 @@ class MyTester(ITesterManager):
 
 ### 4. Define Configuration Schema
 
-#### For IUT Service:
+#### For IUT Service
 
 ```python
 # plugins/services/iut/<protocol>/<implementation>/config_schema.py
@@ -230,7 +230,7 @@ class MyImplementationConfig(ImplementationConfig):
     extra_args: list[str] = field(default_factory=list)
 ```
 
-#### For Tester Service:
+#### For Tester Service
 
 ```python
 # plugins/services/testers/<tester_name>/config_schema.py
@@ -289,7 +289,7 @@ def test_service_execution():
 
 ### 7. Document Your Service
 
-Create a README.md file using the [plugin template](../../../plugin_template.md) that includes:
+Create a README.md file using the [plugin template](panther/plugins/plugin_template.md) that includes:
 
 - Service purpose and capabilities
 - Configuration options and examples

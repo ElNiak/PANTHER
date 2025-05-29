@@ -1,6 +1,7 @@
 # Quinn QUIC Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Verified Source Location**: `plugins/services/iut/quic/quinn/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The Quinn plugin provides integration with Quinn, a high-performance QUIC implem
 <!-- src: /panther/plugins/services/iut/quic/quinn/quinn.py -->
 
 The Quinn implementation plugin enables:
+
 - High-performance QUIC testing with memory safety
 - Async/await based concurrent connection handling
 - Systems programming language QUIC evaluation
@@ -181,12 +183,14 @@ services:
 ## Features
 
 ### Rust Language Advantages
+
 - **Memory Safety**: Zero-cost memory safety without garbage collection
 - **Performance**: Compiled native code with minimal runtime overhead
 - **Concurrency**: Efficient async/await with the Tokio runtime
 - **Type Safety**: Strong type system preventing common networking bugs
 
 ### QUIC Protocol Features
+
 - **RFC 9000 Compliance**: Complete QUIC transport implementation
 - **Stream Multiplexing**: Efficient bidirectional and unidirectional streams
 - **Flow Control**: Advanced connection and stream flow control
@@ -194,6 +198,7 @@ services:
 - **Connection Migration**: Transparent network path changes
 
 ### Advanced Capabilities
+
 - **0-RTT Connections**: Zero Round Trip Time establishment
 - **Path MTU Discovery**: Automatic maximum transmission unit detection
 - **Multiple Congestion Control**: Pluggable congestion control algorithms
@@ -201,6 +206,7 @@ services:
 - **Custom Transport Parameters**: Extensible transport configuration
 
 ### Performance Optimizations
+
 - **Zero-Copy Operations**: Minimal data copying in hot paths
 - **Vectored I/O**: Efficient batch operations
 - **CPU Affinity**: NUMA-aware processing
@@ -209,6 +215,7 @@ services:
 ## Development Integration
 
 ### Basic Server Implementation
+
 ```rust
 use quinn::{Endpoint, ServerConfig};
 use std::net::SocketAddr;
@@ -250,6 +257,7 @@ async fn handle_connection(connection: quinn::Connection) {
 ```
 
 ### Client Implementation
+
 ```rust
 use quinn::{Endpoint, ClientConfig};
 use std::net::SocketAddr;
@@ -276,6 +284,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 ### Custom Configuration
+
 ```rust
 use quinn::{TransportConfig, ServerConfig, ClientConfig};
 use std::sync::Arc;
@@ -300,6 +309,7 @@ fn create_server_config() -> ServerConfig {
 ## Testing and Validation
 
 ### Unit Testing
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -333,6 +343,7 @@ mod tests {
 ```
 
 ### Integration Testing
+
 ```yaml
 # Integration test configuration
 services:
@@ -348,6 +359,7 @@ services:
 ```
 
 ### Performance Testing
+
 ```rust
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use quinn::{Endpoint, ServerConfig, ClientConfig};
@@ -378,24 +390,28 @@ criterion_main!(benches);
 ### Common Issues
 
 **Connection Setup Failures**
+
 - Verify certificate configuration and trust chains
 - Check Rust TLS certificate format compatibility
 - Review server name indication (SNI) configuration
 - Validate network connectivity and firewall rules
 
 **Performance Issues**
+
 - Monitor async task spawning and resource usage
 - Profile memory allocation patterns
 - Check Tokio runtime configuration
 - Tune transport parameters for workload
 
 **Build and Dependency Issues**
+
 - Ensure compatible Rust toolchain version
 - Verify rustls and quinn version compatibility
 - Check target platform support
 - Review Cargo.toml dependency specifications
 
 ### Debug Configuration
+
 ```yaml
 services:
   iut:
@@ -412,6 +428,7 @@ services:
 ```
 
 ### Performance Profiling
+
 ```bash
 # CPU profiling with perf
 perf record --call-graph=dwarf ./quinn_server
@@ -426,6 +443,7 @@ cargo flamegraph --bin quinn_server
 ```
 
 ### Memory Analysis
+
 ```rust
 // Enable memory profiling in development
 #[cfg(feature = "profiling")]
@@ -446,6 +464,7 @@ fn print_memory_stats() {
 ## Production Deployment
 
 ### Containerized Deployment
+
 ```dockerfile
 FROM rust:1.70 as builder
 WORKDIR /app
@@ -461,6 +480,7 @@ CMD ["quinn_server"]
 ```
 
 ### Systemd Service
+
 ```ini
 [Unit]
 Description=Quinn QUIC Server
@@ -479,6 +499,7 @@ WantedBy=multi-user.target
 ```
 
 ### Performance Tuning
+
 ```yaml
 # Production configuration
 services:

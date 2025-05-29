@@ -15,8 +15,8 @@ Traditional client-server protocol testing where one endpoint initiates connecti
 
 | Protocol | Description | Documentation |
 |----------|-------------|---------------|
-| **QUIC** | HTTP/3 transport protocol | [Documentation](panther/plugins/protocols/client_server/quic) |
-| **HTTP** | Hypertext Transfer Protocol | [Documentation](panther/plugins/protocols/client_server/http) |
+| **QUIC** | HTTP/3 transport protocol | [Documentation](panther/plugins/protocols/client_server/quic/README.md) |
+| **HTTP** | Hypertext Transfer Protocol | [Documentation](panther/plugins/protocols/client_server/http/README.md) |
 
 ### Peer-to-Peer Protocols
 
@@ -24,7 +24,7 @@ Distributed protocols where endpoints can act as both clients and servers.
 
 | Protocol | Description | Documentation |
 |----------|-------------|---------------|
-| **BitTorrent** | P2P file sharing protocol | [Documentation](panther/plugins/protocols/peer_to_peer/bittorrent) |
+| **BitTorrent** | P2P file sharing protocol | [Documentation](panther/plugins/protocols/peer_to_peer/bittorrent/README.md) |
 
 ## Quick Start
 
@@ -170,13 +170,3 @@ Protocol plugins define standard test scenarios:
 For information on creating new protocol plugins:
 
 - **[Protocol Plugin Development Guide](panther/plugins/protocols/development.md)**: Comprehensive development documentation
-- **[Protocol Interface Documentation](panther/plugins/protocols/protocol_interface.py)**: Base interface requirements
-- **[Configuration Schema Guide](panther/plugins/protocols/config_schema.py)**: Configuration validation
-
-## API Reference
-
-Detailed API documentation for protocol plugins:
-
-- **[Protocol Interfaces](./index.md)**: Auto-generated API reference
-- **[Configuration Schema](panther/plugins/protocols/config_schema.py)**: Configuration validation
-- **[Test Scenario Definitions](panther/plugins/protocols/client_server)**: Available test scenarios

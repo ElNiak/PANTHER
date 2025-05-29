@@ -1,6 +1,7 @@
 # Iterations Execution Environment Plugin
 
 > **Plugin Type**: Execution Environment
+
 > **Verified Source Location**: `plugins/environments/execution_environment/iterations/`
 
 ## Overview
@@ -61,6 +62,7 @@ The iterations plugin works by:
 4. Collecting and aggregating results according to configuration
 
 This approach is particularly useful for:
+
 - Gathering statistically significant test data
 - Stress testing system components
 - Finding intermittent issues that may not appear in single test runs

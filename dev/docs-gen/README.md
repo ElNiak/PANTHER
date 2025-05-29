@@ -35,6 +35,7 @@ make docs
 ```
 
 This single command:
+
 1. Collects and refines documentation from across the repository (`docs-collect`)
 2. Generates the documentation inventory (`docs-inventory`)
 3. Verifies links and references (`docs-verify`)
@@ -45,9 +46,11 @@ This single command:
 You can run individual steps of the documentation process:
 
 1. **Collect and refine documentation**:
+
    ```bash
    make docs-collect
    ```
+
    This runs `scripts/collect_docs.py` which:
    - Discovers all Markdown files in the repository
    - Organizes them into the correct structure in `docs/`
@@ -55,16 +58,19 @@ You can run individual steps of the documentation process:
    - Updates the MkDocs navigation template
 
 2. **Generate plugin inventory**:
+
    ```bash
    make docs-inventory
    ```
 
 3. **Verify documentation**:
+
    ```bash
    make docs-verify
    ```
 
 4. **Build MkDocs site**:
+
    ```bash
    make mkdocs
    ```

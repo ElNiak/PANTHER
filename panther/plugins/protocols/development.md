@@ -463,11 +463,6 @@ For detailed API documentation:
 - **[Plugin Loader](panther/plugins/plugin_loader.py)**: Plugin discovery and loading
 - **[Test Examples](test_scenarios/)**: Example test implementations
 
-    def cleanup(self):
-        """Clean up resources."""
-        pass
-```
-
 ## Creating a New Protocol Plugin
 
 ### 1. Choose Protocol Type

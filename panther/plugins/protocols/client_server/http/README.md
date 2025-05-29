@@ -1,6 +1,7 @@
 # HTTP Protocol
 
 > **Plugin Type**: Protocol (client_server)
+
 > **Verified Source Location**: `plugins/protocols/client_server/http/`
 
 ## Purpose and Overview
@@ -24,6 +25,7 @@ The plugin requires:
   - enum
 
 The plugin also integrates with:
+
 - PANTHER service plugins implementing HTTP clients and servers
 - Network environment plugins that support TCP/IP communication
 

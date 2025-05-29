@@ -1,6 +1,7 @@
 # Strace System Call Tracer
 
 > **Plugin Type**: Environment (execution_environment)
+
 > **Verified Source Location**: `plugins/environments/execution_environment/strace/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The Strace Environment plugin enables system call tracing for PANTHER services. 
 <!-- src: /panther/plugins/environments/execution_environment/strace/strace.py -->
 
 This execution environment plugin is valuable for:
+
 - Debugging protocol implementation issues
 - Analyzing interactions between applications and the operating system
 - Understanding file and network operations performed by services
@@ -168,6 +170,7 @@ To test the Strace environment plugin:
 
 1. **Unit Tests**: Located in `/tests/unit/plugins/environments/execution_environment/strace/`
 2. **Integration Tests**: Run a test configuration with the plugin enabled:
+
    ```bash
    python -m panther -c experiment-config/experiment_config_strace.yaml
    ```

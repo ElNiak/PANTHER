@@ -249,7 +249,7 @@ class BuildManager:
             "panther/webapp/README.md": "docs/web_application_workflows.md",
             # Plugins Overview
             "panther/plugins/README.md": "docs/plugins_overview.md",
-            "dev/docs-gen/plugins_inventory.md": "docs/plugins_inventory.md",
+            "panther/plugins/plugins_inventory.md": "docs/plugins_inventory.md",
             # Developer Guide
             "CONTRIBUTING.md": "docs/contributing.md",
             "panther/plugins/development.md": "docs/plugin_development.md",
@@ -374,7 +374,7 @@ class BuildManager:
                     "--format",
                     "markdown",
                     "--output",
-                    "docs/plugins_inventory.md",
+                    "panther/plugins/plugins_inventory.md",
                 ]
             )
             if result != 0:

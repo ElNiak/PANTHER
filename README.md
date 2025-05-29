@@ -1,6 +1,5 @@
 # PANTHER — Protocol Analysis and Testing Harness for Extensible Research
 
-
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.10819552.svg)](https://doi.org/10.5281/zenodo.10819552)
 [![mkdocs](https://github.com/ElNiak/PANTHER/actions/workflows/pr-generate-docs.yaml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pr-generate-docs.yaml)
 [![pages-build-deployment](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/pages/pages-build-deployment)
@@ -15,74 +14,76 @@
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/c8043e5320934d49a688e173db5a331d)](https://app.codacy.com/gh/ElNiak/PANTHER/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Qodana](https://github.com/ElNiak/PANTHER/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/ElNiak/PANTHER/actions/workflows/qodana_code_quality.yml)
 
-
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white) ![C++](https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white) ![Debian](https://img.shields.io/badge/Debian-D70A53?style=for-the-badge&logo=debian&logoColor=white)
 
 PANTHER is a **plugin‑based, research‑grade test harness** that lets you design, reproduce, and analyse complex **network‑protocol experiments** without hand‑rolling scripts or bespoke infrastructure.
 
-* **What it solves:**
-  - Validating that a new QUIC or custom protocol implementation behaves correctly under failure, jitter, or adverse timing.
-  - Profiling performance characteristics (CPU, heap, syscall mix) across different builds or OS kernels.
-  - Running formal conformance checks (Ivy) inside a deterministic network simulator (Shadow) to catch logic bugs early.
+**What it solves:**
 
-* **Core characteristics:**
-  ▸ **Reproducible:** every experiment is defined in a single YAML file and executed in an isolated container environment.
-  ▸ **Extensible:** a plugin system adds new protocols, services, profilers, or network back‑ends with minimal boilerplate.
-  ▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.
+* Validating that a new QUIC or custom protocol implementation behaves correctly under failure, jitter, or adverse timing.
+
+* Profiling performance characteristics (CPU, heap, syscall mix) across different builds or OS kernels.
+
+* Running formal conformance checks (Ivy) inside a deterministic network simulator (Shadow) to catch logic bugs early.
+
+**Core characteristics:**
+
+▸ **Reproducible:** every experiment is defined in a single YAML file and executed in an isolated container environment.
+
+▸ **Extensible:** a plugin system adds new protocols, services, profilers, or network back‑ends with minimal boilerplate.
+
+▸ **Multi‑audience:** useful to academic researchers, industrial developers, security analysts, SRE teams, and educators.
 
 ---
 
 ## 📑 Table of Contents
 
 ### Getting Started
-1. [Quick Start](QUICK_START.md)
-2. [Installation Guide](INSTALL.md)
+
+1. [Installation Guide](INSTALL.md)
+2. [Quick Start](QUICK_START.md)
 3. [Configuration](panther/config/README.md)
 4. [Workflows](WORKFLOW.md)
 5. [Core](panther/core/README.md)
 6. [Web Application Workflows](panther/webapp/README.md)
 
 ### Plugins
+
 7. [Overview](panther/plugins/README.md)
-8. [Inventory](dev/docs-gen/plugins_inventory.md)
+8. [Inventory](panther/plugins/plugins_inventory.md)
 9. **Environment Plugins**
-   - [Overview](panther/plugins/environments/README.md)
-   - [Network Environment](panther/plugins/environments/network_environment/README.md)
-   - [Execution Environment](panther/plugins/environments/execution_environment/README.md)
+   * [Overview](panther/plugins/environments/README.md)
+   * [Network Environment](panther/plugins/environments/network_environment/README.md)
+   * [Execution Environment](panther/plugins/environments/execution_environment/README.md)
 10. **Protocol Plugins**
-    - [Overview](panther/plugins/protocols/README.md)
-    - [Client-Server Protocols](panther/plugins/protocols/client_server/README.md)
-    - [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md)
+    * [Overview](panther/plugins/protocols/README.md)
+    * [Client-Server Protocols](panther/plugins/protocols/client_server/README.md)
+    * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md)
 11. **Service Plugins**
-    - [Overview](panther/plugins/services/README.md)
-    - [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md)
-    - [Testing Services](panther/plugins/services/testers/README.md)
+    * [Overview](panther/plugins/services/README.md)
+    * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md)
+    * [Testing Services](panther/plugins/services/testers/README.md)
 
 ### Developer Guide
+
 12. [Contributing](CONTRIBUTING.md)
 13. **Plugin Development**
-    - [Overview](panther/plugins/development.md)
-    - **Environment Plugins**
-      - [Overview](panther/plugins/environments/development.md)
-      - [Network Environment](panther/plugins/environments/network_environment/development.md)
-      - [Execution Environment](panther/plugins/environments/execution_environment/development.md)
-    - [Protocol Plugins](panther/plugins/protocols/development.md)
-    - **Service Plugins**
-      - [Overview](panther/plugins/services/development.md)
-      - [Implementation Under Tests (IUTs)](panther/plugins/services/iut/development.md)
-      - [Testing Services](panther/plugins/services/testers/development.md)
-14. **Documentation**
-    - [Overview](dev/docs-gen/README.md)
-    - [Workflow](dev/docs-gen/documentation_WORKFLOW.md)
-    - [Style Guide](dev/docs-gen/style_guide.md)
-    - [Integration](dev/docs-gen/documentation_integration.md)
-    - [Links](dev/docs-gen/documentation_links.md)
-    - [Enhancements](dev/docs-gen/documentation_enhancements.md)
+    * [Overview](panther/plugins/development.md)
+    * **Environment Plugins**
+      * [Overview](panther/plugins/environments/development.md)
+      * [Network Environment](panther/plugins/environments/network_environment/development.md)
+      * [Execution Environment](panther/plugins/environments/execution_environment/development.md)
+    * [Protocol Plugins](panther/plugins/protocols/development.md)
+    * **Service Plugins**
+      * [Overview](panther/plugins/services/development.md)
+      * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/development.md)
+      * [Testing Services](panther/plugins/services/testers/development.md)
 
 ### Project Information
-15. [Changelog](CHANGELOG.md)
-16. [License](LICENSE.md)
-17. [Code Reference](https://elniak.github.io/PANTHER/panther/)
+
+14. [Changelog](CHANGELOG.md)
+15. [License](LICENSE.md)
+16. [Code Reference](https://elniak.github.io/PANTHER/panther/)
 
 ---
 
@@ -91,31 +92,36 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 PANTHER experiments follow a **4-phase execution model**:
 
 ### Phase 1: Initialization
-- Load configurations and validate experiment setup
-- Initialize plugin system and service managers
-- Create test case instances
+
+* Load configurations and validate experiment setup
+* Initialize plugin system and service managers
+* Create test case instances
 
 ### Phase 2: Plugin Loading & Service Setup
-- Discover and load protocol/implementation plugins
-- Create service managers for each IUT (Implementation Under Test)
-- Generate deployment and execution commands
+
+* Discover and load protocol/implementation plugins
+* Create service managers for each IUT (Implementation Under Test)
+* Generate deployment and execution commands
 
 ### Phase 3: Environment Deployment
-- Setup network environment (Docker Compose, localhost, or Shadow NS)
-- Build container images for protocol implementations
-- Deploy services with proper networking and monitoring
+
+* Setup network environment (Docker Compose, localhost, or Shadow NS)
+* Build container images for protocol implementations
+* Deploy services with proper networking and monitoring
 
 ### Phase 4: Test Execution
-- Start services and execute test scenarios
-- Monitor execution with automatic packet capture
-- Collect results, logs, and performance metrics
-- Teardown environment and generate reports
+
+* Start services and execute test scenarios
+* Monitor execution with automatic packet capture
+* Collect results, logs, and performance metrics
+* Teardown environment and generate reports
 
 **Key Features:**
-- **Reproducible**: Every experiment defined in single YAML configuration
-- **Containerized**: Isolated execution environments with Docker
-- **Event-driven**: Real-time monitoring and coordination
-- **Extensible**: Plugin architecture for new protocols and environments
+
+* **Reproducible**: Every experiment defined in single YAML configuration
+* **Containerized**: Isolated execution environments with Docker
+* **Event-driven**: Real-time monitoring and coordination
+* **Extensible**: Plugin architecture for new protocols and environments
 
 For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 
@@ -133,32 +139,28 @@ For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 
 ---
 
-
-
 ## Documentation
 
 For detailed information on using PANTHER, see the:
 
-- [elniak.github.io/PANTHER](elniak.github.io/PANTHER)
-
+* [elniak.github.io/PANTHER](elniak.github.io/PANTHER)
 
 ## Contributing
 
 Contributions are welcome! To get started:
 
-- Fork the repository.
-- Create a new branch for your feature or bug fix.
-- Submit a pull request with a clear description of your changes.
+* Fork the repository.
+* Create a new branch for your feature or bug fix.
+* Submit a pull request with a clear description of your changes.
 
 For more details, see the [Contribution Guide](CONTRIBUTING.md).
-
 
 ## Contact
 
 For support or inquiries, please contact:
 
-- ElNiak
-- Open an issue on the GitHub repository.
+* ElNiak
+* Open an issue on the GitHub repository.
 
 ---
 
@@ -166,7 +168,7 @@ For support or inquiries, please contact:
 
 For further reading and context on the topics and methodologies used in this tool, refer to the following articles:
 
-- Crochet, C., Aoga, J., & Legay, A. (2024). Formally Discovering and Reproducing Network Protocols Vulnerabilities (NordSec24).
+* Crochet, C., Aoga, J., & Legay, A. (2024). Formally Discovering and Reproducing Network Protocols Vulnerabilities (NordSec24).
 
 ```
 @techreport{crochet2024formally,
@@ -177,7 +179,7 @@ For further reading and context on the topics and methodologies used in this too
 }
 ```
 
-- Rousseaux, T., Crochet, C., Aoga, J., Legay, A. (2024). Network Simulator-Centric Compositional Testing. In: Castiglioni, V., Francalanza, A. (eds) Formal Techniques for Distributed Objects, Components, and Systems. FORTE 2024. Lecture Notes in Computer Science, vol 14678. Springer, Cham. https://doi.org/10.1007/978-3-031-62645-6_10
+* Rousseaux, T., Crochet, C., Aoga, J., Legay, A. (2024). Network Simulator-Centric Compositional Testing. In: Castiglioni, V., Francalanza, A. (eds) Formal Techniques for Distributed Objects, Components, and Systems. FORTE 2024. Lecture Notes in Computer Science, vol 14678. Springer, Cham. <https://doi.org/10.1007/978-3-031-62645-6_10>
 
 ```
 @inproceedings{rousseaux2024network,
@@ -191,7 +193,7 @@ For further reading and context on the topics and methodologies used in this too
 }
 ```
 
-- Crochet, C., Rousseaux, T., Piraux, M., Sambon, J.-F., & Legay, A. (2021). Verifying quic implementations using ivy. In *Proceedings of the 2021 Workshop on Evolution, Performance and Interoperability of QUIC*. [DOI](10.1145/3488660.3493803)
+* Crochet, C., Rousseaux, T., Piraux, M., Sambon, J.-F., & Legay, A. (2021). Verifying quic implementations using ivy. In *Proceedings of the 2021 Workshop on Evolution, Performance and Interoperability of QUIC*. [DOI](10.1145/3488660.3493803)
 
 ```
 @inproceedings{crochet2021verifying,
@@ -204,7 +206,7 @@ For further reading and context on the topics and methodologies used in this too
 }
 ```
 
-- Crochet, C., & Sambon, J.-F. (2021). Towards verification of QUIC and its extensions. (Master's thesis, UCL - Ecole polytechnique de Louvain). Available at [UCLouvain](http://hdl.handle.net/2078.1/thesis:30559). Keywords: QUIC, Formal Verification, RFC, IETF, Specification, Ivy, Network.
+* Crochet, C., & Sambon, J.-F. (2021). Towards verification of QUIC and its extensions. (Master's thesis, UCL - Ecole polytechnique de Louvain). Available at [UCLouvain](http://hdl.handle.net/2078.1/thesis:30559). Keywords: QUIC, Formal Verification, RFC, IETF, Specification, Ivy, Network.
 
 ```
 @article{crochettowards,
@@ -217,21 +219,21 @@ For further reading and context on the topics and methodologies used in this too
 
 For other useful resources, see the following:
 
-- McMillan, K. L., & Padon, O. (2018). Deductive Verification in Decidable Fragments with Ivy. In A. Podelski (Ed.), *Static Analysis - 25th International Symposium, SAS 2018, Freiburg, Germany, August 29-31, 2018, Proceedings* (pp. 43–55). Springer. [DOI](10.1007/978-3-319-99725-4_4) - [PDF](SAS18.pdf)
+* McMillan, K. L., & Padon, O. (2018). Deductive Verification in Decidable Fragments with Ivy. In A. Podelski (Ed.), *Static Analysis - 25th International Symposium, SAS 2018, Freiburg, Germany, August 29-31, 2018, Proceedings* (pp. 43–55). Springer. [DOI](10.1007/978-3-319-99725-4_4) - [PDF](SAS18.pdf)
 
-- Taube, M., Losa, G., McMillan, K. L., Padon, O., Sagiv, M., Shoham, S., Wilcox, J. R., & Woos, D. (2018). Modularity for decidability of deductive verification with applications to distributed systems. In *Proceedings of the 39th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2018, Philadelphia, PA, USA, June 18-22, 2018* (pp. 662–677). ACM. [DOI](10.1145/3192366.3192414)
+* Taube, M., Losa, G., McMillan, K. L., Padon, O., Sagiv, M., Shoham, S., Wilcox, J. R., & Woos, D. (2018). Modularity for decidability of deductive verification with applications to distributed systems. In *Proceedings of the 39th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2018, Philadelphia, PA, USA, June 18-22, 2018* (pp. 662–677). ACM. [DOI](10.1145/3192366.3192414)
 
-- Padon, O., Hoenicke, J., McMillan, K. L., Podelski, A., Sagiv, M., & Shoham, S. (2018). Temporal Prophecy for Proving Temporal Properties of Infinite-State Systems. In *2018 Formal Methods in Computer Aided Design, FMCAD 2018, Austin, TX, USA, October 30 - November 2, 2018* (pp. 1–11). IEEE. [DOI](10.23919/FMCAD.2018.8603008) - [PDF](FMCAD18.pdf)
+* Padon, O., Hoenicke, J., McMillan, K. L., Podelski, A., Sagiv, M., & Shoham, S. (2018). Temporal Prophecy for Proving Temporal Properties of Infinite-State Systems. In *2018 Formal Methods in Computer Aided Design, FMCAD 2018, Austin, TX, USA, October 30 - November 2, 2018* (pp. 1–11). IEEE. [DOI](10.23919/FMCAD.2018.8603008) - [PDF](FMCAD18.pdf)
 
-- Padon, O., McMillan, K. L., Panda, A., Sagiv, M., & Shoham, S. (2016). Ivy: safety verification by interactive generalization. In *Proceedings of the 37th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2016, Santa Barbara, CA, USA, June 13-17, 2016* (pp. 614–630). ACM. [DOI](10.1145/2908080.2908118)
+* Padon, O., McMillan, K. L., Panda, A., Sagiv, M., & Shoham, S. (2016). Ivy: safety verification by interactive generalization. In *Proceedings of the 37th ACM SIGPLAN Conference on Programming Language Design and Implementation, PLDI 2016, Santa Barbara, CA, USA, June 13-17, 2016* (pp. 614–630). ACM. [DOI](10.1145/2908080.2908118)
 
-- McMillan, K. L. (2016). Modular specification and verification of a cache-coherent interface. In *2016 Formal Methods in Computer-Aided Design, FMCAD 2016, Mountain View, CA, USA, October 3-6, 2016* (pp. 109–116). [DOI](10.1109/FMCAD.2016.7886668)
+* McMillan, K. L. (2016). Modular specification and verification of a cache-coherent interface. In *2016 Formal Methods in Computer-Aided Design, FMCAD 2016, Mountain View, CA, USA, October 3-6, 2016* (pp. 109–116). [DOI](10.1109/FMCAD.2016.7886668)
 
-- McMillan, K. L., & Zuck, L. D. (2019). Formal specification and testing of QUIC. In *Proceedings of ACM Special Interest Group on Data Communication (SIGCOMM’19)*. ACM. Note: to appear. [PDF](SIGCOMM19.pdf)
+* McMillan, K. L., & Zuck, L. D. (2019). Formal specification and testing of QUIC. In *Proceedings of ACM Special Interest Group on Data Communication (SIGCOMM’19)*. ACM. Note: to appear. [PDF](SIGCOMM19.pdf)
 
-- [Ivy Documentation](https://microsoft.github.io/ivy/)
+* [Ivy Documentation](https://microsoft.github.io/ivy/)
 
-- [Ivy GitHub Repository](https://github.com/microsoft/ivy)
+* [Ivy GitHub Repository](https://github.com/microsoft/ivy)
 
 <picture>
   <source

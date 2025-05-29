@@ -1,6 +1,7 @@
 # LiteSpeed QUIC (lsquic) Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Verified Source Location**: `plugins/services/iut/quic/lsquic/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The lsquic plugin provides integration with LiteSpeed's QUIC implementation, a h
 <!-- src: /panther/plugins/services/iut/quic/lsquic/lsquic.py -->
 
 The lsquic implementation plugin is designed for:
+
 - High-performance QUIC server evaluation
 - Production-grade HTTP/3 testing scenarios
 - CDN and edge server compatibility validation
@@ -148,12 +150,14 @@ services:
 ## Features
 
 ### High-Performance Architecture
+
 - **Zero-Copy Operations**: Optimized buffer management
 - **Event-Driven I/O**: Efficient libevent integration
 - **Connection Pooling**: Scalable connection management
 - **CPU Optimization**: SIMD and architecture-specific optimizations
 
 ### QUIC Protocol Features
+
 - **RFC 9000 Compliance**: Full QUIC transport implementation
 - **Version Negotiation**: Multi-version QUIC support
 - **Connection Migration**: Transparent endpoint changes
@@ -161,12 +165,14 @@ services:
 - **Congestion Control**: Multiple algorithms (cubic, bbr, adaptive)
 
 ### HTTP/3 Support
+
 - **HTTP/3 Semantics**: Complete HTTP over QUIC
 - **QPACK Compression**: Header compression with dynamic tables
 - **Server Push**: HTTP/3 server-initiated streams
 - **Priority Handling**: Stream prioritization and dependencies
 
 ### Production Features
+
 - **Load Balancing**: Connection distribution capabilities
 - **Rate Limiting**: Built-in connection and bandwidth limits
 - **Health Monitoring**: Connection state and performance metrics
@@ -175,12 +181,14 @@ services:
 ## Performance Characteristics
 
 ### Strengths
+
 - **High Throughput**: Optimized for server workloads
 - **Low Latency**: Minimal processing overhead
 - **Scalability**: Handles thousands of concurrent connections
 - **Memory Efficiency**: Optimized memory allocation patterns
 
 ### Optimization Features
+
 - **Adaptive Pacing**: Dynamic packet transmission timing
 - **Smart Retransmission**: Efficient loss recovery algorithms
 - **Flow Control**: Advanced window management
@@ -189,18 +197,21 @@ services:
 ## Testing and Validation
 
 ### Performance Testing
+
 - Throughput benchmarking under high connection loads
 - Latency measurement across different network conditions
 - Memory usage profiling during sustained operations
 - CPU utilization analysis during peak loads
 
 ### Conformance Testing
+
 - QUIC protocol compliance verification
 - HTTP/3 interoperability validation
 - TLS 1.3 security compliance testing
 - Version negotiation correctness verification
 
 ### Stress Testing
+
 - Connection exhaustion scenarios
 - Memory pressure testing
 - Network congestion simulation
@@ -209,18 +220,21 @@ services:
 ## Production Deployment
 
 ### CDN Integration
+
 - Edge server deployment scenarios
 - Multi-region load balancing
 - Cache invalidation over QUIC
 - Real-time content delivery
 
 ### Web Server Integration
+
 - LiteSpeed Web Server compatibility
 - Apache/Nginx proxy scenarios
 - SSL termination configurations
 - Virtual host management
 
 ### Monitoring and Metrics
+
 ```yaml
 services:
   iut:
@@ -237,12 +251,14 @@ services:
 ## Development and Extension
 
 ### Custom Configuration
+
 - Protocol parameter tuning for specific use cases
 - Application-specific ALPN protocol registration
 - Custom congestion control algorithm integration
 - Extended logging and metrics collection
 
 ### Integration Patterns
+
 ```c
 // Custom event handling
 struct event_handler {
@@ -260,6 +276,7 @@ struct perf_monitor {
 ```
 
 ### Extension Guidelines
+
 - Use official lsquic APIs for custom functionality
 - Implement proper error handling for network conditions
 - Configure appropriate buffer sizes for target workloads
@@ -270,24 +287,28 @@ struct perf_monitor {
 ### Common Issues
 
 **Connection Drops**
+
 - Check firewall UDP port configuration
 - Verify certificate validity and chains
 - Monitor connection timeout settings
 - Review congestion control behavior
 
 **Performance Bottlenecks**
+
 - Profile CPU usage during peak loads
 - Check memory allocation patterns
 - Monitor network interface utilization
 - Tune buffer sizes for workload
 
 **TLS/Security Issues**
+
 - Verify certificate trust chains
 - Check ALPN protocol negotiation
 - Review TLS 1.3 configuration
 - Validate key exchange mechanisms
 
 ### Debug Configuration
+
 ```yaml
 services:
   iut:
@@ -301,6 +322,7 @@ services:
 ```
 
 ### Performance Profiling
+
 ```bash
 # CPU profiling
 perf record -g ./lsquic_server

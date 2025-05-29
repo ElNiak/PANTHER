@@ -1,7 +1,9 @@
 # Configuration Guide — Writing & Validating PANTHER YAML 📜
 
 > **Purpose:** Comprehensive guide for designing experiment configurations and understanding PANTHER's validation system
+
 > **Target:** Newcomers designing tests; plugin authors adding schemas; advanced users optimizing configurations
+
 > **Schema System:** Dynamic plugin-based configuration with OmegaConf validation
 
 A **PANTHER configuration** is a single YAML file that defines what to run, where to run it, and how to instrument it. This guide covers the complete configuration system, from basic setups to advanced plugin-specific options.
@@ -78,6 +80,7 @@ tests:
 ### 1. Global Settings
 
 #### Logging Configuration
+
 ```yaml
 logging:
   level: INFO                    # DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -87,6 +90,7 @@ logging:
 ```
 
 #### Path Configuration
+
 ```yaml
 paths:
   output_dir: "./outputs"        # Where test results are stored
@@ -96,6 +100,7 @@ paths:
 ```
 
 #### Docker Configuration
+
 ```yaml
 docker:
   pull_images: true             # Pull latest images before tests
@@ -110,6 +115,7 @@ docker:
 Network environments define where and how containers communicate.
 
 #### Docker Compose Environment
+
 ```yaml
 network_environment:
   type: "docker_compose"
@@ -128,6 +134,7 @@ network_environment:
 ```
 
 #### Localhost Single Container
+
 ```yaml
 network_environment:
   type: "localhost_single_container"
@@ -140,6 +147,7 @@ network_environment:
 ```
 
 #### Shadow Network Simulator
+
 ```yaml
 network_environment:
   type: "shadow"
@@ -164,6 +172,7 @@ network_environment:
 Execution environments define the runtime context for services.
 
 #### Docker Container Environment
+
 ```yaml
 execution_environment:
   type: "docker_container"
@@ -183,6 +192,7 @@ execution_environment:
 ```
 
 #### Host Environment
+
 ```yaml
 execution_environment:
   type: "host"
@@ -202,6 +212,7 @@ Services define the actual implementations being tested or doing the testing.
 ##### QUIC Implementations
 
 **Quiche Configuration:**
+
 ```yaml
 services:
   - name: "quiche_server"
@@ -229,6 +240,7 @@ services:
 ```
 
 **Picoquic Configuration:**
+
 ```yaml
 services:
   - name: "picoquic_client"
@@ -251,6 +263,7 @@ services:
 ```
 
 **Aioquic Configuration:**
+
 ```yaml
 services:
   - name: "aioquic_server"
@@ -275,6 +288,7 @@ services:
 #### Tester Services
 
 ##### Panther Ivy Formal Verification
+
 ```yaml
 services:
   - name: "ivy_verifier"
@@ -307,6 +321,7 @@ services:
 PANTHER provides comprehensive configuration validation through its schema system:
 
 ### Schema Definition
+
 Each plugin defines its configuration schema using Python dataclasses:
 
 ```python
@@ -373,6 +388,7 @@ panther --list-plugin-params PLUGIN_NAME [--plugin-type PLUGIN_TYPE] [--protocol
 ```
 
 Where:
+
 - `PLUGIN_NAME` is the name of the plugin (e.g., `quiche`, `docker_compose`)
 - `PLUGIN_TYPE` (optional) is one of: `iut`, `tester`, `network_environment`, or `execution_environment`
   - If not provided, PANTHER will auto-detect the plugin type

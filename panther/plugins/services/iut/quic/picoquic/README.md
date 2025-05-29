@@ -1,6 +1,7 @@
 # Picoquic QUIC Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Verified Source Location**: `plugins/services/iut/quic/picoquic/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The Picoquic plugin provides integration with the Picoquic QUIC implementation, 
 <!-- src: /panther/plugins/services/iut/quic/picoquic/picoquic.py -->
 
 The Picoquic implementation plugin is particularly valuable for:
+
 - Conformance testing against QUIC protocol specifications
 - Interoperability testing with other QUIC implementations
 - Performance benchmarking of QUIC transport features

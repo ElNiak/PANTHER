@@ -1,6 +1,7 @@
 # Shadow NS Environment
 
 > **Plugin Type**: Network Environment
+
 > **Verified Source Location**: `plugins/environments/network_environment/shadow_ns/`
 
 ## Purpose and Overview
@@ -30,6 +31,7 @@ The plugin requires:
   - Jinja2 (for template rendering)
 
 The plugin also integrates with:
+
 - PANTHER event management system
 - Service plugins that are compatible with Shadow's system call emulation
 
@@ -162,6 +164,7 @@ To test the Shadow NS environment plugin:
 
 1. **Unit Tests**: Located in `/panther/plugins/environments/network_environment/shadow_ns/tests/`
 2. **Integration Tests**: Run the example configuration to verify proper operation:
+
    ```bash
    python -m panther -c experiment-config/experiment_config_shadow_ns.yaml
    ```

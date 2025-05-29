@@ -1,6 +1,7 @@
 # aioquic QUIC Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Verified Source Location**: `plugins/services/iut/quic/aioquic/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The aioquic plugin provides integration with Python's aioquic library, a pure Py
 <!-- src: /panther/plugins/services/iut/quic/aioquic/aioquic.py -->
 
 The aioquic implementation plugin enables:
+
 - QUIC protocol testing in Python environments
 - HTTP/3 over QUIC implementation evaluation
 - Educational analysis of QUIC protocol mechanics
@@ -119,6 +121,7 @@ services:
 ## Features
 
 ### QUIC Protocol Support
+
 - **RFC 9000**: Full QUIC transport protocol implementation
 - **Stream Management**: Multiple concurrent streams with flow control
 - **Connection Migration**: Transparent connection endpoint changes
@@ -126,18 +129,21 @@ services:
 - **Path MTU Discovery**: Automatic maximum transmission unit detection
 
 ### HTTP/3 Integration
+
 - **HTTP/3 Semantics**: HTTP over QUIC with multiplexing
 - **Server Push**: HTTP/3 server-initiated streams
 - **Header Compression**: QPACK header compression
 - **WebTransport**: Bidirectional communication over HTTP/3
 
 ### Security Features
+
 - **TLS 1.3**: Integrated TLS 1.3 encryption
 - **Certificate Validation**: X.509 certificate chain verification
 - **ALPN Support**: Application Layer Protocol Negotiation
 - **Key Logging**: TLS key extraction for debugging
 
 ### Python Integration
+
 - **Asyncio Native**: Full async/await support
 - **Pure Python**: No C extensions required
 - **Educational Value**: Readable implementation for learning
@@ -146,12 +152,14 @@ services:
 ## Performance Characteristics
 
 ### Strengths
+
 - **Ease of Use**: Simple Python API and integration
 - **Debugging**: Excellent debugging and introspection capabilities
 - **Portability**: Runs on any Python-supported platform
 - **Educational**: Clear, readable implementation
 
 ### Considerations
+
 - **Performance**: Python implementation may be slower than C/Rust equivalents
 - **Memory Usage**: Higher memory footprint than native implementations
 - **CPU Overhead**: Increased CPU usage for cryptographic operations
@@ -159,16 +167,19 @@ services:
 ## Testing and Validation
 
 ### Conformance Testing
+
 - QUIC protocol conformance against RFC specifications
 - HTTP/3 compatibility with other implementations
 - TLS 1.3 security validation
 
 ### Interoperability Testing
+
 - Cross-implementation compatibility verification
 - ALPN protocol negotiation testing
 - Connection migration scenario validation
 
 ### Performance Testing
+
 - Throughput measurement under various conditions
 - Latency analysis for different stream patterns
 - Memory usage profiling during sustained operations
@@ -176,18 +187,21 @@ services:
 ## Development and Extension
 
 ### Customization Points
+
 - Protocol parameter tuning through configuration
 - Custom stream handling logic
 - Extended logging and metrics collection
 - Application-specific ALPN protocol support
 
 ### Integration Guidelines
+
 - Use asyncio event loops for concurrent operations
 - Implement proper exception handling for network errors
 - Configure appropriate timeouts for test scenarios
 - Enable key logging for protocol analysis
 
 ### Common Extension Patterns
+
 ```python
 # Custom stream handler
 class CustomStreamHandler:
@@ -207,21 +221,25 @@ logging.basicConfig(
 ### Common Issues
 
 **Connection Timeouts**
+
 - Verify network connectivity and firewall rules
 - Check certificate validity and trust chain
 - Increase idle timeout for slow networks
 
 **Certificate Errors**
+
 - Ensure certificate matches hostname/IP
 - Verify certificate chain is complete
 - Check certificate expiration dates
 
 **Performance Issues**
+
 - Monitor Python garbage collection overhead
 - Consider using PyPy for improved performance
 - Profile CPU usage during cryptographic operations
 
 ### Debug Configuration
+
 ```yaml
 services:
   iut:

@@ -17,12 +17,13 @@ Comprehensive development documentation for each plugin category:
 
 PANTHER provides tools to easily create new plugins from templates:
 
-### Tutorial Launcher (Recommended):
+### Tutorial Launcher (Recommended)
 
 ```bash
 # From the PANTHER root directory
 python -m panther --interactive-tutorials
 ```
+
 The tutorial launcher provides a menu-driven interface to access all available tutorials.
 
 ```bash
@@ -66,6 +67,7 @@ When creating plugins, PANTHER automatically detects whether you're in developme
 - **Production Mode**: Plugins are created in `~/.panther/plugins/`
 
 You can explicitly specify the mode:
+
 ```bash
 # Force development mode (put plugins in source tree)
 panther --create-plugin protocol my_protocol --dev-mode
@@ -95,6 +97,7 @@ panther --tutorial protocol
 ### 1. Choose the Plugin Type
 
 Determine which category your plugin belongs to:
+
 - **Environment**: Execution or network environment
 - **Protocol**: Client-server or peer-to-peer protocol
 - **Service**: Implementation under test (IUT) or tester
@@ -199,7 +202,6 @@ Create a `README.md` file using the [plugin template](panther/plugins/plugin_tem
 - Usage examples
 - Extension points
 - Testing and verification
-
 
 ## Advanced Usage: Custom Plugin Directories
 

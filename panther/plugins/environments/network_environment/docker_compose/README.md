@@ -1,6 +1,7 @@
 # Docker Compose Environment
 
 > **Plugin Type**: Network Environment
+
 > **Verified Source Location**: `plugins/environments/network_environment/docker_compose/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The Docker Compose Environment plugin provides containerized network environment
 <!-- src: /panther/plugins/environments/network_environment/docker_compose/docker_compose.py -->
 
 This network environment plugin is essential for:
+
 - Isolating test environments from the host system
 - Creating reproducible network configurations
 - Enabling automated testing across multiple containers
@@ -26,6 +28,7 @@ The plugin requires:
   - jinja2 (for template rendering)
 
 The plugin also integrates with:
+
 - PANTHER event management system
 - Service plugins (for deploying containerized services)
 

@@ -1,6 +1,7 @@
 # MinIP Ping-Pong Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Verified Source Location**: `plugins/services/iut/minip/ping_pong/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The MinIP Ping-Pong plugin provides an implementation of the MinIP (Minimal Inte
 <!-- src: /panther/plugins/services/iut/minip/ping_pong/ping_pong.py -->
 
 The MinIP Ping-Pong implementation is particularly valuable for:
+
 - Testing basic client-server communication patterns
 - Providing a lightweight reference implementation
 - Benchmarking minimal network overhead
@@ -159,5 +161,5 @@ tests:
 
 ## References
 
-- [MinIP Protocol Documentation](../../../../../docs/protocols/client_server/minip/README.md)
-- [PANTHER Service Development Guide](../../../../../docs/services/development.md)
+- [MinIP Protocol Documentation](panther/plugins/protocols/client_server/minip/README.md)
+- [PANTHER Service Development Guide](panther/plugins/services/development.md)

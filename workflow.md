@@ -40,6 +40,7 @@ The Experiment Manager is the central orchestrator that:
 - Handles logging and output generation
 
 **Key Methods:**
+
 - `initialize_experiments()`: Sets up plugins, environment, and validates configuration
 - `run_tests()`: Executes all test cases with progress tracking
 - `_initialize_test_cases()`: Creates TestCase instances from configuration
@@ -47,6 +48,7 @@ The Experiment Manager is the central orchestrator that:
 ### 2. Plugin Manager (`panther/plugins/plugin_manager.py`)
 
 Responsible for:
+
 - Loading plugin modules dynamically
 - Creating service manager instances
 - Managing environment plugin instantiation
@@ -55,6 +57,7 @@ Responsible for:
 ### 3. Test Case (`panther/core/test_cases/test_case.py`)
 
 Each test case:
+
 - Manages a specific test scenario
 - Coordinates service managers and environment plugins
 - Handles result collection
@@ -161,11 +164,13 @@ The system generates `docker-compose.yml` files with:
 #### 3. Service Coordination
 
 **Synchronization Mechanisms:**
+
 - **Ivy Tester Coordination**: Special handling for Ivy testers with ready signals
 - **Shared Volumes**: `/app/sync_logs` for inter-service communication
 - **Wait Conditions**: Services wait for dependencies to be ready
 
 **Network Monitoring:**
+
 - **Packet Capture**: Automatic tshark recording for each service
 - **Timeout Management**: Configurable execution timeouts
 - **Log Collection**: Centralized logging to `/app/logs/`
@@ -175,21 +180,26 @@ The system generates `docker-compose.yml` files with:
 Each service manager generates multiple command types:
 
 #### 1. Pre-compile Commands
+
 - Environment setup
 - Dependency installation
 - Certificate generation
 
 #### 2. Compile Commands
+
 - Build application binaries
 - Setup runtime environment
 
 #### 3. Post-compile Commands
+
 - Final configuration
 - Service readiness signals
 - Monitoring setup (packet capture)
 
 #### 4. Run Commands
+
 Generated from Jinja2 templates with parameters:
+
 ```jinja
 {{ certificates.cert_param }} {{ certificates.cert_file }}
 {{ certificates.key_param }} {{ certificates.key_file }}
@@ -198,6 +208,7 @@ Generated from Jinja2 templates with parameters:
 ```
 
 #### 5. Post-run Commands
+
 - Result collection
 - Artifact preservation
 - Cleanup operations
@@ -318,6 +329,7 @@ def generate_environment_services(self, paths: dict, timestamp: str):
 ### Localhost Environment
 
 For local testing without containerization:
+
 - Direct process execution
 - Local network interfaces
 - File-based result collection
@@ -325,6 +337,7 @@ For local testing without containerization:
 ### Shadow Network Simulator
 
 For network simulation scenarios:
+
 - Virtual network topologies
 - Bandwidth and latency simulation
 - Scalability testing

@@ -1,7 +1,9 @@
 # mvfst QUIC Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Parent Plugin**: [QUIC IUT](panther/plugins/services/iut/quic/README.md)
+
 > **Source Location**: `plugins/services/iut/quic/mvfst/`
 
 ## Overview
@@ -11,6 +13,7 @@ The mvfst plugin provides integration with Meta's mvfst QUIC implementation. mvf
 <!-- src: /panther/plugins/services/iut/quic/mvfst/mvfst.py -->
 
 mvfst implementation features:
+
 - **Production-Grade Performance**: Optimized for high-throughput applications
 - **C++ Implementation**: High-performance native implementation
 - **Facebook Scale**: Battle-tested in Meta's production environments
@@ -76,16 +79,19 @@ services:
 The plugin supports multiple QUIC specification versions and testing variants:
 
 ### RFC 9000
+
 - **Description**: Final QUIC specification
 - **Features**: Complete QUIC 1.0 implementation
 - **Use Case**: Production and conformance testing
 
 ### Draft 29
+
 - **Description**: QUIC draft-29 implementation
 - **Features**: Near-final draft specification
 - **Use Case**: Legacy compatibility testing
 
 ### Draft 27 Vulnerabilities
+
 - **draft27-vuln1**: Implementation with specific vulnerability for security testing
 - **draft27-vuln2**: Alternative vulnerability variant for security analysis
 - **Use Case**: Security testing and penetration testing scenarios

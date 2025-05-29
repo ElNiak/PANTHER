@@ -1,6 +1,7 @@
 # GPerf CPU Profiling Environment
 
 > **Plugin Type**: Execution Environment
+
 > **Verified Source Location**: `plugins/environments/execution_environment/gperf_cpu/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The GPerf CPU Profiling Environment plugin provides CPU usage monitoring and pro
 <!-- src: /panther/plugins/environments/execution_environment/gperf_cpu/gperf_cpu.py -->
 
 This execution environment plugin is particularly useful for:
+
 - Identifying CPU-intensive operations in protocol implementations
 - Benchmarking different implementation strategies
 - Detecting performance regressions across versions
@@ -24,6 +26,7 @@ The plugin requires:
 - **graphviz**: (Optional) For generating visual profile reports
 
 System dependencies can be installed on Ubuntu/Debian systems with:
+
 ```bash
 sudo apt-get install google-perftools libgoogle-perftools-dev graphviz
 ```

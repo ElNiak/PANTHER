@@ -28,7 +28,6 @@ plugins/
 └── plugin_manager.py     # Plugin lifecycle management
 ```
 
-
 ### Plugin Hierarchy
 
 PANTHER uses a hierarchical plugin system:
@@ -64,7 +63,7 @@ Service plugins represent either implementations being tested or testing tools:
 | **IUT (Implementation Under Test)** | Protocol implementations to evaluate | picoquic, minip, HTTP servers |
 | **Testers** | Testing and validation tools | ivy_tester, protocol conformance checkers |
 
-**Documentation**: [Services Plugin Guide](panther/plugins/services)
+**Documentation**: [Services Plugin Guide](panther/plugins/services/README.md)
 
 ### Protocol Plugins
 
@@ -75,7 +74,7 @@ Protocol plugins provide testing logic and configuration for specific network pr
 | **Client-Server** | Traditional client-server protocols | HTTP, QUIC client-server testing |
 | **Peer-to-Peer** | Distributed/P2P protocols | BitTorrent, DHT protocols |
 
-**Documentation**: [Protocol Plugin Guide](panther/plugins/protocols)
+**Documentation**: [Protocol Plugin Guide](panther/plugins/protocols/README.md)
 
 ### Environment Plugins
 
@@ -86,7 +85,7 @@ Environment plugins manage where and how tests execute:
 | **Execution Environment** | Performance monitoring and profiling | gperf, strace, memcheck |
 | **Network Environment** | Network topology and deployment | docker_compose, shadow_ns |
 
-**Documentation**: [Environment Plugin Guide](panther/plugins/environments)
+**Documentation**: [Environment Plugin Guide](panther/plugins/environments/README.md)
 
 ## Plugin Ecosystem Architecture
 
@@ -194,4 +193,3 @@ sequenceDiagram
     EM->>NE: Stop environment
     EM->>PM: Generate results
 ```
-

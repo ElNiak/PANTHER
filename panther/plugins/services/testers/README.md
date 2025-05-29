@@ -9,27 +9,12 @@ Tester plugins in PANTHER provide sophisticated testing and validation capabilit
 ## Tester Categories
 
 ### Formal Verification Testers
+
 Testing tools that use formal methods and mathematical verification to validate protocol implementations against their specifications.
 
 | Tester | Purpose | Technology | Documentation |
 |---------|---------|------------|---------------|
-| **Panther Ivy** | Specification-based testing and formal verification | Microsoft Ivy framework | [Documentation](panther/plugins/services/testers/panther_ivy) |
-
-### Conformance Testers
-Implementation validation against protocol standards and specifications.
-
-| Tester | Purpose | Protocol Support | Documentation |
-|---------|---------|------------------|---------------|
-| **Protocol Conformance** | RFC compliance verification | QUIC, HTTP, MinIP | [Documentation](conformance/) |
-| **Interoperability** | Cross-implementation compatibility | Multi-protocol | [Documentation](interop/) |
-
-### Performance Testers
-Load generation and performance validation tools.
-
-| Tester | Purpose | Capabilities | Documentation |
-|---------|---------|--------------|---------------|
-| **Load Generator** | Traffic generation and stress testing | High-throughput, concurrent connections | [Documentation](load_gen/) |
-| **Benchmark Suite** | Performance measurement and analysis | Latency, throughput, resource usage | [Documentation](benchmark/) |
+| **Panther Ivy** | Specification-based testing and formal verification | Microsoft Ivy framework | [Documentation](panther/plugins/services/testers/panther_ivy/README.md) |
 
 ## Quick Start
 
@@ -145,18 +130,21 @@ test_result = {
 ## Testing Methodologies
 
 ### Specification-Based Testing
+
 - **Model-Driven Testing**: Generate tests from formal protocol models
 - **Property Verification**: Validate safety and liveness properties
 - **State Space Exploration**: Systematic exploration of protocol states
 - **Invariant Checking**: Continuous verification of protocol invariants
 
 ### Conformance Testing
+
 - **RFC Compliance**: Verification against protocol specifications
 - **Edge Case Testing**: Boundary condition and error scenario testing
 - **Regression Testing**: Automated testing for implementation changes
 - **Compatibility Testing**: Cross-implementation interoperability
 
 ### Performance Testing
+
 - **Load Testing**: High-volume traffic generation
 - **Stress Testing**: Resource exhaustion and recovery
 - **Endurance Testing**: Long-term operation validation
@@ -414,18 +402,21 @@ def notify_test_completion(results):
 ### Common Issues
 
 **Test Execution Failures**
+
 - Verify tester plugin configuration and dependencies
 - Check target implementation availability and status
 - Review test scenario definitions and parameters
 - Validate network connectivity and firewall rules
 
 **Performance Issues**
+
 - Monitor resource usage during test execution
 - Tune test parallelism and concurrency settings
 - Check for memory leaks in long-running tests
 - Profile test execution bottlenecks
 
 **Result Analysis Problems**
+
 - Verify result collection and storage mechanisms
 - Check log file permissions and disk space
 - Review test artifact generation and cleanup
@@ -452,7 +443,6 @@ testers:
 
 - [Service Plugin Overview](panther/plugins/services/README.md): General service plugin architecture
 - [Protocol Plugins](panther/plugins/protocols/README.md): Protocol-specific testing
-- [Test Automation](panther/docs/testing.md): Comprehensive testing guide
 
 ## References
 

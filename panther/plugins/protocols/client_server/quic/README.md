@@ -1,6 +1,7 @@
 # QUIC Protocol Plugin
 
 > **Plugin Type**: Client-Server Protocol
+
 > **Verified Source Location**: `plugins/protocols/client_server/quic/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The QUIC Protocol plugin implements the QUIC (Quick UDP Internet Connections) pr
 <!-- src: /panther/plugins/protocols/client_server/quic/config_schema.py -->
 
 This protocol plugin enables:
+
 - Testing different QUIC protocol versions (RFC9000, Draft29, Draft27)
 - Conformance testing against the QUIC specification
 - Performance benchmarking of QUIC implementations
@@ -26,6 +28,7 @@ The plugin requires:
   - Network environment with UDP support
 
 This plugin integrates with:
+
 - QUIC IUT services (picoquic, quiche, etc.)
 - Network environments that support UDP traffic
 

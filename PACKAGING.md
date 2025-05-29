@@ -28,6 +28,7 @@ PANTHER uses a single-source versioning approach:
 PANTHER plugins can be discovered through two mechanisms:
 
 1. **Entry points (recommended)**: Register plugins via entry points in your package's `pyproject.toml`:
+
    ```toml
    [project.entry-points]
    "panther.plugins.protocols" = [

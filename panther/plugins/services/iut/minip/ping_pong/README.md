@@ -1,7 +1,9 @@
 # MinIP Ping-Pong Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Parent Plugin**: [MinIP IUT](panther/plugins/services/iut/minip/README.md)
+
 > **Source Location**: `plugins/services/iut/minip/ping_pong/`
 
 ## Overview
@@ -11,6 +13,7 @@ The MinIP Ping-Pong implementation provides a simple client-server protocol for 
 <!-- src: /panther/plugins/services/iut/minip/ping_pong/ping_pong.py -->
 
 This implementation serves as:
+
 - **Educational Example**: Clear demonstration of IUT plugin development
 - **Baseline Testing**: Reference implementation for protocol compliance testing
 - **Performance Benchmark**: Minimal overhead baseline for performance comparisons
@@ -21,26 +24,31 @@ This implementation serves as:
 The plugin provides multiple implementation variants for different testing scenarios:
 
 ### Functional Variant
+
 - **Purpose**: Standard, correct implementation
 - **Behavior**: Follows MinIP specification exactly
 - **Use Case**: Baseline conformance testing
 
 ### Vulnerable Variant
+
 - **Purpose**: Implementation with intentional security vulnerabilities
 - **Behavior**: Contains specific security flaws for testing
 - **Use Case**: Security testing and penetration testing scenarios
 
 ### Flaky Variant
+
 - **Purpose**: Intermittently unreliable implementation
 - **Behavior**: Occasionally drops packets or times out
 - **Use Case**: Testing fault tolerance and recovery mechanisms
 
 ### Random Variant
+
 - **Purpose**: Implementation with non-deterministic behavior
 - **Behavior**: Introduces random delays and responses
 - **Use Case**: Stress testing and edge case discovery
 
 ### Fail Variant
+
 - **Purpose**: Implementation that consistently fails
 - **Behavior**: Always returns errors or fails to respond
 - **Use Case**: Negative testing and error handling validation

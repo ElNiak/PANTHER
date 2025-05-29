@@ -1,6 +1,7 @@
 # Quant QUIC Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Verified Source Location**: `plugins/services/iut/quic/quant/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The Quant plugin provides integration with the Quant QUIC implementation, a rese
 <!-- src: /panther/plugins/services/iut/quic/quant/quant.py -->
 
 The Quant implementation plugin enables:
+
 - Academic research and protocol experimentation
 - QUIC specification conformance validation
 - Educational protocol analysis and learning
@@ -148,12 +150,14 @@ services:
 ## Features
 
 ### Research-Oriented Design
+
 - **Clean Implementation**: Readable, well-documented code
 - **Modular Architecture**: Easy modification and extension
 - **Extensive Logging**: Detailed protocol event tracing
 - **Debugging Support**: Rich debugging and analysis tools
 
 ### QUIC Protocol Support
+
 - **RFC 9000 Compliance**: Full QUIC transport implementation
 - **Version Negotiation**: Multi-version support for compatibility
 - **Stream Management**: Bidirectional and unidirectional streams
@@ -161,6 +165,7 @@ services:
 - **Loss Recovery**: Configurable loss detection algorithms
 
 ### Experimental Features
+
 - **0-RTT Connections**: Zero Round Trip Time establishment
 - **Connection Migration**: Transparent endpoint changes
 - **Multipath QUIC**: Multiple network path utilization
@@ -168,6 +173,7 @@ services:
 - **Custom Extensions**: Framework for protocol extensions
 
 ### Analysis and Debugging
+
 - **qlog Integration**: Detailed protocol event logging
 - **Packet Tracing**: Complete packet-level analysis
 - **TLS Key Logging**: Cryptographic key extraction
@@ -176,18 +182,21 @@ services:
 ## Research Applications
 
 ### Protocol Analysis
+
 - QUIC specification conformance verification
 - Interoperability testing with other implementations
 - Protocol behavior analysis under various conditions
 - Security property validation and testing
 
 ### Performance Research
+
 - Congestion control algorithm evaluation
 - Flow control mechanism analysis
 - Loss recovery strategy comparison
 - Network path utilization studies
 
 ### Educational Use Cases
+
 - Protocol implementation learning
 - Network programming education
 - Cryptographic protocol analysis
@@ -196,6 +205,7 @@ services:
 ## Development and Extension
 
 ### Custom Protocol Extensions
+
 ```c
 // Example: Custom frame type implementation
 typedef struct custom_frame {
@@ -210,6 +220,7 @@ int register_custom_frame(quant_conn_t *conn,
 ```
 
 ### Research Hooks
+
 ```c
 // Connection event callbacks
 struct research_callbacks {
@@ -221,6 +232,7 @@ struct research_callbacks {
 ```
 
 ### Experimental Configuration
+
 ```yaml
 services:
   iut:
@@ -236,18 +248,21 @@ services:
 ## Testing and Validation
 
 ### Conformance Testing
+
 - QUIC specification compliance verification
 - Cross-implementation interoperability testing
 - Protocol state machine validation
 - Error handling correctness verification
 
 ### Research Validation
+
 - Custom extension functionality testing
 - Performance characteristic measurement
 - Protocol behavior analysis under stress
 - Security property verification
 
 ### Educational Testing
+
 ```yaml
 # Simple educational setup
 services:
@@ -267,24 +282,28 @@ services:
 ### Common Issues
 
 **Build Problems**
+
 - Ensure all development dependencies are installed
 - Check OpenSSL version compatibility
 - Verify libev library availability
 - Review compiler version requirements
 
 **Protocol Issues**
+
 - Enable debug logging to trace protocol events
 - Use qlog files for detailed protocol analysis
 - Check certificate configuration and validity
 - Verify network connectivity and firewall rules
 
 **Research Setup Issues**
+
 - Configure appropriate debug levels for analysis
 - Enable packet tracing for detailed examination
 - Use keylog files for cryptographic analysis
 - Set up proper qlog visualization tools
 
 ### Debug Configuration
+
 ```yaml
 services:
   iut:
@@ -297,6 +316,7 @@ services:
 ```
 
 ### Analysis Tools Integration
+
 ```bash
 # qlog analysis with qvis
 qvis /debug/trace.qlog

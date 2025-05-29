@@ -15,9 +15,8 @@ IUT plugins represent protocol implementations that are being evaluated for conf
 
 | Protocol | Implementation | Description | Documentation |
 |----------|----------------|-------------|---------------|
-| **QUIC** | picoquic | C implementation by Christian Huitema | [Documentation](panther/plugins/services/iut/quic/picoquic) |
-| **HTTP** | Various | HTTP server implementations | [Documentation](panther/plugins/services/iut/http) |
-| **Custom** | ping_pong | Simple test service for basic validation | [Documentation](panther/plugins/services/iut/minip) |
+| **QUIC** | picoquic | C implementation by Christian Huitema | [Documentation](panther/plugins/services/iut/quic/picoquic/README.md) |
+| **Custom** | ping_pong | Simple test service for basic validation | [Documentation](panther/plugins/services/iut/minip/README.md) |
 
 ### Testers
 
@@ -25,7 +24,7 @@ Tester plugins provide mechanisms for evaluating implementations, generating tes
 
 | Tester | Purpose | Documentation |
 |--------|---------|---------------|
-| ivy_tester | Formal verification and conformance testing | [Documentation](testers/ivy_tester/) |
+| panther_ivy | Formal verification and conformance testing | [Documentation](panther/plugins/services/testers/panther_ivy/README.md) |
 
 ## Quick Start
 
@@ -149,13 +148,5 @@ Tester services additionally support:
 For information on creating new service plugins, see:
 
 - **[Service Plugin Development Guide](panther/plugins/services/development.md)**: Comprehensive development documentation
-- **[IUT Development Guide](iut/development_iut.md)**: Creating new IUT plugins
-- **[Plugin Interface Documentation](panther/plugins/services/services_interface.py)**: Base interface requirements
-
-## API Reference
-
-Detailed API documentation for service plugins:
-
-- **[Service Interfaces](./index.md)**: Auto-generated API reference
-- **[Configuration Schema](panther/plugins/services/config_schema.py)**: Configuration validation
-- **[IUT Interface](panther/plugins/services/iut/implementation_interface.py)**: IUT-specific interface
+- **[IUT Development Guide](panther/plugins/services/iut/development.md)**: Creating new IUT plugins
+- **[Plugin Interface Documentation](panther/plugins/development.md)**: Base interface requirements

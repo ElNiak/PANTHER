@@ -1,6 +1,7 @@
 # QUIC-Go Implementation
 
 > **Plugin Type**: Service (Implementation Under Test)
+
 > **Verified Source Location**: `plugins/services/iut/quic/quic_go/`
 
 ## Purpose and Overview
@@ -10,6 +11,7 @@ The QUIC-Go plugin provides integration with the Go-based QUIC implementation de
 <!-- src: /panther/plugins/services/iut/quic/quic_go/quic_go.py -->
 
 The QUIC-Go implementation plugin enables:
+
 - Go application QUIC integration testing
 - High-performance concurrent connection handling
 - Cloud-native and microservice QUIC deployments
@@ -165,12 +167,14 @@ services:
 ## Features
 
 ### Go Language Integration
+
 - **Native Go APIs**: Idiomatic Go interfaces and patterns
 - **Goroutine Support**: Concurrent connection and stream handling
 - **Context Support**: Standard Go context for cancellation and timeouts
 - **HTTP/3 Integration**: Built-in HTTP/3 server and client
 
 ### QUIC Protocol Features
+
 - **RFC 9000 Compliance**: Full QUIC transport implementation
 - **Multiple Versions**: Support for draft and standardized versions
 - **Stream Multiplexing**: Efficient bidirectional and unidirectional streams
@@ -178,12 +182,14 @@ services:
 - **0-RTT**: Zero Round Trip Time connection resumption
 
 ### Performance Characteristics
+
 - **High Concurrency**: Efficient goroutine-based concurrency
 - **Memory Efficiency**: Optimized buffer management
 - **CPU Optimization**: Efficient packet processing
 - **Scalability**: Support for thousands of concurrent connections
 
 ### HTTP/3 Support
+
 - **Server Implementation**: Complete HTTP/3 server with request handling
 - **Client Implementation**: HTTP/3 client with connection pooling
 - **Header Compression**: QPACK header compression support
@@ -192,6 +198,7 @@ services:
 ## Development Integration
 
 ### Basic Server Implementation
+
 ```go
 package main
 
@@ -223,6 +230,7 @@ func main() {
 ```
 
 ### Client Implementation
+
 ```go
 package main
 
@@ -257,6 +265,7 @@ func main() {
 ```
 
 ### Custom Configuration
+
 ```go
 // Advanced QUIC configuration
 config := &quic.Config{
@@ -281,6 +290,7 @@ server := http3.Server{
 ## Testing and Validation
 
 ### Unit Testing
+
 ```go
 func TestQUICGoServer(t *testing.T) {
     // Test server implementation
@@ -302,6 +312,7 @@ func TestQUICGoServer(t *testing.T) {
 ```
 
 ### Integration Testing
+
 ```yaml
 # Integration test configuration
 services:
@@ -317,6 +328,7 @@ services:
 ```
 
 ### Performance Testing
+
 ```go
 // Benchmark concurrent connections
 func BenchmarkConcurrentConnections(b *testing.B) {
@@ -342,24 +354,28 @@ func BenchmarkConcurrentConnections(b *testing.B) {
 ### Common Issues
 
 **Connection Failures**
+
 - Verify certificate configuration and trust chains
 - Check network connectivity and firewall rules
 - Review ALPN protocol negotiation
 - Validate server address and port binding
 
 **Performance Issues**
+
 - Monitor goroutine counts and memory usage
 - Profile CPU usage during high load
 - Check garbage collection overhead
 - Tune buffer sizes and timeouts
 
 **TLS/Security Issues**
+
 - Verify certificate validity and expiration
 - Check certificate chain completeness
 - Review ALPN protocol support
 - Validate TLS 1.3 configuration
 
 ### Debug Configuration
+
 ```yaml
 services:
   iut:
@@ -376,6 +392,7 @@ services:
 ```
 
 ### Performance Profiling
+
 ```bash
 # CPU profiling
 go tool pprof http://localhost:6060/debug/pprof/profile
@@ -390,6 +407,7 @@ go tool pprof http://localhost:6060/debug/pprof/goroutine
 ## Cloud-Native Deployment
 
 ### Kubernetes Configuration
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -426,6 +444,7 @@ spec:
 ```
 
 ### Docker Compose
+
 ```yaml
 version: '3.8'
 services:

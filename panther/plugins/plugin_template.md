@@ -1,12 +1,15 @@
 # {Plugin Name}
 
 > **Plugin Type**: {Protocol|Environment|Service|Tester}
+
 > **Verified Source Location**: `plugins/{plugin_type}/{plugin_category}/{plugin_name}/`
+
 > **Framework Compliance**: PANTHER Documentation Framework v2.0
 
 ## Purpose and Overview
 
 {Provide a clear, concise description of what this plugin does and why it exists. Include:
+
 - Primary use case and problem it solves
 - Key features and capabilities
 - Integration points with PANTHER framework
@@ -15,6 +18,7 @@
 <!-- src: /panther/plugins/{plugin_type}/{plugin_category}/{plugin_name}/{plugin_name}.py -->
 
 This plugin is valuable for:
+
 - **{Use case 1}**: {Brief description}
 - **{Use case 2}**: {Brief description}
 - **{Use case 3}**: {Brief description}
@@ -25,16 +29,19 @@ This plugin is valuable for:
 ## Key Features
 
 ### {Feature Category 1}
+
 - **{Feature 1}**: {Description}
 - **{Feature 2}**: {Description}
 - **{Feature 3}**: {Description}
 
 ### {Feature Category 2}
+
 - **{Feature 1}**: {Description}
 - **{Feature 2}**: {Description}
 - **{Feature 3}**: {Description}
 
 ### {Feature Category 3}
+
 - **{Feature 1}**: {Description}
 - **{Feature 2}**: {Description}
 - **{Feature 3}**: {Description}
@@ -42,11 +49,13 @@ This plugin is valuable for:
 ## Requirements and Dependencies
 
 ### System Requirements
+
 - **{Requirement 1}**: {Description and version}
 - **{Requirement 2}**: {Description and version}
 - **{Runtime}**: {Description and version}
 
 ### Python Dependencies
+
 ```bash
 # Core dependencies from requirements
 {dependency1}>=X.Y
@@ -54,7 +63,9 @@ This plugin is valuable for:
 ```
 
 ### External Dependencies
+
 The plugin automatically manages the following external dependencies:
+
 - **{External Tool 1}**: {Description and purpose}
 - **{External Tool 2}**: {Description and purpose}
 - **{Library/Framework}**: {Description and purpose}
@@ -72,6 +83,7 @@ The {Plugin Name} plugin accepts the following configuration parameters:
 | `{param3}` | {Type} | `{default}` | {Description} |
 
 ### {Configuration Section Schema}
+
 ```yaml
 {config_section}:
   {param1}: {value}           # {Description}
@@ -184,6 +196,7 @@ experiment_config = {
 ### Common Issues and Solutions
 
 #### {Issue Category 1}
+
 ```bash
 # Check {diagnostic_command}
 {diagnostic_command}
@@ -196,6 +209,7 @@ experiment_config = {
 ```
 
 #### {Issue Category 2}
+
 ```bash
 # Monitor {monitoring_aspect}
 {monitoring_command}
@@ -270,11 +284,13 @@ class {PluginName}{DevelopmentType}:
 ## Performance Considerations
 
 ### {Performance Category 1}
+
 - **{Performance Aspect 1}**: {Description and recommendations}
 - **{Performance Aspect 2}**: {Description and recommendations}
 - **{Performance Aspect 3}**: {Description and recommendations}
 
 ### {Performance Category 2}
+
 - **{Performance Aspect 1}**: {Description and recommendations}
 - **{Performance Aspect 2}**: {Description and recommendations}
 - **{Performance Aspect 3}**: {Description and recommendations}
@@ -282,6 +298,7 @@ class {PluginName}{DevelopmentType}:
 ## Integration with Testing Framework
 
 This plugin integrates with PANTHER's testing infrastructure through:
+
 - **{Integration Point 1}**: {Description}
 - **{Integration Point 2}**: {Description}
 - **{Integration Point 3}**: {Description}
