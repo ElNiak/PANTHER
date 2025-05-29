@@ -10,7 +10,7 @@ implementations ship with PANTHER, **yet the exact same steps apply to
 MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 
 > **Target platform:** Linux (x86-64) with Docker ≥ 27
-> **Estimated time:** ≈ 5 minutes (build times depend on network speed)
+> **Estimated time:** ≈ 30 minutes per test the first time (due to build times of implementation), then around 2 minutes.
 
 ---
 
@@ -108,6 +108,12 @@ python -m panther  --experiment-config quic_demo.yaml
 PANTHER validates the YAML, builds images if absent, launches the two
 containers under Docker Compose, runs the handshake for 15 s, and writes
 results to `outputs/`.
+
+**Note:**
+You can also test with:
+```bash
+python -m panther  --experiment-config experiment-config/experiment_config_example.yaml
+```
 
 ---
 

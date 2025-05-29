@@ -44,8 +44,8 @@ export SHELLOPTS
 export PATH=$PATH:$ADDITIONAL_PATH;
 export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;
 env >> /app/logs/ivy_setup.log;
-TARGET_IP=$(getent hosts picoquic_client | awk "{ print \$1 }");
-echo "Resolved picoquic_client IP - $TARGET_IP" >> /app/logs/ivy_setup.log;
+TARGET_IP=$(getent hosts  | awk "{ print \$1 }");
+echo "Resolved  IP - $TARGET_IP" >> /app/logs/ivy_setup.log;
 IVY_IP=$(hostname -I | awk "{ print \$1 }");
 echo "Resolved  ivy_server IP - $IVY_IP" >> /app/logs/ivy_setup.log;
 
@@ -61,7 +61,7 @@ PS4="[<ip_to_decimal>:${LINENO}] "; export PS4; set -x;
 
 TARGET_IP_HEX=$(ip_to_decimal $TARGET_IP);
 IVY_IP_HEX=$(ip_to_decimal $IVY_IP);
-echo "Resolved picoquic_client IP in hex - $TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
+echo "Resolved  IP in hex - $TARGET_IP_HEX" >> /app/logs/ivy_setup.log;
 echo "Resolved ivy_server IP in hex - $IVY_IP_HEX" >> /app/logs/ivy_setup.log;
 
 rm -rf /opt/panther_ivy/protocol-testing/quic/build/*;
@@ -141,8 +141,7 @@ ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1
  && \
  (touch /app/sync_logs/ivy_ready.log)
 cd /opt/panther_ivy/protocol-testing/quic/;
-(touch /app/logs/ivy_server.pcap; tshark -a duration:150 -i any -w /app/logs/ivy_server.pcap;) &
-echo "Running timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  build/quic_client_test_max seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX > /app/logs/quic_client_test_max.log 2> /app/logs/quic_client_test_max.err" >> /app/logs/ivy_server_setup.log;
-(exec timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  /opt/panther_ivy/protocol-testing/quic//build/quic_client_test_max seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX > /app/logs/quic_client_test_max.log 2> /app/logs/quic_client_test_max.err) ;
-
+(touch /app/logs/ivy_server.pcap; tshark -a duration:100 -i any -w /app/logs/ivy_server.pcap;) &
+echo "Running timeout 100 build/quic_client_test_max seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX > /app/logs/quic_client_test_max.log 2> /app/logs/quic_client_test_max.err" >> /app/logs/ivy_server_setup.log;
+(exec timeout 100 /opt/panther_ivy/protocol-testing/quic//build/quic_client_test_max seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$IVY_IP_HEX > /app/logs/quic_client_test_max.log 2> /app/logs/quic_client_test_max.err) ;
 ( cp /opt/panther_ivy/protocol-testing/quic/build/quic_client_test_max /app/logs/quic_client_test_max && \  rm /opt/panther_ivy/protocol-testing/quic/build/quic_client_test_max*; )'

@@ -43,7 +43,7 @@ To build the package distribution files:
 
 ```bash
 # Build both wheel and source distribution
-make package
+python panther_build.py package
 
 # Alternative manual method
 pip install build wheel
@@ -75,9 +75,6 @@ Once the package has been tested and is ready for release:
 ```bash
 # Publish to PyPI
 twine upload dist/*
-
-# For test PyPI (optional)
-twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 ```
 
 ## Version Management
@@ -94,15 +91,3 @@ git push origin v1.2.3
 ## CI/CD Publishing
 
 PANTHER uses GitHub Actions for automated publishing. The workflow is triggered when a new tag is pushed or when manually triggered from the GitHub Actions interface.
-
-## Documentation
-
-When publishing a new version, ensure that the documentation is up to date:
-
-```bash
-# Update the documentation
-make docs
-
-# Test the documentation locally
-mkdocs serve
-```

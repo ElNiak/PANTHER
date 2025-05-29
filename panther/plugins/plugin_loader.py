@@ -50,6 +50,7 @@ class PluginLoader:
         self.protocol_plugins = {}
         self.environment_plugins = {}
         self.tester_plugins = {}
+        self.service_plugins = {}
         self.dockerfiles = {}
 
     @staticmethod
@@ -185,7 +186,13 @@ class PluginLoader:
                     and not item.name.startswith("__")
                     and item.name != "templates"
                 ):
+                    self.logger.debug(f"Found implementation '{item.name}' at '{item}'")
                     implementations.append(item.name)
+                    if (item / "Dockerfile").exists():
+                        self.dockerfiles[item.name] = item / "Dockerfile"
+                        self.logger.debug(
+                            f"Registered Dockerfile for protocol '{protocol}' implementation '{item.name}' at '{item / 'Dockerfile'}'"
+                        )
             self.logger.debug(
                 f"Found implementations for protocol '{protocol}': {implementations}"
             )
@@ -216,6 +223,11 @@ class PluginLoader:
                 and item.name != "templates"
             ):
                 implementations.append(item.name)
+                if (item / "Dockerfile").exists():
+                    self.dockerfiles[item.name] = item / "Dockerfile"
+                    self.logger.debug(
+                        f"Registered Dockerfile for tester '{item.name}' at '{item / 'Dockerfile'}'"
+                    )
         self.logger.debug(f"Found testers: {implementations}")
         return implementations
 
@@ -235,6 +247,16 @@ class PluginLoader:
                     # We don't load the plugin here, just register its existence
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.protocol_plugins[ep.name] = plugin_path
+                    self.logger.debug(
+                        f"Registered protocol plugin '{ep.name}' with path '{plugin_path}'"
+                    )
+                    # If the plugin has a Dockerfile, register it
+                    dockerfile_path = plugin_path / "Dockerfile"
+                    if dockerfile_path.exists():
+                        self.dockerfiles[ep.name] = dockerfile_path
+                        self.logger.debug(
+                            f"Registered Dockerfile for protocol plugin '{ep.name}' at '{dockerfile_path}'"
+                        )
                 except Exception as e:
                     self.logger.warning(
                         f"Failed to register protocol plugin {ep.name}: {e}"
@@ -250,6 +272,16 @@ class PluginLoader:
                 try:
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.environment_plugins[f"execution_{ep.name}"] = plugin_path
+                    self.logger.debug(
+                        f"Registered execution environment plugin '{ep.name}' with path '{plugin_path}'"
+                    )
+                    # If the plugin has a Dockerfile, register it
+                    dockerfile_path = plugin_path / "Dockerfile"
+                    if dockerfile_path.exists():
+                        self.dockerfiles[f"execution_{ep.name}"] = dockerfile_path
+                        self.logger.debug(
+                            f"Registered Dockerfile for execution environment plugin '{ep.name}' at '{dockerfile_path}'"
+                        )
                 except Exception as e:
                     self.logger.warning(
                         f"Failed to register execution environment plugin {ep.name}: {e}"
@@ -265,6 +297,16 @@ class PluginLoader:
                 try:
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.environment_plugins[f"network_{ep.name}"] = plugin_path
+                    self.logger.debug(
+                        f"Registered network environment plugin '{ep.name}' with path '{plugin_path}'"
+                    )
+                    # If the plugin has a Dockerfile, register it
+                    dockerfile_path = plugin_path / "Dockerfile"
+                    if dockerfile_path.exists():
+                        self.dockerfiles[f"network_{ep.name}"] = dockerfile_path
+                        self.logger.debug(
+                            f"Registered Dockerfile for network environment plugin '{ep.name}' at '{dockerfile_path}'"
+                        )
                 except Exception as e:
                     self.logger.warning(
                         f"Failed to register network environment plugin {ep.name}: {e}"
@@ -334,5 +376,10 @@ class PluginLoader:
                         self.logger.debug(
                             f"Discovered testers plugin '{testers.name}' at '{testers}'"
                         )
+                        if (testers / "Dockerfile").exists():
+                            self.dockerfiles[testers.name] = testers / "Dockerfile"
+                            self.logger.debug(
+                                f"Registered Dockerfile for testers plugin '{testers.name}' at '{testers / 'Dockerfile'}'"
+                            )
         else:
             self.logger.warning(f"Testers directory '{testers_dir}' does not exist.")

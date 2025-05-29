@@ -141,8 +141,7 @@ ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1
  && \
  (touch /app/sync_logs/ivy_ready.log)
 cd /opt/panther_ivy/protocol-testing/quic/;
-(touch /app/logs/ivy_client.pcap; tshark -a duration:150 -i any -w /app/logs/ivy_client.pcap;) &
-echo "Running timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err" >> /app/logs/ivy_client_setup.log;
-(sleep 5; exec timeout 150  valgrind --tool=helgrind --trace-children=yes --history-level=full  /opt/panther_ivy/protocol-testing/quic//build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err) ;
-
+(touch /app/logs/ivy_client.pcap; tshark -a duration:200 -i any -w /app/logs/ivy_client.pcap;) &
+echo "Running timeout 200 build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err" >> /app/logs/ivy_client_setup.log;
+(sleep 5; exec timeout 200 /opt/panther_ivy/protocol-testing/quic//build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$$TARGET_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$$IVY_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err) ;
 ( cp /opt/panther_ivy/protocol-testing/quic/build/quic_server_test_stream /app/logs/quic_server_test_stream && \  rm /opt/panther_ivy/protocol-testing/quic/build/quic_server_test_stream*; )'

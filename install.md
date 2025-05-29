@@ -20,11 +20,11 @@ This document provides instructions for installing and setting up the PANTHER sy
 ```bash
 python -m venv .venv              # optional but recommended
 source .venv/bin/activate
-pip install panther_net
+pip install "panther-net"
 ```
 
-`panther_net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
-Upgrade later with `pip install -U panther_net`.
+`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
+Upgrade later with `pip install -U "panther-net"`.
 
 ### Option B — From Source *(for dev)*
 
