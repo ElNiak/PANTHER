@@ -3,13 +3,17 @@ import logging
 import os
 from pathlib import Path
 import shutil
+from contextlib import nullcontext
+from dataclasses import asdict
 from omegaconf import DictConfig, OmegaConf, ValidationError, ListConfig
 import yaml
 from panther.config.config_global_schema import (
+    AdditionalPathsConfig,
     DockerConfig,
     FeatureConfig,
     GlobalConfig,
     LoggingConfig,
+    LoggingLevel,
     PathsConfig,
 )
 from panther.config.config_experiment_schema import (
@@ -29,9 +33,11 @@ class ConfigLoader:
         net_env_dir: str | None = "",
         iut_dir: str | None = "",
         testers_dir: str | None = "",
+        metrics_collector=None,
     ):
         self.experiment_file = experiment_file
         self.output_dir = output_dir
+        self.metrics_collector = metrics_collector
 
         self.exec_env_dir = exec_env_dir
         self.net_env_dir = net_env_dir
@@ -52,33 +58,52 @@ class ConfigLoader:
         Returns:
             ExperimentConfig: _description_
         """
-        # Construct logging configuration
+        # Construct logging configuration with defaults
+        level_str = loaded_config.get("logging", {}).get("level", "DEBUG")
+        # Convert string to LoggingLevel enum
+        if isinstance(level_str, str):
+            try:
+                level = LoggingLevel[level_str.upper()]
+            except KeyError:
+                self.logger.warning(f"Invalid logging level '{level_str}', using DEBUG")
+                level = LoggingLevel.DEBUG
+        else:
+            level = (
+                level_str if isinstance(level_str, LoggingLevel) else LoggingLevel.DEBUG
+            )
+
         logging_config = LoggingConfig(
-            level=loaded_config["logging"]["level"],
-            format=loaded_config["logging"]["format"],
+            level=level,
+            format=loaded_config.get("logging", {}).get(
+                "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            ),
         )
         OmegaConf.merge(LoggingConfig, logging_config)
 
-        # Construct paths configuration
+        # Construct paths configuration with defaults
         paths_config = PathsConfig(
             output_dir=(
-                loaded_config["paths"]["output_dir"]
+                loaded_config.get("paths", {}).get("output_dir", "/tmp/panther/outputs")
                 if not self.output_dir
                 else self.output_dir
             ),
-            log_dir=loaded_config["paths"]["log_dir"],
-            config_dir=loaded_config["paths"]["config_dir"],
-            plugin_dir=loaded_config["paths"]["plugin_dir"],
+            log_dir=loaded_config.get("paths", {}).get("log_dir", "/tmp/panther/logs"),
+            config_dir=loaded_config.get("paths", {}).get(
+                "config_dir", "/tmp/panther/configs"
+            ),
+            plugin_dir=loaded_config.get("paths", {}).get(
+                "plugin_dir", "/tmp/panther/plugins"
+            ),
         )
         OmegaConf.merge(PathsConfig, paths_config)
 
-        # TODO: Not used for now
-        # optional_paths_config = AdditionalPathsConfig(
-        #     exec_env_dir=self.exec_env_dir,
-        #     net_env_dir=self.net_env_dir,
-        #     iut_dir=self.iut_dir,
-        #     testers_dir=self.testers_dir,
-        # )
+        # Construct optional paths configuration
+        optional_paths_config = AdditionalPathsConfig(
+            exec_env_dir=self.exec_env_dir or "",
+            net_env_dir=self.net_env_dir or "",
+            iut_dir=self.iut_dir or "",
+            testers_dir=self.testers_dir or "",
+        )
 
         self.add_plugin_execution_environment()
 
@@ -88,9 +113,23 @@ class ConfigLoader:
 
         self.add_plugin_tester_service()
 
-        # Construct Docker configuration
+        # Construct Docker configuration with defaults
         docker_config = DockerConfig(
-            build_docker_image=loaded_config["docker"]["build_docker_image"]
+            build_docker_image=loaded_config.get("docker", {}).get(
+                "build_docker_image", True
+            ),
+            remove_docker_image=loaded_config.get("docker", {}).get(
+                "remove_docker_image", True
+            ),
+            remove_docker_container=loaded_config.get("docker", {}).get(
+                "remove_docker_container", True
+            ),
+            remove_docker_network=loaded_config.get("docker", {}).get(
+                "remove_docker_network", True
+            ),
+            remove_docker_volume=loaded_config.get("docker", {}).get(
+                "remove_docker_volume", True
+            ),
         )
         OmegaConf.merge(DockerConfig, docker_config)
 
@@ -119,7 +158,7 @@ class ConfigLoader:
         global_config = GlobalConfig(
             logging=logging_config,
             paths=paths_config,
-            # optional_paths=optional_paths_config,
+            optional_paths=optional_paths_config,
             docker=docker_config,
             features=feature_config,
         )
@@ -148,31 +187,39 @@ class ConfigLoader:
                 "testers",
                 self.testers_dir.name,
             )
-            self.copy_plugin_files(testers_target_dir)
+            self.copy_plugin_files(self.testers_dir, testers_target_dir)
 
-    def copy_plugin_files(self, testers_target_dir):
+    def copy_plugin_files(self, source_dir, target_dir):
         """
         Copies plugin files from the source directory to the target directory.
 
         This method checks if the target directory exists, and if not, it creates it.
-        It then iterates through all items in the source directory (self.testers_dir),
+        It then iterates through all items in the source directory,
         and copies each item to the target directory. If an item is a directory, it
         recursively copies the entire directory. If an item is a file, it copies the file.
 
         Parameters:
-        testers_target_dir (str): The path to the target directory where plugin files
+        source_dir (str): The path to the source directory containing plugin files
+        target_dir (str): The path to the target directory where plugin files
                       should be copied.
 
         Raises:
             OSError: If the source directory does not exist or if there is an error during
              the copying process.
         """
-        if not os.path.exists(os.path.join(self._panther_dir, testers_target_dir)):
-            os.makedirs(testers_target_dir)
-        for item in os.listdir(self.testers_dir):
-            print(f"Copying {item} from {self.testers_dir} to {testers_target_dir}")
-            s = os.path.join(self.testers_dir, item)
-            d = os.path.join(testers_target_dir, item)
+        # Check if source directory exists before attempting to copy
+        if not os.path.exists(source_dir):
+            self.logger.warning(
+                f"Source directory {source_dir} does not exist, skipping copy"
+            )
+            return
+
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+        for item in os.listdir(source_dir):
+            print(f"Copying {item} from {source_dir} to {target_dir}")
+            s = os.path.join(source_dir, item)
+            d = os.path.join(target_dir, item)
             if os.path.isdir(s):
                 if os.path.exists(d):
                     shutil.rmtree(d)
@@ -229,7 +276,7 @@ class ConfigLoader:
             iut_target_dir = os.path.join(
                 self._panther_dir, "plugins", "services", "iut", self.iut_dir.name
             )
-            self.copy_plugin_files(iut_target_dir)
+            self.copy_plugin_files(self.iut_dir, iut_target_dir)
 
     def remove_plugin_iut_service(self):
         """
@@ -277,7 +324,7 @@ class ConfigLoader:
                 "network_environment",
                 self.net_env_dir.name,
             )
-            self.copy_plugin_files(net_env_target_dir)
+            self.copy_plugin_files(self.net_env_dir, net_env_target_dir)
 
     def remove_plugin_network_environment(self):
         """
@@ -317,7 +364,7 @@ class ConfigLoader:
                 "execution_environment",
                 self.exec_env_dir.name,
             )
-            self.copy_plugin_files(exec_env_target_dir)
+            self.copy_plugin_files(self.exec_env_dir, exec_env_target_dir)
 
     def remove_plugin_execution_environment(self):
         if self.exec_env_dir and self.exec_env_dir != "":
@@ -469,62 +516,204 @@ class ConfigLoader:
 
         :return: A validated experiment configuration.
         """
-        experiment_config_path = self.experiment_file
-        if not os.path.exists(experiment_config_path):
-            raise FileNotFoundError(
-                f"Experiment configuration file '{experiment_config_path}' not found."
-            )
+        with (
+            self.metrics_collector.timing_context("experiment_config_loading_time")
+            if self.metrics_collector
+            else nullcontext()
+        ):
 
-        try:
-            # Load the YAML configuration
-            loaded_config = OmegaConf.load(experiment_config_path)
-            self.logger.debug(f"Loaded experiment config: {loaded_config}")
-            self.logger.debug(OmegaConf.to_yaml(OmegaConf.structured(ExperimentConfig)))
-            experiment_config = self.construct_experiment_config(loaded_config)
-            self.logger.debug(
-                f"Constructed experiment config: {OmegaConf.to_yaml(experiment_config)}"
-            )
-            self.logger.info("Experiment configuration successfully validated.")
-            return experiment_config
-        except ValidationError as e:
-            self.logger.error(f"Configuration validation failed: {e}")
-            raise
-        except yaml.parser.ParserError as e:
-            self.logger.error(f"YAML parsing error: {e}")
-            raise
-        except Exception as e:
-            self.logger.error(f"Unexpected error during configuration loading: {e}")
-            raise
+            try:
+                experiment_config_path = self.experiment_file
+                if not os.path.exists(experiment_config_path):
+                    raise FileNotFoundError(
+                        f"Experiment configuration file '{experiment_config_path}' not found."
+                    )
+
+                # Load the YAML configuration
+                if self.metrics_collector:
+                    with self.metrics_collector.time_operation(
+                        "experiment_yaml_parsing"
+                    ):
+                        loaded_config = OmegaConf.load(experiment_config_path)
+                else:
+                    loaded_config = OmegaConf.load(experiment_config_path)
+
+                self.logger.debug(f"Loaded experiment config: {loaded_config}")
+                self.logger.debug(
+                    OmegaConf.to_yaml(OmegaConf.structured(ExperimentConfig))
+                )
+
+                # Construct experiment config with timing
+                if self.metrics_collector:
+                    with self.metrics_collector.time_operation(
+                        "experiment_config_construction"
+                    ):
+                        experiment_config = self.construct_experiment_config(
+                            loaded_config
+                        )
+                else:
+                    experiment_config = self.construct_experiment_config(loaded_config)
+
+                self.logger.debug(f"Experiment config type: {type(experiment_config)}")
+
+                # Only try to serialize if we have a valid dataclass
+                if experiment_config and hasattr(
+                    experiment_config, "__dataclass_fields__"
+                ):
+                    try:
+                        self.logger.debug(
+                            f"Constructed experiment config: {OmegaConf.to_yaml(asdict(experiment_config))}"
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Could not serialize experiment config for debug: {e}"
+                        )
+                else:
+                    self.logger.warning(
+                        f"Experiment config is not a valid dataclass: {experiment_config}"
+                    )
+
+                self.logger.info("Experiment configuration successfully validated.")
+
+                if self.metrics_collector:
+                    # Record config metrics
+                    if hasattr(experiment_config, "tests"):
+                        self.metrics_collector.set_gauge(
+                            "config_tests_count", len(experiment_config.tests)
+                        )
+
+                        # Count services across all tests
+                        total_services = 0
+                        for test in experiment_config.tests:
+                            if hasattr(test, "services") and test.services:
+                                total_services += len(test.services)
+                        self.metrics_collector.set_gauge(
+                            "config_services_count", total_services
+                        )
+
+                return experiment_config
+
+            except ValidationError as e:
+                if self.metrics_collector:
+                    self.metrics_collector.record_error(
+                        phase="experiment_config_validation",
+                        error_type="ValidationError",
+                        error_message=str(e),
+                        component="config_manager",
+                        metadata={"config_file": str(experiment_config_path)},
+                    )
+                self.logger.error(f"Configuration validation failed: {e}")
+                raise
+            except yaml.parser.ParserError as e:
+                if self.metrics_collector:
+                    self.metrics_collector.record_error(
+                        phase="experiment_config_loading",
+                        error_type="YAMLParserError",
+                        error_message=str(e),
+                        component="config_manager",
+                        metadata={"config_file": str(experiment_config_path)},
+                    )
+                self.logger.error(f"YAML parsing error: {e}")
+                raise
+            except Exception as e:
+                if self.metrics_collector:
+                    self.metrics_collector.record_error(
+                        phase="experiment_config_loading",
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                        metadata={"config_file": experiment_config_path},
+                    )
+                self.logger.error(f"Unexpected error during configuration loading: {e}")
+                raise
 
     def load_and_validate_global_config(self) -> GlobalConfig:
         """
-        Load and validate the entire experiment configuration, including plugin-specific validation.
+        Load and validate the global configuration from the experiment configuration file.
         Note no logger is used here.
 
-        :return: A validated experiment configuration.
+        :return: A validated global configuration.
         """
-        experiment_config_path = self.experiment_file
-        if not os.path.exists(experiment_config_path):
-            raise FileNotFoundError(
-                f"Experiment configuration file '{experiment_config_path}' not found."
+        if self.metrics_collector:
+            self.metrics_collector.increment_counter("config_loads_total")
+            config_timer = self.metrics_collector.start_timing(
+                "global_config_loading_time"
             )
 
         try:
+            # Check if experiment config file exists (contains global config)
+            experiment_config_path = self.experiment_file
+            if not os.path.exists(experiment_config_path):
+                raise FileNotFoundError(
+                    f"Global configuration file '{experiment_config_path}' not found."
+                )
+
             # Load the YAML configuration
-            loaded_config = OmegaConf.load(experiment_config_path)
+            if self.metrics_collector:
+                with self.metrics_collector.time_operation("yaml_parsing"):
+                    loaded_config = OmegaConf.load(experiment_config_path)
+            else:
+                loaded_config = OmegaConf.load(experiment_config_path)
+
             print(f"Loaded experiment config: {loaded_config}")
             print(OmegaConf.to_yaml(OmegaConf.structured(ExperimentConfig)))
-            global_config = self.construct_global_config(loaded_config)
-            print(f"Constructed global config: {OmegaConf.to_yaml(global_config)}")
+
+            # Construct global config with timing
+            if self.metrics_collector:
+                with self.metrics_collector.time_operation(
+                    "global_config_construction"
+                ):
+                    global_config = self.construct_global_config(loaded_config)
+            else:
+                global_config = self.construct_global_config(loaded_config)
+
+            # Convert dataclass to dict for YAML serialization
+            global_config_dict = asdict(global_config)
+            print(f"Constructed global config: {OmegaConf.to_yaml(global_config_dict)}")
             print("Experiment configuration successfully validated.")
+
+            if self.metrics_collector:
+                self.metrics_collector.increment_counter("config_loads_successful")
+                config_timer.stop()
+
             return global_config
+
         except ValidationError as e:
+            if self.metrics_collector:
+                self.metrics_collector.increment_counter("config_validation_errors")
+                self.metrics_collector.record_error(
+                    phase="config_validation",
+                    error_type="ValidationError",
+                    error_message=str(e),
+                    metadata={"config_file": experiment_config_path},
+                )
+                if "config_timer" in locals():
+                    config_timer.stop()
             print(f"Configuration validation failed: {e}")
             raise
         except yaml.parser.ParserError as e:
+            if self.metrics_collector:
+                self.metrics_collector.increment_counter("config_parsing_errors")
+                self.metrics_collector.record_error(
+                    phase="config_loading",
+                    error_type="YAMLParserError",
+                    error_message=str(e),
+                    metadata={"config_file": experiment_config_path},
+                )
+                if "config_timer" in locals():
+                    config_timer.stop()
             print(f"YAML parsing error: {e}")
             raise
         except Exception as e:
+            if self.metrics_collector:
+                self.metrics_collector.increment_counter("config_load_errors")
+                self.metrics_collector.record_error(
+                    phase="config_loading",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    metadata={"config_file": experiment_config_path},
+                )
+                if "config_timer" in locals():
+                    config_timer.stop()
             print(f"Unexpected error during configuration loading: {e}")
             raise
 
@@ -676,20 +865,34 @@ class ConfigLoader:
         self.logger.debug(
             f"Searching for execution environment classes in {exec_env_dir}"
         )
-        for plugin_dir in exec_env_dir.iterdir():
-            if plugin_dir.is_dir():
-                plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                if plugin_file.exists():
-                    self.logger.debug(
-                        f"Found execution environment class: {plugin_dir.name}"
-                    )
-                    exec_env_classes.append(
-                        PluginLoader.get_class_name(plugin_dir.name, "Config")
-                    )
-                else:
-                    self.logger.debug(
-                        f"No execution environment class found in {plugin_dir}"
-                    )
+
+        # Check if directory exists
+        if not exec_env_dir.exists():
+            self.logger.debug(
+                f"Execution environment directory {exec_env_dir} does not exist"
+            )
+            return exec_env_classes
+
+        try:
+            for plugin_dir in exec_env_dir.iterdir():
+                if plugin_dir.is_dir():
+                    plugin_file = plugin_dir / f"{plugin_dir.name}.py"
+                    if plugin_file.exists():
+                        self.logger.debug(
+                            f"Found execution environment class: {plugin_dir.name}"
+                        )
+                        exec_env_classes.append(
+                            PluginLoader.get_class_name(plugin_dir.name, "Config")
+                        )
+                    else:
+                        self.logger.debug(
+                            f"No execution environment class found in {plugin_dir}"
+                        )
+        except (FileNotFoundError, OSError) as e:
+            self.logger.debug(
+                f"Error accessing execution environment directory {exec_env_dir}: {e}"
+            )
+
         self.logger.debug(
             f"Total execution environment classes found: {len(exec_env_classes)}"
         )
@@ -713,20 +916,34 @@ class ConfigLoader:
         self.logger.debug(
             f"Searching for network environment classes in {exec_env_dir}"
         )
-        for plugin_dir in exec_env_dir.iterdir():
-            if plugin_dir.is_dir():
-                plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                if plugin_file.exists():
-                    self.logger.debug(
-                        f"Found network environment class: {plugin_dir.name}"
-                    )
-                    exec_env_classes.append(
-                        PluginLoader.get_class_name(plugin_dir.name, "Config")
-                    )
-                else:
-                    self.logger.debug(
-                        f"No network environment class found in {plugin_dir}"
-                    )
+
+        # Check if directory exists
+        if not exec_env_dir.exists():
+            self.logger.debug(
+                f"Network environment directory {exec_env_dir} does not exist"
+            )
+            return exec_env_classes
+
+        try:
+            for plugin_dir in exec_env_dir.iterdir():
+                if plugin_dir.is_dir():
+                    plugin_file = plugin_dir / f"{plugin_dir.name}.py"
+                    if plugin_file.exists():
+                        self.logger.debug(
+                            f"Found network environment class: {plugin_dir.name}"
+                        )
+                        exec_env_classes.append(
+                            PluginLoader.get_class_name(plugin_dir.name, "Config")
+                        )
+                    else:
+                        self.logger.debug(
+                            f"No network environment class found in {plugin_dir}"
+                        )
+        except (FileNotFoundError, OSError) as e:
+            self.logger.debug(
+                f"Error accessing network environment directory {exec_env_dir}: {e}"
+            )
+
         self.logger.debug(
             f"Total network environment classes found: {len(exec_env_classes)}"
         )
@@ -745,22 +962,34 @@ class ConfigLoader:
             self._panther_dir / Path(self.global_config.paths.plugin_dir) / "protocols"
         )
         self.logger.debug(f"Searching for protocol classes in {protocol_dir}")
-        for protocol_type_dir in protocol_dir.iterdir():
-            if protocol_type_dir.is_dir():
-                for protocol_dir in protocol_type_dir.iterdir():
-                    if protocol_dir.is_dir():
-                        protocol_file = protocol_dir / f"{protocol_dir.name}.py"
-                        if protocol_file.exists():
-                            self.logger.debug(
-                                f"Found protocol class: {protocol_dir.name}"
-                            )
-                            protocol_classes.append(
-                                PluginLoader.get_class_name(protocol_dir.name, "Config")
-                            )
-                        else:
-                            self.logger.debug(
-                                f"No protocol class found in {protocol_dir}"
-                            )
+
+        # Check if directory exists
+        if not protocol_dir.exists():
+            self.logger.debug(f"Protocol directory {protocol_dir} does not exist")
+            return protocol_classes
+
+        try:
+            for protocol_type_dir in protocol_dir.iterdir():
+                if protocol_type_dir.is_dir():
+                    for protocol_dir in protocol_type_dir.iterdir():
+                        if protocol_dir.is_dir():
+                            protocol_file = protocol_dir / f"{protocol_dir.name}.py"
+                            if protocol_file.exists():
+                                self.logger.debug(
+                                    f"Found protocol class: {protocol_dir.name}"
+                                )
+                                protocol_classes.append(
+                                    PluginLoader.get_class_name(
+                                        protocol_dir.name, "Config"
+                                    )
+                                )
+                            else:
+                                self.logger.debug(
+                                    f"No protocol class found in {protocol_dir}"
+                                )
+        except (FileNotFoundError, OSError) as e:
+            self.logger.debug(f"Error accessing protocol directory {protocol_dir}: {e}")
+
         self.logger.debug(f"Total protocol classes found: {len(protocol_classes)}")
         return protocol_classes
 
@@ -847,40 +1076,58 @@ class ConfigLoader:
             )
             self.logger.debug(f"Searching for plugins in {plugin_dir}")
             plugins = []
-            if plugin_type == "iut":
-                for protocol_dir in plugin_dir.iterdir():
-                    if protocol_dir.is_dir() and not protocol_dir.name.startswith("__"):
-                        for sub_dir in protocol_dir.iterdir():
-                            if sub_dir.is_dir() and not sub_dir.name.startswith("__"):
-                                plugin_file = sub_dir / f"{sub_dir.name}.py"
-                                if plugin_file.exists():
-                                    self.logger.debug(f"Found plugin: {sub_dir.name}")
-                                    plugins.append(
-                                        f"{protocol_dir.name}/{sub_dir.name}"
+
+            # Check if plugin directory exists
+            if not plugin_dir.exists():
+                self.logger.debug(f"Plugin directory {plugin_dir} does not exist")
+                all_plugins[plugin_type] = []
+                continue
+
+            try:
+                if plugin_type == "iut":
+                    for protocol_dir in plugin_dir.iterdir():
+                        if protocol_dir.is_dir() and not protocol_dir.name.startswith(
+                            "__"
+                        ):
+                            for sub_dir in protocol_dir.iterdir():
+                                if sub_dir.is_dir() and not sub_dir.name.startswith(
+                                    "__"
+                                ):
+                                    plugin_file = sub_dir / f"{sub_dir.name}.py"
+                                    if plugin_file.exists():
+                                        self.logger.debug(
+                                            f"Found plugin: {sub_dir.name}"
+                                        )
+                                        plugins.append(
+                                            f"{protocol_dir.name}/{sub_dir.name}"
+                                        )
+                                        try:
+                                            importlib.import_module(
+                                                f"panther.plugins.{plugin_path.replace('/', '.')}.{protocol_dir.name}.{sub_dir.name}"
+                                            )
+                                        except ImportError as e:
+                                            self.logger.error(
+                                                f"Failed to load plugin {sub_dir.name}: {e}"
+                                            )
+                else:
+                    for sub_dir in plugin_dir.iterdir():
+                        if sub_dir.is_dir() and not sub_dir.name.startswith("__"):
+                            plugin_file = sub_dir / f"{sub_dir.name}.py"
+                            if plugin_file.exists():
+                                self.logger.debug(f"Found plugin: {sub_dir.name}")
+                                plugins.append(sub_dir.name)
+                                try:
+                                    importlib.import_module(
+                                        f"panther.plugins.{plugin_path.replace('/', '.')}.{sub_dir.name}"
                                     )
-                                    try:
-                                        importlib.import_module(
-                                            f"panther.plugins.{plugin_path.replace('/', '.')}.{protocol_dir.name}.{sub_dir.name}"
-                                        )
-                                    except ImportError as e:
-                                        self.logger.error(
-                                            f"Failed to load plugin {sub_dir.name}: {e}"
-                                        )
-            else:
-                for sub_dir in plugin_dir.iterdir():
-                    if sub_dir.is_dir() and not sub_dir.name.startswith("__"):
-                        plugin_file = sub_dir / f"{sub_dir.name}.py"
-                        if plugin_file.exists():
-                            self.logger.debug(f"Found plugin: {sub_dir.name}")
-                            plugins.append(sub_dir.name)
-                            try:
-                                importlib.import_module(
-                                    f"panther.plugins.{plugin_path.replace('/', '.')}.{sub_dir.name}"
-                                )
-                            except ImportError as e:
-                                self.logger.error(
-                                    f"Failed to load plugin {sub_dir.name}: {e}"
-                                )
+                                except ImportError as e:
+                                    self.logger.error(
+                                        f"Failed to load plugin {sub_dir.name}: {e}"
+                                    )
+            except (FileNotFoundError, OSError) as e:
+                self.logger.debug(f"Error accessing plugin directory {plugin_dir}: {e}")
+                plugins = []
+
             all_plugins[plugin_type] = sorted(plugins)
 
         return all_plugins
