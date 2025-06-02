@@ -23,6 +23,7 @@ import argparse
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 try:
@@ -31,6 +32,49 @@ try:
     docker_available = True
 except ImportError:
     docker_available = False
+
+# Import metrics system
+try:
+    from panther.metrics import record, flush, ResourceSampler
+    from panther.metrics.utils import (
+        get_directory_size_mb,
+        get_docker_image_size_mb,
+        find_latest_wheel,
+        cleanup_build_artifacts,
+    )
+
+    METRICS_AVAILABLE = True
+    print("Metrics system available.")
+except ImportError:
+    # Metrics not available, create dummy functions
+    print("Metrics system not available. Using dummy functions.")
+
+    def record(name, value, tags=None):
+        pass
+
+    def flush(kind, extra=None):
+        return "no-metrics"
+
+    class ResourceSampler:
+        def start(self):
+            pass
+
+        def stop(self):
+            return {}
+
+    def get_directory_size_mb(path):
+        return 0.0
+
+    def get_docker_image_size_mb(name):
+        return None
+
+    def find_latest_wheel(dist_dir, package_name):
+        return None
+
+    def cleanup_build_artifacts(path):
+        return {}
+
+    METRICS_AVAILABLE = False
 
 
 class BuildManager:
@@ -47,6 +91,10 @@ class BuildManager:
         self.is_venv = hasattr(sys, "real_prefix") or (
             hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
         )
+
+        # Initialize metrics tracking
+        self.resource_sampler = ResourceSampler() if METRICS_AVAILABLE else None
+        self.build_start_time = None
 
         if sys.version_info < self.min_python_version:
             print(
@@ -104,6 +152,10 @@ class BuildManager:
 
     def run_command(self, cmd: list[str], cwd: Path | None = None) -> int:
         """Run a command and return the exit code."""
+        if not cmd:
+            print("Error: Empty command provided")
+            return 1
+
         print(f"Running: {' '.join(cmd)}")
         try:
             result = subprocess.run(
@@ -115,6 +167,9 @@ class BuildManager:
             return e.returncode
         except FileNotFoundError:
             print(f"Error: Command not found: {cmd[0]}")
+            return 1
+        except OSError as e:
+            print(f"Error: System error occurred: {e}")
             return 1
 
     def clean(self) -> int:
@@ -181,9 +236,33 @@ class BuildManager:
     def build_wheel(self) -> int:
         """Build the wheel package."""
         print("Building wheel...")
-        return self.run_command(
-            [sys.executable, "-m", "build", "--wheel", "--no-isolation"]
-        )
+
+        # Start metrics collection
+        self.start_metrics_collection("build_wheel")
+
+        try:
+            result = self.run_command(
+                [sys.executable, "-m", "build", "--wheel", "--no-isolation"]
+            )
+
+            # Record build success/failure
+            if METRICS_AVAILABLE:
+                record(
+                    "build.wheel_success",
+                    1.0 if result == 0 else 0.0,
+                    {"stage": "build_wheel"},
+                )
+
+            return result
+        finally:
+            # Always flush metrics, even on failure
+            self.stop_metrics_collection_and_flush(
+                "build_wheel",
+                {
+                    "command": "build_wheel",
+                    "success": result == 0 if "result" in locals() else False,
+                },
+            )
 
     def install_wheel(self) -> int:
         """Install the built wheel."""
@@ -215,215 +294,327 @@ class BuildManager:
             ]
         )
 
+    def install_slim(self) -> int:
+        """Install slim tool for Docker image optimization."""
+        print("Installing slim tool for Docker image optimization...")
+
+        # Check if slim is already installed
+        result = subprocess.run(["which", "slim"], capture_output=True)
+
+        if result.returncode == 0:
+            print("✅ slim is already installed at: " + result.stdout.decode().strip())
+            return 0
+
+        # Install slim using the official installation script
+        print("Downloading and installing slim...")
+        try:
+            # Use curl to download and pipe to bash
+            install_cmd = [
+                "curl",
+                "-sL",
+                "https://raw.githubusercontent.com/slimtoolkit/slim/master/scripts/install-slim.sh",
+                "|",
+                "sudo",
+                "-E",
+                "bash",
+                "-",
+            ]
+
+            # We can't use pipe (|) directly with subprocess, so we need to use shell=True
+            shell_cmd = " ".join(install_cmd)
+            result = subprocess.run(shell_cmd, shell=True, check=True)
+
+            # Verify installation was successful
+            verify_result = subprocess.run(["which", "slim"], capture_output=True)
+
+            if verify_result.returncode == 0:
+                print(
+                    "✅ slim installed successfully at: "
+                    + verify_result.stdout.decode().strip()
+                )
+                return 0
+            else:
+                print("❌ slim installation failed. Could not find slim in PATH.")
+                return 1
+
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Error installing slim: {e}")
+            return 1
+        except Exception as e:
+            print(f"❌ Unexpected error during slim installation: {e}")
+            return 1
+
     def run_tests(self) -> int:
         """Run the test suite."""
         print("Running tests...")
-        # Install test dependencies
-        result = self.run_command([sys.executable, "-m", "pip", "install", ".[tests]"])
-        if result != 0:
-            return result
 
-        # Run pytest
-        return self.run_command([sys.executable, "-m", "pytest", "tests/"])
+        # Start metrics collection
+        self.start_metrics_collection("run_tests")
+
+        try:
+            # Install test dependencies
+            result = self.run_command(
+                [sys.executable, "-m", "pip", "install", ".[tests]"]
+            )
+            if result != 0:
+                return result
+
+            # Run pytest with metrics plugin
+            pytest_cmd = [sys.executable, "-m", "pytest", "tests/"]
+            if METRICS_AVAILABLE:
+                # Add coverage and metrics plugins
+                pytest_cmd.extend(
+                    [
+                        "--cov=panther",
+                        "--cov-report=xml",
+                        "--cov-report=html",
+                        "-p",
+                        "panther.metrics.pytest_plugin",
+                    ]
+                )
+
+            result = self.run_command(pytest_cmd)
+
+            # Record test success/failure
+            if METRICS_AVAILABLE:
+                record(
+                    "test.suite_success",
+                    1.0 if result == 0 else 0.0,
+                    {"stage": "run_tests"},
+                )
+
+            return result
+        finally:
+            # Always flush metrics, even on failure
+            self.stop_metrics_collection_and_flush(
+                "run_tests",
+                {
+                    "command": "run_tests",
+                    "success": result == 0 if "result" in locals() else False,
+                },
+            )
 
     def build_docs(self) -> int:
         """Build documentation."""
 
-        # Create a backup of mkdocs.yml
-        mkdocs_file = self.project_root / "mkdocs.yml"
-        if mkdocs_file.exists():
-            backup_file = self.project_root / "dev" / "docs-gen" / "mkdocs.yml.bak"
-            if backup_file.exists():
-                print(f"Restoring backup of mkdocs.yml from {backup_file}")
-                shutil.copy2(backup_file, mkdocs_file)
-            print(f"Creating backup of mkdocs.yml -> {backup_file}")
-            shutil.copy2(mkdocs_file, backup_file)
-        else:
-            print("Warning: mkdocs.yml not found, no backup created")
+        # Start metrics collection
+        self.start_metrics_collection("build_docs")
 
-        print("Building documentation...")
+        try:
+            # Create a backup of mkdocs.yml
+            mkdocs_file = self.project_root / "mkdocs.yml"
+            if mkdocs_file.exists():
+                backup_file = self.project_root / "dev" / "docs-gen" / "mkdocs.yml.bak"
+                if backup_file.exists():
+                    print(f"Restoring backup of mkdocs.yml from {backup_file}")
+                    shutil.copy2(backup_file, mkdocs_file)
+                print(f"Creating backup of mkdocs.yml -> {backup_file}")
+                shutil.copy2(mkdocs_file, backup_file)
+            else:
+                print("Warning: mkdocs.yml not found, no backup created")
 
-        build_dict = {
-            # Home
-            "README.md": "docs/index.md",
-            # Getting Started
-            "QUICK_START.md": "docs/QUICK_START.md",
-            "INSTALL.md": "docs/INSTALL.md",
-            "panther/config/README.md": "docs/configuration.md",
-            "panther/core/README.md": "docs/core.md",
-            "WORKFLOW.md": "docs/experimental_workflows.md",
-            "panther/core/README.md": "docs/core_workflows.md",
-            "panther/webapp/README.md": "docs/web_application_workflows.md",
-            # Plugins Overview
-            "panther/plugins/README.md": "docs/plugins_overview.md",
-            "panther/plugins/plugins_inventory.md": "docs/plugins_inventory.md",
-            # Developer Guide
-            "CONTRIBUTING.md": "docs/contributing.md",
-            "panther/plugins/development.md": "docs/plugin_development.md",
-            # Environment Plugins
-            "panther/plugins/environments/README.md": "docs/environment_plugins.md",
-            "panther/plugins/environments/development.md": "docs/plugin_development_environment.md",
-            "panther/plugins/environments/network_environment/README.md": "docs/network_environment.md",
-            "panther/plugins/environments/network_environment/development.md": "docs/plugin_development_network.md",
-            "panther/plugins/environments/network_environment/docker_compose/README.md": "docs/network_docker_compose.md",
-            "panther/plugins/environments/network_environment/localhost_single_container/README.md": "docs/network_localhost_container.md",
-            "panther/plugins/environments/network_environment/shadow_ns/README.md": "docs/network_shadow_ns.md",
-            # Execution Environment Plugins
-            "panther/plugins/environments/execution_environment/README.md": "docs/execution_environment.md",
-            "panther/plugins/environments/execution_environment/development.md": "docs/plugin_development_execution.md",
-            "panther/plugins/environments/execution_environment/gperf_cpu/README.md": "docs/execution_gperf_cpu.md",
-            "panther/plugins/environments/execution_environment/gperf_heap/README.md": "docs/execution_gperf_heap.md",
-            "panther/plugins/environments/execution_environment/helgrind/README.md": "docs/execution_helgrind.md",
-            "panther/plugins/environments/execution_environment/iterations/README.md": "docs/execution_iterations.md",
-            "panther/plugins/environments/execution_environment/memcheck/README.md": "docs/execution_memcheck.md",
-            "panther/plugins/environments/execution_environment/strace/README.md": "docs/execution_strace.md",
-            # Protocol Plugins
-            "panther/plugins/protocols/README.md": "docs/protocol_plugins.md",
-            "panther/plugins/protocols/development.md": "docs/protocol_development.md",
-            # Client-Server Protocol Plugins
-            "panther/plugins/protocols/client_server/README.md": "docs/client_server_protocols.md",
-            "panther/plugins/protocols/client_server/index.md": "docs/client_server_index.md",
-            "panther/plugins/protocols/client_server/http/README.md": "docs/protocol_http.md",
-            "panther/plugins/protocols/client_server/minip/README.md": "docs/protocol_minip.md",
-            "panther/plugins/protocols/client_server/quic/README.md": "docs/protocol_quic.md",
-            # Peer-to-Peer Protocol Plugins
-            "panther/plugins/protocols/peer_to_peer/README.md": "docs/peer_to_peer_protocols.md",
-            "panther/plugins/protocols/peer_to_peer/index.md": "docs/peer_to_peer_index.md",
-            "panther/plugins/protocols/peer_to_peer/bittorrent/README.md": "docs/protocol_bittorrent.md",
-            # Service Plugins
-            "panther/plugins/services/README.md": "docs/service_plugins.md",
-            "panther/plugins/services/development.md": "docs/service_development.md",
-            # IUT (Implementation Under Test) Plugins
-            "panther/plugins/services/iut/README.md": "docs/iut_plugins.md",
-            "panther/plugins/services/iut/development.md": "docs/iut_development.md",
-            "panther/plugins/services/iut/http/README.md": "docs/iut_http.md",
-            "panther/plugins/services/iut/minip/README.md": "docs/iut_minip.md",
-            "panther/plugins/services/iut/minip/ping_pong/README.md": "docs/iut_minip_ping_pong.md",
-            # QUIC IUT Plugins
-            "panther/plugins/services/iut/quic/README.md": "docs/iut_quic_overview.md",
-            "panther/plugins/services/iut/quic/aioquic/README.md": "docs/iut_quic_aioquic.md",
-            "panther/plugins/services/iut/quic/lsquic/README.md": "docs/iut_quic_lsquic.md",
-            "panther/plugins/services/iut/quic/mvfst/README.md": "docs/iut_quic_mvfst.md",
-            "panther/plugins/services/iut/quic/picoquic/README.md": "docs/iut_quic_picoquic.md",
-            "panther/plugins/services/iut/quic/picoquic_shadow/README.md": "docs/iut_quic_picoquic_shadow.md",
-            "panther/plugins/services/iut/quic/quant/README.md": "docs/iut_quic_quant.md",
-            "panther/plugins/services/iut/quic/quic_go/README.md": "docs/iut_quic_go.md",
-            "panther/plugins/services/iut/quic/quiche/README.md": "docs/iut_quic_quiche.md",
-            "panther/plugins/services/iut/quic/quinn/README.md": "docs/iut_quic_quinn.md",
-            # Tester Service Plugins
-            "panther/plugins/services/testers/README.md": "docs/testing_services.md",
-            "panther/plugins/services/testers/development.md": "docs/testers_development.md",
-            "panther/plugins/services/testers/panther_ivy/README.md": "docs/tester_panther_ivy.md",
-            # Documentation
-            "dev/docs-gen/README.md": "docs/documentation_readme.md",
-            "dev/docs-gen/documentation_WORKFLOW.md": "docs/documentation_WORKFLOW.md",
-            "dev/docs-gen/style_guide.md": "docs/style_guide.md",
-            "dev/docs-gen/documentation_integration.md": "docs/documentation_integration.md",
-            "dev/docs-gen/documentation_links.md": "docs/documentation_links.md",
-            "dev/docs-gen/documentation_enhancements.md": "docs/documentation_enhancements.md",
-            # Project Information
-            "CHANGELOG.md": "docs/changelog.md",
-            "LICENSE.md": "docs/license.md",
-        }
+            print("Building documentation...")
 
-        self.clean()  # Clean before building docs
+            # ...existing build_dict and documentation build logic...
 
-        # Clean documentation build artifacts
-        print("Cleaning documentation build artifacts...")
-        doc_artifacts = ["site"]  # MkDocs default output directory
-        for artifact in doc_artifacts:
-            artifact_path = self.project_root / artifact
-            if artifact_path.exists():
-                print(f"Removing {artifact_path}")
-                shutil.rmtree(artifact_path)
+            build_dict = {
+                # Home
+                "README.md": "docs/index.md",
+                # Getting Started
+                "QUICK_START.md": "docs/QUICK_START.md",
+                "INSTALL.md": "docs/INSTALL.md",
+                "panther/config/README.md": "docs/configuration.md",
+                "panther/core/README.md": "docs/core.md",
+                "WORKFLOW.md": "docs/experimental_workflows.md",
+                "panther/core/README.md": "docs/core_workflows.md",
+                "panther/webapp/README.md": "docs/web_application_workflows.md",
+                # Plugins Overview
+                "panther/plugins/README.md": "docs/plugins_overview.md",
+                "panther/plugins/plugins_inventory.md": "docs/plugins_inventory.md",
+                # Developer Guide
+                "CONTRIBUTING.md": "docs/contributing.md",
+                "panther/plugins/development.md": "docs/plugin_development.md",
+                # Environment Plugins
+                "panther/plugins/environments/README.md": "docs/environment_plugins.md",
+                "panther/plugins/environments/development.md": "docs/plugin_development_environment.md",
+                "panther/plugins/environments/network_environment/README.md": "docs/network_environment.md",
+                "panther/plugins/environments/network_environment/development.md": "docs/plugin_development_network.md",
+                "panther/plugins/environments/network_environment/docker_compose/README.md": "docs/network_docker_compose.md",
+                "panther/plugins/environments/network_environment/localhost_single_container/README.md": "docs/network_localhost_container.md",
+                "panther/plugins/environments/network_environment/shadow_ns/README.md": "docs/network_shadow_ns.md",
+                # Execution Environment Plugins
+                "panther/plugins/environments/execution_environment/README.md": "docs/execution_environment.md",
+                "panther/plugins/environments/execution_environment/development.md": "docs/plugin_development_execution.md",
+                "panther/plugins/environments/execution_environment/gperf_cpu/README.md": "docs/execution_gperf_cpu.md",
+                "panther/plugins/environments/execution_environment/gperf_heap/README.md": "docs/execution_gperf_heap.md",
+                "panther/plugins/environments/execution_environment/helgrind/README.md": "docs/execution_helgrind.md",
+                "panther/plugins/environments/execution_environment/iterations/README.md": "docs/execution_iterations.md",
+                "panther/plugins/environments/execution_environment/memcheck/README.md": "docs/execution_memcheck.md",
+                "panther/plugins/environments/execution_environment/strace/README.md": "docs/execution_strace.md",
+                # Protocol Plugins
+                "panther/plugins/protocols/README.md": "docs/protocol_plugins.md",
+                "panther/plugins/protocols/development.md": "docs/protocol_development.md",
+                # Client-Server Protocol Plugins
+                "panther/plugins/protocols/client_server/README.md": "docs/client_server_protocols.md",
+                "panther/plugins/protocols/client_server/index.md": "docs/client_server_index.md",
+                "panther/plugins/protocols/client_server/http/README.md": "docs/protocol_http.md",
+                "panther/plugins/protocols/client_server/minip/README.md": "docs/protocol_minip.md",
+                "panther/plugins/protocols/client_server/quic/README.md": "docs/protocol_quic.md",
+                # Peer-to-Peer Protocol Plugins
+                "panther/plugins/protocols/peer_to_peer/README.md": "docs/peer_to_peer_protocols.md",
+                "panther/plugins/protocols/peer_to_peer/index.md": "docs/peer_to_peer_index.md",
+                "panther/plugins/protocols/peer_to_peer/bittorrent/README.md": "docs/protocol_bittorrent.md",
+                # Service Plugins
+                "panther/plugins/services/README.md": "docs/service_plugins.md",
+                "panther/plugins/services/development.md": "docs/service_development.md",
+                # IUT (Implementation Under Test) Plugins
+                "panther/plugins/services/iut/README.md": "docs/iut_plugins.md",
+                "panther/plugins/services/iut/development.md": "docs/iut_development.md",
+                "panther/plugins/services/iut/http/README.md": "docs/iut_http.md",
+                "panther/plugins/services/iut/minip/README.md": "docs/iut_minip.md",
+                "panther/plugins/services/iut/minip/ping_pong/README.md": "docs/iut_minip_ping_pong.md",
+                # QUIC IUT Plugins
+                "panther/plugins/services/iut/quic/README.md": "docs/iut_quic_overview.md",
+                "panther/plugins/services/iut/quic/aioquic/README.md": "docs/iut_quic_aioquic.md",
+                "panther/plugins/services/iut/quic/lsquic/README.md": "docs/iut_quic_lsquic.md",
+                "panther/plugins/services/iut/quic/mvfst/README.md": "docs/iut_quic_mvfst.md",
+                "panther/plugins/services/iut/quic/picoquic/README.md": "docs/iut_quic_picoquic.md",
+                "panther/plugins/services/iut/quic/picoquic_shadow/README.md": "docs/iut_quic_picoquic_shadow.md",
+                "panther/plugins/services/iut/quic/quant/README.md": "docs/iut_quic_quant.md",
+                "panther/plugins/services/iut/quic/quic_go/README.md": "docs/iut_quic_go.md",
+                "panther/plugins/services/iut/quic/quiche/README.md": "docs/iut_quic_quiche.md",
+                "panther/plugins/services/iut/quic/quinn/README.md": "docs/iut_quic_quinn.md",
+                # Tester Service Plugins
+                "panther/plugins/services/testers/README.md": "docs/testing_services.md",
+                "panther/plugins/services/testers/development.md": "docs/testers_development.md",
+                "panther/plugins/services/testers/panther_ivy/README.md": "docs/tester_panther_ivy.md",
+                # Documentation
+                "dev/docs-gen/README.md": "docs/documentation_readme.md",
+                "dev/docs-gen/documentation_WORKFLOW.md": "docs/documentation_WORKFLOW.md",
+                "dev/docs-gen/style_guide.md": "docs/style_guide.md",
+                "dev/docs-gen/documentation_integration.md": "docs/documentation_integration.md",
+                "dev/docs-gen/documentation_links.md": "docs/documentation_links.md",
+                "dev/docs-gen/documentation_enhancements.md": "docs/documentation_enhancements.md",
+                # Project Information
+                "CHANGELOG.md": "docs/changelog.md",
+                "LICENSE.md": "docs/license.md",
+            }
 
-        # Install documentation dependencies
-        print("Installing documentation dependencies...")
-        result = self.run_command([sys.executable, "-m", "pip", "install", ".[doc]"])
-        if result != 0:
-            print("Warning: Could not install documentation dependencies")
+            self.clean()  # Clean before building docs
 
-        # Ensure docs directory exists and is empty
-        docs_dir = self.project_root / "docs"
-        if docs_dir.exists():
-            print(f"Clearing {docs_dir} directory...")
-            shutil.rmtree(docs_dir)
-        docs_dir.mkdir(exist_ok=True)
+            # Clean documentation build artifacts
+            print("Cleaning documentation build artifacts...")
+            doc_artifacts = ["site"]  # MkDocs default output directory
+            for artifact in doc_artifacts:
+                artifact_path = self.project_root / artifact
+                if artifact_path.exists():
+                    print(f"Removing {artifact_path}")
+                    shutil.rmtree(artifact_path)
 
-        # Run the MkDocs automation script
-        print("Running MkDocs automation script...")
-        mkdocs_script = (
-            self.project_root / "dev" / "docs-gen" / "mkdocs" / "automate_mkdocs.py"
-        )
-        if mkdocs_script.exists():
-            result = self.run_command([sys.executable, str(mkdocs_script)])
-            if result != 0:
-                print("Warning: MkDocs automation script failed")
-        else:
-            print(f"Warning: MkDocs automation script not found at {mkdocs_script}")
-
-        # Run gendocs with the mkgendocs.yml config
-        print("Running gendocs with custom configuration...")
-        result = self.run_command(["gendocs", "--config", "mkgendocs.yml"])
-        if result != 0:
-            print("Warning: gendocs command failed")
-
-        # Generate plugin inventory
-        print("Generating plugin inventory...")
-        inventory_script = (
-            self.project_root / "dev" / "docs-gen" / "generate_plugin_inventory.py"
-        )
-        if inventory_script.exists():
+            # Install documentation dependencies
+            print("Installing documentation dependencies...")
             result = self.run_command(
-                [
-                    sys.executable,
-                    str(inventory_script),
-                    "--format",
-                    "markdown",
-                    "--output",
-                    "panther/plugins/plugins_inventory.md",
-                ]
+                [sys.executable, "-m", "pip", "install", ".[doc]"]
             )
             if result != 0:
-                print("Warning: Plugin inventory generation failed")
+                print("Warning: Could not install documentation dependencies")
 
-        # Copy files according to build_dict
-        print("Copying documentation files...")
-        for source, destination in build_dict.items():
-            source_path = self.project_root / source
-            dest_path = self.project_root / destination
+            # Ensure docs directory exists and is empty
+            docs_dir = self.project_root / "docs"
+            if docs_dir.exists():
+                print(f"Clearing {docs_dir} directory...")
+                shutil.rmtree(docs_dir)
+            docs_dir.mkdir(exist_ok=True)
 
-            # Create destination directory if it doesn't exist
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-
-            if source_path.exists():
-                print(f"Copying {source} -> {destination}")
-                shutil.copy2(source_path, dest_path)
+            # Run the MkDocs automation script
+            print("Running MkDocs automation script...")
+            mkdocs_script = (
+                self.project_root / "dev" / "docs-gen" / "mkdocs" / "automate_mkdocs.py"
+            )
+            if mkdocs_script.exists():
+                result = self.run_command([sys.executable, str(mkdocs_script)])
+                if result != 0:
+                    print("Warning: MkDocs automation script failed")
             else:
-                print(f"Warning: Source file {source} not found, creating placeholder")
-                # Create a placeholder file
-                with open(dest_path, "w") as f:
-                    f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
-                    f.write("This documentation is under development.\n")
+                print(f"Warning: MkDocs automation script not found at {mkdocs_script}")
 
-        # Copy all markdown files from panther to docs/panther
-        panther_docs_dir = self.project_root / "docs" / "panther"
-        panther_src_dir = self.project_root / "panther"
-        if not panther_docs_dir.exists():
-            print(f"Creating directory {panther_docs_dir}")
-            panther_docs_dir.mkdir(parents=True, exist_ok=True)
-        for md_file in panther_src_dir.rglob("*.md"):
-            if md_file.is_file():
-                relative_path = md_file.relative_to(panther_src_dir)
-                dest_path = panther_docs_dir / relative_path
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
-                print(f"Copying {md_file} to {dest_path}")
-                shutil.copy2(md_file, dest_path)
-
-        # Check if MkDocs is available
-        try:
-            result = self.run_command(["mkdocs", "--version"])
+            # Run gendocs with the mkgendocs.yml config
+            print("Running gendocs with custom configuration...")
+            result = self.run_command(["gendocs", "--config", "mkgendocs.yml"])
             if result != 0:
+                print("Warning: gendocs command failed")
+
+            # Generate plugin inventory
+            print("Generating plugin inventory...")
+            inventory_script = (
+                self.project_root / "dev" / "docs-gen" / "generate_plugin_inventory.py"
+            )
+            if inventory_script.exists():
+                result = self.run_command(
+                    [
+                        sys.executable,
+                        str(inventory_script),
+                        "--format",
+                        "markdown",
+                        "--output",
+                        "panther/plugins/plugins_inventory.md",
+                    ]
+                )
+                if result != 0:
+                    print("Warning: Plugin inventory generation failed")
+
+            # Copy files according to build_dict
+            print("Copying documentation files...")
+            for source, destination in build_dict.items():
+                source_path = self.project_root / source
+                dest_path = self.project_root / destination
+
+                # Create destination directory if it doesn't exist
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+                if source_path.exists():
+                    print(f"Copying {source} -> {destination}")
+                    shutil.copy2(source_path, dest_path)
+                else:
+                    print(
+                        f"Warning: Source file {source} not found, creating placeholder"
+                    )
+                    # Create a placeholder file
+                    with open(dest_path, "w") as f:
+                        f.write(f"# {dest_path.stem.replace('_', ' ').title()}\n\n")
+                        f.write("This documentation is under development.\n")
+
+            # Copy all markdown files from panther to docs/panther
+            panther_docs_dir = self.project_root / "docs" / "panther"
+            panther_src_dir = self.project_root / "panther"
+            if not panther_docs_dir.exists():
+                print(f"Creating directory {panther_docs_dir}")
+                panther_docs_dir.mkdir(parents=True, exist_ok=True)
+            for md_file in panther_src_dir.rglob("*.md"):
+                if md_file.is_file():
+                    relative_path = md_file.relative_to(panther_src_dir)
+                    dest_path = panther_docs_dir / relative_path
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                    print(f"Copying {md_file} to {dest_path}")
+                    shutil.copy2(md_file, dest_path)
+
+            # Check if MkDocs is available
+            try:
+                result = self.run_command(["mkdocs", "--version"])
+                if result != 0:
+                    print("Installing MkDocs...")
+                    self.run_command(
+                        [
+                            sys.executable,
+                            "-m",
+                            "pip",
+                            "install",
+                            "mkdocs",
+                            "mkdocs-material",
+                            "mkdocstrings",
+                        ]
+                    )
+            except FileNotFoundError:
                 print("Installing MkDocs...")
                 self.run_command(
                     [
@@ -436,25 +627,31 @@ class BuildManager:
                         "mkdocstrings",
                     ]
                 )
-        except FileNotFoundError:
-            print("Installing MkDocs...")
-            self.run_command(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "mkdocs",
-                    "mkdocs-material",
-                    "mkdocstrings",
-                ]
+
+            # Build documentation with MkDocs
+            print("Building documentation with MkDocs...")
+            result = self.run_command(
+                ["mkdocs", "build", "--verbose", "--config-file", "mkdocs.yml"]
             )
 
-        # Build documentation with MkDocs
-        print("Building documentation with MkDocs...")
-        return self.run_command(
-            ["mkdocs", "build", "--verbose", "--config-file", "mkdocs.yml"]
-        )
+            # Record documentation build success/failure
+            if METRICS_AVAILABLE:
+                record(
+                    "docs.build_success",
+                    1.0 if result == 0 else 0.0,
+                    {"stage": "build_docs"},
+                )
+
+            return result
+        finally:
+            # Always flush metrics, even on failure
+            self.stop_metrics_collection_and_flush(
+                "build_docs",
+                {
+                    "command": "build_docs",
+                    "success": result == 0 if "result" in locals() else False,
+                },
+            )
 
     def serve_docs(self) -> int:
         """Serve the documentation locally."""
@@ -883,6 +1080,182 @@ repos:
 
         return 0
 
+    def start_metrics_collection(self, operation: str) -> None:
+        """Start metrics collection for a build operation."""
+        if not METRICS_AVAILABLE:
+            return
+
+        self.build_start_time = time.perf_counter()
+        if self.resource_sampler:
+            self.resource_sampler.start()
+
+        print(f"Starting metrics collection for: {operation}")
+
+    def stop_metrics_collection_and_flush(
+        self, operation: str, extra_data: dict = None
+    ) -> str:
+        """Stop metrics collection and flush results."""
+        if not METRICS_AVAILABLE or self.build_start_time is None:
+            return "no-metrics"
+
+        # Calculate total operation time
+        total_time = time.perf_counter() - self.build_start_time
+        record(f"{operation}.total_seconds", total_time, {"stage": operation})
+
+        # Get resource metrics
+        resource_metrics = {}
+        if self.resource_sampler:
+            resource_metrics = self.resource_sampler.stop()
+            for metric_name, value in resource_metrics.items():
+                record(metric_name, value, {"stage": operation})
+
+        # Add size metrics
+        self._record_artifact_sizes(operation)
+
+        # Prepare extra data
+        flush_data = {
+            "operation": operation,
+            "duration": total_time,
+            **(extra_data or {}),
+        }
+
+        # Flush metrics
+        run_id = flush(operation, flush_data)
+        print(f"Metrics collection completed. Run ID: {run_id}")
+
+        # Reset for next operation
+        self.build_start_time = None
+
+        return run_id
+
+    def _record_artifact_sizes(self, operation: str) -> None:
+        """Record sizes of build artifacts."""
+        if not METRICS_AVAILABLE:
+            return
+
+        # Record dist directory size
+        dist_dir = self.project_root / "dist"
+        if dist_dir.exists():
+            dist_size = get_directory_size_mb(dist_dir)
+            record("artifact.dist_mb", dist_size, {"stage": operation})
+
+            # Record individual wheel size if available
+            wheel_info = find_latest_wheel(dist_dir, self.package_name)
+            if wheel_info:
+                wheel_path, wheel_size = wheel_info
+                record(
+                    "artifact.wheel_mb",
+                    wheel_size,
+                    {"stage": operation, "file": wheel_path.name},
+                )
+
+        # Record build directory size
+        build_dir = self.project_root / "build"
+        if build_dir.exists():
+            build_size = get_directory_size_mb(build_dir)
+            record("artifact.build_mb", build_size, {"stage": operation})
+
+        # Record documentation size if relevant
+        if operation in ["docs", "build_docs"]:
+            docs_dir = self.project_root / "docs"
+            site_dir = self.project_root / "site"
+
+            if docs_dir.exists():
+                docs_size = get_directory_size_mb(docs_dir)
+                record("artifact.docs_mb", docs_size, {"stage": operation})
+
+            if site_dir.exists():
+                site_size = get_directory_size_mb(site_dir)
+                record("artifact.site_mb", site_size, {"stage": operation})
+
+    def metrics_ls(self) -> int:
+        """List available metrics collected during build operations."""
+        print("Listing available metrics...")
+
+        if not METRICS_AVAILABLE:
+            print("❌ Metrics system is not available. Cannot list metrics.")
+            print("Make sure the panther.metrics module is installed and configured.")
+            return 1
+
+        try:
+            from panther.metrics import list_available_metrics
+
+            metrics = list_available_metrics()
+            if not metrics:
+                print("No metrics have been collected yet.")
+                return 0
+
+            print(f"Found {len(metrics)} available metrics:")
+            for i, metric in enumerate(metrics, 1):
+                print(f"{i}. {metric}")
+
+            return 0
+        except Exception as e:
+            print(f"❌ Error listing metrics: {e}")
+            return 1
+
+    def metrics_show(self) -> int:
+        """Display specific metrics with their values."""
+        print("Showing metrics data...")
+
+        if not METRICS_AVAILABLE:
+            print("❌ Metrics system is not available. Cannot show metrics.")
+            print("Make sure the panther.metrics module is installed and configured.")
+            return 1
+
+        try:
+            from panther.metrics import get_metrics_data
+
+            metrics_data = get_metrics_data()
+            if not metrics_data:
+                print("No metrics data available to show.")
+                return 0
+
+            print(f"Metrics data summary ({len(metrics_data)} entries):")
+            for name, values in metrics_data.items():
+                print(f"\n{name}:")
+                if isinstance(values, list):
+                    for i, value in enumerate(values[:5], 1):  # Show first 5 values
+                        print(f"  {i}: {value}")
+                    if len(values) > 5:
+                        print(f"  ... and {len(values) - 5} more values")
+                else:
+                    print(f"  Value: {values}")
+
+            return 0
+        except Exception as e:
+            print(f"❌ Error showing metrics: {e}")
+            return 1
+
+    def metrics_export(self) -> int:
+        """Export collected metrics to a file."""
+        print("Exporting metrics data...")
+
+        if not METRICS_AVAILABLE:
+            print("❌ Metrics system is not available. Cannot export metrics.")
+            print("Make sure the panther.metrics module is installed and configured.")
+            return 1
+
+        try:
+            from panther.metrics import export_metrics
+            from datetime import datetime
+
+            # Create timestamp for export file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_file = self.project_root / f"metrics_export_{timestamp}.json"
+
+            result = export_metrics(export_file)
+
+            if result:
+                print(f"✅ Metrics data exported successfully to {export_file}")
+                return 0
+            else:
+                print("❌ No metrics data available to export.")
+                return 1
+        except Exception as e:
+            print(f"❌ Error exporting metrics: {e}")
+            return 1
+
 
 def main():
     """Main entry point for the build script."""
@@ -983,6 +1356,9 @@ Examples:
         "remove-system-all": build_manager.remove_system_all,
         "remove-system-services": build_manager.remove_system_services,
         "remove-volume": build_manager.remove_volume,
+        "metrics-ls": build_manager.metrics_ls,
+        "metrics-show": build_manager.metrics_show,
+        "metrics-export": build_manager.metrics_export,
     }
 
     if args.command not in command_map:

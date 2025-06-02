@@ -9,16 +9,15 @@ import pytest
 import yaml
 from unittest.mock import Mock, patch
 
-from panther.config.config_manager import ConfigManager
 from panther.config.config_global_schema import GlobalConfig
 from panther.config.config_experiment_schema import ExperimentConfig
 from panther.core.exceptions import ServicePluginNotFound, EnvironmentPluginNotFound
 
 
-class TestConfigManagerBasic:
-    """Test basic ConfigManager functionality."""
+class TestConfigLoaderBasic:
+    """Test basic ConfigLoader functionality."""
 
-    def test_config_manager_initialization(self):
+    def test_config_loader_initialization(self):
         """Test ConfigManager can be initialized."""
         config_manager = ConfigManager()
         assert config_manager is not None

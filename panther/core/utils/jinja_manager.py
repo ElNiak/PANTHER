@@ -1,4 +1,5 @@
 from jinja2 import Environment, FileSystemLoader
+from panther.core.utils.template_filters import TEMPLATE_FILTERS
 
 
 class JinjaManager:
@@ -14,6 +15,10 @@ class JinjaManager:
 
         # Register custom filters
         self.env.filters["safe_getattr"] = self.safe_getattr
+
+        # Register template filters for secure command generation
+        for filter_name, filter_func in TEMPLATE_FILTERS.items():
+            self.env.filters[filter_name] = filter_func
 
         # Register custom global functions
         self.env.globals["has_attr"] = self.has_attr

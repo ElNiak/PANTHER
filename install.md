@@ -91,7 +91,7 @@ Examples:
 
 **Why use the builder?**
 
-- ✅ **Cross-platform**: Works on Linux, macOS, and Windows
+- ✅ **Cross-platform**: Works on Linux, macOS
 - ✅ **Smart checks**: Automatically validates Python ≥3.10 and Docker ≥27.0
 - ✅ **Integrated**: Replaces Makefile with better error handling
 - ✅ **Developer-friendly**: Includes quality checks, documentation builds, and cleanup

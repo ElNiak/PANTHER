@@ -33,57 +33,6 @@ PANTHER is a **plugin‑based, research‑grade test harness** that lets you des
 
 ---
 
-## 📑 Table of Contents
-
-### Getting Started
-
-1. [Installation Guide](INSTALL.md)
-2. [Quick Start](QUICK_START.md)
-3. [Configuration](panther/config/README.md)
-4. [Workflows](WORKFLOW.md)
-5. [Core](panther/core/README.md)
-6. [Web Application Workflows](panther/webapp/README.md)
-
-### Plugins
-
-7. [Overview](panther/plugins/README.md)
-8. [Inventory](panther/plugins/plugins_inventory.md)
-9. **Environment Plugins**
-   * [Overview](panther/plugins/environments/README.md)
-   * [Network Environment](panther/plugins/environments/network_environment/README.md)
-   * [Execution Environment](panther/plugins/environments/execution_environment/README.md)
-10. **Protocol Plugins**
-    * [Overview](panther/plugins/protocols/README.md)
-    * [Client-Server Protocols](panther/plugins/protocols/client_server/README.md)
-    * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md)
-11. **Service Plugins**
-    * [Overview](panther/plugins/services/README.md)
-    * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md)
-    * [Testing Services](panther/plugins/services/testers/README.md)
-
-### Developer Guide
-
-12. [Contributing](CONTRIBUTING.md)
-13. **Plugin Development**
-    * [Overview](panther/plugins/development.md)
-    * **Environment Plugins**
-      * [Overview](panther/plugins/environments/development.md)
-      * [Network Environment](panther/plugins/environments/network_environment/development.md)
-      * [Execution Environment](panther/plugins/environments/execution_environment/development.md)
-    * [Protocol Plugins](panther/plugins/protocols/development.md)
-    * **Service Plugins**
-      * [Overview](panther/plugins/services/development.md)
-      * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/development.md)
-      * [Testing Services](panther/plugins/services/testers/development.md)
-
-### Project Information
-
-14. [Changelog](CHANGELOG.md)
-15. [License](LICENSE.md)
-16. [Code Reference](https://elniak.github.io/PANTHER/panther/)
-
----
-
 ## 🔄 Quick Workflow Overview
 
 PANTHER experiments follow a **4-phase execution model**:
@@ -134,7 +83,59 @@ For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 `pyproject.toml` is the source of truth for Python dependencies.
 `requirements.txt` is a frozen snapshot—**do not edit**.
 
+**Note**: We propose to install [`slim`](https://github.com/slimtoolkit/slim) in our builder, fasten container size.
+
 ---
+
+## 📑 Table of Contents
+
+### Getting Started
+
+1. [Installation Guide](INSTALL.md)
+2. [Quick Start](QUICK_START.md)
+3. [Configuration](panther/config/README.md)
+4. [Workflows](WORKFLOW.md)
+5. [Core](panther/core/README.md)
+6. [Web Application Workflows](panther/webapp/README.md)
+
+### Plugins
+
+7. [Overview](panther/plugins/README.md)
+8. [Inventory](panther/plugins/plugins_inventory.md)
+9. **Environment Plugins**
+   * [Overview](panther/plugins/environments/README.md)
+   * [Network Environment](panther/plugins/environments/network_environment/README.md)
+   * [Execution Environment](panther/plugins/environments/execution_environment/README.md)
+10. **Protocol Plugins**
+    * [Overview](panther/plugins/protocols/README.md)
+    * [Client-Server Protocols](panther/plugins/protocols/client_server/README.md)
+    * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md)
+11. **Service Plugins**
+    * [Overview](panther/plugins/services/README.md)
+    * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md)
+    * [Testing Services](panther/plugins/services/testers/README.md)
+
+### Developer Guide
+
+12. [Contributing](CONTRIBUTING.md)
+13. **Plugin Development**
+    * [Overview](panther/plugins/development.md)
+    * **Environment Plugins**
+      * [Overview](panther/plugins/environments/development.md)
+      * [Network Environment](panther/plugins/environments/network_environment/development.md)
+      * [Execution Environment](panther/plugins/environments/execution_environment/development.md)
+    * [Protocol Plugins](panther/plugins/protocols/development.md)
+    * **Service Plugins**
+      * [Overview](panther/plugins/services/development.md)
+      * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/development.md)
+      * [Testing Services](panther/plugins/services/testers/development.md)
+
+### Project Information
+
+14. [Changelog](CHANGELOG.md)
+15. [License](LICENSE.md)
+16. [Code Reference](https://elniak.github.io/PANTHER/panther/)
+
 
 ## Documentation
 

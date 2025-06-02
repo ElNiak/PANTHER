@@ -3,13 +3,13 @@
 !!! note "Development Roadmap"
     This document tracks planned improvements and known issues. Contributions are welcome for any of these items.
 
-* Rename gits ?
 
-* Add loading bar
-
-* detached mode
+* detached mode for experiences
 
 * Analysis plugins (perf report, qvis etc)
+
+* add docker consumption for "network_sent_mb_total": 11.09375,
+      "network_recv_mb_total": 14.197265625,
 
 ## PANTHER Ivy
 

@@ -11,7 +11,7 @@ MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 
 !!! info "System Requirements"
     **Target platform:** Linux (x86-64) with Docker >= 27
-    **Estimated time:** ≈ 30 minutes per test the first time (due to build times of implementation), then around 2 minutes.
+    **Estimated time:** ≈ 30 minutes per test the first time (due to containers building times of implementation), then around 2 minutes.
 
 ---
 
@@ -33,6 +33,10 @@ Upgrade later with `pip install -U panther_net`.
 
 !!! example "Your First Experiment Configuration"
     Create `quic_demo.yaml` (swap `quic` for `minip` to test other protocols):
+
+!!! info "Experiments vs Tests"
+  In PANTHER, an **experiment** is the overall configuration file that defines what to run, while **tests** are individual scenarios within that experiment. A single experiment can contain multiple tests, each with its own configuration, network setup, and measurements.
+
 
 ```yaml
 logging:
@@ -106,7 +110,7 @@ tests:
 ```bash
 panther --experiment-config quic_demo.yaml
 # Or
-python -m panther  --experiment-config quic_demo.yaml
+python -m panther  --experiment-config quic_demo.yaml --enable-metrics
 ```
 
 PANTHER validates the YAML, builds images if absent, launches the two
@@ -117,7 +121,7 @@ results to `outputs/`.
     You can also test with:
 
     ```bash
-    python -m panther  --experiment-config experiment-config/experiment_config_example.yaml
+    python -m panther  --experiment-config experiment-config/experiment_config_example.yaml --enable-metrics
     ```
 
 ---
@@ -129,9 +133,11 @@ PANTHER creates a timestamped output directory with subfolders for each test:
 ```text
 outputs/
 └── 2025-…_experiment_run/
+    ├── metrics/                    # contains experiments monitored metrics
     ├── experiment.log              # high-level timeline + any errors
     ├── experiment_config.yaml      # full experiment configuration (including defaults)
     ├── QUIC_Handshake_PicoQUIC/    # first test results
+    │   ├── metrics/                # contains test monitored metrics
     │   ├── server/                 # server container logs and artifacts
     │   │   ├── stdout.log          # server process standard output
     │   │   ├── stderr.log          # server process standard error
@@ -162,6 +168,8 @@ outputs/
 | **Add formal testing**    | Add tester: `name: panther_ivy`, `test: quic_server_stream`.    |
 | **Single-container mode** | `network_environment.type: localhost_single_container`.         |
 | **Create a new plugin**   | See the [Plugin Developer Guide](panther/plugins/development.md). |
+| **Enable telemetry**     | Check the [Metrics Guide](panther/core/metrics/README.md) for performance data. |
+
 
 Enjoy experimenting—whether with QUIC **or any protocol you plug in**!
 
