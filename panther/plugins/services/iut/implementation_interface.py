@@ -29,9 +29,7 @@ class IImplementationManager(IServiceManager, ABC):
         protocol: ProtocolConfig,
         implementation_name: str,
     ):
-        super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name
-        )
+        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
 
     def is_tester(self):
         return False

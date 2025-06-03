@@ -8,9 +8,7 @@ from panther.plugins.protocols.config_schema import (
 )
 
 # TODO init that directly from folder ?
-VersionEnum = Enum(
-    "VersionEnum", ["random", "functional", "vulnerable", "flaky", "fail"]
-)
+VersionEnum = Enum("VersionEnum", ["random", "functional", "vulnerable", "flaky", "fail"])
 
 
 @dataclass

@@ -15,15 +15,9 @@ class PingPongServiceManager(IImplementationManager):
         protocol: ProtocolConfig,
         implementation_name: str,
     ):
-        super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name
-        )
-        self.logger.debug(
-            f"Initializing PingPong service manager for '{implementation_name}'"
-        )
-        self.logger.debug(
-            f"Loaded PingPong configuration: {self.service_config_to_test}"
-        )
+        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        self.logger.debug("Initializing PingPong service manager for '%s'", implementation_name)
+        self.logger.debug("Loaded PingPong configuration: %s", self.service_config_to_test)
         self.initialize_commands()
 
     def generate_pre_compile_commands(self):
@@ -31,16 +25,12 @@ class PingPongServiceManager(IImplementationManager):
         Generates pre-compile commands.
         """
         return super().generate_pre_compile_commands() + [
-            "TARGET_IP=$(getent hosts "
-            + self.service_targets
-            + r' | awk "{ print \$1 }");',
+            "TARGET_IP=$(getent hosts " + self.service_targets + r' | awk "{ print \$1 }");',
             'echo "Resolved '
             + self.service_targets
             + ' IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;',
             r'IVY_IP=$(hostname -I | awk "{ print \$1 }");',
-            'echo "Resolved  '
-            + self.service_name
-            + ' IP - $$IVY_IP" >> /app/logs/ivy_setup.log;',
+            'echo "Resolved  ' + self.service_name + ' IP - $$IVY_IP" >> /app/logs/ivy_setup.log;',
             " ",
             "ip_to_hex() {",
             '  echo $1 | awk -F"." "{ printf(\\"%02X%02X%02X%02X\\", \\$1, \\$2, \\$3, \\$4) }";',
@@ -107,21 +97,24 @@ class PingPongServiceManager(IImplementationManager):
 
     def generate_deployment_commands(self) -> str:
         """
-        Generates deployment commands and collects volume mappings based on service parameters.
+        Generates deployment commands for the ping_pong service using structured arguments
+        for proper escaping and handling of special characters.
 
-        :param service_params: Parameters specific to the service.
-        :param environment: The environment in which the services are being deployed.
-        :return: A dictionary with service name as key and a dictionary containing command and volumes.
+        Returns:
+            str: The rendered deployment command string.
+
+        Raises:
+            Exception: If there is an error rendering the command template.
         """
         self.logger.debug(
-            f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
+            "Generating deployment commands for service: %s with service parameters: %s",
+            self.service_name,
+            self.service_config_to_test
         )
-        # Create the command list
 
-        self.logger.debug(f"Role: {self.role.name}, Version: {self.service_version}")
+        self.logger.debug("Role: %s, Version: %s", self.role.name, self.service_version)
 
         # Build parameters for the command template
-        # TODO ensure that the parameters are correctly set
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
         # For the client, include target and message if available
@@ -130,19 +123,65 @@ class PingPongServiceManager(IImplementationManager):
 
         params["target"] = "$$TARGET_IP"
 
-        self.logger.debug(f"Parameters for command template: {params}")
-        self.logger.debug(f"Role: {self.role.name}")
+        self.logger.debug("Parameters for command template: %s", params)
+        self.logger.debug("Role: %s", self.role.name)
         self.working_dir = params["binary"]["dir"]
 
-        # Render the appropriate template
+        # Build structured command arguments
+        command_args = []
+
+        # Add seed parameter if available
+        if "seed" in params:
+            command_args.append(f"seed={params['seed']}")
+
+        # Add server and client ports/addresses if available
+        if "server_port" in params:
+            command_args.append(f"server_port={params['server_port']}")
+        if "server_addr" in params:
+            command_args.append(f"server_addr={params['server_addr']}")
+
+        # Add client-specific parameters
+        if self.role == RoleEnum.client:
+            pass
+        # Add server-specific parameters
+        elif self.role == RoleEnum.server:
+            if "client_port" in params:
+                command_args.append(f"client_port={params['client_port']}")
+            if "client_addr" in params:
+                command_args.append(f"client_addr={params['client_addr']}")
+
+        # Add logging parameters
+        if "logging" in params:
+            command_args.append(f"> {params['logging']['log_path']}")
+            command_args.append(f"2> {params['logging']['err_path']}")
+
+        # Environment variables if needed
+        env_vars = {}
+
+        # Try to render the template with structured arguments
         try:
-            template_name = f"{str(self.role.name)}_command.jinja"
-            return super().render_commands(params, template_name)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to render command for service '{self.service_config_to_test.name}': {e}\n{traceback.format_exc()}"
+            template_name = f"{str(self.role.name)}_command_structured.jinja"
+            return self.render_template_with_structured_args(
+                template_name, params, command_args, env_vars
             )
-            raise e
+        except Exception as e:
+            self.logger.warning(
+                "Failed to render structured template for service '%s': %s",
+                self.service_config_to_test.name,
+                e
+            )
+            try:
+                # Fallback to original template
+                template_name = f"{str(self.role.name)}_command.jinja"
+                return self.render_commands(params, template_name)
+            except Exception as e2:
+                self.logger.error(
+                    "Failed to render fallback command template for service '%s': %s\n%s",
+                    self.service_config_to_test.name,
+                    e2,
+                    traceback.format_exc()
+                )
+                raise e2
 
     def __str__(self) -> str:
         return f"PingPongServiceManager({self.__dict__})"

@@ -65,9 +65,7 @@ class PantherMetricsPlugin:
         record("pytest.item_count", float(total_items), {"stage": "tests"})
         record("pytest.passed", float(self.test_results["passed"]), {"stage": "tests"})
         record("pytest.failed", float(self.test_results["failed"]), {"stage": "tests"})
-        record(
-            "pytest.skipped", float(self.test_results["skipped"]), {"stage": "tests"}
-        )
+        record("pytest.skipped", float(self.test_results["skipped"]), {"stage": "tests"})
         record("pytest.errors", float(self.test_results["errors"]), {"stage": "tests"})
 
         # Record resource metrics

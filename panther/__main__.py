@@ -6,6 +6,7 @@ This module provides the command-line interface for the PANTHER framework.
 """
 
 import argparse
+import argcomplete
 import logging
 import sys
 from pathlib import Path
@@ -34,9 +35,7 @@ except ImportError:
     # Try to load the module directly
     plugin_creator_path = Path(__file__).parent / "plugins" / "plugin_creator.py"
     if plugin_creator_path.exists():
-        spec = importlib.util.spec_from_file_location(
-            "plugin_creator", plugin_creator_path
-        )
+        spec = importlib.util.spec_from_file_location("plugin_creator", plugin_creator_path)
         if spec is not None and spec.loader is not None:
             plugin_creator = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(plugin_creator)
@@ -97,9 +96,7 @@ def initialize_metrics(args):
         if hasattr(metrics_collector, "initialize_error_handling"):
             metrics_collector.initialize_error_handling()
 
-        logging.info(
-            f"✅ Metrics collector initialized for experiment: {experiment_name}"
-        )
+        logging.info(f"✅ Metrics collector initialized for experiment: {experiment_name}")
         logging.info(f"   Output directory: {metrics_output_dir}")
 
         # Initialize resource monitor if not disabled
@@ -114,9 +111,7 @@ def initialize_metrics(args):
                 if hasattr(resource_monitor, "initialize_error_handling"):
                     resource_monitor.initialize_error_handling()
             except Exception as e:
-                logging.warning(
-                    f"⚠️ Warning: Failed to initialize resource monitor: {e}"
-                )
+                logging.warning(f"⚠️ Warning: Failed to initialize resource monitor: {e}")
                 resource_monitor = None
 
         # Initialize reporter with error handling
@@ -134,9 +129,7 @@ def initialize_metrics(args):
             logging.info(f"   Output directory: {args.metrics_output_dir}")
             logging.info(f"   Export format: {args.metrics_export_format}")
             if resource_monitor:
-                logging.info(
-                    f"   Resource monitoring interval: {args.metrics_resource_interval}s"
-                )
+                logging.info(f"   Resource monitoring interval: {args.metrics_resource_interval}s")
 
         return metrics_collector, resource_monitor, metrics_reporter, metrics_exporter
 
@@ -201,14 +194,10 @@ def finalize_metrics(
         try:
             if execution_success:
                 metrics_collector.increment_counter("experiments_successful")
-                metrics_collector.record_gauge(
-                    "experiment_final_status", 1
-                )  # 1 = success
+                metrics_collector.record_gauge("experiment_final_status", 1)  # 1 = success
             else:
                 metrics_collector.increment_counter("experiments_failed")
-                metrics_collector.record_gauge(
-                    "experiment_final_status", 0
-                )  # 0 = failure
+                metrics_collector.record_gauge("experiment_final_status", 0)  # 0 = failure
         except Exception as e:
             logging.warning(f"⚠️ Warning: Failed to record final experiment status: {e}")
 
@@ -218,9 +207,7 @@ def finalize_metrics(
 
             metrics_output_dir = (
                 Path(args.metrics_output_dir)
-                if args
-                and hasattr(args, "metrics_output_dir")
-                and args.metrics_output_dir
+                if args and hasattr(args, "metrics_output_dir") and args.metrics_output_dir
                 else Path("metrics")
             )
             metrics_output_dir.mkdir(parents=True, exist_ok=True)
@@ -247,9 +234,7 @@ def finalize_metrics(
                 metrics_exporter.prepare_metrics_data()
 
                 # Get export format with fallback
-                export_format = (
-                    getattr(args, "metrics_export_format", "json") if args else "json"
-                )
+                export_format = getattr(args, "metrics_export_format", "json") if args else "json"
 
                 try:
                     if export_format == "json":
@@ -258,25 +243,17 @@ def finalize_metrics(
                         metrics_exporter.format_resource_metrics()
                         export_success = metrics_exporter.export_to_json(export_path)
                     elif export_format == "csv":
-                        export_success = metrics_exporter.export_to_csv(
-                            metrics_output_dir
-                        )
+                        export_success = metrics_exporter.export_to_csv(metrics_output_dir)
                     elif export_format == "prometheus":
                         export_path = metrics_output_dir / f"metrics_{timestamp}.prom"
-                        export_success = metrics_exporter.export_prometheus_format(
-                            export_path
-                        )
+                        export_success = metrics_exporter.export_prometheus_format(export_path)
                     elif export_format == "dashboard":
                         export_path = metrics_output_dir / f"dashboard_{timestamp}.json"
                         # Make sure metrics are in dashboard-compatible format
                         metrics_exporter.prepare_dashboard_metrics()
-                        export_success = metrics_exporter.export_dashboard_json(
-                            export_path
-                        )
+                        export_success = metrics_exporter.export_dashboard_json(export_path)
                 except Exception as e:
-                    logging.error(
-                        f"❌ Failed to export metrics in {export_format} format: {e}"
-                    )
+                    logging.error(f"❌ Failed to export metrics in {export_format} format: {e}")
                     export_success = False
             except Exception as e:
                 logging.error(f"❌ Failed to prepare metrics data for export: {e}")
@@ -284,11 +261,7 @@ def finalize_metrics(
 
         # Generate human-readable report if requested and reporter is available
         report_success = False
-        if (
-            args
-            and getattr(args, "metrics_generate_report", True)
-            and metrics_reporter is not None
-        ):
+        if args and getattr(args, "metrics_generate_report", True) and metrics_reporter is not None:
             try:
                 report_path = metrics_output_dir / f"metrics_report_{timestamp}.txt"
                 report_success = metrics_reporter.generate_report(str(report_path))
@@ -310,15 +283,11 @@ def finalize_metrics(
             # Print summary, safely accessing metrics if available
             try:
                 if metrics_collector:
-                    total_experiments = (
-                        metrics_collector.get_counter("experiments_total") or 0
-                    )
+                    total_experiments = metrics_collector.get_counter("experiments_total") or 0
                     successful_experiments = (
                         metrics_collector.get_counter("experiments_successful") or 0
                     )
-                    failed_experiments = (
-                        metrics_collector.get_counter("experiments_failed") or 0
-                    )
+                    failed_experiments = metrics_collector.get_counter("experiments_failed") or 0
                     total_execution_time = (
                         metrics_collector.get_timing_metric("total_execution_time") or 0
                     )
@@ -327,9 +296,7 @@ def finalize_metrics(
                     logging.info(f"   Total experiments: {total_experiments}")
                     logging.info(f"   Successful: {successful_experiments}")
                     logging.info(f"   Failed: {failed_experiments}")
-                    logging.info(
-                        f"   Total execution time: {total_execution_time:.2f}s"
-                    )
+                    logging.info(f"   Total execution time: {total_execution_time:.2f}s")
                 else:
                     logging.warning("\n⚠️ No metrics collector available for summary")
             except Exception as e:
@@ -511,7 +478,7 @@ def main():
         action="store_true",
         help="Suppress metrics-related output during execution.",
     )
-
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     # Handle plugin creation
@@ -621,9 +588,7 @@ def main():
                 if info.get("note"):
                     desc += f" - {info['note']}"
 
-            logging.info(
-                f"{name:<20} {info['type']:<30} {default:<20} {required:<10} {desc}"
-            )
+            logging.info(f"{name:<20} {info['type']:<30} {default:<20} {required:<10} {desc}")
 
             # If this is a version field with client/server details, show them
             if name == "version" and "value" in info:
@@ -693,10 +658,7 @@ def main():
             args.metrics_output_dir = str(metrics_dir)
         else:
             # Use experiment directory as the metrics output directory
-            if (
-                hasattr(experiment_manager, "experiment_dir")
-                and experiment_manager.experiment_dir
-            ):
+            if hasattr(experiment_manager, "experiment_dir") and experiment_manager.experiment_dir:
                 metrics_dir = experiment_manager.experiment_dir / "metrics"
                 # Update the argument for display purposes
                 args.metrics_output_dir = str(metrics_dir)
@@ -714,9 +676,7 @@ def main():
             experiment_manager.metrics_collector = metrics_collector
 
         if args.webapp:
-            raise NotImplementedError(
-                "WebApplication functionality is not fully implemented yet."
-            )
+            raise NotImplementedError("WebApplication functionality is not fully implemented yet.")
             try:
                 from panther.webapp.web_app import run
 
@@ -739,12 +699,9 @@ def main():
                     resource_monitor.start()
 
                 # Record overall execution timing
-                overall_timer = None
                 if metrics_collector:
                     metrics_collector.increment_counter("experiments_total")
-                    overall_timer = metrics_collector.start_timer(
-                        "total_execution_time"
-                    )
+                    metrics_collector.start_timer("total_execution_time")
 
                 # Note: We already created the experiment manager above when determining the metrics directory
                 # We may need to update the ConfigLoader with metrics collector (if one was created)
@@ -753,16 +710,10 @@ def main():
 
                 # Load and validate experiment config with timing
                 if metrics_collector:
-                    with metrics_collector.timing_context(
-                        "config_loading_and_validation"
-                    ):
-                        experiment_config = (
-                            config_loader.load_and_validate_experiment_config()
-                        )
+                    with metrics_collector.timing_context("config_loading_and_validation"):
+                        experiment_config = config_loader.load_and_validate_experiment_config()
                 else:
-                    experiment_config = (
-                        config_loader.load_and_validate_experiment_config()
-                    )
+                    experiment_config = config_loader.load_and_validate_experiment_config()
 
                 # Initialize experiments with timing
                 if metrics_collector:
@@ -779,8 +730,8 @@ def main():
                     experiment_manager.run_tests()
 
                 # Complete overall timing
-                if metrics_collector and overall_timer:
-                    overall_timer.stop()
+                if metrics_collector:
+                    metrics_collector.stop_timer("total_execution_time")
 
                 execution_success = True
                 return 0

@@ -67,15 +67,11 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
     )
     show_reachable: str = field(
         default=None,
-        metadata={
-            "description": "Alternative way to specify leak kinds to show. yes or no."
-        },
+        metadata={"description": "Alternative way to specify leak kinds to show. yes or no."},
     )  # type: ignore
     show_possibly_lost: str = field(
         default=None,
-        metadata={
-            "description": "Alternative way to specify leak kinds to show. yes or no."
-        },
+        metadata={"description": "Alternative way to specify leak kinds to show. yes or no."},
     )  # type: ignore
     xtree_leak: bool = field(
         default=False,
@@ -115,21 +111,15 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
     )
     freelist_vol: int = field(
         default=20000000,
-        metadata={
-            "description": "Maximum total size (bytes) of blocks in the free queue."
-        },
+        metadata={"description": "Maximum total size (bytes) of blocks in the free queue."},
     )
     freelist_big_blocks: int = field(
         default=1000000,
-        metadata={
-            "description": "Size threshold for prioritizing big blocks in the free queue."
-        },
+        metadata={"description": "Size threshold for prioritizing big blocks in the free queue."},
     )
     workaround_gcc296_bugs: bool = field(
         default=False,
-        metadata={
-            "description": "Assume some stack accesses are due to GCC 2.96 bugs."
-        },
+        metadata={"description": "Assume some stack accesses are due to GCC 2.96 bugs."},
     )
     ignore_range_below_sp: str = field(
         default=None,

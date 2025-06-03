@@ -45,7 +45,7 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     from .experiment_setup import exp_manager
 
     app.register_blueprint(exp_manager, url_prefix="/")
-    app.logger.info(f"Flask app template - {app.template_folder}")
+    app.logger.info("Flask app template - %s", app.template_folder)
 
     # Add Jinja helper functions
     from panther.core.utils.jinja_manager import JinjaManager
@@ -83,15 +83,13 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
                     if test.name == test_name:
                         result = experiment_manager.run_test(test)
                         return jsonify({"status": "success", "result": result})
-                return jsonify(
-                    {"status": "error", "message": f"Test {test_name} not found"}
-                )
+                return jsonify({"status": "error", "message": f"Test {test_name} not found"})
             else:
                 # Run all tests
                 results = experiment_manager.run_tests()
                 return jsonify({"status": "success", "results": results})
         except Exception as e:
-            logging.error(f"Error running experiment: {e}")
+            logging.error("Error running experiment: %s", e)
             return jsonify({"status": "error", "message": str(e)})
 
     @app.route("/api/protocols", methods=["GET"])
@@ -105,9 +103,7 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
         """Return all available network and execution environments"""
         net_envs = config_loader.get_all_net_env_classes()
         exec_envs = config_loader.get_all_exec_env_classes()
-        return jsonify(
-            {"network_environments": net_envs, "execution_environments": exec_envs}
-        )
+        return jsonify({"network_environments": net_envs, "execution_environments": exec_envs})
 
     @app.route("/api/implementations", methods=["GET"])
     def get_implementations():
@@ -149,7 +145,5 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
 def run(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     print("Running webapp")
-    app = create_app(
-        config_loader=config_loader, global_config=global_config, args=args
-    )
+    app = create_app(config_loader=config_loader, global_config=global_config, args=args)
     app.run(host="0.0.0.0", port=8080, use_reloader=True, threaded=True, debug=True)

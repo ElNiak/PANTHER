@@ -26,11 +26,11 @@ def discover_protocol_plugins() -> dict[str, Any]:
             try:
                 plugin_class = ep.load()
                 plugins[ep.name] = plugin_class
-                logger.info(f"Discovered protocol plugin via entry point: {ep.name}")
+                logger.info("Discovered protocol plugin via entry point: %s", ep.name)
             except Exception as e:
-                logger.warning(f"Failed to load protocol plugin '{ep.name}': {e}")
+                logger.warning("Failed to load protocol plugin '%s': %s", ep.name, e)
     except Exception as e:
-        logger.warning(f"Error discovering protocol plugins via entry points: {e}")
+        logger.warning("Error discovering protocol plugins via entry points: %s", e)
 
     return plugins
 
@@ -44,24 +44,16 @@ def discover_execution_environment_plugins() -> dict[str, Any]:
     """
     plugins = {}
     try:
-        eps = importlib.metadata.entry_points(
-            group="panther.plugins.environments.execution"
-        )
+        eps = importlib.metadata.entry_points(group="panther.plugins.environments.execution")
         for ep in eps:
             try:
                 plugin_class = ep.load()
                 plugins[ep.name] = plugin_class
-                logger.info(
-                    f"Discovered execution environment plugin via entry point: {ep.name}"
-                )
+                logger.info("Discovered execution environment plugin via entry point: %s", ep.name)
             except Exception as e:
-                logger.warning(
-                    f"Failed to load execution environment plugin '{ep.name}': {e}"
-                )
+                logger.warning("Failed to load execution environment plugin '%s': %s", ep.name, e)
     except Exception as e:
-        logger.warning(
-            f"Error discovering execution environment plugins via entry points: {e}"
-        )
+        logger.warning("Error discovering execution environment plugins via entry points: %s", e)
 
     return plugins
 
@@ -75,24 +67,16 @@ def discover_network_environment_plugins() -> dict[str, Any]:
     """
     plugins = {}
     try:
-        eps = importlib.metadata.entry_points(
-            group="panther.plugins.environments.network"
-        )
+        eps = importlib.metadata.entry_points(group="panther.plugins.environments.network")
         for ep in eps:
             try:
                 plugin_class = ep.load()
                 plugins[ep.name] = plugin_class
-                logger.info(
-                    f"Discovered network environment plugin via entry point: {ep.name}"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to load network environment plugin '{ep.name}': {e}"
-                )
+                logger.info("Discovered network environment plugin via entry point: %s", ep.name)
+            except (ImportError, AttributeError) as e:
+                logger.warning("Failed to load network environment plugin '%s': %s", ep.name, e)
     except Exception as e:
-        logger.warning(
-            f"Error discovering network environment plugins via entry points: {e}"
-        )
+        logger.warning("Error discovering network environment plugins via entry points: %s", e)
 
     return plugins
 
@@ -110,5 +94,4 @@ def discover_all_plugins() -> tuple[dict[str, Any], dict[str, Any], dict[str, An
     protocol_plugins = discover_protocol_plugins()
     execution_env_plugins = discover_execution_environment_plugins()
     network_env_plugins = discover_network_environment_plugins()
-
     return protocol_plugins, execution_env_plugins, network_env_plugins

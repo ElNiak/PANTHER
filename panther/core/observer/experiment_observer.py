@@ -34,7 +34,7 @@ class ExperimentObserver(IObserver):
             return self.experiment_finished_early
 
         if event.name == "step_progress":
-            self.logger.debug(f"Monitoring environment: {self.environment}")
+            self.logger.debug("Monitoring environment: %s", self.environment)
             if hasattr(self.environment, "monitor_environment"):
                 self.environment.monitor_environment()
             else:

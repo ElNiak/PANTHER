@@ -3,7 +3,45 @@
 
 # Define helper functions
 log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> /app/logs/{{additional_param.service_name}}_setup.log;
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /app/logs/{{additional_param.service_name}}_entrypoint.log
+}
+
+log_function() {
+  local fn_name="$1"
+  local start_time=$(date +%s)
+  local status_file="/app/logs/{{additional_param.service_name}}_function_${fn_name}_status.txt"
+  local output_file="/app/logs/{{additional_param.service_name}}_function_${fn_name}_output.log"
+  
+  # Create header for the output file
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of function: ${fn_name}" > "$output_file"
+  echo "----------------------------------------" >> "$output_file"
+  
+  # Execute the function and capture output
+  shift
+  if type "${fn_name}" 2>/dev/null | grep -q 'function'; then
+    log "Executing function: ${fn_name}"
+    { ${fn_name} "$@" >> "$output_file" 2>&1; } 
+    local status=$?
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    
+    # Record completion time and status
+    echo "----------------------------------------" >> "$output_file"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Function completed with exit code: $status (duration: ${duration}ms)" >> "$output_file"
+    echo "$status" > "$status_file"
+    
+    # Log output to main log file
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from function ${fn_name}:" >> /app/logs/{{additional_param.service_name}}_commands.log
+    cat "$output_file" >> /app/logs/{{additional_param.service_name}}_commands.log
+    
+    return $status
+  else
+    log "ERROR: Function ${fn_name} is not defined"
+    echo "ERROR: Function ${fn_name} is not defined" >> "$output_file"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Function call failed - function not defined" >> "$output_file"
+    echo "1" > "$status_file"
+    return 1
+  fi
 }
 
 check_connectivity() {
@@ -23,982 +61,931 @@ check_connectivity() {
 }
 
 report_exit() {
-  local exit_code=$1
-  echo "EXIT_CODE=$exit_code" >> /app/logs/{{additional_param.service_name}}_status.log
-  if [ $exit_code -eq 0 ]; then
-    echo "FAILED=false" >> /app/logs/{{additional_param.service_name}}_status.log
-  else
-    echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
+  local exit_status=$1
+  local phase=$2
+  local cmd_num=$3
+  local cmd_desc=$4
+  
+  log "Command $cmd_num in phase $phase exited with status $exit_status: $cmd_desc"
+  if [ $exit_status -ne 0 ]; then
+    log "ERROR: Command failed with exit status $exit_status"
+    echo "$cmd_desc" > /app/logs/{{additional_param.service_name}}_last_failed_command.txt
+    echo "Exit status: $exit_status" >> /app/logs/{{additional_param.service_name}}_last_failed_command.txt
   fi
 }
 
 set_environment() {
-  # Set up any additional environment variables
-  export DEBIAN_FRONTEND=noninteractive
+  # Set environment variables for the service
+  {% for key, value in additional_param.environments.items() %}
+  export {{ key }}="{{ value }}"
+  {% endfor %}
+  : # No-op command to prevent empty function syntax error
 }
-
 # Initialize environment variables
 log "Setting up environment variables..."
 set_environment
 
-# Fix double slashes in paths and environment variables
-log "Normalizing paths and environment variables..."
-for var in $(env | grep -o '^[^=]*' | grep -i 'PATH\|DIR'); do
-  val=$(eval echo "\$$var")
-  if [[ "$val" == *"//"* ]]; then
-    normalized="${val//\/\//\/}"
-    log "Fixing path variable $var: $val -> $normalized"
-    eval "export $var=\"$normalized\""
-  fi
-done
 
-# Fix environment variables that contain $$ (escaping in templates)
-for var in $(env | grep -o '^[^=]*' | grep -i 'PATH\|DIR\|IVY'); do
-  val=$(eval echo "\$$var")
-  if [[ "$val" == *"\$\$"* ]]; then
-    normalized="${val//\$\$/\$}"
-    log "Fixing escaped variable $var: $val -> $normalized"
-    eval "export $var=\"$normalized\""
-  fi
-done
 
 # Function to track command failures with details
 execute_with_error_tracking() {
-  local cmd_type="$1"
+  local phase="$1"
   local cmd="$2"
-  local cmd_index="$3"
-  local cmd_text="$4"
-  local is_multiline="${5:-false}"
-  local is_critical="${6:-true}"
+  local cmd_num="$3"
+  local cmd_desc="$4"
+  local is_multiline="$5"
+  local is_critical="$6"
+  local status_file="/app/logs/{{additional_param.service_name}}_$phase-cmd-$cmd_num-status.txt"
+  local output_file="/app/logs/{{additional_param.service_name}}_$phase-cmd-$cmd_num-output.log"
 
-  # Special handling for shell option commands like "set -x;"
-  # These may interfere with the logging/error tracking when executed through eval
-  if [[ "$cmd" == "set -"* ]]; then
-    log "Detected shell option command: $cmd - handling directly"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Shell option command: $cmd_text - handled directly" >> /app/logs/{{additional_param.service_name}}_commands.log
-    # Log the command but don't execute it through eval
-    # It's already handled in the shebang line or in set_environment
-    return 0
-  fi
-
-  # Check if the command is a single-word function call
-  if [[ "$cmd" =~ ^[a-zA-Z0-9_]+$ ]]; then
-    local func_name="$cmd"
-    # Check if the function exists before calling it
-    if ! declare -f "$func_name" > /dev/null; then
-      log "ERROR: Function '$func_name' not found - checking for related functions..."
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: Attempted to call undefined function '$func_name'" >> /app/logs/{{additional_param.service_name}}_error.log
-
-      # Check for similarly named functions as a fallback
-      local similar_func=$(declare -F | grep -o "$func_name[^ ]*" | head -1)
-      if [ -n "$similar_func" ]; then
-        log "Found similar function '$similar_func', will use it instead"
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using '$similar_func' as a fallback for '$func_name'" >> /app/logs/{{additional_param.service_name}}_commands.log
-        cmd="$similar_func"
-        cmd_text="$similar_func # (fallback for $func_name)"
-      else
-        # List all available functions for debugging
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Available functions:" >> /app/logs/{{additional_param.service_name}}_error.log
-        declare -F >> /app/logs/{{additional_param.service_name}}_error.log
-
-        if [ "$is_critical" = "true" ]; then
-          echo "ERROR_TYPE=UNDEFINED_FUNCTION" >> /app/logs/{{additional_param.service_name}}_status.log
-          echo "UNDEFINED_FUNCTION=$func_name" >> /app/logs/{{additional_param.service_name}}_status.log
-          echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
-          echo "EXIT_CODE=127" >> /app/logs/{{additional_param.service_name}}_status.log
-          log "Function '$func_name' not found and is critical. Exiting."
-          return 127
-        else
-          log "Function '$func_name' not found but not critical. Continuing."
-          return 0
-        fi
-      fi
-    fi
-  fi
-
-  # Safely escape command text for logging (replacing " with \" for display purposes)
-  local safe_cmd_text="${cmd_text//\"/\\\"}"
-
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Executing $cmd_type command #$cmd_index: $safe_cmd_text" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  # Create output file for this command's results
-  local output_file="/app/logs/{{additional_param.service_name}}_${cmd_type}_cmd${cmd_index}_output.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #$cmd_index" > "$output_file"
-  echo "Command: $safe_cmd_text" >> "$output_file"
+  # Create header for the output file
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $phase command #$cmd_num" > "$output_file"
+  echo "Command: $cmd_desc" >> "$output_file"
   echo "----------------------------------------" >> "$output_file"
-
-  # Execute the command and capture its exit code
+  
+  # Execute the command and capture output and status
   if [ "$is_multiline" = "true" ]; then
-    # For multi-line commands, use a temporary script to ensure proper execution
-    log "Executing multi-line command: ${safe_cmd_text}"
-    local temp_script=$(mktemp)
-    echo "#!/bin/bash" > "$temp_script"
-    echo "set -e" >> "$temp_script"  # Exit on error
-    # Write the raw command to the temp script without eval
-    echo "$cmd" >> "$temp_script"
-    chmod +x "$temp_script"
-
-    # Execute the temporary script and capture output
-    "$temp_script" >> "$output_file" 2>&1
-    local exit_code=$?
-
-    # Also log the output to the main command log
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #$cmd_index:" >> /app/logs/{{additional_param.service_name}}_commands.log
-    cat "$output_file" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-    # Clean up
-    rm -f "$temp_script"
+    # For multiline commands, use eval
+    eval "$cmd" >> "$output_file" 2>&1
   else
-    log "Executing single-line command: ${safe_cmd_text}"
-
-    # Use bash -c to execute commands with quotes
-    # This avoids issues with eval and nested quotes
+    # For single line commands, use bash -c
     bash -c "$cmd" >> "$output_file" 2>&1
-    local exit_code=$?
-
-    # Also log the output to the main command log
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #$cmd_index:" >> /app/logs/{{additional_param.service_name}}_commands.log
-    cat "$output_file" >> /app/logs/{{additional_param.service_name}}_commands.log
   fi
-
-  # Record completion time
+  local status=$?
+  
+  # Record completion time and status
   echo "----------------------------------------" >> "$output_file"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Command completed with exit code: $exit_code" >> "$output_file"
-
-  # Check if command failed
-  if [ $exit_code -ne 0 ]; then
-    # Always log the failure for tracking purposes
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $cmd_type command #$cmd_index failed with code $exit_code" >> /app/logs/{{additional_param.service_name}}_error.log
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed command: $safe_cmd_text" >> /app/logs/{{additional_param.service_name}}_error.log
-    cat "$output_file" >> /app/logs/{{additional_param.service_name}}_error.log
-
-    # Only report failure to status file if the command is critical
-    if [ "$is_critical" = "true" ]; then
-      echo "ERROR_TYPE=${cmd_type}_FAILURE" >> /app/logs/{{additional_param.service_name}}_status.log
-      echo "FAILED_COMMAND=\"$safe_cmd_text\"" >> /app/logs/{{additional_param.service_name}}_status.log
-      echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
-      echo "EXIT_CODE=$exit_code" >> /app/logs/{{additional_param.service_name}}_status.log
-      echo "COMMAND_INDEX=$cmd_index" >> /app/logs/{{additional_param.service_name}}_status.log
-      echo "COMMAND_TYPE=$cmd_type" >> /app/logs/{{additional_param.service_name}}_status.log
-
-      # Capture relevant logs for context
-      if [ -f "/app/logs/ivy_setup.log" ] && [ "$cmd_type" = "COMPILE" ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Attaching Ivy setup log for context" >> /app/logs/{{additional_param.service_name}}_error.log
-        cat /app/logs/ivy_setup.log >> /app/logs/{{additional_param.service_name}}_error.log
-      fi
-
-      # Check for specific errors in commands related to Ivy setup
-      if [[ "$safe_cmd_text" == *"setup.py install"* || "$safe_cmd_text" == *"panther_ivy"* ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Detected Ivy setup failure, attempting to fix paths..." >> /app/logs/{{additional_param.service_name}}_error.log
-        # Log environment variables for debugging
-        env | grep -i ivy >> /app/logs/{{additional_param.service_name}}_ivy_env.log
-        env | grep -i path >> /app/logs/{{additional_param.service_name}}_path_env.log
-      fi
-
-      # Create a specific error log file for this failure
-      echo "Command '$safe_cmd_text' failed with exit code $exit_code" > /app/logs/{{additional_param.service_name}}_${cmd_type}_failure.log
-      echo "Execution stopped at $(date)" >> /app/logs/{{additional_param.service_name}}_${cmd_type}_failure.log
-      cat "$output_file" >> /app/logs/{{additional_param.service_name}}_${cmd_type}_failure.log
-    else
-      # For non-critical commands, just note in the logs that we're ignoring the error
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] Non-critical command failure, continuing execution" >> /app/logs/{{additional_param.service_name}}_error.log
-
-      # Create a warning log instead of a failure log
-      echo "Non-critical command '$safe_cmd_text' failed with exit code $exit_code" > /app/logs/{{additional_param.service_name}}_${cmd_type}_warning.log
-      echo "Execution continuing despite error at $(date)" >> /app/logs/{{additional_param.service_name}}_${cmd_type}_warning.log
-    fi
-
-    # Return the exit code regardless of criticality
-    return $exit_code
-  else
-    # Success case - log completion to the command log file
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $cmd_type command #$cmd_index completed successfully" >> /app/logs/{{additional_param.service_name}}_commands.log
-  fi
-
-  return 0
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Command completed with exit code: $status" >> "$output_file"
+  echo "$status" > "$status_file"
+  
+  # Log the output to main log file
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $phase command #$cmd_num:" >> /app/logs/{{additional_param.service_name}}_commands.log
+  cat "$output_file" >> /app/logs/{{additional_param.service_name}}_commands.log
+  
+  # Report exit status
+  report_exit "$status" "$phase" "$cmd_num" "$cmd_desc"
+  
+  # Return the command's exit status
+  return $status
 }
 
 # Execute pre-compilation setup commands
 log "Executing pre-compilation commands..."
-{% for cmd in additional_param.run_cmd["pre_compile_cmds"] %}
-{% if 'PANTHER_NON_CRITICAL_COMMAND' in cmd %}
-# Extract the actual command without the marker line and leading newline
-{% set actual_cmd = cmd.replace('# PANTHER_NON_CRITICAL_COMMAND\n', '') %}
-# Handle non-critical multi-line command as a complete unit
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ actual_cmd }}
-ENDOFCOMMAND
-)
-
+{% if structured_commands.get("pre_compile_cmds") %}
+{% for cmd_obj in structured_commands.get("pre_compile_cmds") %}
 # Set command type for this context
 cmd_type="PRE_COMPILE"
 
-# Special handling for function definitions
-if [[ "$MULTILINE_CMD" == *"# PANTHER_FUNCTION_DEFINITION"* ]]; then
-  # This is a function definition, execute it directly without tracking
-  log "Detected function definition with marker, executing directly"
-  # Remove the special comment marker
-  MULTILINE_CMD="${MULTILINE_CMD/\# PANTHER_FUNCTION_DEFINITION/}"
-  # Just evaluate the function definition
-  eval "$MULTILINE_CMD"
-  # Skip the error tracking since this is just defining a function, not executing commands
-elif [[ "$MULTILINE_CMD" =~ ^[[:space:]]*[a-zA-Z0-9_]+\(\)[[:space:]]*\{.* ]] && [[ "$MULTILINE_CMD" == *"}"* ]]; then
-  # This is a function definition detected by syntax pattern
-  log "Detected function definition by syntax, executing directly"
-  # Just evaluate the function definition
-  eval "$MULTILINE_CMD"
-  # Skip the error tracking since this is just defining a function, not executing commands
-elif [[ "$MULTILINE_CMD" == *"panther_ivy"* || "$MULTILINE_CMD" == *"setup.py"* ]]; then
-  log "Special handling for Ivy related pre-compile command"
+{% if cmd_obj.is_empty %}
+log "Skipping empty pre-compile command #{{ loop.index }}"
 
-  # Fix double slashes in paths if present
-  MULTILINE_CMD="${MULTILINE_CMD//\/\//\/}"
-
-  # Fix escaped variables
-  MULTILINE_CMD="${MULTILINE_CMD//\$\$/\$}"
-
-  # Make sure directories exist
-  if [[ "$MULTILINE_CMD" == *"cd /opt/panther_ivy"* ]]; then
-    log "Ensuring panther_ivy directory exists"
-    mkdir -p /opt/panther_ivy
-  fi
-
-  execute_with_error_tracking "PRE_COMPILE" "$MULTILINE_CMD" "{{ loop.index }}" "Non-critical: {{ actual_cmd | replace('"', '\\"') | truncate(50, true, '...') }}" "true" "false" || {
-    log "Non-critical pre-compilation command failed. Continuing execution."
-    # Special handling for specific types of commands
-    if [[ "$MULTILINE_CMD" == *"setup.py"* ]]; then
-      log "Python setup.py failed - attempting to collect diagnostic information"
-      python3.10 --version > /app/logs/python_info.log 2>&1
-      pip3 list >> /app/logs/python_info.log 2>&1
-    fi
-    # Don't exit here since this is a non-critical command
-  }
-else
-  execute_with_error_tracking "PRE_COMPILE" "$MULTILINE_CMD" "{{ loop.index }}" "Non-critical: {{ actual_cmd | replace('"', '\\"') | truncate(50, true, '...') }}" "true" "false" || {
-    log "Non-critical pre-compilation command failed. Continuing execution."
-    # Don't exit here since this is a non-critical command
-  }
-fi
-{% elif 'while ' in cmd or 'for ' in cmd or 'if ' in cmd %}
-# Handle multi-line command
+{% elif not cmd_obj.is_critical %}
+# Handle non-critical command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
-ENDOFCOMMAND
-)
-execute_with_error_tracking "PRE_COMPILE" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "true" "true" || {
-  log "Pre-compilation command failed. Exiting."
-  exit $?
-}
-{% else %}
-# Handle regular command
-execute_with_error_tracking "PRE_COMPILE" "{{ cmd }}" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "false" "true" || {
-  log "Pre-compilation command failed. Exiting."
-  exit $?
-}
-{% endif %}
-{% endfor %}
-
-# Execute compilation commands with error checking
-log "Executing compilation commands..."
-{% for cmd in additional_param.run_cmd["compile_cmds"] %}
-{% if 'PANTHER_NON_CRITICAL_COMMAND' in cmd %}
-# Extract the actual command without the marker line and leading newline
-{% set actual_cmd = cmd.replace('# PANTHER_NON_CRITICAL_COMMAND\n', '') %}
-# Handle non-critical multi-line command as a complete unit
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-{{ actual_cmd }}
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
 
-# Set command type for this context
-cmd_type="COMPILE"
+# This command is marked as non-critical, execute it but don't fail if it returns error
+log "Executing non-critical $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
+  log "WARNING: Non-critical command failed but continuing execution"
+}
 
-# Special handling for function definitions
-if [[ "$MULTILINE_CMD" == *"# PANTHER_FUNCTION_DEFINITION"* ]]; then
-  # This is a function definition, execute it directly without tracking
-  log "Detected function definition with marker, executing directly"
-  # Remove the special comment marker
-  MULTILINE_CMD="${MULTILINE_CMD/\# PANTHER_FUNCTION_DEFINITION/}"
-  # Just evaluate the function definition
-  eval "$MULTILINE_CMD"
-  # Skip the error tracking since this is just defining a function, not executing commands
-elif [[ "$MULTILINE_CMD" =~ ^[[:space:]]*[a-zA-Z0-9_]+\(\)[[:space:]]*\{.* ]] && [[ "$MULTILINE_CMD" == *"}"* ]]; then
-  # This is a function definition detected by syntax pattern
-  log "Detected function definition by syntax, executing directly"
-  # Just evaluate the function definition
-  eval "$MULTILINE_CMD"
-  # Skip the error tracking since this is just defining a function, not executing commands
-elif [[ "$MULTILINE_CMD" == *"setup.py install"* || "$MULTILINE_CMD" == *"panther_ivy"* ]]; then
-  log "Special handling for Ivy setup command"
-
-  # Fix double slashes in paths if present
-  MULTILINE_CMD="${MULTILINE_CMD//\/\//\/}"
-
-  # Create a detailed log for Ivy setup
-
-  # Set command type for this context if not already set
-  cmd_type="COMPILE"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running Ivy setup with modified paths" >> /app/logs/{{additional_param.service_name}}_ivy_detail.log
-  echo "$MULTILINE_CMD" >> /app/logs/{{additional_param.service_name}}_ivy_detail.log
-
-  execute_with_error_tracking "${cmd_type}" "$MULTILINE_CMD" "{{ loop.index }}" "Non-critical: {{ actual_cmd | replace('"', '\\"') | truncate(50, true, '...') }}" "true" "false" || {
-    log "Non-critical compilation command failed. Continuing execution."
-    # For Ivy-specific commands, try to collect more diagnostics
-    if [[ "$MULTILINE_CMD" == *"setup.py install"* || "$MULTILINE_CMD" == *"panther_ivy"* ]]; then
-      log "Collecting diagnostics for failed Ivy setup command"
-      # Check if important directories/files exist
-      ls -la /opt/ >> /app/logs/{{additional_param.service_name}}_ivy_diag.log 2>&1
-      ls -la /opt/panther_ivy 2>/dev/null >> /app/logs/{{additional_param.service_name}}_ivy_diag.log 2>&1 || echo "panther_ivy directory not found" >> /app/logs/{{additional_param.service_name}}_ivy_diag.log
-      # Log Python version and path
-      which python3.10 >> /app/logs/{{additional_param.service_name}}_ivy_diag.log 2>&1
-      python3.10 --version >> /app/logs/{{additional_param.service_name}}_ivy_diag.log 2>&1
-    fi
-    # Don't exit here since this is a non-critical command
-  }
-else
-  execute_with_error_tracking "COMPILE" "$MULTILINE_CMD" "{{ loop.index }}" "Non-critical: {{ actual_cmd | replace('"', '\\"') | truncate(50, true, '...') }}" "true" "false" || {
-    log "Non-critical compilation command failed. Continuing execution."
-    # Don't exit here since this is a non-critical command
-  }
-fi
-{% elif '# PANTHER_FUNCTION_DEFINITION' in cmd %}
+{% elif cmd_obj.is_function_definition %}
 # Handle function definition
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
-# This is a function definition, execute it directly without tracking
-log "Detected function definition, executing directly"
-# Remove the special comment marker if present
-MULTILINE_CMD="${MULTILINE_CMD/\# PANTHER_FUNCTION_DEFINITION/}"
-# Just evaluate the function definition
+# This is a function definition, needs to be defined in the global scope
+log "Executing function definition: {{ cmd_obj.description }}"
+# Export the function to ensure it's available to all subprocesses
 eval "$MULTILINE_CMD"
-{% elif cmd.strip() and cmd.strip()[0].isalnum() and '() {' in cmd and '}' in cmd %}
-# Handle function definition detected by syntax
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
-ENDOFCOMMAND
-)
-# This is a function definition, execute it directly without tracking
-log "Detected function definition by syntax pattern, executing directly"
-# Just evaluate the function definition
-eval "$MULTILINE_CMD"
-{% elif '&&' in cmd and cmd.split('&&')[0].strip() and cmd.split('&&')[0].strip().isalnum() %}
-# Special handling for function calls with && operator
-{% set func_name = cmd.split('&&')[0].strip() if '&&' in cmd else cmd.split()[0] %}
-log "Detected function call with &&: {{ cmd }}, function name: {{ func_name }}"
-
-# Check if the function exists before calling it
-if declare -f {{ func_name }} > /dev/null; then
-  log "Function {{ func_name }} exists, executing"
-
-  # Special handling for commands with &&
-  {% if '&&' in cmd %}
-  # Extract the first part of the command (before &&)
-  log "Command contains &&, executing parts separately"
-  FIRST_PART=$(echo "{{ cmd }}" | cut -d '&' -f 1)
-
-  # Create output file for this command's first part
-  FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_PRE_COMPILE_cmd{{ loop.index }}_first_part.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of PRE_COMPILE command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-  echo "Command: $FIRST_PART" >> "$FIRST_OUTPUT"
-  echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-  # Execute first part and capture output
-  $FIRST_PART >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-
-  # Record completion time
-  echo "----------------------------------------" >> "$FIRST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from PRE_COMPILE command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  log "First part exit status: $FIRST_STATUS"
-
-  if [ $FIRST_STATUS -eq 0 ]; then
-    # If first part succeeded, execute the rest
-    REST_OF_CMD=$(echo "{{ cmd }}" | cut -d '&' -f 3-)
-    log "Executing rest of command: $REST_OF_CMD"
-
-    if [ -n "$REST_OF_CMD" ]; then
-      execute_with_error_tracking "PRE_COMPILE" "$REST_OF_CMD" "{{ loop.index }}" "Rest of {{ cmd | replace('"', '\\"') }}" "false" "true" || {
-        log "Rest of command {{ cmd }} failed. Exiting."
-        exit $?
-      }
-    fi
-  else
-    log "First part of command {{ cmd }} failed with code $FIRST_STATUS. Exiting."
-    exit $FIRST_STATUS
-  fi
-  {% else %}
-  # Regular function call without &&
-  execute_with_error_tracking "PRE_COMPILE" "{{ cmd }}" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "false" "true" || {
-    log "Function call {{ cmd }} failed. Exiting."
-    exit $?
-  }
-  {% endif %}
-else
-  # Function not found - error out as fallbacks are not allowed
-  log "ERROR: Function '{{ func_name }}' does not exist and no fallbacks are permitted"
-  echo "ERROR_TYPE=UNDEFINED_FUNCTION" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "UNDEFINED_FUNCTION={{ func_name }}" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "Command attempted to use undefined function '{{ func_name }}'" > /app/logs/{{additional_param.service_name}}_COMPILE_failure.log
-  echo "Required functions must be defined by the service" >> /app/logs/{{additional_param.service_name}}_COMPILE_failure.log
-
-  # Log details about the attempted command
-  log "The command '{{ cmd }}' attempted to use undefined function '{{ func_name }}'"
-  log "Service implementation must provide all required functions"
-
-  # Exit with error
+# Verify the function was properly defined
+if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
+  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
   exit 1
+else
+  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
 fi
-{% endif %}
-{% endfor %}
 
-# Execute compilation commands with error checking
-log "Executing compilation commands..."
-{% for cmd in additional_param.run_cmd["compile_cmds"] %}
-{% if 'while ' in cmd or 'for ' in cmd or 'if ' in cmd %}
+{% elif cmd_obj.is_multiline %}
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
-
-# Set command type for this context
-cmd_type="COMPILE"
-execute_with_error_tracking "COMPILE" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "true" "true" || {
-  log "Compilation command failed. Exiting."
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
   exit $?
 }
-{% else %}
-# Handle regular command
-{% if '&&' in cmd %}
-# Special handling for commands with && operator
-log "Command contains && operator: {{ cmd | replace('"', '\\"') }}"
-# Extract parts of the command before and after &&
 
-# Set command type for this context
-cmd_type="COMPILE"
-FIRST_PART="{{ cmd.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd.split('&&')[1:]) }}"
+{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
+# Handle command with && operator
+log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
+
+# Extract parts of the command before and after &&
+FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
+REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
+
 # Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_${cmd_type}_cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of ${cmd_type} command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
+FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
 echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
 echo "----------------------------------------" >> "$FIRST_OUTPUT"
 
 # First execute the part before && and capture output
 log "Executing first part: ${FIRST_PART}"
-# Use bash -c to execute the command instead of eval to handle quotes better
-bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-FIRST_STATUS=$?
+# Check if this is a function call - needs special handling
+if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+  # Part is a function call, use eval to execute in current shell context
+  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
+  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
+  log "Detected function call to: ${FUNCTION_NAME}"
+  # Use log_function helper for tracking
+  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+else
+  # Not a function call, use bash -c as before
+  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+fi
 
 # Record completion time for first part
 echo "----------------------------------------" >> "$FIRST_OUTPUT"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
 
 # Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from ${cmd_type} command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
 cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
 
 if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute the rest
-  log "First part succeeded, executing rest: ${REST_OF_CMD}"
-  if [ -n "${REST_OF_CMD}" ]; then
-    execute_with_error_tracking "${cmd_type}" "${REST_OF_CMD}" "{{ loop.index }}" "Rest of {{ cmd | replace('"', '\\"') }}" "false" "true" || {
-      log "Rest of command {{ cmd | replace('"', '\\"') }} failed. Exiting."
-      exit $?
-    }
+  # If first part succeeded, execute rest of command
+  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
+  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
+  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  
+  # Execute rest of command - check if it's a function call
+  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+    # Part is a function call, use eval to execute in current shell context
+    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
+    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
+    log "Detected function call to: ${FUNCTION_NAME}"
+    # Use log_function helper for tracking
+    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  else
+    # Not a function call, use bash -c as before
+    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  fi
+  
+  # Record completion time for rest part
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
+  
+  # Log the captured output
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+  
+  # Exit with status from rest part
+  if [ $REST_STATUS -ne 0 ]; then
+    exit $REST_STATUS
   fi
 else
-  # Log the error from the first part
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] ${cmd_type} command #{{ loop.index }} first part failed with code $FIRST_STATUS" >> /app/logs/{{additional_param.service_name}}_error.log
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed command: ${FIRST_PART}" >> /app/logs/{{additional_param.service_name}}_error.log
-  cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_error.log
-
-  # Report failure to status file
-  echo "ERROR_TYPE=${cmd_type}_FAILURE" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED_COMMAND=\"${FIRST_PART}\"" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "EXIT_CODE=$FIRST_STATUS" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "COMMAND_INDEX={{ loop.index }}" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "COMMAND_TYPE=${cmd_type}" >> /app/logs/{{additional_param.service_name}}_status.log
-
-  log "First part of command {{ cmd | replace('"', '\\"') }} failed with code $FIRST_STATUS. Exiting."
   exit $FIRST_STATUS
 fi
+
+{% elif cmd_obj.is_function_call %}
+# Handle simple function call
+log "Executing function call: {{ cmd_obj.command }}"
+# Check if function exists first to avoid errors
+if declare -f {{ cmd_obj.command }} > /dev/null; then
+  {{ cmd_obj.command }} || {
+    exit $?
+  }
+else
+  log "ERROR: Function {{ cmd_obj.command }} not defined"
+  exit 1
+fi
+
+{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "{{ cmd_obj.command }}" || {
+  exit $?
+}
+
 {% else %}
-# Regular command without && operator
-execute_with_error_tracking "${cmd_type}" "{{ cmd }}" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "false" "true" || {
-  log "Compilation command failed. Exiting."
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
   exit $?
 }
 {% endif %}
+{% endfor %}
+{% endif %}
+
+# Execute compilation commands with error checking
+log "Executing compilation commands..."
+{% if structured_commands.get("compile_cmds") %}
+{% for cmd_obj in structured_commands.get("compile_cmds") %}
+
+# Set command type for this context
+cmd_type="COMPILE"
+
+{% if cmd_obj.is_empty %}
+log "Skipping empty $cmd_type command #{{ loop.index }}"
+
+{% elif not cmd_obj.is_critical %}
+# Handle non-critical command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+
+# This command is marked as non-critical, execute it but don't fail if it returns error
+log "Executing non-critical $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
+  log "WARNING: Non-critical command failed but continuing execution"
+}
+
+{% elif cmd_obj.is_function_definition %}
+# Handle function definition
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+# This is a function definition, needs to be defined in the global scope
+log "Executing function definition: {{ cmd_obj.description }}"
+# Export the function to ensure it's available to all subprocesses
+eval "$MULTILINE_CMD"
+# Verify the function was properly defined
+if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
+  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
+  exit 1
+else
+  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
+fi
+
+{% elif cmd_obj.is_multiline %}
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
+  exit $?
+}
+
+{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
+# Handle command with && operator
+log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
+
+# Extract parts of the command before and after &&
+FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
+REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
+
+# Create output files for this command
+FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
+echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
+echo "----------------------------------------" >> "$FIRST_OUTPUT"
+
+# First execute the part before && and capture output
+log "Executing first part: ${FIRST_PART}"
+# Check if this is a function call - needs special handling
+if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+  # Part is a function call, use eval to execute in current shell context
+  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
+  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
+  log "Detected function call to: ${FUNCTION_NAME}"
+  # Use log_function helper for tracking
+  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+else
+  # Not a function call, use bash -c as before
+  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+fi
+
+# Record completion time for first part
+echo "----------------------------------------" >> "$FIRST_OUTPUT"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
+
+# Log the captured output
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+
+if [ $FIRST_STATUS -eq 0 ]; then
+  # If first part succeeded, execute rest of command
+  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
+  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
+  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  
+  # Execute rest of command - check if it's a function call
+  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+    # Part is a function call, use eval to execute in current shell context
+    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
+    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
+    log "Detected function call to: ${FUNCTION_NAME}"
+    # Use log_function helper for tracking
+    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  else
+    # Not a function call, use bash -c as before
+    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  fi
+  
+  # Record completion time for rest part
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
+  
+  # Log the captured output
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+  
+  # Exit with status from rest part
+  if [ $REST_STATUS -ne 0 ]; then
+    exit $REST_STATUS
+  fi
+else
+  exit $FIRST_STATUS
+fi
+
+{% elif cmd_obj.is_function_call %}
+# Handle simple function call
+log "Executing function call: {{ cmd_obj.command }}"
+# Check if function exists first to avoid errors
+if declare -f {{ cmd_obj.command }} > /dev/null; then
+  {{ cmd_obj.command }} || {
+    exit $?
+  }
+else
+  log "ERROR: Function {{ cmd_obj.command }} not defined"
+  exit 1
+fi
+
+{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "{{ cmd_obj.command }}" || {
+  exit $?
+}
+
+{% else %}
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
+  exit $?
+}
 {% endif %}
 {% endfor %}
+{% endif %}
 
 log "Compilation completed successfully."
 
 # Execute post-compilation commands
 log "Executing post-compilation commands..."
-{% for cmd in additional_param.run_cmd["post_compile_cmds"] %}
-{% if 'PANTHER_NON_CRITICAL_COMMAND' in cmd %}
-# Extract the actual command without the marker line and leading newline
-{% set actual_cmd = cmd.replace('# PANTHER_NON_CRITICAL_COMMAND\n', '') %}
-# Handle non-critical multi-line command as a complete unit
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-{{ actual_cmd }}
-ENDOFCOMMAND
-)
-
+{% if structured_commands.get("post_compile_cmds") %}
+{% for cmd_obj in structured_commands.get("post_compile_cmds") %}
 # Set command type for this context
 cmd_type="POST_COMPILE"
 
-# Special handling for function definitions
-if [[ "$MULTILINE_CMD" == *"# PANTHER_FUNCTION_DEFINITION"* ]]; then
-  # This is a function definition, execute it directly without tracking
-  log "Detected function definition with marker, executing directly"
-  # Remove the special comment marker
-  MULTILINE_CMD="${MULTILINE_CMD/\# PANTHER_FUNCTION_DEFINITION/}"
-  # Just evaluate the function definition
-  eval "$MULTILINE_CMD"
-  # Skip the error tracking since this is just defining a function, not executing commands
-elif [[ "$MULTILINE_CMD" =~ ^[[:space:]]*[a-zA-Z0-9_]+\(\)[[:space:]]*\{.* ]] && [[ "$MULTILINE_CMD" == *"}"* ]]; then
-  # This is a function definition detected by syntax pattern
-  log "Detected function definition by syntax, executing directly"
-  # Just evaluate the function definition
-  eval "$MULTILINE_CMD"
-  # Skip the error tracking since this is just defining a function, not executing commands
-else
-  execute_with_error_tracking "POST_COMPILE" "$MULTILINE_CMD" "{{ loop.index }}" "Non-critical: {{ actual_cmd | replace('"', '\\"') | truncate(50, true, '...') }}" "true" "false" || {
-    log "Non-critical post-compilation command failed. Continuing execution."
-    # Don't exit here since this is a non-critical command
-  }
-fi
-{% elif '# PANTHER_FUNCTION_DEFINITION' in cmd %}
-# Handle function definition with marker
+{% if cmd_obj.is_empty %}
+log "Skipping empty $cmd_type command #{{ loop.index }}"
+
+{% elif not cmd_obj.is_critical %}
+# Handle non-critical command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
-# This is a function definition, execute it directly without tracking
-log "Detected function definition, executing directly"
-# Remove the special comment marker if present
-MULTILINE_CMD="${MULTILINE_CMD/\# PANTHER_FUNCTION_DEFINITION/}"
-# Just evaluate the function definition
-eval "$MULTILINE_CMD"
-{% elif cmd.strip() and cmd.strip()[0].isalnum() and '() {' in cmd and '}' in cmd %}
-# Handle function definition detected by syntax
+
+# This command is marked as non-critical, execute it but don't fail if it returns error
+log "Executing non-critical $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
+  log "WARNING: Non-critical command failed but continuing execution"
+}
+
+{% elif cmd_obj.is_function_definition %}
+# Handle function definition
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
-# This is a function definition, execute it directly without tracking
-log "Detected function definition by syntax pattern, executing directly"
-# Just evaluate the function definition
-eval "$MULTILINE_CMD"
-{% elif 'while ' in cmd or 'for ' in cmd or 'if ' in cmd %}
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
-ENDOFCOMMAND
-)
-execute_with_error_tracking "POST_COMPILE" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "true" "true" || {
-  log "Post-compilation command failed. Exiting."
+# This is a function definition, needs to be defined in the global scope
+log "Executing function definition: {{ cmd_obj.description }}"
+# Export the function to ensure it's available to all subprocesses
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
   exit $?
 }
-{% else %}
-# Handle regular command
-{% if '&&' in cmd %}
-# Special handling for commands with && operator
-log "Command contains && operator: {{ cmd | replace('"', '\\"') }}"
-# Extract parts of the command before and after &&
+# Verify the function was properly defined
+if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
+  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
+  exit 1
+else
+  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
+fi
 
-# Set command type for this context
-cmd_type="POST_COMPILE"
-FIRST_PART="{{ cmd.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd.split('&&')[1:]) }}"
+{% elif cmd_obj.is_multiline %}
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
+  exit $?
+}
+
+{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
+# Handle command with && operator
+log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
+
+# Extract parts of the command before and after &&
+FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
+REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
 
 # Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_POST_COMPILE_cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of POST_COMPILE command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
+FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
 echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
 echo "----------------------------------------" >> "$FIRST_OUTPUT"
 
 # First execute the part before && and capture output
 log "Executing first part: ${FIRST_PART}"
-# Use bash -c to execute the command instead of eval to handle quotes better
-bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-FIRST_STATUS=$?
+# Check if this is a function call - needs special handling
+if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+  # Part is a function call, use eval to execute in current shell context
+  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
+  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
+  log "Detected function call to: ${FUNCTION_NAME}"
+  # Use log_function helper for tracking
+  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+else
+  # Not a function call, use bash -c as before
+  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+fi
 
 # Record completion time for first part
 echo "----------------------------------------" >> "$FIRST_OUTPUT"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
 
 # Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from POST_COMPILE command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
 cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
 
 if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute the rest
-  log "First part succeeded, executing rest: $REST_OF_CMD"
-  if [ -n "$REST_OF_CMD" ]; then
-    execute_with_error_tracking "POST_COMPILE" "$REST_OF_CMD" "{{ loop.index }}" "Rest of {{ cmd | replace('"', '\\"') }}" "false" "true" || {
-      log "Rest of command {{ cmd | replace('"', '\\"') }} failed. Exiting."
-      exit $?
-    }
+  # If first part succeeded, execute rest of command
+  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
+  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
+  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  
+  # Execute rest of command - check if it's a function call
+  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+    # Part is a function call, use eval to execute in current shell context
+    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
+    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
+    log "Detected function call to: ${FUNCTION_NAME}"
+    # Use log_function helper for tracking
+    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  else
+    # Not a function call, use bash -c as before
+    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  fi
+  
+  # Record completion time for rest part
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
+  
+  # Log the captured output
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+  
+  # Exit with status from rest part
+  if [ $REST_STATUS -ne 0 ]; then
+    exit $REST_STATUS
   fi
 else
-  # Log the error from the first part
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] POST_COMPILE command #{{ loop.index }} first part failed with code $FIRST_STATUS" >> /app/logs/{{additional_param.service_name}}_error.log
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed command: $FIRST_PART" >> /app/logs/{{additional_param.service_name}}_error.log
-  cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_error.log
-
-  # Report failure to status file
-  echo "ERROR_TYPE=POST_COMPILE_FAILURE" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED_COMMAND=\"$FIRST_PART\"" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "EXIT_CODE=$FIRST_STATUS" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "COMMAND_INDEX={{ loop.index }}" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "COMMAND_TYPE=POST_COMPILE" >> /app/logs/{{additional_param.service_name}}_status.log
-
-  log "First part of command {{ cmd | replace('"', '\\"') }} failed with code $FIRST_STATUS. Exiting."
   exit $FIRST_STATUS
 fi
+
+{% elif cmd_obj.is_function_call %}
+# Handle simple function call
+log "Executing function call: {{ cmd_obj.command }}"
+# Check if function exists first to avoid errors
+if declare -f {{ cmd_obj.command }} > /dev/null; then
+  {{ cmd_obj.command }} || {
+    exit $?
+  }
+else
+  log "ERROR: Function {{ cmd_obj.command }} not defined"
+  exit 1
+fi
+
+{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "{{ cmd_obj.command }}" || {
+  exit $?
+}
+
 {% else %}
-# Regular command without && operator
-execute_with_error_tracking "POST_COMPILE" "{{ cmd }}" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "false" "true" || {
-  log "Post-compilation command failed. Exiting."
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
   exit $?
 }
 {% endif %}
-{% endif %}
 {% endfor %}
-# Execute pre-run commands with error tracking
+{% endif %}
+
+# Execute pre-run commands
 log "Executing pre-run commands..."
-{% for cmd in additional_param.run_cmd["pre_run_cmds"] %}
-{% if 'PANTHER_NON_CRITICAL_COMMAND' in cmd %}
-# Extract the actual command without the marker line and leading newline
-{% set actual_cmd = cmd.replace('# PANTHER_NON_CRITICAL_COMMAND\n', '') %}
-# Handle non-critical multi-line command as a complete unit
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-
+{% if structured_commands.get("pre_run_cmds") %}
+{% for cmd_obj in structured_commands.get("pre_run_cmds") %}
 # Set command type for this context
-cmd_type="PRE_COMPILE"
-{{ actual_cmd }}
+cmd_type="PRE_RUN"
+
+{% if cmd_obj.is_empty %}
+log "Skipping empty $cmd_type command #{{ loop.index }}"
+
+{% elif not cmd_obj.is_critical %}
+# Handle non-critical command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
-execute_with_error_tracking "PRE_RUN" "$MULTILINE_CMD" "{{ loop.index }}" "Non-critical: {{ actual_cmd | replace('"', '\\"') | truncate(50, true, '...') }}" "true" "false" || {
-  log "Non-critical pre-run command failed. Continuing execution."
-  # Don't exit here since this is a non-critical command
+
+# This command is marked as non-critical, execute it but don't fail if it returns error
+log "Executing non-critical $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
+  log "WARNING: Non-critical command failed but continuing execution"
 }
-{% elif '# PANTHER_FUNCTION_DEFINITION' in cmd %}
+
+{% elif cmd_obj.is_function_definition %}
 # Handle function definition
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
-# This is a function definition, execute it directly without tracking
-log "Detected function definition, executing directly"
-# Remove the special comment marker if present
-MULTILINE_CMD="${MULTILINE_CMD/\# PANTHER_FUNCTION_DEFINITION/}"
-# Just evaluate the function definition
+# This is a function definition, needs to be defined in the global scope
+log "Executing function definition: {{ cmd_obj.description }}"
+# Export the function to ensure it's available to all subprocesses
 eval "$MULTILINE_CMD"
-{% elif 'while ' in cmd or 'for ' in cmd or 'if ' in cmd %}
+# Verify the function was properly defined
+if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
+  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
+  exit 1
+else
+  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
+fi
+
+{% elif cmd_obj.is_multiline %}
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
+{{ cmd_obj.command }}
 ENDOFCOMMAND
 )
-execute_with_error_tracking "PRE_RUN" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "true" "true" || {
-  log "Pre-run command failed. Exiting."
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
   exit $?
 }
-{% else %}
-# Handle regular command
-{% if '&&' in cmd %}
-# Special handling for commands with && operator
-log "Command contains && operator: {{ cmd | replace('"', '\\"') }}"
+
+{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
+# Handle command with && operator
+log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
+
 # Extract parts of the command before and after &&
-
-# Set command type for this context
-cmd_type="COMPILE"
-FIRST_PART="{{ cmd.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd.split('&&')[1:]) }}"
-
-  # Set command type for this context
-  cmd_type="PRE_COMPILE"
-# Create output file for this command's first part
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_PRE_RUN_cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of PRE_RUN command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-echo "Command: $FIRST_PART" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: $FIRST_PART"
-# Use bash -c to execute the command instead of eval to handle quotes better
-bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-FIRST_STATUS=$?
-
-# Record completion time
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S")] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S")] Output from PRE_RUN command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute the rest
-  REST_OF_CMD=$(echo "{{ cmd }}" | cut -d '&' -f 3-)
-  log "Executing rest of command: $REST_OF_CMD"
-
-  if [ -n "$REST_OF_CMD" ]; then
-    execute_with_error_tracking "PRE_RUN" "$REST_OF_CMD" "{{ loop.index }}" "Rest of {{ cmd | replace('"', '\\"') }}" "false" "true" || {
-      log "Rest of command {{ cmd }} failed. Exiting."
-      exit $?
-    }
-  fi
-else
-  log "First part of command {{ cmd }} failed with code $FIRST_STATUS. Exiting."
-  exit $FIRST_STATUS
-fi
-{% else %}
-# Regular command without && operator
-execute_with_error_tracking "PRE_RUN" "{{ cmd }}" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "false" "true" || {
-  log "Pre-run command failed. Exiting."
-  exit $?
-}
-{% endif %}
-{% endif %}
-{% endfor %}
-
-# Check the  all environment variables
-log "Checking environment variables for potential issues..."
-for var in $(env); do
-  log "Environment variable: $var"
-done
-
-# Run main command with improved error tracking
-log "Running main command: timeout {{additional_param.run_cmd["run_cmd"]["timeout"]}} {{additional_param.run_cmd["run_cmd"]["command_binary"]}} {{additional_param.run_cmd["run_cmd"]["command_args"]}}"
-
-# Prepare run command
-# First normalize any double slashes in paths
-WORKING_DIR="{{ additional_param.run_cmd["run_cmd"]["working_dir"] }}"
-WORKING_DIR="${WORKING_DIR//\/\//\/}"
-COMMAND_BINARY="{{additional_param.run_cmd["run_cmd"]["command_binary"]}}"
-
-# Construct the command with normalized paths and environment variables
-RUN_CMD="{% for key, val in additional_param.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val | replace('//', '/')}} {% endfor -%} timeout {{additional_param.run_cmd["run_cmd"]["timeout"]}} ${WORKING_DIR}/${COMMAND_BINARY} {{additional_param.run_cmd["run_cmd"]["command_args"]}}"
-
-log "Run command details:"
-log "  - Working directory: ${WORKING_DIR}"
-log "  - Command binary: ${COMMAND_BINARY}"
-log "  - Command arguments: {{additional_param.run_cmd["run_cmd"]["command_args"]}}"
-log "  - Full command: $RUN_CMD"
-
-{% if additional_param.role.name == 'client' %}
-log "Client role detected, performing connectivity checks before execution..."
-
-# Try to locate the target service name from protocol configuration
-TARGET_SERVICE=""
-{% if additional_param.protocol and additional_param.protocol.target %}
-TARGET_SERVICE="{{ additional_param.protocol.target }}"
-log "Found target service from protocol configuration: $TARGET_SERVICE"
-{% endif %}
-
-# If we have a target service, try to test connectivity
-if [ -n "$TARGET_SERVICE" ]; then
-  # Default port for QUIC is 4443, or use appropriate port from configuration
-  TARGET_PORT=4443
-  log "Checking connectivity to $TARGET_SERVICE:$TARGET_PORT before starting client"
-  for retry in {1..5}; do
-    check_connectivity "$TARGET_SERVICE" "$TARGET_PORT"
-    if [ $? -eq 0 ]; then
-      break
-    fi
-    log "Connectivity check $retry failed, waiting before retry..."
-    sleep 3
-  done
-fi
-
-log "Starting client with 5 second delay for service readiness"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting main command execution" >> /app/logs/{{additional_param.service_name}}_run.log
-echo "Command: $RUN_CMD" >> /app/logs/{{additional_param.service_name}}_run.log
-echo "----------------------------------------" >> /app/logs/{{additional_param.service_name}}_run.log
-
-(sleep 5; exec $RUN_CMD) > >(tee -a /app/logs/{{additional_param.service_name}}_run.log) 2> >(tee -a /app/logs/{{additional_param.service_name}}_run_error.log >&2)
-EXIT_CODE=$?
-
-echo "----------------------------------------" >> /app/logs/{{additional_param.service_name}}_run.log
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Command completed with exit code: $EXIT_CODE" >> /app/logs/{{additional_param.service_name}}_run.log
-{% else %}
-# Server role
-log "Server role detected, executing command directly"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting main command execution" >> /app/logs/{{additional_param.service_name}}_run.log
-echo "Command: $RUN_CMD" >> /app/logs/{{additional_param.service_name}}_run.log
-echo "----------------------------------------" >> /app/logs/{{additional_param.service_name}}_run.log
-
-(exec $RUN_CMD) > >(tee -a /app/logs/{{additional_param.service_name}}_run.log) 2> >(tee -a /app/logs/{{additional_param.service_name}}_run_error.log >&2)
-EXIT_CODE=$?
-
-echo "----------------------------------------" >> /app/logs/{{additional_param.service_name}}_run.log
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Command completed with exit code: $EXIT_CODE" >> /app/logs/{{additional_param.service_name}}_run.log
-
-# Create a ready signal file for the client to detect
-if [ -d "/app/sync_logs" ]; then
-  log "Creating server ready signal file in sync directory"
-  touch /app/sync_logs/server_ready.log
-fi
-{% endif %}
-
-# Handle main command exit code with detailed logging
-if [ $EXIT_CODE -ne 0 ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Main command failed with code $EXIT_CODE" >> /app/logs/{{additional_param.service_name}}_error.log
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed command: $RUN_CMD" >> /app/logs/{{additional_param.service_name}}_error.log
-  echo "ERROR_TYPE=RUN_FAILURE" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED_COMMAND=\"$RUN_CMD\"" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "EXIT_CODE=$EXIT_CODE" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "COMMAND_TYPE=RUN" >> /app/logs/{{additional_param.service_name}}_status.log
-
-  # Special error types for common exit codes
-  if [ $EXIT_CODE -eq 124 ]; then
-    echo "ERROR_TYPE=TIMEOUT" >> /app/logs/{{additional_param.service_name}}_status.log;
-  elif [ $EXIT_CODE -eq 134 ]; then
-    echo "ERROR_TYPE=CRASH_ABORT" >> /app/logs/{{additional_param.service_name}}_status.log;
-  elif [ $EXIT_CODE -eq 139 ]; then
-    echo "ERROR_TYPE=CRASH_SEGV" >> /app/logs/{{additional_param.service_name}}_status.log;
-  fi
-
-  # Exit with the same code as the failed command
-  exit $EXIT_CODE
-else
-  log "Main command completed successfully"
-  echo "EXIT_CODE=0" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED=false" >> /app/logs/{{additional_param.service_name}}_status.log
-fi
-
-# Execute post-run commands with error tracking
-log "Executing post-run commands..."
-{% if additional_param.run_cmd["post_run_cmds"] | length > 0 %}
-{% for cmd in additional_param.run_cmd["post_run_cmds"] %}
-{% if 'PANTHER_NON_CRITICAL_COMMAND' in cmd %}
-# Extract the actual command without the marker line and leading newline
-{% set actual_cmd = cmd.replace('# PANTHER_NON_CRITICAL_COMMAND\n', '') %}
-# Handle non-critical multi-line command as a complete unit
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-{{ actual_cmd }}
-ENDOFCOMMAND
-)
-execute_with_error_tracking "POST_RUN" "$MULTILINE_CMD" "{{ loop.index }}" "Non-critical: {{ actual_cmd | replace('"', '\\"') | truncate(50, true, '...') }}" "true" "false" || {
-  log "Non-critical post-run command failed. Continuing execution."
-  # Don't exit here since this is a non-critical command
-}
-{% elif '# PANTHER_FUNCTION_DEFINITION' in cmd %}
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
-ENDOFCOMMAND
-)
-# This is a function definition, execute it directly without tracking
-log "Detected function definition, executing directly"
-# Remove the special comment marker if present
-MULTILINE_CMD="${MULTILINE_CMD/\# PANTHER_FUNCTION_DEFINITION/}"
-# Just evaluate the function definition
-eval "$MULTILINE_CMD"
-{% elif 'while ' in cmd or 'for ' in cmd or 'if ' in cmd %}
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd }}
-ENDOFCOMMAND
-)
-execute_with_error_tracking "POST_RUN" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') }}" "true" "true" || {
-  log "Post-run command failed with code $?, but continuing execution"
-  # We don't exit here to ensure cleanup commands are executed
-}
-{% else %}
-# Handle regular command
-{% if '&&' in cmd %}
-# Special handling for commands with && operator
-log "Command contains && operator: {{ cmd | replace('"', '\\"') }}"
-# Extract parts of the command before and after &&
-
-# Set command type for this context
-cmd_type="COMPILE"
-FIRST_PART="{{ cmd.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd.split('&&')[1:]) }}"
+FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
+REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
 
 # Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_POST_RUN_cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of POST_RUN command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-echo "Command: $FIRST_PART" >> "$FIRST_OUTPUT"
+FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
+echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
 echo "----------------------------------------" >> "$FIRST_OUTPUT"
 
 # First execute the part before && and capture output
-log "Executing first part: $FIRST_PART"
-# Use bash -c to execute the command instead of eval to handle quotes better
-bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-FIRST_STATUS=$?
+log "Executing first part: ${FIRST_PART}"
+# Check if this is a function call - needs special handling
+if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+  # Part is a function call, use eval to execute in current shell context
+  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
+  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
+  log "Detected function call to: ${FUNCTION_NAME}"
+  # Use log_function helper for tracking
+  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+else
+  # Not a function call, use bash -c as before
+  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+fi
 
 # Record completion time for first part
 echo "----------------------------------------" >> "$FIRST_OUTPUT"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
 
 # Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from POST_RUN command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
 cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
 
 if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute the rest
-  log "First part succeeded, executing rest: $REST_OF_CMD"
-  if [ -n "$REST_OF_CMD" ]; then
-    execute_with_error_tracking "POST_RUN" "$REST_OF_CMD" "{{ loop.index }}" "Rest of {{ cmd | replace('"', '\\"') }}" "false" "true" || {
-      log "Rest of command {{ cmd | replace('"', '\\"') }} failed. Exiting."
-      exit $?
-    }
+  # If first part succeeded, execute rest of command
+  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
+  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
+  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  
+  # Execute rest of command - check if it's a function call
+  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+    # Part is a function call, use eval to execute in current shell context
+    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
+    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
+    log "Detected function call to: ${FUNCTION_NAME}"
+    # Use log_function helper for tracking
+    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  else
+    # Not a function call, use bash -c as before
+    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  fi
+  
+  # Record completion time for rest part
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
+  
+  # Log the captured output
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+  
+  # Exit with status from rest part
+  if [ $REST_STATUS -ne 0 ]; then
+    exit $REST_STATUS
   fi
 else
-  # Log the error from the first part
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] POST_RUN command #{{ loop.index }} first part failed with code $FIRST_STATUS" >> /app/logs/{{additional_param.service_name}}_error.log
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed command: $FIRST_PART" >> /app/logs/{{additional_param.service_name}}_error.log
-  cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_error.log
-
-  # Report failure to status file
-  echo "ERROR_TYPE=POST_RUN_FAILURE" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED_COMMAND=\"$FIRST_PART\"" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "FAILED=true" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "EXIT_CODE=$FIRST_STATUS" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "COMMAND_INDEX={{ loop.index }}" >> /app/logs/{{additional_param.service_name}}_status.log
-  echo "COMMAND_TYPE=POST_RUN" >> /app/logs/{{additional_param.service_name}}_status.log
-
-  log "First part of command {{ cmd | replace('"', '\\"') }} failed with code $FIRST_STATUS. Exiting."
   exit $FIRST_STATUS
 fi
-{% else %}
-# Regular command without && operator
-execute_with_error_tracking "POST_RUN" "{{ cmd | replace("\n", "") }}" "{{ loop.index }}" "{{ cmd | replace('"', '\\"') | replace("\n", "") }}" "false" "true" || {
-  log "Post-run command failed with code $?, but continuing execution"
-  # We don't exit here to ensure cleanup commands are executed
+
+{% elif cmd_obj.is_function_call %}
+# Handle simple function call
+log "Executing function call: {{ cmd_obj.command }}"
+# Check if function exists first to avoid errors
+if declare -f {{ cmd_obj.command }} > /dev/null; then
+  {{ cmd_obj.command }} || {
+    exit $?
+  }
+else
+  log "ERROR: Function {{ cmd_obj.command }} not defined"
+  exit 1
+fi
+
+{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "{{ cmd_obj.command }}" || {
+  exit $?
 }
-{% endif %}
+
+{% else %}
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
+  exit $?
+}
 {% endif %}
 {% endfor %}
 {% endif %}
 
-# Summarize execution results
-log "All commands executed. Check status.log for details."
+# Execute the main command if provided
+log "Executing main command..."
+{% if structured_commands.get("run_cmd")%}
+{% if structured_commands.get("run_cmd").working_dir %}
+cd "{{ structured_commands.get("run_cmd").working_dir }}" || {
+  log "Failed to change to directory: {{ structured_commands.get("run_cmd").working_dir }}"
+  exit 1
+}
+{% endif %}
+
+{% if structured_commands.get("run_cmd").environment %}
+# Set environment variables for the run command
+{% for key, value in structured_commands.get("run_cmd").environment.items() %}
+export {{ key }}="{{ value }}"
+{% endfor %}
+{% endif %}
+
+# Prepare command and execute it
+FULL_CMD="./{{ structured_commands.get("run_cmd").command_binary }} {{ structured_commands.get("run_cmd").command_args }}"
+FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
+
+if [ -z "$FULL_CMD" ]; then
+  log "WARNING: No command to run, skipping execution"
+  RUN_STATUS=0
+else
+  log "Running command: $FULL_CMD"
+
+  {% if structured_commands.get("run_cmd").timeout %}
+  timeout {{ structured_commands.get("run_cmd").timeout }} $FULL_CMD 2>&1 | tee -a /app/logs/{{additional_param.service_name}}_run.log
+  RUN_STATUS=${PIPESTATUS[0]}
+  {% else %}
+  $FULL_CMD 2>&1 | tee -a /app/logs/{{additional_param.service_name}}_run.log
+  RUN_STATUS=${PIPESTATUS[0]}
+  {% endif %}
+fi
+
+if [ $RUN_STATUS -ne 0 ]; then
+  if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
+    log "WARNING: Command timed out after {{ structured_commands.get("run_cmd").timeout }} seconds"
+  else
+    log "ERROR: Command failed with exit status $RUN_STATUS"
+    exit $RUN_STATUS
+  fi
+fi
+{% else %}
+log "No main command provided, skipping."
+{% endif %}
+
+# Execute post-run commands
+log "Executing post-run commands..."
+{% if structured_commands.get("post_run_cmds") %}
+{% for cmd_obj in structured_commands.get("post_run_cmds") %}
+# Set command type for this context
+cmd_type="POST_RUN"
+
+{% if cmd_obj.is_empty %}
+log "Skipping empty $cmd_type command #{{ loop.index }}"
+
+{% elif not cmd_obj.is_critical %}
+# Handle non-critical command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+
+# This command is marked as non-critical, execute it but don't fail if it returns error
+log "Executing non-critical $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
+  log "WARNING: Non-critical command failed but continuing execution"
+}
+
+{% elif cmd_obj.is_function_definition %}
+# Handle function definition
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+# This is a function definition, needs to be defined in the global scope
+log "Executing function definition: {{ cmd_obj.description }}"
+# Export the function to ensure it's available to all subprocesses
+eval "$MULTILINE_CMD"
+# Verify the function was properly defined
+if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
+  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
+  exit 1
+else
+  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
+fi
+
+{% elif cmd_obj.is_multiline %}
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
+  exit $?
+}
+
+{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
+# Handle command with && operator
+log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
+
+# Extract parts of the command before and after &&
+FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
+REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
+
+# Create output files for this command
+FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
+echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
+echo "----------------------------------------" >> "$FIRST_OUTPUT"
+
+# First execute the part before && and capture output
+log "Executing first part: ${FIRST_PART}"
+# Check if this is a function call - needs special handling
+if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+  # Part is a function call, use eval to execute in current shell context
+  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
+  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
+  log "Detected function call to: ${FUNCTION_NAME}"
+  # Use log_function helper for tracking
+  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+else
+  # Not a function call, use bash -c as before
+  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+fi
+
+# Record completion time for first part
+echo "----------------------------------------" >> "$FIRST_OUTPUT"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
+
+# Log the captured output
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+
+if [ $FIRST_STATUS -eq 0 ]; then
+  # If first part succeeded, execute rest of command
+  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
+  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
+  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  
+  # Execute rest of command - check if it's a function call
+  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+    # Part is a function call, use eval to execute in current shell context
+    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
+    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
+    log "Detected function call to: ${FUNCTION_NAME}"
+    # Use log_function helper for tracking
+    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  else
+    # Not a function call, use bash -c as before
+    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  fi
+  
+  # Record completion time for rest part
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
+  
+  # Log the captured output
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+  
+  # Exit with status from rest part
+  if [ $REST_STATUS -ne 0 ]; then
+    exit $REST_STATUS
+  fi
+else
+  exit $FIRST_STATUS
+fi
+
+{% elif cmd_obj.is_function_call %}
+# Handle simple function call
+log "Executing function call: {{ cmd_obj.command }}"
+# Check if function exists first to avoid errors
+if declare -f {{ cmd_obj.command }} > /dev/null; then
+  {{ cmd_obj.command }} || {
+    exit $?
+  }
+else
+  log "ERROR: Function {{ cmd_obj.command }} not defined"
+  exit 1
+fi
+
+{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "{{ cmd_obj.command }}" || {
+  exit $?
+}
+
+{% else %}
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
+  exit $?
+}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+log "All commands executed successfully. Service '{{additional_param.service_name}}' entrypoint complete."
+exit 0

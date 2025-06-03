@@ -65,7 +65,7 @@ class ResourceMonitor:
         # Store baseline measurements
         self._record_baseline_metrics()
 
-        self.logger.info(f"Resource monitor initialized with {interval}s interval")
+        self.logger.info("Resource monitor initialized with %ss interval", interval)
 
     def _record_baseline_metrics(self) -> None:
         """Record baseline system metrics before experiment starts."""
@@ -101,11 +101,13 @@ class ResourceMonitor:
             )
 
             self.logger.debug(
-                f"Baseline metrics recorded: {cpu_count} CPUs, {memory_total:.0f}MB RAM"
+                "Baseline metrics recorded: %s CPUs, %sMB RAM",
+                cpu_count,
+                f"{memory_total:.0f}"
             )
 
         except Exception as e:
-            self.logger.error(f"Failed to record baseline metrics: {e}")
+            self.logger.error("Failed to record baseline metrics: %s", e)
 
     def start(self, phase: Phase | None = None) -> None:
         """
@@ -156,7 +158,7 @@ class ResourceMonitor:
                     self._record_process_metrics(phase)
 
             except Exception as e:
-                self.logger.error(f"Error in resource monitoring: {e}")
+                self.logger.error("Error in resource monitoring: %s", e)
 
             # Sleep in small increments to allow quick shutdown
             sleep_time = 0
@@ -182,12 +184,12 @@ class ResourceMonitor:
         disk_read_mb = 0
         disk_write_mb = 0
         if disk_io and self.initial_disk_io:
-            disk_read_mb = (
-                disk_io.read_bytes - self.initial_disk_io.get("read_bytes", 0)
-            ) / (1024 * 1024)
-            disk_write_mb = (
-                disk_io.write_bytes - self.initial_disk_io.get("write_bytes", 0)
-            ) / (1024 * 1024)
+            disk_read_mb = (disk_io.read_bytes - self.initial_disk_io.get("read_bytes", 0)) / (
+                1024 * 1024
+            )
+            disk_write_mb = (disk_io.write_bytes - self.initial_disk_io.get("write_bytes", 0)) / (
+                1024 * 1024
+            )
 
         # Network I/O
         network_io = psutil.net_io_counters()
@@ -226,9 +228,7 @@ class ResourceMonitor:
             load_average=load_average,
         )
 
-    def _record_snapshot_metrics(
-        self, snapshot: ResourceSnapshot, phase: Phase | None
-    ) -> None:
+    def _record_snapshot_metrics(self, snapshot: ResourceSnapshot, phase: Phase | None) -> None:
         """Record snapshot metrics to the collector."""
         timestamp = snapshot.timestamp
 
@@ -329,18 +329,13 @@ class ResourceMonitor:
             ):
                 try:
                     proc_info = proc.info
-                    if (
-                        proc_info["cpu_percent"] > 1.0
-                        or proc_info["memory_percent"] > 1.0
-                    ):
+                    if proc_info["cpu_percent"] > 1.0 or proc_info["memory_percent"] > 1.0:
                         processes.append(proc_info)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
             # Sort by CPU usage and take top 10
-            top_cpu_processes = sorted(
-                processes, key=lambda x: x["cpu_percent"], reverse=True
-            )[:10]
+            top_cpu_processes = sorted(processes, key=lambda x: x["cpu_percent"], reverse=True)[:10]
 
             for i, proc in enumerate(top_cpu_processes):
                 self.metrics_collector.record_metric(
@@ -356,11 +351,7 @@ class ResourceMonitor:
                     },
                 )
 
-                memory_mb = (
-                    proc["memory_info"].rss / (1024 * 1024)
-                    if proc["memory_info"]
-                    else 0
-                )
+                memory_mb = proc["memory_info"].rss / (1024 * 1024) if proc["memory_info"] else 0
                 self.metrics_collector.record_metric(
                     name="top_process_memory_mb",
                     metric_type=MetricType.GAUGE,
@@ -375,7 +366,7 @@ class ResourceMonitor:
                 )
 
         except Exception as e:
-            self.logger.debug(f"Failed to record process metrics: {e}")
+            self.logger.debug("Failed to record process metrics: %s", e)
 
     def get_current_snapshot(self) -> ResourceSnapshot:
         """Get current resource snapshot without recording metrics."""

@@ -23,12 +23,10 @@ def find_plugin(plugin_name: str) -> tuple[str, str | None]:
 
     # First check environment plugins (network_environment and execution_environment)
     for plugin_type in ["network_environment", "execution_environment"]:
-        module_path = (
-            f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
-        )
+        module_path = f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
         try:
             importlib.import_module(module_path)
-            logger.debug(f"Found plugin '{plugin_name}' of type '{plugin_type}'")
+            logger.debug("Found plugin '%s' of type '%s'", plugin_name, plugin_type)
             return plugin_type, None
         except ImportError:
             pass
@@ -36,29 +34,30 @@ def find_plugin(plugin_name: str) -> tuple[str, str | None]:
     # Then check service plugins (iut and tester)
     for plugin_type in ["iut", "tester"]:
         # First try without protocol
-        module_path = (
-            f"panther.plugins.services.{plugin_type}.{plugin_name}.config_schema"
-        )
+        module_path = f"panther.plugins.services.{plugin_type}.{plugin_name}.config_schema"
         try:
             importlib.import_module(module_path)
-            logger.debug(f"Found plugin '{plugin_name}' of type '{plugin_type}'")
+            logger.debug("Found plugin '%s' of type '%s'", plugin_name, plugin_type)
             return plugin_type, None
         except ImportError:
             # Then try with each common protocol
             for protocol in COMMON_PROTOCOLS:
-                module_path = f"panther.plugins.services.{plugin_type}.{protocol}.{plugin_name}.config_schema"
+                module_path = (
+                    f"panther.plugins.services.{plugin_type}.{protocol}.{plugin_name}.config_schema"
+                )
                 try:
                     importlib.import_module(module_path)
                     logger.debug(
-                        f"Found plugin '{plugin_name}' of type '{plugin_type}' under protocol '{protocol}'"
+                        "Found plugin '%s' of type '%s' under protocol '%s'",
+                        plugin_name,
+                        plugin_type,
+                        protocol
                     )
                     return plugin_type, protocol
                 except ImportError:
                     pass
 
-    raise ValueError(
-        f"Could not find plugin '{plugin_name}' in any plugin type or protocol"
-    )
+    raise ValueError(f"Could not find plugin '{plugin_name}' in any plugin type or protocol")
 
 
 def list_plugin_parameters(
@@ -84,9 +83,7 @@ def list_plugin_parameters(
             if not protocol:
                 protocol = detected_protocol
 
-            logger.debug(
-                f"Auto-detected plugin: type={plugin_type}, protocol={protocol}"
-            )
+            logger.debug("Auto-detected plugin: type=%s, protocol=%s", plugin_type, protocol)
             print(f"Auto-detected plugin type: {plugin_type}")
             if protocol:
                 print(f"Auto-detected protocol: {protocol}")
@@ -101,20 +98,22 @@ def list_plugin_parameters(
         if plugin_type in ["iut", "tester"]:
             # Use the protocol if specified for IUT/tester plugins
             if protocol:
-                module_path = f"panther.plugins.services.{plugin_type}.{protocol}.{plugin_name}.config_schema"
+                module_path = (
+                    f"panther.plugins.services.{plugin_type}.{protocol}.{plugin_name}.config_schema"
+                )
                 try:
                     plugin_module = importlib.import_module(module_path)
-                    logger.debug(
-                        f"Found plugin schema at {module_path} with protocol {protocol}"
-                    )
+                    logger.debug("Found plugin schema at %s with protocol %s", module_path, protocol)
                 except ImportError as e:
                     raise ImportError(f"Plugin schema not found at {module_path}: {e}")
             else:
                 # Try direct path first
                 try:
-                    module_path = f"panther.plugins.services.{plugin_type}.{plugin_name}.config_schema"
+                    module_path = (
+                        f"panther.plugins.services.{plugin_type}.{plugin_name}.config_schema"
+                    )
                     plugin_module = importlib.import_module(module_path)
-                    logger.debug(f"Found plugin schema at {module_path}")
+                    logger.debug("Found plugin schema at %s", module_path)
                 except ImportError:
                     # If not found, search in different protocol directories
                     found = False
@@ -124,7 +123,7 @@ def list_plugin_parameters(
                             plugin_module = importlib.import_module(module_path)
                             found = True
                             protocol = p  # Remember which protocol we found
-                            logger.debug(f"Found plugin schema at {module_path}")
+                            logger.debug("Found plugin schema at %s", module_path)
                             print(f"Found plugin under protocol: {p}")
                             break
                         except ImportError:
@@ -140,7 +139,7 @@ def list_plugin_parameters(
             module_path = f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
             try:
                 plugin_module = importlib.import_module(module_path)
-                logger.debug(f"Found plugin schema at {module_path}")
+                logger.debug("Found plugin schema at %s", module_path)
             except ImportError as e:
                 raise ImportError(f"Plugin schema not found at {module_path}: {e}")
 
@@ -149,9 +148,7 @@ def list_plugin_parameters(
         try:
             config_class = getattr(plugin_module, class_name)
         except AttributeError:
-            raise AttributeError(
-                f"No config class '{class_name}' found in module {module_path}"
-            )
+            raise AttributeError(f"No config class '{class_name}' found in module {module_path}")
 
         # Format and return the parameters
         parameters = {}
@@ -165,40 +162,32 @@ def list_plugin_parameters(
                 param_info = {
                     "type": str(type_hints.get(field.name, "unknown")),
                     "default": (
-                        field.default
-                        if field.default is not dataclasses.MISSING
-                        else None
+                        field.default if field.default is not dataclasses.MISSING else None
                     ),
                     "required": field.default is dataclasses.MISSING,
                     "description": inspect.getdoc(field) or "No description available",
                 }
 
                 # Special handling for version field
-                if field.name == "version" and hasattr(
-                    config_class, "load_versions_from_files"
-                ):
+                if field.name == "version" and hasattr(config_class, "load_versions_from_files"):
                     try:
                         version_info = config_class.load_versions_from_files()
                         param_info["value"] = version_info
-                        param_info["note"] = (
-                            "Dynamically loaded from version config files"
-                        )
+                        param_info["note"] = "Dynamically loaded from version config files"
                         # Add more detailed information for version fields
                         if hasattr(version_info, "version"):
                             param_info["version_number"] = version_info.version
                         if hasattr(version_info, "commit"):
                             param_info["commit"] = version_info.commit
                     except Exception as e:
-                        logger.warning(f"Failed to load version information: {e}")
+                        logger.warning("Failed to load version information: %s", e)
 
                 parameters[field.name] = param_info
 
         return parameters
 
     except ImportError as e:
-        print(
-            f"Plugin schema for '{plugin_name}' not found. Check if the plugin name is correct."
-        )
+        print(f"Plugin schema for '{plugin_name}' not found. Check if the plugin name is correct.")
         print(f"Error details: {e}")
 
         # Give helpful guidance for IUT/tester plugins
@@ -216,7 +205,5 @@ def list_plugin_parameters(
         print(f"Error retrieving parameters for plugin '{plugin_name}': {e}")
         return {}
     except Exception as e:
-        print(
-            f"Unexpected error while listing parameters for plugin '{plugin_name}': {e}"
-        )
+        print(f"Unexpected error while listing parameters for plugin '{plugin_name}': {e}")
         return {}

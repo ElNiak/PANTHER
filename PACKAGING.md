@@ -1,5 +1,7 @@
 # PANTHER Packaging Guide
 
+!!! Work in progress
+
 ## Overview
 
 This document provides instructions for building, packaging, and publishing the PANTHER system to PyPI and other distribution channels. PANTHER uses modern Python packaging practices based on PEP-517 and PEP-518, with setuptools as the build backend.

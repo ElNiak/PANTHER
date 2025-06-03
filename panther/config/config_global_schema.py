@@ -67,6 +67,8 @@ class AdditionalPathsConfig:
 class DockerConfig:
     """
     Configuration settings for Docker operations.
+    
+    # TODO: enforce the use of DockerConfig in all plugins that require Docker operations.
 
     Attributes:
         build_docker_image (bool): Flag to determine if the Docker image should be built.
@@ -77,10 +79,11 @@ class DockerConfig:
     """
 
     build_docker_image: bool = True
-    remove_docker_image: bool = True
-    remove_docker_container: bool = True
+    remove_docker_image: bool = False
+    remove_docker_container: bool = False
     remove_docker_network: bool = True
     remove_docker_volume: bool = True
+    remove_dangling_images: bool = False
 
 
 # Feature Configuration
@@ -92,6 +95,7 @@ class FeatureConfig:
     Attributes:
         logger_observer (bool): Indicates whether the logger observer feature is enabled. Default is True.
         storage_handler (bool): Indicates whether the storage handler feature is enabled. Default is True.
+        fast_fail (bool): Indicates whether the fast fail feature is enabled. Default is True.
     """
 
     logger_observer: bool = True

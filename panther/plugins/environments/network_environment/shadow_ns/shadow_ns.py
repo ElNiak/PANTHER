@@ -91,9 +91,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(
-            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
-        )
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
 
         self.docker_version = "v1"
         self.docker_name = "shadow_"
@@ -166,9 +164,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
             test_config,
         )
         self.prepare_environment()
-        self.generate_environment_services(
-            paths=self.global_config.paths, timestamp=timestamp
-        )
+        self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
         self.logger.info("Docker Compose environment setup complete")
 
     def deploy_services(self):
@@ -193,9 +189,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 ), f"Service {service.service_name} is not compatible with Shadow NS. Please check the service configuration."
                 self.create_log_dir(service)
 
-                self.logger.debug(
-                    f"Generating Docker Compose file for {service.service_name}"
-                )
+                self.logger.debug("Generating Docker Compose file for %s", service.service_name)
 
                 self.docker_name = self.docker_name + service.service_name + "_"
 
@@ -204,38 +198,36 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 ].replace("eth0", "lo")
                 # TODO make this more general
                 if service.role.name == "client":
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
-                        "run_cmd"
-                    ]["command_args"].replace("$$TARGET_IP_HEX", "184549377")
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
-                        "run_cmd"
-                    ]["command_args"].replace("$$IVY_IP_HEX", "184549378")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
+                        "command_args"
+                    ].replace("$$TARGET_IP_HEX", "184549377")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
+                        "command_args"
+                    ].replace("$$IVY_IP_HEX", "184549378")
                 else:
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
-                        "run_cmd"
-                    ]["command_args"].replace("$$TARGET_IP_HEX", "184549378")
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd[
-                        "run_cmd"
-                    ]["command_args"].replace("$$IVY_IP_HEX", "184549377")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
+                        "command_args"
+                    ].replace("$$TARGET_IP_HEX", "184549378")
+                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
+                        "command_args"
+                    ].replace("$$IVY_IP_HEX", "184549377")
                 for other_service_name in self.services_managers:
                     if other_service_name.service_name != service.service_name:
                         # Shadow does not suport the _ in the service name -> replace by .
                         # TODO use "." in the service name for all plugins
                         if "ivy" not in service.service_name:
                             # TODO
-                            service.run_cmd["run_cmd"]["command_args"] = (
-                                service.run_cmd["run_cmd"]["command_args"].replace(
-                                    "_", "."
-                                )
-                            )
+                            service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
+                                "command_args"
+                            ].replace("_", ".")
 
             for service in self.services_managers:
-                service.environments = self.resolve_environment_variables(
-                    service.environments
-                )
+                service.environments = self.resolve_environment_variables(service.environments)
                 service.environments["SHADOW_TEST"] = "1"
                 self.logger.debug(
-                    f"Service {service.service_name} environment: {service.environments}"
+                    "Service %s environment: %s",
+                    service.service_name,
+                    service.environments
                 )
 
             self.generate_from_template(
@@ -247,7 +239,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
             )
 
             self.logger.info(
-                f"Shadow NS file generated at '{self.services_network_config_file_path}'"
+                "Shadow NS file generated at '%s'",
+                self.services_network_config_file_path
             )
 
             self.logger.info("Shadow NS based environment manager prepared.")
@@ -262,15 +255,14 @@ class ShadowNsEnvironment(INetworkEnvironment):
             )
 
             self.logger.info(
-                f"Shadow NS file Dockerfile generated at '{self.services_network_docker_file_path}'"
+                "Shadow NS file Dockerfile generated at '%s'",
+                self.services_network_docker_file_path
             )
 
             self.get_docker_name()
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to generate Shadow NS file: {e}\n{traceback.format_exc()}"
-            )
+            self.logger.error("Failed to generate Shadow NS file: %s\n%s", e, traceback.format_exc())
             exit(1)
 
     def launch_environment_services(self):
@@ -279,9 +271,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         # TODO use docker_builder module
         try:
-            with open(
-                os.path.join(self.output_dir, "logs", "shadow.log"), "w"
-            ) as log_file:
+            with open(os.path.join(self.output_dir, "logs", "shadow.log"), "w") as log_file:
                 with open(
                     os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
                 ) as log_file_err:
@@ -316,7 +306,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                         *volumes,
                         self.docker_name,
                     ]
-                    self.logger.debug(f"Executing command: {' '.join(command)}")
+                    self.logger.debug("Executing command: %s", ' '.join(command))
                     result = subprocess.run(
                         command,
                         check=True,
@@ -329,10 +319,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     # TODO shadow.data
                 self.logger.info("Shadow NS environment launched successfully.")
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Failed to launch Shadow NS environment: {e.stderr}")
-            with open(
-                os.path.join(self.output_dir, "logs", "shadow.log"), "w"
-            ) as log_file:
+            self.logger.error("Failed to launch Shadow NS environment: %s", e.stderr)
+            with open(os.path.join(self.output_dir, "logs", "shadow.log"), "w") as log_file:
                 with open(
                     os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
                 ) as log_file_err:
@@ -369,21 +357,21 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     #
                     std_split = result.stdout.split("\n")
                     self.logger.debug(
-                        f"docker-compose ps: {result.stdout} - {result.stderr} - {len(self.services_managers)}  - {len(std_split)}"
+                        "docker-compose ps: %s - %s - %s  - %s",
+                        result.stdout,
+                        result.stderr,
+                        len(self.services_managers),
+                        len(std_split)
                     )
                     if len(std_split) < len(self.services_managers) + 1:
                         self.logger.debug(
                             "Docker Compose environment monitored successfully - Experiment finished earlier"
                         )
-                        self.event_manager.notify(
-                            Event(name="experiment_finished_early", data={})
-                        )
+                        self.event_manager.notify(Event(name="experiment_finished_early", data={}))
 
                 self.logger.debug("Docker Compose environment monitored successfully.")
         except subprocess.CalledProcessError as e:
-            self.logger.error(
-                f"Failed to monitor Docker Compose environment: {e.stderr}"
-            )
+            self.logger.error("Failed to monitor Docker Compose environment: %s", e.stderr)
             raise e
 
     def teardown_environment(self):
@@ -392,9 +380,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         # TODO: add a way to retrieve the logs, results, binary
         self.logger.info("Tearing down Shadow NS environment")
-        with open(
-            os.path.join(self.output_dir, "logs", "shadow-teardown.log"), "w"
-        ) as log_file:
+        with open(os.path.join(self.output_dir, "logs", "shadow-teardown.log"), "w") as log_file:
             with open(
                 os.path.join(self.output_dir, "logs", "shadow-teardown.err.log"), "w"
             ) as log_file_err:
@@ -405,24 +391,20 @@ class ShadowNsEnvironment(INetworkEnvironment):
                         "rmi",
                         f"{self.docker_name}:latest",
                     ]
-                    self.logger.debug(
-                        f"Executing remove image command: {remove_image_command}"
-                    )
+                    self.logger.debug("Executing remove image command: %s", remove_image_command)
                     result = subprocess.run(
                         remove_image_command,
                         check=True,
                         capture_output=True,
                         text=True,
                     )
-                    self.logger.debug(f"Executing command: {remove_image_command}")
+                    self.logger.debug("Executing command: %s", remove_image_command)
 
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
                     self.logger.info("Shadow NS environment torn down successfully")
                 except subprocess.CalledProcessError as e:
-                    self.logger.error(
-                        f"Failed to tear down Shadow NS environment: {e.stderr}"
-                    )
+                    self.logger.error("Failed to tear down Shadow NS environment: %s", e.stderr)
                     raise e
 
     def read_shadow_file(self) -> dict[str, Any]:
@@ -431,7 +413,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         if not os.path.exists(self.services_network_config_file_path):
             self.logger.error(
-                f"Shadow NS file '{self.services_network_config_file_path}' does not exist."
+                "Shadow NS file '%s' does not exist.",
+                self.services_network_config_file_path
             )
             raise FileNotFoundError(
                 f"Shadow NS file '{self.services_network_config_file_path}' does not exist."

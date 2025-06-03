@@ -158,10 +158,10 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         for phase, cmds in structured_commands.items():
             self.logger.info(f"  {phase}: {len(cmds)} commands")
             functions = [
-                cmd for cmd in cmds if getattr(cmd, "is_function_definition", False)
+                cmd for cmd in cmds if cmd.get("is_function_definition", False)
             ]
             calls = [
-                cmd for cmd in cmds if not getattr(cmd, "is_function_definition", False)
+                cmd for cmd in cmds if not cmd.get("is_function_definition", False)
             ]
             self.logger.info(f"    Functions: {len(functions)}, Calls: {len(calls)}")
 
@@ -200,23 +200,23 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
 # Integration test template
 # Pre-compile phase
 {% for cmd in pre_compile_commands %}
-{% if cmd.is_function_definition %}
-# Function definition: {{ cmd.description }}
-{{ cmd.command }}
+{% if cmd.get('is_function_definition', False) %}
+# Function definition: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% else %}
-# Command: {{ cmd.description }}
-{{ cmd.command }}
+# Command: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% endif %}
 {% endfor %}
 
 # Compile phase
 {% for cmd in compile_commands %}
-{% if cmd.is_function_definition %}
-# Function definition: {{ cmd.description }}
-{{ cmd.command }}
+{% if cmd.get('is_function_definition', False) %}
+# Function definition: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% else %}
-# Command: {{ cmd.description }}
-{{ cmd.command }}
+# Command: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% endif %}
 {% endfor %}
 """

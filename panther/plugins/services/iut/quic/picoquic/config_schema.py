@@ -37,9 +37,7 @@ class PicoquicConfig(ImplementationConfig):
             if version_file.endswith(".yaml"):
                 version_path = os.path.join(version_configs_dir, version_file)
                 raw_version_config = OmegaConf.load(version_path)
-                logging.debug(
-                    f"Loaded raw Picoquic version config: {raw_version_config}"
-                )
+                logging.debug(f"Loaded raw Picoquic version config: {raw_version_config}")
                 version_config = OmegaConf.to_object(
                     OmegaConf.merge(PicoquicVersion, raw_version_config)
                 )

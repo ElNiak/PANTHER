@@ -41,9 +41,7 @@ class IEnvironmentPlugin(IPlugin):
     ):
         super().__init__()
         self._plugin_dir = Path(os.path.dirname(__file__))
-        self.templates_dir: str = (
-            f"{self._plugin_dir}/{env_type}/{env_sub_type}/templates"
-        )
+        self.templates_dir: str = f"{self._plugin_dir}/{env_type}/{env_sub_type}/templates"
         self.output_dir = output_dir
         self.env_type = env_type
         self.env_sub_type = env_sub_type

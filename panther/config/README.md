@@ -22,57 +22,73 @@ PANTHER uses a **hierarchical configuration system** with the following key prin
 
 ### Configuration Structure
 
+PANTHER configurations follow a hierarchical structure that combines global settings with test-specific configurations. Below is an annotated example with explanations:
+
 ```yaml
 # Global settings that apply to all tests
 logging:
-  level: INFO
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  level: INFO                    # Set logging verbosity (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"  # Custom log format
 
 paths:
-  output_dir: "./outputs"
-  temp_dir: "./temp"
+  output_dir: "outputs"          # Where results and artifacts will be stored
+  log_dir: "outputs/logs"        # Directory for log files
+  config_dir: "panther/configs"  # Location of additional configuration files
+  plugin_dir: "panther/plugins"  # Directory containing PANTHER plugins
 
 docker:
-  pull_images: true
-  cleanup_on_exit: true
+  build_docker_image: false      # Skip Docker image building (use existing images)
 
-# Array of individual test configurations
+# List of tests to run - each test is a complete testing scenario
 tests:
-  - name: "quic_basic_test"
+  - name: "QUIC Client-Server Communication Test"    # Human-readable test identifier
+    description: "Verify that the Picoquic server can communicate with the Picoquic client over Shadow network."
     network_environment:
-      type: "docker_compose"
-      config:
-        compose_file: "docker-compose.yml"
-
-    execution_environment:
-      type: "docker_container"
-      config:
-        image: "panther/test-env"
-
+      type: "docker_compose"     # Use docker-compose for container orchestration
+    iterations: 1                # Run this test just once
+    execution_environment: []    # No special execution environment settings
+    debug_environment: [ ]       # No debugging tools to attach
+    
+    # Define the services (containers) involved in this test
     services:
-      - name: "quic_server"
-        type: "iut"
-        implementation: "quiche"
-        role: "server"
-        config:
-          port: 4433
-          cert_file: "/certs/server.crt"
-          key_file: "/certs/server.key"
+      picoquic_client:           # First service - a QUIC client
+        timeout: 100             # Maximum runtime in seconds
+        name: "picoquic_client"  # Container name
+        implementation:
+          name: "picoquic"       # Using the Picoquic implementation
+          type: "iut"            # Implementation Under Test (not a tester)
+        protocol:
+          name: "quic"           # Using the QUIC protocol
+          version: "rfc9000"     # QUIC protocol version
+          role: "client"         # This service acts as a client
+          target: "ivy_server"   # Connect to the ivy_server service
+        ports:                   # Port mappings (host:container)
+          - "5000:5000"          # Example port mapping
+          - "8081:8081"          # Another port mapping
+        generate_new_certificates: True  # Generate fresh TLS certificates
 
-      - name: "quic_client"
-        type: "iut"
-        implementation: "quiche"
-        role: "client"
-        config:
-          target: "quic_server"
-
-      - name: "formal_verifier"
-        type: "tester"
-        implementation: "panther_ivy"
-        config:
-          protocol: "quic"
-          test_suite: "basic_conformance"
+      ivy_server:                # Second service - a QUIC server using Ivy for verification
+        name: "ivy_server"       # Container name
+        timeout: 100             # Maximum runtime in seconds
+        implementation:
+          type: "testers"        # This is a testing tool, not an IUT
+          name: "panther_ivy"    # Using the Ivy formal verification tool
+          test: quic_client_test_max  # Specific test to run within Ivy
+        protocol:
+          name: "quic"           # Using the QUIC protocol
+          version: "rfc9000"     # QUIC protocol version
+          role: "server"         # This service acts as a server
+        ports:                   # Port mappings (host:container)
+          - "4443:4443"          # QUIC server port
+          - "4987:4987"          # Additional port mapping
+          - "8080:8080"          # Health check endpoint
+        generate_new_certificates: True  # Generate fresh TLS certificates
+        
+    steps:
+      wait: 100                  # Wait 100 seconds during test execution before proceeding
 ```
+
+This configuration defines a test scenario where a Picoquic client communicates with an Ivy-based server over a QUIC connection. The test runs in Docker containers orchestrated by Docker Compose, with specific port mappings and protocol settings.
 
 ---
 

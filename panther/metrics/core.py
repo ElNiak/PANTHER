@@ -33,9 +33,7 @@ class MetricsCollector:
         self.storage = JSONLinesStorage(storage_path)
         self.run_id = str(uuid.uuid4())
 
-    def record(
-        self, name: str, value: float, tags: dict[str, str] | None = None
-    ) -> None:
+    def record(self, name: str, value: float, tags: dict[str, str] | None = None) -> None:
         """Record a metric value.
 
         Args:

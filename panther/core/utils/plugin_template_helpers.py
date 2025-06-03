@@ -118,9 +118,7 @@ class PluginTemplateContext:
         self.env_vars[key] = str(value)
         return self
 
-    def add_envs(
-        self, env_dict: dict[str, str | int | float]
-    ) -> "PluginTemplateContext":
+    def add_envs(self, env_dict: dict[str, str | int | float]) -> "PluginTemplateContext":
         """
         Add multiple environment variables from a dictionary.
 
@@ -264,9 +262,7 @@ def build_legacy_template_context(
     return context
 
 
-def merge_template_contexts(
-    enhanced_context: PluginTemplateContext, legacy_context: dict
-) -> dict:
+def merge_template_contexts(enhanced_context: PluginTemplateContext, legacy_context: dict) -> dict:
     """
     Merge enhanced and legacy template contexts.
 

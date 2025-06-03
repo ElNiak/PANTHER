@@ -92,15 +92,9 @@ class EnvironmentPluginTutorial:
 
         # Network configuration
         print("\n🔧 Network Configuration:")
-        supports_containers = self.get_yes_no(
-            "Does this environment support containers?", True
-        )
-        supports_scaling = self.get_yes_no(
-            "Does this environment support scaling?", False
-        )
-        requires_root = self.get_yes_no(
-            "Does this environment require root privileges?", False
-        )
+        supports_containers = self.get_yes_no("Does this environment support containers?", True)
+        supports_scaling = self.get_yes_no("Does this environment support scaling?", False)
+        requires_root = self.get_yes_no("Does this environment require root privileges?", False)
 
         # Generate the plugin
         plugin_dir = self.tutorial_dir / f"{plugin_name}_generated"
@@ -144,12 +138,8 @@ class EnvironmentPluginTutorial:
             "Command to run (e.g., 'valgrind', 'perf', 'strace')",
         )
 
-        generates_reports = self.get_yes_no(
-            "Does this tool generate report files?", True
-        )
-        requires_symbols = self.get_yes_no(
-            "Does this tool require debug symbols?", False
-        )
+        generates_reports = self.get_yes_no("Does this tool generate report files?", True)
+        requires_symbols = self.get_yes_no("Does this tool require debug symbols?", False)
         is_profiler = self.get_yes_no("Is this a performance profiling tool?", False)
 
         # Generate the plugin

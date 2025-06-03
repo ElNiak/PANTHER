@@ -598,35 +598,6 @@ class BuildManager:
                     print(f"Copying {md_file} to {dest_path}")
                     shutil.copy2(md_file, dest_path)
 
-            # Check if MkDocs is available
-            try:
-                result = self.run_command(["mkdocs", "--version"])
-                if result != 0:
-                    print("Installing MkDocs...")
-                    self.run_command(
-                        [
-                            sys.executable,
-                            "-m",
-                            "pip",
-                            "install",
-                            "mkdocs",
-                            "mkdocs-material",
-                            "mkdocstrings",
-                        ]
-                    )
-            except FileNotFoundError:
-                print("Installing MkDocs...")
-                self.run_command(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pip",
-                        "install",
-                        "mkdocs",
-                        "mkdocs-material",
-                        "mkdocstrings",
-                    ]
-                )
 
             # Build documentation with MkDocs
             print("Building documentation with MkDocs...")
@@ -681,22 +652,6 @@ class BuildManager:
         """Deploy documentation to GitHub Pages."""
         self.build_docs()  # Ensure docs are built first
         print("Deploying documentation to GitHub Pages...")
-
-        # Ensure MkDocs is installed
-        result = self.run_command(["mkdocs", "--version"])
-        if result != 0:
-            print("Installing MkDocs...")
-            self.run_command(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "mkdocs",
-                    "mkdocs-material",
-                    "mkdocstrings",
-                ]
-            )
 
         # Deploy the documentation to GitHub Pages
         return self.run_command(

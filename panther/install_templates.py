@@ -47,9 +47,7 @@ def install_templates():
         src_template = src_dir / "template"
 
         # Target directory in site-packages
-        target_dir = (
-            Path(site_packages) / "panther" / "plugins" / plugin_type / "tutorials"
-        )
+        target_dir = Path(site_packages) / "panther" / "plugins" / plugin_type / "tutorials"
         target_dir.mkdir(parents=True, exist_ok=True)
         target_template = target_dir / "template"
 
@@ -67,9 +65,7 @@ def install_templates():
             if item.is_dir():
                 # Skip subplugin folders as they'll be handled separately
                 if item.name not in PLUGIN_HIERARCHY.get(plugin_type, []):
-                    shutil.copytree(
-                        item, target_template / item.name, dirs_exist_ok=True
-                    )
+                    shutil.copytree(item, target_template / item.name, dirs_exist_ok=True)
             else:
                 shutil.copy2(item, target_template / item.name)
 
@@ -86,9 +82,7 @@ def install_templates():
 
                 for item in subplugin_src.glob("*"):
                     if item.is_dir():
-                        shutil.copytree(
-                            item, subplugin_target / item.name, dirs_exist_ok=True
-                        )
+                        shutil.copytree(item, subplugin_target / item.name, dirs_exist_ok=True)
                     else:
                         shutil.copy2(item, subplugin_target / item.name)
 

@@ -188,7 +188,7 @@ class YourProtocolPlugin(ProtocolInterface):
                 raise ValueError(f"Unsupported version: {self.config.version}")
             return True
         except Exception as e:
-            self.logger.error(f"Configuration validation failed: {e}")
+            self.logger.error("Configuration validation failed: %s", e)
             return False
 
     def setup_test_environment(self, config: dict):

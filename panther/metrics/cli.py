@@ -214,9 +214,7 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # List command
-    list_parser = subparsers.add_parser(
-        "ls", aliases=["list"], help="List recent metrics records"
-    )
+    list_parser = subparsers.add_parser("ls", aliases=["list"], help="List recent metrics records")
     list_parser.add_argument(
         "--limit",
         "-n",
@@ -232,13 +230,9 @@ def main() -> int:
     show_parser.add_argument("run_id", help="Run ID to show details for")
 
     # Export command
-    export_parser = subparsers.add_parser(
-        "export", help="Export metrics records to JSON"
-    )
+    export_parser = subparsers.add_parser("export", help="Export metrics records to JSON")
     export_parser.add_argument("--output", "-o", help="Output file (default: stdout)")
-    export_parser.add_argument(
-        "--date", "-d", help="Filter by date (YYYY-MM-DD format)"
-    )
+    export_parser.add_argument("--date", "-d", help="Filter by date (YYYY-MM-DD format)")
     export_parser.add_argument(
         "--limit", "-n", type=int, help="Maximum number of records to export"
     )

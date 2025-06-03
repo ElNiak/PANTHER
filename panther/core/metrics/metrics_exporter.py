@@ -34,9 +34,7 @@ class MetricsExporter:
         self.metrics_collector = metrics_collector
         self.export_timestamp = datetime.now()
 
-    def export_to_json(
-        self, output_path: str | Path, include_raw_data: bool = True
-    ) -> bool:
+    def export_to_json(self, output_path: str | Path, include_raw_data: bool = True) -> bool:
         """
         Export metrics to JSON format.
 
@@ -81,11 +79,11 @@ class MetricsExporter:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(export_data, f, indent=2, default=json_serializer)
 
-            logger.info(f"Metrics exported to JSON: {output_path}")
+            logger.info("Metrics exported to JSON: %s", output_path)
             return True
 
         except Exception as e:
-            logger.error(f"Failed to export metrics to JSON: {e}")
+            logger.error("Failed to export metrics to JSON: %s", e)
             return False
 
     def export_to_csv(self, output_dir: str | Path) -> bool:
@@ -108,23 +106,19 @@ class MetricsExporter:
             self._export_timing_csv(output_dir / f"timing_metrics_{timestamp_str}.csv")
 
             # Export resource metrics
-            self._export_resource_csv(
-                output_dir / f"resource_metrics_{timestamp_str}.csv"
-            )
+            self._export_resource_csv(output_dir / f"resource_metrics_{timestamp_str}.csv")
 
             # Export error metrics
             self._export_error_csv(output_dir / f"error_metrics_{timestamp_str}.csv")
 
             # Export summary metrics
-            self._export_summary_csv(
-                output_dir / f"summary_metrics_{timestamp_str}.csv"
-            )
+            self._export_summary_csv(output_dir / f"summary_metrics_{timestamp_str}.csv")
 
-            logger.info(f"Metrics exported to CSV files in: {output_dir}")
+            logger.info("Metrics exported to CSV files in: %s", output_dir)
             return True
 
         except Exception as e:
-            logger.error(f"Failed to export metrics to CSV: {e}")
+            logger.error("Failed to export metrics to CSV: %s", e)
             return False
 
     def export_prometheus_format(self, output_path: str | Path) -> bool:
@@ -159,17 +153,11 @@ class MetricsExporter:
                 prometheus_data.append(f"panther_gauge_{safe_name} {value}")
 
             # Add resource metrics (latest values)
-            resource_metrics = self.metrics_collector.get_metrics(
-                component="resource_monitor"
-            )
+            resource_metrics = self.metrics_collector.get_metrics(component="resource_monitor")
             cpu_metrics = [m for m in resource_metrics if m.name == "cpu_percent"]
             memory_metrics = [m for m in resource_metrics if m.name == "memory_percent"]
-            disk_read_metrics = [
-                m for m in resource_metrics if m.name == "disk_read_mb_total"
-            ]
-            disk_write_metrics = [
-                m for m in resource_metrics if m.name == "disk_write_mb_total"
-            ]
+            disk_read_metrics = [m for m in resource_metrics if m.name == "disk_read_mb_total"]
+            disk_write_metrics = [m for m in resource_metrics if m.name == "disk_write_mb_total"]
 
             # Get latest values if available
             if cpu_metrics:
@@ -178,31 +166,25 @@ class MetricsExporter:
 
             if memory_metrics:
                 latest_memory = max(memory_metrics, key=lambda x: x.timestamp)
-                prometheus_data.append(
-                    f"panther_memory_usage_percent {latest_memory.value}"
-                )
+                prometheus_data.append(f"panther_memory_usage_percent {latest_memory.value}")
 
             if disk_read_metrics:
                 latest_disk_read = max(disk_read_metrics, key=lambda x: x.timestamp)
-                prometheus_data.append(
-                    f"panther_disk_io_mb_read {latest_disk_read.value}"
-                )
+                prometheus_data.append(f"panther_disk_io_mb_read {latest_disk_read.value}")
 
             if disk_write_metrics:
                 latest_disk_write = max(disk_write_metrics, key=lambda x: x.timestamp)
-                prometheus_data.append(
-                    f"panther_disk_io_mb_write {latest_disk_write.value}"
-                )
+                prometheus_data.append(f"panther_disk_io_mb_write {latest_disk_write.value}")
 
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write("\n".join(prometheus_data))
                 f.write("\n")
 
-            logger.info(f"Metrics exported to Prometheus format: {output_path}")
+            logger.info("Metrics exported to Prometheus format: %s", output_path)
             return True
 
         except Exception as e:
-            logger.error(f"Failed to export metrics to Prometheus format: {e}")
+            logger.error("Failed to export metrics to Prometheus format: %s", e)
             return False
 
     def export_dashboard_json(self, output_path: str | Path) -> bool:
@@ -243,11 +225,11 @@ class MetricsExporter:
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(dashboard_data, f, indent=2, default=json_serializer)
 
-            logger.info(f"Dashboard metrics exported: {output_path}")
+            logger.info("Dashboard metrics exported: %s", output_path)
             return True
 
         except Exception as e:
-            logger.error(f"Failed to export dashboard metrics: {e}")
+            logger.error("Failed to export dashboard metrics: %s", e)
             return False
 
     def prepare_metrics_data(self) -> bool:
@@ -268,14 +250,14 @@ class MetricsExporter:
             # Basic validation
             for metric in metrics:
                 if not hasattr(metric, "name") or not hasattr(metric, "value"):
-                    logger.warning(f"Invalid metric found: {metric}")
+                    logger.warning("Invalid metric found: %s", metric)
                     continue
 
-            logger.info(f"Prepared {len(metrics)} metrics for export")
+            logger.info("Prepared %s metrics for export", len(metrics))
             return True
 
         except Exception as e:
-            logger.error(f"Failed to prepare metrics data: {e}")
+            logger.error("Failed to prepare metrics data: %s", e)
             return False
 
     def format_resource_metrics(self) -> bool:
@@ -286,9 +268,7 @@ class MetricsExporter:
             bool: True if formatting was successful, False otherwise
         """
         try:
-            resource_metrics = self.metrics_collector.get_metrics(
-                metric_type=MetricType.RESOURCE
-            )
+            resource_metrics = self.metrics_collector.get_metrics(metric_type=MetricType.RESOURCE)
 
             for metric in resource_metrics:
                 # Ensure values are JSON serializable
@@ -299,11 +279,11 @@ class MetricsExporter:
                         # Convert non-serializable values to strings
                         metric.value = str(metric.value)
 
-            logger.debug(f"Formatted {len(resource_metrics)} resource metrics")
+            logger.debug("Formatted %s resource metrics", len(resource_metrics))
             return True
 
         except Exception as e:
-            logger.error(f"Failed to format resource metrics: {e}")
+            logger.error("Failed to format resource metrics: %s", e)
             return False
 
     def prepare_dashboard_metrics(self) -> bool:
@@ -331,32 +311,22 @@ class MetricsExporter:
             # Store prepared dashboard data for export
             self._dashboard_data = dashboard_data
 
-            logger.info(f"Prepared dashboard data with {len(all_metrics)} metrics")
+            logger.info("Prepared dashboard data with %s metrics", len(all_metrics))
             return True
 
         except Exception as e:
-            logger.error(f"Failed to prepare dashboard metrics: {e}")
+            logger.error("Failed to prepare dashboard metrics: %s", e)
             return False
 
     def _get_summary_data(self) -> dict[str, Any]:
         """Get summary metrics data."""
         return {
-            "total_experiments": self.metrics_collector.get_counter(
-                "experiments_total"
-            ),
-            "successful_experiments": self.metrics_collector.get_counter(
-                "experiments_successful"
-            ),
-            "failed_experiments": self.metrics_collector.get_counter(
-                "experiments_failed"
-            ),
+            "total_experiments": self.metrics_collector.get_counter("experiments_total"),
+            "successful_experiments": self.metrics_collector.get_counter("experiments_successful"),
+            "failed_experiments": self.metrics_collector.get_counter("experiments_failed"),
             "total_test_cases": self.metrics_collector.get_counter("test_cases_total"),
-            "successful_test_cases": self.metrics_collector.get_counter(
-                "test_cases_successful"
-            ),
-            "failed_test_cases": self.metrics_collector.get_counter(
-                "test_cases_failed"
-            ),
+            "successful_test_cases": self.metrics_collector.get_counter("test_cases_successful"),
+            "failed_test_cases": self.metrics_collector.get_counter("test_cases_failed"),
             "total_execution_time": self.metrics_collector.get_timing_metric(
                 "total_execution_time"
             ),
@@ -371,9 +341,7 @@ class MetricsExporter:
     def _get_resource_metrics(self) -> dict[str, Any]:
         """Get resource usage metrics."""
         try:
-            resource_metrics = self.metrics_collector.get_metrics(
-                component="resource_monitor"
-            )
+            resource_metrics = self.metrics_collector.get_metrics(component="resource_monitor")
             if not resource_metrics:
                 return {}
 
@@ -426,7 +394,7 @@ class MetricsExporter:
             }
 
         except Exception as e:
-            logger.error(f"Error generating resource metrics summary: {e}")
+            logger.error("Error generating resource metrics summary: %s", e)
             return {
                 "cpu_usage": {"average": 0, "peak": 0, "min": 0},
                 "memory_usage": {"average": 0, "peak": 0, "min": 0},
@@ -489,7 +457,7 @@ class MetricsExporter:
                     error_categories[category] = 0
                 error_categories[category] += 1
             except Exception as e:
-                logger.debug(f"Error processing error category: {e}")
+                logger.debug("Error processing error category: %s", e)
                 # Add to 'unknown' category
                 if "unknown" not in error_categories:
                     error_categories["unknown"] = 0
@@ -500,22 +468,14 @@ class MetricsExporter:
         for error in self.metrics_collector.errors:
             try:
                 error_dict = {
-                    "timestamp": (
-                        error.timestamp if hasattr(error, "timestamp") else time.time()
-                    ),
+                    "timestamp": (error.timestamp if hasattr(error, "timestamp") else time.time()),
                     "phase": (
                         error.phase.value
-                        if hasattr(error, "phase")
-                        and error.phase
-                        and hasattr(error.phase, "value")
+                        if hasattr(error, "phase") and error.phase and hasattr(error.phase, "value")
                         else None
                     ),
-                    "component": (
-                        error.component if hasattr(error, "component") else None
-                    ),
-                    "test_case": (
-                        error.test_case if hasattr(error, "test_case") else None
-                    ),
+                    "component": (error.component if hasattr(error, "component") else None),
+                    "test_case": (error.test_case if hasattr(error, "test_case") else None),
                     "error_type": (
                         error.metadata.get("error_type", "unknown")
                         if hasattr(error, "metadata")
@@ -529,7 +489,7 @@ class MetricsExporter:
                 }
                 error_timeline.append(error_dict)
             except Exception as e:
-                logger.debug(f"Error processing error timeline item: {e}")
+                logger.debug("Error processing error timeline item: %s", e)
                 # Add a placeholder error entry
                 error_timeline.append(
                     {
@@ -553,12 +513,8 @@ class MetricsExporter:
         return {
             "total_artifacts": self.metrics_collector.get_counter("artifacts_total"),
             "logs_generated": self.metrics_collector.get_counter("logs_generated"),
-            "reports_generated": self.metrics_collector.get_counter(
-                "reports_generated"
-            ),
-            "total_artifact_size_mb": self.metrics_collector.get_gauge(
-                "total_artifact_size_mb"
-            ),
+            "reports_generated": self.metrics_collector.get_counter("reports_generated"),
+            "total_artifact_size_mb": self.metrics_collector.get_gauge("total_artifact_size_mb"),
         }
 
     def _get_raw_metrics(self) -> dict[str, Any]:
@@ -594,21 +550,13 @@ class MetricsExporter:
                     "metric_type": metric_type,
                     "value": metric.value if hasattr(metric, "value") else None,
                     "timestamp": (
-                        metric.timestamp
-                        if hasattr(metric, "timestamp")
-                        else time.time()
+                        metric.timestamp if hasattr(metric, "timestamp") else time.time()
                     ),
                     "phase": phase,
-                    "test_case": (
-                        metric.test_case if hasattr(metric, "test_case") else None
-                    ),
-                    "component": (
-                        metric.component if hasattr(metric, "component") else None
-                    ),
+                    "test_case": (metric.test_case if hasattr(metric, "test_case") else None),
+                    "component": (metric.component if hasattr(metric, "component") else None),
                     "labels": (
-                        dict(metric.labels)
-                        if hasattr(metric, "labels") and metric.labels
-                        else {}
+                        dict(metric.labels) if hasattr(metric, "labels") and metric.labels else {}
                     ),
                     "metadata": (
                         dict(metric.metadata)
@@ -619,7 +567,7 @@ class MetricsExporter:
                 metrics_as_dicts.append(metric_dict)
             except Exception as e:
                 # Log and skip problematic metrics instead of crashing
-                logger.error(f"Error processing metric for serialization: {e}")
+                logger.error("Error processing metric for serialization: %s", e)
                 continue
 
         # Process resource metrics for serialization
@@ -632,7 +580,7 @@ class MetricsExporter:
                     component="resource_monitor"
                 )
             except Exception as e:
-                logger.error(f"Failed to get resource monitor metrics: {e}")
+                logger.error("Failed to get resource monitor metrics: %s", e)
 
             for metric in resource_monitor_metrics:
                 try:
@@ -644,10 +592,7 @@ class MetricsExporter:
                     # Handle value specially to avoid 'str' object has no attribute 'value' error
                     value = None
                     if hasattr(metric, "value"):
-                        if (
-                            isinstance(metric.value, (int, float, bool))
-                            or metric.value is None
-                        ):
+                        if isinstance(metric.value, (int, float, bool)) or metric.value is None:
                             value = metric.value
                         else:
                             # For string or other object types, just use string representation
@@ -682,10 +627,10 @@ class MetricsExporter:
                     resource_metrics.append(resource_dict)
                 except Exception as e:
                     # Log and skip problematic resource metrics
-                    logger.error(f"Error processing resource metric: {e}")
+                    logger.error("Error processing resource metric: %s", e)
                     continue
         except Exception as e:
-            logger.error(f"Failed to process resource metrics section: {e}")
+            logger.error("Failed to process resource metrics section: %s", e)
 
         # Prepare the final metrics dictionary with robust error handling
         result = {}
@@ -694,11 +639,9 @@ class MetricsExporter:
             # Get timing metrics safely
             if hasattr(self.metrics_collector, "timing_metrics"):
                 try:
-                    result["timing_metrics"] = dict(
-                        self.metrics_collector.timing_metrics
-                    )
+                    result["timing_metrics"] = dict(self.metrics_collector.timing_metrics)
                 except Exception as e:
-                    logger.error(f"Error converting timing metrics: {e}")
+                    logger.error("Error converting timing metrics: %s", e)
                     result["timing_metrics"] = {}
             else:
                 result["timing_metrics"] = {}
@@ -708,7 +651,7 @@ class MetricsExporter:
                 try:
                     result["counters"] = dict(self.metrics_collector.counters)
                 except Exception as e:
-                    logger.error(f"Error converting counters: {e}")
+                    logger.error("Error converting counters: %s", e)
                     result["counters"] = {}
             else:
                 result["counters"] = {}
@@ -718,7 +661,7 @@ class MetricsExporter:
                 try:
                     result["gauges"] = dict(self.metrics_collector.gauges)
                 except Exception as e:
-                    logger.error(f"Error converting gauges: {e}")
+                    logger.error("Error converting gauges: %s", e)
                     result["gauges"] = {}
             else:
                 result["gauges"] = {}
@@ -729,22 +672,20 @@ class MetricsExporter:
                 try:
                     result["histograms"] = self.metrics_collector.histograms
                 except Exception as e:
-                    logger.error(f"Error accessing histograms: {e}")
+                    logger.error("Error accessing histograms: %s", e)
 
             # Add resource metrics
             result["resource_metrics"] = resource_metrics
 
             # Filter error metrics safely
             try:
-                result["errors"] = [
-                    m for m in metrics_as_dicts if m.get("metric_type") == "error"
-                ]
+                result["errors"] = [m for m in metrics_as_dicts if m.get("metric_type") == "error"]
             except Exception as e:
-                logger.error(f"Error filtering error metrics: {e}")
+                logger.error("Error filtering error metrics: %s", e)
                 result["errors"] = []
 
         except Exception as e:
-            logger.error(f"Error assembling raw metrics result: {e}")
+            logger.error("Error assembling raw metrics result: %s", e)
 
         return result
 
@@ -768,9 +709,7 @@ class MetricsExporter:
 
     def _export_resource_csv(self, output_path: Path) -> None:
         """Export resource metrics to CSV."""
-        resource_metrics = self.metrics_collector.get_metrics(
-            component="resource_monitor"
-        )
+        resource_metrics = self.metrics_collector.get_metrics(component="resource_monitor")
         if not resource_metrics:
             return
 
@@ -795,9 +734,7 @@ class MetricsExporter:
         """Export error metrics to CSV."""
         with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(
-                ["Timestamp", "Phase", "Error Type", "Error Message", "Component"]
-            )
+            writer.writerow(["Timestamp", "Phase", "Error Type", "Error Message", "Component"])
 
             for error in self.metrics_collector.errors:
                 writer.writerow(
@@ -821,7 +758,7 @@ class MetricsExporter:
                 for key, value in summary.items():
                     writer.writerow([key, str(value), "summary"])
             except Exception as e:
-                logger.error(f"Error exporting summary CSV: {e}")
+                logger.error("Error exporting summary CSV: %s", e)
                 # Write a placeholder if we can't get the real data
                 writer.writerow(["error", "Failed to get summary data", "error"])
 
@@ -862,9 +799,7 @@ class MetricsExporter:
 
     def _get_dashboard_timeseries(self) -> dict[str, list[dict[str, Any]]]:
         """Get time series data for dashboard charts."""
-        resource_metrics = self.metrics_collector.get_metrics(
-            component="resource_monitor"
-        )
+        resource_metrics = self.metrics_collector.get_metrics(component="resource_monitor")
 
         # Group metrics by timestamp
         metrics_by_timestamp = {}

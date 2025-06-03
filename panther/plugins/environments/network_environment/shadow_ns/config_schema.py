@@ -5,12 +5,8 @@ from panther.config.config_experiment_schema import NetworkEnvironmentConfig
 
 @dataclass
 class GeneralConfig:
-    stop_time: str = (
-        "300s"  # The total simulation time in seconds -> use experiment duration
-    )
-    model_unblocked_syscall_latency: bool = (
-        False  # Add latency for unblocked system calls
-    )
+    stop_time: str = "300s"  # The total simulation time in seconds -> use experiment duration
+    model_unblocked_syscall_latency: bool = False  # Add latency for unblocked system calls
 
 
 @dataclass
@@ -76,15 +72,11 @@ class ShadowNsConfig(NetworkEnvironmentConfig):
     incompatibility: list[str] = field(
         default_factory=lambda: ["strace", "gperf"], metadata={"omegaconf_ignore": True}
     )  # Incompatibilities
-    general: GeneralConfig = field(
-        default_factory=GeneralConfig
-    )  # General configuration
+    general: GeneralConfig = field(default_factory=GeneralConfig)  # General configuration
     experimental: ExperimentalConfig = field(
         default_factory=ExperimentalConfig
     )  # Experimental features
-    network: NetworkConfig = field(
-        default_factory=NetworkConfig
-    )  # Network configuration
+    network: NetworkConfig = field(default_factory=NetworkConfig)  # Network configuration
     host_option_defaults: HostOptionDefaultsConfig = field(
         default_factory=HostOptionDefaultsConfig
     )  # Default host options

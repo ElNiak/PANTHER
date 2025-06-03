@@ -98,9 +98,7 @@ class ServicePluginTutorial:
         print("-" * 40)
 
         # Create plugin directory structure
-        plugin_dir = (
-            self.tutorial_dir / "generated" / self.plugin_type / self.plugin_name
-        )
+        plugin_dir = self.tutorial_dir / "generated" / self.plugin_type / self.plugin_name
         plugin_dir.mkdir(parents=True, exist_ok=True)
 
         # Create files
@@ -524,9 +522,7 @@ tests:
 
         config_file = self.plugin_dir / "test_config.yaml"
         config_file.write_text(test_config)
-        print(
-            f"✅ Created test configuration: {config_file.relative_to(self.tutorial_dir)}"
-        )
+        print(f"✅ Created test configuration: {config_file.relative_to(self.tutorial_dir)}")
 
         # Show how to validate the plugin
         print("\n📋 Plugin Validation Steps:")

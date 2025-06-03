@@ -4,7 +4,10 @@ import os
 
 from jinja2 import Environment, FileSystemLoader
 from omegaconf import OmegaConf
+import shlex
+import yaml
 
+from panther.utils.command import ShellCommand
 from panther.plugins.services.services_interface import IServiceManager
 
 from panther.config.config_experiment_schema import TestConfig
@@ -76,9 +79,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(
-            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
-        )
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.docker_name = None
         self.execution_environment = None
         self.network_name = f"{env_sub_type}_network"
@@ -93,9 +94,16 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self.services_managers = None
 
         self.logger.debug(
-            f"Environment settings: {self.env_config_to_test} in {self.templates_dir}"
+            "Environment settings: %s in %s",
+            self.env_config_to_test,
+            self.templates_dir
         )
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(self.templates_dir),
+            enable_async=False,
+            auto_reload=False,
+            cache_size=0,  # Disable caching for security
+        )
         self.jinja_env.filters["realpath"] = lambda x: os.path.abspath(x)
         self.jinja_env.filters["is_dict"] = lambda x: isinstance(x, dict)
         self.jinja_env.trim_blocks = True
@@ -117,7 +125,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         """
         for execution_env in self.execution_environment:
             try:
-                self.logger.debug(f"Setting up execution environment: {execution_env}")
+                self.logger.debug("Setting up execution environment: %s", execution_env)
                 execution_env.setup_environment(
                     services_managers=self.services_managers,
                     test_config=self.test_config,
@@ -127,7 +135,8 @@ class INetworkEnvironment(IEnvironmentPlugin):
                 )
             except Exception as e:
                 self.logger.error(
-                    f"Failed to setup execution environment: {e}\n{traceback.format_exc()}"
+                    "Failed to setup execution environment: %s",
+                    e
                 )
 
     def update_environment(
@@ -158,9 +167,9 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
         for service in self.services_managers:
-            self.logger.debug(f"Service: {service}")
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+            self.logger.debug("Service: %s", service)
+        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))
+        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(self.global_config))
 
     def create_log_dir(self, service: IServiceManager):
         """
@@ -175,7 +184,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         log_dir = os.path.join(self.log_dirs, service.service_name)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-            self.logger.info(f"Created log directory: {log_dir}")
+            self.logger.info("Created log directory: %s", log_dir)
 
     def generate_from_template(
         self,
@@ -185,6 +194,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         rendered_out_file,
         out_file,
         additional_param=None,
+        structured_commands=None,
     ):
         """
         Generates a configuration file from a Jinja2 template.
@@ -196,20 +206,35 @@ class INetworkEnvironment(IEnvironmentPlugin):
             rendered_out_file (str): The file path where the rendered template will be saved.
             out_file (str): The file path where the final output will be saved.
             additional_param (dict, optional): Additional parameters to be passed to the template. Defaults to None.
+            structured_commands (dict, optional): Structured command arguments for enhanced command generation.
 
         Returns:
             None
-        """
+            
+        Note:
+            This method handles the conversion of ShellCommand objects to strings.
+            No preprocessing of commands should be done before calling this method
+            to avoid duplicate command generation in the output files.
+        """        
+        # # Register shell and YAML quoting filters
+        # self.jinja_env.filters["quote_shell"] = lambda s: shlex.quote(str(s))
+        # self.jinja_env.filters["quote_yaml"] = lambda s: yaml.safe_dump(str(s)).strip()
+
         template = self.jinja_env.get_template(template_name)
-        self.logger.debug(f"Template: {template}")
-        self.logger.debug(f"Services: {self.services_managers}")
-        self.logger.debug(f"Deployment Info: {self.test_config}")
+        self.logger.debug("Template: %s", template)
+        self.logger.debug("Services: %s", self.services_managers)
+        self.logger.debug("Deployment Info: %s", self.test_config)
+        self.logger.debug("Paths: %s", paths)
+        self.logger.debug("Timestamp: %s", timestamp)
+        self.logger.debug("Additional Param: %s", additional_param)
+        self.logger.debug("Structured Commands: %s", structured_commands)
         rendered = template.render(
             services=self.services_managers,
             test_config=self.test_config,
             paths=paths,
             timestamp=timestamp,
             additional_param=additional_param,
+            structured_commands=structured_commands,
             log_dir=self.log_dirs,
             output_dir=self.output_dir,
             experiment_name=self.output_dir.split("/")[-1],
@@ -232,7 +257,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
             str: The name of the Docker container.
         """
         self.docker_name = self.plugin_loader.build_docker_image_from_path(
-            self.services_network_docker_file_path,
+            self.services_network_docker_file_path,  # defined in inheritance chain
             self.docker_name,
             self.docker_version,
         )
@@ -250,37 +275,26 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
         self.logger.debug("Initial environment variables:")
         for k, v in env_vars.items():
-            self.logger.debug(f"{k}: {v}")
+            self.logger.debug("%s: %s", k, v)
 
         for key, value in env_vars.items():
             if isinstance(value, str):
                 resolved_value = value
-                self.logger.debug(
-                    f"Resolving variable: {key} - Original value: {value}"
-                )
+                self.logger.debug("Resolving variable: %s - Original value: %s", key, value)
                 for (
                     var_name,
                     var_value,
                 ) in resolved_env.items():  # Use already resolved variables
-                    if (
-                        f"${{{var_name}}}" in resolved_value
-                        or f"${var_name}" in resolved_value
-                    ):
-                        resolved_value = resolved_value.replace(
-                            f"${{{var_name}}}", var_value
-                        )
-                        resolved_value = resolved_value.replace(
-                            f"${var_name}", var_value
-                        )
-                        self.logger.debug(
-                            f"Replaced ${var_name} in {key} with {var_value}"
-                        )
+                    if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
+                        resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
+                        resolved_value = resolved_value.replace(f"${var_name}", var_value)
+                        self.logger.debug("Replaced $%s in %s with %s", var_name, key, var_value)
                 resolved_value = resolved_value.replace("$", "$$")
                 resolved_env[key] = resolved_value
 
         self.logger.debug("Final resolved environment variables without duplication:")
         for k, v in resolved_env.items():
-            self.logger.debug(f"{k}: {v}")
+            self.logger.debug("%s: %s", k, v)
 
         return resolved_env
 
@@ -298,28 +312,28 @@ class INetworkEnvironment(IEnvironmentPlugin):
         :param services: A dictionary containing the services to be generated.
         :return: A list of generated services.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def prepare_environment(self):
         """
         Prepares the environment for running experiments.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def launch_environment_services(self):
         """
         Launches the services in the network environment.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def deploy_services(self):
         """
         Deploys the specified services in the network environment.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def setup_environment(
@@ -341,4 +355,5 @@ class INetworkEnvironment(IEnvironmentPlugin):
         """
         Tears down the environment after experiments are completed.
         """
-        pass
+        raise NotImplementedError()
+    

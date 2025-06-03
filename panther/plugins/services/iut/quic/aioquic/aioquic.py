@@ -17,32 +17,66 @@ class AioquicServiceManager(IImplementationManager):
         protocol: ProtocolConfig,
         implementation_name: str,
     ):
-        super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name
-        )
-        self.logger.debug(
-            f"Initializing Aioquic service manager for '{implementation_name}'"
-        )
-        self.logger.debug(
-            f"Loaded Aioquic configuration: {self.service_config_to_test}"
-        )
+        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        self.logger.debug("Initializing Aioquic service manager for '%s'", implementation_name)
+        self.logger.debug("Loaded Aioquic configuration: %s", self.service_config_to_test)
         self.initialize_commands()
 
     def generate_run_command(self):
         """
-        Generates the run command.
+        Generates the run command for the aioquic service.
+
+        This method constructs a complete run command configuration using
+        the structured approach for proper quoting and escaping of all
+        command arguments and environment variables.
+
+        Returns:
+            dict: The run command configuration with all necessary components.
         """
-        cmd_args = self.generate_deployment_commands()
+        if self.role == RoleEnum.server:
+            params = self.service_config_to_test.implementation.version.server
+        else:  # client
+            params = self.service_config_to_test.implementation.version.client
+
+        # Set working directory from params
+        self.working_dir = params["binary"]["dir"]
+
+        # Build command arguments as list
+        command_args = self.generate_deployment_commands()
+
+        # Environment variables
+        env_vars = {
+            "PYTHONPATH": "/opt/aioquic",
+            "PYTHONUNBUFFERED": "1",  # Ensure python output is unbuffered
+        }
+
+        # Add any protocol-specific environment variables
+        if "environment" in params:
+            for key, value in params["environment"].items():
+                env_vars[key] = value
+
+        # Try to render with structured template, fall back to original if needed
+        try:
+            template_name = f"{str(self.role.name)}_command_structured.jinja"
+            rendered_command = self.render_template_with_structured_args(
+                template_name, params, command_args, env_vars
+            )
+            # For structured templates, we'll use the rendered command as a string
+            command_args = rendered_command
+        except Exception as e:
+            self.logger.warning(
+                "Failed to use structured template for %s: %s. ",
+                self.service_name,
+                e
+            )
+            # Keep command_args as is if the structured template fails
+
         return {
             "working_dir": self.working_dir,
-            "command_binary": (
-                self.service_config_to_test.implementation.version.server.binary.name
-                if self.role == RoleEnum.server
-                else self.service_config_to_test.implementation.version.client.binary.name
-            ),
-            "command_args": cmd_args,
+            "command_binary": params["binary"]["name"],
+            "command_args": command_args,
             "timeout": self.service_config_to_test.timeout,
-            "command_env": {},
+            "command_env": env_vars,
         }
 
     def generate_post_run_commands(self):
@@ -76,53 +110,84 @@ class AioquicServiceManager(IImplementationManager):
             self.service_config_to_test.implementation.version,
         )
 
-    def generate_deployment_commands(self) -> str:
+    def generate_deployment_commands(self) -> list:
         """
-        Generates deployment commands and collects volume mappings based on service parameters.
+        Generates a structured list of deployment command arguments for the QUIC service.
 
-        :param service_params: Parameters specific to the service.
-        :param environment: The environment in which the services are being deployed.
-        :return: A dictionary with service name as key and a dictionary containing command and volumes.
+        This method constructs the command arguments using the structured approach,
+        creating a list of arguments rather than concatenating strings, which
+        ensures proper escaping and handling of special characters.
+
+        Returns:
+            list: The list of command arguments.
         """
         self.logger.debug(
-            f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
+            "Generating deployment commands for service: %s with service parameters: %s",
+            self.service_name,
+            self.service_config_to_test
         )
-        # Create the command list
 
-        self.logger.debug(f"Role: {self.role}, Version: {self.service_version}")
-
-        # Determine if network interface parameters should be included based on environment
-
-        # Build parameters for the command template
-        # TODO ensure that the parameters are correctly set
+        # Get appropriate parameters based on role
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
-        # For the client, include target and message if available
-        elif self.role == RoleEnum.client:
+        else:  # client
             params = self.service_config_to_test.implementation.version.client
 
-        params["target"] = self.service_config_to_test.protocol.target
+        # Initialize the command argument list
+        cmd_args = []
 
-        self.logger.debug(f"Parameters for command template: {params}")
-        self.logger.debug(f"Role: {self.role}")
-        self.working_dir = params["binary"]["dir"]
+        # Add certificate parameters
+        if "certificates" in params and params["certificates"]:
+            certs = params["certificates"]
+            if "cert_param" in certs and "cert_file" in certs:
+                cmd_args.extend([certs["cert_param"], certs["cert_file"]])
+            if "key_param" in certs and "key_file" in certs:
+                cmd_args.extend([certs["key_param"], certs["key_file"]])
 
-        # Conditionally include network interface parameters
-        # if not include_interface:
-        #     params["network"].pop("interface", None)
-        # else:
-        #     # TODO add that in the Dockerfile
-        #     subprocess.run(["bash", "generate_certificates.sh"])
+        # Add ticket file parameters for client
+        if self.role == RoleEnum.client and "ticket_file" in params:
+            ticket = params["ticket_file"]
+            if "param" in ticket and "file" in ticket:
+                cmd_args.extend([ticket["param"], ticket["file"]])
 
-        # Render the appropriate template
-        try:
-            template_name = f"{str(self.role.name)}_command.jinja"
-            return super().render_commands(params, template_name)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to render command for service '{self.service_config_to_test.name}': {e}\n{traceback.format_exc()}"
+        # Add protocol parameters (ALPN)
+        if "protocol" in params and params["protocol"]:
+            proto = params["protocol"]
+            if "alpn" in proto and proto["alpn"]:
+                cmd_args.extend([proto["alpn"]["param"], proto["alpn"]["value"]])
+
+            # Add additional parameters
+            if "additional_parameters" in proto and proto["additional_parameters"]:
+                # Split additional parameters into separate arguments
+                additional_params = self.build_command_args(proto["additional_parameters"])
+                cmd_args.extend(additional_params)
+
+        # Add network interface if specified
+        if "network" in params and params["network"]:
+            network = params["network"]
+            if "interface" in network and network["interface"]:
+                cmd_args.extend([network["interface"]["param"], network["interface"]["value"]])
+
+        # Add initial version for client if specified
+        if self.role == RoleEnum.client and "initial_version" in params:
+            cmd_args.extend(["-v", params["initial_version"]])
+
+        # Add target and port
+        if self.role == RoleEnum.client:
+            target = self.service_config_to_test.protocol.target
+            port = params["network"]["port"]
+            cmd_args.extend([target, str(port)])
+        else:  # server
+            cmd_args.extend(["-p", str(params["network"]["port"])])
+
+        # Add logging redirection
+        if "logging" in params and params["logging"]:
+            cmd_args.extend(
+                [">", params["logging"]["log_path"], "2>", params["logging"]["err_path"]]
             )
-            raise e
+
+        self.logger.debug("Generated command arguments: %s", cmd_args)
+        return cmd_args
 
     def __str__(self) -> str:
         return f"AioquicServiceManager({self.__dict__})"

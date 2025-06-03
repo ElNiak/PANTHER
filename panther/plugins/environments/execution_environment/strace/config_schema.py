@@ -48,6 +48,4 @@ class StraceConfig(ExecutionEnvironmentConfig):
         default_factory=list
     )  # Additional parameters for strace
     monitored_process: str | None = None  # Process name to monitor (if not PID-based)
-    network_focus: bool = (
-        True  # Indicate if strace should emphasize network protocol syscalls
-    )
+    network_focus: bool = True  # Indicate if strace should emphasize network protocol syscalls

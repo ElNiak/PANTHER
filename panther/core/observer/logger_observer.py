@@ -25,4 +25,4 @@ class LoggerObserver(IObserver):
 
         :param event: The event to handle.
         """
-        self.logger.info(f"Received event '{event.name}' with data: {event.data}")
+        self.logger.info("Received event '%s' with data: %s", event.name, event.data)

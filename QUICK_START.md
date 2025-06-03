@@ -1,6 +1,4 @@
-# Quick Start — Your First Experiment in ≈30 min 🚀
-
-*(Example: QUIC — but PANTHER supports **any** protocol plugin)*
+# QUIC(k) Start — Your First Experiment in ≈10(30) min 🚀
 
 This guide shows how to install **PANTHER**, spin up a simple
 **client ↔ server experiment**, and inspect the results.
@@ -10,8 +8,8 @@ implementations ship with PANTHER, **yet the exact same steps apply to
 MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 
 !!! info "System Requirements"
-    **Target platform:** Linux (x86-64) with Docker >= 27
-    **Estimated time:** ≈ 30 minutes per test the first time (due to containers building times of implementation), then around 2 minutes.
+    **Target platform:** Linux (x86-64) or Mac with Docker >= 27
+    **Estimated time (the first time):** ≈ 10 minutes if you do not use Ivy tester and ≈ 30 minutes (due to containers building times of implementation), then around 2 minutes. Ivy is very long to compile and depend on your computer.
 
 ---
 
@@ -46,15 +44,16 @@ paths:
   output_dir: outputs
 
 docker:
-  build_docker_image: true
+  build_docker_image: true 
+  # true -> Rebuild the image if already present 
+  # but even at false, if the image build is done
+  # if the image does not exist
 
 tests:
-  - name: "QUIC Handshake (PicoQUIC)"
+  - name: "QUIC Connection (PicoQUIC)"
     description: "My first experiement"
     network_environment:
       type: docker_compose
-    execution_environment:
-      - type: gperf_cpu          # optional CPU profiler
     services:
       server:
         implementation:
@@ -62,7 +61,7 @@ tests:
           type: iut
         protocol:
           name: quic
-          version: draft29
+          version: rfc9000
           role: server
       client:
         implementation:
@@ -70,37 +69,43 @@ tests:
           type: iut
         protocol:
           name: quic
-          version: draft29
+          version: rfc9000
           role: client
           target: server
     steps:
       wait: 15
-  - name: "QUIC Version Negociation (PicoQUIC)"
+  - name: "QUIC Connection Tested (PicoQUIC)"
     description: "My second experiement"
     network_environment:
       type: docker_compose
-    execution_environment:
+    execution_environment: # strace
       - type: strace
     services:
       server:
+        timeout: 100
         implementation:
-          name: picoquic
-          type: iut
+          name: panther_ivy
+          type: testers
+          test: quic_client_test_max
         protocol:
           name: quic
-          version: draft29
+          version: rfc9000
           role: server
+        ports:
+          - "4443:4443"
+          - "4987:4987"
       client:
+        timeout: 100
         implementation:
           name: picoquic
           type: iut
         protocol:
           name: quic
-          version: rfc9000 # trigger VN
+          version: rfc9000 
           role: client
           target: server
     steps:
-      wait: 15
+      wait: 100
 ```
 
 ---
@@ -108,7 +113,7 @@ tests:
 ## 3 — Run the Experiment
 
 ```bash
-panther --experiment-config quic_demo.yaml
+panther --experiment-config quic_demo.yaml --enable-metrics
 # Or
 python -m panther  --experiment-config quic_demo.yaml --enable-metrics
 ```
@@ -136,7 +141,7 @@ outputs/
     ├── metrics/                    # contains experiments monitored metrics
     ├── experiment.log              # high-level timeline + any errors
     ├── experiment_config.yaml      # full experiment configuration (including defaults)
-    ├── QUIC_Handshake_PicoQUIC/    # first test results
+    ├── QUIC_Connection_PicoQUIC/    # first test results
     │   ├── metrics/                # contains test monitored metrics
     │   ├── server/                 # server container logs and artifacts
     │   │   ├── stdout.log          # server process standard output
@@ -146,7 +151,7 @@ outputs/
     │       ├── stdout.log          # client process standard output
     │       ├── stderr.log          # client process standard error
     │       └── cpu_profile.prof    # CPU profile (from gperf_cpu)
-    └── QUIC_Version_Negociation_PicoQUIC/  # second test results
+    └── QUIC_Connection_Tested_PicoQUIC/  # second test results
         ├── server/                 # server container logs and artifacts
         │   ├── stdout.log          # server process standard output
         │   ├── stderr.log          # server process standard error

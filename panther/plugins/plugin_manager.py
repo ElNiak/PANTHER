@@ -74,34 +74,27 @@ class PluginManager:
         """
         service_manager_path = implementation_dir / f"{implementation.name}.py"
         if not service_manager_path.exists():
-            self.logger.error(
-                f"Service manager file '{service_manager_path}' does not exist."
-            )
-            raise FileNotFoundError(
-                f"Service manager file '{service_manager_path}' not found."
-            )
+            self.logger.error("Service manager file '%s' does not exist.", service_manager_path)
+            raise FileNotFoundError(f"Service manager file '{service_manager_path}' not found.")
 
         # Here we trying to load the service manager class from the implementation plugin
         service_module_name = f"{protocol.name}.{implementation.name}"
-        spec = importlib.util.spec_from_file_location(
-            service_module_name, service_manager_path
-        )
+        spec = importlib.util.spec_from_file_location(service_module_name, service_manager_path)
         self.logger.debug(
-            f"Loading module from '{service_manager_path}' as '{service_module_name}' with spec {spec}"
+            "Loading module from '%s' as '%s' with spec %s",
+            service_manager_path,
+            service_module_name,
+            spec
         )
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
             importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             # We are trying to load the class from the module
-            class_name = PluginLoader.get_class_name(
-                implementation.name, suffix="ServiceManager"
-            )
-            self.logger.debug(f"Loading class '{class_name}' from module '{module}'")
+            class_name = PluginLoader.get_class_name(implementation.name, suffix="ServiceManager")
+            self.logger.debug("Loading class '%s' from module '%s'", class_name, module)
             service_manager_class = getattr(module, class_name, None)
-            if service_manager_class and issubclass(
-                service_manager_class, IServiceManager
-            ):
+            if service_manager_class and issubclass(service_manager_class, IServiceManager):
                 # Less elegant way (than service_type = service_manager_class.service_type)
                 # to determine the service type BUT it works and no need to define property
                 service_type = (
@@ -115,19 +108,18 @@ class PluginManager:
                     protocol=protocol,
                     implementation_name=implementation.name,
                 )
-                self.logger.debug(f"Preparing instance of '{class_name}'")
+                self.logger.debug("Preparing instance of '%s'", class_name)
                 instance.prepare(self.plugins_loader)
-                self.logger.debug(f"Created instance of '{class_name}'")
+                self.logger.debug("Created instance of '%s'", class_name)
                 return instance
             else:
                 self.logger.error(
-                    f"Service manager class '{class_name}' not found or does not inherit from IImplementationManager."
+                    "Service manager class '%s' not found or does not inherit from IImplementationManager.",
+                    class_name
                 )
-                raise AttributeError(
-                    f"Service manager class '{class_name}' not found or invalid."
-                )
+                raise AttributeError(f"Service manager class '{class_name}' not found or invalid.")
         else:
-            self.logger.error(f"Cannot load module from '{service_manager_path}'")
+            self.logger.error("Cannot load module from '%s'", service_manager_path)
             raise ImportError(f"Cannot load module from '{service_manager_path}'")
 
     def create_environment_manager(
@@ -160,7 +152,8 @@ class PluginManager:
         environment_plugin_path = environment_dir / environment / f"{environment}.py"
         if not environment_plugin_path.exists():
             self.logger.error(
-                f"Environment plugin file '{environment_plugin_path}' does not exist."
+                "Environment plugin file '%s' does not exist.",
+                environment_plugin_path
             )
             raise FileNotFoundError(
                 f"Environment plugin file '{environment_plugin_path}' not found."
@@ -172,7 +165,10 @@ class PluginManager:
             environment_module_name, environment_plugin_path
         )
         self.logger.debug(
-            f"Loading module from '{environment_plugin_path}' as '{environment_module_name}' with spec {spec}"
+            "Loading module from '%s' as '%s' with spec %s",
+            environment_plugin_path,
+            environment_module_name,
+            spec
         )
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
@@ -181,16 +177,16 @@ class PluginManager:
             environment_class = getattr(module, class_name, None)
             if environment_class and issubclass(environment_class, IEnvironmentPlugin):
                 self.logger.debug(
-                    f"Loading test configuration for '{environment}' - {environment_dir.name}"
+                    "Loading test configuration for '%s' - %s",
+                    environment,
+                    environment_dir.name
                 )
                 env_config = (
                     test_config.execution_environments
                     if environment_dir.name == "execution_environment"
                     else test_config.network_environment
                 )
-                self.logger.debug(
-                    f"Loading class '{class_name}' from module '{module}'"
-                )
+                self.logger.debug("Loading class '%s' from module '%s'", class_name, module)
                 instance = environment_class(
                     env_config_to_test=env_config,
                     output_dir=str(output_dir),
@@ -198,15 +194,14 @@ class PluginManager:
                     env_sub_type=environment,
                     event_manager=event_manager,
                 )
-                self.logger.debug(f"Created instance of '{class_name}'")
+                self.logger.debug("Created instance of '%s'", class_name)
                 return instance
             else:
                 self.logger.error(
-                    f"Environment class '{class_name}' not found or does not inherit from IEnvironmentPlugin."
+                    "Environment class '%s' not found or does not inherit from IEnvironmentPlugin.",
+                    class_name
                 )
-                raise AttributeError(
-                    f"Environment class '{class_name}' not found or invalid."
-                )
+                raise AttributeError(f"Environment class '{class_name}' not found or invalid.")
         else:
-            self.logger.error(f"Cannot load module from '{environment_plugin_path}'")
+            self.logger.error("Cannot load module from '%s'", environment_plugin_path)
             raise ImportError(f"Cannot load module from '{environment_plugin_path}'")

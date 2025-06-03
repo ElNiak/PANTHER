@@ -106,8 +106,8 @@ class TestEnhancedPantherIvy(unittest.TestCase):
         print("\nStructured commands:")
         for phase, cmds in commands.items():
             print(f"  {phase}: {len(cmds)} commands")
-            functions_in_phase = [cmd for cmd in cmds if cmd.is_function_definition]
-            calls_in_phase = [cmd for cmd in cmds if not cmd.is_function_definition]
+            functions_in_phase = [cmd for cmd in cmds if cmd.get("is_function_definition", False)]
+            calls_in_phase = [cmd for cmd in cmds if not cmd.get("is_function_definition", False)]
             print(f"    Functions: {len(functions_in_phase)}")
             print(f"    Calls: {len(calls_in_phase)}")
 
@@ -115,14 +115,14 @@ class TestEnhancedPantherIvy(unittest.TestCase):
             for i, cmd in enumerate(
                 functions_in_phase[:3]
             ):  # Limit to first 3 to avoid verbose output
-                name = cmd.description if cmd.description else "Unknown function"
+                name = cmd.get("description", "") if cmd.get("description", "") else "Unknown function"
                 print(f"      Function {i+1}: {name}")
 
             # Print call details
             for i, cmd in enumerate(
                 calls_in_phase[:3]
             ):  # Limit to first 3 to avoid verbose output
-                print(f"      Call {i+1}: {cmd.command}")
+                print(f"      Call {i+1}: {cmd.get('command', '')}")
 
         # Check if the update_ivy_wrapper function is defined in any phase
         function_defined_pre_compile = False
@@ -132,29 +132,29 @@ class TestEnhancedPantherIvy(unittest.TestCase):
 
         # Check pre_compile phase for function definitions
         for command in commands.get("pre_compile", []):
-            if command.is_function_definition:
-                if "update_ivy_wrapper" in command.command:
+            if command.get("is_function_definition", False):
+                if "update_ivy_wrapper" in command.get("command", ""):
                     function_defined_pre_compile = True
                     print("Found update_ivy_wrapper function definition in pre_compile")
-                elif "update_ivy_tool" in command.command:
+                elif "update_ivy_tool" in command.get("command", ""):
                     update_ivy_defined = True
                     print("Found update_ivy_tool function definition in pre_compile")
 
         # Check compile phase for function definitions and calls
         for command in commands.get("compile", []):
             if (
-                command.is_function_definition
-                and "update_ivy_wrapper" in command.command
+                command.get("is_function_definition", False)
+                and "update_ivy_wrapper" in command.get("command", "")
             ):
                 function_defined_compile = True
                 print("Found update_ivy_wrapper function definition in compile")
             elif (
-                not command.is_function_definition
-                and "update_ivy_wrapper" in command.command
+                not command.get("is_function_definition", False)
+                and "update_ivy_wrapper" in command.get("command", "")
             ):
                 function_called = True
                 print(
-                    f"Found update_ivy_wrapper function call in compile: {command.command}"
+                    f"Found update_ivy_wrapper function call in compile: {command.get('command', '')}"
                 )
 
         self.assertTrue(
@@ -208,22 +208,22 @@ class TestEnhancedPantherIvy(unittest.TestCase):
         template_str = """#!/bin/bash
 # Test template for unit tests
 {% for cmd in pre_compile_commands %}
-{% if cmd.is_function_definition %}
-# Function definition: {{ cmd.description }}
-{{ cmd.command }}
+{% if cmd.get('is_function_definition', False) %}
+# Function definition: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% else %}
-# Command: {{ cmd.description }}
-{{ cmd.command }}
+# Command: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% endif %}
 {% endfor %}
 
 {% for cmd in compile_commands %}
-{% if cmd.is_function_definition %}
-# Function definition: {{ cmd.description }}
-{{ cmd.command }}
+{% if cmd.get('is_function_definition', False) %}
+# Function definition: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% else %}
-# Command: {{ cmd.description }}
-{{ cmd.command }}
+# Command: {{ cmd.get('description', '') }}
+{{ cmd.get('command', '') }}
 {% endif %}
 {% endfor %}
 """

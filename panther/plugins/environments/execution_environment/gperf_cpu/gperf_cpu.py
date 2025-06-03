@@ -53,9 +53,7 @@ class GperfCpuEnvironment(IExecutionEnvironment, ABC):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(
-            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
-        )
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.global_config = None
         self.env_config_to_test = env_config_to_test
 
@@ -72,9 +70,9 @@ class GperfCpuEnvironment(IExecutionEnvironment, ABC):
         self.plugin_loader = plugin_loader
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
-        self.logger.debug(f"Services config: {self.env_config_to_test}")
+        self.logger.debug("Services config: %s", self.env_config_to_test)
         for service in self.services_managers:
-            self.logger.debug(f"Service cmds: {service.run_cmd}")
+            self.logger.debug("Service cmds: %s", service.run_cmd)
             if service.service_config_to_test.implementation.gperf_compatible:
                 service.environments["GPERF"] = True
                 service.run_cmd["run_cmd"]["command_env"][
@@ -87,12 +85,12 @@ class GperfCpuEnvironment(IExecutionEnvironment, ABC):
                 service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [
                     f"pprof --pdf /app/logs/{service.service_name}_cpu.prof > /app/logs/{service.service_name}_cpu.pdf"
                 ]
-                self.logger.debug(f"Service cmds: {service.run_cmd}")
+                self.logger.debug("Service cmds: %s", service.run_cmd)
             else:
-                self.logger.debug(f"Service {service} is not gperf compatible")
+                self.logger.debug("Service %s is not gperf compatible", service)
 
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))
+        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(self.global_config))
 
     def to_command(self, service_name: str) -> str:
         """

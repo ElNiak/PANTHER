@@ -141,9 +141,7 @@ class MetricsCollector:
             metadata={"experiment_name": experiment_name},
         )
 
-        self.logger.info(
-            f"Metrics collector initialized for experiment: {experiment_name}"
-        )
+        self.logger.info("Metrics collector initialized for experiment: %s", experiment_name)
 
     def start_collection_thread(self, interval: float = 1.0):
         """
@@ -162,7 +160,7 @@ class MetricsCollector:
             target=self._collection_loop, daemon=True, name="MetricsCollector"
         )
         self.collection_thread.start()
-        self.logger.info(f"Metrics collection thread started with interval {interval}s")
+        self.logger.info("Metrics collection thread started with interval %ss", interval)
 
     def stop_collection_thread(self):
         """Stop the metrics collection thread."""
@@ -189,7 +187,7 @@ class MetricsCollector:
 
             except Exception as e:
                 # Log but continue - we never want to crash the collection thread
-                self.logger.error(f"Error in metrics collection loop: {e}")
+                self.logger.error("Error in metrics collection loop: %s", e)
 
             # Calculate how long to sleep to maintain the interval
             elapsed = time.time() - start_time
@@ -235,7 +233,7 @@ class MetricsCollector:
 
         except Exception as e:
             # Silently ignore errors in background collection to avoid affecting the main process
-            self.logger.debug(f"Error collecting basic metrics: {e}")
+            self.logger.debug("Error collecting basic metrics: %s", e)
             # Don't propagate the exception
 
     def record_metric(
@@ -279,7 +277,7 @@ class MetricsCollector:
         with self.metrics_lock:
             self.metrics.append(metric)
 
-        self.logger.debug(f"Recorded metric: {name}={value} ({metric_type.value})")
+        self.logger.debug("Recorded metric: %s=%s (%s)", name, value, metric_type.value)
 
     def start_timer(
         self,
@@ -314,13 +312,11 @@ class MetricsCollector:
 
         with self.timers_lock:
             if timer_key in self.active_timers:
-                self.logger.warning(
-                    f"Timer {timer_key} already active, replacing with new timer"
-                )
+                self.logger.warning("Timer %s already active, replacing with new timer", timer_key)
 
             self.active_timers[timer_key] = timer_context
 
-        self.logger.debug(f"Started timer: {timer_key}")
+        self.logger.debug("Started timer: %s", timer_key)
 
     def stop_timer(
         self, name: str, test_case: str | None = None, component: str | None = None
@@ -342,7 +338,7 @@ class MetricsCollector:
         # First, get and remove the timer with the timer lock
         with self.timers_lock:
             if timer_key not in self.active_timers:
-                self.logger.warning(f"Timer {timer_key} not found")
+                self.logger.warning("Timer %s not found", timer_key)
                 return None
 
             timer_context = self.active_timers.pop(timer_key)
@@ -362,7 +358,7 @@ class MetricsCollector:
             metadata={"timer_name": name},
         )
 
-        self.logger.debug(f"Stopped timer: {timer_key}, duration: {duration:.3f}s")
+        self.logger.debug("Stopped timer: %s, duration: %ss", timer_key, f"{duration:.3f}")
         return duration
 
     def timing_context(
@@ -519,9 +515,7 @@ class MetricsCollector:
         """
         try:
             # Normalize inputs with safe defaults
-            safe_error_type = (
-                str(error_type) if error_type is not None else "UnknownError"
-            )
+            safe_error_type = str(error_type) if error_type is not None else "UnknownError"
 
             # Handle both parameter forms (message and error_message) safely
             final_message = None
@@ -569,10 +563,7 @@ class MetricsCollector:
                     for key, value in details.items():
                         try:
                             # Convert any non-serializable values to strings
-                            if (
-                                isinstance(value, (str, int, float, bool))
-                                or value is None
-                            ):
+                            if isinstance(value, (str, int, float, bool)) or value is None:
                                 meta_dict[key] = value
                             else:
                                 meta_dict[key] = str(value)
@@ -588,10 +579,7 @@ class MetricsCollector:
                     for key, value in metadata.items():
                         try:
                             # Convert any non-serializable values to strings
-                            if (
-                                isinstance(value, (str, int, float, bool))
-                                or value is None
-                            ):
+                            if isinstance(value, (str, int, float, bool)) or value is None:
                                 meta_dict[key] = value
                             else:
                                 meta_dict[key] = str(value)
@@ -613,17 +601,15 @@ class MetricsCollector:
                     metadata=meta_dict,
                 )
 
-                self.logger.warning(
-                    f"Recorded error: {safe_error_type} - {final_message}"
-                )
+                self.logger.warning("Recorded error: %s - %s", safe_error_type, final_message)
             except Exception as e:
                 # Last resort fallback if recording fails
-                self.logger.error(f"Failed to record metric for error: {e}")
+                self.logger.error("Failed to record metric for error: %s", e)
 
         except Exception as e:
             # Catch-all to prevent record_error from raising exceptions
             try:
-                self.logger.error(f"Exception in record_error: {e}")
+                self.logger.error("Exception in record_error: %s", e)
             except Exception:
                 # If even logging fails, we can't do much more
                 pass
@@ -687,9 +673,7 @@ class MetricsCollector:
 
         # Filtering can be done outside the lock
         if metric_type:
-            filtered_metrics = [
-                m for m in filtered_metrics if m.metric_type == metric_type
-            ]
+            filtered_metrics = [m for m in filtered_metrics if m.metric_type == metric_type]
         if phase:
             filtered_metrics = [m for m in filtered_metrics if m.phase == phase]
         if test_case:
@@ -784,10 +768,7 @@ class MetricsCollector:
         with self.metrics_lock:
             total = 0
             for metric in self.metrics:
-                if (
-                    metric.metric_type == MetricType.COUNTER
-                    and metric.name == counter_name
-                ):
+                if metric.metric_type == MetricType.COUNTER and metric.name == counter_name:
                     total += metric.value
             return total
 
@@ -851,9 +832,8 @@ class MetricsCollector:
             for metric in self.metrics:
                 if metric.metric_type == MetricType.TIMING:
                     # For each timing metric, keep the latest value
-                    if (
-                        metric.name not in timings
-                        or metric.timestamp > metric_timestamps.get(metric.name, 0)
+                    if metric.name not in timings or metric.timestamp > metric_timestamps.get(
+                        metric.name, 0
                     ):
                         timings[metric.name] = metric.value
                         metric_timestamps[metric.name] = metric.timestamp
@@ -868,11 +848,7 @@ class MetricsCollector:
             List of error metrics
         """
         with self.metrics_lock:
-            return [
-                metric
-                for metric in self.metrics
-                if metric.metric_type == MetricType.ERROR
-            ]
+            return [metric for metric in self.metrics if metric.metric_type == MetricType.ERROR]
 
     @property
     def resource_metrics(self) -> list[dict[str, Any]]:
@@ -905,9 +881,7 @@ class MetricsCollector:
             counter_totals = {}
             for metric in self.metrics:
                 if metric.metric_type == MetricType.COUNTER:
-                    counter_totals[metric.name] = (
-                        counter_totals.get(metric.name, 0) + metric.value
-                    )
+                    counter_totals[metric.name] = counter_totals.get(metric.name, 0) + metric.value
             return counter_totals
 
     @property
@@ -924,9 +898,8 @@ class MetricsCollector:
             for metric in self.metrics:
                 if metric.metric_type == MetricType.GAUGE:
                     # Keep only the latest value for each gauge
-                    if (
-                        metric.name not in gauge_values
-                        or metric.timestamp > gauge_timestamps.get(metric.name, 0)
+                    if metric.name not in gauge_values or metric.timestamp > gauge_timestamps.get(
+                        metric.name, 0
                     ):
                         gauge_values[metric.name] = metric.value
                         gauge_timestamps[metric.name] = metric.timestamp
@@ -969,10 +942,8 @@ class MetricsCollector:
         # Now process the timers outside the lock
         for i, timer_key in enumerate(active_timer_keys):
             timer_context = active_timer_contexts[i]
-            self.logger.warning(f"Force stopping active timer: {timer_key}")
-            self.stop_timer(
-                timer_context.name, timer_context.test_case, timer_context.component
-            )
+            self.logger.warning("Force stopping active timer: %s", timer_key)
+            self.stop_timer(timer_context.name, timer_context.test_case, timer_context.component)
 
         # Record experiment completion
         self.record_metric(
@@ -986,9 +957,7 @@ class MetricsCollector:
             },
         )
 
-        self.logger.info(
-            f"Metrics collection finalized for experiment: {self.experiment_name}"
-        )
+        self.logger.info("Metrics collection finalized for experiment: %s", self.experiment_name)
 
     def start_timing(
         self,
@@ -1054,13 +1023,12 @@ class TimingContextManager:
             except Exception as e:
                 # Log but don't re-raise
                 if hasattr(self.collector, "logger"):
-                    self.collector.logger.error(
-                        f"Error stopping timer '{self.name}': {e}"
-                    )
+                    self.collector.logger.error("Error stopping timer '%s': %s", self.name, e)
         else:
             if hasattr(self.collector, "logger") and self.timer_started:
                 self.collector.logger.warning(
-                    f"Attempted to stop timer '{self.name}' that wasn't started or was already stopped"
+                    "Attempted to stop timer '%s' that wasn't started or was already stopped",
+                    self.name
                 )
 
     def __enter__(self):
@@ -1071,7 +1039,7 @@ class TimingContextManager:
             self.timer_started = True
         except Exception as e:
             # If start_timer fails, log the error but don't prevent execution
-            self.collector.logger.error(f"Failed to start timer '{self.name}': {e}")
+            self.collector.logger.error("Failed to start timer '%s': %s", self.name, e)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -1080,11 +1048,7 @@ class TimingContextManager:
             self.stop()
 
             # Record if an exception occurred
-            if (
-                exc_type is not None
-                and hasattr(self, "collector")
-                and self.collector is not None
-            ):
+            if exc_type is not None and hasattr(self, "collector") and self.collector is not None:
                 # Don't let error recording cause additional issues
                 try:
                     if hasattr(self.collector, "record_error"):
@@ -1100,9 +1064,7 @@ class TimingContextManager:
                 except Exception as e:
                     # Log but don't re-raise
                     if hasattr(self.collector, "logger"):
-                        self.collector.logger.error(
-                            f"Failed to record timing context error: {e}"
-                        )
+                        self.collector.logger.error("Failed to record timing context error: %s", e)
         except Exception as e:
             # Never let __exit__ raise exceptions
             if (
@@ -1110,12 +1072,12 @@ class TimingContextManager:
                 and self.collector is not None
                 and hasattr(self.collector, "logger")
             ):
-                self.collector.logger.error(f"Error in timing context __exit__: {e}")
+                self.collector.logger.error("Error in timing context __exit__: %s", e)
             else:
                 # Fallback to standard logging if collector logger is unavailable
                 import logging
 
-                logging.error(f"Error in timing context __exit__: {e}")
+                logging.error("Error in timing context __exit__: %s", e)
 
         # Never suppress exceptions from the timed block
         return False

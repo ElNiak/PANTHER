@@ -57,9 +57,7 @@ class MemcheckEnvironment(IExecutionEnvironment, ABC):
             env_sub_type (str): The subtype of the environment.
             event_manager (EventManager): The event manager instance for handling events.
         """
-        super().__init__(
-            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
-        )
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.global_config = None
         self.env_config_to_test = env_config_to_test
 
@@ -91,16 +89,14 @@ class MemcheckEnvironment(IExecutionEnvironment, ABC):
         self.plugin_loader = plugin_loader
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
-        self.logger.debug(f"Services config: {self.env_config_to_test}")
+        self.logger.debug("Services config: %s", self.env_config_to_test)
         for service in self.services_managers:
-            self.logger.debug(f"Service cmds: {service.run_cmd}")
-            service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [
-                self.to_command()
-            ]
-            self.logger.debug(f"Service cmds: {service.run_cmd}")
+            self.logger.debug("Service cmds: %s", service.run_cmd)
+            service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command()]
+            self.logger.debug("Service cmds: %s", service.run_cmd)
 
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))
+        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(self.global_config))
 
     def to_command(self, pid: int | None = None) -> str:
         """

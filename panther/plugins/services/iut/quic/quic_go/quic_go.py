@@ -16,13 +16,9 @@ class QuicGoServiceManager(IImplementationManager):
         protocol: ProtocolConfig,
         implementation_name: str,
     ):
-        super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name
-        )
-        self.logger.debug(
-            f"Initializing QuicGo service manager for '{implementation_name}'"
-        )
-        self.logger.debug(f"Loaded QuicGo configuration: {self.service_config_to_test}")
+        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        self.logger.debug("Initializing QuicGo service manager for '%s'", implementation_name)
+        self.logger.debug("Loaded QuicGo configuration: %s", self.service_config_to_test)
         self.initialize_commands()
 
     def generate_run_command(self):
@@ -46,9 +42,7 @@ class QuicGoServiceManager(IImplementationManager):
         """
         Generates post-run commands.
         """
-        return super().generate_post_run_commands() + [
-            "cp -r /opt/quic-go/ /app/logs/;"
-        ]
+        return super().generate_post_run_commands() + ["cp -r /opt/quic-go/ /app/logs/;"]
 
     def prepare(self, plugin_loader: PluginLoader | None = None):
         """
@@ -78,29 +72,28 @@ class QuicGoServiceManager(IImplementationManager):
     def generate_deployment_commands(self) -> str:
         """
         Generates deployment commands for the QUIC service based on the role and service configuration.
-        This method constructs the necessary deployment commands by rendering a template with the appropriate parameters.
-        It includes network interface parameters conditionally and handles both server and client roles.
+        This method constructs the necessary deployment commands using structured arguments
+        for proper escaping and handling of special characters.
+
         Returns:
             str: The rendered deployment command string.
+
         Raises:
             Exception: If there is an error rendering the command template.
-        Logs:
-            - Debug information about the service name, service parameters, role, version, and command parameters.
-            - Error information if command rendering fails.
         """
 
         self.logger.debug(
-            f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
+            "Generating deployment commands for service: %s with service parameters: %s",
+            self.service_name,
+            self.service_config_to_test
         )
-        # Create the command list
 
-        self.logger.debug(f"Role: {self.role}, Version: {self.service_version}")
+        self.logger.debug("Role: %s, Version: %s", self.role, self.service_version)
 
         # Determine if network interface parameters should be included based on environment
         include_interface = True
 
         # Build parameters for the command template
-        # TODO ensure that the parameters are correctly set
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
         # For the client, include target and message if available
@@ -109,9 +102,10 @@ class QuicGoServiceManager(IImplementationManager):
 
         params["target"] = self.service_config_to_test.protocol.target
 
-        self.logger.debug(f"Parameters for command template: {params}")
-        self.logger.debug(f"Role: {self.role}")
+        self.logger.debug("Parameters for command template: %s", params)
+        self.logger.debug("Role: %s", self.role)
         self.working_dir = params["binary"]["dir"]
+
         # Conditionally include network interface parameters
         if not include_interface:
             params["network"].pop("interface", None)
@@ -119,15 +113,54 @@ class QuicGoServiceManager(IImplementationManager):
             # TODO add that in the Dockerfile
             subprocess.run(["bash", "generate_certificates.sh"])
 
-        # Render the appropriate template
+        # Build structured command arguments
+        command_args = []
+
+        # Add role-specific parameters
+        if self.role == RoleEnum.server:
+            # Add port for server
+            if "network" in params and "port" in params["network"]:
+                command_args.append("-p")
+                command_args.append(str(params["network"]["port"]))
+        elif self.role == RoleEnum.client:
+            # Add target and port for client
+            command_args.append(params["target"])
+            command_args.append(str(params["network"]["port"]))
+
+        # Add logging parameters
+        if "logging" in params:
+            command_args.append(">")
+            command_args.append(params["logging"]["log_path"])
+            command_args.append("2>")
+            command_args.append(params["logging"]["err_path"])
+
+        # Environment variables if needed
+        env_vars = {}
+
+        # Try to render the template with structured arguments
         try:
-            template_name = f"{str(self.role.name)}_command.jinja"
-            return super().render_commands(params, template_name)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to render command for service '{self.service_config_to_test.name}': {e}\n{traceback.format_exc()}"
+            template_name = f"{str(self.role.name)}_command_structured.jinja"
+            return self.render_template_with_structured_args(
+                template_name, params, command_args, env_vars
             )
-            raise e
+        except Exception as e:
+            self.logger.warning(
+                "Failed to render structured template for service '%s': %s",
+                self.service_config_to_test.name,
+                e
+            )
+            try:
+                # Fallback to original template
+                template_name = f"{str(self.role.name)}_command.jinja"
+                return self.render_commands(params, template_name)
+            except Exception as e2:
+                self.logger.error(
+                    "Failed to render fallback command template for service '%s': %s\n%s",
+                    self.service_config_to_test.name,
+                    e2,
+                    traceback.format_exc()
+                )
+                raise e2
 
     def __str__(self) -> str:
         return f"QuicGoServiceManager({self.__dict__})"

@@ -23,9 +23,7 @@ class QuicheConfig(ImplementationConfig):
     name: str = "quiche"  # Implementation name
     type: ImplementationType = ImplementationType.iut  # Default type for picoquic
     # These field must not be included in the experiment configuration file
-    version: QuicheVersion = field(
-        default_factory=lambda: QuicheConfig.load_versions_from_files()
-    )
+    version: QuicheVersion = field(default_factory=lambda: QuicheConfig.load_versions_from_files())
 
     @staticmethod
     def load_versions_from_files(

@@ -43,9 +43,7 @@ class IExecutionEnvironment(IEnvironmentPlugin):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(
-            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
-        )
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.services_managers = []
         self.test_config = None
 

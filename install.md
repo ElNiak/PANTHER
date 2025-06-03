@@ -7,7 +7,8 @@ This document provides instructions for installing and setting up the PANTHER sy
 ## Prerequisites
 
 !!! warning "System requirements"
-    Running PANTHER requires root-level Docker access and can consume significant system resources during protocol testing. Ensure adequate disk space (>=20GB) for container images.
+    Running PANTHER requires root-level Docker access and can consume significant system resources
+    during protocol testing. Ensure adequate disk space (>=20GB) for container images.
 
 - Operating System: Linux, macOS
 - Docker v27 or higher
@@ -63,6 +64,7 @@ python panther_builder.py clean          # Clean build artifacts
 More details with:
 
 ```bash
+# (.venv)
 python panther_builder.py --help         # See all available commands
 usage: panther_builder.py [-h] [-v]
                           [{package,package-dev,package-test,clean,install-local,docs,serve-docs,deploy-docs,check,zip-outputs,remove-images-all,remove-images-services,remove-system-all,remove-system-services,remove-volume,help}]
@@ -93,13 +95,14 @@ Examples:
 
 - ✅ **Cross-platform**: Works on Linux, macOS
 - ✅ **Smart checks**: Automatically validates Python ≥3.10 and Docker ≥27.0
-- ✅ **Integrated**: Replaces Makefile with better error handling
+- ✅ **Integrated**: Replaces previous Makefile with better error handling
 - ✅ **Developer-friendly**: Includes quality checks, documentation builds, and cleanup
 - ✅ **Docker management**: Built-in Docker image and volume cleanup commands
 
 #### Manually
 
 ```bash
+# (.venv)
 # For regular installation
 pip install --upgrade pip
 pip install .
@@ -119,11 +122,17 @@ pip install -e ".[tests,lint,doc]"
 Both methods read dependencies from **`pyproject.toml`**—**do not
 manually edit `requirements.txt`**, it’s just a frozen lock.
 
+!!! note "Entry point argument auto-completion"
+    We have add the package `argcomplete`in the project
+    You can also activate this package globally with
+    `activate-global-python-argcomplete --user`
+
 ### Verify Installation
 
 After installation, you can verify that PANTHER was installed correctly:
 
 ```bash
+# (.venv)
 # Check the installed version
 python -c "import panther; print(panther.__version__)"
 

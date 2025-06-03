@@ -7,6 +7,7 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 from panther.core.utils.docker_builder import DockerBuilder
+from panther.config.config_global_schema import GlobalConfig
 
 
 class PluginLoader:
@@ -31,19 +32,20 @@ class PluginLoader:
         self,
         plugins_base_dir: str = "plugins",
         plugins_optional_dir: str | None = None,
+        global_config: GlobalConfig | None = None,
     ):
         self.logger = logging.getLogger("PluginLoader")
 
         self.plugins_base_dir = Path(plugins_base_dir)
         # Support for optional plugins
-        self.plugins_optional_dir = (
-            Path(plugins_optional_dir) if plugins_optional_dir else None
-        )
+        self.plugins_optional_dir = Path(plugins_optional_dir) if plugins_optional_dir else None
         try:
             self.docker_builder = DockerBuilder()
         except Exception as e:
-            self.logger.warning(f"Failed to initialize DockerBuilder: {e}")
+            self.logger.warning("Failed to initialize DockerBuilder: %s", e)
             self.docker_builder = None
+            
+        self.global_config = global_config
 
         # Dictionaries to store plugins
         self.built_images = {}
@@ -88,14 +90,10 @@ class PluginLoader:
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
             # Load version-specific configurations from panther.config.yaml
-            self.logger.debug(
-                f"Found configuration for implementation '{impl_name}': {versions}"
-            )
+            self.logger.debug("Found configuration for implementation '%s': %s", impl_name, versions)
             image_tag = self.docker_builder.build_image(
                 impl_name=impl_name,
-                version=(
-                    "unknown" if not hasattr(versions, "version") else versions.version
-                ),
+                version=("unknown" if not hasattr(versions, "version") else versions.version),
                 dockerfile_path=dockerfile_path,
                 context_path=dockerfile_path.parent,
                 config=(
@@ -107,23 +105,29 @@ class PluginLoader:
                     }
                 ),
                 tag_version="latest",  # or use version if desired
+                build_image_force=self.global_config.docker.build_docker_image if self.global_config else True,
+                remove_dangling= self.global_config.docker.remove_dangling_images if self.global_config else True,
             )
             if image_tag:
                 key = f"{impl_name}_{versions}"
                 self.built_images[key] = image_tag
             else:
                 self.logger.error(
-                    f"Image build failed for implementation '{impl_name}' version '{versions}'"
+                    "Image build failed for implementation '%s' version '%s'",
+                    impl_name,
+                    versions
                 )
         else:
             self.logger.error(
-                f"Dockerfile not found for implementation '{impl_name}' in {self.dockerfiles}. Skipping."
+                "Dockerfile not found for implementation '%s' in %s. Skipping.",
+                impl_name,
+                self.dockerfiles
             )
-            exit(1)
+            raise FileNotFoundError(
+                f"Dockerfile not found for implementation '{impl_name}'. Please ensure the Dockerfile exists in the expected path."
+            )
 
-    def build_docker_image_from_path(
-        self, path: Path, name: str, version: str | None = None
-    ):
+    def build_docker_image_from_path(self, path: Path, name: str, version: str | None = None):
         """
         Builds a Docker image from the specified path.
         This method builds a Docker image using the Dockerfile located at the given path.
@@ -137,15 +141,15 @@ class PluginLoader:
             str: The tag of the built Docker image if successful, otherwise None.
         """
 
-        self.logger.info(f"Building image from path '{path.name}'")
+        self.logger.info("Building image from path '%s'", path.name)
         dockerfile_path = path
         # Load version-specific configurations from panther.config.yaml
-        versions = {version: {}}
-        self.logger.debug(f"Found configuration for path '{path.name}': {versions}")
+        versions = {version: {
+            # TODO: define version-specific configurations here
+        }}
+        self.logger.debug("Found configuration for path '%s': %s", path.name, versions)
         for version, version_config in versions.items():
-            self.logger.info(
-                f"Building image for path '{path.name}' version '{version}'"
-            )
+            self.logger.info("Building image for path '%s' version '%s'", path.name, version)
             image_tag = self.docker_builder.build_image(
                 impl_name=name,
                 version=version,
@@ -153,13 +157,20 @@ class PluginLoader:
                 context_path=dockerfile_path.parent,
                 config=version_config,
                 tag_version="latest",  # TODO or use version if desired
+                build_image_force=self.global_config.docker.build_docker_image if self.global_config else True,
+                remove_dangling=self.global_config.docker.remove_dangling_images if self.global_config else True,
             )
             if image_tag:
                 key = f"{path.name}_{version}"
                 self.built_images[key] = image_tag
             else:
                 self.logger.error(
-                    f"Image build failed for implementation '{path.name}' version '{version}'"
+                    "Image build failed for implementation '%s' version '%s'",
+                    path.name,
+                    version
+                )
+                raise RuntimeError(
+                    f"Image build failed for implementation '{path.name}' version '{version}'. Please check the logs for details."
                 )
             return image_tag
 
@@ -175,31 +186,24 @@ class PluginLoader:
             list[str]: A list of directory names representing implementations of the protocol.
         """
         implementations = []
-        implementations_dir = (
-            Path(os.path.dirname(__file__)) / "services" / "iut" / protocol
-        )
-        self.logger.debug(f"Checking for implementations in '{implementations_dir}'")
+        implementations_dir = Path(os.path.dirname(__file__)) / "services" / "iut" / protocol
+        self.logger.debug("Checking for implementations in '%s'", implementations_dir)
         if implementations_dir and implementations_dir.exists():
             for item in implementations_dir.iterdir():
-                if (
-                    item.is_dir()
-                    and not item.name.startswith("__")
-                    and item.name != "templates"
-                ):
-                    self.logger.debug(f"Found implementation '{item.name}' at '{item}'")
+                if item.is_dir() and not item.name.startswith("__") and item.name != "templates":
+                    self.logger.debug("Found implementation '%s' at '%s'", item.name, item)
                     implementations.append(item.name)
                     if (item / "Dockerfile").exists():
                         self.dockerfiles[item.name] = item / "Dockerfile"
                         self.logger.debug(
-                            f"Registered Dockerfile for protocol '{protocol}' implementation '{item.name}' at '{item / 'Dockerfile'}'"
+                            "Registered Dockerfile for protocol '%s' implementation '%s' at '%s'",
+                            protocol,
+                            item.name,
+                            item / 'Dockerfile'
                         )
-            self.logger.debug(
-                f"Found implementations for protocol '{protocol}': {implementations}"
-            )
+            self.logger.debug("Found implementations for protocol '%s': %s", protocol, implementations)
         else:
-            self.logger.warning(
-                f"Protocol plugin '{protocol}' not found or does not exist."
-            )
+            self.logger.warning("Protocol plugin '%s' not found or does not exist.", protocol)
         return implementations
 
     def get_testers(self) -> list[str]:
@@ -214,21 +218,19 @@ class PluginLoader:
 
         implementations = []
         implementations_dir = Path(os.path.dirname(__file__)) / "services" / "testers"
-        self.logger.debug(f"Checking for testers in '{implementations_dir}'")
+        self.logger.debug("Checking for testers in '%s'", implementations_dir)
         for item in implementations_dir.iterdir():
-            self.logger.debug(f"Checking item '{item}'")
-            if (
-                item.is_dir()
-                and not item.name.startswith("__")
-                and item.name != "templates"
-            ):
+            self.logger.debug("Checking item '%s'", item)
+            if item.is_dir() and not item.name.startswith("__") and item.name != "templates":
                 implementations.append(item.name)
                 if (item / "Dockerfile").exists():
                     self.dockerfiles[item.name] = item / "Dockerfile"
                     self.logger.debug(
-                        f"Registered Dockerfile for tester '{item.name}' at '{item / 'Dockerfile'}'"
+                        "Registered Dockerfile for tester '%s' at '%s'",
+                        item.name,
+                        item / 'Dockerfile'
                     )
-        self.logger.debug(f"Found testers: {implementations}")
+        self.logger.debug("Found testers: %s", implementations)
         return implementations
 
     def discover_entry_point_plugins(self) -> None:
@@ -242,77 +244,91 @@ class PluginLoader:
         try:
             protocol_eps = entry_points(group="panther.plugins.protocols")
             for ep in protocol_eps:
-                self.logger.info(f"Found protocol plugin: {ep.name}")
+                self.logger.info("Found protocol plugin: %s", ep.name)
                 try:
                     # We don't load the plugin here, just register its existence
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.protocol_plugins[ep.name] = plugin_path
                     self.logger.debug(
-                        f"Registered protocol plugin '{ep.name}' with path '{plugin_path}'"
+                        "Registered protocol plugin '%s' with path '%s'",
+                        ep.name,
+                        plugin_path
                     )
                     # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
                     if dockerfile_path.exists():
                         self.dockerfiles[ep.name] = dockerfile_path
                         self.logger.debug(
-                            f"Registered Dockerfile for protocol plugin '{ep.name}' at '{dockerfile_path}'"
+                            "Registered Dockerfile for protocol plugin '%s' at '%s'",
+                            ep.name,
+                            dockerfile_path
                         )
                 except Exception as e:
-                    self.logger.warning(
-                        f"Failed to register protocol plugin {ep.name}: {e}"
-                    )
+                    self.logger.warning("Failed to register protocol plugin %s: %s", ep.name, e)
         except Exception as e:
-            self.logger.warning(f"Error discovering protocol plugins: {e}")
+            self.logger.warning("Error discovering protocol plugins: %s", e)
 
         # Discover execution environment plugins
         try:
             exec_env_eps = entry_points(group="panther.plugins.environments.execution")
             for ep in exec_env_eps:
-                self.logger.info(f"Found execution environment plugin: {ep.name}")
+                self.logger.info("Found execution environment plugin: %s", ep.name)
                 try:
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.environment_plugins[f"execution_{ep.name}"] = plugin_path
                     self.logger.debug(
-                        f"Registered execution environment plugin '{ep.name}' with path '{plugin_path}'"
+                        "Registered execution environment plugin '%s' with path '%s'",
+                        ep.name,
+                        plugin_path
                     )
                     # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
                     if dockerfile_path.exists():
                         self.dockerfiles[f"execution_{ep.name}"] = dockerfile_path
                         self.logger.debug(
-                            f"Registered Dockerfile for execution environment plugin '{ep.name}' at '{dockerfile_path}'"
+                            "Registered Dockerfile for execution environment plugin '%s' at '%s'",
+                            ep.name,
+                            dockerfile_path
                         )
                 except Exception as e:
                     self.logger.warning(
-                        f"Failed to register execution environment plugin {ep.name}: {e}"
+                        "Failed to register execution environment plugin %s: %s",
+                        ep.name,
+                        e
                     )
         except Exception as e:
-            self.logger.warning(f"Error discovering execution environment plugins: {e}")
+            self.logger.warning("Error discovering execution environment plugins: %s", e)
 
         # Discover network environment plugins
         try:
             net_env_eps = entry_points(group="panther.plugins.environments.network")
             for ep in net_env_eps:
-                self.logger.info(f"Found network environment plugin: {ep.name}")
+                self.logger.info("Found network environment plugin: %s", ep.name)
                 try:
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.environment_plugins[f"network_{ep.name}"] = plugin_path
                     self.logger.debug(
-                        f"Registered network environment plugin '{ep.name}' with path '{plugin_path}'"
+                        "Registered network environment plugin '%s' with path '%s'",
+                        ep.name,
+                        plugin_path
                     )
                     # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
                     if dockerfile_path.exists():
                         self.dockerfiles[f"network_{ep.name}"] = dockerfile_path
                         self.logger.debug(
-                            f"Registered Dockerfile for network environment plugin '{ep.name}' at '{dockerfile_path}'"
+                            "Registered Dockerfile for network environment plugin '%s' at '%s'",
+                            ep.name,
+                            dockerfile_path
                         )
                 except Exception as e:
                     self.logger.warning(
-                        f"Failed to register network environment plugin {ep.name}: {e}"
+                        "Failed to register network environment plugin %s: %s",
+                        ep.name,
+                        e
                     )
         except Exception as e:
-            self.logger.warning(f"Error discovering network environment plugins: {e}")
+            self.logger.warning("Error discovering network environment plugins: %s", e)
 
     def load_plugins(self) -> None:
         """
@@ -329,57 +345,60 @@ class PluginLoader:
 
     def _legacy_file_based_plugin_discovery(self) -> None:
         """Legacy file-based plugin discovery method for backward compatibility."""
-        self.logger.debug(
-            f"Loading plugins from base directory '{self.plugins_base_dir}'"
-        )
+        self.logger.debug("Loading plugins from base directory '%s'", self.plugins_base_dir)
 
         # Discover protocol plugins
         protocols_dir = Path(os.path.dirname(__file__)) / "services" / "iut"
         for protocol in protocols_dir.iterdir():
-            self.logger.debug(f"Checking protocol plugin '{protocol}'")
+            self.logger.debug("Checking protocol plugin '%s'", protocol)
             if protocol.is_dir() and not protocol.name.startswith("__"):
                 if (protocol / f"{protocol.name}.py").exists():
                     self.protocol_plugins[protocol.name] = protocol
                     self.logger.debug(
-                        f"Discovered protocol plugin '{protocol.name}' at '{protocol}'"
+                        "Discovered protocol plugin '%s' at '%s'",
+                        protocol.name,
+                        protocol
                     )
 
         # Discover environment plugins
         environments_dir = Path(os.path.dirname(__file__)) / "environments"
         if environments_dir.exists() and environments_dir.is_dir():
-            self.logger.debug(f"Checking environments directory '{environments_dir}'")
+            self.logger.debug("Checking environments directory '%s'", environments_dir)
             for environment in environments_dir.iterdir():
                 if environment.is_dir():
                     self.environment_plugins[environment.name] = {}
                     for item in environment.iterdir():
                         if item.is_dir() and not item.name.startswith("__"):
                             if (item / f"{item.name}.py").exists():
-                                self.environment_plugins[environment.name][
-                                    item.name
-                                ] = item
+                                self.environment_plugins[environment.name][item.name] = item
                                 self.logger.debug(
-                                    f"Discovered environment plugin '{item.name}' at '{item}' under '{environment}'"
+                                    "Discovered environment plugin '%s' at '%s' under '%s'",
+                                    item.name,
+                                    item,
+                                    environment
                                 )
         else:
-            self.logger.warning(
-                f"Environments directory '{environments_dir}' does not exist."
-            )
+            self.logger.warning("Environments directory '%s' does not exist.", environments_dir)
 
         # Discover testers plugins
         testers_dir = Path(os.path.dirname(__file__)) / "services" / "testers"
         if testers_dir.exists() and testers_dir.is_dir():
-            self.logger.debug(f"Checking testers directory '{testers_dir}'")
+            self.logger.debug("Checking testers directory '%s'", testers_dir)
             for testers in testers_dir.iterdir():
                 if testers.is_dir() and not testers.name.startswith("__"):
                     if (testers / f"{testers.name}.py").exists():
                         self.tester_plugins[testers.name] = item
                         self.logger.debug(
-                            f"Discovered testers plugin '{testers.name}' at '{testers}'"
+                            "Discovered testers plugin '%s' at '%s'",
+                            testers.name,
+                            testers
                         )
                         if (testers / "Dockerfile").exists():
                             self.dockerfiles[testers.name] = testers / "Dockerfile"
                             self.logger.debug(
-                                f"Registered Dockerfile for testers plugin '{testers.name}' at '{testers / 'Dockerfile'}'"
+                                "Registered Dockerfile for testers plugin '%s' at '%s'",
+                                testers.name,
+                                testers / 'Dockerfile'
                             )
         else:
-            self.logger.warning(f"Testers directory '{testers_dir}' does not exist.")
+            self.logger.warning("Testers directory '%s' does not exist.", testers_dir)

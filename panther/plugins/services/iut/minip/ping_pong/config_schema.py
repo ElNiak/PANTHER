@@ -38,9 +38,7 @@ class PingPongConfig(ImplementationConfig):
             if version_file.endswith(".yaml"):
                 version_path = os.path.join(version_configs_dir, version_file)
                 raw_version_config = OmegaConf.load(version_path)
-                logging.debug(
-                    f"Loaded raw PingPong version config: {raw_version_config}"
-                )
+                logging.debug(f"Loaded raw PingPong version config: {raw_version_config}")
                 version_config = OmegaConf.to_object(
                     OmegaConf.merge(PingPongVersion, raw_version_config)
                 )
