@@ -782,6 +782,14 @@ execute_with_error_tracking "$cmd_type" "ls >> /app/logs/ivy_setup.log 2>&1;" "2
 # Set command type for this context
 cmd_type="COMPILE"
 
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "cp /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests/quic_server_test_stream* /opt/panther_ivy/protocol-testing/quic/build/; " "22" "cp /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests/quic_server_test_stream* /opt/panther_ivy/protocol-testing/quic/build/; " "false" "true" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="COMPILE"
+
 # Handle command with && operator
 log "Command contains && operator: ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_setup.log 2>&1; && (touch /app/sync_logs/ivy_ready.log)"
 
@@ -790,8 +798,8 @@ FIRST_PART="ls /opt/panther_ivy/protocol-testing/quic/build/ >> /app/logs/ivy_se
 REST_OF_CMD=" (touch /app/sync_logs/ivy_ready.log)"
 
 # Create output files for this command
-FIRST_OUTPUT="/app/logs/ivy_client_$cmd_type-cmd22_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #22 first part" > "$FIRST_OUTPUT"
+FIRST_OUTPUT="/app/logs/ivy_client_$cmd_type-cmd23_first_part.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #23 first part" > "$FIRST_OUTPUT"
 echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
 echo "----------------------------------------" >> "$FIRST_OUTPUT"
 
@@ -817,14 +825,14 @@ echo "----------------------------------------" >> "$FIRST_OUTPUT"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
 
 # Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #22 first part:" >> /app/logs/ivy_client_commands.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #23 first part:" >> /app/logs/ivy_client_commands.log
 cat "$FIRST_OUTPUT" >> /app/logs/ivy_client_commands.log
 
 if [ $FIRST_STATUS -eq 0 ]; then
   # If first part succeeded, execute rest of command
   log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/ivy_client_$cmd_type-cmd22_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #22 rest part" > "$REST_OUTPUT"
+  REST_OUTPUT="/app/logs/ivy_client_$cmd_type-cmd23_rest.log"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #23 rest part" > "$REST_OUTPUT"
   echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
   echo "----------------------------------------" >> "$REST_OUTPUT"
 
@@ -848,7 +856,7 @@ if [ $FIRST_STATUS -eq 0 ]; then
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
 
   # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #22 rest part:" >> /app/logs/ivy_client_commands.log
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #23 rest part:" >> /app/logs/ivy_client_commands.log
   cat "$REST_OUTPUT" >> /app/logs/ivy_client_commands.log
 
   # Exit with status from rest part
@@ -879,12 +887,12 @@ cmd_type="POST_COMPILE"
 
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-(touch /app/logs/ivy_client.pcap; tshark -a duration:100 -i any -w /app/logs/ivy_client.pcap;) &
+(touch /app/logs/ivy_client.pcap; tshark -a duration:200 -i any -w /app/logs/ivy_client.pcap;) &
 ENDOFCOMMAND
 )
 # Execute multi-line command with error tracking
 log "Executing multi-line $cmd_type command #2"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "2" "(touch /app/logs/ivy_client.pcap; tshark -a duration:100 -i any -w /app/logs/ivy_client.pcap;) & " "true" "true" || {
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "2" "(touch /app/logs/ivy_client.pcap; tshark -a duration:200 -i any -w /app/logs/ivy_client.pcap;) & " "true" "true" || {
   exit $?
 }
 
@@ -894,6 +902,7 @@ log "Executing pre-run commands..."
 
 # Execute the main command if provided
 log "Executing main command..."
+pwd > /app/logs/ivy_client_current_dir_during_exec.log
 cd "/opt/panther_ivy/protocol-testing/quic/" || {
   log "Failed to change to directory: /opt/panther_ivy/protocol-testing/quic/"
   exit 1
@@ -901,7 +910,7 @@ cd "/opt/panther_ivy/protocol-testing/quic/" || {
 
 
 # Prepare command and execute it
-FULL_CMD="./build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$IVY_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$TARGET_IP_HEX > /app/logs/quic_server_test_streams.log 2> /app/logs/quic_server_test_streams.err"
+FULL_CMD="./build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$IVY_IP_HEX server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$TARGET_IP_HEX"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
 
 if [ -z "$FULL_CMD" ]; then
@@ -910,13 +919,13 @@ if [ -z "$FULL_CMD" ]; then
 else
   log "Running command: $FULL_CMD"
 
-  timeout 100 $FULL_CMD 2>&1 | tee -a /app/logs/ivy_client_run.log
+  timeout 200 $FULL_CMD > /app/logs/ivy_client_run_cmd.log 2> /app/logs/ivy_client_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 100 seconds"
+    log "WARNING: Command timed out after 200 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
     exit $RUN_STATUS

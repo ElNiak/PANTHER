@@ -11,13 +11,11 @@ from panther.plugins.environments.execution_environment.execution_environment_in
     IExecutionEnvironment,
 )
 from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.environments.network_environment.network_environment_interface import (
-    INetworkEnvironment,
-)
+from panther.plugins.environments.environment_plugin_base import BaseEnvironmentPlugin
 import traceback
 
 
-class DockerComposeEnvironment(INetworkEnvironment):
+class DockerComposeEnvironment(BaseEnvironmentPlugin):
     """
     DockerComposeEnvironment is a class that manages the setup, deployment, monitoring, and teardown of a
     Docker Compose environment.
@@ -885,7 +883,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                                 # Check for control structures
                                 elif (
                                     first_line.startswith("if ")
-                                    or first_line.startswith("for ")
+                                    or first_word.startswith("for")
                                     or first_line.startswith("while ")
                                     or first_line.startswith("case ")
                                 ):

@@ -230,12 +230,12 @@ cmd_type="POST_COMPILE"
 
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-(touch /app/logs/picoquic_server.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_server.pcap;) &
+(touch /app/logs/picoquic_server.pcap; tshark -a duration:200 -i any -w /app/logs/picoquic_server.pcap;) &
 ENDOFCOMMAND
 )
 # Execute multi-line command with error tracking
 log "Executing multi-line $cmd_type command #3"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_server.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_server.pcap;) & " "true" "true" || {
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_server.pcap; tshark -a duration:200 -i any -w /app/logs/picoquic_server.pcap;) & " "true" "true" || {
   exit $?
 }
 
@@ -245,6 +245,7 @@ log "Executing pre-run commands..."
 
 # Execute the main command if provided
 log "Executing main command..."
+pwd > /app/logs/picoquic_server_current_dir_during_exec.log
 cd "/opt/picoquic" || {
   log "Failed to change to directory: /opt/picoquic"
   exit 1
@@ -252,13 +253,7 @@ cd "/opt/picoquic" || {
 
 
 # Prepare command and execute it
-FULL_CMD="././picoquicdemo #!/bin/bash
-# Structured command template for Picoquic server
-# Generated commands are properly escaped using quote_shell filter
-
-
-./picoquicdemo \
-  -a \  hq-interop \  '-l - -n servername -D -L' \  -e \  eth0 \  -p \  4443 \  '>' \  /app/logs/server.log \  '2>' \  /app/logs/server.err.log "
+FULL_CMD="./picoquicdemo -a  hq-interop  -l - -n servername -D -L  -e  eth0  -p  4443"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
 
 if [ -z "$FULL_CMD" ]; then
@@ -267,13 +262,13 @@ if [ -z "$FULL_CMD" ]; then
 else
   log "Running command: $FULL_CMD"
 
-  timeout 100 $FULL_CMD 2>&1 | tee -a /app/logs/picoquic_server_run.log
+  timeout 200 $FULL_CMD > /app/logs/picoquic_server_run_cmd.log 2> /app/logs/picoquic_server_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 100 seconds"
+    log "WARNING: Command timed out after 200 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
     exit $RUN_STATUS

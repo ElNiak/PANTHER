@@ -108,6 +108,14 @@ class PluginManager:
         self.network_environment_plugins: dict[str, INetworkEnvironment] = {}
         self.execution_environment_plugins: dict[str, IExecutionEnvironment] = {}
 
+        # Event system support
+        self.event_emitter = None  # Will be set by experiment manager
+
+    def set_event_emitter(self, event_emitter):
+        """Set the event emitter for this plugin manager."""
+        self.event_emitter = event_emitter
+        self.logger.debug("Event emitter set on PluginManager")
+
     def create_service_manager(
         self,
         protocol: ProtocolConfig,
@@ -172,6 +180,8 @@ class PluginManager:
                     protocol=protocol,
                     implementation_name=implementation.name,
                 )
+                # Set the event emitter on the service manager instance
+                instance.event_emitter = self.event_emitter
                 self.logger.debug("Preparing instance of '%s'", class_name)
                 instance.prepare(self.plugins_loader)
                 self.logger.debug("Created instance of '%s'", class_name)

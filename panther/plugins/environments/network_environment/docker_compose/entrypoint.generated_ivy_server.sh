@@ -749,9 +749,9 @@ fi
 cmd_type="COMPILE"
 
 # Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing shell builtin: cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests;"
+log "Executing shell builtin: cd /opt/panther_ivy/protocol-testing/quic/build;"
 # Use eval to properly execute these special command types while preserving their syntax
-eval "cd /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests;" || {
+eval "cd /opt/panther_ivy/protocol-testing/quic/build;" || {
   exit $?
 }
 
@@ -783,7 +783,7 @@ execute_with_error_tracking "$cmd_type" "ls >> /app/logs/ivy_setup.log 2>&1;" "2
 cmd_type="COMPILE"
 
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; " "22" "cp /opt/panther_ivy/protocol-testing/quic/quic_tests/client_tests/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; " "false" "true" || {
+execute_with_error_tracking "$cmd_type" "cp /opt/panther_ivy/protocol-testing/quic/build/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; " "22" "cp /opt/panther_ivy/protocol-testing/quic/build/quic_client_test_max* /opt/panther_ivy/protocol-testing/quic/build/; " "false" "true" || {
   exit $?
 }
 
@@ -887,12 +887,12 @@ cmd_type="POST_COMPILE"
 
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-(touch /app/logs/ivy_server.pcap; tshark -a duration:50 -i any -w /app/logs/ivy_server.pcap;) &
+(touch /app/logs/ivy_server.pcap; tshark -a duration:100 -i any -w /app/logs/ivy_server.pcap;) &
 ENDOFCOMMAND
 )
 # Execute multi-line command with error tracking
 log "Executing multi-line $cmd_type command #2"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "2" "(touch /app/logs/ivy_server.pcap; tshark -a duration:50 -i any -w /app/logs/ivy_server.pcap;) & " "true" "true" || {
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "2" "(touch /app/logs/ivy_server.pcap; tshark -a duration:100 -i any -w /app/logs/ivy_server.pcap;) & " "true" "true" || {
   exit $?
 }
 
@@ -919,13 +919,13 @@ if [ -z "$FULL_CMD" ]; then
 else
   log "Running command: $FULL_CMD"
 
-  timeout 50 $FULL_CMD > /app/logs/ivy_server_run_cmd.log 2> /app/logs/ivy_server_run_cmd_error.log
+  timeout 100 $FULL_CMD > /app/logs/ivy_server_run_cmd.log 2> /app/logs/ivy_server_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 50 seconds"
+    log "WARNING: Command timed out after 100 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
     exit $RUN_STATUS
