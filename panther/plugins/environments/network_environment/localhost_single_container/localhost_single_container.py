@@ -14,38 +14,38 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from panther.core.observer.event import Event
+from panther.core.observer.events import Event
 
 
 class LocalhostSingleContainerEnvironment(INetworkEnvironment):
     """
-    LocalhostSingleContainerEnvironment is a class that manages a single container environment on localhost for testing purposes.
-    It extends the INetworkEnvironment interface and provides methods to prepare, set up, deploy, monitor, and tear down the environment.
+       LocalhostSingleContainerEnvironment is a class that manages a single container environment on localhost for testing purposes.
+       It extends the INetworkEnvironment interface and provides methods to prepare, set up, deploy, monitor, and tear down the environment.
 
-    Attributes:
-         (str): The version of Docker to use.
- docker_version       docker_name (str): The name prefix for the Docker container.
-        services_network_config_file_path (Path): Path to the generated run.sh file.
-        rendered_services_network_config_file_path (Path): Path to the rendered run.sh file.
-        services_network_docker_file_path (Path): Path to the generated Dockerfile.
-        rendered_services_network_docker_file_path (Path): Path to the rendered Dockerfile.
+       Attributes:
+            (str): The version of Docker to use.
+    docker_version       docker_name (str): The name prefix for the Docker container.
+           services_network_config_file_path (Path): Path to the generated run.sh file.
+           rendered_services_network_config_file_path (Path): Path to the rendered run.sh file.
+           services_network_docker_file_path (Path): Path to the generated Dockerfile.
+           rendered_services_network_docker_file_path (Path): Path to the rendered Dockerfile.
 
-    Methods:
-        __init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager):
-            Initializes the LocalhostSingleContainerEnvironment with the given configuration.
-        __str__():
-            Returns a string representation of the LocalhostSingleContainerEnvironment instance.
-        __repr__():
-            Returns a string representation of the LocalhostSingleContainerEnvironment instance.
-        prepare_environment():
-            Prepares the service manager for use.
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader, execution_environment):
-        deploy_services():
-            Deploys the services in the Localhost environment.
-        generate_environment_services(paths, timestamp):
-        launch_environment_services():
-        monitor_environment():
-        teardown_environment():
+       Methods:
+           __init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager):
+               Initializes the LocalhostSingleContainerEnvironment with the given configuration.
+           __str__():
+               Returns a string representation of the LocalhostSingleContainerEnvironment instance.
+           __repr__():
+               Returns a string representation of the LocalhostSingleContainerEnvironment instance.
+           prepare_environment():
+               Prepares the service manager for use.
+           setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader, execution_environment):
+           deploy_services():
+               Deploys the services in the Localhost environment.
+           generate_environment_services(paths, timestamp):
+           launch_environment_services():
+           monitor_environment():
+           teardown_environment():
     """
 
     def __init__(
@@ -192,9 +192,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             for service in self.services_managers:
                 service.environments = self.resolve_environment_variables(service.environments)
                 self.logger.debug(
-                    "Service %s environment: %s",
-                    service.service_name,
-                    service.environments
+                    "Service %s environment: %s", service.service_name, service.environments
                 )
 
             self.generate_from_template(
@@ -206,8 +204,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             )
 
             self.logger.info(
-                "Localhost file generated at '%s'",
-                self.services_network_config_file_path
+                "Localhost file generated at '%s'", self.services_network_config_file_path
             )
 
             self.logger.info("Localhost based environment manager prepared.")
@@ -222,13 +219,15 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
 
             self.logger.info(
                 "Localhost file Dockerfile generated at '%s'",
-                self.services_network_docker_file_path
+                self.services_network_docker_file_path,
             )
 
             self.get_docker_name()
 
         except Exception as e:
-            self.logger.error("Failed to generate Localhost file: %s\n%s", e, traceback.format_exc())
+            self.logger.error(
+                "Failed to generate Localhost file: %s\n%s", e, traceback.format_exc()
+            )
             exit(1)
 
     def launch_environment_services(self):
@@ -269,7 +268,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                         *volumes,
                         self.docker_name,
                     ]
-                    self.logger.debug("Executing command: %s", ' '.join(command))
+                    self.logger.debug("Executing command: %s", " ".join(command))
 
                     result = subprocess.run(
                         command,
@@ -325,7 +324,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                         result.stdout,
                         result.stderr,
                         len(self.services_managers),
-                        len(std_split)
+                        len(std_split),
                     )
                     if len(std_split) < len(self.services_managers) + 1:
                         self.logger.debug(
@@ -343,7 +342,6 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         Tears down the Localhost environment by bringing down services.
         """
         # TODO: add a way to retrieve the logs, results, binary
-        self.logger.info("Tearing down Localhost environment")
         with open(os.path.join(self.output_dir, "logs", "localhost-teardown.log"), "w") as log_file:
             with open(
                 os.path.join(self.output_dir, "logs", "localhost-teardown.err.log"), "w"
@@ -351,7 +349,9 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                 try:
                     # Stop the running docker container
                     stop_container_command = ["docker", "stop", self.docker_name]
-                    self.logger.debug("Executing stop container command: %s", stop_container_command)
+                    self.logger.debug(
+                        "Executing stop container command: %s", stop_container_command
+                    )
                     result = subprocess.run(
                         stop_container_command,
                         check=True,
@@ -368,7 +368,9 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                         "--force",
                         f"{self.docker_name}",
                     ]
-                    self.logger.debug("Executing remove container command: %s", remove_image_command)
+                    self.logger.debug(
+                        "Executing remove container command: %s", remove_image_command
+                    )
                     result = subprocess.run(
                         remove_image_command,
                         check=True,
@@ -416,8 +418,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                                     self.docker_name,
                                 ]
                                 self.logger.debug(
-                                    "Executing stop container command: %s",
-                                    stop_container_command
+                                    "Executing stop container command: %s", stop_container_command
                                 )
                                 result = subprocess.run(
                                     stop_container_command,
@@ -434,8 +435,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                                     f"--force{self.docker_name}:latest",
                                 ]
                                 self.logger.debug(
-                                    "Executing remove image command: %s",
-                                    remove_image_command
+                                    "Executing remove image command: %s", remove_image_command
                                 )
                                 result = subprocess.run(
                                     remove_image_command,
@@ -450,7 +450,6 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                                 self.logger.info("Localhost environment torn down successfully")
                             except subprocess.CalledProcessError as e:
                                 self.logger.error(
-                                    "Failed to tear down Localhost environment: %s",
-                                    e.stderr
+                                    "Failed to tear down Localhost environment: %s", e.stderr
                                 )
                                 raise e

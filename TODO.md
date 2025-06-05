@@ -11,6 +11,11 @@
 * add docker consumption for "network_sent_mb_total": 11.09375,
       "network_recv_mb_total": 14.197265625,
 
+* Command behavioral design pattern
+  * https://refactoring.guru/design-patterns/command/python/example#example-0
+
+* https://refactoring.guru/design-patterns/state
+
 ## PANTHER Ivy
 
 !!! warning "Ivy Integration Status"

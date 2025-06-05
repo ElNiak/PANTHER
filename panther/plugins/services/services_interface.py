@@ -5,15 +5,18 @@ import shlex
 import yaml
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
+from panther.core.observer.event_manager import EventManager
+from panther.core.observer.event_emitter import EventEmitter
 from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.utils.command import ShellCommand
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.plugin_interface import IPlugin
+from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from panther.config.config_experiment_schema import ServiceConfig
+    pass
 
 
 def quote_shell(s: str) -> str:
@@ -71,8 +74,9 @@ def validate_cmd(func):
 
     def wrapper(*args, **kwargs):
         command = func(*args, **kwargs)
-        logging.debug("Validating command structure: %s against schema: %s", 
-                      command, RUN_CMD_SCHEMA)
+        logging.debug(
+            "Validating command structure: %s against schema: %s", command, RUN_CMD_SCHEMA
+        )
         # Validate the command structure
         validate_structure(command, RUN_CMD_SCHEMA)
         return command
@@ -112,7 +116,7 @@ def validate_structure(data, schema, path="root"):
             raise TypeError(f"Expected {schema.__name__} at '{path}', got {type(data).__name__}.")
 
 
-class IServiceManager(IPlugin):
+class IServiceManager(IPlugin, ServiceManagerEventMixin):
     """
     IServiceManager is an interface for managing services within the PANTHER-SCP framework. It extends the IPlugin class and provides methods for initializing and rendering commands, as well as generating various types of commands required for service deployment and execution.
 
@@ -159,6 +163,7 @@ class IServiceManager(IPlugin):
         service_type: str,
         protocol: ProtocolConfig,
         implementation_name: str,
+        event_manager: EventManager | None = None,
     ):
         super().__init__()
 
@@ -194,8 +199,13 @@ class IServiceManager(IPlugin):
         self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
         self.jinja_env.filters["realpath"] = lambda x: os.path.abspath(x)
         self.jinja_env.filters["is_dict"] = lambda x: isinstance(x, dict)
-        self.jinja_env.trim_blocks   = True
+        self.jinja_env.trim_blocks = True
         self.jinja_env.lstrip_blocks = True
+
+        # Initialize event manager and emitter if provided
+        self.event_manager = event_manager
+        if event_manager:
+            self.event_emitter = EventEmitter(event_manager)
 
         # Service-specific attributes
         # Some attributes are set by the plugin loader, others are set by the plugin itself and the experiment manager
@@ -248,9 +258,7 @@ class IServiceManager(IPlugin):
             str: The rendered command string.
         """
         self.logger.debug(
-            "Rendering command using template '%s' with parameters: %s",
-            template_name,
-            params
+            "Rendering command using template '%s' with parameters: %s", template_name, params
         )
 
         # Register the quoting filters for shell and YAML
@@ -300,12 +308,13 @@ class IServiceManager(IPlugin):
         Returns:
             dict: A dictionary containing the commands for each stage.
         """
+
         # Helper function to convert items to ShellCommand objects
         def convert_to_shell_commands(commands):
             if not commands:
                 self.logger.debug("No commands provided, returning empty list.")
                 return []
-                
+
             result = []
             for cmd in commands:
                 if isinstance(cmd, ShellCommand):
@@ -328,11 +337,13 @@ class IServiceManager(IPlugin):
                     try:
                         result.append(ShellCommand.from_string(str(cmd)))
                     except Exception as e:
-                        self.logger.warning(f"Could not convert command to ShellCommand: {cmd}, error: {e}")
+                        self.logger.warning(
+                            f"Could not convert command to ShellCommand: {cmd}, error: {e}"
+                        )
                         # Skip this command
             self.logger.debug("Converted commands to ShellCommand objects: %s", len(result))
             return result
-            
+
         # Get commands from the respective methods
         self.logger.debug("Generating commands for service '%s' - pre-compile", self.service_name)
         pre_compile = convert_to_shell_commands(self.generate_pre_compile_commands())
@@ -344,12 +355,11 @@ class IServiceManager(IPlugin):
         pre_run = convert_to_shell_commands(self.generate_pre_run_commands())
         self.logger.debug("Generating commands for service '%s' - post-run", self.service_name)
         post_run = convert_to_shell_commands(self.generate_post_run_commands())
-        
+
         # Special handling for run_cmd which is a dict, not a list
         self.logger.debug("Generating run command for service '%s'", self.service_name)
         run_cmd = self.generate_run_command()
-        
-        
+
         self.run_cmd = {
             "pre_compile_cmds": pre_compile,
             "compile_cmds": compile_cmds,
@@ -375,9 +385,7 @@ class IServiceManager(IPlugin):
             # Using ShellCommand objects for better structure, error handling, and debugging support
             return [
                 ShellCommand(
-                    command="set -x;", 
-                    description="Enable command tracing", 
-                    is_critical=True
+                    command="set -x;", description="Enable command tracing", is_critical=True
                 ),
                 ShellCommand(
                     command="export SHELLOPTS",
@@ -482,7 +490,7 @@ class IServiceManager(IPlugin):
         return self.service_type == "testers"
 
     @abstractmethod
-    def prepare(self, plugin_loader: Optional[PluginLoader] = None):
+    def prepare(self, plugin_loader: PluginLoader | None = None):
         """
         Builds the Docker image for the implementation based on the environment.
         """
@@ -659,3 +667,13 @@ class IServiceManager(IPlugin):
                 timeout=timeout,
             )
             self.run_cmd[command_key].append(shell_cmd)
+
+    def set_event_manager(self, event_manager: EventManager):
+        """
+        Set the event manager for this service manager.
+
+        Args:
+            event_manager: The event manager to set
+        """
+        self.event_manager = event_manager
+        self.event_emitter = EventEmitter(event_manager)

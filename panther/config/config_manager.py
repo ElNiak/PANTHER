@@ -21,6 +21,13 @@ from panther.config.config_experiment_schema import (
     ServiceConfig,
     TestConfig,
 )
+from panther.config.config_observer_schema import (
+    ObserverConfig,
+    LoggerObserverConfig,
+    MetricsObserverConfig,
+    StorageObserverConfig,
+    ExperimentObserverConfig,
+)
 from importlib_resources import files
 
 
@@ -146,12 +153,16 @@ class ConfigLoader:
             )
         OmegaConf.merge(FeatureConfig, feature_config)
 
+        # Construct observer configuration with defaults
+        observer_config = self.construct_observer_config(loaded_config)
+
         global_config = GlobalConfig(
             logging=logging_config,
             paths=paths_config,
             optional_paths=optional_paths_config,
             docker=docker_config,
             features=feature_config,
+            observers=observer_config,
         )
         OmegaConf.merge(GlobalConfig, global_config)
         if self.debug_override:
@@ -390,7 +401,7 @@ class ConfigLoader:
             "Validating plugin configuration for %s/%s with %s",
             plugin_type,
             plugin_name,
-            plugin_config
+            plugin_config,
         )
         plugin_schema_class = self.load_plugin_schema(plugin_type, plugin_name)
         self.logger.debug("Plugin schema class: %s", plugin_schema_class)
@@ -412,7 +423,7 @@ class ConfigLoader:
         """
         self.logger.info(
             "Constructing experiment configuration with global configuration - %s",
-            self.global_config
+            self.global_config,
         )
         # Construct tests
         tests: list[TestConfig] = []
@@ -536,14 +547,15 @@ class ConfigLoader:
                     try:
                         self.logger.debug(
                             "Constructed experiment config: %s",
-                            OmegaConf.to_yaml(asdict(experiment_config))
+                            OmegaConf.to_yaml(asdict(experiment_config)),
                         )
                     except Exception as e:
-                        self.logger.warning("Could not serialize experiment config for debug: %s", e)
+                        self.logger.warning(
+                            "Could not serialize experiment config for debug: %s", e
+                        )
                 else:
                     self.logger.warning(
-                        "Experiment config is not a valid dataclass: %s",
-                        experiment_config
+                        "Experiment config is not a valid dataclass: %s", experiment_config
                     )
 
                 self.logger.info("Experiment configuration successfully validated.")
@@ -619,8 +631,7 @@ class ConfigLoader:
             # Load the YAML configuration
             if self.metrics_collector:
                 logging.debug(
-                    "Loading global configuration with metrics from %s",
-                    experiment_config_path
+                    "Loading global configuration with metrics from %s", experiment_config_path
                 )
                 with self.metrics_collector.time_operation("yaml_parsing"):
                     loaded_config = OmegaConf.load(experiment_config_path)
@@ -737,10 +748,7 @@ class ConfigLoader:
             schema_module = importlib.import_module(module_path)
             config_class = getattr(schema_module, f"{protocol.capitalize()}Config")
             self.logger.debug(
-                "Protocol: %s - %s - %s",
-                protocol,
-                implementation['protocol'],
-                config_class
+                "Protocol: %s - %s - %s", protocol, implementation["protocol"], config_class
             )
             protocol_instance = config_class(**implementation.protocol)
             return OmegaConf.merge(config_class, protocol_instance)
@@ -773,10 +781,7 @@ class ConfigLoader:
             class_name = PluginLoader.get_class_name(name)
             config_class = getattr(schema_module, class_name)
             self.logger.debug(
-                "Implementation: %s - %s - %s",
-                name,
-                implementation['implementation'],
-                config_class
+                "Implementation: %s - %s - %s", name, implementation["implementation"], config_class
             )
 
             # Load the version configuration
@@ -849,9 +854,7 @@ class ConfigLoader:
                         self.logger.debug("No execution environment class found in %s", plugin_dir)
         except (FileNotFoundError, OSError) as e:
             self.logger.debug(
-                "Error accessing execution environment directory %s: %s",
-                exec_env_dir,
-                e
+                "Error accessing execution environment directory %s: %s", exec_env_dir, e
             )
 
         self.logger.debug("Total execution environment classes found: %s", len(exec_env_classes))
@@ -891,7 +894,9 @@ class ConfigLoader:
                     else:
                         self.logger.debug("No network environment class found in %s", plugin_dir)
         except (FileNotFoundError, OSError) as e:
-            self.logger.debug("Error accessing network environment directory %s: %s", exec_env_dir, e)
+            self.logger.debug(
+                "Error accessing network environment directory %s: %s", exec_env_dir, e
+            )
 
         self.logger.debug("Total network environment classes found: %s", len(exec_env_classes))
         return exec_env_classes
@@ -1027,9 +1032,7 @@ class ConfigLoader:
                                             )
                                         except ImportError as e:
                                             self.logger.error(
-                                                "Failed to load plugin %s: %s",
-                                                sub_dir.name,
-                                                e
+                                                "Failed to load plugin %s: %s", sub_dir.name, e
                                             )
                 else:
                     for sub_dir in plugin_dir.iterdir():
@@ -1043,7 +1046,9 @@ class ConfigLoader:
                                         f"panther.plugins.{plugin_path.replace('/', '.')}.{sub_dir.name}"
                                     )
                                 except ImportError as e:
-                                    self.logger.error("Failed to load plugin %s: %s", sub_dir.name, e)
+                                    self.logger.error(
+                                        "Failed to load plugin %s: %s", sub_dir.name, e
+                                    )
             except (FileNotFoundError, OSError) as e:
                 self.logger.debug("Error accessing plugin directory %s: %s", plugin_dir, e)
                 plugins = []
@@ -1146,5 +1151,100 @@ class ConfigLoader:
             logging.error("Error retrieving parameters for plugin '%s': %s", plugin_name, e)
             return {}
         except Exception as e:
-            logging.error("Unexpected error while listing parameters for plugin '%s': %s", plugin_name, e)
+            logging.error(
+                "Unexpected error while listing parameters for plugin '%s': %s", plugin_name, e
+            )
             return {}
+
+    def construct_observer_config(self, loaded_config: DictConfig) -> ObserverConfig:
+        """
+        Construct the ObserverConfig from the loaded configuration.
+
+        Args:
+            loaded_config (DictConfig): The loaded configuration dictionary.
+
+        Returns:
+            ObserverConfig: The constructed observer configuration.
+        """
+        self.logger.debug("Constructing observer configuration")
+        observer_config = ObserverConfig()
+
+        if "observers" in loaded_config:
+            observers_dict = loaded_config.get("observers", {})
+
+            # Configure logger observer if present
+            if "logger" in observers_dict:
+                logger_config = LoggerObserverConfig(
+                    enabled=observers_dict["logger"].get("enabled", True),
+                    auto_register=observers_dict["logger"].get("auto_register", True),
+                    priority=observers_dict["logger"].get("priority", 0),
+                    log_level=observers_dict["logger"].get("log_level", "INFO"),
+                    include_data=observers_dict["logger"].get("include_data", True),
+                    include_event_id=observers_dict["logger"].get("include_event_id", True),
+                    include_timestamp=observers_dict["logger"].get("include_timestamp", True),
+                    enable_colors=observers_dict["logger"].get("enable_colors", True),
+                    output_file=observers_dict["logger"].get("output_file"),
+                    correlation_tracking=observers_dict["logger"].get("correlation_tracking", True),
+                    structured_output=observers_dict["logger"].get("structured_output", False),
+                    max_data_length=observers_dict["logger"].get("max_data_length", 500),
+                )
+                observer_config.logger = logger_config
+
+            # Configure metrics observer if present
+            if "metrics" in observers_dict:
+                metrics_config = MetricsObserverConfig(
+                    enabled=observers_dict["metrics"].get("enabled", True),
+                    auto_register=observers_dict["metrics"].get("auto_register", True),
+                    priority=observers_dict["metrics"].get("priority", 10),
+                    log_level=observers_dict["metrics"].get("log_level", "INFO"),
+                    publish_metrics=observers_dict["metrics"].get("publish_metrics", True),
+                    collect_system_metrics=observers_dict["metrics"].get(
+                        "collect_system_metrics", True
+                    ),
+                    publish_interval=observers_dict["metrics"].get("publish_interval", 30),
+                    enable_real_time_monitoring=observers_dict["metrics"].get(
+                        "enable_real_time_monitoring", False
+                    ),
+                    resource_collection_interval=observers_dict["metrics"].get(
+                        "resource_collection_interval", 10
+                    ),
+                    metric_collection_interval=observers_dict["metrics"].get(
+                        "metric_collection_interval", 10
+                    ),
+                )
+                observer_config.metrics = metrics_config
+
+            # Configure storage observer if present
+            if "storage" in observers_dict:
+                storage_config = StorageObserverConfig(
+                    enabled=observers_dict["storage"].get("enabled", True),
+                    auto_register=observers_dict["storage"].get("auto_register", True),
+                    priority=observers_dict["storage"].get("priority", 20),
+                    log_level=observers_dict["storage"].get("log_level", "INFO"),
+                    storage_path=observers_dict["storage"].get("storage_path"),
+                    enable_compression=observers_dict["storage"].get("enable_compression", True),
+                    max_storage_size=observers_dict["storage"].get("max_storage_size", 0),
+                    auto_backup=observers_dict["storage"].get("auto_backup", True),
+                    backup_interval=observers_dict["storage"].get("backup_interval", 3600),
+                    retention_days=observers_dict["storage"].get("retention_days", 30),
+                    batch_size=observers_dict["storage"].get("batch_size", 100),
+                    async_storage=observers_dict["storage"].get("async_storage", False),
+                )
+                observer_config.storage = storage_config
+
+            # Configure experiment observer if present
+            if "experiment" in observers_dict:
+                experiment_config = ExperimentObserverConfig(
+                    enabled=observers_dict["experiment"].get("enabled", True),
+                    auto_register=observers_dict["experiment"].get("auto_register", True),
+                    priority=observers_dict["experiment"].get("priority", 5),
+                    log_level=observers_dict["experiment"].get("log_level", "INFO"),
+                    output_dir=observers_dict["experiment"].get("output_dir"),
+                    test_name=observers_dict["experiment"].get("test_name"),
+                    track_timing=observers_dict["experiment"].get("track_timing", True),
+                    track_steps=observers_dict["experiment"].get("track_steps", True),
+                )
+                observer_config.experiment = experiment_config
+
+        self.logger.debug("Observer configuration constructed successfully")
+        return observer_config

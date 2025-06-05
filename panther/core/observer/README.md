@@ -72,6 +72,30 @@ class LoggerObserver:
         """Log plugin loading and initialization"""
 ```
 
+### Results Manager
+
+**Location:** `panther/core/observer/results_manager.py`
+
+Comprehensive solution for collecting, aggregating, and exporting test results:
+
+```python
+# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/observer/results_manager.py
+class ResultsManager(IEnhancedObserver):
+    """Comprehensive manager for test results"""
+
+    def on_event(self, event: Event):
+        """Handle and collect test result events"""
+
+    def export_results(self, format_type: str, filename: str = None) -> str:
+        """Export results to specified format (JSON, CSV, HTML, Markdown)"""
+
+    def get_results_by_category(self, category: str) -> List[Dict[str, Any]]:
+        """Get results filtered by category"""
+
+    def get_results_by_tag(self, tag: str) -> List[Dict[str, Any]]:
+        """Get results filtered by tag"""
+```
+
 ---
 
 ## Event Types
@@ -109,6 +133,16 @@ class LoggerObserver:
 - `service.ready` — Service available for testing
 - `service.stopping` — Service shutdown initiated
 - `service.stopped` — Service cleanup completed
+
+### Result Events
+
+**Standard Results:**
+
+- `test.result.*` — Test result events using standard format
+
+**Enhanced Results:**
+
+- `enhanced.result.*` — Enhanced result events with type parameters, categories, and tags
 
 ### Environment Events
 
@@ -156,6 +190,33 @@ class CustomMonitoringObserver(Observer):
             })
 ```
 
+### Using Enhanced Result Events
+
+```python
+from panther.core.observer.events import EnhancedResultEvent
+from typing import Dict, List
+
+# Create strongly typed result events
+class NetworkTestResult:
+    def __init__(self, latency: float, packet_loss: float, jitter: float):
+        self.latency = latency
+        self.packet_loss = packet_loss
+        self.jitter = jitter
+
+# Create an enhanced result event with strong typing
+event = EnhancedResultEvent[NetworkTestResult](
+    name="network_test",
+    test_name="latency_test",
+    result=True,  # Test passed
+    result_data=NetworkTestResult(latency=10.5, packet_loss=0.01, jitter=1.2),
+    tags=["network", "latency", "performance"],
+    category="network_performance"
+)
+
+# Publish the event
+event_manager.publish_event(event)
+```
+
 ### Registering Observers
 
 ```python
@@ -164,9 +225,12 @@ class CustomMonitoringObserver(Observer):
 event_manager = EventManager()
 logger_observer = LoggerObserver()
 custom_observer = CustomMonitoringObserver()
+results_manager = ResultsManager(output_dir="./results")
 
 event_manager.register_observer("test_case.*", logger_observer)
 event_manager.register_observer("test_case.*", custom_observer)
+event_manager.register_observer("test.result.*", results_manager)
+event_manager.register_observer("enhanced.result.*", results_manager)
 ```
 
 ### Publishing Events
@@ -186,12 +250,14 @@ def execute(self):
         # Execute test logic
         result = self._run_test()
 
-        # Notify successful completion
-        self.event_manager.publish_event(TestCaseFinishedEvent(
+        # Notify successful completion with enhanced result
+        self.event_manager.publish_event(EnhancedResultEvent(
+            name="test_completion",
             test_name=self.name,
-            timestamp=datetime.now(),
-            success=True,
-            result=result
+            result=True,
+            result_data=result,
+            category="performance_test",
+            tags=["automated", "regression"]
         ))
     except Exception as e:
         # Notify error
@@ -200,6 +266,58 @@ def execute(self):
             timestamp=datetime.now(),
             error=str(e)
         ))
+```
+
+---
+
+## Working with Result Events
+
+### Collecting and Processing Results
+
+```python
+# Create a results manager with a specific output directory
+results_manager = ResultsManager(output_dir="./test_results")
+
+# Register for both standard and enhanced result events
+event_manager.register_observer("test.result.*", results_manager)
+event_manager.register_observer("enhanced.result.*", results_manager)
+
+# Register a callback for successful results
+def on_test_success(event):
+    print(f"Test passed: {event.test_name}")
+
+results_manager.register_callback("*.success", on_test_success)
+```
+
+### Filtering and Analyzing Results
+
+```python
+# Get results by category
+network_results = results_manager.get_results_by_category("network")
+
+# Get results by tag
+performance_results = results_manager.get_results_by_tag("performance")
+
+# Get statistics by category
+category_stats = results_manager.get_category_stats()
+print(f"Network tests: {category_stats['network']['success']} passed, {category_stats['network']['failure']} failed")
+
+# Get statistics by tag
+tag_stats = results_manager.get_tag_stats()
+success_rate = tag_stats['critical']['success'] / (tag_stats['critical']['success'] + tag_stats['critical']['failure'])
+print(f"Critical test success rate: {success_rate * 100:.2f}%")
+```
+
+### Exporting Results
+
+```python
+# Export to a specific format
+json_path = results_manager.export_results("json", "test_run_results.json")
+csv_path = results_manager.export_results("csv", "test_run_results.csv")
+
+# Export to all supported formats
+export_paths = results_manager.export_all_formats("test_results_2023")
+print(f"Results exported to: {', '.join(export_paths.values())}")
 ```
 
 ---
@@ -317,6 +435,35 @@ class CustomProtocolEvent:
     message_type: str
     payload: dict
     timestamp: datetime
+```
+
+### Using Generic Type Support
+
+For strongly typed result data:
+
+```python
+from typing import List, Dict, TypeVar, Generic
+
+# Define a custom result data type
+class PerformanceMetrics:
+    def __init__(self, latency: float, throughput: float, cpu_usage: float):
+        self.latency = latency
+        self.throughput = throughput
+        self.cpu_usage = cpu_usage
+
+# Use type parameter with enhanced result event
+event = EnhancedResultEvent[PerformanceMetrics](
+    name="perf_test",
+    test_name="api_performance",
+    result=True,
+    result_data=PerformanceMetrics(latency=120.5, throughput=1500, cpu_usage=45.2),
+    tags=["api", "performance", "load_test"],
+    category="api_performance"
+)
+
+# Get strongly typed result data
+metrics: PerformanceMetrics = event.get_result_data()
+print(f"API Latency: {metrics.latency}ms")
 ```
 
 ### Asynchronous Observers

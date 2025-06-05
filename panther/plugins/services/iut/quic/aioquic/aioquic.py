@@ -1,7 +1,6 @@
 # PANTHER-SCP/panther/plugins/services/implementations/aioquic_rfc9000/service_manager.py
 
 import os
-import traceback
 from panther.plugins.services.iut.quic.aioquic.config_schema import AioquicConfig
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
@@ -10,6 +9,34 @@ from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
 
 class AioquicServiceManager(IImplementationManager):
+    """
+    Manages the Aioquic service implementation for QUIC protocol testing.
+
+    This manager handles initialization, deployment, and execution of Aioquic
+    services in both client and server roles. It provides capabilities for
+    generating properly structured run commands, preparing Docker environments,
+    and handling post-run operations.
+
+    The manager supports:
+    - Dynamic command generation based on client/server roles
+    - Structured command argument handling for proper escaping
+    - Docker environment preparation and image building
+    - Environment variable configuration
+    - Certificate and security parameter management
+    - Network interface and protocol configuration
+
+    Attributes:
+        working_dir (str): The working directory for the service
+        service_config_to_test (AioquicConfig): Configuration for the Aioquic service
+        service_type (str): Type of service being managed
+        protocol (ProtocolConfig): Protocol configuration
+        implementation_name (str): Name identifier for this implementation
+        logger: Logger for the service manager
+
+    Inherits:
+        IImplementationManager: Base class for all implementation managers
+    """
+
     def __init__(
         self,
         service_config_to_test: AioquicConfig,
@@ -65,9 +92,7 @@ class AioquicServiceManager(IImplementationManager):
             command_args = rendered_command
         except Exception as e:
             self.logger.warning(
-                "Failed to use structured template for %s: %s. ",
-                self.service_name,
-                e
+                "Failed to use structured template for %s: %s. ", self.service_name, e
             )
             # Keep command_args as is if the structured template fails
 
@@ -124,7 +149,7 @@ class AioquicServiceManager(IImplementationManager):
         self.logger.debug(
             "Generating deployment commands for service: %s with service parameters: %s",
             self.service_name,
-            self.service_config_to_test
+            self.service_config_to_test,
         )
 
         # Get appropriate parameters based on role

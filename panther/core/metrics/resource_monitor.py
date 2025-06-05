@@ -101,9 +101,7 @@ class ResourceMonitor:
             )
 
             self.logger.debug(
-                "Baseline metrics recorded: %s CPUs, %sMB RAM",
-                cpu_count,
-                f"{memory_total:.0f}"
+                "Baseline metrics recorded: %s CPUs, %sMB RAM", cpu_count, f"{memory_total:.0f}"
             )
 
         except Exception as e:
@@ -329,7 +327,13 @@ class ResourceMonitor:
             ):
                 try:
                     proc_info = proc.info
-                    if proc_info["cpu_percent"] > 1.0 or proc_info["memory_percent"] > 1.0:
+                    cpu_percent = proc_info.get("cpu_percent", 0)
+                    memory_percent = proc_info.get("memory_percent", 0)
+
+                    # Check if values are valid numbers before comparison
+                    if (cpu_percent is not None and cpu_percent > 1.0) or (
+                        memory_percent is not None and memory_percent > 1.0
+                    ):
                         processes.append(proc_info)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue

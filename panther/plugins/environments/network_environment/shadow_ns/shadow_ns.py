@@ -16,7 +16,6 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from panther.core.observer.event import Event
 
 
 class ShadowNsEnvironment(INetworkEnvironment):
@@ -156,16 +155,29 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
         """
-        self.update_environment(
-            execution_environment,
-            global_config,
-            plugin_loader,
-            services_managers,
-            test_config,
-        )
-        self.prepare_environment()
-        self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
-        self.logger.info("Docker Compose environment setup complete")
+        # Notify setup started via mixin
+        self.notify_environment_setup_started(details={"environment": self})
+
+        try:
+            self.update_environment(
+                execution_environment,
+                global_config,
+                plugin_loader,
+                services_managers,
+                test_config,
+            )
+            self.prepare_environment()
+            self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
+            self.logger.info("Docker Compose environment setup complete")
+
+            # Notify setup completed with success
+            self.notify_environment_setup_completed(success=True)
+        except Exception as e:
+            # Notify setup completed with failure
+            self.notify_environment_setup_completed(
+                success=False, details={"error": str(e), "error_type": type(e).__name__}
+            )
+            raise
 
     def deploy_services(self):
         self.logger.info("Deploying services")
@@ -225,9 +237,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 service.environments = self.resolve_environment_variables(service.environments)
                 service.environments["SHADOW_TEST"] = "1"
                 self.logger.debug(
-                    "Service %s environment: %s",
-                    service.service_name,
-                    service.environments
+                    "Service %s environment: %s", service.service_name, service.environments
                 )
 
             self.generate_from_template(
@@ -239,8 +249,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
             )
 
             self.logger.info(
-                "Shadow NS file generated at '%s'",
-                self.services_network_config_file_path
+                "Shadow NS file generated at '%s'", self.services_network_config_file_path
             )
 
             self.logger.info("Shadow NS based environment manager prepared.")
@@ -256,13 +265,15 @@ class ShadowNsEnvironment(INetworkEnvironment):
 
             self.logger.info(
                 "Shadow NS file Dockerfile generated at '%s'",
-                self.services_network_docker_file_path
+                self.services_network_docker_file_path,
             )
 
             self.get_docker_name()
 
         except Exception as e:
-            self.logger.error("Failed to generate Shadow NS file: %s\n%s", e, traceback.format_exc())
+            self.logger.error(
+                "Failed to generate Shadow NS file: %s\n%s", e, traceback.format_exc()
+            )
             exit(1)
 
     def launch_environment_services(self):
@@ -306,7 +317,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
                         *volumes,
                         self.docker_name,
                     ]
-                    self.logger.debug("Executing command: %s", ' '.join(command))
+                    self.logger.debug("Executing command: %s", " ".join(command))
                     result = subprocess.run(
                         command,
                         check=True,
@@ -361,13 +372,23 @@ class ShadowNsEnvironment(INetworkEnvironment):
                         result.stdout,
                         result.stderr,
                         len(self.services_managers),
-                        len(std_split)
+                        len(std_split),
                     )
                     if len(std_split) < len(self.services_managers) + 1:
                         self.logger.debug(
                             "Docker Compose environment monitored successfully - Experiment finished earlier"
                         )
-                        self.event_manager.notify(Event(name="experiment_finished_early", data={}))
+
+                        # Use the mixin method instead of directly notifying
+                        reason = "Services finished early"
+                        self.notify_experiment_early_finish(
+                            reason=reason,
+                            details={
+                                "expected_services": len(self.services_managers),
+                                "found_services": len(std_split) - 1,  # One line for header
+                                "docker_output": result.stdout.strip(),
+                            },
+                        )
 
                 self.logger.debug("Docker Compose environment monitored successfully.")
         except subprocess.CalledProcessError as e:
@@ -379,7 +400,6 @@ class ShadowNsEnvironment(INetworkEnvironment):
         Tears down the Shadow NS environment by bringing down services.
         """
         # TODO: add a way to retrieve the logs, results, binary
-        self.logger.info("Tearing down Shadow NS environment")
         with open(os.path.join(self.output_dir, "logs", "shadow-teardown.log"), "w") as log_file:
             with open(
                 os.path.join(self.output_dir, "logs", "shadow-teardown.err.log"), "w"
@@ -403,8 +423,26 @@ class ShadowNsEnvironment(INetworkEnvironment):
                     log_file.write(result.stdout)
                     log_file_err.write(result.stderr)
                     self.logger.info("Shadow NS environment torn down successfully")
+
+                    # Notify teardown completed with success
+                    self.notify_environment_teardown(
+                        success=True,
+                        details={
+                            "container_count": (
+                                len(self.services_managers)
+                                if hasattr(self, "services_managers")
+                                else 0
+                            )
+                        },
+                    )
                 except subprocess.CalledProcessError as e:
                     self.logger.error("Failed to tear down Shadow NS environment: %s", e.stderr)
+
+                    # Notify teardown completed with failure
+                    self.notify_environment_teardown(
+                        success=False, details={"error": str(e), "error_type": type(e).__name__}
+                    )
+
                     raise e
 
     def read_shadow_file(self) -> dict[str, Any]:
@@ -413,8 +451,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         if not os.path.exists(self.services_network_config_file_path):
             self.logger.error(
-                "Shadow NS file '%s' does not exist.",
-                self.services_network_config_file_path
+                "Shadow NS file '%s' does not exist.", self.services_network_config_file_path
             )
             raise FileNotFoundError(
                 f"Shadow NS file '{self.services_network_config_file_path}' does not exist."

@@ -51,7 +51,7 @@ def find_plugin(plugin_name: str) -> tuple[str, str | None]:
                         "Found plugin '%s' of type '%s' under protocol '%s'",
                         plugin_name,
                         plugin_type,
-                        protocol
+                        protocol,
                     )
                     return plugin_type, protocol
                 except ImportError:
@@ -103,7 +103,9 @@ def list_plugin_parameters(
                 )
                 try:
                     plugin_module = importlib.import_module(module_path)
-                    logger.debug("Found plugin schema at %s with protocol %s", module_path, protocol)
+                    logger.debug(
+                        "Found plugin schema at %s with protocol %s", module_path, protocol
+                    )
                 except ImportError as e:
                     raise ImportError(f"Plugin schema not found at {module_path}: {e}")
             else:

@@ -1,8 +1,28 @@
 from enum import Enum
 from dataclasses import dataclass, field
+from panther.config.config_observer_schema import ObserverConfig
 
 # Logging Configuration
 LoggingLevel = Enum("LoggingLevel", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+
+
+@dataclass
+class EventLogFormatConfig:
+    """
+    Configuration class for event log formatting.
+
+    Attributes:
+        include_priority (bool): Whether to include priority level in event logs
+        custom_format (str): Optional custom format string for event logs with placeholders
+                            {type}, {id}, {timestamp}, {priority}
+        consistent_indentation (bool): Whether to ensure consistent indentation in logs
+        indent_size (int): Number of spaces to use for indentation
+    """
+
+    include_priority: bool = False  # Avoid duplicate log levels
+    custom_format: str = "{timestamp} {type} {id} {priority}"  # Default format
+    consistent_indentation: bool = True
+    indent_size: int = 0
 
 
 @dataclass
@@ -13,10 +33,12 @@ class LoggingConfig:
     Attributes:
         level (LoggingLevel): The logging level, with limited valid values.
         format (str): The format string for log messages.
+        event_format (EventLogFormatConfig): Configuration for event log formatting
     """
 
     level: LoggingLevel = LoggingLevel.DEBUG  # Limited valid values
     format: str = "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+    event_format: EventLogFormatConfig = field(default_factory=EventLogFormatConfig)
 
 
 # Paths Configuration
@@ -67,7 +89,7 @@ class AdditionalPathsConfig:
 class DockerConfig:
     """
     Configuration settings for Docker operations.
-    
+
     # TODO: enforce the use of DockerConfig in all plugins that require Docker operations.
 
     Attributes:
@@ -114,6 +136,7 @@ class GlobalConfig:
         optional_paths (AdditionalPathsConfig): Configuration for optional paths.
         docker (DockerConfig): Configuration for Docker.
         features (FeatureConfig): Configuration for features.
+        observers (ObserverConfig): Configuration for application observers.
     """
 
     logging: LoggingConfig = field(default_factory=LoggingConfig)
@@ -121,3 +144,4 @@ class GlobalConfig:
     optional_paths: AdditionalPathsConfig = field(default_factory=AdditionalPathsConfig)
     docker: DockerConfig = field(default_factory=DockerConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
+    observers: ObserverConfig = field(default_factory=ObserverConfig)

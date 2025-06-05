@@ -45,7 +45,6 @@ class Phase(Enum):
 
 
 @dataclass
-@dataclass
 class Metric:
     """Individual metric data structure."""
 
@@ -103,7 +102,7 @@ class MetricsCollector:
     experiment lifecycle.
     """
 
-    def __init__(self, experiment_name: str, output_dir: Path):
+    def __init__(self, experiment_name: str, output_dir: Path, collection_interval: float = 5.0):
         """
         Initialize the metrics collector.
 
@@ -123,7 +122,7 @@ class MetricsCollector:
         # Thread management
         self.collection_thread = None
         self.collection_running = False
-        self.collection_interval = 1.0  # Default collection interval in seconds
+        self.collection_interval = collection_interval
 
         # Initialize experiment start time
         self.experiment_start_time = time.time()
@@ -1028,7 +1027,7 @@ class TimingContextManager:
             if hasattr(self.collector, "logger") and self.timer_started:
                 self.collector.logger.warning(
                     "Attempted to stop timer '%s' that wasn't started or was already stopped",
-                    self.name
+                    self.name,
                 )
 
     def __enter__(self):

@@ -1,6 +1,18 @@
+"""
+Enhanced Plugin Ecosystem for PANTHER Framework
+
+This module provides a comprehensive plugin system with discovery, management,
+hot-reloading, and lifecycle management capabilities while maintaining
+backward compatibility with existing service and environment plugin loading.
+"""
+
+import importlib
 import importlib.util
 import logging
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
+from typing import Any, Optional
 
 from panther.core.observer.event_manager import EventManager
 from panther.config.config_experiment_schema import ServiceConfig, TestConfig
@@ -18,18 +30,62 @@ from panther.plugins.environments.environment_interface import IEnvironmentPlugi
 from panther.plugins.plugin_loader import PluginLoader
 
 
+class PluginStatus(Enum):
+    """Plugin status enumeration."""
+
+    NOT_LOADED = "not_loaded"
+    LOADING = "loading"
+    LOADED = "loaded"
+    ACTIVE = "active"
+    ERROR = "error"
+    DISABLED = "disabled"
+
+
+@dataclass
+class PluginMetadata:
+    """Plugin metadata information."""
+
+    name: str
+    version: str = "1.0.0"
+    description: str = ""
+    author: str = ""
+    dependencies: list[str] = field(default_factory=list)
+    minimum_panther_version: str = "1.0.0"
+    supported_events: list[str] = field(default_factory=list)
+    configuration_schema: dict[str, Any] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PluginInfo:
+    """Complete plugin information."""
+
+    metadata: PluginMetadata
+    plugin_class: type["IPantherPlugin"]
+    file_path: str
+    status: PluginStatus = PluginStatus.NOT_LOADED
+    instance: Optional["IPantherPlugin"] = None
+    error_message: str = ""
+    load_time: float | None = None
+    last_modified: float | None = None
+
+
 class PluginManager:
     """
-    Manages the loading and instantiation of various plugins for the system.
+    Enhanced plugin manager for PANTHER framework.
+
+    Manages the loading and instantiation of various plugins for the system,
+    including traditional service/environment plugins and modern extensible plugins
+    with discovery, lifecycle management, and hot-reloading capabilities.
 
     Attributes:
-        plugins_loader (PluginLoader): The loader responsible for loading plugins.
+        plugins_loader (PluginLoader): The loader responsible for loading traditional plugins.
         logger (logging.Logger): Logger instance for logging messages.
         protocol_plugins (Dict[str, IServiceManager]): Dictionary to store protocol plugins.
         network_environment_plugins (Dict[str, INetworkEnvironment]): Dictionary to store network environment plugins.
         execution_environment_plugins (Dict[str, IExecutionEnvironment]): Dictionary to store execution environment plugins.
-
     Methods:
+        # Traditional plugin methods (backward compatibility)
         create_service_manager(protocol: ProtocolConfig, implementation: ImplementationConfig, implementation_dir: Path, service_config_to_test: ServiceConfig) -> IServiceManager:
             Creates and returns an instance of a service manager for the given protocol and implementation.
 
@@ -37,7 +93,15 @@ class PluginManager:
             Creates and returns an instance of an environment manager for the given environment.
     """
 
-    def __init__(self, plugins_loader: PluginLoader):
+    def __init__(self, plugins_loader: PluginLoader = None, plugin_directories: list[str] = None):
+        """
+        Initialize plugin manager with both traditional and enhanced capabilities.
+
+        Args:
+            plugins_loader: Traditional plugin loader (for backward compatibility)
+            plugin_directories: Directories to scan for modern plugins
+        """
+        # Traditional plugin system (backward compatibility)
         self.plugins_loader = plugins_loader
         self.logger = logging.getLogger("PluginManager")
         self.protocol_plugins: dict[str, IServiceManager] = {}
@@ -84,7 +148,7 @@ class PluginManager:
             "Loading module from '%s' as '%s' with spec %s",
             service_manager_path,
             service_module_name,
-            spec
+            spec,
         )
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
@@ -115,7 +179,7 @@ class PluginManager:
             else:
                 self.logger.error(
                     "Service manager class '%s' not found or does not inherit from IImplementationManager.",
-                    class_name
+                    class_name,
                 )
                 raise AttributeError(f"Service manager class '{class_name}' not found or invalid.")
         else:
@@ -152,8 +216,7 @@ class PluginManager:
         environment_plugin_path = environment_dir / environment / f"{environment}.py"
         if not environment_plugin_path.exists():
             self.logger.error(
-                "Environment plugin file '%s' does not exist.",
-                environment_plugin_path
+                "Environment plugin file '%s' does not exist.", environment_plugin_path
             )
             raise FileNotFoundError(
                 f"Environment plugin file '{environment_plugin_path}' not found."
@@ -168,7 +231,7 @@ class PluginManager:
             "Loading module from '%s' as '%s' with spec %s",
             environment_plugin_path,
             environment_module_name,
-            spec
+            spec,
         )
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
@@ -177,9 +240,7 @@ class PluginManager:
             environment_class = getattr(module, class_name, None)
             if environment_class and issubclass(environment_class, IEnvironmentPlugin):
                 self.logger.debug(
-                    "Loading test configuration for '%s' - %s",
-                    environment,
-                    environment_dir.name
+                    "Loading test configuration for '%s' - %s", environment, environment_dir.name
                 )
                 env_config = (
                     test_config.execution_environments
@@ -199,7 +260,7 @@ class PluginManager:
             else:
                 self.logger.error(
                     "Environment class '%s' not found or does not inherit from IEnvironmentPlugin.",
-                    class_name
+                    class_name,
                 )
                 raise AttributeError(f"Environment class '{class_name}' not found or invalid.")
         else:

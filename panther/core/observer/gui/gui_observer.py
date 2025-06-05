@@ -1,6 +1,6 @@
 from abc import ABC
-from panther.core.observer.event import Event
-from panther.core.observer.observer_interface import IObserver
+from panther.core.observer.events import Event
+from panther.core.observer.core.observer_interface import IObserver
 
 
 class GUIObserver(IObserver, ABC):

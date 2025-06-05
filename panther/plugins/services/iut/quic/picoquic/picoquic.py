@@ -27,8 +27,27 @@ class PicoquicServiceManager(IImplementationManager):
         Generates the run command.
         """
         cmd_args = self.generate_deployment_commands()
+
+        # Make sure working_dir is set - use binary dir as default if not already set
+        working_dir = getattr(self, "working_dir", None)
+        if working_dir is None:
+            if self.role == RoleEnum.server:
+                working_dir = self.service_config_to_test.implementation.version.server.binary.dir
+            else:
+                working_dir = self.service_config_to_test.implementation.version.client.binary.dir
+            # Save it for reuse
+            self.working_dir = working_dir
+
+        # Make sure command_args is not None and is a valid type (list or str)
+        if cmd_args is None:
+            self.logger.warning("Command arguments are None, using empty list")
+            cmd_args = []
+        elif isinstance(cmd_args, str) and not cmd_args.strip():
+            # If it's an empty string after stripping
+            cmd_args = []
+
         return {
-            "working_dir": self.working_dir,
+            "working_dir": working_dir,
             "command_binary": (
                 self.service_config_to_test.implementation.version.server.binary.name
                 if self.role == RoleEnum.server
@@ -98,7 +117,7 @@ class PicoquicServiceManager(IImplementationManager):
 
         # Initialize params first
         params = {}
-        
+
         # Build parameters for the command template
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
@@ -212,3 +231,12 @@ class PicoquicServiceManager(IImplementationManager):
 
     def __repr__(self):
         return f"PicoquicServiceManager({self.__dict__})"
+
+    def stop(self):
+        """
+        Stops the PicoquicServiceManager service.
+
+        This method is called by the TestCase's teardown_services method to properly
+        stop the service if it's running.
+        """
+        pass

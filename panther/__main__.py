@@ -50,7 +50,7 @@ except ImportError:
 
 from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
-from panther.config.plugin_params import list_plugin_parameters
+from panther.plugins.plugin_params import list_plugin_parameters
 
 
 def initialize_metrics(args):
@@ -313,7 +313,7 @@ def main():
     parser.add_argument(
         "--experiment-config",
         type=str,
-        default="experiment-config/experiment_config.yaml",
+        default="experiment-config/experiment_config_example_minimal.yaml",
         help="Path to the configuration directory.",
     )
     parser.add_argument(
@@ -733,7 +733,6 @@ def main():
                 if metrics_collector:
                     metrics_collector.stop_timer("total_execution_time")
 
-                execution_success = True
                 return 0
 
             except Exception as e:
@@ -774,19 +773,7 @@ def main():
                 logging.error(f"Experiment execution failed: {e}")
                 return 1
             finally:
-                # Finalize metrics collection if enabled
-                finalize_metrics(
-                    args,
-                    metrics_collector,
-                    resource_monitor,
-                    metrics_reporter,
-                    metrics_exporter,
-                    execution_success,
-                    experiment_manager,
-                )
                 config_loader.cleanup()
-
-    return 0
 
 
 if __name__ == "__main__":
