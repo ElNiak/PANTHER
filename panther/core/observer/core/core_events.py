@@ -457,21 +457,13 @@ class ExperimentFinishedEarlyEvent(ExperimentEvent):
     """Event emitted when an experiment finishes earlier than expected."""
 
     def __init__(self, experiment_id: str, reason: str, details: dict[str, Any] = None):
-        """
-        Initialize a new ExperimentFinishedEarlyEvent.
-
-        Args:
-            experiment_id: Identifier for the experiment
-            reason: Reason for early termination
-            details: Additional details about the early termination
-        """
-        super().__init__(
-            "finished_early",
-            {"experiment_id": experiment_id, "reason": reason, "details": details or {}},
-        )
+        data = details or {}
+        data["experiment_id"] = experiment_id
+        data["reason"] = reason
+        super().__init__(name="experiment_finished_early", data=data)
 
     def validate(self) -> bool:
-        """Validate event data has required fields."""
+        """Validate required fields are present."""
         return "experiment_id" in self.data and "reason" in self.data
 
 

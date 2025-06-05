@@ -521,6 +521,8 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
             # Split the string on spaces, respecting quoted sections
             try:
                 args = [arg for arg in shlex.split(command_args) if arg.strip()]
+                # Remove newline characters from each argument
+                args = [arg.replace("\n", "") for arg in args if arg is not None]
             except ValueError as e:
                 self.logger.warning("Error splitting command: %s. Using as-is.", e)
                 args = [command_args]

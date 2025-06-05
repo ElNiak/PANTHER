@@ -188,12 +188,13 @@ class PicoquicServiceManager(IImplementationManager):
             command_args.append(params["target"])
             command_args.append(params["network"]["port"])
 
-        # Add logging parameters
-        if "logging" in params:
-            command_args.append(">")
-            command_args.append(params["logging"]["log_path"])
-            command_args.append("2>")
-            command_args.append(params["logging"]["err_path"])
+        # # Add logging parameters
+        # if "logging" in params:
+        #     command_args.append(">")
+        #     command_args.append(params["logging"]["log_path"])
+        #     command_args.append("2>")
+        #     command_args.append(params["logging"]["err_path"])
+        # TODO: Logging is managed by the environment manager, so we don't need to add it here
 
         # Environment variables if needed
         env_vars = {}  # Add any required environment variables here

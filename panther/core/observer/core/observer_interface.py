@@ -6,7 +6,6 @@ This module defines the core interface for all observer implementations in the P
 
 from abc import ABC, abstractmethod
 import logging
-import sys
 
 # Import from new location - will be created later
 from panther.core.observer.core.core_events import Event
@@ -91,7 +90,7 @@ class IObserver(ABC):
         logger.propagate = False
 
         # Console handler
-        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler = logging.StreamHandler()
 
         if structured_output:
             console_formatter = logging.Formatter(

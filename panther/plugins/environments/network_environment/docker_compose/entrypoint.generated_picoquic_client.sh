@@ -11,29 +11,29 @@ log_function() {
   local start_time=$(date +%s)
   local status_file="/app/logs/picoquic_client_function_${fn_name}_status.txt"
   local output_file="/app/logs/picoquic_client_function_${fn_name}_output.log"
-  
+
   # Create header for the output file
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of function: ${fn_name}" > "$output_file"
   echo "----------------------------------------" >> "$output_file"
-  
+
   # Execute the function and capture output
   shift
   if type "${fn_name}" 2>/dev/null | grep -q 'function'; then
     log "Executing function: ${fn_name}"
-    { ${fn_name} "$@" >> "$output_file" 2>&1; } 
+    { ${fn_name} "$@" >> "$output_file" 2>&1; }
     local status=$?
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
+
     # Record completion time and status
     echo "----------------------------------------" >> "$output_file"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Function completed with exit code: $status (duration: ${duration}ms)" >> "$output_file"
     echo "$status" > "$status_file"
-    
+
     # Log output to main log file
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from function ${fn_name}:" >> /app/logs/picoquic_client_commands.log
     cat "$output_file" >> /app/logs/picoquic_client_commands.log
-    
+
     return $status
   else
     log "ERROR: Function ${fn_name} is not defined"
@@ -65,7 +65,7 @@ report_exit() {
   local phase=$2
   local cmd_num=$3
   local cmd_desc=$4
-  
+
   log "Command $cmd_num in phase $phase exited with status $exit_status: $cmd_desc"
   if [ $exit_status -ne 0 ]; then
     log "ERROR: Command failed with exit status $exit_status"
@@ -99,7 +99,7 @@ execute_with_error_tracking() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $phase command #$cmd_num" > "$output_file"
   echo "Command: $cmd_desc" >> "$output_file"
   echo "----------------------------------------" >> "$output_file"
-  
+
   # Execute the command and capture output and status
   if [ "$is_multiline" = "true" ]; then
     # For multiline commands, use eval
@@ -109,19 +109,19 @@ execute_with_error_tracking() {
     bash -c "$cmd" >> "$output_file" 2>&1
   fi
   local status=$?
-  
+
   # Record completion time and status
   echo "----------------------------------------" >> "$output_file"
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Command completed with exit code: $status" >> "$output_file"
   echo "$status" > "$status_file"
-  
+
   # Log the output to main log file
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $phase command #$cmd_num:" >> /app/logs/picoquic_client_commands.log
   cat "$output_file" >> /app/logs/picoquic_client_commands.log
-  
+
   # Report exit status
   report_exit "$status" "$phase" "$cmd_num" "$cmd_desc"
-  
+
   # Return the command's exit status
   return $status
 }
@@ -230,12 +230,12 @@ cmd_type="POST_COMPILE"
 
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-(touch /app/logs/picoquic_client.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_client.pcap;) & 
+(touch /app/logs/picoquic_client.pcap; tshark -a duration:50 -i any -w /app/logs/picoquic_client.pcap;) &
 ENDOFCOMMAND
 )
 # Execute multi-line command with error tracking
 log "Executing multi-line $cmd_type command #3"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_client.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_client.pcap;) & " "true" "true" || {
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_client.pcap; tshark -a duration:50 -i any -w /app/logs/picoquic_client.pcap;) & " "true" "true" || {
   exit $?
 }
 
@@ -245,6 +245,7 @@ log "Executing pre-run commands..."
 
 # Execute the main command if provided
 log "Executing main command..."
+pwd > /app/logs/picoquic_client_current_dir_during_exec.log
 cd "/opt/picoquic" || {
   log "Failed to change to directory: /opt/picoquic"
   exit 1
@@ -252,13 +253,7 @@ cd "/opt/picoquic" || {
 
 
 # Prepare command and execute it
-FULL_CMD="././picoquicdemo #!/bin/bash
-# Structured command template for Picoquic client
-# Generated commands are properly escaped using quote_shell filter
-
-
-./picoquicdemo \
-  -T \  /opt/ticket/ticket.key \  -a \  hq-interop \  '-l - -D -L' \  -e \  eth0 \  -v \  00000001 \  ivy_server \  4443 \  '>' \  /app/logs/client.log \  '2>' \  /app/logs/client.err.log "
+FULL_CMD="./picoquicdemo -T  /opt/ticket/ticket.key  -a  hq-interop  -l - -D -L  -e  eth0  -v  00000001  ivy_server  4443"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
 
 if [ -z "$FULL_CMD" ]; then
@@ -267,13 +262,13 @@ if [ -z "$FULL_CMD" ]; then
 else
   log "Running command: $FULL_CMD"
 
-  timeout 100 $FULL_CMD 2>&1 | tee -a /app/logs/picoquic_client_run.log
+  timeout 50 $FULL_CMD > /app/logs/picoquic_client_run_cmd.log 2> /app/logs/picoquic_client_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 100 seconds"
+    log "WARNING: Command timed out after 50 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
     exit $RUN_STATUS

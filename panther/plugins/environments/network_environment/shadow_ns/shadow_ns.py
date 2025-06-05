@@ -155,9 +155,6 @@ class ShadowNsEnvironment(INetworkEnvironment):
         """
         Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
         """
-        # Notify setup started via mixin
-        self.notify_environment_setup_started(details={"environment": self})
-
         try:
             self.update_environment(
                 execution_environment,
@@ -167,6 +164,8 @@ class ShadowNsEnvironment(INetworkEnvironment):
                 test_config,
             )
             self.prepare_environment()
+            # Notify setup started via mixin
+            self.notify_environment_setup_started(details={"environment_instance": self})
             self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
             self.logger.info("Docker Compose environment setup complete")
 

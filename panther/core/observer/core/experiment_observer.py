@@ -14,6 +14,10 @@ from panther.core.observer.events import (
     ServiceEvent,
     ServiceStartedEvent,
     ServiceStoppedEvent,
+    TestExecutionStartedEvent,
+    TestCompletedEvent,
+    TestExecutionCompletedEvent,
+    MetricCollectedEvent,
 )
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 
@@ -96,6 +100,10 @@ class ExperimentObserver(IObserver):
             ServiceEvent: self._handle_service_event,
             ServiceStartedEvent: self._handle_service_started,
             ServiceStoppedEvent: self._handle_service_stopped,
+            TestExecutionStartedEvent: self._handle_test_execution_started,
+            TestCompletedEvent: self._handle_test_completed,
+            TestExecutionCompletedEvent: self._handle_test_execution_completed,
+            MetricCollectedEvent: self._handle_metric_collected,
         }
 
     def on_event(self, event: Event) -> bool:
@@ -118,12 +126,28 @@ class ExperimentObserver(IObserver):
             return True
 
         # Find a handler for this event type using inheritance
+        best_match = None
+        best_match_cls = None
+
+        # Find the most specific handler based on class hierarchy
         for event_cls, handler in self.event_handlers.items():
             if isinstance(event, event_cls):
-                return handler(event)
+                # If we don't have a match yet, or this class is more specific (subclass of our current best)
+                if best_match_cls is None or issubclass(event_cls, best_match_cls):
+                    best_match = handler
+                    best_match_cls = event_cls
+
+        # Call the handler if we found one
+        if best_match:
+            self.logger.debug(
+                "Handling event %s with handler for %s",
+                event.__class__.__name__,
+                best_match_cls.__name__,
+            )
+            return best_match(event)
 
         # Default handling for unrecognized events
-        self.logger.debug(f"Unhandled event type: {event.__class__.__name__}")
+        self.logger.debug("Unhandled event type: %s", event.__class__.__name__)
         return True
 
     def _handle_experiment_finished_early(self, event: ExperimentFinishedEarlyEvent) -> bool:
@@ -138,6 +162,10 @@ class ExperimentObserver(IObserver):
             reason = event.data.get("reason", "No reason provided")
             self.logger.debug(f"Reason: {reason}")
 
+            # Tear down any active environments
+            for env_name, env_plugin in self.environment_plugins.items():
+                env_plugin.teardown_environment()
+
             if self.track_timing:
                 self._record_timing_info("early_termination", self.start_time)
 
@@ -151,12 +179,12 @@ class ExperimentObserver(IObserver):
     def _handle_step_progress(self, event: StepProgressEvent) -> bool:
         """Handle step progress events."""
         self.current_phase = "running_steps"
-        step_id = event.step_id
-        progress = event.progress
-        details = event.details or {}
+        step_id = event.data.get("step_id")
+        progress = event.data.get("progress")
+        details = event.data.get("details") or {}
 
         # Track step progress
-        if self.track_steps:
+        if self.track_steps and step_id:
             if step_id not in self.step_progress:
                 self.step_progress[step_id] = []
             self.step_progress[step_id].append(progress)
@@ -186,9 +214,9 @@ class ExperimentObserver(IObserver):
 
     def _handle_step_completed(self, event: StepCompletedEvent) -> bool:
         """Handle step completion events."""
-        step_id = event.step_id
-        success = event.success
-        result = event.result or {}
+        step_id = event.data.get("step_id")
+        success = event.data.get("success", False)
+        result = event.data.get("result") or {}
 
         self.logger.info("Step completed: %s - %s", step_id, "Success" if success else "Failed")
 
@@ -202,8 +230,8 @@ class ExperimentObserver(IObserver):
     def _handle_environment_setup_started(self, event: EnvironmentSetupStartedEvent) -> bool:
         """Handle environment setup start events."""
         self.current_phase = "environment_setup"
-        env_type = event.environment_type
-        details = event.details or {}
+        env_type = event.data.get("type")
+        details = event.data.get("details") or {}
 
         self.logger.info("Environment setup started: %s", env_type)
 
@@ -217,9 +245,9 @@ class ExperimentObserver(IObserver):
     def _handle_environment_setup_completed(self, event: EnvironmentSetupCompletedEvent) -> bool:
         """Handle environment setup completion events."""
         self.current_phase = "environment_ready"
-        env_type = event.environment_type
-        success = event.success
-        details = event.details or {}
+        env_type = event.data.get("environment_type")
+        success = event.data.get("success", False)
+        details = event.data.get("details") or {}
 
         # Extract and store the environment instance if available
         if "environment_instance" in details:
@@ -248,9 +276,9 @@ class ExperimentObserver(IObserver):
     def _handle_environment_teardown(self, event: EnvironmentTeardownEvent) -> bool:
         """Handle environment teardown events."""
         self.current_phase = "environment_teardown"
-        env_type = event.environment_type
-        success = event.success
-        details = event.details or {}
+        env_type = event.data.get("type")
+        success = event.data.get("success", False)
+        details = event.data.get("details") or {}
 
         self.logger.info(
             "Environment teardown: %s - %s", env_type, "Success" if success else "Failed"
@@ -362,6 +390,68 @@ class ExperimentObserver(IObserver):
         # Log details with consistent indentation
         for key, value in details.items():
             self.logger.debug(f"  {key}: {value}")
+
+        return True
+
+    def _handle_test_execution_started(self, event: "TestExecutionStartedEvent") -> bool:
+        """Handle test execution started events."""
+        self.current_phase = "test_execution_started"
+        test_id = event.data.get("test_id")
+        test_name = event.data.get("test_name")
+        start_time = event.data.get("start_time")
+
+        self.logger.info("Test execution started: %s", test_name)
+
+        if self.track_timing:
+            self.start_time = datetime.now()
+            self._record_timing_info("test_execution_started", self.start_time)
+
+        return True
+
+    def _handle_test_completed(self, event: "TestCompletedEvent") -> bool:
+        """Handle test completed events."""
+        self.current_phase = "test_completed"
+        test_name = event.data.get("test_name")
+        success = event.data.get("success", False)
+        result = event.data.get("result") or {}
+
+        self.logger.info("Test completed: %s - %s", test_name, "Success" if success else "Failed")
+
+        if self.track_timing:
+            self._record_timing_info("test_completed", self.start_time)
+
+        return True
+
+    def _handle_test_execution_completed(self, event: "TestExecutionCompletedEvent") -> bool:
+        """Handle test execution completed events."""
+        self.current_phase = "test_execution_completed"
+        test_id = event.data.get("test_id")
+        test_name = event.data.get("test_name")
+        success = event.data.get("success", False)
+        results = event.data.get("results") or {}
+        duration_ms = event.data.get("duration_ms")
+
+        self.logger.info(
+            "Test execution completed: %s - %s (Duration: %s ms)",
+            test_name,
+            "Success" if success else "Failed",
+            duration_ms,
+        )
+
+        if self.track_timing:
+            self._record_timing_info("test_execution_completed", self.start_time)
+
+        return True
+
+    def _handle_metric_collected(self, event: "MetricCollectedEvent") -> bool:
+        """Handle metric collected events."""
+        # Generally, we don't need to do much with metrics since they're already being collected
+        # but we can log them at debug level
+        metric_name = event.data.get("metric_name")
+        metric_type = event.data.get("metric_type")
+        value = event.data.get("value")
+
+        self.logger.debug("Metric collected: %s (%s) = %s", metric_name, metric_type, value)
 
         return True
 

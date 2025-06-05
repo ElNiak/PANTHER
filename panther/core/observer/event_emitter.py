@@ -100,9 +100,14 @@ class EventEmitter:
             reason: Reason for early termination
             details: Additional details about the termination
         """
+        details = details or {}
+        # Include action to distinguish between notification and check
+        if "action" not in details:
+            details["action"] = "notify"
+
         self.emit_event(
             ExperimentFinishedEarlyEvent(
-                experiment_id=experiment_id, reason=reason, details=details or {}
+                experiment_id=experiment_id, reason=reason, details=details
             )
         )
 
@@ -218,7 +223,7 @@ class EventEmitter:
             details: Additional setup details
         """
         self.emit_event(
-            EnvironmentSetupStartedEvent(environment_type=environment_type, config=details or {})
+            EnvironmentSetupStartedEvent(environment_type=environment_type, details=details or {})
         )
 
     def emit_environment_setup_completed(
@@ -260,10 +265,12 @@ class EventEmitter:
         Emit a service lifecycle event.
 
         Args:
-            name: Event name (e.g., "service.setup", "service.deployed")
-            data: Event data
+            name: Event name (e.g., "service.setup", "service.deployed", "services_deployed")
+            data: Event data with service details
         """
-        self.emit_event(ServiceEvent(name=name, data=data or {}))
+        event_data = data or {}
+
+        self.emit_event(ServiceEvent(name=name, data=event_data))
 
     def emit_step_progress(
         self, step_id: str, progress: float, details: dict[str, Any] = None

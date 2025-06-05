@@ -316,7 +316,7 @@ class ExperimentManager:
                                 type(test_error).__name__,
                             )
 
-                        # progress_bar.set_postfix({f"Running": f"{test_case}"})
+                        progress_bar.set_postfix({"Running": f"{test_case}"})
 
             tqdm.write("")  # Ensures the bar stays at the bottom after completion
 

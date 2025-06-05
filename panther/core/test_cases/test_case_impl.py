@@ -127,6 +127,8 @@ class TestCase(ITestCase):
 
         self.state: Literal["PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"] = "PENDING"
 
+        self.registered_observers: list[str] = []
+
     def __str__(self):
         return (
             f"TestCase(name={self.test_config.name}, "
@@ -202,18 +204,30 @@ class TestCase(ITestCase):
 
             factory = get_observer_factory()
             experiment_observer = factory.get_observer("test_experiment")
-            if experiment_observer and experiment_observer.should_terminate_early():
+
+            # Check if experiment should terminate early
+            should_terminate = False
+            if experiment_observer:
+                # Use action="check" to distinguish from notification
+                self.event_emitter.emit_experiment_finished_early(
+                    experiment_id=self.test_config.name,
+                    reason="Checking early termination status",
+                    details={"action": "check", "step": step_name},
+                )
+                should_terminate = experiment_observer.should_terminate_early()
+
+            if should_terminate:
                 self.logger.info("Experiment finished early. Stopping step execution.")
                 self.event_emitter.emit_step_completed(
                     step_id=step_name,
                     success=False,
                     result={"message": "Experiment finished early"},
                 )
-                # Emit experiment finished early event
+                # Emit experiment finished early event with action=notify
                 self.event_emitter.emit_experiment_finished_early(
                     experiment_id=self.test_config.name,
                     reason="Early termination requested by experiment observer",
-                    details={"step": step_name},
+                    details={"step": step_name, "phase": "STEP_EXECUTION"},
                 )
                 return  # Exit step execution early
 
@@ -227,6 +241,7 @@ class TestCase(ITestCase):
                     time.sleep(steps_duration)
                     current_duration += steps_duration
                     self.logger.debug("Waiting for %s/%s seconds.", current_duration, duration)
+                    # Use consistent event emission for step progress
                     self.event_emitter.emit_step_progress(
                         step_id="wait",
                         progress=min(1.0, current_duration / duration),
@@ -234,20 +249,37 @@ class TestCase(ITestCase):
                             "message": "Waiting...",
                             "duration": duration,
                             "current_duration": current_duration,
+                            "test_name": self.test_config.name,
+                            "phase": "STEP_EXECUTION",
                         },
                     )
-                    if experiment_observer and experiment_observer.should_terminate_early():
+                    # Check if experiment should terminate early
+                    should_terminate = False
+                    if experiment_observer:
+                        # Use action="check" to distinguish from notification
+                        self.event_emitter.emit_experiment_finished_early(
+                            experiment_id=self.test_config.name,
+                            reason="Checking early termination status",
+                            details={"action": "check", "step": "wait"},
+                        )
+                        should_terminate = experiment_observer.should_terminate_early()
+
+                    if should_terminate:
                         self.logger.info("Experiment finished early. Stopping wait step.")
                         self.event_emitter.emit_step_completed(
                             step_id="wait",
                             success=False,
                             result={"message": "Experiment finished early"},
                         )
-                        # Emit experiment finished early event
+                        # Emit experiment finished early event with action=notify
                         self.event_emitter.emit_experiment_finished_early(
                             experiment_id=self.test_config.name,
                             reason="Early termination during wait step",
-                            details={"step": "wait", "current_duration": current_duration},
+                            details={
+                                "step": "wait",
+                                "current_duration": current_duration,
+                                "phase": "STEP_EXECUTION",
+                            },
                         )
                         return  # Exit the method early
                     elif self._fail_on_error and current_duration >= duration:
@@ -587,6 +619,16 @@ class TestCase(ITestCase):
         self.environment_plugin_manager.append(environment_manager)
         self.logger.debug("Added environment manager for network environment")
 
+        # Emit environment setup started event
+        self.event_emitter.emit_environment_setup_started(
+            environment_type=environment_manager.__class__.__name__,
+            details={
+                "test_name": self.test_config.name,
+                "environment_type": self.test_config.network_environment.type,
+                "phase": "ENVIRONMENT_SETUP",
+            },
+        )
+
         try:
             if isinstance(environment_manager, INetworkEnvironment):
                 environment_manager.setup_environment(
@@ -613,6 +655,7 @@ class TestCase(ITestCase):
                         ),
                         # Pass the actual environment instance
                         "environment_instance": environment_manager,
+                        "phase": "ENVIRONMENT_SETUP",
                     },
                 )
 
@@ -622,6 +665,23 @@ class TestCase(ITestCase):
                 environment_manager.__class__.__name__,
                 e,
                 exc_info=True,
+            )
+
+            # Emit environment setup failed event
+            self.event_emitter.emit_environment_setup_completed(
+                environment_type=environment_manager.__class__.__name__,
+                success=False,
+                details={
+                    "test_name": self.test_config.name,
+                    "environment_name": (
+                        environment_manager.env_name
+                        if hasattr(environment_manager, "env_name")
+                        else environment_manager.__class__.__name__
+                    ),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "phase": "ENVIRONMENT_SETUP",
+                },
             )
             raise e
 
@@ -715,8 +775,6 @@ class TestCase(ITestCase):
         file_handler.setLevel(self.log_level)
         file_handler.setFormatter(formatter)
 
-        self.registered_observers: list[str] = []
-
         # Add the file handler to the logger
         self.logger.addHandler(file_handler)
 
@@ -788,6 +846,7 @@ class TestCase(ITestCase):
                     auto_register=True,
                     publish_metrics=True,
                     collect_system_metrics=True,
+                    output_dir=str(self.test_experiment_dir / "metrics"),
                     publish_interval=30,
                     enable_real_time_monitoring=True,
                     log_level=metrics_log_level,  # Use observer-specific log level
@@ -1327,6 +1386,8 @@ class TestCase(ITestCase):
                 )
             # Unregister observers
             factory = get_observer_factory()
-            for observer in self.registered_observers:
-                factory.unregister_observer(observer)
+            for observer_name in self.registered_observers:
+                factory.unregister_observer(observer_name)
+                self.logger.debug("Unregistered observer '%s'", observer_name)
+            self.registered_observers.clear()  # Clear the list after unregistration
             self.logger.debug("Unregistered all observers after test completion")

@@ -659,6 +659,10 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         "env_vars": {},
                         "timeout": 60,
                     }
+                    self.logger.debug(
+                        "Empty run_cmd provided, using default structure: %s",
+                        processed_commands["run_cmd"],
+                    )
                     continue
 
                 # Maintain separate fields for command_binary and command_args
@@ -695,10 +699,12 @@ class DockerComposeEnvironment(INetworkEnvironment):
 
                 processed_commands["run_cmd"] = {
                     "working_dir": run_cmd.get("working_dir", ""),
-                    "command_binary": run_cmd.get(
-                        "command_binary", ""
-                    ),  # Keep command_binary separate
-                    "command_args": run_cmd.get("command_args", ""),  # Keep original command_args
+                    "command_binary": run_cmd.get("command_binary", "")
+                    .strip()
+                    .replace("\n", ""),  # Keep command_binary separate
+                    "command_args": run_cmd.get("command_args", "")
+                    .strip()
+                    .replace("\n", ""),  # Keep original command_args
                     "environment": env_vars,  # Change to environment to match template
                     "timeout": run_cmd.get("timeout", 60),
                 }
@@ -1070,7 +1076,14 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         self.logger.debug(
                             "Docker Compose environment monitored successfully - Experiment finished earlier"
                         )
-                        self.notify_experiment_early_finished()
+                        self.notify_experiment_early_finish(
+                            reason="Services finished early",
+                            details={
+                                "expected_services": len(self.services_managers),
+                                "found_services": len(std_split),
+                                "message": "Docker Compose experiment finished earlier than expected",
+                            },
+                        )
                     else:
                         self.logger.info(
                             "Docker Compose environment monitored successfully - All services are running"
