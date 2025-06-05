@@ -19,7 +19,9 @@ class EnvironmentPluginEventMixin:
         Args:
             details: Additional details about the setup
         """
-        if hasattr(self, "event_emitter"):
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            environment_type = getattr(self, "env_sub_type", "unknown")
+            self.event_emitter.emit_environment_setup_started(environment_type, details)
             env_type = "network" if self.is_network_environment else "execution"
             env_subtype = (
                 self.__class__.__name__.lower() if hasattr(self, "__class__") else "unknown"
@@ -37,7 +39,9 @@ class EnvironmentPluginEventMixin:
             success: Whether the setup was successful
             details: Additional details about the setup
         """
-        if hasattr(self, "event_emitter"):
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            environment_type = getattr(self, "env_sub_type", "unknown")
+            self.event_emitter.emit_environment_setup_completed(environment_type, success, details)
             env_type = getattr(self, "env_type", "unknown")
             env_subtype = getattr(self, "env_sub_type", "")
 
@@ -55,7 +59,9 @@ class EnvironmentPluginEventMixin:
             success: Whether the teardown was successful
             details: Additional details about the teardown
         """
-        if hasattr(self, "event_emitter"):
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            environment_type = getattr(self, "env_sub_type", "unknown")
+            self.event_emitter.emit_environment_teardown(environment_type, success, details)
             env_type = getattr(self, "env_type", "unknown")
             env_subtype = getattr(self, "env_sub_type", "")
 
@@ -73,6 +79,9 @@ class EnvironmentPluginEventMixin:
             reason: Why the experiment should finish early
             details: Additional details about the early finish
         """
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            experiment_id = getattr(self, "experiment_id", "unknown")
+            self.event_emitter.emit_experiment_finished_early(experiment_id, reason, details)
         if hasattr(self, "event_emitter"):
             env_name = getattr(self, "env_name", "unknown")
 

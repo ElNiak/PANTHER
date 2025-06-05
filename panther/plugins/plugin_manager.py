@@ -9,12 +9,15 @@ backward compatibility with existing service and environment plugin loading.
 import importlib
 import importlib.util
 import logging
+import os
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
 from panther.core.observer.event_manager import EventManager
+from panther.core.observer.plugin.plugin_observer import PluginObserver
 from panther.config.config_experiment_schema import ServiceConfig, TestConfig
 from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.plugins.services.iut.config_schema import ImplementationConfig
@@ -25,9 +28,9 @@ from panther.plugins.environments.network_environment.network_environment_interf
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.plugin_interface_enhanced import IPantherPlugin
 
 
 class PluginStatus(Enum):
@@ -109,12 +112,15 @@ class PluginManager:
         self.execution_environment_plugins: dict[str, IExecutionEnvironment] = {}
 
         # Event system support
-        self.event_emitter = None  # Will be set by experiment manager
+        self.event_emitter = None
+        self.event_manager = None
+        self.plugin_observer = None
 
-    def set_event_emitter(self, event_emitter):
-        """Set the event emitter for this plugin manager."""
-        self.event_emitter = event_emitter
-        self.logger.debug("Event emitter set on PluginManager")
+        # Enhanced plugin system
+        self.plugin_directories = plugin_directories or []
+        self.plugins: dict[str, PluginInfo] = {}
+        self.active_plugins: dict[str, IPantherPlugin] = {}
+        self.plugin_dependencies: dict[str, set[str]] = {}
 
     def create_service_manager(
         self,
@@ -124,77 +130,87 @@ class PluginManager:
         service_config_to_test: ServiceConfig,
     ) -> IServiceManager:
         """
-        Creates an instance of a service manager for a given protocol and implementation.
+        Creates and returns a service manager for the given protocol and implementation.
 
-        This method dynamically loads a service manager class from a specified implementation
-        directory and creates an instance of it. The service manager class must inherit from
-        IServiceManager.
+        This method creates a service manager instance based on the provided protocol
+        and implementation configurations. It loads the appropriate module, instantiates
+        the service manager class, and sets up event emission if applicable.
 
         Args:
-            protocol (ProtocolConfig): The protocol configuration.
-            implementation (ImplementationConfig): The implementation configuration.
-            implementation_dir (Path): The directory where the implementation is located.
-            service_config_to_test (ServiceConfig): The service configuration to test.
+            protocol: The protocol configuration
+            implementation: The implementation configuration
+            implementation_dir: Directory containing the implementation
+            service_config_to_test: Service configuration to use for testing
 
         Returns:
-            IServiceManager: An instance of the service manager.
+            IServiceManager: A new instance of a service manager
 
         Raises:
-            FileNotFoundError: If the service manager file does not exist.
-            AttributeError: If the service manager class is not found or does not inherit from IServiceManager.
-            ImportError: If the module cannot be loaded.
+            ImportError: If the module cannot be imported
+            AttributeError: If the service manager class is not found in the module
+            Exception: For other errors during service manager creation
         """
-        service_manager_path = implementation_dir / f"{implementation.name}.py"
-        if not service_manager_path.exists():
-            self.logger.error("Service manager file '%s' does not exist.", service_manager_path)
-            raise FileNotFoundError(f"Service manager file '{service_manager_path}' not found.")
-
-        # Here we trying to load the service manager class from the implementation plugin
-        service_module_name = f"{protocol.name}.{implementation.name}"
-        spec = importlib.util.spec_from_file_location(service_module_name, service_manager_path)
         self.logger.debug(
-            "Loading module from '%s' as '%s' with spec %s",
-            service_manager_path,
-            service_module_name,
-            spec,
+            f"Creating service manager for {implementation.name} ({implementation.type})"
         )
-        if spec and spec.loader:
+
+        try:
+            # Determine the module name and class name based on implementation
+            service_type = implementation.type if hasattr(implementation, "type") else "iut"
+            impl_name = implementation.name
+
+            # Construct the module path (depends on implementation type)
+            if service_type == "testers":
+                service_module_name = f"panther.plugins.services.testers.{impl_name}.{impl_name}"
+                service_file_path = implementation_dir / f"{impl_name}.py"
+            else:  # iut or other types
+                protocol_name = protocol.name if hasattr(protocol, "name") else protocol
+                service_module_name = (
+                    f"panther.plugins.services.iut.{protocol_name}.{impl_name}.{impl_name}"
+                )
+                service_file_path = implementation_dir / f"{impl_name}.py"
+
+            self.logger.debug(f"Loading service module from {service_file_path}")
+
+            # Import the module using importlib
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location(service_module_name, service_file_path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Could not find module at {service_file_path}")
+
             module = importlib.util.module_from_spec(spec)
-            importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
-            # We are trying to load the class from the module
-            class_name = PluginLoader.get_class_name(implementation.name, suffix="ServiceManager")
-            self.logger.debug("Loading class '%s' from module '%s'", class_name, module)
+
+            # Get the class name using the plugin loader's naming convention
+            class_name = self.plugins_loader.get_class_name(impl_name, suffix="ServiceManager")
             service_manager_class = getattr(module, class_name, None)
-            if service_manager_class and issubclass(service_manager_class, IServiceManager):
-                # Less elegant way (than service_type = service_manager_class.service_type)
-                # to determine the service type BUT it works and no need to define property
-                service_type = (
-                    "iut"
-                    if issubclass(service_manager_class, IImplementationManager)
-                    else "testers"
+
+            if service_manager_class is None:
+                raise AttributeError(
+                    f"Could not find class {class_name} in module {service_module_name}"
                 )
-                instance = service_manager_class(
-                    service_config_to_test=service_config_to_test,
-                    service_type=service_type,
-                    protocol=protocol,
-                    implementation_name=implementation.name,
-                )
-                # Set the event emitter on the service manager instance
-                instance.event_emitter = self.event_emitter
-                self.logger.debug("Preparing instance of '%s'", class_name)
-                instance.prepare(self.plugins_loader)
-                self.logger.debug("Created instance of '%s'", class_name)
-                return instance
-            else:
-                self.logger.error(
-                    "Service manager class '%s' not found or does not inherit from IImplementationManager.",
-                    class_name,
-                )
-                raise AttributeError(f"Service manager class '{class_name}' not found or invalid.")
-        else:
-            self.logger.error("Cannot load module from '%s'", service_manager_path)
-            raise ImportError(f"Cannot load module from '{service_manager_path}'")
+
+            # Create the service manager instance
+            service_manager = service_manager_class(
+                service_config_to_test=service_config_to_test,
+                service_type=service_type,
+                protocol=protocol,
+                implementation_name=impl_name,
+            )
+
+            # Set up event emitter if available
+            if self.event_emitter and hasattr(service_manager, "event_emitter"):
+                service_manager.event_emitter = self.event_emitter
+                self.logger.debug(f"Set event emitter on service manager {impl_name}")
+
+            return service_manager
+
+            return service_manager
+
+        except Exception as e:
+            self.logger.error(f"Failed to create service manager: {e}", exc_info=True)
+            raise
 
     def create_environment_manager(
         self,
@@ -205,74 +221,421 @@ class PluginManager:
         event_manager: EventManager,
     ) -> IEnvironmentPlugin:
         """
-        Creates an instance of an environment manager by dynamically loading the appropriate
-        environment plugin module and class.
+        Creates and returns an environment manager for the given environment.
+
+        This method creates an environment manager instance based on the provided
+        environment type and test configuration. It loads the appropriate module,
+        instantiates the environment manager class, and sets up event emission if applicable.
 
         Args:
-            environment (str): The name of the environment to be managed.
-            test_config (TestConfig): The test configuration object containing environment settings.
-            environment_dir (Path): The directory path where environment plugins are located.
-            output_dir (Path): The directory path where output files should be stored.
-            event_manager (EventManager): The event manager instance to handle events.
+            environment: The environment type (e.g., "docker_compose", "shadow_ns")
+            test_config: Test configuration
+            environment_dir: Directory containing the environment implementation
+            output_dir: Directory for output files
+            event_manager: Event manager instance
 
         Returns:
-            IEnvironmentPlugin: An instance of the environment manager class.
+            IEnvironmentPlugin: A new instance of an environment manager
 
         Raises:
-            FileNotFoundError: If the environment plugin file does not exist.
-            AttributeError: If the environment class is not found or does not inherit from IEnvironmentPlugin.
-            ImportError: If the module cannot be loaded.
+            ImportError: If the module cannot be imported
+            AttributeError: If the environment manager class is not found in the module
+            Exception: For other errors during environment manager creation
         """
-        environment_plugin_path = environment_dir / environment / f"{environment}.py"
-        if not environment_plugin_path.exists():
-            self.logger.error(
-                "Environment plugin file '%s' does not exist.", environment_plugin_path
-            )
-            raise FileNotFoundError(
-                f"Environment plugin file '{environment_plugin_path}' not found."
-            )
+        self.logger.debug("Creating environment manager for %s", environment)
 
-        # Here we trying to load the environment manager class from the environment plugin
-        environment_module_name = f"environments.{environment}"
-        spec = importlib.util.spec_from_file_location(
-            environment_module_name, environment_plugin_path
-        )
-        self.logger.debug(
-            "Loading module from '%s' as '%s' with spec %s",
-            environment_plugin_path,
-            environment_module_name,
-            spec,
-        )
-        if spec and spec.loader:
+        try:
+            # Determine the environment type (network or execution)
+            if environment in self.environment_plugins.get("network_environment", {}):
+                env_type = "network_environment"
+                env_sub_type = environment
+                module_name = (
+                    f"panther.plugins.environments.{env_type}.{env_sub_type}.{env_sub_type}"
+                )
+            elif environment in self.environment_plugins.get("execution_environment", {}):
+                env_type = "execution_environment"
+                env_sub_type = environment
+                module_name = (
+                    f"panther.plugins.environments.{env_type}.{env_sub_type}.{env_sub_type}"
+                )
+            else:
+                raise ValueError(f"Unknown environment type: {environment}")
+
+            # Construct the file path
+            env_file_path = environment_dir / f"{env_sub_type}.py"
+            self.logger.debug("Loading environment module from %s", env_file_path)
+
+            # Import the module using importlib
+            spec = importlib.util.spec_from_file_location(module_name, env_file_path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Could not find module at {env_file_path}")
+
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
-            class_name = PluginLoader.get_class_name(environment, suffix="Environment")
-            environment_class = getattr(module, class_name, None)
-            if environment_class and issubclass(environment_class, IEnvironmentPlugin):
-                self.logger.debug(
-                    "Loading test configuration for '%s' - %s", environment, environment_dir.name
-                )
-                env_config = (
-                    test_config.execution_environments
-                    if environment_dir.name == "execution_environment"
-                    else test_config.network_environment
-                )
-                self.logger.debug("Loading class '%s' from module '%s'", class_name, module)
-                instance = environment_class(
-                    env_config_to_test=env_config,
-                    output_dir=str(output_dir),
-                    env_type=environment_dir.name,
-                    env_sub_type=environment,
-                    event_manager=event_manager,
-                )
-                self.logger.debug("Created instance of '%s'", class_name)
-                return instance
+
+            # Get the class name
+            class_name = self.plugins_loader.get_class_name(env_sub_type, suffix="Environment")
+            env_manager_class = getattr(module, class_name, None)
+
+            if env_manager_class is None:
+                raise AttributeError(f"Could not find class {class_name} in module {module_name}")
+
+            # Create the environment manager instance
+            from panther.plugins.environments.config_schema import EnvironmentConfig
+
+            # Extract environment configuration from test_config
+            env_config = getattr(test_config, env_type, {})
+            if isinstance(env_config, dict):
+                env_config_to_test = EnvironmentConfig(**env_config)
             else:
-                self.logger.error(
-                    "Environment class '%s' not found or does not inherit from IEnvironmentPlugin.",
-                    class_name,
-                )
-                raise AttributeError(f"Environment class '{class_name}' not found or invalid.")
+                env_config_to_test = env_config
+
+            env_manager = env_manager_class(
+                env_config_to_test=env_config_to_test,
+                output_dir=str(output_dir),
+                env_type=env_type,
+                env_sub_type=env_sub_type,
+                event_manager=event_manager,
+            )
+
+            # Set up event emitter if available
+            if self.event_emitter and hasattr(env_manager, "event_emitter"):
+                env_manager.event_emitter = self.event_emitter
+                self.logger.debug("Set event emitter on environment manager %s", environment)
+
+            return env_manager
+
+        except Exception as e:
+            self.logger.error("Failed to create environment manager: %s", e, exc_info=True)
+            raise
+
+    def set_event_emitter(self, event_emitter):
+        """
+        Set the event emitter for this plugin manager.
+
+        This method configures the event system for the plugin manager and
+        all managed plugins. It handles:
+        1. Setting the event_emitter attribute
+        2. Obtaining the event_manager from the emitter
+        3. Creating and registering a PluginObserver
+        4. Propagating the event_emitter to existing plugin instances
+
+        Args:
+            event_emitter: The event emitter to use
+        """
+        self.event_emitter = event_emitter
+
+        # Get the event manager from the emitter
+        if hasattr(event_emitter, "event_manager"):
+            self.event_manager = event_emitter.event_manager
+
+            # Create and register the plugin observer
+            self.plugin_observer = PluginObserver()
+            self.event_manager.register_observer(self.plugin_observer)
+
+            # Propagate to existing plugins
+            for plugin_info in self.plugins.values():
+                if plugin_info.instance and isinstance(plugin_info.instance, IPantherPlugin):
+                    plugin_info.instance.set_event_emitter(event_emitter)
+
+        self.logger.debug("Event emitter set on PluginManager")
+
+    def _set_event_emitter_on_service(self, service_instance):
+        """
+        Set the event emitter on a service instance.
+
+        This method is used internally and for testing to ensure service
+        instances have access to the event emitter for proper event-driven
+        architecture integration.
+
+        Args:
+            service_instance: The service instance to set the event emitter on
+        """
+        if hasattr(service_instance, "event_emitter"):
+            service_instance.event_emitter = self.event_emitter
         else:
-            self.logger.error("Cannot load module from '%s'", environment_plugin_path)
-            raise ImportError(f"Cannot load module from '{environment_plugin_path}'")
+            # For services that don't have event_emitter attribute, add it
+            service_instance.event_emitter = self.event_emitter
+
+    def scan_plugin_directories(self):
+        """
+        Scan configured directories for available plugins.
+
+        This method searches all plugin directories for Python modules
+        that implement the IPantherPlugin interface.
+        """
+        if not self.plugin_directories:
+            self.logger.warning("No plugin directories configured")
+            return
+
+        for plugin_dir in self.plugin_directories:
+            if not os.path.isdir(plugin_dir):
+                self.logger.warning("Plugin directory not found: %s", plugin_dir)
+                continue
+
+            self.logger.info("Scanning plugin directory: %s", plugin_dir)
+            self._scan_directory_for_plugins(plugin_dir)
+
+    def _scan_directory_for_plugins(self, directory: str):
+        """
+        Scan a single directory for plugins.
+
+        Args:
+            directory: Directory path to scan
+        """
+        for root, _, files in os.walk(directory):
+            for filename in files:
+                if filename.endswith(".py") and not filename.startswith("__"):
+                    file_path = os.path.join(root, filename)
+                    self._try_load_plugin_module(file_path)
+
+    def _try_load_plugin_module(self, file_path: str):
+        """
+        Try to load a Python file as a plugin module.
+
+        Args:
+            file_path: Path to the Python file
+        """
+        try:
+            module_name = os.path.basename(file_path)[:-3]  # Remove .py extension
+            self.logger.debug("Examining module: %s from %s", module_name, file_path)
+
+            # Import the module
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            if not spec or not spec.loader:
+                return
+
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            # Find plugin classes in the module
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (
+                    isinstance(attr, type)
+                    and attr != IPantherPlugin
+                    and issubclass(attr, IPantherPlugin)
+                ):
+
+                    self._register_plugin_class(attr, file_path)
+
+        except (ImportError, AttributeError) as e:
+            self.logger.debug("Failed to load potential plugin %s: %s", file_path, str(e))
+
+    def _register_plugin_class(self, plugin_class: type[IPantherPlugin], file_path: str):
+        """
+        Register a plugin class.
+
+        Args:
+            plugin_class: The plugin class to register
+            file_path: Path to the plugin file
+        """
+        # Extract plugin metadata
+        metadata = self._extract_plugin_metadata(plugin_class, file_path)
+
+        # Create plugin info
+        plugin_info = PluginInfo(
+            metadata=metadata,
+            plugin_class=plugin_class,
+            file_path=file_path,
+            last_modified=os.path.getmtime(file_path),
+        )
+
+        self.plugins[metadata.name] = plugin_info
+        self.logger.info("Found plugin: %s (version %s)", metadata.name, metadata.version)
+
+    def _extract_plugin_metadata(
+        self, plugin_class: type[IPantherPlugin], file_path: str
+    ) -> PluginMetadata:
+        """
+        Extract metadata from a plugin class.
+
+        Args:
+            plugin_class: The plugin class
+            file_path: Path to the plugin file
+
+        Returns:
+            Extracted PluginMetadata
+        """
+        # Start with default metadata using the class name
+        metadata = PluginMetadata(name=plugin_class.__name__)
+
+        # Extract metadata from class attributes if available
+        if hasattr(plugin_class, "METADATA"):
+            class_metadata = getattr(plugin_class, "METADATA", {})
+            if isinstance(class_metadata, dict):
+                metadata.name = class_metadata.get("name", metadata.name)
+                metadata.version = class_metadata.get("version", metadata.version)
+                metadata.description = class_metadata.get("description", metadata.description)
+                metadata.author = class_metadata.get("author", metadata.author)
+                metadata.dependencies = class_metadata.get("dependencies", metadata.dependencies)
+                metadata.minimum_panther_version = class_metadata.get(
+                    "minimum_panther_version", metadata.minimum_panther_version
+                )
+                metadata.supported_events = class_metadata.get(
+                    "supported_events", metadata.supported_events
+                )
+                metadata.configuration_schema = class_metadata.get(
+                    "configuration_schema", metadata.configuration_schema
+                )
+                metadata.tags = class_metadata.get("tags", metadata.tags)
+
+        return metadata
+
+    def load_plugin(self, plugin_name: str, config: dict = None) -> bool:
+        """
+        Load a plugin by name.
+
+        This method instantiates the plugin, initializes it, and registers it with
+        the plugin observer for event delivery.
+
+        Args:
+            plugin_name: Name of the plugin to load
+            config: Configuration for the plugin
+
+        Returns:
+            bool: True if plugin was successfully loaded
+        """
+        if plugin_name not in self.plugins:
+            self.logger.warning("Plugin not found: %s", plugin_name)
+            return False
+
+        plugin_info = self.plugins[plugin_name]
+        if plugin_info.status == PluginStatus.ACTIVE:
+            self.logger.debug("Plugin already active: %s", plugin_name)
+            return True
+
+        # Update status
+        plugin_info.status = PluginStatus.LOADING
+
+        try:
+            # Instantiate the plugin
+            plugin_instance = plugin_info.plugin_class(
+                plugin_id=plugin_name, name=plugin_info.metadata.name
+            )
+
+            # Set the event emitter if available
+            if self.event_emitter:
+                plugin_instance.set_event_emitter(self.event_emitter)
+
+            # Initialize the plugin
+            success = plugin_instance.initialize(config or {})
+            if not success:
+                self.logger.error("Failed to initialize plugin: %s", plugin_name)
+                plugin_info.status = PluginStatus.ERROR
+                plugin_info.error_message = "Initialization failed"
+                return False
+
+            # Update plugin info
+            plugin_info.instance = plugin_instance
+            plugin_info.status = PluginStatus.ACTIVE
+            plugin_info.load_time = time.time()
+
+            # Register with plugin observer if available
+            if self.plugin_observer:
+                self.plugin_observer.register_plugin(plugin_instance)
+
+            self.logger.info("Successfully loaded plugin: %s", plugin_name)
+            return True
+
+        except Exception as e:
+            self.logger.error("Error loading plugin %s: %s", plugin_name, str(e), exc_info=True)
+            plugin_info.status = PluginStatus.ERROR
+            plugin_info.error_message = str(e)
+            return False
+
+    def unload_plugin(self, plugin_name: str) -> bool:
+        """
+        Unload a plugin by name.
+
+        This method shuts down the plugin and unregisters it from the plugin observer.
+
+        Args:
+            plugin_name: Name of the plugin to unload
+
+        Returns:
+            bool: True if plugin was successfully unloaded
+        """
+        if plugin_name not in self.plugins:
+            self.logger.warning("Plugin not found: %s", plugin_name)
+            return False
+
+        plugin_info = self.plugins[plugin_name]
+        if plugin_info.status != PluginStatus.ACTIVE or not plugin_info.instance:
+            self.logger.debug("Plugin not active: %s", plugin_name)
+            return True
+
+        try:
+            # Shutdown the plugin
+            plugin_instance = plugin_info.instance
+            success = plugin_instance.shutdown()
+
+            # Unregister from plugin observer
+            if self.plugin_observer and plugin_instance:
+                self.plugin_observer.unregister_plugin(plugin_instance.plugin_id)
+
+            # Update plugin info
+            plugin_info.instance = None
+            plugin_info.status = PluginStatus.LOADED
+
+            self.logger.info("Successfully unloaded plugin: %s", plugin_name)
+            return success
+
+        except Exception as e:
+            self.logger.error("Error unloading plugin %s: %s", plugin_name, str(e), exc_info=True)
+            plugin_info.status = PluginStatus.ERROR
+            plugin_info.error_message = str(e)
+            return False
+
+    def get_active_plugins(self) -> list[str]:
+        """
+        Get names of currently active plugins.
+
+        Returns:
+            List of plugin names
+        """
+        return [name for name, info in self.plugins.items() if info.status == PluginStatus.ACTIVE]
+
+    def get_available_plugins(self) -> dict[str, PluginMetadata]:
+        """
+        Get metadata for all available plugins.
+
+        Returns:
+            Dict mapping plugin names to their metadata
+        """
+        return {name: info.metadata for name, info in self.plugins.items()}
+
+    def reload_plugins(self) -> dict[str, bool]:
+        """
+        Check for changes and reload modified plugins.
+
+        Returns:
+            Dict mapping plugin names to reload success status
+        """
+        results = {}
+
+        for name, info in self.plugins.items():
+            if not os.path.exists(info.file_path):
+                self.logger.warning("Plugin file no longer exists: %s", info.file_path)
+                continue
+
+            last_modified = os.path.getmtime(info.file_path)
+            if info.last_modified and last_modified > info.last_modified:
+                self.logger.info("Plugin file changed, reloading: %s", name)
+
+                # Remember the current status
+                was_active = info.status == PluginStatus.ACTIVE
+
+                # Unload if active
+                if was_active:
+                    self.unload_plugin(name)
+
+                # Reload the module and recreate plugin info
+                self._try_load_plugin_module(info.file_path)
+
+                # Reload if it was active before
+                if was_active and name in self.plugins:
+                    success = self.load_plugin(name)
+                    results[name] = success
+
+        return results

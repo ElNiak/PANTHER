@@ -18,6 +18,7 @@ from panther.core.observer.core.core_events import (
     ExperimentEvent,
     ServiceStartedEvent,
     ServiceStoppedEvent,
+    ServiceErrorEvent,
     # Test-related events
     TestStartedEvent,
     TestCompletedEvent,
@@ -112,6 +113,7 @@ __all__ = [
     # Service-related events
     "ServiceStartedEvent",
     "ServiceStoppedEvent",
+    "ServiceErrorEvent",
     # Step-related events
     "StepProgressEvent",
     "StepCompletedEvent",

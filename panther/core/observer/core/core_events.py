@@ -606,3 +606,32 @@ class TestExecutionFailedEvent(TestEvent):
     def validate(self) -> bool:
         """Validate event data has required fields."""
         return "test_id" in self.data and "test_name" in self.data and "error_message" in self.data
+
+
+class ServiceErrorEvent(ServiceEvent):
+    """Event emitted when a service encounters an error."""
+
+    def __init__(
+        self, service_name: str, error_type: str, error_message: str, details: dict[str, Any] = None
+    ):
+        """
+        Initialize the service error event.
+
+        Args:
+            service_name: Name of the service that encountered an error
+            error_type: Type of error encountered
+            error_message: Error message
+            details: Additional error details
+        """
+        super().__init__(
+            f"service.{service_name}.error",
+            {
+                "error_type": error_type,
+                "error_message": error_message,
+                "details": details or {},
+            },
+        )
+
+    def validate(self) -> bool:
+        """Validate event data has required fields."""
+        return "error_type" in self.data and "error_message" in self.data

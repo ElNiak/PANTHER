@@ -357,3 +357,55 @@ class EventEmitter:
             data["metadata"] = details
 
         self.emit_event(MetricCollectedEvent(**data))
+
+    def emit_service_started(self, service_name: str, details: dict[str, Any] = None) -> None:
+        """
+        Emit a service started event.
+
+        Args:
+            service_name: Name of the service that started
+            details: Additional service start details
+        """
+        from panther.core.observer.events import ServiceStartedEvent
+
+        self.emit_event(ServiceStartedEvent(service_name=service_name, data=details or {}))
+
+    def emit_service_stopped(
+        self, service_name: str, success: bool = True, details: dict[str, Any] = None
+    ) -> None:
+        """
+        Emit a service stopped event.
+
+        Args:
+            service_name: Name of the service that stopped
+            success: Whether the service stopped successfully
+            details: Additional service stop details
+        """
+        from panther.core.observer.events import ServiceStoppedEvent
+
+        data = details or {}
+        data["success"] = success
+        self.emit_event(ServiceStoppedEvent(service_name=service_name, data=data))
+
+    def emit_service_error(
+        self, service_name: str, error_type: str, error_message: str, details: dict[str, Any] = None
+    ) -> None:
+        """
+        Emit a service error event.
+
+        Args:
+            service_name: Name of the service that encountered an error
+            error_type: Type of error encountered
+            error_message: Error message
+            details: Additional error details
+        """
+        from panther.core.observer.events import ServiceErrorEvent
+
+        self.emit_event(
+            ServiceErrorEvent(
+                service_name=service_name,
+                error_type=error_type,
+                error_message=error_message,
+                details=details or {},
+            )
+        )
