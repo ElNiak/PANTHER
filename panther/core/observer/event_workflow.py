@@ -94,7 +94,6 @@ class EventWorkflow:
                 "description": "Emitted at the beginning of test execution",
                 "parameters": {"test_id": "Experiment identifier", "test_name": "Experiment name"},
             },
-            # Per test case execution
             {
                 "event": "TestStartedEvent",
                 "emitter": "ExperimentManager",
@@ -104,9 +103,6 @@ class EventWorkflow:
                     "data": {"config": {"name": "Test case name"}},
                 },
             },
-            # Environment setup events - see environment_setup_workflow
-            # Service deployment events - see service_deployment_workflow
-            # Step execution events - see step_execution_workflow
             {
                 "event": "TestCompletedEvent",
                 "emitter": "ExperimentManager",
@@ -117,7 +113,6 @@ class EventWorkflow:
                     "result": "Optional result data",
                 },
             },
-            # Alternative - failure path
             {
                 "event": "TestExecutionFailedEvent",
                 "emitter": "ExperimentManager",
@@ -129,7 +124,6 @@ class EventWorkflow:
                     "details": "Additional error details",
                 },
             },
-            # Experiment summary
             {
                 "event": "TestExecutionCompletedEvent",
                 "emitter": "ExperimentManager",
@@ -166,7 +160,6 @@ class EventWorkflow:
                     "details": "Additional setup details",
                 },
             },
-            # Plugin-specific events might occur here
             {
                 "event": "EnvironmentSetupCompletedEvent",
                 "emitter": "TestCase/IEnvironmentPlugin",
@@ -234,34 +227,12 @@ class EventWorkflow:
             {
                 "event": "StepProgressEvent",
                 "emitter": "TestCase",
-                "description": "Emitted during step execution to report progress",
+                "description": "Emitted to report step progress",
                 "parameters": {
                     "step_id": "Identifier for the step",
-                    "progress": "Progress value (0.0-1.0)",
+                    "progress": "Progress percentage (0-100)",
+                    "message": "Optional progress message",
                     "details": "Additional progress details",
-                },
-            },
-            {
-                "event": "MetricCollectedEvent",
-                "emitter": "TestCase/MetricsCollector",
-                "description": "Emitted when metrics are collected during step execution",
-                "parameters": {
-                    "metric_type": "Type of metric",
-                    "metric_name": "Name of the metric",
-                    "value": "Metric value",
-                    "step_id": "Step identifier",
-                    "test_id": "Test identifier",
-                },
-            },
-            {
-                "event": "TimingMetricEvent",
-                "emitter": "TestCase",
-                "description": "Emitted to record timing information for a step",
-                "parameters": {
-                    "metric_name": "Name of the timing metric",
-                    "duration_ms": "Duration in milliseconds",
-                    "step_id": "Step identifier",
-                    "test_id": "Test identifier",
                 },
             },
             {
@@ -271,7 +242,7 @@ class EventWorkflow:
                 "parameters": {
                     "step_id": "Identifier for the step",
                     "success": "Boolean indicating step success",
-                    "result": "Step execution results",
+                    "result": "Result data from the step",
                 },
             },
         ]
@@ -288,7 +259,7 @@ class EventWorkflow:
             {
                 "event": "ServiceEvent (service_teardown)",
                 "emitter": "TestCase",
-                "description": "Emitted when services are being torn down",
+                "description": "Emitted when service teardown begins",
                 "parameters": {"name": "service.teardown", "data": "Service teardown details"},
             },
             {
@@ -297,19 +268,27 @@ class EventWorkflow:
                 "description": "Emitted when a specific service stops",
                 "parameters": {
                     "service_name": "Name of the service",
-                    "service_type": "Type of the service",
-                    "success": "Boolean indicating clean shutdown",
-                    "details": "Additional service details",
+                    "details": "Additional service stop details",
                 },
             },
             {
                 "event": "EnvironmentTeardownEvent",
                 "emitter": "TestCase/IEnvironmentPlugin",
-                "description": "Emitted during environment teardown",
+                "description": "Emitted when environment teardown occurs",
                 "parameters": {
-                    "environment_type": "Type of environment",
+                    "environment_type": "Type of environment being torn down",
                     "success": "Boolean indicating teardown success",
                     "details": "Additional teardown details",
+                },
+            },
+            {
+                "event": "ExperimentFinishedEvent",
+                "emitter": "ExperimentManager",
+                "description": "Emitted when the experiment finishes completely",
+                "parameters": {
+                    "experiment_id": "Experiment identifier",
+                    "success": "Boolean indicating experiment success",
+                    "summary": "Experiment execution summary",
                 },
             },
         ]
@@ -325,12 +304,35 @@ class EventWorkflow:
         return [
             {
                 "event": "ExperimentFinishedEarlyEvent",
-                "emitter": "Various (plugins, TestCase, etc.)",
-                "description": "Emitted to signal that an experiment should finish early",
+                "emitter": "ExperimentManager/TestCase",
+                "description": "Emitted when experiment finishes earlier than expected",
                 "parameters": {
                     "experiment_id": "Experiment identifier",
                     "reason": "Reason for early termination",
-                    "details": "Additional details about the termination",
+                    "details": "Additional termination details",
                 },
-            }
+            },
+            {
+                "event": "TestExecutionFailedEvent",
+                "emitter": "ExperimentManager",
+                "description": "Emitted if test execution fails causing early termination",
+                "parameters": {
+                    "test_id": "Test identifier",
+                    "test_name": "Test name",
+                    "error_message": "Error description",
+                    "stack_trace": "Stack trace from error",
+                    "error_details": "Additional error details",
+                },
+            },
+            {
+                "event": "ServiceErrorEvent",
+                "emitter": "IServiceManager",
+                "description": "Emitted when a service encounters an error",
+                "parameters": {
+                    "service_name": "Name of the service with error",
+                    "error_type": "Type of error encountered",
+                    "error_message": "Error message",
+                    "details": "Additional error details",
+                },
+            },
         ]

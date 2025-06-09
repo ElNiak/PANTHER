@@ -1,4 +1,3 @@
-from datetime import datetime
 import logging
 import os
 from pathlib import Path
@@ -161,29 +160,46 @@ class TestCase(ITestCase):
             Exception: If the deployment of services fails for any environment manager.
         """
         self.logger.info("Deploying services through environment managers")
+
+        # Emit service setup event
+        service_names = [s.name for s in self.service_managers]
+        self.event_emitter.emit_service_setup_started(
+            test_case=self.test_name,
+            service_count=len(self.service_managers),
+            service_names=service_names,
+        )
+
         for env_manager in self.environment_plugin_manager:
-            try:
-                if isinstance(env_manager, INetworkEnvironment):
-                    env_manager.deploy_services()
-                    self.logger.info("Services deployed via '%s'", env_manager.__class__.__name__)
-                    # Use EventEmitter for service deployment events
-                    self.event_emitter.emit_service_event(
-                        name="services_deployed",
-                        data={
-                            "environment": env_manager.__class__.__name__,
-                            "test_name": self.test_config.name,
-                            # Pass all service instances in a dictionary
-                            "service_instances": {
-                                manager.get_service_name(): manager
-                                for manager in self.service_managers
-                            },
-                        },
-                    )
-            except Exception as e:
-                self.logger.error(
-                    "Failed to deploy services via '%s': %s", env_manager.__class__.__name__, e
+            if isinstance(env_manager, INetworkEnvironment):
+                self.logger.info(
+                    "Deploying services through environment manager: %s",
+                    env_manager.__class__.__name__,
                 )
-                raise e
+
+                try:
+                    # Deploy services through the network environment
+                    env_manager.deploy_services(self.service_managers)
+
+                    # Emit services deployed event
+                    service_instances = {s.name: s for s in self.service_managers}
+                    self.event_emitter.emit_service_deployed(
+                        environment=env_manager.__class__.__name__,
+                        service_instances=service_instances,
+                    )
+
+                    self.logger.info("Services successfully deployed")
+                except Exception as e:
+                    self.logger.error("Failed to deploy services: %s", e, exc_info=True)
+
+                    # Emit service deployment failure event
+                    self.event_emitter.emit_service_deployment_failed(
+                        environment=env_manager.__class__.__name__,
+                        error=str(e),
+                        error_type=type(e).__name__,
+                    )
+
+                    # Re-raise the exception to be handled by the calling method
+                    raise
 
     def execute_steps(self):
         """
@@ -196,148 +212,286 @@ class TestCase(ITestCase):
         and if so, it stops the execution and returns.
         """
         if not self.test_config.steps:
-            self.logger.info("No steps defined for this test case.")
+            self.logger.info("No steps defined in test configuration, skipping step execution")
             return
 
+        self.logger.info("Executing steps: %s", self.test_config.steps)
+
+        # Emit step execution started event using the typed event emitter
+        step_names = list(self.test_config.steps.keys())
+        self.event_emitter.emit_step_execution_started(test_case=self.test_name, steps=step_names)
+
         for step_name, step_details in self.test_config.steps.items():
-            self.logger.info("Executing step: %s", step_name)
-
-            factory = get_observer_factory()
-            experiment_observer = factory.get_observer("test_experiment")
-
-            # Check if experiment should terminate early
+            # Check if the experiment should be finished early
             should_terminate = False
-            if experiment_observer:
-                # Use action="check" to distinguish from notification
-                self.event_emitter.emit_experiment_finished_early(
-                    experiment_id=self.test_config.name,
-                    reason="Checking early termination status",
-                    details={"action": "check", "step": step_name},
-                )
-                should_terminate = experiment_observer.should_terminate_early()
-
-            if should_terminate:
-                self.logger.info("Experiment finished early. Stopping step execution.")
-                self.event_emitter.emit_step_completed(
-                    step_id=step_name,
-                    success=False,
-                    result={"message": "Experiment finished early"},
-                )
-                # Emit experiment finished early event with action=notify
-                self.event_emitter.emit_experiment_finished_early(
-                    experiment_id=self.test_config.name,
-                    reason="Early termination requested by experiment observer",
-                    details={"step": step_name, "phase": "STEP_EXECUTION"},
-                )
-                return  # Exit step execution early
-
-            if step_name == "wait":
-                # Handle wait step - just wait for the specified duration
-                duration = step_details
-
-                current_duration = 0
-                steps_duration = duration / 10
-                while current_duration < duration:
-                    time.sleep(steps_duration)
-                    current_duration += steps_duration
-                    self.logger.debug("Waiting for %s/%s seconds.", current_duration, duration)
-                    # Use consistent event emission for step progress
-                    self.event_emitter.emit_step_progress(
-                        step_id="wait",
-                        progress=min(1.0, current_duration / duration),
-                        details={
-                            "message": "Waiting...",
-                            "duration": duration,
-                            "current_duration": current_duration,
-                            "test_name": self.test_config.name,
-                            "phase": "STEP_EXECUTION",
-                        },
-                    )
-                    # Check if experiment should terminate early
-                    should_terminate = False
-                    if experiment_observer:
-                        # Use action="check" to distinguish from notification
-                        self.event_emitter.emit_experiment_finished_early(
-                            experiment_id=self.test_config.name,
-                            reason="Checking early termination status",
-                            details={"action": "check", "step": "wait"},
-                        )
-                        should_terminate = experiment_observer.should_terminate_early()
-
+            for env_manager in self.environment_plugin_manager:
+                if hasattr(env_manager, "should_terminate_early") and callable(
+                    env_manager.should_terminate_early
+                ):
+                    should_terminate = env_manager.should_terminate_early()
                     if should_terminate:
-                        self.logger.info("Experiment finished early. Stopping wait step.")
-                        self.event_emitter.emit_step_completed(
-                            step_id="wait",
-                            success=False,
-                            result={"message": "Experiment finished early"},
-                        )
-                        # Emit experiment finished early event with action=notify
+                        self.logger.warning("Early termination requested by environment manager")
+                        # Emit early termination event using the typed event emitter
                         self.event_emitter.emit_experiment_finished_early(
-                            experiment_id=self.test_config.name,
-                            reason="Early termination during wait step",
+                            experiment_id=self.test_name,
+                            reason="Environment requested early termination",
                             details={
-                                "step": "wait",
-                                "current_duration": current_duration,
-                                "phase": "STEP_EXECUTION",
+                                "step": step_name,
+                                "environment": env_manager.__class__.__name__,
                             },
                         )
-                        return  # Exit the method early
-                    elif self._fail_on_error and current_duration >= duration:
-                        self.logger.error("Wait step exceeded maximum duration. Failing the test.")
-                        self.event_emitter.emit_step_completed(
-                            step_id="wait",
-                            success=False,
-                            result={"message": "Wait step exceeded maximum duration"},
-                        )
-                        return
+                        break
 
-                # If we get here, the wait step completed successfully
-                self.event_emitter.emit_step_completed(
-                    step_id="wait",
-                    success=True,
-                    result={"message": "Wait step completed successfully", "duration": duration},
+            if should_terminate:
+                break
+
+            # Check for observers that might request early termination
+            experiment_observer = self.event_manager.get_observer_by_type("ExperimentObserver")
+            if experiment_observer and hasattr(experiment_observer, "should_terminate_early"):
+                should_terminate = experiment_observer.should_terminate_early()
+                if should_terminate:
+                    self.logger.warning("Early termination requested by experiment observer")
+                    # Emit early termination event using the typed event emitter
+                    self.event_emitter.emit_experiment_finished_early(
+                        experiment_id=self.test_name,
+                        reason="Observer requested early termination",
+                        details={"step": step_name},
+                    )
+                    break
+
+            # Handle different step types
+            if step_name == "wait" and isinstance(step_details, (int, float)):
+                self.logger.info("Executing wait step for %s seconds", step_details)
+
+                # Emit step progress event before starting using the typed event emitter
+                self.event_emitter.emit_step_progress(
+                    step_id=step_name,
+                    progress=0,
+                    message=f"Starting wait for {step_details} seconds",
                 )
 
+                # Split the wait into smaller intervals to allow checking for early termination
+                interval = min(1.0, step_details / 10.0)  # Check at least 10 times during wait
+                wait_time_remaining = step_details
+                while wait_time_remaining > 0:
+                    # Calculate wait time for this iteration
+                    iteration_wait = min(interval, wait_time_remaining)
+
+                    # Sleep for the calculated interval
+                    time.sleep(iteration_wait)
+                    wait_time_remaining -= iteration_wait
+
+                    # Calculate progress percentage
+                    progress_percentage = (
+                        (step_details - wait_time_remaining) / step_details
+                    ) * 100
+
+                    # Emit progress event using the typed event emitter
+                    self.event_emitter.emit_step_progress(
+                        step_id=step_name,
+                        progress=progress_percentage,
+                        message=f"Waiting: {wait_time_remaining:.1f} seconds remaining",
+                    )
+
+                    # Check for early termination
+                    should_terminate = False
+                    for env_manager in self.environment_plugin_manager:
+                        if hasattr(env_manager, "should_terminate_early") and callable(
+                            env_manager.should_terminate_early
+                        ):
+                            should_terminate = env_manager.should_terminate_early()
+                            if should_terminate:
+                                break
+
+                    if should_terminate:
+                        self.logger.warning("Early termination during wait step")
+                        # Emit early termination event using the typed event emitter
+                        self.event_emitter.emit_experiment_finished_early(
+                            experiment_id=self.test_name,
+                            reason="Environment requested early termination during wait",
+                            details={"step": step_name, "progress": progress_percentage},
+                        )
+                        break
+
+                # Emit step completed event using the typed event emitter
+                result = {
+                    "completed": not should_terminate,
+                    "duration_s": (
+                        step_details - wait_time_remaining if should_terminate else step_details
+                    ),
+                }
+                self.event_emitter.emit_step_completed(
+                    step_id=step_name, success=not should_terminate, result=result
+                )
+
+                if should_terminate:
+                    break
             else:
-                self.logger.warning("Unknown step type: %s. Skipping.", step_name)
+                self.logger.warning("Unknown step type: %s = %s", step_name, step_details)
+                # Emit unsupported step event using the typed event emitter
+                self.event_emitter.emit_step_unsupported(
+                    step_id=step_name,
+                    step_details=str(step_details),
+                    message=f"Unsupported step type: {step_name}",
+                )
+
+        # Emit step execution completed event using the typed event emitter
+        self.event_emitter.emit_step_execution_completed(
+            test_case=self.test_name, completed_steps=list(self.test_config.steps.keys())
+        )
 
     def validate_assertions(self):
         """
         Validates assertions defined in the test configuration.
 
-        Currently, it only handles 'service_responsive' assertions, but could be extended
-        to support other types of assertions.
+        This method checks if any assertions are defined in the test configuration and validates them.
+        Currently, it only handles 'service_responsive' assertion type but could be extended
+        to support other assertion types.
 
-        Raises:
-            Exception: If any assertion fails.
+        Each assertion is checked and an event is emitted with the result.
         """
         if not hasattr(self.test_config, "assertions") or not self.test_config.assertions:
-            self.logger.info("No assertions defined for this test case.")
+            self.logger.info("No assertions defined in test configuration, skipping validation")
             return
 
+        self.logger.info("Validating assertions: %s", self.test_config.assertions)
+
+        # Emit assertions validation started event using the typed event emitter
+        self.event_emitter.emit_assertions_validation_started(
+            test_case=self.test_name, assertions=self.test_config.assertions
+        )
+
+        all_assertions_passed = True
+        assertion_results = {}
+
         for assertion in self.test_config.assertions:
+            assertion_type = assertion.get("type")
+            self.logger.info("Validating assertion of type: %s", assertion_type)
+
             try:
-                if assertion["type"] == "service_responsive":
-                    service = assertion["service"]
-                    endpoint = assertion["endpoint"]
+                if assertion_type == "service_responsive":
+                    service_name = assertion.get("service")
+                    endpoint = assertion.get("endpoint", "/")
                     expected_status = assertion.get("expected_status", 200)
-                    self.check_service_responsiveness(service, endpoint, expected_status)
+
+                    self.logger.info(
+                        "Checking if service %s is responsive at endpoint %s with expected status %s",
+                        service_name,
+                        endpoint,
+                        expected_status,
+                    )
+
+                    # Emit assertion progress event using the typed event emitter
+                    self.event_emitter.emit_assertion_progress(
+                        assertion_type=assertion_type,
+                        service=service_name,
+                        endpoint=endpoint,
+                        expected_status=expected_status,
+                        status="checking",
+                    )
+
+                    # Perform the actual check
+                    result = self.check_service_responsiveness(
+                        service_name, endpoint, expected_status
+                    )
+                    assertion_results[f"{service_name}_{assertion_type}"] = result
+
+                    if not result["success"]:
+                        all_assertions_passed = False
+
+                    # Emit assertion result event using the typed event emitter
+                    self.event_emitter.emit_assertion_result(
+                        assertion_type=assertion_type,
+                        service=service_name,
+                        endpoint=endpoint,
+                        expected_status=expected_status,
+                        success=result["success"],
+                        actual_status=result.get("status"),
+                        message=result.get("message", ""),
+                    )
+
                 else:
-                    self.logger.warning("Unknown assertion type: %s. Skipping.", assertion["type"])
+                    self.logger.warning("Unknown assertion type: %s", assertion_type)
+                    assertion_results[f"unknown_{assertion_type}"] = {
+                        "success": False,
+                        "message": f"Unknown assertion type: {assertion_type}",
+                    }
+                    all_assertions_passed = False
+
+                    # Emit unknown assertion type event using the typed event emitter
+                    self.event_emitter.emit_assertion_unknown(
+                        assertion_type=assertion_type, details=assertion
+                    )
+
             except Exception as e:
-                self.logger.error("Assertion failed: %s", e, exc_info=True)
-                raise
+                self.logger.error(
+                    "Error validating assertion %s: %s", assertion_type, str(e), exc_info=True
+                )
+                assertion_results[f"error_{assertion_type}"] = {
+                    "success": False,
+                    "message": f"Error during validation: {str(e)}",
+                    "error_type": type(e).__name__,
+                }
+                all_assertions_passed = False
+
+                # Emit assertion error event using the typed event emitter
+                self.event_emitter.emit_assertion_error(
+                    assertion_type=assertion_type,
+                    error_message=str(e),
+                    error_type=type(e).__name__,
+                    details=assertion,
+                )
+
+        # Emit assertions validation completed event using the typed event emitter
+        self.event_emitter.emit_assertions_validation_completed(
+            test_case=self.test_name, all_passed=all_assertions_passed, results=assertion_results
+        )
+
+        return all_assertions_passed, assertion_results
 
     def setup_services(self):
         """
-        Sets up the services defined in the test configuration.
+        Sets up the services based on the test configuration.
 
-        This method goes through the test configuration and sets up the necessary services
-        by configuring testers and implementations.
+        This method iterates through the defined services in the test configuration and sets up
+        implementation and tester services as required. It emits events for service setup
+        progress and completion.
+
+        Raises:
+            Exception: If service setup fails.
         """
-        self.logger.debug("Setting up services...")
-        self.setup_testers()
-        self.setup_implementations()
+        self.logger.info("Setting up services based on test configuration")
+
+        # Emit service setup started event using the typed event emitter
+        service_names = list(self.services.keys())
+        self.event_emitter.emit_service_setup_started(
+            test_case=self.test_name, service_count=len(self.services), service_names=service_names
+        )
+
+        # Initialize the list of service managers
+        self.service_managers = []
+
+        try:
+            # Set up the testers first if defined
+            self.setup_testers()
+
+            # Set up the implementations
+            self.setup_implementations()
+
+            # Emit service setup completed event using the typed event emitter
+            self.event_emitter.emit_service_setup_completed(
+                test_case=self.test_name,
+                services=[sm.name for sm in self.service_managers],
+                success=True,
+            )
+
+        except Exception as e:
+            # Emit service setup failed event using the typed event emitter
+            self.event_emitter.emit_service_setup_failed(
+                test_case=self.test_name, error_message=str(e), error_type=type(e).__name__
+            )
+            self.logger.error("Service setup failed: %s", e, exc_info=True)
+            raise
 
     def setup_testers(self):
         """
@@ -545,145 +699,111 @@ class TestCase(ITestCase):
 
     def setup_environment(self):
         """
-        Sets up the test environment using the plugin.
+        Sets up the test environment using the appropriate environment plugins.
 
-        This method sets up both execution environments and network environments
-        based on the configuration. It loads the appropriate plugins and initializes them.
+        This method configures and initializes the network environment and execution environments
+        based on the test configuration. It emits events for environment setup progress and completion.
+
+        Raises:
+            Exception: If environment setup fails.
         """
-        self.logger.info("Setting up test environment")
+        self.logger.info("Setting up environment based on test configuration")
 
-        # Emit environment setup started event
+        # Emit environment setup started event using the typed event emitter
         self.event_emitter.emit_environment_setup_started(
-            environment_type="test_environment", details={"test_name": self.test_config.name}
-        )
-
-        # Setup execution environments
-        for environment in self.test_config.execution_environments:
-            subtype = environment.type
-            settings = environment
-
-            environment_dir = (
-                self._panther_dir
-                / Path(self.plugin_manager.plugins_loader.plugins_base_dir)
-                / "environments"
-                / "execution_environment"
-            )
-
-            self.logger.debug(
-                "Creating environment manager for execution environment with %s and settings %s",
-                subtype,
-                settings,
-            )
-
-            environment_manager = self.plugin_manager.create_environment_manager(
-                environment=subtype,
-                test_config=self.test_config,
-                environment_dir=environment_dir,
-                output_dir=self.test_experiment_dir,
-                event_manager=self.event_manager,
-            )
-
-            self.environment_plugin_manager.append(environment_manager)
-            self.execution_environment.append(environment_manager)
-            self.logger.debug(
-                "Added environment manager for execution environment - %s", environment_manager
-            )
-
-        # Setup network environment
-        self.logger.debug(
-            "Setting up network environment '%s'", self.test_config.network_environment.type
-        )
-
-        settings = self.test_config.network_environment
-        environment_dir = (
-            self._panther_dir
-            / Path(self.plugin_manager.plugins_loader.plugins_base_dir)
-            / "environments"
-            / "network_environment"
-        )
-
-        self.logger.debug(
-            "Creating environment manager for network environment with %s and settings %s",
-            self.test_config.network_environment.type,
-            settings,
-        )
-
-        environment_manager = self.plugin_manager.create_environment_manager(
-            environment=self.test_config.network_environment.type,
-            test_config=self.test_config,
-            environment_dir=environment_dir,
-            output_dir=self.test_experiment_dir,
-            event_manager=self.event_manager,
-        )
-        environment_manager.event_emitter = self.event_emitter  # TODO make cleaner
-        self.environment_plugin_manager.append(environment_manager)
-        self.logger.debug("Added environment manager for network environment")
-
-        # Emit environment setup started event
-        self.event_emitter.emit_environment_setup_started(
-            environment_type=environment_manager.__class__.__name__,
-            details={
-                "test_name": self.test_config.name,
-                "environment_type": self.test_config.network_environment.type,
-                "phase": "ENVIRONMENT_SETUP",
-            },
+            test_case=self.test_name, network_environment=self.test_config.network_environment.type
         )
 
         try:
-            if isinstance(environment_manager, INetworkEnvironment):
-                environment_manager.setup_environment(
-                    self.service_managers,
-                    self.test_config,
-                    self.global_config,
-                    datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-                    self.plugin_manager.plugins_loader,
-                    self.execution_environment,
+            # Get the network environment plugin
+            network_environment_plugin = self.plugin_manager.get_network_environment_plugin(
+                self.test_config.network_environment.type
+            )
+
+            if not network_environment_plugin:
+                raise ValueError(
+                    f"Network environment plugin not found for type: {self.test_config.network_environment.type}"
                 )
+
+            # Initialize the network environment
+            self.logger.info(
+                "Initializing network environment: %s", network_environment_plugin.name
+            )
+            network_environment_plugin.initialize(
+                self.test_config, self.test_experiment_dir, self.event_manager, self.global_config
+            )
+
+            # Add to list of environment plugins
+            self.environment_plugin_manager.append(network_environment_plugin)
+
+            # Emit network environment initialized event using the typed event emitter
+            self.event_emitter.emit_environment_initialized(
+                environment_type="network",
+                plugin_name=network_environment_plugin.name,
+                plugin_type=self.test_config.network_environment.type,
+            )
+
+            # Get the execution environment plugins if defined
+            if self.test_config.execution_environments:
                 self.logger.info(
-                    "Test environment set up via '%s'", environment_manager.__class__.__name__
+                    "Setting up execution environments: %s", self.test_config.execution_environments
                 )
-                # Use EventEmitter for environment setup event
-                self.event_emitter.emit_environment_setup_completed(
-                    environment_type=environment_manager.__class__.__name__,
-                    success=True,
-                    details={
-                        "test_name": self.test_config.name,
-                        "environment_name": (
-                            environment_manager.env_name
-                            if hasattr(environment_manager, "env_name")
-                            else environment_manager.__class__.__name__
-                        ),
-                        # Pass the actual environment instance
-                        "environment_instance": environment_manager,
-                        "phase": "ENVIRONMENT_SETUP",
-                    },
-                )
+
+                for env_config in self.test_config.execution_environments:
+                    env_type = env_config.type
+                    self.logger.info("Getting execution environment plugin: %s", env_type)
+
+                    execution_environment_plugin = (
+                        self.plugin_manager.get_execution_environment_plugin(env_type)
+                    )
+
+                    if not execution_environment_plugin:
+                        self.logger.warning(
+                            "Execution environment plugin not found for type: %s", env_type
+                        )
+                        continue
+
+                    # Initialize the execution environment
+                    self.logger.info(
+                        "Initializing execution environment: %s", execution_environment_plugin.name
+                    )
+                    execution_environment_plugin.initialize(
+                        self.test_config,
+                        self.test_experiment_dir,
+                        self.event_manager,
+                        self.global_config,
+                    )
+
+                    # Add to list of environment plugins
+                    self.environment_plugin_manager.append(execution_environment_plugin)
+
+                    # Emit execution environment initialized event using the typed event emitter
+                    self.event_emitter.emit_environment_initialized(
+                        environment_type="execution",
+                        plugin_name=execution_environment_plugin.name,
+                        plugin_type=env_type,
+                    )
+
+            # Emit environment setup completed event using the typed event emitter
+            execution_env_names = [
+                plugin.name
+                for plugin in self.environment_plugin_manager
+                if plugin != network_environment_plugin
+            ]
+            self.event_emitter.emit_environment_setup_completed(
+                test_case=self.test_name,
+                network_environment=network_environment_plugin.name,
+                execution_environments=execution_env_names,
+                success=True,
+            )
 
         except Exception as e:
-            self.logger.error(
-                "Failed to set up test environment via '%s': %s",
-                environment_manager.__class__.__name__,
-                e,
-                exc_info=True,
+            # Emit environment setup failed event using the typed event emitter
+            self.event_emitter.emit_environment_setup_failed(
+                test_case=self.test_name, error_message=str(e), error_type=type(e).__name__
             )
-
-            # Emit environment setup failed event
-            self.event_emitter.emit_environment_setup_completed(
-                environment_type=environment_manager.__class__.__name__,
-                success=False,
-                details={
-                    "test_name": self.test_config.name,
-                    "environment_name": (
-                        environment_manager.env_name
-                        if hasattr(environment_manager, "env_name")
-                        else environment_manager.__class__.__name__
-                    ),
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "phase": "ENVIRONMENT_SETUP",
-                },
-            )
-            raise e
+            self.logger.error("Environment setup failed: %s", e, exc_info=True)
+            raise
 
     def teardown_environment(self):
         """
@@ -701,7 +821,7 @@ class TestCase(ITestCase):
                     self.logger.info(
                         "Test environment torn down via '%s'", env_manager.__class__.__name__
                     )
-                    # Use EventEmitter for environment teardown event
+                    # Use the typed event emitter for environment teardown event
                     self.event_emitter.emit_environment_teardown(
                         environment_type=env_manager.__class__.__name__,
                         success=True,

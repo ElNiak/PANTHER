@@ -162,11 +162,10 @@ class PluginManager:
 
         try:
             # Determine the module name and class name based on implementation
-            service_type = implementation.type.name.lower()
             impl_name = implementation.name
 
             # Construct the module path (depends on implementation type)
-            if service_type == "testers":
+            if implementation.type.name.lower() == "testers":
                 service_module_name = f"panther.plugins.services.testers.{impl_name}.{impl_name}"
                 service_file_path = implementation_dir / f"{impl_name}.py"
             else:  # iut or other types
@@ -179,8 +178,6 @@ class PluginManager:
             self.logger.debug(f"Loading service module from {service_file_path}")
 
             # Import the module using importlib
-            import importlib.util
-
             spec = importlib.util.spec_from_file_location(service_module_name, service_file_path)
             if spec is None or spec.loader is None:
                 raise ImportError(f"Could not find module at {service_file_path}")
@@ -200,7 +197,7 @@ class PluginManager:
             # Create the service manager instance
             service_manager = service_manager_class(
                 service_config_to_test=service_config_to_test,
-                service_type=service_type,
+                service_type=implementation.type,
                 protocol=protocol,
                 implementation_name=impl_name,
             )

@@ -68,8 +68,9 @@ class ConfigLoader:
         Returns:
             ExperimentConfig: _description_
         """
-        # Construct logging configuration with defaults
-        level_str = loaded_config.get("logging", {}).get("level", "DEBUG")
+        # Construct logging configuration with defaults from dataclass
+        default_logging = LoggingConfig()  # Get dataclass defaults
+        level_str = loaded_config.get("logging", {}).get("level", default_logging.level.name)
         # Convert string to LoggingLevel enum
         if isinstance(level_str, str):
             try:
@@ -78,26 +79,32 @@ class ConfigLoader:
                 self.logger.warning("Invalid logging level '%s', using DEBUG", level_str)
                 level = LoggingLevel.DEBUG
         else:
-            level = level_str if isinstance(level_str, LoggingLevel) else LoggingLevel.DEBUG
+            level = level_str if isinstance(level_str, LoggingLevel) else default_logging.level
 
         logging_config = LoggingConfig(
             level=level,
-            format=loaded_config.get("logging", {}).get(
-                "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            ),
+            format=loaded_config.get("logging", {}).get("format", default_logging.format),
         )
         OmegaConf.merge(LoggingConfig, logging_config)
 
-        # Construct paths configuration with defaults
+        # Construct paths configuration with defaults from dataclass
+        default_paths = PathsConfig()  # Get dataclass defaults
         paths_config = PathsConfig(
             output_dir=(
-                loaded_config.get("paths", {}).get("output_dir", "/tmp/panther/outputs")
+                loaded_config.get("paths", {}).get("output_dir", default_paths.output_dir)
                 if not self.output_dir
                 else self.output_dir
             ),
-            log_dir=loaded_config.get("paths", {}).get("log_dir", "/tmp/panther/logs"),
-            config_dir=loaded_config.get("paths", {}).get("config_dir", "/tmp/panther/configs"),
-            plugin_dir=loaded_config.get("paths", {}).get("plugin_dir", "/tmp/panther/plugins"),
+            log_dir=loaded_config.get("paths", {}).get("log_dir", default_paths.log_dir),
+            config_dir=loaded_config.get("paths", {}).get("config_dir", default_paths.config_dir),
+            plugin_dir=loaded_config.get("paths", {}).get("plugin_dir", default_paths.plugin_dir),
+            services_dir=loaded_config.get("paths", {}).get(
+                "services_dir", default_paths.services_dir
+            ),
+            iut_dir=loaded_config.get("paths", {}).get("iut_dir", default_paths.iut_dir),
+            testers_dir=loaded_config.get("paths", {}).get(
+                "testers_dir", default_paths.testers_dir
+            ),
         )
         OmegaConf.merge(PathsConfig, paths_config)
 
@@ -117,38 +124,50 @@ class ConfigLoader:
 
         self.add_plugin_tester_service()
 
-        # Construct Docker configuration with defaults
+        # Construct Docker configuration with defaults from dataclass
+        default_docker = DockerConfig()  # Get dataclass defaults
         docker_config = DockerConfig(
-            build_docker_image=loaded_config.get("docker", {}).get("build_docker_image", True),
-            remove_docker_image=loaded_config.get("docker", {}).get("remove_docker_image", True),
+            build_docker_image=loaded_config.get("docker", {}).get(
+                "build_docker_image", default_docker.build_docker_image
+            ),
+            remove_docker_image=loaded_config.get("docker", {}).get(
+                "remove_docker_image", default_docker.remove_docker_image
+            ),
             remove_docker_container=loaded_config.get("docker", {}).get(
-                "remove_docker_container", True
+                "remove_docker_container", default_docker.remove_docker_container
             ),
             remove_docker_network=loaded_config.get("docker", {}).get(
-                "remove_docker_network", True
+                "remove_docker_network", default_docker.remove_docker_network
             ),
-            remove_docker_volume=loaded_config.get("docker", {}).get("remove_docker_volume", True),
+            remove_docker_volume=loaded_config.get("docker", {}).get(
+                "remove_docker_volume", default_docker.remove_docker_volume
+            ),
+            remove_dangling_images=loaded_config.get("docker", {}).get(
+                "remove_dangling_images", default_docker.remove_dangling_images
+            ),
         )
         OmegaConf.merge(DockerConfig, docker_config)
 
+        # Construct feature configuration with defaults from dataclass
+        default_features = FeatureConfig()  # Get dataclass defaults
         if "features" not in loaded_config:
-            feature_config = FeatureConfig()
+            feature_config = default_features
         else:
             feature_config = FeatureConfig(
                 logger_observer=(
                     loaded_config["features"]["logger_observer"]
                     if "logger_observer" in loaded_config["features"]
-                    else True
+                    else default_features.logger_observer
                 ),
                 storage_handler=(
                     loaded_config["features"]["storage_handler"]
                     if "storage_handler" in loaded_config["features"]
-                    else True
+                    else default_features.storage_handler
                 ),
                 fast_fail=(
                     loaded_config["features"]["fast_fail"]
                     if "fast_fail" in loaded_config["features"]
-                    else True
+                    else default_features.fast_fail
                 ),
             )
         OmegaConf.merge(FeatureConfig, feature_config)

@@ -22,7 +22,7 @@ class ImplementationType(str, Enum):
     """Types of implementations in the system."""
 
     IUT = "iut"  # Implementation Under Test
-    TESTERS = "tester"  # Implementation used for testing
+    TESTERS = "testers"  # Implementation used for testing
 
 
 @dataclass

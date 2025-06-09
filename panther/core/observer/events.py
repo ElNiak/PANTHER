@@ -49,41 +49,39 @@ from panther.core.observer.metrics.metrics_events import (
     MetricsSummaryEvent,
 )
 
-# Storage-related events
-from panther.core.observer.storage.store_events import TestResultEvent, EnhancedResultEvent
-
-
-# GUI-related events - import as needed when implemented
-# from panther.core.observer.gui.gui_events import (
-#     # GUI event types will be imported here when implemented
-# )
-
-# Logger-related events - import as needed when implemented
-# from panther.core.observer.logger.logs_events import (
-#     # Logger event types will be imported here when implemented
-# )
-
-# Plugin-related events
-from panther.core.observer.plugin.plugin_events import (
-    # Base plugin event
-    PluginEvent,
-    # Service events
-    ServiceEvent as PluginServiceEvent,
-    ServiceStartingEvent,
-    ServiceReadyEvent,
-    ServiceStoppingEvent,
-    ServiceStoppedEvent as PluginServiceStoppedEvent,
-    ServiceRequestEvent,
-    # Environment events
-    EnvironmentEvent as PluginEnvironmentEvent,
-    EnvironmentResourceEvent,
-    EnvironmentResourceAllocatedEvent,
-    EnvironmentResourceReleasedEvent,
-    # Tester events
-    TesterEvent,
-    TestStartingEvent,
-    TestCompletedEvent as PluginTestCompletedEvent,
+# Service-related events
+from panther.core.observer.service_events import (
+    ServiceSetupStartedEvent,
+    ServiceSetupCompletedEvent,
+    ServiceSetupFailedEvent,
+    ServiceDeploymentEvent,
+    ServiceDeploymentFailedEvent,
 )
+
+# Environment-related events
+from panther.core.observer.environment_events import (
+    EnvironmentInitializedEvent,
+    EnvironmentSetupFailedEvent,
+)
+
+# Step execution events
+from panther.core.observer.step_events import (
+    StepExecutionStartedEvent,
+    StepExecutionCompletedEvent,
+    StepUnsupportedEvent,
+)
+
+# Assertion events
+from panther.core.observer.assertion_events import (
+    AssertionEvent,
+    AssertionsValidationStartedEvent,
+    AssertionProgressEvent,
+    AssertionResultEvent,
+    AssertionUnknownEvent,
+    AssertionErrorEvent,
+    AssertionsValidationCompletedEvent,
+)
+
 
 # Define a comprehensive list of all event types for easier access
 __all__ = [
@@ -104,19 +102,35 @@ __all__ = [
     "TestExecutionStartedEvent",
     "TestExecutionCompletedEvent",
     "TestExecutionFailedEvent",
-    "TestResultEvent",
-    "EnhancedResultEvent",
-    # Environment-related events
-    "EnvironmentSetupStartedEvent",
-    "EnvironmentSetupCompletedEvent",
-    "EnvironmentTeardownEvent",
     # Service-related events
     "ServiceStartedEvent",
     "ServiceStoppedEvent",
     "ServiceErrorEvent",
+    "ServiceSetupStartedEvent",
+    "ServiceSetupCompletedEvent",
+    "ServiceSetupFailedEvent",
+    "ServiceDeploymentEvent",
+    "ServiceDeploymentFailedEvent",
+    # Environment-related events
+    "EnvironmentSetupStartedEvent",
+    "EnvironmentSetupCompletedEvent",
+    "EnvironmentTeardownEvent",
+    "EnvironmentInitializedEvent",
+    "EnvironmentSetupFailedEvent",
     # Step-related events
     "StepProgressEvent",
     "StepCompletedEvent",
+    "StepExecutionStartedEvent",
+    "StepExecutionCompletedEvent",
+    "StepUnsupportedEvent",
+    # Assertion events
+    "AssertionEvent",
+    "AssertionsValidationStartedEvent",
+    "AssertionProgressEvent",
+    "AssertionResultEvent",
+    "AssertionUnknownEvent",
+    "AssertionErrorEvent",
+    "AssertionsValidationCompletedEvent",
     # Plugin-related events
     "PluginEvent",
     "PluginServiceEvent",

@@ -23,8 +23,25 @@ from panther.core.observer.events import (
     ServiceEvent,
     StepProgressEvent,
     StepCompletedEvent,
-    MetricCollectedEvent,
-    TimingMetricEvent,
+    ServiceSetupStartedEvent,
+    ServiceSetupCompletedEvent,
+    ServiceSetupFailedEvent,
+    ServiceDeploymentEvent,
+    ServiceDeploymentFailedEvent,
+    # Environment events
+    EnvironmentInitializedEvent,
+    EnvironmentSetupFailedEvent,
+    # Step events
+    StepExecutionStartedEvent,
+    StepExecutionCompletedEvent,
+    StepUnsupportedEvent,
+    # Assertion events
+    AssertionsValidationStartedEvent,
+    AssertionProgressEvent,
+    AssertionResultEvent,
+    AssertionUnknownEvent,
+    AssertionErrorEvent,
+    AssertionsValidationCompletedEvent,
 )
 from panther.core.observer.event_manager import EventManager
 
@@ -206,51 +223,174 @@ class EventEmitter:
             TestExecutionFailedEvent(
                 test_id=test_id,
                 test_name=test_name,
-                stack_trace=error_type,
                 error_message=error_message,
-                error_details=details or {},
+                stack_trace=None,
+                error_details=details or {"error_type": error_type},
             )
         )
 
-    def emit_environment_setup_started(
-        self, environment_type: str, details: dict[str, Any] = None
+    # Service Events
+    def emit_service_setup_started(
+        self, test_case: str, service_count: int, service_names: list[str] | None = None
     ) -> None:
+        """
+        Emit a service setup started event.
+
+        Args:
+            test_case: Name of the test case
+            service_count: Number of services to set up
+            service_names: Names of the services being set up
+        """
+        self.emit_event(
+            ServiceSetupStartedEvent(
+                test_case=test_case, service_count=service_count, service_names=service_names
+            )
+        )
+
+    def emit_service_setup_completed(
+        self, test_case: str, services: list[str], success: bool = True
+    ) -> None:
+        """
+        Emit a service setup completed event.
+
+        Args:
+            test_case: Name of the test case
+            services: List of service names that were set up
+            success: Whether setup was successful
+        """
+        self.emit_event(
+            ServiceSetupCompletedEvent(test_case=test_case, services=services, success=success)
+        )
+
+    def emit_service_setup_failed(
+        self, test_case: str, error_message: str, error_type: str
+    ) -> None:
+        """
+        Emit a service setup failed event.
+
+        Args:
+            test_case: Name of the test case
+            error_message: Error message from the failure
+            error_type: Type of error that occurred
+        """
+        self.emit_event(
+            ServiceSetupFailedEvent(
+                test_case=test_case, error_message=error_message, error_type=error_type
+            )
+        )
+
+    def emit_service_deployed(self, environment: str, service_instances: dict[str, Any]) -> None:
+        """
+        Emit a service deployment event.
+
+        Args:
+            environment: Name of the deployment environment
+            service_instances: Dictionary of service name to service instance
+        """
+        self.emit_event(
+            ServiceDeploymentEvent(environment=environment, service_instances=service_instances)
+        )
+
+    def emit_service_deployment_failed(self, environment: str, error: str, error_type: str) -> None:
+        """
+        Emit a service deployment failed event.
+
+        Args:
+            environment: Name of the deployment environment
+            error: Error message
+            error_type: Type of error
+        """
+        self.emit_event(
+            ServiceDeploymentFailedEvent(
+                environment=environment, error=error, error_type=error_type
+            )
+        )
+
+    # Environment Events
+    def emit_environment_initialized(
+        self, environment_type: str, plugin_name: str, plugin_type: str
+    ) -> None:
+        """
+        Emit an environment initialized event.
+
+        Args:
+            environment_type: Type of environment (network or execution)
+            plugin_name: Name of the plugin
+            plugin_type: Type of the plugin
+        """
+        self.emit_event(
+            EnvironmentInitializedEvent(
+                environment_type=environment_type, plugin_name=plugin_name, plugin_type=plugin_type
+            )
+        )
+
+    def emit_environment_setup_started(self, test_case: str, network_environment: str) -> None:
         """
         Emit an environment setup started event.
 
         Args:
-            environment_type: Type of environment
-            details: Additional setup details
+            test_case: Name of the test case
+            network_environment: Type of network environment
         """
         self.emit_event(
-            EnvironmentSetupStartedEvent(environment_type=environment_type, details=details or {})
+            EnvironmentSetupStartedEvent(
+                environment_type=network_environment, details={"test_case": test_case}
+            )
         )
 
     def emit_environment_setup_completed(
-        self, environment_type: str, success: bool, details: dict[str, Any] = None
+        self,
+        test_case: str,
+        network_environment: str,
+        execution_environments: list[str],
+        success: bool = True,
     ) -> None:
         """
         Emit an environment setup completed event.
 
         Args:
-            environment_type: Type of environment
+            test_case: Name of the test case
+            network_environment: Name of the network environment
+            execution_environments: List of execution environment names
             success: Whether setup was successful
-            details: Additional completion details
         """
         self.emit_event(
             EnvironmentSetupCompletedEvent(
-                environment_type=environment_type, success=success, details=details or {}
+                environment_type="combined",
+                success=success,
+                details={
+                    "test_case": test_case,
+                    "network_environment": network_environment,
+                    "execution_environments": execution_environments,
+                },
+            )
+        )
+
+    def emit_environment_setup_failed(
+        self, test_case: str, error_message: str, error_type: str
+    ) -> None:
+        """
+        Emit an environment setup failed event.
+
+        Args:
+            test_case: Name of the test case
+            error_message: Error message from the failure
+            error_type: Type of error that occurred
+        """
+        self.emit_event(
+            EnvironmentSetupFailedEvent(
+                test_case=test_case, error_message=error_message, error_type=error_type
             )
         )
 
     def emit_environment_teardown(
-        self, environment_type: str, success: bool, details: dict[str, Any] = None
+        self, environment_type: str, success: bool = True, details: dict[str, Any] | None = None
     ) -> None:
         """
         Emit an environment teardown event.
 
         Args:
-            environment_type: Type of environment
+            environment_type: Type of environment being torn down
             success: Whether teardown was successful
             details: Additional teardown details
         """
@@ -260,103 +400,195 @@ class EventEmitter:
             )
         )
 
-    def emit_service_event(self, name: str, data: dict[str, Any] = None) -> None:
+    # Step Events
+    def emit_step_execution_started(self, test_case: str, steps: list[str]) -> None:
         """
-        Emit a service lifecycle event.
+        Emit a step execution started event.
 
         Args:
-            name: Event name (e.g., "service.setup", "service.deployed", "services_deployed")
-            data: Event data with service details
+            test_case: Name of the test case
+            steps: List of step names to execute
         """
-        event_data = data or {}
+        self.emit_event(StepExecutionStartedEvent(test_case=test_case, steps=steps))
 
-        self.emit_event(ServiceEvent(name=name, data=event_data))
-
-    def emit_step_progress(
-        self, step_id: str, progress: float, details: dict[str, Any] = None
-    ) -> None:
+    def emit_step_progress(self, step_id: str, progress: float, message: str | None = None) -> None:
         """
         Emit a step progress event.
 
         Args:
-            step_id: Step identifier
-            progress: Progress value (0.0 to 1.0)
-            details: Additional progress details
+            step_id: Identifier for the step
+            progress: Progress percentage (0-100)
+            message: Optional progress message
         """
-        self.emit_event(
-            StepProgressEvent(step_id=step_id, progress=progress, details=details or {})
-        )
+        self.emit_event(StepProgressEvent(step_id=step_id, progress=progress, message=message))
 
     def emit_step_completed(
-        self, step_id: str, success: bool, result: dict[str, Any] = None
+        self, step_id: str, success: bool, result: dict[str, Any] | None = None
     ) -> None:
         """
         Emit a step completed event.
 
         Args:
-            step_id: Step identifier
+            step_id: Identifier for the step
             success: Whether the step completed successfully
-            result: Step execution result
+            result: Result data from the step
         """
         self.emit_event(StepCompletedEvent(step_id=step_id, success=success, result=result or {}))
 
-    def emit_timing_metric(
-        self,
-        metric_name: str,
-        duration_ms: int,
-        step_id: str = None,
-        test_id: str = None,
-        details: dict[str, Any] = None,
-    ) -> None:
+    def emit_step_execution_completed(self, test_case: str, completed_steps: list[str]) -> None:
         """
-        Emit a timing metric event.
+        Emit a step execution completed event.
 
         Args:
-            metric_name: Name of the timing metric
-            duration_ms: Duration in milliseconds
-            step_id: Optional step identifier
-            test_id: Optional test identifier
-            details: Additional metric details
+            test_case: Name of the test case
+            completed_steps: List of steps that were completed
         """
-        data = {"metric_name": metric_name, "duration": duration_ms}
-        if step_id:
-            data["step_id"] = step_id
-        if test_id:
-            data["test_case"] = test_id
-        if details:
-            data["metadata"] = details
+        self.emit_event(
+            StepExecutionCompletedEvent(test_case=test_case, completed_steps=completed_steps)
+        )
 
-        self.emit_event(TimingMetricEvent(**data))
-
-    def emit_metric(
-        self,
-        metric_type: str,
-        metric_name: str,
-        value: Any,
-        step_id: str = None,
-        test_id: str = None,
-        details: dict[str, Any] = None,
-    ) -> None:
+    def emit_step_unsupported(self, step_id: str, step_details: str, message: str) -> None:
         """
-        Emit a metric collected event.
+        Emit an unsupported step event.
 
         Args:
-            metric_type: Type of the metric
-            metric_name: Name of the metric
-            value: Metric value
-            step_id: Optional step identifier
-            test_id: Optional test identifier
-            details: Additional metric details
+            step_id: Identifier for the step
+            step_details: Details about the step
+            message: Message describing the issue
         """
-        data = {"metric_type": metric_type, "metric_name": metric_name, "value": value}
-        if step_id:
-            data["step_id"] = step_id
-        if test_id:
-            data["test_case"] = test_id
-        if details:
-            data["metadata"] = details
+        self.emit_event(
+            StepUnsupportedEvent(step_id=step_id, step_details=step_details, message=message)
+        )
 
-        self.emit_event(MetricCollectedEvent(**data))
+    # Assertion Events
+    def emit_assertions_validation_started(
+        self, test_case: str, assertions: list[dict[str, Any]]
+    ) -> None:
+        """
+        Emit an assertions validation started event.
+
+        Args:
+            test_case: Name of the test case
+            assertions: List of assertions to validate
+        """
+        self.emit_event(
+            AssertionsValidationStartedEvent(test_case=test_case, assertions=assertions)
+        )
+
+    def emit_assertion_progress(
+        self, assertion_type: str, service: str, endpoint: str, expected_status: int, status: str
+    ) -> None:
+        """
+        Emit an assertion progress event.
+
+        Args:
+            assertion_type: Type of assertion being validated
+            service: Service being validated
+            endpoint: Endpoint being validated
+            expected_status: Expected status code
+            status: Current status of the validation
+        """
+        self.emit_event(
+            AssertionProgressEvent(
+                assertion_type=assertion_type,
+                service=service,
+                endpoint=endpoint,
+                expected_status=expected_status,
+                status=status,
+            )
+        )
+
+    def emit_assertion_result(
+        self,
+        assertion_type: str,
+        service: str,
+        endpoint: str,
+        expected_status: int,
+        success: bool,
+        actual_status: int | None = None,
+        message: str = "",
+    ) -> None:
+        """
+        Emit an assertion result event.
+
+        Args:
+            assertion_type: Type of assertion
+            service: Service that was validated
+            endpoint: Endpoint that was validated
+            expected_status: Expected status code
+            success: Whether the assertion passed
+            actual_status: Actual status code received
+            message: Additional message
+        """
+        self.emit_event(
+            AssertionResultEvent(
+                assertion_type=assertion_type,
+                service=service,
+                endpoint=endpoint,
+                expected_status=expected_status,
+                success=success,
+                actual_status=actual_status,
+                message=message,
+            )
+        )
+
+    def emit_assertion_unknown(self, assertion_type: str, details: dict[str, Any]) -> None:
+        """
+        Emit an unknown assertion type event.
+
+        Args:
+            assertion_type: Type of the unknown assertion
+            details: Details about the assertion
+        """
+        self.emit_event(AssertionUnknownEvent(assertion_type=assertion_type, details=details))
+
+    def emit_assertion_error(
+        self, assertion_type: str, error_message: str, error_type: str, details: dict[str, Any]
+    ) -> None:
+        """
+        Emit an assertion error event.
+
+        Args:
+            assertion_type: Type of assertion
+            error_message: Error message
+            error_type: Type of error
+            details: Assertion details
+        """
+        self.emit_event(
+            AssertionErrorEvent(
+                assertion_type=assertion_type,
+                error_message=error_message,
+                error_type=error_type,
+                details=details,
+            )
+        )
+
+    def emit_assertions_validation_completed(
+        self, test_case: str, all_passed: bool, results: dict[str, Any]
+    ) -> None:
+        """
+        Emit an assertions validation completed event.
+
+        Args:
+            test_case: Name of the test case
+            all_passed: Whether all assertions passed
+            results: Results of the assertion validation
+        """
+        self.emit_event(
+            AssertionsValidationCompletedEvent(
+                test_case=test_case, all_passed=all_passed, results=results
+            )
+        )
+
+    def emit_service_event(self, name: str, data: dict[str, Any] = None) -> None:
+        """
+        Emit a service event.
+
+        Args:
+            name: Name of the service event
+            data: Event details
+        """
+        self.emit_event(ServiceEvent(name=name, data=data or {}))
 
     def emit_service_started(self, service_name: str, details: dict[str, Any] = None) -> None:
         """
@@ -364,11 +596,11 @@ class EventEmitter:
 
         Args:
             service_name: Name of the service that started
-            details: Additional service start details
+            details: Additional details about the service start
         """
-        from panther.core.observer.events import ServiceStartedEvent
-
-        self.emit_event(ServiceStartedEvent(service_name=service_name, data=details or {}))
+        self.emit_service_event(
+            name="service_started", data={"service_name": service_name, **(details or {})}
+        )
 
     def emit_service_stopped(
         self, service_name: str, success: bool = True, details: dict[str, Any] = None
@@ -378,14 +610,13 @@ class EventEmitter:
 
         Args:
             service_name: Name of the service that stopped
-            success: Whether the service stopped successfully
-            details: Additional service stop details
+            success: Whether the service stopped cleanly
+            details: Additional details about the service stop
         """
-        from panther.core.observer.events import ServiceStoppedEvent
-
-        data = details or {}
-        data["success"] = success
-        self.emit_event(ServiceStoppedEvent(service_name=service_name, data=data))
+        self.emit_service_event(
+            name="service_stopped",
+            data={"service_name": service_name, "success": success, **(details or {})},
+        )
 
     def emit_service_error(
         self, service_name: str, error_type: str, error_message: str, details: dict[str, Any] = None
@@ -394,18 +625,17 @@ class EventEmitter:
         Emit a service error event.
 
         Args:
-            service_name: Name of the service that encountered an error
-            error_type: Type of error encountered
+            service_name: Name of the service with the error
+            error_type: Type of error
             error_message: Error message
             details: Additional error details
         """
-        from panther.core.observer.events import ServiceErrorEvent
-
-        self.emit_event(
-            ServiceErrorEvent(
-                service_name=service_name,
-                error_type=error_type,
-                error_message=error_message,
-                details=details or {},
-            )
+        self.emit_service_event(
+            name="service_error",
+            data={
+                "service_name": service_name,
+                "error_type": error_type,
+                "error_message": error_message,
+                **(details or {}),
+            },
         )

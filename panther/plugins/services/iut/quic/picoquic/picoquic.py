@@ -21,6 +21,9 @@ class PicoquicServiceManager(IImplementationManager):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
+        # Ensure name attribute is properly set for ServiceManagerEventMixin
+        self.name = f"picoquic_{implementation_name}"
+
         self.logger.debug("Initializing Picoquic service manager for '%s'", implementation_name)
         self.logger.debug("Loaded Picoquic configuration: %s", self.service_config_to_test)
         self.initialize_commands()

@@ -13,6 +13,36 @@ class ServiceManagerEventMixin:
     It supports the event-driven architecture by providing consistent event emission patterns.
     """
 
+    def _get_service_identifier(self):
+        """
+        Get a service identifier using a fallback mechanism.
+
+        Attempts to get service name from various attributes with increasing fallbacks:
+        1. self.name
+        2. self.service_name
+        3. self.implementation_name with prefix if available
+        4. Class name as last resort
+
+        Returns:
+            str: The identified service name or a fallback identifier
+        """
+        if hasattr(self, "name") and self.name:
+            return self.name
+
+        if hasattr(self, "service_name") and self.service_name:
+            return self.service_name
+
+        # Check if we have implementation_name to use
+        if hasattr(self, "implementation_name") and self.implementation_name:
+            # If we also know the service type, use it as a prefix
+            prefix = ""
+            if hasattr(self, "service_type") and self.service_type:
+                prefix = f"{self.service_type.lower()}_"
+            return f"{prefix}{self.implementation_name}"
+
+        # Last resort - use the class name
+        return f"{self.__class__.__name__}"
+
     def notify_service_started(self, details: dict[str, Any] | None = None):
         """
         Notify that the service has started using the event emitter.
@@ -21,7 +51,8 @@ class ServiceManagerEventMixin:
             details: Additional details about the service start
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            service_name = getattr(self, "service_name", "unknown")
+            # Get service identifier with fallback mechanism
+            service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
             self.event_emitter.emit_service_started(
                 service_name, {"service_type": service_type, **(details or {})}
@@ -45,7 +76,8 @@ class ServiceManagerEventMixin:
             details: Additional details about the service stop
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            service_name = getattr(self, "service_name", "unknown")
+            # Get service identifier with fallback mechanism
+            service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
             self.event_emitter.emit_service_stopped(
                 service_name, success, {"service_type": service_type, **(details or {})}
@@ -73,7 +105,8 @@ class ServiceManagerEventMixin:
             details: Additional details about the error
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            service_name = getattr(self, "service_name", "unknown")
+            # Get service identifier with fallback mechanism
+            service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
 
             self.event_emitter.emit_service_error(
@@ -103,7 +136,8 @@ class ServiceManagerEventMixin:
             details: Additional details about the event
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            service_name = getattr(self, "service_name", "unknown")
+            # Get service identifier with fallback mechanism
+            service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
             event_data = {
                 "service_name": service_name,
@@ -129,7 +163,8 @@ class ServiceManagerEventMixin:
             details: Additional progress details
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            service_name = getattr(self, "service_name", "unknown")
+            # Get service identifier with fallback mechanism
+            service_name = self._get_service_identifier()
             step_details = details or {}
             step_details["service_name"] = service_name
             step_details["service_type"] = getattr(self, "service_type", "unknown")
@@ -150,7 +185,8 @@ class ServiceManagerEventMixin:
             result: Result data from the step
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            service_name = getattr(self, "service_name", "unknown")
+            # Get service identifier with fallback mechanism
+            service_name = self._get_service_identifier()
             step_result = result or {}
             step_result["service_name"] = service_name
             step_result["service_type"] = getattr(self, "service_type", "unknown")
@@ -178,7 +214,8 @@ class ServiceManagerEventMixin:
             details: Additional metric details
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            service_name = getattr(self, "service_name", "unknown")
+            # Get service identifier with fallback mechanism
+            service_name = self._get_service_identifier()
             metric_details = details or {}
             metric_details["service_name"] = service_name
             metric_details["service_type"] = getattr(self, "service_type", "unknown")
