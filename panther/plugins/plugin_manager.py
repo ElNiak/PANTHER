@@ -128,6 +128,51 @@ class PluginManager:
         self.active_plugins: dict[str, IPantherPlugin] = {}
         self.plugin_dependencies: dict[str, set[str]] = {}
 
+    def get_network_environment_plugin(self, environment_type: str) -> INetworkEnvironment:
+        """
+        Get a network environment plugin by type.
+
+        Args:
+            environment_type: The type of the network environment plugin to retrieve
+
+        Returns:
+            INetworkEnvironment: The requested network environment plugin if found
+
+        Raises:
+            ValueError: If the environment type is not found
+        """
+        self.logger.debug("Getting network environment plugin for type: %s", environment_type)
+
+        # First try to get from our own cache
+        if environment_type in self.network_environment_plugins:
+            return self.network_environment_plugins[environment_type]
+
+        # If not found and we have a plugins loader, check there
+        if (
+            self.plugins_loader
+            and hasattr(self.plugins_loader, "environment_plugins")
+            and "network_environment" in self.plugins_loader.environment_plugins
+            and environment_type in self.plugins_loader.environment_plugins["network_environment"]
+        ):
+
+            # Store in our cache for future use
+            plugin = self.plugins_loader.environment_plugins["network_environment"][
+                environment_type
+            ]
+            self.network_environment_plugins[environment_type] = plugin
+            return plugin
+
+        # Not found anywhere
+        self.logger.error("Network environment plugin not found: %s", environment_type)
+        available_plugins = list(self.network_environment_plugins.keys())
+        if self.plugins_loader and hasattr(self.plugins_loader, "environment_plugins"):
+            if "network_environment" in self.plugins_loader.environment_plugins:
+                available_plugins.extend(
+                    self.plugins_loader.environment_plugins["network_environment"].keys()
+                )
+        self.logger.error("Available network environment plugins: %s", available_plugins)
+        return None
+
     def create_service_manager(
         self,
         protocol: ProtocolConfig,

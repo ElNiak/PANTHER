@@ -377,9 +377,12 @@ class EventEmitter:
             error_message: Error message from the failure
             error_type: Type of error that occurred
         """
+        # Use the test_case as environment_name and "test_environment" as the environment_type
         self.emit_event(
             EnvironmentSetupFailedEvent(
-                test_case=test_case, error_message=error_message, error_type=error_type
+                environment_name=test_case,
+                environment_type="test_environment",
+                error=f"{error_type}: {error_message}",
             )
         )
 
