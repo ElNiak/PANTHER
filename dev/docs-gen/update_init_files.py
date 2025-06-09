@@ -6,9 +6,7 @@ from pathlib import Path
 import re
 
 # Base directory
-base_dir = (
-    Path(__file__).resolve().parent.parent
-)  # Changed to parent.parent to get project root
+base_dir = Path(__file__).resolve().parent.parent  # Changed to parent.parent to get project root
 print(f"Base directory: {base_dir}")
 
 
@@ -88,7 +86,7 @@ This package contains service plugins for different network services.
                         if len(rel_parts) >= 4:
                             service_type = rel_parts[3]
 
-                            if service_type == "iut":
+                            if service_type == "IUT":
                                 if len(rel_parts) == 4:
                                     return '''"""PANTHER Implementation Under Test (IUT) services.
 

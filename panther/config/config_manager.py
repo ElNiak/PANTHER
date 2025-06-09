@@ -768,11 +768,13 @@ class ConfigLoader:
         implem_type = implementation["implementation"]["type"]
         protocol = implementation["protocol"]["name"]
         protocol_version = implementation["protocol"]["version"]
-        if implem_type == "iut":
+        if implem_type == "IUT":
             # Assuming schema files are in plugins
-            module_path = f"panther.plugins.services.{implem_type}.{protocol}.{name}.config_schema"
+            module_path = (
+                f"panther.plugins.services.{implem_type.lower()}.{protocol}.{name}.config_schema"
+            )
         else:
-            module_path = f"panther.plugins.services.{implem_type}.{name}.config_schema"
+            module_path = f"panther.plugins.services.{implem_type.lower()}.{name}.config_schema"
 
         self.logger.debug("Module path: %s", module_path)
         try:
@@ -788,7 +790,7 @@ class ConfigLoader:
             version_class_name = PluginLoader.get_class_name(name, "Version")
             version_config_class = getattr(schema_module, version_class_name)
             # TODO cleanup
-            if implem_type == "iut":
+            if implem_type == "IUT":
                 version_configs_dir = (
                     str(self._panther_dir).replace("/panther", "")
                     + "/"

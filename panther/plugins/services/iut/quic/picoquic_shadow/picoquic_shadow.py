@@ -34,8 +34,11 @@ class PicoquicShadowServiceManager(IImplementationManager):
         service_type: str,
         protocol: ProtocolConfig,
         implementation_name: str,
+        event_manager=None,
     ):
-        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        super().__init__(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
         self.logger.debug("Initializing Picoquic service manager for '%s'", implementation_name)
         self.logger.debug("Loaded Picoquic configuration: %s", self.service_config_to_test)
         self.initialize_commands()
@@ -126,7 +129,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         self.logger.debug(
             "Generating deployment commands for service: %s with service parameters: %s",
             self.service_name,
-            self.service_config_to_test
+            self.service_config_to_test,
         )
 
         self.logger.debug("Role: %s, Version: %s", self.role, self.service_version)
@@ -216,7 +219,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
             self.logger.warning(
                 "Failed to render structured template for service '%s': %s",
                 self.service_config_to_test.name,
-                e
+                e,
             )
             try:
                 # Fallback to original template
@@ -227,6 +230,6 @@ class PicoquicShadowServiceManager(IImplementationManager):
                     "Failed to render fallback command template for service '%s': %s\n%s",
                     self.service_config_to_test.name,
                     e2,
-                    traceback.format_exc()
+                    traceback.format_exc(),
                 )
                 raise e2

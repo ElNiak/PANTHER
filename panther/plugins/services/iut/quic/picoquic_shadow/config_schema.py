@@ -24,7 +24,7 @@ class PicoquicShadowConfig(ImplementationConfig):
     PicoquicShadowConfig class is a configuration class for the PicoquicShadow implementation.
     Attributes:
         name (str): Implementation name, default is "picoquic_shadow".
-        type (ImplementationType): Default type for picoquic, default is ImplementationType.iut.
+        type (ImplementationType): Default type for picoquic, default is ImplementationType.IUT.
         shadow_compatible (bool): Indicates if the implementation is shadow compatible, default is True.
         version (PicoquicShadowVersion): Version configuration loaded dynamically from YAML files.
     Methods:
@@ -33,7 +33,7 @@ class PicoquicShadowConfig(ImplementationConfig):
     """
 
     name: str = "picoquic_shadow"  # Implementation name
-    type: ImplementationType = ImplementationType.iut  # Default type for picoquic
+    type: ImplementationType = ImplementationType.IUT  # Default type for picoquic
     shadow_compatible: bool = field(default=True)
     # These field must not be included in the experiment configuration file
     version: PicoquicShadowVersion = field(

@@ -66,7 +66,7 @@ class TestEnhancedPantherIvy(unittest.TestCase):
         # Create a PantherIvyConfig as the implementation
         self.implementation_config = PantherIvyConfig(
             name="panther_ivy",
-            type=ImplementationType.testers,
+            type=ImplementationType.TESTERS,
             test="quic_client_test_max",
             use_system_models=False,
         )
@@ -115,13 +115,13 @@ class TestEnhancedPantherIvy(unittest.TestCase):
             for i, cmd in enumerate(
                 functions_in_phase[:3]
             ):  # Limit to first 3 to avoid verbose output
-                name = cmd.get("description", "") if cmd.get("description", "") else "Unknown function"
+                name = (
+                    cmd.get("description", "") if cmd.get("description", "") else "Unknown function"
+                )
                 print(f"      Function {i+1}: {name}")
 
             # Print call details
-            for i, cmd in enumerate(
-                calls_in_phase[:3]
-            ):  # Limit to first 3 to avoid verbose output
+            for i, cmd in enumerate(calls_in_phase[:3]):  # Limit to first 3 to avoid verbose output
                 print(f"      Call {i+1}: {cmd.get('command', '')}")
 
         # Check if the update_ivy_wrapper function is defined in any phase
@@ -142,24 +142,20 @@ class TestEnhancedPantherIvy(unittest.TestCase):
 
         # Check compile phase for function definitions and calls
         for command in commands.get("compile", []):
-            if (
-                command.get("is_function_definition", False)
-                and "update_ivy_wrapper" in command.get("command", "")
+            if command.get("is_function_definition", False) and "update_ivy_wrapper" in command.get(
+                "command", ""
             ):
                 function_defined_compile = True
                 print("Found update_ivy_wrapper function definition in compile")
-            elif (
-                not command.get("is_function_definition", False)
-                and "update_ivy_wrapper" in command.get("command", "")
-            ):
+            elif not command.get(
+                "is_function_definition", False
+            ) and "update_ivy_wrapper" in command.get("command", ""):
                 function_called = True
                 print(
                     f"Found update_ivy_wrapper function call in compile: {command.get('command', '')}"
                 )
 
-        self.assertTrue(
-            update_ivy_defined, "update_ivy_tool function should be defined"
-        )
+        self.assertTrue(update_ivy_defined, "update_ivy_tool function should be defined")
         self.assertTrue(
             function_defined_pre_compile,
             "update_ivy_wrapper function should be defined in pre_compile phase",
@@ -271,22 +267,14 @@ class TestEnhancedPantherIvy(unittest.TestCase):
             )
 
             # Check for function calls - make sure the command calls exist separately from definitions
-            function_defs = [
-                line for line in content.splitlines() if "Function definition" in line
-            ]
-            command_calls = [
-                line for line in content.splitlines() if "Command:" in line
-            ]
+            function_defs = [line for line in content.splitlines() if "Function definition" in line]
+            command_calls = [line for line in content.splitlines() if "Command:" in line]
 
             print(f"\nFound {len(function_defs)} function definitions")
             print(f"Found {len(command_calls)} command calls")
 
-            self.assertGreater(
-                len(function_defs), 0, "Script should contain function definitions"
-            )
-            self.assertGreater(
-                len(command_calls), 0, "Script should contain command calls"
-            )
+            self.assertGreater(len(function_defs), 0, "Script should contain function definitions")
+            self.assertGreater(len(command_calls), 0, "Script should contain command calls")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ class PicoquicVersion(VersionBase):
 @dataclass
 class PicoquicConfig(ImplementationConfig):
     name: str = "picoquic"  # Implementation name
-    type: ImplementationType = ImplementationType.iut  # Default type for picoquic
+    type: ImplementationType = ImplementationType.IUT  # Default type for picoquic
     # These field must not be included in the experiment configuration file
     version: PicoquicVersion = field(
         default_factory=lambda: PicoquicConfig.load_versions_from_files()

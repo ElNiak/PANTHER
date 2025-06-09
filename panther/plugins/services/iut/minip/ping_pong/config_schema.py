@@ -21,7 +21,7 @@ class PingPongVersion(VersionBase):
 @dataclass
 class PingPongConfig(ImplementationConfig):
     name: str = "ping-pong"  # Implementation name
-    type: ImplementationType = ImplementationType.iut  # Default type for
+    type: ImplementationType = ImplementationType.IUT  # Default type for
     shadow_compatible: bool = field(default=True)
     # These field must not be included in the experiment configuration file
     version: PingPongVersion = field(

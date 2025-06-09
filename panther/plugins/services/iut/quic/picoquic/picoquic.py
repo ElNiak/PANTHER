@@ -16,8 +16,11 @@ class PicoquicServiceManager(IImplementationManager):
         service_type: str,
         protocol: ProtocolConfig,
         implementation_name: str,
+        event_manager=None,
     ):
-        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        super().__init__(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
         self.logger.debug("Initializing Picoquic service manager for '%s'", implementation_name)
         self.logger.debug("Loaded Picoquic configuration: %s", self.service_config_to_test)
         self.initialize_commands()

@@ -111,6 +111,12 @@ class PluginManager:
         self.network_environment_plugins: dict[str, INetworkEnvironment] = {}
         self.execution_environment_plugins: dict[str, IExecutionEnvironment] = {}
 
+        # Create a combined dictionary to make it easier to access environment plugins
+        self.environment_plugins = {
+            "network_environment": self.network_environment_plugins,
+            "execution_environment": self.execution_environment_plugins,
+        }
+
         # Event system support
         self.event_emitter = None
         self.event_manager = None
@@ -156,7 +162,7 @@ class PluginManager:
 
         try:
             # Determine the module name and class name based on implementation
-            service_type = implementation.type if hasattr(implementation, "type") else "iut"
+            service_type = implementation.type.name.lower()
             impl_name = implementation.name
 
             # Construct the module path (depends on implementation type)
@@ -245,24 +251,75 @@ class PluginManager:
         self.logger.debug("Creating environment manager for %s", environment)
 
         try:
-            # Determine the environment type (network or execution)
-            if environment in self.environment_plugins.get("network_environment", {}):
-                env_type = "network_environment"
-                env_sub_type = environment
-                module_name = (
-                    f"panther.plugins.environments.{env_type}.{env_sub_type}.{env_sub_type}"
-                )
-            elif environment in self.environment_plugins.get("execution_environment", {}):
-                env_type = "execution_environment"
-                env_sub_type = environment
-                module_name = (
-                    f"panther.plugins.environments.{env_type}.{env_sub_type}.{env_sub_type}"
-                )
-            else:
+            # Initialize variables
+            env_type = None
+            env_sub_type = None
+
+            # First check if the plugins_loader has environment plugins loaded
+            if self.plugins_loader and hasattr(self.plugins_loader, "environment_plugins"):
+                # Check if environment exists in network_environment plugins from the loader
+                if (
+                    "network_environment" in self.plugins_loader.environment_plugins
+                    and environment
+                    in self.plugins_loader.environment_plugins["network_environment"]
+                ):
+                    env_type = "network_environment"
+                    env_sub_type = environment
+                # Check if environment exists in execution_environment plugins from the loader
+                elif (
+                    "execution_environment" in self.plugins_loader.environment_plugins
+                    and environment
+                    in self.plugins_loader.environment_plugins["execution_environment"]
+                ):
+                    env_type = "execution_environment"
+                    env_sub_type = environment
+
+            # If not found in loader, check our own environment_plugins
+            if env_type is None:
+                # Check in network_environment plugins
+                if environment in self.environment_plugins.get("network_environment", {}):
+                    env_type = "network_environment"
+                    env_sub_type = environment
+                # Check in execution_environment plugins
+                elif environment in self.environment_plugins.get("execution_environment", {}):
+                    env_type = "execution_environment"
+                    env_sub_type = environment
+
+            # If still not found, raise an error
+            if env_type is None:
+                self.logger.error(f"Unknown environment type: {environment}")
+                if self.plugins_loader and hasattr(self.plugins_loader, "environment_plugins"):
+                    self.logger.debug(
+                        f"Available environment types in loader: {self.plugins_loader.environment_plugins.keys()}"
+                    )
+                    if "network_environment" in self.plugins_loader.environment_plugins:
+                        self.logger.debug(
+                            f"Available network environments: {list(self.plugins_loader.environment_plugins['network_environment'].keys())}"
+                        )
+                    if "execution_environment" in self.plugins_loader.environment_plugins:
+                        self.logger.debug(
+                            f"Available execution environments: {list(self.plugins_loader.environment_plugins['execution_environment'].keys())}"
+                        )
                 raise ValueError(f"Unknown environment type: {environment}")
 
-            # Construct the file path
-            env_file_path = environment_dir / f"{env_sub_type}.py"
+            # Construct module name
+            module_name = f"panther.plugins.environments.{env_type}.{env_sub_type}.{env_sub_type}"
+
+            # Determine the file path (either from directory structure or plugin loader info)
+            if self.plugins_loader and hasattr(self.plugins_loader, "environment_plugins"):
+                plugin_info = self.plugins_loader.environment_plugins.get(env_type, {}).get(
+                    env_sub_type
+                )
+                if plugin_info and isinstance(plugin_info, Path):
+                    # If we have a directory path from plugin_loader, use the module file inside that directory
+                    env_file_path = plugin_info / f"{env_sub_type}.py"
+                else:
+                    # Otherwise use the standard path
+                    env_file_path = environment_dir / f"{env_sub_type}.py"
+            else:
+                # Fallback to standard path
+                env_file_path = environment_dir / f"{env_sub_type}.py"
+
             self.logger.debug("Loading environment module from %s", env_file_path)
 
             # Import the module using importlib

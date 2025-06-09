@@ -167,22 +167,28 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
     ):
         super().__init__()
 
-        self.available_types = ["testers", "iut"]
-        self.service_type = service_type
-        assert (
-            self.service_type in self.available_types
-        ), f"Invalid service type: {self.service_type}"
+        self.available_types = ["TESTERS", "IUT", "testers", "iut"]
+        self.service_type = str(service_type.name)
+        self.service_type_normalized = self.service_type.upper()
+        assert self.service_type_normalized in [
+            "TESTERS",
+            "IUT",
+        ], f"Invalid service type: {self.service_type}"
         self._plugin_dir = Path(os.path.dirname(__file__))
-        if self.service_type == "testers":
+
+        # Always use lowercase in paths for consistency with directory structure
+        service_type_path = (
+            service_type.lower() if isinstance(service_type, str) else service_type.name.lower()
+        )
+
+        if self.service_type_normalized == "TESTERS":
             self.templates_dir = (
-                f"{os.path.dirname(__file__)}/{service_type}/{implementation_name}/templates/"
+                f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/templates/"
             )
-            self.config_versions_dir = (
-                f"{os.path.dirname(__file__)}/{service_type}/{implementation_name}/version_configs/"
-            )
+            self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/version_configs/"
         else:
-            self.templates_dir = f"{os.path.dirname(__file__)}/{service_type}/{protocol.name}/{implementation_name}/templates/"
-            self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type}/{protocol.name}/{implementation_name}/version_configs/"
+            self.templates_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{protocol.name}/{implementation_name}/templates/"
+            self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{protocol.name}/{implementation_name}/version_configs/"
 
         if not os.path.isdir(self.templates_dir):
             self.logger.error("Templates directory '%s' does not exist.", self.templates_dir)
@@ -487,7 +493,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         """
         Returns True if the plugin is a network service.
         """
-        return self.service_type == "testers"
+        return self.service_type_normalized == "TESTERS"
 
     @abstractmethod
     def prepare(self, plugin_loader: PluginLoader | None = None):

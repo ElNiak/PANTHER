@@ -74,7 +74,7 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         # Create a valid PantherIvyConfig
         self.implementation_config = PantherIvyConfig(
             name="panther_ivy",
-            type=ImplementationType.testers,
+            type=ImplementationType.TESTERS,
             test="quic_client_test_max",
             use_system_models=False,
         )
@@ -88,12 +88,8 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         # Create version info
         version = PantherIvyVersion()
         version.name = "latest"
-        version.client = {
-            "tests": {"quic_client_test_max": {"description": "QUIC client test"}}
-        }
-        version.server = {
-            "tests": {"quic_server_test_max": {"description": "QUIC server test"}}
-        }
+        version.client = {"tests": {"quic_client_test_max": {"description": "QUIC client test"}}}
+        version.server = {"tests": {"quic_server_test_max": {"description": "QUIC server test"}}}
         version.parameters = {"tests_dir": {"value": "tests/"}}
         version.env = {}
 
@@ -104,12 +100,8 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         # Set version information
         self.implementation_config.version = {
             "name": "latest",
-            "client": {
-                "tests": {"quic_client_test_max": {"description": "QUIC client test"}}
-            },
-            "server": {
-                "tests": {"quic_server_test_max": {"description": "QUIC server test"}}
-            },
+            "client": {"tests": {"quic_client_test_max": {"description": "QUIC client test"}}},
+            "server": {"tests": {"quic_server_test_max": {"description": "QUIC server test"}}},
             "env": {},
             "parameters": {"tests_dir": {"value": "tests/"}},
         }
@@ -157,12 +149,8 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         self.logger.info("Structured commands:")
         for phase, cmds in structured_commands.items():
             self.logger.info(f"  {phase}: {len(cmds)} commands")
-            functions = [
-                cmd for cmd in cmds if cmd.get("is_function_definition", False)
-            ]
-            calls = [
-                cmd for cmd in cmds if not cmd.get("is_function_definition", False)
-            ]
+            functions = [cmd for cmd in cmds if cmd.get("is_function_definition", False)]
+            calls = [cmd for cmd in cmds if not cmd.get("is_function_definition", False)]
             self.logger.info(f"    Functions: {len(functions)}, Calls: {len(calls)}")
 
         # Generate the entrypoint script directly
@@ -243,9 +231,7 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
 
         # Check the generated script
         self.logger.info(f"Generated entrypoint script at: {entrypoint_path}")
-        self.assertTrue(
-            os.path.exists(entrypoint_path), "Entrypoint script should exist"
-        )
+        self.assertTrue(os.path.exists(entrypoint_path), "Entrypoint script should exist")
 
         # Read the script content
         with open(entrypoint_path) as f:
@@ -253,9 +239,7 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
 
         # Check for key function definitions
         self.logger.info("Checking for key function definitions...")
-        self.assertIn(
-            "update_ivy_tool()", content, "Missing update_ivy_tool function definition"
-        )
+        self.assertIn("update_ivy_tool()", content, "Missing update_ivy_tool function definition")
         self.assertIn(
             "update_ivy_wrapper()",
             content,
@@ -266,9 +250,7 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         self.logger.info("Checking for function calls...")
         lines = content.splitlines()
         call_lines = [
-            line
-            for line in lines
-            if not line.startswith("#") and "update_ivy_wrapper" in line
+            line for line in lines if not line.startswith("#") and "update_ivy_wrapper" in line
         ]
         self.assertTrue(any(call_lines), "No update_ivy_wrapper function call found")
 

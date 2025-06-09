@@ -375,7 +375,7 @@ class TestCase(ITestCase):
         self.test_defined_testers = [
             service_details
             for service_details in self.services.values()
-            if service_details.implementation.type == ImplementationType.testers
+            if service_details.implementation.type == ImplementationType.TESTERS
         ]
 
         if len(self.test_defined_testers) == 0:
@@ -481,7 +481,7 @@ class TestCase(ITestCase):
         self.test_defined_implementation = [
             service_details
             for service_details in self.services.values()
-            if service_details.implementation.type == ImplementationType.iut
+            if service_details.implementation.type == ImplementationType.IUT
         ]
 
         self.logger.debug("Test defined implementations: %s", self.test_defined_implementation)

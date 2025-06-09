@@ -18,7 +18,11 @@ class VersionBase:
 # Implementation Configuration
 # IUT: Implementation Under Test
 # Tester: Implementation used for testing
-ImplementationType = Enum("ImplementationType", ["iut", "testers"])
+class ImplementationType(str, Enum):
+    """Types of implementations in the system."""
+
+    IUT = "iut"  # Implementation Under Test
+    TESTERS = "tester"  # Implementation used for testing
 
 
 @dataclass
@@ -34,6 +38,6 @@ class ImplementationConfig:
     """
 
     name: str  # Implementation name (e.g., picoquic, panther_ivy)
-    type: ImplementationType = ImplementationType.iut  # Must be either "iut" or "testers"
+    type: ImplementationType = ImplementationType.IUT  # Must be either "iut" or "testers"
     shadow_compatible: bool = field(default=False)  # This field must be ignored by OmegaConf
     gperf_compatible: bool = field(default=False)

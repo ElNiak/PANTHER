@@ -8,7 +8,6 @@ import os
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
 from panther.plugins.services.services_interface import IServiceManager
-from panther.core.observer.event_emitter import EventEmitter
 
 
 class ServiceBase(IServiceManager, ServiceManagerEventMixin):
@@ -34,19 +33,41 @@ class ServiceBase(IServiceManager, ServiceManagerEventMixin):
         service_type: str,
         protocol,
         implementation_name: str,
+        event_manager=None,
     ):
-        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        # Pass event_manager to parent class constructor so it's properly initialized
+        super().__init__(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
-        self.event_emitter = None  # Will be set by the plugin manager
         self._plugin_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        self._initialize_event_emitter()
 
-    def _initialize_event_emitter(self):
+    def render_template_with_structured_args(
+        self, template_name, params=None, command_args=None, env_vars=None
+    ):
         """
-        Initialize the event emitter if the event manager is available.
+        Render a template using structured arguments, ensuring proper escaping and formatting.
+
+        Args:
+            template_name: The name of the template to render
+            params: Basic template parameters
+            command_args: Structured command arguments
+            env_vars: Environment variables to include
+
+        Returns:
+            str: The rendered template string
         """
-        if hasattr(self, "event_manager") and self.event_manager:
-            self.event_emitter = EventEmitter(self.event_manager)
+        try:
+            self.logger.debug("Rendering structured template '%s'", template_name)
+            return self.render_commands(params or {}, template_name, command_args, env_vars)
+        except Exception as e:
+            self.logger.error("Failed to render structured template '%s': %s", template_name, e)
+            if not os.path.isdir(self.templates_dir):
+                self.logger.error("Templates directory '%s' does not exist", self.templates_dir)
+            else:
+                templates = os.listdir(self.templates_dir)
+                self.logger.error("Available templates in '%s': %s", self.templates_dir, templates)
+            raise
 
     def prepare(self, plugin_loader: PluginLoader | None = None):
         """
@@ -171,4 +192,6 @@ class ServiceBase(IServiceManager, ServiceManagerEventMixin):
             details: Additional details about the event
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            self.event_emitter.emit_event(f"service.{event_name}", details or {})
+            from panther.core.observer.events import ServiceEvent
+
+            self.event_emitter.emit_event(ServiceEvent(f"service.{event_name}", details or {}))

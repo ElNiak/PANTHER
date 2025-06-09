@@ -11,11 +11,13 @@ from panther.plugins.environments.execution_environment.execution_environment_in
     IExecutionEnvironment,
 )
 from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.environments.environment_plugin_base import BaseEnvironmentPlugin
 import traceback
+from panther.plugins.environments.network_environment.network_environment_interface import (
+    INetworkEnvironment,
+)
 
 
-class DockerComposeEnvironment(BaseEnvironmentPlugin):
+class DockerComposeEnvironment(INetworkEnvironment):
     """
     DockerComposeEnvironment is a class that manages the setup, deployment, monitoring, and teardown of a
     Docker Compose environment.
@@ -39,6 +41,8 @@ class DockerComposeEnvironment(BaseEnvironmentPlugin):
         launch_environment_services():
         monitor_environment():
         teardown_environment():
+        is_network_environment():
+            Returns True to indicate this is a network environment.
     """
 
     def __init__(
@@ -79,6 +83,25 @@ class DockerComposeEnvironment(BaseEnvironmentPlugin):
 
     def __repr__(self):
         return f"DockerComposeEnvironment({self.__dict__})"
+
+    def _setup_environment(self) -> bool:
+        self.logger.info("Setting up Docker Compose environment")
+        try:
+            # Ensure the output directory exists
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            self.logger.debug("Output directory created at %s", self.output_dir)
+
+            # Generate the Docker Compose configuration file
+            self.generate_environment_services(
+                paths=self.global_config.paths, timestamp=self.test_config.timestamp
+            )
+            self.logger.info("Docker Compose environment setup complete")
+            return True
+        except Exception as e:
+            self.logger.error(
+                "Failed to set up Docker Compose environment: %s\n%s", e, traceback.format_exc()
+            )
+            return False
 
     def setup_environment(
         self,
@@ -1129,3 +1152,9 @@ class DockerComposeEnvironment(BaseEnvironmentPlugin):
                         "Failed to tear down Docker Compose environment: %s", e.stderr
                     )
                     raise e
+
+    def is_network_environment(self):
+        """
+        Returns True to indicate this is a network environment.
+        """
+        return True

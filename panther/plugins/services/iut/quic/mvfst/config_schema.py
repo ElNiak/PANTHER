@@ -21,7 +21,7 @@ class MvfstVersion(VersionBase):
 @dataclass
 class MvfstConfig(ImplementationConfig):
     name: str = "mvfst"  # Implementation name
-    type: ImplementationType = ImplementationType.iut  # Default type for picoquic
+    type: ImplementationType = ImplementationType.IUT  # Default type for picoquic
     # These field must not be included in the experiment configuration file
     version: MvfstVersion = field(default_factory=lambda: MvfstConfig.load_versions_from_files())
 

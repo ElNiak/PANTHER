@@ -1,13 +1,9 @@
-import traceback
 from abc import abstractmethod
 import os
 
 from jinja2 import Environment, FileSystemLoader
 from omegaconf import OmegaConf
-import shlex
-import yaml
 
-from panther.utils.command import ShellCommand
 from panther.plugins.services.services_interface import IServiceManager
 
 from panther.config.config_experiment_schema import TestConfig
@@ -94,9 +90,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self.services_managers = None
 
         self.logger.debug(
-            "Environment settings: %s in %s",
-            self.env_config_to_test,
-            self.templates_dir
+            "Environment settings: %s in %s", self.env_config_to_test, self.templates_dir
         )
         self.jinja_env = Environment(
             loader=FileSystemLoader(self.templates_dir),
@@ -134,10 +128,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
                     plugin_loader=self.plugin_loader,
                 )
             except Exception as e:
-                self.logger.error(
-                    "Failed to setup execution environment: %s",
-                    e
-                )
+                self.logger.error("Failed to setup execution environment: %s", e)
 
     def update_environment(
         self,
@@ -210,12 +201,12 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
         Returns:
             None
-            
+
         Note:
             This method handles the conversion of ShellCommand objects to strings.
             No preprocessing of commands should be done before calling this method
             to avoid duplicate command generation in the output files.
-        """        
+        """
         # # Register shell and YAML quoting filters
         # self.jinja_env.filters["quote_shell"] = lambda s: shlex.quote(str(s))
         # self.jinja_env.filters["quote_yaml"] = lambda s: yaml.safe_dump(str(s)).strip()
@@ -356,4 +347,3 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Tears down the environment after experiments are completed.
         """
         raise NotImplementedError()
-    

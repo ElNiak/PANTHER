@@ -21,7 +21,7 @@ class AioquicVersion(VersionBase):
 @dataclass
 class AioquicConfig(ImplementationConfig):
     name: str = "aioquic"  # Implementation name
-    type: ImplementationType = ImplementationType.iut  # Default type for picoquic
+    type: ImplementationType = ImplementationType.IUT  # Default type for picoquic
     # These field must not be included in the experiment configuration file
     version: AioquicVersion = field(
         default_factory=lambda: AioquicConfig.load_versions_from_files()

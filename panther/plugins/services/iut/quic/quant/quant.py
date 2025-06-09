@@ -1,8 +1,6 @@
 # PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
 
-import subprocess
 import os
-import traceback
 from panther.plugins.services.iut.quic.quant.config_schema import QuantConfig
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
@@ -42,8 +40,11 @@ class QuantServiceManager(IImplementationManager):
         service_type: str,
         protocol: ProtocolConfig,
         implementation_name: str,
+        event_manager=None,
     ):
-        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        super().__init__(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
         self.logger.debug("Initializing Quant service manager for '%s'", implementation_name)
         self.logger.debug("Loaded Quant configuration: %s", self.service_config_to_test)
         self.initialize_commands()
@@ -89,9 +90,7 @@ class QuantServiceManager(IImplementationManager):
             command_args = rendered_command
         except Exception as e:
             self.logger.warning(
-                "Failed to use structured template for %s: %s. ",
-                self.service_name,
-                e
+                "Failed to use structured template for %s: %s. ", self.service_name, e
             )
             # Keep command_args as is if the structured template fails
 
@@ -143,7 +142,7 @@ class QuantServiceManager(IImplementationManager):
         self.logger.debug(
             "Generating deployment commands for service: %s with service parameters: %s",
             self.service_name,
-            self.service_config_to_test
+            self.service_config_to_test,
         )
 
         # Get appropriate parameters based on role

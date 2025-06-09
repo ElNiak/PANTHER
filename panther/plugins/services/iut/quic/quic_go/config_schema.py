@@ -21,7 +21,7 @@ class QuicGoVersion(VersionBase):
 @dataclass
 class QuicGoConfig(ImplementationConfig):
     name: str = "quic-go"  # Implementation name
-    type: ImplementationType = ImplementationType.iut  # Default type for picoquic
+    type: ImplementationType = ImplementationType.IUT  # Default type for picoquic
     # These field must not be included in the experiment configuration file
     version: QuicGoVersion = field(default_factory=lambda: QuicGoConfig.load_versions_from_files())
 
