@@ -80,41 +80,75 @@ class ServiceBase(IServiceManager, ServiceManagerEventMixin):
         self.logger.debug("Preparing service %s", self.service_name)
         self.plugin_loader = plugin_loader
 
+        # If we have access to plugin_loader's event system, use it
+        if (
+            plugin_loader
+            and hasattr(plugin_loader, "event_emitter")
+            and plugin_loader.event_emitter
+        ):
+            self.event_emitter = plugin_loader.event_emitter
+            self.logger.debug("Using shared event_emitter from plugin_loader")
+
         try:
-            # Notify preparation started
-            self.notify_service_event(
-                "preparation_started",
-                {
-                    "service_name": self.service_name,
-                    "service_type": self.service_type,
-                    "implementation": self.implementation_name,
-                },
-            )
+            # Get test case name from service_config_to_test if available
+            test_case = getattr(self.service_config_to_test, "test_case", "unknown_test")
+
+            # Defensive check for event_emitter before emitting events
+            if hasattr(self, "event_emitter") and self.event_emitter:
+                # Notify preparation started
+                self.notify_service_event(
+                    "preparation_started",
+                    {
+                        "service_name": self.service_name,
+                        "service_type": self.service_type,
+                        "implementation": self.implementation_name,
+                        "test_case": test_case,
+                    },
+                )
+                self.logger.debug("Emitted service preparation started event")
 
             # Perform preparation
             result = self._do_prepare(plugin_loader)
 
-            # Notify preparation completed
-            self.notify_service_started(
-                details={
-                    "implementation": self.implementation_name,
-                    "protocol": self.service_protocol.name if self.service_protocol else "unknown",
-                }
-            )
+            # Also emit service started event with defensive check
+            if hasattr(self, "event_emitter") and self.event_emitter:
+                self.notify_service_started(
+                    details={
+                        "service_name": self.service_name,
+                        "implementation": self.implementation_name,
+                        "protocol": (
+                            self.service_protocol.name if self.service_protocol else "unknown"
+                        ),
+                        "test_case": test_case,
+                    }
+                )
+                self.logger.debug("Emitted service started event")
 
             return result
+
         # Using a general exception handler here is intended to catch all possible errors
         # during service preparation to ensure proper error notification
         except Exception as e:  # pylint: disable=broad-except
-            # Notify error
-            self.notify_service_error(
-                error_type="preparation_failed",
-                error_message=str(e),
-                details={
-                    "implementation": self.implementation_name,
-                    "exception_type": type(e).__name__,
-                },
-            )
+            # Get test case name from service_config_to_test if available
+            test_case = getattr(self.service_config_to_test, "test_case", "unknown_test")
+
+            # Defensive check for event_emitter before emitting events
+            if hasattr(self, "event_emitter") and self.event_emitter:
+                # Notify general error
+                self.notify_service_error(
+                    error_type="preparation_failed",
+                    error_message=str(e),
+                    details={
+                        "service_name": self.service_name,
+                        "implementation": self.implementation_name,
+                        "exception_type": type(e).__name__,
+                        "test_case": test_case,
+                    },
+                )
+                self.logger.debug("Emitted service error event")
+
+            # Re-raise the exception
+            raise
 
     def _do_prepare(self, plugin_loader: PluginLoader | None = None):
         """

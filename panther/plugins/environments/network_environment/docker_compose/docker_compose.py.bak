@@ -142,7 +142,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             )
 
             # Set the name property if not already set
-            if not hasattr(self, "name") or not self.name:
+            if not hasattr(self, 'name') or not self.name:
                 self.name = f"docker_compose_{self.network_name}"
                 self.env_name = self.name
 
@@ -150,7 +150,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             details = {
                 "environment_name": self.name,
                 "output_dir": self.output_dir,
-                "network_name": self.network_name,
+                "network_name": self.network_name
             }
 
             # Store details in object for reference
@@ -162,9 +162,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
 
             return True
         except Exception as e:
-            self.logger.error(
-                f"Failed to initialize Docker Compose environment: {e}", exc_info=True
-            )
+            self.logger.error(f"Failed to initialize Docker Compose environment: {e}", exc_info=True)
             return False
 
     def _setup_environment(self) -> bool:
@@ -216,7 +214,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     details={
                         "environment_instance": self.__class__.__name__,
                         "environment_type": "docker_compose",
-                        "test_case": test_case_name,
+                        "test_case": test_case_name
                     }
                 )
                 self.logger.debug("Emitted environment_setup_started event")
@@ -235,16 +233,12 @@ class DockerComposeEnvironment(INetworkEnvironment):
                     details={
                         "docker_compose_file": str(self.rendered_services_network_config_file_path),
                         "environment_type": "docker_compose",
-                        "test_case": test_case_name,
-                    },
+                        "test_case": test_case_name
+                    }
                 )
-                self.logger.debug(
-                    "Emitted environment_setup_completed event with success=%s", success
-                )
+                self.logger.debug("Emitted environment_setup_completed event with success=%s", success)
             else:
-                self.logger.warning(
-                    "No event_emitter available for environment setup completion events"
-                )
+                self.logger.warning("No event_emitter available for environment setup completion events")
         except Exception as e:
             self.logger.error("Failed to set up Docker Compose environment: %s", e, exc_info=True)
 
@@ -254,8 +248,8 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 details={
                     "error": str(e),
                     "error_type": type(e).__name__,
-                    "environment_type": "docker_compose",
-                },
+                    "environment_type": "docker_compose"
+                }
             )
 
             # Re-raise the exception
@@ -1293,3 +1287,88 @@ class DockerComposeEnvironment(INetworkEnvironment):
         Returns True to indicate this is a network environment.
         """
         return True
+
+    # Note: The initialize method is already defined above
+            output_dir: The output directory for logs and results.
+            event_manager: The event manager instance for handling events.
+            global_config: The global configuration object.
+        """
+        self.logger.info("Initializing Docker Compose environment")
+        try:
+            # Call the parent class initialize method
+            super().initialize(test_config, output_dir, event_manager, global_config)
+
+            # Additional initialization for Docker Compose environment
+            self.output_dir = Path(output_dir)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            self.logger.debug("Output directory set to %s", self.output_dir)
+
+            # Initialize other attributes as needed
+            self.services_network_config_file_path = None
+            self.rendered_services_network_config_file_path = None
+            self.services_network_script_file_path = None
+            self.rendered_services_network_script_file_path = None
+
+            self.logger.info("Docker Compose environment initialization complete")
+        except Exception as e:
+            self.logger.error("Failed to initialize Docker Compose environment: %s", e, exc_info=True)
+            raise
+
+    def initialize(self, test_config, output_dir, event_manager, global_config):
+        """
+        Initializes the environment with configuration settings.
+
+        Args:
+            test_config: Test configuration to use for this environment
+            output_dir: Directory to write environment files
+            event_manager: Shared event manager instance for emitting events
+            global_config: Global configuration settings
+
+        Returns:
+            bool: True if initialization succeeded, False otherwise
+        """
+        if isinstance(output_dir, Path):
+            # Convert Path to string if needed
+            output_dir = str(output_dir)
+
+        self.logger.debug("Initializing Docker Compose environment")
+        try:
+            # Set up essential parameters
+            self.output_dir = output_dir
+            self.test_config = test_config
+            self.global_config = global_config
+
+            # Ensure event system is properly set up
+            if event_manager:
+                self.event_manager = event_manager
+                self.event_emitter = EventEmitter(event_manager)
+
+            # Ensure required directories exist
+            os.makedirs(self.output_dir, exist_ok=True)
+            os.makedirs(os.path.join(self.output_dir, "logs"), exist_ok=True)
+
+            # Update log directories
+            self.log_dirs = os.path.join(self.output_dir, "logs")
+
+            # Update docker compose file paths
+            self.rendered_services_network_config_file_path = Path(
+                os.path.join(self.output_dir, f"{self.env_sub_type}.yml")
+            )
+
+            self.rendered_services_network_script_file_path = Path(
+                os.path.join(self.output_dir, "entrypoint.sh")
+            )
+
+            # Emit environment initialization event
+            self.logger.debug("Docker Compose environment initialized successfully")
+            self.notify_environment_initialized(
+                details={
+                    "environment_name": f"docker_compose_{self.network_name}",
+                    "output_dir": self.output_dir
+                }
+            )
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Docker Compose environment: {e}", exc_info=True)
+            return False

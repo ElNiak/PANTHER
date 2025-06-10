@@ -49,18 +49,41 @@ class EnvironmentInitializedEvent(EnvironmentEvent):
     Event triggered when environment is successfully initialized.
     """
 
-    def __init__(self, environment_name: str, environment_type: str, data: dict[str, Any] = None):
+    def __init__(
+        self,
+        environment_type: str = None,
+        plugin_name: str = None,
+        plugin_type: str = None,
+        environment_name: str = None,
+        **kwargs,
+    ):
         """
         Initialize an environment initialized event.
 
         Args:
-            environment_name: Name of the environment
             environment_type: Type of environment (e.g., 'network', 'execution')
-            data: Additional event data
+            plugin_name: Name of the plugin
+            plugin_type: Type of the plugin
+            environment_name: Name of the environment
+            **kwargs: Additional event data
         """
-        event_data = data or {}
-        event_data["environment_name"] = environment_name
-        event_data["environment_type"] = environment_type
+        event_data = kwargs or {}
+
+        # Handle backward compatibility with both parameter patterns
+        if environment_name:
+            event_data["environment_name"] = environment_name
+        elif plugin_name:
+            event_data["environment_name"] = plugin_name
+
+        if environment_type:
+            event_data["environment_type"] = environment_type
+
+        # Additional plugin information
+        if plugin_name:
+            event_data["plugin_name"] = plugin_name
+        if plugin_type:
+            event_data["plugin_type"] = plugin_type
+
         super().__init__("initialized", event_data)
 
     def validate(self) -> bool:

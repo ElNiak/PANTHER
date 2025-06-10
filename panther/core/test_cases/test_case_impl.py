@@ -105,9 +105,20 @@ class TestCase(ITestCase):
         self.service_managers: list[IServiceManager] = []
 
         self.environment_plugin_manager: list[IEnvironmentPlugin] = []
-        self.event_manager = EventManager()
-        factory = get_observer_factory(self.global_config)
-        factory.set_event_manager(self.event_manager)
+        # Always use the event_manager passed from the plugin_manager
+        # This ensures a single EventManager is shared across the system
+        if (
+            not plugin_manager
+            or not hasattr(plugin_manager, "event_manager")
+            or plugin_manager.event_manager is None
+        ):
+            self.logger.warning(
+                "No EventManager provided by plugin_manager, creating a new one. This may lead to event propagation issues."
+            )
+            self.event_manager = EventManager()
+        else:
+            self.event_manager = plugin_manager.event_manager
+            self.logger.debug("Using shared EventManager from plugin_manager")
 
         # Initialize event emitter for standardized event emission
         self.event_emitter = EventEmitter(self.event_manager)
@@ -161,13 +172,15 @@ class TestCase(ITestCase):
         """
         self.logger.info("Deploying services through environment managers")
 
-        # Emit service setup event
-        service_names = [s.name for s in self.service_managers]
-        self.event_emitter.emit_service_setup_started(
-            test_case=self.test_name,
-            service_count=len(self.service_managers),
-            service_names=service_names,
-        )
+        # Emit service setup event if we have an event_emitter
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            service_names = [s.name for s in self.service_managers]
+            self.event_emitter.emit_service_setup_started(
+                test_case=self.test_name,
+                service_count=len(self.service_managers),
+                service_names=service_names,
+            )
+            self.logger.debug("Emitted service_setup_started event")
 
         for env_manager in self.environment_plugin_manager:
             if isinstance(env_manager, INetworkEnvironment):
@@ -180,23 +193,27 @@ class TestCase(ITestCase):
                     # Deploy services through the network environment
                     env_manager.deploy_services(self.service_managers)
 
-                    # Emit services deployed event
-                    service_instances = {s.name: s for s in self.service_managers}
-                    self.event_emitter.emit_service_deployed(
-                        environment=env_manager.__class__.__name__,
-                        service_instances=service_instances,
-                    )
+                    # Emit services deployed event if we have an event_emitter
+                    if hasattr(self, "event_emitter") and self.event_emitter:
+                        service_instances = {s.name: s for s in self.service_managers}
+                        self.event_emitter.emit_service_deployed(
+                            environment=env_manager.__class__.__name__,
+                            service_instances=service_instances,
+                        )
+                        self.logger.debug("Emitted service_deployed event")
 
                     self.logger.info("Services successfully deployed")
                 except Exception as e:
                     self.logger.error("Failed to deploy services: %s", e, exc_info=True)
 
-                    # Emit service deployment failure event
-                    self.event_emitter.emit_service_deployment_failed(
-                        environment=env_manager.__class__.__name__,
-                        error=str(e),
-                        error_type=type(e).__name__,
-                    )
+                    # Emit service deployment failure event if we have an event_emitter
+                    if hasattr(self, "event_emitter") and self.event_emitter:
+                        self.event_emitter.emit_service_deployment_failed(
+                            environment=env_manager.__class__.__name__,
+                            error=str(e),
+                            error_type=type(e).__name__,
+                        )
+                        self.logger.debug("Emitted service_deployment_failed event")
 
                     # Re-raise the exception to be handled by the calling method
                     raise
@@ -727,10 +744,19 @@ class TestCase(ITestCase):
 
             # Initialize the network environment
             self.logger.info(
-                "Initializing network environment: %s", network_environment_plugin.name
+                "Initializing network environment: %s",
+                network_environment_plugin.__class__.__name__,
             )
+            # Ensure we're passing a string for output_dir, not a Path object
+            output_dir = (
+                str(self.test_experiment_dir)
+                if isinstance(self.test_experiment_dir, Path)
+                else self.test_experiment_dir
+            )
+
+            # Call initialize method on the plugin
             network_environment_plugin.initialize(
-                self.test_config, self.test_experiment_dir, self.event_manager, self.global_config
+                self.test_config, output_dir, self.event_manager, self.global_config
             )
 
             # Add to list of environment plugins

@@ -31,6 +31,32 @@ class EnvironmentPluginEventMixin:
                 environment_type=f"{env_type}_{env_subtype}".rstrip("_"), details=details or {}
             )
 
+    def notify_environment_initialized(self, details: dict[str, Any] = None):
+        """
+        Notify that environment has been initialized using the event emitter.
+
+        Args:
+            details: Additional details about the initialization
+        """
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            # Get environment type information
+            env_type = "network" if self.is_network_environment() else "execution"
+            env_subtype = getattr(self, "env_sub_type", "")
+            plugin_name = self.__class__.__name__
+
+            # Store details in environment object for reference if needed
+            if hasattr(self, "initialization_details"):
+                self.initialization_details.update(details or {})
+            else:
+                self.initialization_details = details or {}
+
+            # Emit environment initialized event
+            self.event_emitter.emit_environment_initialized(
+                environment_type=env_type,
+                plugin_name=plugin_name,
+                plugin_type=env_subtype,
+            )
+
     def notify_environment_setup_completed(self, success: bool, details: dict[str, Any] = None):
         """
         Notify that environment setup has completed using the event emitter.
@@ -40,15 +66,24 @@ class EnvironmentPluginEventMixin:
             details: Additional details about the setup
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            environment_type = getattr(self, "env_sub_type", "unknown")
-            self.event_emitter.emit_environment_setup_completed(environment_type, success, details)
+            # Use a single, consistent environment_type value
             env_type = getattr(self, "env_type", "unknown")
             env_subtype = getattr(self, "env_sub_type", "")
+            environment_type = f"{env_type}_{env_subtype}".rstrip("_")
 
+            # Ensure details is not None
+            details_dict = details or {}
+
+            # Add environment name to details if not present
+            if "environment_name" not in details_dict:
+                env_name = getattr(self, "env_name", self.__class__.__name__)
+                details_dict["environment_name"] = env_name
+
+            # Emit a single event with complete information
             self.event_emitter.emit_environment_setup_completed(
-                environment_type=f"{env_type}_{env_subtype}".rstrip("_"),
+                environment_type=environment_type,
                 success=success,
-                details=details or {},
+                details=details_dict,
             )
 
     def notify_environment_teardown(self, success: bool, details: dict[str, Any] = None):

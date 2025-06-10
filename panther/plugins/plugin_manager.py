@@ -117,9 +117,26 @@ class PluginManager:
             "execution_environment": self.execution_environment_plugins,
         }
 
-        # Event system support
-        self.event_emitter = None
-        self.event_manager = None
+        # Event system support - ensure we get the EventManager from the plugins_loader
+        if (
+            plugins_loader
+            and hasattr(plugins_loader, "event_manager")
+            and plugins_loader.event_manager
+        ):
+            self.event_manager = plugins_loader.event_manager
+            self.logger.debug("Using shared EventManager from plugins_loader")
+            # Initialize event emitter with the shared EventManager
+            from panther.core.observer.event_emitter import EventEmitter
+
+            self.event_emitter = EventEmitter(self.event_manager)
+        else:
+            self.logger.warning(
+                "No EventManager provided by plugins_loader, event propagation may be affected"
+            )
+            self.event_manager = None
+            self.event_emitter = None
+
+        # Plugin observer will be setup later if needed
         self.plugin_observer = None
 
         # Enhanced plugin system
@@ -154,13 +171,49 @@ class PluginManager:
             and "network_environment" in self.plugins_loader.environment_plugins
             and environment_type in self.plugins_loader.environment_plugins["network_environment"]
         ):
+            # We need to create an actual plugin instance, not just return the path
+            try:
+                # Get the plugin directory/path
+                plugin_path = self.plugins_loader.environment_plugins["network_environment"][
+                    environment_type
+                ]
 
-            # Store in our cache for future use
-            plugin = self.plugins_loader.environment_plugins["network_environment"][
-                environment_type
-            ]
-            self.network_environment_plugins[environment_type] = plugin
-            return plugin
+                # Create the environment manager instance
+                from panther.plugins.environments.config_schema import EnvironmentConfig
+
+                env_config_to_test = EnvironmentConfig(type=environment_type)
+
+                # Now create the actual plugin instance
+                env_type = "network_environment"
+                env_sub_type = environment_type
+
+                # Create an output directory if needed
+                output_dir = "/tmp/panther_output"  # This will be overridden by the test case
+                os.makedirs(output_dir, exist_ok=True)
+
+                # Create an event manager if needed
+                event_manager = self.plugins_loader.event_manager or EventManager()
+
+                # Create the environment manager using the create_environment_manager method
+                plugin_instance = self.create_environment_manager(
+                    environment=environment_type,
+                    test_config=None,  # This will be set later by the test case
+                    environment_dir=plugin_path.parent,  # Parent directory contains all environments
+                    output_dir=output_dir,
+                    event_manager=event_manager,
+                )
+
+                # Cache and return the instance
+                self.network_environment_plugins[environment_type] = plugin_instance
+                return plugin_instance
+            except Exception as e:
+                self.logger.error(
+                    "Failed to instantiate network environment plugin %s: %s",
+                    environment_type,
+                    str(e),
+                    exc_info=True,
+                )
+                return None
 
         # Not found anywhere
         self.logger.error("Network environment plugin not found: %s", environment_type)

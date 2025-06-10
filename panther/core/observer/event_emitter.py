@@ -308,7 +308,11 @@ class EventEmitter:
 
     # Environment Events
     def emit_environment_initialized(
-        self, environment_type: str, plugin_name: str, plugin_type: str
+        self,
+        environment_type: str,
+        plugin_name: str,
+        plugin_type: str,
+        details: dict[str, Any] = None,
     ) -> None:
         """
         Emit an environment initialized event.
@@ -317,12 +321,19 @@ class EventEmitter:
             environment_type: Type of environment (network or execution)
             plugin_name: Name of the plugin
             plugin_type: Type of the plugin
+            details: Additional details about the environment (optional)
         """
-        self.emit_event(
-            EnvironmentInitializedEvent(
-                environment_type=environment_type, plugin_name=plugin_name, plugin_type=plugin_type
-            )
-        )
+        event_data = {
+            "environment_type": environment_type,
+            "plugin_name": plugin_name,
+            "plugin_type": plugin_type,
+        }
+
+        # Include details if provided
+        if details:
+            event_data.update(details)
+
+        self.emit_event(EnvironmentInitializedEvent(**event_data))
 
     def emit_environment_setup_started(self, test_case: str, network_environment: str) -> None:
         """

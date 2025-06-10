@@ -91,8 +91,6 @@ class ExperimentManager:
         self.logger = logger or logging.getLogger("ExperimentManager")
         self._load_logging()
         self.plugin_dir = Path(plugin_dir)
-        self.plugin_loader = PluginLoader(plugin_dir, global_config=self.global_config)
-        self.plugin_manager = PluginManager(self.plugin_loader)
 
         # Initialize event manager for experiment-level events
         self.event_manager = EventManager()
@@ -101,6 +99,14 @@ class ExperimentManager:
 
         # Initialize event emitter for standardized event emission
         self.event_emitter = EventEmitter(self.event_manager)
+
+        # Setup plugin loader with event manager
+        self.plugin_loader = PluginLoader(plugin_dir, global_config=self.global_config)
+        self.plugin_loader.event_manager = self.event_manager
+        self.plugin_loader.event_emitter = self.event_emitter
+
+        # Setup plugin manager with the plugin loader that has the event manager
+        self.plugin_manager = PluginManager(self.plugin_loader)
 
         self._setup_observers(factory)
         self.test_cases: list[ITestCase] = []
@@ -448,6 +454,34 @@ class ExperimentManager:
                     self.logger.warning(
                         "Failed to create enhanced metrics observer: %s. Using default configuration instead.",
                         metrics_error,
+                    )
+
+            # Create an experiment observer to handle experiment-specific events
+            experiment_observer = factory.create_experiment_observer(
+                name="experiment_observer",
+                auto_register=True,
+                priority=10,  # Higher priority to ensure it gets events first
+                output_dir=str(self.logs_dir),
+                test_name=self.experiment_name,
+                track_timing=True,
+                track_steps=True,
+                global_config=self.global_config,
+            )
+            self.logger.info("Registered ExperimentObserver")
+
+            # Create a debug observer if debug logging is enabled
+            if self.log_level <= logging.DEBUG:
+                try:
+                    from panther.core.observer.debug_observer import EventDebugObserver
+
+                    debug_observer = EventDebugObserver(
+                        output_file=str(self.logs_dir / "event_debug.log"), log_level=logging.DEBUG
+                    )
+                    self.event_manager.register_observer(debug_observer)
+                    self.logger.info("Registered EventDebugObserver for detailed event tracking")
+                except Exception as debug_error:
+                    self.logger.warning(
+                        f"Failed to create debug observer: {debug_error}. Event debugging will be limited."
                     )
 
             self.logger.info("Observers set up for experiment: %s", self.experiment_name)

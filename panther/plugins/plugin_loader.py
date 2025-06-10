@@ -44,8 +44,16 @@ class PluginLoader:
         except Exception as e:
             self.logger.warning("Failed to initialize DockerBuilder: %s", e)
             self.docker_builder = None
-            
+
         self.global_config = global_config
+
+        # Event system integration - initialize with default values
+        # These will be set by ExperimentManager after creation
+        self.event_manager = None
+        self.event_emitter = None
+
+        # Initialize logger with class name
+        self.logger = logging.getLogger("PluginLoader")
 
         # Dictionaries to store plugins
         self.built_images = {}
@@ -90,7 +98,9 @@ class PluginLoader:
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
             # Load version-specific configurations from panther.config.yaml
-            self.logger.debug("Found configuration for implementation '%s': %s", impl_name, versions)
+            self.logger.debug(
+                "Found configuration for implementation '%s': %s", impl_name, versions
+            )
             image_tag = self.docker_builder.build_image(
                 impl_name=impl_name,
                 version=("unknown" if not hasattr(versions, "version") else versions.version),
@@ -105,23 +115,25 @@ class PluginLoader:
                     }
                 ),
                 tag_version="latest",  # or use version if desired
-                build_image_force=self.global_config.docker.build_docker_image if self.global_config else True,
-                remove_dangling= self.global_config.docker.remove_dangling_images if self.global_config else True,
+                build_image_force=(
+                    self.global_config.docker.build_docker_image if self.global_config else True
+                ),
+                remove_dangling=(
+                    self.global_config.docker.remove_dangling_images if self.global_config else True
+                ),
             )
             if image_tag:
                 key = f"{impl_name}_{versions}"
                 self.built_images[key] = image_tag
             else:
                 self.logger.error(
-                    "Image build failed for implementation '%s' version '%s'",
-                    impl_name,
-                    versions
+                    "Image build failed for implementation '%s' version '%s'", impl_name, versions
                 )
         else:
             self.logger.error(
                 "Dockerfile not found for implementation '%s' in %s. Skipping.",
                 impl_name,
-                self.dockerfiles
+                self.dockerfiles,
             )
             raise FileNotFoundError(
                 f"Dockerfile not found for implementation '{impl_name}'. Please ensure the Dockerfile exists in the expected path."
@@ -144,9 +156,11 @@ class PluginLoader:
         self.logger.info("Building image from path '%s'", path.name)
         dockerfile_path = path
         # Load version-specific configurations from panther.config.yaml
-        versions = {version: {
-            # TODO: define version-specific configurations here
-        }}
+        versions = {
+            version: {
+                # TODO: define version-specific configurations here
+            }
+        }
         self.logger.debug("Found configuration for path '%s': %s", path.name, versions)
         for version, version_config in versions.items():
             self.logger.info("Building image for path '%s' version '%s'", path.name, version)
@@ -157,17 +171,19 @@ class PluginLoader:
                 context_path=dockerfile_path.parent,
                 config=version_config,
                 tag_version="latest",  # TODO or use version if desired
-                build_image_force=self.global_config.docker.build_docker_image if self.global_config else True,
-                remove_dangling=self.global_config.docker.remove_dangling_images if self.global_config else True,
+                build_image_force=(
+                    self.global_config.docker.build_docker_image if self.global_config else True
+                ),
+                remove_dangling=(
+                    self.global_config.docker.remove_dangling_images if self.global_config else True
+                ),
             )
             if image_tag:
                 key = f"{path.name}_{version}"
                 self.built_images[key] = image_tag
             else:
                 self.logger.error(
-                    "Image build failed for implementation '%s' version '%s'",
-                    path.name,
-                    version
+                    "Image build failed for implementation '%s' version '%s'", path.name, version
                 )
                 raise RuntimeError(
                     f"Image build failed for implementation '{path.name}' version '{version}'. Please check the logs for details."
@@ -199,9 +215,11 @@ class PluginLoader:
                             "Registered Dockerfile for protocol '%s' implementation '%s' at '%s'",
                             protocol,
                             item.name,
-                            item / 'Dockerfile'
+                            item / "Dockerfile",
                         )
-            self.logger.debug("Found implementations for protocol '%s': %s", protocol, implementations)
+            self.logger.debug(
+                "Found implementations for protocol '%s': %s", protocol, implementations
+            )
         else:
             self.logger.warning("Protocol plugin '%s' not found or does not exist.", protocol)
         return implementations
@@ -228,7 +246,7 @@ class PluginLoader:
                     self.logger.debug(
                         "Registered Dockerfile for tester '%s' at '%s'",
                         item.name,
-                        item / 'Dockerfile'
+                        item / "Dockerfile",
                     )
         self.logger.debug("Found testers: %s", implementations)
         return implementations
@@ -250,9 +268,7 @@ class PluginLoader:
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.protocol_plugins[ep.name] = plugin_path
                     self.logger.debug(
-                        "Registered protocol plugin '%s' with path '%s'",
-                        ep.name,
-                        plugin_path
+                        "Registered protocol plugin '%s' with path '%s'", ep.name, plugin_path
                     )
                     # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
@@ -261,7 +277,7 @@ class PluginLoader:
                         self.logger.debug(
                             "Registered Dockerfile for protocol plugin '%s' at '%s'",
                             ep.name,
-                            dockerfile_path
+                            dockerfile_path,
                         )
                 except Exception as e:
                     self.logger.warning("Failed to register protocol plugin %s: %s", ep.name, e)
@@ -279,7 +295,7 @@ class PluginLoader:
                     self.logger.debug(
                         "Registered execution environment plugin '%s' with path '%s'",
                         ep.name,
-                        plugin_path
+                        plugin_path,
                     )
                     # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
@@ -288,13 +304,11 @@ class PluginLoader:
                         self.logger.debug(
                             "Registered Dockerfile for execution environment plugin '%s' at '%s'",
                             ep.name,
-                            dockerfile_path
+                            dockerfile_path,
                         )
                 except Exception as e:
                     self.logger.warning(
-                        "Failed to register execution environment plugin %s: %s",
-                        ep.name,
-                        e
+                        "Failed to register execution environment plugin %s: %s", ep.name, e
                     )
         except Exception as e:
             self.logger.warning("Error discovering execution environment plugins: %s", e)
@@ -310,7 +324,7 @@ class PluginLoader:
                     self.logger.debug(
                         "Registered network environment plugin '%s' with path '%s'",
                         ep.name,
-                        plugin_path
+                        plugin_path,
                     )
                     # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
@@ -319,13 +333,11 @@ class PluginLoader:
                         self.logger.debug(
                             "Registered Dockerfile for network environment plugin '%s' at '%s'",
                             ep.name,
-                            dockerfile_path
+                            dockerfile_path,
                         )
                 except Exception as e:
                     self.logger.warning(
-                        "Failed to register network environment plugin %s: %s",
-                        ep.name,
-                        e
+                        "Failed to register network environment plugin %s: %s", ep.name, e
                     )
         except Exception as e:
             self.logger.warning("Error discovering network environment plugins: %s", e)
@@ -355,9 +367,7 @@ class PluginLoader:
                 if (protocol / f"{protocol.name}.py").exists():
                     self.protocol_plugins[protocol.name] = protocol
                     self.logger.debug(
-                        "Discovered protocol plugin '%s' at '%s'",
-                        protocol.name,
-                        protocol
+                        "Discovered protocol plugin '%s' at '%s'", protocol.name, protocol
                     )
 
         # Discover environment plugins
@@ -375,7 +385,7 @@ class PluginLoader:
                                     "Discovered environment plugin '%s' at '%s' under '%s'",
                                     item.name,
                                     item,
-                                    environment
+                                    environment,
                                 )
         else:
             self.logger.warning("Environments directory '%s' does not exist.", environments_dir)
@@ -389,16 +399,14 @@ class PluginLoader:
                     if (testers / f"{testers.name}.py").exists():
                         self.tester_plugins[testers.name] = item
                         self.logger.debug(
-                            "Discovered testers plugin '%s' at '%s'",
-                            testers.name,
-                            testers
+                            "Discovered testers plugin '%s' at '%s'", testers.name, testers
                         )
                         if (testers / "Dockerfile").exists():
                             self.dockerfiles[testers.name] = testers / "Dockerfile"
                             self.logger.debug(
                                 "Registered Dockerfile for testers plugin '%s' at '%s'",
                                 testers.name,
-                                testers / 'Dockerfile'
+                                testers / "Dockerfile",
                             )
         else:
             self.logger.warning("Testers directory '%s' does not exist.", testers_dir)
