@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 
 
 class EventStore:

@@ -1,10 +1,12 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+The current development OS is MacOS, but the code should be compatible with Linux.
 
 ## Environment Setup
 
 ### Python Virtual Environment
+
 ```bash
 # Create virtual environment with Python 3.10+
 python3.10 -m venv .venv
@@ -32,6 +34,7 @@ See `.github/copilot-instructions.md` for detailed MCP server usage patterns.
 ## Common Development Commands
 
 ### Building and Installing
+
 ```bash
 # Install in development mode
 python panther_builder.py package-dev
@@ -47,6 +50,7 @@ python panther_builder.py clean
 ```
 
 ### Running PANTHER Experiments
+
 ```bash
 # Run a basic experiment
 python -m panther --experiment-config experiment-config/experiment_config_example_minimal.yaml
@@ -65,6 +69,7 @@ python -m panther --list-plugin-params picoquic --plugin-type iut --protocol qui
 ```
 
 ### Plugin Management
+
 ```bash
 # Create a new plugin
 python -m panther --create-plugin service my_service --dev-mode
@@ -80,6 +85,7 @@ python -m panther --create-subplugin service quic my_implementation
 ```
 
 ### Running Tests
+
 ```bash
 # Run all tests
 pytest tests/
@@ -106,6 +112,7 @@ pytest --cov=panther --cov-report=html
 ```
 
 ### Documentation
+
 ```bash
 # Build documentation
 python panther_builder.py docs
@@ -118,6 +125,7 @@ python panther_builder.py deploy-docs
 ```
 
 ### Code Quality
+
 ```bash
 # Run code quality checks
 python panther_builder.py check
@@ -136,6 +144,7 @@ flake8 panther/
 ```
 
 ### Docker Management
+
 ```bash
 # Remove all PANTHER Docker images
 python panther_builder.py remove-images-all
@@ -203,6 +212,7 @@ Commands are generated through a multi-phase template system:
    - Five command phases: pre-compile, compile, post-compile, run, post-run
 
 3. **Execution Flow**:
+
    ```
    Service Manager → Command Generation → Template Rendering →
    Command Processor → Environment Plugin → Container/Process Execution

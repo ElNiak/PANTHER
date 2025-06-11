@@ -7,9 +7,9 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from typing import Any, TYPE_CHECKING
 from panther.core.observer.event_manager import EventManager
-from panther.core.observer.event_emitter import EventEmitter
+from panther.core.events import ServiceEventEmitter
 from panther.plugins.protocols.config_schema import ProtocolConfig
-from panther.utils.command import ShellCommand
+from panther.core.command_processor.command import ShellCommand
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.plugin_interface import IPlugin
 from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
@@ -211,7 +211,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         # Initialize event manager and emitter if provided
         self.event_manager = event_manager
         if event_manager:
-            self.event_emitter = EventEmitter(event_manager)
+            self.event_emitter = ServiceEventEmitter(event_manager)
 
         # Service-specific attributes
         # Some attributes are set by the plugin loader, others are set by the plugin itself and the experiment manager
@@ -684,4 +684,4 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
             event_manager: The event manager to set
         """
         self.event_manager = event_manager
-        self.event_emitter = EventEmitter(event_manager)
+        self.event_emitter = ServiceEventEmitter(event_manager)

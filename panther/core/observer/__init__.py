@@ -5,10 +5,9 @@ Enhanced with comprehensive observer registry, metrics collection, and storage m
 """
 
 # Core observer infrastructure (primary API)
-from . import events
+# from . import events  # Temporarily disabled due to missing events
 from . import event_manager
 from .core.observer_interface import IObserver
-from . import async_event_manager
 from .storage.event_store import EventStore
 from .core.experiment_observer import ExperimentObserver
 from .gui.gui_observer import GUIObserver
@@ -42,7 +41,7 @@ from .observer_factory import (
 # Define the public API
 __all__ = [
     # Event imports
-    "events",
+    # "events",  # Temporarily disabled due to missing events
     # Core observer classes
     "IObserver",
     "ExperimentObserver",
@@ -50,7 +49,6 @@ __all__ = [
     "IPluginObserver",
     # Event handling
     "event_manager",
-    "async_event_manager",
     "EventStore",
     # Observer implementations
     "MetricsObserver",

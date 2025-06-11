@@ -1,9 +1,7 @@
 import os
 from pathlib import Path
 import subprocess
-from panther.utils.command import ShellCommand
 from panther.core.observer.event_manager import EventManager
-from panther.core.observer.event_emitter import EventEmitter
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.services.services_interface import IServiceManager
@@ -59,13 +57,13 @@ class DockerComposeEnvironment(INetworkEnvironment):
         super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
 
         # Set the name attribute required for event emission
-        self.name = f"docker_compose_{env_sub_type}"
-        self.env_name = self.name
+        self.name: str = f"docker_compose_{env_sub_type}"
+        self.env_name: str = self.name
 
         # Store initialization details for future reference
-        self.initialization_details = {}
+        self.initialization_details: dict = {}
 
-        self.services_network_config_file_path = Path(
+        self.services_network_config_file_path: Path = Path(
             os.path.join(
                 self._plugin_dir,
                 env_type,
@@ -73,11 +71,11 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 f"{env_sub_type}.generated.yml",
             )
         )
-        self.rendered_services_network_config_file_path = Path(
+        self.rendered_services_network_config_file_path: Path = Path(
             os.path.join(self.output_dir, f"{env_sub_type}.yml")
         )
 
-        self.services_network_script_file_path = Path(
+        self.services_network_script_file_path: Path = Path(
             os.path.join(
                 self._plugin_dir,
                 env_type,
@@ -85,7 +83,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 "entrypoint.generated.sh",
             )
         )
-        self.rendered_services_network_script_file_path = Path(
+        self.rendered_services_network_script_file_path: Path = Path(
             os.path.join(self.output_dir, "entrypoint.sh")
         )
 
@@ -115,14 +113,14 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 # Convert Path to string if needed
                 output_dir = str(output_dir)
 
-            self.output_dir = output_dir
-            self.test_config = test_config
-            self.global_config = global_config
+            self.output_dir: Path = Path(output_dir)
+            self.test_config: TestConfig = test_config
+            self.global_config: GlobalConfig = global_config
 
             # Ensure event system is properly set up
             if event_manager:
                 self.event_manager = event_manager
-                self.event_emitter = EventEmitter(event_manager)
+                # event_emitter is already initialized in parent class IEnvironmentPlugin
                 self.logger.debug("Event system initialized for Docker Compose environment")
 
             # Ensure required directories exist
@@ -168,16 +166,20 @@ class DockerComposeEnvironment(INetworkEnvironment):
             return False
 
     def _setup_environment(self) -> bool:
+        """
+        Sets up the Docker Compose environment by preparing directories and configuration files.
+
+        Returns:
+            bool: True if setup was successful, False otherwise
+        """
         self.logger.info("Setting up Docker Compose environment")
         try:
             # Ensure the output directory exists
-            self.output_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.debug("Output directory created at %s", self.output_dir)
+            os.makedirs(self.output_dir, exist_ok=True)
+            os.makedirs(os.path.join(self.output_dir, "logs"), exist_ok=True)
+            self.logger.debug("Output directories created at %s", self.output_dir)
 
-            # Generate the Docker Compose configuration file
-            self.generate_environment_services(
-                paths=self.global_config.paths, timestamp=self.test_config.timestamp
-            )
+            # Log successful setup
             self.logger.info("Docker Compose environment setup complete")
             return True
         except Exception as e:
@@ -197,6 +199,17 @@ class DockerComposeEnvironment(INetworkEnvironment):
     ):
         """
         Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
+
+        Args:
+            services_managers: List of service manager instances
+            test_config: Test configuration
+            global_config: Global configuration
+            timestamp: Timestamp string for file naming
+            plugin_loader: Plugin loader instance
+            execution_environment: List of execution environment plugins
+
+        Raises:
+            RuntimeError: If the setup fails or Docker Compose file cannot be generated
         """
         self.update_environment(
             execution_environment,
@@ -210,7 +223,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         test_case_name = test_config.name if hasattr(test_config, "name") else "unknown_test"
 
         try:
-            # Notify environment setup started - ensure event emission is working
+            # Notify environment setup started
             if hasattr(self, "event_emitter") and self.event_emitter:
                 self.notify_environment_setup_started(
                     details={
@@ -219,68 +232,101 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         "test_case": test_case_name,
                     }
                 )
-                self.logger.debug("Emitted environment_setup_started event")
-            else:
-                self.logger.warning("No event_emitter available for environment setup events")
 
-            # Generate environment services
-            success = self._setup_environment()
-            self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
-            self.logger.info("Docker Compose environment setup complete")
+            # First ensure base environment setup is complete
+            if not self._setup_environment():
+                self.logger.error("Base environment setup failed")
+                raise RuntimeError("Base environment setup failed")
 
-            # Notify successful environment setup
+            # Then generate Docker Compose file and verify it exists
+            success = self._setup_environment_and_verify_files(timestamp)
+
+            # Check if the setup was not successful
+            if not success:
+                error_msg = f"Failed to set up Docker Compose environment: Docker Compose file not found at {os.path.abspath(str(self.rendered_services_network_config_file_path))}"
+                self.logger.error(error_msg)
+
+                # Notify about environment setup failure
+                if hasattr(self, "event_emitter") and self.event_emitter:
+                    self.notify_environment_setup_completed(
+                        success=False,
+                        details={
+                            "environment_type": "docker_compose",
+                            "test_case": test_case_name,
+                            "error": error_msg,
+                        },
+                    )
+
+                raise RuntimeError(error_msg)
+
+            # Notify about successful environment setup
             if hasattr(self, "event_emitter") and self.event_emitter:
                 self.notify_environment_setup_completed(
-                    success=success,
+                    success=True,
                     details={
-                        "docker_compose_file": str(self.rendered_services_network_config_file_path),
+                        "docker_compose_file": os.path.abspath(
+                            str(self.rendered_services_network_config_file_path)
+                        ),
                         "environment_type": "docker_compose",
                         "test_case": test_case_name,
                     },
                 )
-                self.logger.debug(
-                    "Emitted environment_setup_completed event with success=%s", success
-                )
-            else:
-                self.logger.warning(
-                    "No event_emitter available for environment setup completion events"
-                )
+
         except Exception as e:
             self.logger.error("Failed to set up Docker Compose environment: %s", e, exc_info=True)
 
-            # Notify environment setup failure
-            self.notify_environment_setup_completed(
-                success=False,
-                details={
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                    "environment_type": "docker_compose",
-                },
-            )
+            # Notify about environment setup failure
+            if hasattr(self, "event_emitter") and self.event_emitter:
+                self.notify_environment_setup_completed(
+                    success=False,
+                    details={
+                        "environment_type": "docker_compose",
+                        "test_case": test_case_name,
+                        "error": str(e),
+                    },
+                )
 
-            # Re-raise the exception
-            raise
+            # Propagate the error
+            raise RuntimeError(f"Docker Compose environment setup failed: {str(e)}")
 
     def prepare_environment(self):
         pass
 
-    def deploy_services(self):
+    def deploy_services(self, service_managers=None):
+        """
+        Deploy services in the Docker Compose environment.
+
+        Args:
+            service_managers: Optional list of service managers to deploy.
+                              If provided, updates the internal services_managers list.
+        """
         self.logger.info("Deploying services")
+
+        # Update services_managers if provided
+        if service_managers is not None:
+            self.services_managers = service_managers
+
         self.launch_environment_services()
 
     def generate_environment_services(self, paths: dict[str, str], timestamp: str):
         """
         Generates the docker-compose.yml file using the provided services and deployment commands.
 
-        :param paths: Dictionary containing various path configurations.
-        :param timestamp: The timestamp string to include in log paths.
+        Args:
+            paths: Dictionary containing various path configurations
+            timestamp: The timestamp string to include in log paths
+
+        Raises:
+            RuntimeError: If there's an error in generating the Docker Compose file
         """
         try:
+            self.logger.info("Generating Docker Compose environment services")
+
             # Ensure the log directory for each service exists
             self.setup_execution_plugins(timestamp)
 
             for service in self.services_managers:
-                # TODO: move this to the service manager
+                # Create log directories for each service
                 self.create_log_dir(service)
                 self.logger.debug("Generating Docker Compose file for %s", service.service_name)
 
@@ -294,9 +340,6 @@ class DockerComposeEnvironment(INetworkEnvironment):
 
             for service in self.services_managers:
                 self.tshark_command(service)
-
-            for service in self.services_managers:
-                service.environments = self.resolve_environment_variables(service.environments)
                 self.logger.debug(
                     "Service %s environment: %s", service.service_name, service.environments
                 )
@@ -308,34 +351,37 @@ class DockerComposeEnvironment(INetworkEnvironment):
                         "Service %s command key: %s - %s", service.service_name, cmd_key, cmds
                     )
 
-                    self.logger.debug(
-                        "Service %s command key: %s - %s",
-                        service.service_name,
-                        cmd_key,
-                        service.run_cmd[cmd_key],
-                    )
-
+            # Generate entrypoint scripts for each service
             for service in self.services_managers:
                 self.logger.debug(
                     "Generating entrypoint script for service %s", service.service_name
                 )
-                # Use the specialized method for entrypoint generation that handles structured commands
-                self.generate_entrypoint_with_structured_args(
-                    service,
-                    paths,
-                    timestamp,
-                    Path(
-                        str(self.rendered_services_network_script_file_path).replace(
-                            ".sh", f"_{service.service_name}.sh"
-                        )
-                    ),
-                    Path(
-                        str(self.services_network_script_file_path).replace(
-                            ".sh", f"_{service.service_name}.sh"
-                        )
-                    ),
+
+                entrypoint_script_path = Path(
+                    str(self.rendered_services_network_script_file_path).replace(
+                        ".sh", f"_{service.service_name}.sh"
+                    )
                 )
 
+                template_script_path = Path(
+                    str(self.services_network_script_file_path).replace(
+                        ".sh", f"_{service.service_name}.sh"
+                    )
+                )
+
+                # Generate entrypoint script
+                self.generate_entrypoint_with_structured_args(
+                    service, paths, timestamp, entrypoint_script_path, template_script_path
+                )
+
+                # Verify entrypoint script was created
+                if not os.path.exists(entrypoint_script_path):
+                    raise RuntimeError(
+                        f"Failed to generate entrypoint script for service {service.service_name}"
+                    )
+
+            # Generate main Docker Compose file
+            self.logger.info("Generating main Docker Compose file")
             self.generate_from_template(
                 "docker-compose-template.jinja",
                 paths,
@@ -344,22 +390,29 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 self.services_network_config_file_path,
             )
 
-            # Delete the file self.services_network_script_file_path
+            # Cleanup temporary template files
             if self.services_network_script_file_path.exists():
                 self.services_network_script_file_path.unlink()
                 self.logger.debug("Deleted the file %s", self.services_network_script_file_path)
 
+            # Verify Docker Compose file exists
+            if not os.path.exists(self.rendered_services_network_config_file_path):
+                raise RuntimeError(
+                    f"Docker Compose file was not generated at expected location: {self.rendered_services_network_config_file_path}"
+                )
+
             self.logger.info(
-                "Docker Compose file generated at '%s'",
+                "Docker Compose file successfully generated at '%s'",
                 self.rendered_services_network_config_file_path,
             )
         except Exception as e:
             self.logger.error(
                 "Failed to generate Docker Compose file: %s\n%s", e, traceback.format_exc()
             )
-            exit(1)
+            # Raise a meaningful error that includes the original exception
+            raise RuntimeError(f"Failed to generate Docker Compose environment services: {str(e)}")
 
-    def tshark_command(self, service):
+    def tshark_command(self, service: IServiceManager):
         service.run_cmd["post_compile_cmds"] = service.run_cmd["post_compile_cmds"] + [
             "(touch /app/logs/"
             + service.service_name
@@ -370,7 +423,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             + ".pcap;) & "
         ]
 
-    def wait_tester_command(self, other_service):
+    def wait_tester_command(self, other_service: IServiceManager):
         other_service.volumes.append("shared_logs:/app/sync_logs")
         other_service.run_cmd["post_compile_cmds"] = other_service.run_cmd["post_compile_cmds"] + [
             "while [ ! -f /app/sync_logs/ivy_ready.log ]; do",
@@ -386,399 +439,31 @@ class DockerComposeEnvironment(INetworkEnvironment):
         """
         Combine consecutive elements in a command list that form a single shell construct.
 
-        This function detects shell constructs like loops, functions, and conditional blocks
-        that are split across multiple list elements and combines them into a single
-        multiline command string. This is necessary because shell constructs that span
-        multiple lines need to be treated as a single command unit rather than individual
-        commands.
-
-        Supported shell constructs:
-        - while/done loops
-        - for/done loops
-        - if/fi conditionals
-        - case/esac statements
-        - function definitions
-
-        Example:
-            Input: ['for i in 1 2 3; do', 'echo $i', 'done']
-            Output: ['for i in 1 2 3; do\necho $i\ndone']
+        This functionality has been moved to the global combine_shell_constructs() function
+        in panther.core.command_processor.command. This method now serves as a wrapper around that function.
 
         Args:
             command_list: List of command strings or ShellCommand objects to process
 
         Returns:
             A new list with combined shell constructs as multiline strings or ShellCommand objects.
-            Returns an empty list if the input is empty or invalid.
         """
-        # Input validation
-        if not command_list:
-            self.logger.debug("Empty command list provided to _combine_shell_constructs")
-            return []
+        from panther.core.command_processor.command import combine_shell_constructs
 
-        if not isinstance(command_list, list):
-            self.logger.warning(
-                "Invalid command_list type provided to _combine_shell_constructs: %s",
-                type(command_list),
-            )
-            return []
-
-        # Filter out empty entries and process both string and ShellCommand objects
-        filtered_commands = []
-        original_objects = []  # Keep track of original objects
-
-        for cmd in command_list:
-            if not cmd:
-                continue
-
-            if isinstance(cmd, str):
-                if cmd.strip():
-                    filtered_commands.append(cmd)
-                    original_objects.append(None)  # No original object for strings
-            elif isinstance(cmd, ShellCommand):
-                # Handle ShellCommand objects by extracting their command string
-                if cmd.command and cmd.command.strip():
-                    filtered_commands.append(cmd.command)
-                    original_objects.append(cmd)  # Store the original ShellCommand
-
-        if not filtered_commands:
-            self.logger.debug("No valid commands found in command_list after filtering")
-            return []
-
-        # Use filtered commands for processing
-        self.logger.debug(
-            "Processing %d commands in shell construct combination", len(filtered_commands)
-        )
-
-        # Track shell constructs we're looking for
-        construct_patterns = {
-            "while": {
-                "start": ["while"],
-                "end": ["done"],
-                "patterns": [
-                    # while condition; do
-                    lambda s: s.strip()
-                    .lower()
-                    .startswith("while "),
-                ],
-            },
-            "for": {
-                "start": ["for"],
-                "end": ["done"],
-                "patterns": [
-                    # for var in list; do
-                    lambda s: s.strip()
-                    .lower()
-                    .startswith("for "),
-                ],
-            },
-            "if": {
-                "start": ["if"],
-                "end": ["fi"],
-                "patterns": [
-                    # if condition; then
-                    lambda s: s.strip()
-                    .lower()
-                    .startswith("if "),
-                ],
-            },
-            "case": {
-                "start": ["case"],
-                "end": ["esac"],
-                "patterns": [
-                    # case var in
-                    lambda s: s.strip()
-                    .lower()
-                    .startswith("case "),
-                ],
-            },
-            "function": {
-                "start": ["function", "() {", "(){"],
-                "end": ["}"],
-                # Additional patterns to identify function definitions
-                "patterns": [
-                    # function name() { ... }
-                    lambda s: s.strip().lower().startswith("function ")
-                    and ("() {" in s or "(){" in s),
-                    # name() { ... }
-                    lambda s: ("() {" in s or "(){" in s)
-                    and not s.strip().lower().startswith("function "),
-                    # function name { ... }
-                    lambda s: s.strip().lower().startswith("function ") and "{" in s,
-                ],
-            },
-        }
-
-        result = []
-        construct_buffer = []
-        construct_buffer_originals = []  # Track original objects for buffered commands
-        active_constructs = []
-
-        for i, cmd in enumerate(filtered_commands):
-            # Skip empty commands (should not happen after filtering)
-            if not cmd or not cmd.strip():
-                continue
-
-            cmd_lower = cmd.lower().strip()
-            first_word = cmd_lower.split()[0] if cmd_lower.split() else ""
-
-            # Check if this line starts a new construct
-            starts_construct = False
-            for construct, patterns in construct_patterns.items():
-                # First check for explicit patterns if defined
-                if "patterns" in patterns:
-                    for pattern_func in patterns["patterns"]:
-                        if pattern_func(cmd):
-                            starts_construct = True
-                            active_constructs.append(construct)
-                            self.logger.debug(
-                                "Starting %s construct (pattern match): %s",
-                                construct,
-                                cmd.strip()[:40],
-                            )
-                            break
-                    if starts_construct:
-                        break
-
-                # Then check for start keywords
-                if not starts_construct and any(p in cmd_lower for p in patterns["start"]):
-                    # For function definitions
-                    if construct == "function":
-                        # Check for the two common function definition styles:
-                        # 1. function name() { ... }
-                        # 2. name() { ... }
-                        if (
-                            "function " in cmd_lower
-                            or (
-                                any(
-                                    cmd_lower.find(f"{c}") > -1
-                                    for c in ["() {", "(){", "()\n{", "() \n{"]
-                                )
-                            )
-                            or (
-                                cmd_lower.rstrip().endswith("{")
-                                and "(" in cmd_lower
-                                and ")" in cmd_lower
-                            )
-                        ):
-                            starts_construct = True
-                            active_constructs.append(construct)
-                            self.logger.debug(
-                                "Starting %s construct (keyword match): %s",
-                                construct,
-                                cmd.strip()[:40],
-                            )
-                            break
-                    # For other constructs, check if it's the first word
-                    elif first_word in patterns["start"]:
-                        starts_construct = True
-                        active_constructs.append(construct)
-                        self.logger.debug(
-                            "Starting %s construct (first word match): %s",
-                            construct,
-                            cmd.strip()[:40],
-                        )
-                        break
-
-            # Check if this line ends an active construct
-            ends_construct = False
-            if active_constructs:
-                current_construct = active_constructs[-1]
-                end_patterns = construct_patterns[current_construct]["end"]
-
-                # Check for end patterns in the command
-                if any(p in cmd_lower for p in end_patterns):
-                    # For closing braces of functions, ensure it's not part of another construct
-                    if current_construct == "function" and "}" in cmd_lower:
-                        # Make sure it's a standalone "}" or at the end of a line
-                        if cmd_lower == "}" or cmd_lower.endswith("}") or cmd_lower.endswith("};"):
-                            ends_construct = True
-                            active_constructs.pop()
-                            self.logger.debug(
-                                "Ending %s construct: %s", current_construct, cmd.strip()[:40]
-                            )
-                    # For other end patterns
-                    else:
-                        # Make sure the end pattern appears as a complete word
-                        for pattern in end_patterns:
-                            if pattern in cmd_lower.split() or cmd_lower.endswith(pattern + ";"):
-                                ends_construct = True
-                                active_constructs.pop()
-                                self.logger.debug(
-                                    "Ending %s construct: %s", current_construct, cmd.strip()[:40]
-                                )
-                                break
-
-            # Buffer the current command and its original object
-            construct_buffer.append(cmd)
-            construct_buffer_originals.append(original_objects[i])
-
-            # If we've ended all active constructs or encountered a standalone command
-            if (ends_construct and not active_constructs) or (
-                not starts_construct and not active_constructs
-            ):
-                # If we have only one command in buffer and it's not part of a construct, add it as is
-                if len(construct_buffer) == 1 and not starts_construct and not ends_construct:
-                    # If the original command was a ShellCommand, return the original object
-                    original_obj = construct_buffer_originals[0]
-                    if original_obj is not None:
-                        result.append(original_obj)
-                    else:
-                        result.append(construct_buffer[0])
-                else:
-                    # Join the buffered commands into a single multiline command
-                    multiline_cmd = "\n".join(construct_buffer)
-
-                    # Check if any of the original commands were ShellCommand objects
-                    has_shell_command = any(obj is not None for obj in construct_buffer_originals)
-
-                    if has_shell_command:
-                        # Find the first ShellCommand object to use as a template
-                        shell_cmd_template = None
-                        for obj in construct_buffer_originals:
-                            if obj is not None:
-                                shell_cmd_template = obj
-                                break
-
-                        if shell_cmd_template:
-                            # Create a new ShellCommand object based on the template
-                            # Check if this is a function definition and adjust the description accordingly
-                            description = shell_cmd_template.description
-                            if "\n" in multiline_cmd and (
-                                "() {" in multiline_cmd.split("\n")[0]
-                                or "(){" in multiline_cmd.split("\n")[0]
-                                or "function " in multiline_cmd.lower().split("\n")[0]
-                            ):
-                                # Extract function name for better description
-                                first_line = multiline_cmd.split("\n")[0].strip().lower()
-                                if "function " in first_line:
-                                    fn_name = (
-                                        first_line.replace("function ", "").split("{")[0].strip()
-                                    )
-                                    if "(" in fn_name:
-                                        fn_name = fn_name.split("(")[0].strip()
-                                else:  # name() { syntax
-                                    fn_name = first_line.split("(")[0].strip()
-
-                                # Use plain function name without special characters in description
-                                description = f"Function: {fn_name}"
-                                self.logger.debug(
-                                    f"Setting safer function description for combined construct: {fn_name}"
-                                )
-
-                            new_shell_cmd = ShellCommand(
-                                command=multiline_cmd,
-                                description=description,
-                                is_critical=shell_cmd_template.is_critical,
-                                is_multiline=True,
-                                is_function_definition=shell_cmd_template.is_function_definition,
-                                is_function_call=shell_cmd_template.is_function_call,
-                            )
-                            result.append(new_shell_cmd)
-                        else:
-                            result.append(multiline_cmd)
-                    else:
-                        result.append(multiline_cmd)
-
-                    # Identify the type of construct for better logging
-                    construct_type = "unknown"
-                    if construct_buffer and construct_buffer[0]:
-                        first_line = construct_buffer[0].strip().lower()
-                        if "function " in first_line or "() {" in first_line or "(){" in first_line:
-                            construct_type = "function definition"
-                        elif first_line.startswith("if "):
-                            construct_type = "if block"
-                        elif first_line.startswith("for "):
-                            construct_type = "for loop"
-                        elif first_line.startswith("while "):
-                            construct_type = "while loop"
-                        elif first_line.startswith("case "):
-                            construct_type = "case statement"
-
-                    self.logger.debug(
-                        "Combined %s into multiline command: %s",
-                        construct_type,
-                        multiline_cmd.split("\n")[0].strip()[:40] + "...",
-                    )
-                construct_buffer = []
-                construct_buffer_originals = []
-
-        # Handle any remaining commands in the buffer
-        if construct_buffer:
-            # If we have incomplete constructs (active_constructs not empty), log a warning
-            if active_constructs:
-                self.logger.warning(
-                    "Incomplete shell construct detected: %s. Commands: %s",
-                    active_constructs,
-                    [
-                        cmd.strip()[:40] + "..." if len(cmd) > 40 else cmd
-                        for cmd in construct_buffer
-                    ],
-                )
-
-            # Still combine the remaining commands to avoid losing them
-            multiline_cmd = "\n".join(construct_buffer)
-
-            # Check if any of the original commands were ShellCommand objects
-            has_shell_command = any(obj is not None for obj in construct_buffer_originals)
-
-            if has_shell_command:
-                # Find the first ShellCommand object to use as a template
-                shell_cmd_template = None
-                for obj in construct_buffer_originals:
-                    if obj is not None:
-                        shell_cmd_template = obj
-                        break
-
-                if shell_cmd_template:
-                    # Create a new ShellCommand object from the template
-                    new_shell_cmd = ShellCommand(
-                        command=multiline_cmd,
-                        description=shell_cmd_template.description,
-                        is_critical=shell_cmd_template.is_critical,
-                        is_multiline=True,
-                        is_function_definition=shell_cmd_template.is_function_definition,
-                        is_function_call=shell_cmd_template.is_function_call,
-                    )
-                    result.append(new_shell_cmd)
-                else:
-                    result.append(multiline_cmd)
-            else:
-                result.append(multiline_cmd)
-
-            self.logger.debug(
-                "Combined remaining commands into multiline command: %s",
-                multiline_cmd.split("\n")[0].strip()[:40] + "...",
-            )
-
-        # Final validation - make sure we don't return empty result
-        if not result:
-            self.logger.warning(
-                "Shell construct combination resulted in empty list. Original commands: %s",
-                [
-                    str(cmd)[:40] + "..." if len(str(cmd)) > 40 else str(cmd)
-                    for cmd in command_list[:5]
-                ],
-            )
-
-            # If we have original ShellCommand objects, return those
-            if any(obj is not None for obj in original_objects):
-                return [
-                    obj if obj is not None else cmd
-                    for cmd, obj in zip(filtered_commands, original_objects)
-                ]
-
-            # Otherwise return filtered string commands
-            return filtered_commands
-
-        return result
+        return combine_shell_constructs(command_list)
 
     def generate_entrypoint_with_structured_args(
-        self, service, paths, timestamp, output_path, template_path
+        self,
+        service: IServiceManager,
+        paths: dict[str, str],
+        timestamp: str,
+        output_path: Path,
+        template_path: Path,
     ):
         """
         Generates an entrypoint script with properly structured and quoted command arguments.
 
-        This method uses the structured approach to handle command arguments and environment variables,
+        This method uses a command processor to handle command arguments and environment variables,
         ensuring proper escaping of special characters in shell commands.
 
         Args:
@@ -792,336 +477,26 @@ class DockerComposeEnvironment(INetworkEnvironment):
             "Generating entrypoint script for %s with structured arguments", service.service_name
         )
 
-        # Process commands to ensure proper quoting and escaping
-        processed_commands = {}
+        # Use the command processor to process the commands
+        from panther.core.command_processor import CommandProcessor
+        from panther.plugins.environments.network_environment.docker_compose.command_adapter import (
+            DockerComposeCommandAdapter,
+        )
 
-        # Process each command type in the run_cmd dictionary
-        for cmd_type, cmds in service.run_cmd.items():
-            self.logger.debug(
-                "Processing command type '%s' for service '%s': %s",
-                cmd_type,
-                service.service_name,
-                cmds,
-            )
-            if cmd_type == "run_cmd":
-                # Handle the special structure of run_cmd
-                run_cmd = service.run_cmd["run_cmd"]
+        # Create instances of the command processor and adapter
+        command_processor = CommandProcessor()
+        adapter = DockerComposeCommandAdapter()
 
-                if not run_cmd:
-                    # If run_cmd is empty or None, provide a default structure
-                    processed_commands["run_cmd"] = {
-                        "working_dir": "",
-                        "command_args": [],
-                        "env_vars": {},
-                        "timeout": 60,
-                    }
-                    self.logger.debug(
-                        "Empty run_cmd provided, using default structure: %s",
-                        processed_commands["run_cmd"],
-                    )
-                    continue
+        # Process commands using the command processor
+        processed_commands = command_processor.process_commands(service.run_cmd)
 
-                # Maintain separate fields for command_binary and command_args
-                if run_cmd.get("command_binary"):
-                    self.logger.debug("Using command binary: %s", run_cmd["command_binary"])
-
-                # Process command_args
-                command_args = []
-                if isinstance(run_cmd.get("command_args"), list):
-                    # Already structured as a list
-                    self.logger.debug("Using command args list: %s", run_cmd["command_args"])
-                    command_args = run_cmd["command_args"]
-                elif run_cmd.get("command_args"):
-                    # Convert string to list using shlex for proper splitting
-                    try:
-                        cmd_parts = service.build_command_args(run_cmd["command_args"])
-                        self.logger.debug("Using command args from string: %s", cmd_parts)
-                        # Ensure all parts are strings
-                        command_args.extend(cmd_parts)
-                    except (AttributeError, TypeError) as e:
-                        self.logger.warning(
-                            "Error converting command args: %s. Using empty list.", e
-                        )
-                        # Continue with empty args rather than failing
-
-                # Process environment variables
-                env_vars = {}
-                if run_cmd.get("environment"):
-                    try:
-                        env_vars = {k: str(v) for k, v in run_cmd["environment"].items()}
-                        self.logger.debug("Using environment variables: %s", env_vars)
-                    except (AttributeError, TypeError) as e:
-                        self.logger.warning("Error processing env vars: %s. Using empty dict.", e)
-
-                processed_commands["run_cmd"] = {
-                    "working_dir": run_cmd.get("working_dir", ""),
-                    "command_binary": run_cmd.get("command_binary", "")
-                    .strip()
-                    .replace("\n", ""),  # Keep command_binary separate
-                    "command_args": run_cmd.get("command_args", "")
-                    .strip()
-                    .replace("\n", ""),  # Keep original command_args
-                    "environment": env_vars,  # Change to environment to match template
-                    "timeout": run_cmd.get("timeout", 60),
-                }
-            else:
-                # Process regular command lists
-                if isinstance(cmds, list):
-                    # Skip processing entirely empty lists
-                    if not cmds:
-                        self.logger.debug("Skipping empty command list for %s", cmd_type)
-                        processed_commands[cmd_type] = []
-                        continue
-
-                    for i, cmd in enumerate(cmds):
-                        self.logger.debug("Processing command %d for %s: %s", i, cmd_type, cmd)
-                    # First combine any shell constructs that might be split across multiple elements
-                    # Filter out None and empty strings before combining
-                    valid_cmds = []
-                    for c in cmds:
-                        if not c:
-                            continue
-                        if isinstance(c, ShellCommand):
-                            # Keep ShellCommand objects unchanged
-                            valid_cmds.append(c)
-                        elif isinstance(c, str) and c.strip():
-                            # Only filter empty strings
-                            valid_cmds.append(ShellCommand.from_string(c))
-                        elif isinstance(c, dict) and "command" in c and c["command"].strip():
-                            # Handle dict representation of commands
-                            valid_cmds.append(ShellCommand.from_dict(c))
-
-                    if not valid_cmds:
-                        self.logger.debug("No valid commands found in list for %s", cmd_type)
-                        processed_commands[cmd_type] = []
-                        continue
-
-                    combined_cmds = self._combine_shell_constructs(valid_cmds)
-                    self.logger.debug(
-                        "Combined %d commands into %d constructs for %s",
-                        len(valid_cmds),
-                        len(combined_cmds),
-                        cmd_type,
-                    )
-
-                    # Extra validation: log first few commands before and after combination for debugging
-                    if len(valid_cmds) > 0 and len(combined_cmds) > 0:
-                        # Handle both string and ShellCommand objects for valid_cmds[0]
-                        if isinstance(valid_cmds[0], str):
-                            before_sample = valid_cmds[0].strip()[:40] + (
-                                "..." if len(valid_cmds[0]) > 40 else ""
-                            )
-                        else:
-                            # For ShellCommand objects, use the command property
-                            cmd_text = valid_cmds[0].command
-                            before_sample = cmd_text.strip()[:40] + (
-                                "..." if len(cmd_text) > 40 else ""
-                            )
-
-                        # Handle both string and ShellCommand objects for combined_cmds[0]
-                        if isinstance(combined_cmds[0], str):
-                            after_text = combined_cmds[0]
-                            after_sample = after_text.split("\n")[0].strip()[:40] + (
-                                "..." if len(after_text) > 40 else ""
-                            )
-                        else:
-                            # For ShellCommand objects, use the command property
-                            cmd_text = combined_cmds[0].command
-                            after_sample = cmd_text.split("\n")[0].strip()[:40] + (
-                                "..." if len(cmd_text) > 40 else ""
-                            )
-
-                        self.logger.debug(
-                            "Sample before combination: '%s', after: '%s'",
-                            before_sample,
-                            after_sample,
-                        )
-
-                    # Check for null results after combination
-                    if not combined_cmds:
-                        self.logger.warning(
-                            "Combined commands resulted in empty list for %s, using original commands",
-                            cmd_type,
-                        )
-                        # Use the original validated commands as fallback to avoid losing commands
-                        combined_cmds = valid_cmds
-                        if not combined_cmds:  # Double check we have something
-                            self.logger.error(
-                                "No valid commands available for %s after combination attempt",
-                                cmd_type,
-                            )
-                            processed_commands[cmd_type] = []
-                            continue
-
-                    # Process each command in the combined list
-                    processed_list = []
-                    for cmd in combined_cmds:
-                        if isinstance(cmd, ShellCommand):
-                            # Pass the entire ShellCommand object with all its properties
-                            if not cmd.command or cmd.command.strip() == "":
-                                self.logger.warning("ShellCommand object has no command: %s", cmd)
-                                continue
-                            self.logger.debug("Processing ShellCommand: %s", cmd.to_dict())
-                            processed_list.append(cmd.to_dict())
-                        elif isinstance(cmd, str):
-                            # For backward compatibility, convert string commands to ShellCommand objects                                # Enhanced detection for combined shell constructs
-                            # First create the ShellCommand object and log detailed info about the command
-                            shell_cmd = ShellCommand.from_string(cmd, is_critical=True)
-                            if "\n" in cmd and len(cmd.split("\n")) > 1:
-                                self.logger.debug(
-                                    "Processing multiline command with %d lines, starting with: '%s'",
-                                    len(cmd.split("\n")),
-                                    cmd.split("\n")[0].strip()[:40]
-                                    + ("..." if len(cmd.split("\n")[0]) > 40 else ""),
-                                )
-
-                            # Enhanced detection for multiline constructs and function definitions
-                            if "\n" in cmd:
-                                shell_cmd.is_multiline = True
-                                first_line = cmd.split("\n")[0].strip().lower()
-
-                                # Check for function definition patterns with comprehensive detection
-                                if (
-                                    "() {" in cmd or "(){" in cmd or "function " in cmd.lower()
-                                ) and "}" in cmd:
-                                    shell_cmd.is_function_definition = True
-                                    # Extract function name for better description
-                                    fn_name = (
-                                        first_line.split("(")[0].replace("function ", "").strip()
-                                    )
-                                    # Use plain function name without special characters in description
-                                    shell_cmd.description = f"Function: {fn_name}"
-                                    self.logger.debug(
-                                        "Detected function definition in combined construct: %s",
-                                        first_line + "...",
-                                    )
-
-                                # Check for explicit function definition syntax variations
-                                elif first_line.startswith("function ") and (
-                                    first_line.endswith("{") or "{" in first_line
-                                ):
-                                    shell_cmd.is_function_definition = True
-                                    # Extract function name for better description
-                                    fn_name = (
-                                        first_line.replace("function ", "").split("{")[0].strip()
-                                    )
-                                    # If the name has parentheses, clean them
-                                    if "(" in fn_name:
-                                        fn_name = fn_name.split("(")[0].strip()
-                                    # Use plain function name without special characters
-                                    shell_cmd.description = f"Function: {fn_name}"
-                                    self.logger.debug(
-                                        "Detected function definition (function keyword): %s",
-                                        first_line + "...",
-                                    )
-
-                                # Function definition with name() { syntax across multiple lines
-                                elif (
-                                    "(" in first_line
-                                    and ")" in first_line
-                                    and (
-                                        first_line.endswith("{")
-                                        or (
-                                            len(cmd.split("\n")) > 1
-                                            and cmd.split("\n")[1].strip() == "{"
-                                        )
-                                        or "{" in cmd.split("\n")[0]
-                                    )
-                                ):
-                                    shell_cmd.is_function_definition = True
-                                    # Extract function name for better description
-                                    fn_name = first_line.split("(")[0].strip()
-                                    # Use plain function name without special characters in description
-                                    shell_cmd.description = f"Function: {fn_name}"
-                                    self.logger.debug(
-                                        "Detected function definition (name() syntax): %s",
-                                        first_line + "...",
-                                    )
-
-                                # Check for control structures
-                                elif (
-                                    first_line.startswith("if ")
-                                    or first_word.startswith("for")
-                                    or first_line.startswith("while ")
-                                    or first_line.startswith("case ")
-                                ):
-                                    shell_cmd.is_control_structure = True
-                                    self.logger.debug(
-                                        "Detected control structure in combined construct: %s",
-                                        first_line + "...",
-                                    )
-
-                            if not shell_cmd.command or shell_cmd.command.strip() == "":
-                                self.logger.warning(
-                                    "ShellCommand object has no command: %s", shell_cmd
-                                )
-                                continue
-
-                            self.logger.debug("Processing string command: %s", shell_cmd.to_dict())
-                            processed_list.append(shell_cmd.to_dict())
-                        elif isinstance(cmd, dict) and "command" in cmd:
-                            # Handle dict that resembles a ShellCommand
-                            shell_cmd = ShellCommand(**cmd)
-                            if not shell_cmd.command or shell_cmd.command.strip() == "":
-                                self.logger.warning(
-                                    "ShellCommand object has no command: %s", shell_cmd
-                                )
-                                continue
-                            self.logger.debug("Processing dict command: %s", shell_cmd.to_dict())
-                            processed_list.append(shell_cmd.to_dict())
-                        else:
-                            # Try to convert other types to string as a fallback
-                            try:
-                                shell_cmd = ShellCommand.from_string(str(cmd), is_critical=True)
-                                # Ensure multiline detection for combined constructs
-                                if "\n" in str(cmd) and not shell_cmd.is_multiline:
-                                    shell_cmd.is_multiline = True
-
-                                if not shell_cmd.command or shell_cmd.command.strip() == "":
-                                    self.logger.warning(
-                                        "ShellCommand object has no command: %s", shell_cmd
-                                    )
-                                    continue
-                                self.logger.debug(
-                                    "Processing command from other type: %s", shell_cmd.to_dict()
-                                )
-                                processed_list.append(shell_cmd.to_dict())
-                            except Exception as e:
-                                self.logger.warning(
-                                    "Could not convert command to ShellCommand: %s, error: %s",
-                                    cmd,
-                                    e,
-                                )
-                                # Skip this command
-                    processed_commands[cmd_type] = processed_list
-                elif isinstance(cmds, dict) and "command" in cmds:
-                    # Handle single ShellCommand-like dictionary
-                    shell_cmd = ShellCommand(**cmds)
-                    if not shell_cmd.command or shell_cmd.command.strip() == "":
-                        self.logger.warning("ShellCommand object has no command: %s", shell_cmd)
-                        continue
-                    self.logger.debug(
-                        "Processing single ShellCommand dict: %s", shell_cmd.to_dict()
-                    )
-                    processed_commands[cmd_type] = [shell_cmd.to_dict()]
-                elif cmds and isinstance(cmds, str):
-                    # Single string command
-                    shell_cmd = ShellCommand.from_string(cmds)
-                    if not shell_cmd.command or shell_cmd.command.strip() == "":
-                        self.logger.warning("ShellCommand object has no command: %s", shell_cmd)
-                        continue
-                    self.logger.debug("Processing single string command: %s", shell_cmd.to_dict())
-                    processed_commands[cmd_type] = [shell_cmd.to_dict()]
-                else:
-                    # Empty or unsupported type
-                    self.logger.debug("Processing empty or unsupported command type: %s", cmd_type)
-                    processed_commands[cmd_type] = []
+        # Apply Docker Compose specific adaptations
+        processed_commands = adapter.adapt_commands(processed_commands)
 
         # Render entrypoint template with structured arguments
         self.logger.debug(
-            "Rendering entrypoint template for service '%s' with structured commands: %s",
+            "Rendering entrypoint template for service '%s' with structured commands",
             service,
-            processed_commands,
         )
         self.generate_from_template(
             "entrypoint.sh.jinja",
@@ -1138,58 +513,57 @@ class DockerComposeEnvironment(INetworkEnvironment):
         Launches the Docker Compose environment using the generated docker-compose.yml file.
         """
         try:
-            with open(
-                os.path.join(self.output_dir, "logs", "docker-compose-up.log"), "w"
-            ) as log_file:
-                with open(
-                    os.path.join(self.output_dir, "logs", "docker-compose-up.err.log"),
-                    "w",
-                ) as log_file_err:
-                    # TODO check if previous containers are running and stop them
-                    result = subprocess.run(
-                        [
-                            "docker",
-                            "compose",
-                            "-f",
-                            str(self.rendered_services_network_config_file_path),
-                            "up",
-                            "-d",  # Detached mode: Run containers in the background
-                            "-V",  # Recreate anonymous volumes instead of retrieving data from the previous containers
-                            "--remove-orphans",  # Remove containers for services not defined in the Compose file
-                        ],
-                        check=True,
-                        capture_output=True,
-                        text=True,  # Ensures that output is in string format
+            # Ensure we have an absolute path for Docker Compose file
+            compose_file_path = os.path.abspath(
+                str(self.rendered_services_network_config_file_path)
+            )
+            self.logger.debug("Using Docker Compose file at absolute path: %s", compose_file_path)
+
+            # Check if the file exists
+            if not os.path.exists(compose_file_path):
+                error_msg = f"Docker Compose file not found at {compose_file_path}"
+                self.logger.error(error_msg)
+                if self.event_emitter:
+                    # Since we're in an environment plugin, emit an environment error
+                    # Generate environment ID
+                    env_type = getattr(self, "env_type", "network_environment")
+                    env_subtype = getattr(self, "env_sub_type", "docker_compose")
+                    environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+                    environment_name = getattr(self, "env_name", self.__class__.__name__)
+                    environment_id = f"{environment_type}_{environment_name}"
+
+                    self.event_emitter.emit_environment_error(
+                        environment_id=environment_id,
+                        environment_name=environment_name,
+                        environment_type=environment_type,
+                        error_message=error_msg,
+                        error_type="FileNotFoundError",
+                        error_details={"compose_file_path": compose_file_path},
                     )
-                    # Write both stdout and stderr to the log file
-                    log_file.write(result.stdout)
-                    log_file_err.write(result.stderr)
-                self.logger.info("Docker Compose environment launched successfully.")
-                self.notify_environment_setup_started()
-            with open(os.path.join(self.output_dir, "logs", "docker-compose.log"), "w") as log_file:
-                with open(
-                    os.path.join(self.output_dir, "logs", "docker-compose.err.log"), "w"
-                ) as log_file_err:
-                    result_exp = subprocess.run(
-                        [
-                            "docker",
-                            "compose",
-                            "-f",
-                            str(self.rendered_services_network_config_file_path),
-                            "logs",
-                            "--no-color",
-                        ],
-                        check=True,
-                        capture_output=True,
-                        text=True,  # Ensures that output is in string format
-                    )
-                    # Write both stdout and stderr to the log file
-                    log_file.write(result_exp.stdout)
-                    log_file_err.write(result_exp.stderr)
-                self.logger.info("Docker Compose environment logs successfully.")
-        except subprocess.CalledProcessError as e:
-            self.logger.error("Failed to launch Docker Compose environment: %s", e.stderr)
-            raise e
+                raise FileNotFoundError(error_msg)
+
+            # Run Docker Compose
+            self._run_docker_compose(compose_file_path)
+
+        except Exception as e:
+            self.logger.error("Failed to launch Docker Compose environment: %s", e, exc_info=True)
+            if self.event_emitter:
+                # Generate environment ID
+                env_type = getattr(self, "env_type", "network_environment")
+                env_subtype = getattr(self, "env_sub_type", "docker_compose")
+                environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+                environment_name = getattr(self, "env_name", self.__class__.__name__)
+                environment_id = f"{environment_type}_{environment_name}"
+
+                self.event_emitter.emit_environment_error(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    error_message=f"Failed to launch Docker Compose environment: {str(e)}",
+                    error_type=type(e).__name__,
+                    error_details={"exception": str(e)},
+                )
+            raise
 
     def monitor_environment(self):
         """
@@ -1293,3 +667,124 @@ class DockerComposeEnvironment(INetworkEnvironment):
         Returns True to indicate this is a network environment.
         """
         return True
+
+    def _setup_environment_and_verify_files(self, timestamp) -> bool:
+        """
+        Helper method to set up environment and verify that required files are generated.
+
+        Args:
+            timestamp: The timestamp string for file path generation
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            self.logger.info("Setting up Docker Compose environment and verifying files")
+
+            # Ensure the output directory exists
+            output_dir_path = os.path.dirname(str(self.rendered_services_network_config_file_path))
+            os.makedirs(output_dir_path, exist_ok=True)
+
+            logs_dir_path = os.path.join(self.output_dir, "logs")
+            os.makedirs(logs_dir_path, exist_ok=True)
+
+            self.logger.debug(
+                "Output directories created: %s and %s", output_dir_path, logs_dir_path
+            )
+
+            # Generate environment services with the template processor
+            self.logger.info("Generating Docker Compose configuration file")
+            self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
+
+            # Verify the file was created and is valid
+            compose_path = os.path.abspath(str(self.rendered_services_network_config_file_path))
+
+            if not os.path.exists(compose_path):
+                self.logger.error("Docker Compose file not found at %s", compose_path)
+                return False
+
+            if os.path.getsize(compose_path) == 0:
+                self.logger.error("Docker Compose file exists but is empty at %s", compose_path)
+                return False
+
+            # Additional validation could go here (e.g., parse YAML to verify structure)
+
+            self.logger.info(
+                "Docker Compose file successfully verified at %s (%s bytes)",
+                compose_path,
+                os.path.getsize(compose_path),
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error("Error in _setup_environment_and_verify_files: %s", e, exc_info=True)
+            return False
+
+    def _run_docker_compose(self, compose_file_path):
+        """
+        Run Docker Compose commands with proper logging.
+
+        Args:
+            compose_file_path (str): Absolute path to the Docker Compose file
+
+        Raises:
+            subprocess.CalledProcessError: If Docker Compose command fails
+        """
+        # Create log files
+        log_dir = os.path.join(self.output_dir, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+
+        with (
+            open(os.path.join(log_dir, "docker-compose-up.log"), "w") as log_file,
+            open(os.path.join(log_dir, "docker-compose-up.err.log"), "w") as log_file_err,
+        ):
+
+            # Run Docker Compose up
+            result = subprocess.run(
+                [
+                    "docker",
+                    "compose",
+                    "-f",
+                    compose_file_path,
+                    "up",
+                    "-d",  # Detached mode: Run containers in the background
+                    "-V",  # Recreate anonymous volumes
+                    "--remove-orphans",  # Remove orphaned containers
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            # Write logs
+            log_file.write(result.stdout)
+            log_file_err.write(result.stderr)
+
+        self.logger.info("Docker Compose environment launched successfully.")
+        self.notify_environment_setup_started()
+
+        # Get Docker Compose logs
+        with (
+            open(os.path.join(log_dir, "docker-compose.log"), "w") as log_file,
+            open(os.path.join(log_dir, "docker-compose.err.log"), "w") as log_file_err,
+        ):
+
+            result_exp = subprocess.run(
+                [
+                    "docker",
+                    "compose",
+                    "-f",
+                    compose_file_path,
+                    "logs",
+                    "--no-color",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            # Write logs
+            log_file.write(result_exp.stdout)
+            log_file_err.write(result_exp.stderr)
+
+        self.logger.info("Docker Compose environment logs captured successfully.")

@@ -12,7 +12,7 @@ from panther.plugins.environments.execution_environment.execution_environment_in
     IExecutionEnvironment,
 )
 from panther.plugins.plugin_loader import PluginLoader
-from panther.core.observer.event_emitter import EventEmitter
+from panther.core.events import EnvironmentEventEmitter
 
 
 class BaseEnvironmentPlugin(IEnvironmentPlugin, EnvironmentPluginEventMixin):
@@ -35,7 +35,7 @@ class BaseEnvironmentPlugin(IEnvironmentPlugin, EnvironmentPluginEventMixin):
 
         # Set up event emitter if event_manager is provided
         if event_manager:
-            self.event_emitter = EventEmitter(event_manager)
+            self.event_emitter = EnvironmentEventEmitter(event_manager)
 
         # Initialize properties
         self.services_managers = []
@@ -215,8 +215,64 @@ class BaseEnvironmentPlugin(IEnvironmentPlugin, EnvironmentPluginEventMixin):
             event_name: The name of the event
             details: Additional details about the event
         """
-        if hasattr(self, "event_emitter"):
-            self.event_emitter.emit_event(f"environment.{event_name}", details or {})
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            # Generate environment ID and name
+            env_type = getattr(self, "env_type", "unknown")
+            env_subtype = getattr(self, "env_sub_type", "")
+            environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+            environment_name = getattr(self, "env_name", self.__class__.__name__)
+            environment_id = f"{environment_type}_{environment_name}"
+
+            # Use the appropriate EnvironmentEventEmitter method based on event_name
+            if event_name == "services_deployment_started":
+                self.event_emitter.emit_environment_resource(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    resource_type="services",
+                    resource_action="deployment_started",
+                    resource_details=details,
+                )
+            elif event_name == "services_deployment_completed":
+                success = details.get("success", True) if details else True
+                if success:
+                    self.event_emitter.emit_environment_resource(
+                        environment_id=environment_id,
+                        environment_name=environment_name,
+                        environment_type=environment_type,
+                        resource_type="services",
+                        resource_action="deployment_completed",
+                        resource_details=details,
+                    )
+                else:
+                    self.event_emitter.emit_environment_error(
+                        environment_id=environment_id,
+                        environment_name=environment_name,
+                        environment_type=environment_type,
+                        error_message=(
+                            details.get("error_message", "Service deployment failed")
+                            if details
+                            else "Service deployment failed"
+                        ),
+                        error_type="deployment_error",
+                        error_details=details,
+                    )
+            elif event_name == "environment_teardown_started":
+                self.event_emitter.emit_environment_teardown_started(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                )
+            else:
+                # For other events, emit as environment resource event
+                self.event_emitter.emit_environment_resource(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    resource_type="generic",
+                    resource_action=event_name,
+                    resource_details=details,
+                )
 
     def update_environment(
         self,

@@ -8,7 +8,7 @@ import logging
 from abc import abstractmethod
 from typing import Any
 
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 from panther.plugins.enhanced_plugin_interface import IPantherPlugin, IPluginRegistry
 from panther.plugins.environments.environment_event_methods import EnvironmentPluginEventMixin
 from panther.plugins.environments.enhanced_environment_event_methods import (

@@ -20,15 +20,18 @@ class EnvironmentPluginEventMixin:
             details: Additional details about the setup
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            environment_type = getattr(self, "env_sub_type", "unknown")
-            self.event_emitter.emit_environment_setup_started(environment_type, details)
-            env_type = "network" if self.is_network_environment else "execution"
-            env_subtype = (
-                self.__class__.__name__.lower() if hasattr(self, "__class__") else "unknown"
-            )
+            # Generate environment ID and name
+            env_type = getattr(self, "env_type", "unknown")
+            env_subtype = getattr(self, "env_sub_type", "")
+            environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+            environment_name = getattr(self, "env_name", self.__class__.__name__)
+            environment_id = f"{environment_type}_{environment_name}"
 
             self.event_emitter.emit_environment_setup_started(
-                environment_type=f"{env_type}_{env_subtype}".rstrip("_"), details=details or {}
+                environment_id=environment_id,
+                environment_name=environment_name,
+                environment_type=environment_type,
+                setup_config=details,
             )
 
     def notify_environment_initialized(self, details: dict[str, Any] = None):
@@ -39,10 +42,12 @@ class EnvironmentPluginEventMixin:
             details: Additional details about the initialization
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            # Get environment type information
+            # Generate environment ID and name
             env_type = "network" if self.is_network_environment() else "execution"
             env_subtype = getattr(self, "env_sub_type", "")
-            plugin_name = self.__class__.__name__
+            environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+            environment_name = getattr(self, "env_name", self.__class__.__name__)
+            environment_id = f"{environment_type}_{environment_name}"
 
             # Store details in environment object for reference if needed
             if hasattr(self, "initialization_details"):
@@ -50,11 +55,13 @@ class EnvironmentPluginEventMixin:
             else:
                 self.initialization_details = details or {}
 
-            # Emit environment initialized event
-            self.event_emitter.emit_environment_initialized(
-                environment_type=env_type,
-                plugin_name=plugin_name,
-                plugin_type=env_subtype,
+            # Emit environment initialization completed event
+            self.event_emitter.emit_environment_initialization_completed(
+                environment_id=environment_id,
+                environment_name=environment_name,
+                environment_type=environment_type,
+                duration_seconds=0.0,  # Duration not tracked in this method
+                initialization_details=details,
             )
 
     def notify_environment_setup_completed(self, success: bool, details: dict[str, Any] = None):
@@ -66,25 +73,34 @@ class EnvironmentPluginEventMixin:
             details: Additional details about the setup
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            # Use a single, consistent environment_type value
+            # Generate environment ID and name
             env_type = getattr(self, "env_type", "unknown")
             env_subtype = getattr(self, "env_sub_type", "")
             environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+            environment_name = getattr(self, "env_name", self.__class__.__name__)
+            environment_id = f"{environment_type}_{environment_name}"
 
-            # Ensure details is not None
-            details_dict = details or {}
-
-            # Add environment name to details if not present
-            if "environment_name" not in details_dict:
-                env_name = getattr(self, "env_name", self.__class__.__name__)
-                details_dict["environment_name"] = env_name
-
-            # Emit a single event with complete information
-            self.event_emitter.emit_environment_setup_completed(
-                environment_type=environment_type,
-                success=success,
-                details=details_dict,
-            )
+            # Emit the appropriate event based on success
+            if success:
+                self.event_emitter.emit_environment_setup_completed(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    duration_seconds=details.get("duration") if details else None,
+                    setup_details=details,
+                )
+            else:
+                error_message = (
+                    details.get("error", "Environment setup failed")
+                    if details
+                    else "Environment setup failed"
+                )
+                self.event_emitter.emit_environment_setup_failed(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    error_message=error_message,
+                )
 
     def notify_environment_teardown(self, success: bool, details: dict[str, Any] = None):
         """
@@ -95,16 +111,34 @@ class EnvironmentPluginEventMixin:
             details: Additional details about the teardown
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            environment_type = getattr(self, "env_sub_type", "unknown")
-            self.event_emitter.emit_environment_teardown(environment_type, success, details)
+            # Generate environment ID and name
             env_type = getattr(self, "env_type", "unknown")
             env_subtype = getattr(self, "env_sub_type", "")
+            environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+            environment_name = getattr(self, "env_name", self.__class__.__name__)
+            environment_id = f"{environment_type}_{environment_name}"
 
-            self.event_emitter.emit_environment_teardown(
-                environment_type=f"{env_type}_{env_subtype}".rstrip("_"),
-                success=success,
-                details=details or {},
-            )
+            # Emit the appropriate event based on success
+            if success:
+                self.event_emitter.emit_environment_teardown_completed(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    duration_seconds=details.get("duration") if details else None,
+                    cleanup_details=details,
+                )
+            else:
+                error_message = (
+                    details.get("error", "Environment teardown failed")
+                    if details
+                    else "Environment teardown failed"
+                )
+                self.event_emitter.emit_environment_teardown_failed(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    error_message=error_message,
+                )
 
     def notify_experiment_early_finish(self, reason: str, details: dict[str, Any] = None):
         """
@@ -115,14 +149,20 @@ class EnvironmentPluginEventMixin:
             details: Additional details about the early finish
         """
         if hasattr(self, "event_emitter") and self.event_emitter:
-            experiment_id = getattr(self, "experiment_id", "unknown")
-            self.event_emitter.emit_experiment_finished_early(experiment_id, reason, details)
-        if hasattr(self, "event_emitter"):
-            env_name = getattr(self, "env_name", "unknown")
+            # Generate environment ID and name for error tracking
+            env_type = getattr(self, "env_type", "unknown")
+            env_subtype = getattr(self, "env_sub_type", "")
+            environment_type = f"{env_type}_{env_subtype}".rstrip("_")
+            environment_name = getattr(self, "env_name", self.__class__.__name__)
+            environment_id = f"{environment_type}_{environment_name}"
 
-            if hasattr(self, "env_config_to_test") and hasattr(self.env_config_to_test, "name"):
-                env_name = self.env_config_to_test.name
-
-            self.event_emitter.emit_experiment_finished_early(
-                experiment_id=env_name, reason=reason, details=details or {}
+            # Since EnvironmentEventEmitter doesn't have emit_experiment_finished_early,
+            # we emit an environment error event instead
+            self.event_emitter.emit_environment_error(
+                environment_id=environment_id,
+                environment_name=environment_name,
+                environment_type=environment_type,
+                error_message=f"Experiment finished early: {reason}",
+                error_type="early_termination",
+                error_details=details,
             )

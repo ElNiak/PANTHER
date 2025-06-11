@@ -9,7 +9,7 @@ import logging
 import inspect
 from typing import Any
 
-from panther.core.observer.core.core_events import Event
+from panther.core.events import BaseEvent as Event
 from panther.core.observer.plugin.plugin_interface import IPluginObserver
 
 

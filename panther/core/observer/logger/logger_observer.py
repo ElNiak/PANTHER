@@ -11,8 +11,17 @@ from typing import Any
 from collections.abc import Callable
 
 
-from panther.core.observer.core.observer_interface import IObserver
-from panther.core.observer.events import Event
+from panther.core.observer.core.typed_observer_interface import ITypedObserver
+from panther.core.events import (
+    BaseEvent,
+    # Experiment events
+    ExperimentFailedEvent,
+    ExperimentFinishedEarlyEvent,
+    # Test events
+    TestFailedEvent,
+    ServiceErrorEvent,
+    EnvironmentErrorEvent,
+)
 from panther.core.observer.core.event_colors import get_severity_indicator, is_terminal_capable
 
 # Map event types to colorlog colors for consistent coloring
@@ -33,7 +42,7 @@ EVENT_LOG_COLORS = {
 }
 
 
-class LoggerObserver(IObserver):
+class LoggerObserver(ITypedObserver):
     """
     Enhanced logger observer with event-aware capabilities.
 
@@ -60,8 +69,12 @@ class LoggerObserver(IObserver):
         structured_output: bool = False,
         priority_boost: dict[str, int] | None = None,
         global_config: Any = None,
+        debug_mode: bool = False,
+        track_event_history: bool = False,
+        max_history_size: int = 1000,
     ):
-        """Initialize the event-aware logger observer."""
+        """Initialize the event-aware logger observer with optional debug capabilities."""
+        super().__init__()
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
         self.include_data = include_data
         self.excluded_event_types = set(excluded_event_types or [])
@@ -72,6 +85,9 @@ class LoggerObserver(IObserver):
         self.correlation_tracking = correlation_tracking
         self.structured_output = structured_output
         self.priority_boost = priority_boost or {}
+        self.debug_mode = debug_mode
+        self.track_event_history = track_event_history or debug_mode
+        self.max_history_size = max_history_size
 
         # Store global config for log formatting settings
         self.config = global_config
@@ -80,6 +96,10 @@ class LoggerObserver(IObserver):
         self.enable_colors = enable_colors if enable_colors is not None else is_terminal_capable()
 
         # Set up logging using the interface method
+        # Use DEBUG level if debug mode is enabled
+        if self.debug_mode and self.log_level > logging.DEBUG:
+            self.log_level = logging.DEBUG
+
         self.logger = self._setup_logging(
             logger_name="EventLogger",
             log_level=self.log_level,
@@ -96,9 +116,12 @@ class LoggerObserver(IObserver):
         self.event_counts: dict[str, int] = {}
         self.error_events: list[dict[str, Any]] = []
 
-    def on_event(self, event: Event) -> bool:
+        # Debug mode event history tracking
+        if self.track_event_history:
+            self.event_history: list[dict[str, Any]] = []
+
+    def on_event(self, event: BaseEvent) -> bool:
         """Handle an event with enhanced logging capabilities."""
-        # super().processed_events_uuids.append(str(event.id))
         event_type = self._get_event_type_safely(event)
 
         # Skip excluded event types
@@ -112,7 +135,7 @@ class LoggerObserver(IObserver):
         # Special handling for experiment_finished_early check action
         # LoggerObserver should not confirm experiment finished early events
         if (
-            event_type == "experiment_finished_early"
+            isinstance(event, ExperimentFinishedEarlyEvent)
             and getattr(event, "data", {}).get("action") == "check"
         ):
             # Still log the event but don't confirm occurrence
@@ -126,22 +149,27 @@ class LoggerObserver(IObserver):
         if self.correlation_tracking:
             self._track_event_correlation(event)
 
+        # Track event history in debug mode
+        if self.track_event_history:
+            self._track_event_in_history(event, event_type)
+
         # Format and log the event
         self._log_event(event)
 
-        return True
+        # Call parent's on_event to handle typed event routing
+        return super().on_event(event)
 
     def _should_exclude_event(self, event_type: str) -> bool:
         """Check if an event should be excluded from logging."""
         return any(event_type.startswith(excluded) for excluded in self.excluded_event_types)
 
-    def _apply_custom_filters(self, event_type: str, event: Event) -> bool:
+    def _apply_custom_filters(self, event_type: str, event: BaseEvent) -> bool:
         """Apply custom filters for the event type."""
         if event_type in self.event_filters:
             return self.event_filters[event_type](event)
         return True
 
-    def _update_statistics(self, event_type: str, event: Event):
+    def _update_statistics(self, event_type: str, event: BaseEvent):
         """Update event statistics and tracking."""
         self.event_counts[event_type] = self.event_counts.get(event_type, 0) + 1
 
@@ -156,7 +184,7 @@ class LoggerObserver(IObserver):
                 }
             )
 
-    def _track_event_correlation(self, event: Event):
+    def _track_event_correlation(self, event: BaseEvent):
         """Track event correlations and context."""
         event_id = str(getattr(event, "id", "unknown"))
         event_type = self._get_event_type_safely(event)
@@ -176,7 +204,7 @@ class LoggerObserver(IObserver):
                 self.event_correlations[corr_id] = []
             self.event_correlations[corr_id].append(event_id)
 
-    def _log_event(self, event: Event):
+    def _log_event(self, event: BaseEvent):
         """Format and log the event with enhanced formatting."""
         event_type = self._get_event_type_safely(event)
         event_id = str(getattr(event, "id", "")) if self.include_event_id else None
@@ -205,7 +233,7 @@ class LoggerObserver(IObserver):
             # Send to logger - the ColoredFormatter will handle the colors
             self.logger.log(log_level, msg)
 
-    def _get_event_priority(self, event_type: str, event: Event) -> str:
+    def _get_event_priority(self, event_type: str, event: BaseEvent) -> str:
         """Determine the priority of an event."""
         # Check for explicit priority in event data
         event_data = getattr(event, "data", {})
@@ -241,7 +269,7 @@ class LoggerObserver(IObserver):
         }
         return priority_to_level.get(priority, logging.INFO)
 
-    def _log_structured_event(self, event: Event, event_type: str, priority: str):
+    def _log_structured_event(self, event: BaseEvent, event_type: str, priority: str):
         """Log event in structured JSON format."""
         import json
 
@@ -255,7 +283,7 @@ class LoggerObserver(IObserver):
 
         self.logger.info(json.dumps(structured_data, default=str))
 
-    def _get_event_type_safely(self, event: Event) -> str:
+    def _get_event_type_safely(self, event: BaseEvent) -> str:
         """Safely get the event type from an event object."""
         if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
             return event.get_type()
@@ -287,7 +315,7 @@ class LoggerObserver(IObserver):
         self.event_correlations.clear()
         self.event_context.clear()
 
-    def add_event_filter(self, event_type: str, filter_func: Callable[[Event], bool]):
+    def add_event_filter(self, event_type: str, filter_func: Callable[[BaseEvent], bool]):
         """Add a custom filter for a specific event type."""
         self.event_filters[event_type] = filter_func
 
@@ -298,6 +326,113 @@ class LoggerObserver(IObserver):
     def set_priority_boost(self, event_type_prefix: str, boost_level: int):
         """Set priority boost for events matching a type prefix."""
         self.priority_boost[event_type_prefix] = boost_level
+
+    # Override specific typed event handlers for important events
+
+    def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
+        """Handle experiment failed event with special attention."""
+        self.logger.error(
+            "🔴 EXPERIMENT FAILED: %s - %s",
+            event.experiment_id,
+            getattr(event, "failure_reason", "Unknown reason"),
+        )
+        return super().on_event(event)
+
+    def on_test_failed(self, event: TestFailedEvent) -> bool:
+        """Handle test failed event with details."""
+        self.logger.error(
+            "❌ TEST FAILED: %s - %s",
+            event.test_id,
+            getattr(event, "failure_reason", "Unknown reason"),
+        )
+        return super().on_event(event)
+
+    def on_service_error(self, event: ServiceErrorEvent) -> bool:
+        """Handle service error event with emphasis."""
+        self.logger.error("⚠️  SERVICE ERROR: %s - %s", event.service_id, event.error_message)
+        return super().on_event(event)
+
+    def on_environment_error(self, event: EnvironmentErrorEvent) -> bool:
+        """Handle environment error event."""
+        self.logger.error(
+            "🔥 ENVIRONMENT ERROR: %s - %s", event.environment_id, event.error_message
+        )
+        return super().on_event(event)
+
+    def _track_event_in_history(self, event: BaseEvent, event_type: str):
+        """Track event in history for debug mode."""
+        if not hasattr(self, "event_history"):
+            self.event_history = []
+
+        event_entry = {
+            "timestamp": datetime.now(),
+            "event_type": event_type,
+            "event_id": str(getattr(event, "event_id", "")),
+            "event_data": getattr(event, "entity_metadata", {}),
+        }
+
+        self.event_history.append(event_entry)
+
+        # Maintain max history size
+        if len(self.event_history) > self.max_history_size:
+            self.event_history.pop(0)
+
+    def get_event_history(
+        self, event_type: str | None = None, limit: int | None = None
+    ) -> list[dict]:
+        """
+        Get history of events, optionally filtered by type.
+
+        This method provides the same functionality as DebugObserver.
+
+        Args:
+            event_type: Optional event type to filter by
+            limit: Optional maximum number of events to return
+
+        Returns:
+            List of event entries
+        """
+        if not hasattr(self, "event_history"):
+            return []
+
+        if event_type:
+            filtered = [e for e in self.event_history if e["event_type"] == event_type]
+            return filtered[-limit:] if limit else filtered
+
+        return self.event_history[-limit:] if limit else self.event_history
+
+    def analyze_event_flow(self) -> list[dict]:
+        """
+        Analyze event flow for anomalies or bottlenecks.
+
+        This method provides the same functionality as DebugObserver.
+
+        Returns:
+            List of analysis results
+        """
+        if not hasattr(self, "event_history") or len(self.event_history) < 2:
+            return []
+
+        analysis = []
+        prev_event = self.event_history[0]
+
+        for event in self.event_history[1:]:
+            time_diff = (event["timestamp"] - prev_event["timestamp"]).total_seconds()
+
+            # Identify slow transitions (more than 5 seconds)
+            if time_diff > 5:
+                analysis.append(
+                    {
+                        "type": "slow_transition",
+                        "from_event": prev_event["event_type"],
+                        "to_event": event["event_type"],
+                        "duration_seconds": time_diff,
+                    }
+                )
+
+            prev_event = event
+
+        return analysis
 
     def export_logs(self, output_path: str, format: str = "json") -> bool:
         """

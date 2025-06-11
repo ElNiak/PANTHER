@@ -8,7 +8,7 @@ from collections import defaultdict
 from typing import Any
 
 from panther.core.observer.event_manager import EventManager
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 from panther.plugins.enhanced_plugin_interface import IPantherPlugin, IPluginRegistry
 
 

@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from typing import Any
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 from panther.core.observer.core.observer_interface import IObserver
 
 

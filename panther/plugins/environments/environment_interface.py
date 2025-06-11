@@ -2,7 +2,7 @@ from abc import abstractmethod
 import os
 from pathlib import Path
 from panther.core.observer.event_manager import EventManager
-from panther.core.observer.event_emitter import EventEmitter
+from panther.core.events import EnvironmentEventEmitter
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.plugin_interface import IPlugin
 from panther.plugins.environments.environment_event_methods import EnvironmentPluginEventMixin
@@ -53,7 +53,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         self.event_manager = event_manager
 
         # Initialize event emitter for standardized event emission
-        self.event_emitter = EventEmitter(event_manager)
+        self.event_emitter = EnvironmentEventEmitter(event_manager)
 
     @abstractmethod
     def is_network_environment(self):
@@ -84,4 +84,4 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
             event_manager: The event manager to set
         """
         self.event_manager = event_manager
-        self.event_emitter = EventEmitter(event_manager)
+        self.event_emitter = EnvironmentEventEmitter(event_manager)

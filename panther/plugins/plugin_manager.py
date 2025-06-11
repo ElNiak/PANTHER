@@ -125,16 +125,16 @@ class PluginManager:
         ):
             self.event_manager = plugins_loader.event_manager
             self.logger.debug("Using shared EventManager from plugins_loader")
-            # Initialize event emitter with the shared EventManager
-            from panther.core.observer.event_emitter import EventEmitter
+            # Initialize plugin event emitter with the shared EventManager
+            from panther.core.events import PluginEventEmitter
 
-            self.event_emitter = EventEmitter(self.event_manager)
+            self.plugin_event_emitter = PluginEventEmitter(self.event_manager)
         else:
             self.logger.warning(
                 "No EventManager provided by plugins_loader, event propagation may be affected"
             )
             self.event_manager = None
-            self.event_emitter = None
+            self.plugin_event_emitter = None
 
         # Plugin observer will be setup later if needed
         self.plugin_observer = None
@@ -300,12 +300,9 @@ class PluginManager:
                 implementation_name=impl_name,
             )
 
-            # Set up event emitter if available
-            if self.event_emitter and hasattr(service_manager, "event_emitter"):
-                service_manager.event_emitter = self.event_emitter
-                self.logger.debug(f"Set event emitter on service manager {impl_name}")
-
-            return service_manager
+            # Note: Service managers should use their own typed event emitters (ServiceEventEmitter)
+            # which they initialize in their base classes
+            self.logger.debug("Service manager %s created successfully", impl_name)
 
             return service_manager
 
@@ -450,10 +447,9 @@ class PluginManager:
                 event_manager=event_manager,
             )
 
-            # Set up event emitter if available
-            if self.event_emitter and hasattr(env_manager, "event_emitter"):
-                env_manager.event_emitter = self.event_emitter
-                self.logger.debug("Set event emitter on environment manager %s", environment)
+            # Note: Environment managers should already have their own typed event emitters
+            # (EnvironmentEventEmitter) initialized in their base classes
+            self.logger.debug("Environment manager %s created successfully", environment)
 
             return env_manager
 
@@ -461,53 +457,52 @@ class PluginManager:
             self.logger.error("Failed to create environment manager: %s", e, exc_info=True)
             raise
 
-    def set_event_emitter(self, event_emitter):
+    def set_event_manager(self, event_manager: EventManager):
         """
-        Set the event emitter for this plugin manager.
+        Set the event manager for this plugin manager.
 
-        This method configures the event system for the plugin manager and
-        all managed plugins. It handles:
-        1. Setting the event_emitter attribute
-        2. Obtaining the event_manager from the emitter
+        This method configures the event system for the plugin manager.
+        It handles:
+        1. Setting the event_manager attribute
+        2. Creating a PluginEventEmitter for plugin events
         3. Creating and registering a PluginObserver
-        4. Propagating the event_emitter to existing plugin instances
 
         Args:
-            event_emitter: The event emitter to use
+            event_manager: The event manager to use
         """
-        self.event_emitter = event_emitter
+        self.event_manager = event_manager
 
-        # Get the event manager from the emitter
-        if hasattr(event_emitter, "event_manager"):
-            self.event_manager = event_emitter.event_manager
+        if self.event_manager:
+            # Create plugin event emitter
+            from panther.core.events import PluginEventEmitter
+
+            self.plugin_event_emitter = PluginEventEmitter(self.event_manager)
 
             # Create and register the plugin observer
             self.plugin_observer = PluginObserver()
             self.event_manager.register_observer(self.plugin_observer)
 
-            # Propagate to existing plugins
-            for plugin_info in self.plugins.values():
-                if plugin_info.instance and isinstance(plugin_info.instance, IPantherPlugin):
-                    plugin_info.instance.set_event_emitter(event_emitter)
+        self.logger.debug("Event manager set on PluginManager")
 
-        self.logger.debug("Event emitter set on PluginManager")
-
-    def _set_event_emitter_on_service(self, service_instance):
+    def _set_event_manager_on_service(self, service_instance):
         """
-        Set the event emitter on a service instance.
+        Set the event manager on a service instance.
 
         This method is used internally and for testing to ensure service
-        instances have access to the event emitter for proper event-driven
+        instances have access to the event manager for proper event-driven
         architecture integration.
 
         Args:
-            service_instance: The service instance to set the event emitter on
+            service_instance: The service instance to set the event manager on
         """
-        if hasattr(service_instance, "event_emitter"):
-            service_instance.event_emitter = self.event_emitter
+        if hasattr(service_instance, "set_event_manager"):
+            service_instance.set_event_manager(self.event_manager)
         else:
-            # For services that don't have event_emitter attribute, add it
-            service_instance.event_emitter = self.event_emitter
+            # For services that don't have set_event_manager method, log warning
+            self.logger.warning(
+                "Service %s does not support event manager setting",
+                service_instance.__class__.__name__,
+            )
 
     def scan_plugin_directories(self):
         """
@@ -660,15 +655,25 @@ class PluginManager:
         # Update status
         plugin_info.status = PluginStatus.LOADING
 
+        # Emit plugin loading started event
+        if self.plugin_event_emitter:
+            self.plugin_event_emitter.emit_plugin_loading_started(
+                plugin_id=plugin_name,
+                plugin_name=plugin_info.metadata.name,
+                plugin_type="panther_plugin",
+                plugin_path=plugin_info.file_path,
+                loading_config=config,
+            )
+
         try:
             # Instantiate the plugin
             plugin_instance = plugin_info.plugin_class(
                 plugin_id=plugin_name, name=plugin_info.metadata.name
             )
 
-            # Set the event emitter if available
-            if self.event_emitter:
-                plugin_instance.set_event_emitter(self.event_emitter)
+            # Set the event manager if available
+            if self.event_manager and hasattr(plugin_instance, "set_event_manager"):
+                plugin_instance.set_event_manager(self.event_manager)
 
             # Initialize the plugin
             success = plugin_instance.initialize(config or {})
@@ -688,12 +693,35 @@ class PluginManager:
                 self.plugin_observer.register_plugin(plugin_instance)
 
             self.logger.info("Successfully loaded plugin: %s", plugin_name)
+
+            # Emit plugin loading completed event
+            if self.plugin_event_emitter:
+                self.plugin_event_emitter.emit_plugin_loading_completed(
+                    plugin_id=plugin_name,
+                    plugin_name=plugin_info.metadata.name,
+                    plugin_type="panther_plugin",
+                    duration=time.time() - (plugin_info.load_time or time.time()),
+                    capabilities=plugin_info.metadata.supported_events,
+                    version=plugin_info.metadata.version,
+                )
+
             return True
 
         except Exception as e:
             self.logger.error("Error loading plugin %s: %s", plugin_name, str(e), exc_info=True)
             plugin_info.status = PluginStatus.ERROR
             plugin_info.error_message = str(e)
+
+            # Emit plugin loading failed event
+            if self.plugin_event_emitter:
+                self.plugin_event_emitter.emit_plugin_loading_failed(
+                    plugin_id=plugin_name,
+                    plugin_name=plugin_info.metadata.name,
+                    plugin_type="panther_plugin",
+                    error_message=str(e),
+                    error_details={"exception_type": type(e).__name__},
+                )
+
             return False
 
     def unload_plugin(self, plugin_name: str) -> bool:

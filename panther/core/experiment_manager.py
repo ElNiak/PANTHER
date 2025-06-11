@@ -15,7 +15,14 @@ from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.plugin_manager import PluginManager
 from panther.core.test_cases.test_case_impl import TestCase
 from panther.core.observer.event_manager import EventManager
-from panther.core.observer.event_emitter import EventEmitter
+from panther.core.events import (
+    ExperimentEventEmitter,
+    TestEventEmitter,
+    ServiceEventEmitter,
+    EnvironmentEventEmitter,
+    MetricsEventEmitter,
+    PluginEventEmitter,
+)
 from panther.core.observer.observer_factory import ObserverFactory, get_observer_factory
 from panther.core.exceptions.experiment_exceptions import (
     PantherExperimentError,
@@ -97,13 +104,17 @@ class ExperimentManager:
         factory = get_observer_factory(self.global_config)
         factory.set_event_manager(self.event_manager)
 
-        # Initialize event emitter for standardized event emission
-        self.event_emitter = EventEmitter(self.event_manager)
+        # Initialize entity-specific emitters for type-safe event emission
+        self.experiment_emitter = ExperimentEventEmitter(self.event_manager, self.experiment_name)
+        # Note: TestEventEmitter instances are created per test case in _initialize_test_cases() and run_tests()
+        self.service_emitter = ServiceEventEmitter(self.event_manager)
+        self.environment_emitter = EnvironmentEventEmitter(self.event_manager)
+        self.metrics_emitter = MetricsEventEmitter(self.event_manager)
+        self.plugin_emitter = PluginEventEmitter(self.event_manager)
 
         # Setup plugin loader with event manager
         self.plugin_loader = PluginLoader(plugin_dir, global_config=self.global_config)
         self.plugin_loader.event_manager = self.event_manager
-        self.plugin_loader.event_emitter = self.event_emitter
 
         # Setup plugin manager with the plugin loader that has the event manager
         self.plugin_manager = PluginManager(self.plugin_loader)
@@ -117,10 +128,12 @@ class ExperimentManager:
             self.experiment_config = experiment_config
             self._save_configuration()
 
-            # Emit experiment initialized event using the typed event emitter
-            self.event_emitter.emit_experiment_initialized(
-                experiment_id=self.experiment_name,
-                config={"test_count": len(experiment_config.tests)},
+            # Emit experiment initialized event using the experiment emitter
+            self.experiment_emitter.emit_initialized(
+                config={
+                    "experiment_name": self.experiment_name,
+                    "test_count": len(experiment_config.tests),
+                }
             )
 
             # Load plugins and initialize test cases
@@ -130,8 +143,7 @@ class ExperimentManager:
         except (ImportError, ModuleNotFoundError) as e:
             # Handle import-related errors separately
             # Emit experiment finished early event with error details
-            self.event_emitter.emit_experiment_finished_early(
-                experiment_id=self.experiment_name,
+            self.experiment_emitter.emit_finished_early(
                 reason=f"Import Error: {type(e).__name__}",
                 details={
                     "phase": "initialization",
@@ -147,8 +159,7 @@ class ExperimentManager:
         # We need to catch all exceptions to properly handle them as initialization errors
         except Exception as e:  # pylint: disable=broad-except
             # Emit experiment finished early event with error details
-            self.event_emitter.emit_experiment_finished_early(
-                experiment_id=self.experiment_name,
+            self.experiment_emitter.emit_finished_early(
                 reason=f"Initialization Error: {type(e).__name__}",
                 details={
                     "phase": "initialization",
@@ -176,9 +187,14 @@ class ExperimentManager:
             for test_config in self.experiment_config.tests:
                 self.logger.info("Initializing test case: %s", test_config.name)
 
-                # Emit test initialization start event with typed event emitter
-                self.event_emitter.emit_test_started(
-                    test_id=test_config.name, details={"phase": "initialization"}
+                # Create a test-specific emitter for this test case
+                test_specific_emitter = TestEventEmitter(self.event_manager, test_config.name)
+
+                # Emit test initialization start event with test-specific emitter
+                test_specific_emitter.emit_created(
+                    test_name=test_config.name,
+                    description=test_config.description,
+                    config={"phase": "initialization"},
                 )
 
                 # Create the test case
@@ -193,23 +209,17 @@ class ExperimentManager:
                 self.logger.info("Initialized test case '%s'", test_case)
                 self.test_cases.append(test_case)
 
-                # Emit test initialization complete event with the typed event emitter
-                self.event_emitter.emit_test_completed(
-                    test_id=test_config.name, success=True, result={"phase": "initialization"}
-                )
+                # Test initialization is already tracked by emit_created above
 
-            # Emit summary event for all test cases initialized with the typed event emitter
-            self.event_emitter.emit_test_case_initialized(
-                test_count=test_count, test_names=test_names
-            )
+            # Summary of test case initialization is handled at experiment level
+            self.logger.debug("Initialized %d test cases: %s", test_count, test_names)
 
             self.logger.info("Initialized %s test cases.", len(self.test_cases))
 
         # We need to catch all exceptions to properly handle them as test initialization errors
         except Exception as e:  # pylint: disable=broad-except
             # Emit experiment finished early event with error details
-            self.event_emitter.emit_experiment_finished_early(
-                experiment_id=self.experiment_name,
+            self.experiment_emitter.emit_finished_early(
                 reason=f"Test Case Initialization Error: {type(e).__name__}",
                 details={
                     "phase": "test_case_initialization",
@@ -224,10 +234,8 @@ class ExperimentManager:
     def run_tests(self):
         """Runs the tests defined in the experiment configuration."""
         try:
-            # Emit test execution started event with all necessary metrics information
-            self.event_emitter.emit_test_execution_started(
-                test_id=self.experiment_name, test_name=self.experiment_name
-            )
+            # Experiment-level execution tracking is handled by experiment_emitter
+            self.logger.info("Starting test execution for experiment: %s", self.experiment_name)
 
             # Use tqdm.write to log messages so the progress bar is not overwritten by logs
             with logging_redirect_tqdm(
@@ -249,10 +257,14 @@ class ExperimentManager:
                     for test_case in progress_bar:
                         self.logger.info("Running test case: %s", test_case.test_config.name)
 
-                        # Emit test started event with the typed event emitter
-                        self.event_emitter.emit_test_started(
-                            test_id=test_case.test_config.name,
-                            details={"config": {"name": test_case.test_config.name}},
+                        # Create a test-specific emitter for this test case
+                        test_specific_emitter = TestEventEmitter(
+                            self.event_manager, test_case.test_config.name
+                        )
+
+                        # Emit test execution started event
+                        test_specific_emitter.emit_execution_started(
+                            steps=["setup", "execute", "assertions", "teardown"]
                         )
 
                         try:
@@ -260,9 +272,12 @@ class ExperimentManager:
                             test_case.run()
                             successful_tests += 1
 
-                            # Emit test completed successfully event with the typed event emitter
-                            self.event_emitter.emit_test_completed(
-                                test_id=test_case.test_config.name, success=True
+                            # Emit test completed successfully event
+                            test_specific_emitter.emit_completed(
+                                summary={
+                                    "status": "success",
+                                    "test_name": test_case.test_config.name,
+                                }
                             )
 
                         except (KeyboardInterrupt, SystemExit) as e:
@@ -270,13 +285,10 @@ class ExperimentManager:
                             self.logger.warning(
                                 "Test interrupted: %s", test_case.test_config.name, exc_info=True
                             )
-                            self.event_emitter.emit_test_completed(
-                                test_id=test_case.test_config.name,
-                                success=False,
-                                result={
-                                    "error_type": type(e).__name__,
-                                    "error_message": "Test interrupted",
-                                },
+                            test_specific_emitter.emit_failed(
+                                error_message="Test interrupted",
+                                error_type=type(e).__name__,
+                                phase="execution",
                             )
                             raise  # Re-raise to break out of the loop
 
@@ -311,17 +323,12 @@ class ExperimentManager:
 
             tqdm.write("")  # Ensures the bar stays at the bottom after completion
 
-            # Emit test execution completed event with summary using the typed event emitter
-            self.event_emitter.emit_test_execution_completed(
-                test_id="experiment-summary",
-                test_name=self.experiment_name,
-                success=(failed_tests == 0),
-                results={
-                    "success_count": successful_tests,
-                    "failure_count": failed_tests,
-                    "total_count": len(self.test_cases),
-                },
-                duration_ms=None,  # We're not tracking overall duration here
+            # Experiment-level summary is handled by experiment_emitter
+            self.logger.info(
+                "Experiment execution summary - Total: %d, Success: %d, Failed: %d",
+                len(self.test_cases),
+                successful_tests,
+                failed_tests,
             )
 
             self.logger.info(
@@ -337,8 +344,7 @@ class ExperimentManager:
 
         except Exception as e:
             # Emit test execution failed event with all necessary information for metrics
-            self.event_emitter.emit_experiment_finished_early(
-                experiment_id=self.experiment_name,
+            self.experiment_emitter.emit_finished_early(
                 reason=f"Test Execution Error: {type(e).__name__}",
                 details={
                     "phase": "test_execution",
@@ -353,11 +359,15 @@ class ExperimentManager:
 
     def _handle_test_error(self, test_case, test_error):
         """Helper method to handle test errors consistently."""
-        # Emit test failed event with the typed event emitter
-        self.event_emitter.emit_test_completed(
-            test_id=test_case.test_config.name,
-            success=False,
-            result={"error_type": type(test_error).__name__, "error_message": str(test_error)},
+        # Create a test-specific emitter for this test case
+        test_specific_emitter = TestEventEmitter(self.event_manager, test_case.test_config.name)
+
+        # Emit test failed event
+        test_specific_emitter.emit_failed(
+            error_message=str(test_error),
+            error_type=type(test_error).__name__,
+            phase="execution",
+            summary={"test_name": test_case.test_config.name},
         )
         self.logger.error(
             "Test case %s failed: %s", test_case.test_config.name, test_error, exc_info=True
@@ -469,16 +479,22 @@ class ExperimentManager:
             )
             self.logger.info("Registered ExperimentObserver")
 
-            # Create a debug observer if debug logging is enabled
+            # Create a logger observer with debug mode if debug logging is enabled
             if self.log_level <= logging.DEBUG:
                 try:
-                    from panther.core.observer.debug_observer import EventDebugObserver
+                    from panther.core.observer.logger.logger_observer import LoggerObserver
 
-                    debug_observer = EventDebugObserver(
-                        output_file=str(self.logs_dir / "event_debug.log"), log_level=logging.DEBUG
+                    debug_observer = LoggerObserver(
+                        output_file=str(self.logs_dir / "event_debug.log"),
+                        log_level="DEBUG",
+                        debug_mode=True,
+                        track_event_history=True,
+                        max_history_size=2000,
                     )
                     self.event_manager.register_observer(debug_observer)
-                    self.logger.info("Registered EventDebugObserver for detailed event tracking")
+                    self.logger.info(
+                        "Registered LoggerObserver with debug mode for detailed event tracking"
+                    )
                 except Exception as debug_error:
                     self.logger.warning(
                         f"Failed to create debug observer: {debug_error}. Event debugging will be limited."
@@ -487,8 +503,7 @@ class ExperimentManager:
             self.logger.info("Observers set up for experiment: %s", self.experiment_name)
         except Exception as e:
             # Emit error event with all necessary information for metrics
-            self.event_emitter.emit_experiment_finished_early(
-                experiment_id=self.experiment_name,
+            self.experiment_emitter.emit_finished_early(
                 reason=f"Observer Setup Error: {type(e).__name__}",
                 details={
                     "phase": "observer_setup",

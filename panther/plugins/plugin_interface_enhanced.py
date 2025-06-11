@@ -11,7 +11,7 @@ import logging
 from typing import Any
 
 from panther.plugins.plugin_interface import IPlugin
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 
 
 class IPantherPlugin(IPlugin):

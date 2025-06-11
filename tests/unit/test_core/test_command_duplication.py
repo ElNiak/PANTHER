@@ -16,9 +16,10 @@ import os
 import tempfile
 from pathlib import Path
 
-from panther.utils.command import ShellCommand
-from panther.plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import DockerComposeEnvironment
+from panther.core.command_processor.command import ShellCommand
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+    DockerComposeEnvironment,
+)
 from panther.core.observer.event_manager import EventManager
 
 
@@ -30,7 +31,9 @@ class MockService:
         self.run_cmd = {
             "pre_compile_cmds": [
                 ShellCommand("echo 'Pre-compile command'", is_critical=True),
-                ShellCommand("function my_func() { echo 'Test function'; }", is_function_definition=True),
+                ShellCommand(
+                    "function my_func() { echo 'Test function'; }", is_function_definition=True
+                ),
             ],
             "compile_cmds": [
                 ShellCommand("echo 'Compile command'", is_critical=True),
@@ -55,30 +58,37 @@ class MockService:
         self.implementation_name = "test_impl"
         self.role = MockRole()
 
+
 class MockProtocol:
     def __init__(self):
         self.version = MockVersion()
 
+
 class MockVersion:
     def __init__(self):
         self.name = "1.0"
+
 
 class MockServiceConfig:
     def __init__(self):
         self.ports = [8080, 8443]
         self.timeout = 60
 
+
 class MockRole:
     def __init__(self):
         self.name = "client"
+
 
 class MockEnvironmentConfig:
     def __init__(self):
         pass
 
+
 class MockEventManager(EventManager):
     def __init__(self):
         super().__init__()
+
 
 def test_command_duplication():
     """Test that commands are not duplicated in generated entrypoint scripts"""
@@ -89,19 +99,21 @@ def test_command_duplication():
         # Create mock environment and service
         env_config = MockEnvironmentConfig()
         event_manager = MockEventManager()
-        env = DockerComposeEnvironment(env_config, temp_dir, "network_environment", "docker_compose", event_manager)
+        env = DockerComposeEnvironment(
+            env_config, temp_dir, "network_environment", "docker_compose", event_manager
+        )
 
         # Create paths for generated files
         test_output_path = os.path.join(temp_dir, "entrypoint_test_service.sh")
         test_template_path = os.path.join(temp_dir, "entrypoint_template.sh")
-        
+
         # Create a mock service
         service = MockService()
-        
+
         # Define test paths
         paths = {"output_dir": temp_dir}
         timestamp = "20250603_123456"
-        
+
         # Generate entrypoint script
         env.generate_from_template(
             "entrypoint.sh.jinja",
@@ -111,38 +123,45 @@ def test_command_duplication():
             Path(test_template_path),
             additional_param=service,
         )
-        
+
         # Read the generated file
         if os.path.exists(test_output_path):
-            with open(test_output_path, 'r', encoding='utf-8') as f:
+            with open(test_output_path, encoding="utf-8") as f:
                 content = f.read()
-            
+
             # Check for duplications
             # Count occurrences of the main run command
             main_cmd_count = content.count("/usr/bin/panther --flag1 --flag2")
-            
+
             print(f"Main command count: {main_cmd_count}")
             assert main_cmd_count <= 1, f"Command appears {main_cmd_count} times (should be 1)"
-            
+
             # Check other commands too
             pre_compile_count = content.count("Pre-compile command")
             compile_count = content.count("Compile command")
             post_compile_count = content.count("Post-compile command")
-            
+
             print(f"Pre-compile command count: {pre_compile_count}")
             print(f"Compile command count: {compile_count}")
             print(f"Post-compile command count: {post_compile_count}")
-            
-            assert pre_compile_count <= 1, f"Pre-compile command appears {pre_compile_count} times (should be 1)"
-            assert compile_count <= 1, f"Compile command appears {compile_count} times (should be 1)"
-            assert post_compile_count <= 1, f"Post-compile command appears {post_compile_count} times (should be 1)"
-            
+
+            assert (
+                pre_compile_count <= 1
+            ), f"Pre-compile command appears {pre_compile_count} times (should be 1)"
+            assert (
+                compile_count <= 1
+            ), f"Compile command appears {compile_count} times (should be 1)"
+            assert (
+                post_compile_count <= 1
+            ), f"Post-compile command appears {post_compile_count} times (should be 1)"
+
             print("Test passed! No command duplication detected.")
         else:
             print(f"Error: Generated file {test_output_path} not found")
             return False
-    
+
     return True
+
 
 if __name__ == "__main__":
     test_command_duplication()

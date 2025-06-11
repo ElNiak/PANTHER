@@ -7,8 +7,7 @@ This module defines the core interface for all observer implementations in the P
 from abc import ABC, abstractmethod
 import logging
 
-# Import from new location - will be created later
-from panther.core.observer.core.core_events import Event
+from panther.core.events.base.event_base import BaseEvent
 
 # Try to import ColoredFormatter, fallback gracefully if not available
 try:
@@ -27,7 +26,7 @@ class IObserver(ABC):
         self.processed_events_uuids: list[str] = []
 
     @abstractmethod
-    def on_event(self, event: Event):
+    def on_event(self, event: BaseEvent):
         """
         Handle an event.
 

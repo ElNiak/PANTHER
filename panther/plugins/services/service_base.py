@@ -24,7 +24,7 @@ class ServiceBase(IServiceManager, ServiceManagerEventMixin):
         protocol: The protocol configuration.
         implementation_name (str): Name of the implementation.
         logger (logging.Logger): Logger for the service manager.
-        event_emitter (EventEmitter): Emitter for standardized events.
+        event_emitter (ServiceEventEmitter): Emitter for standardized service events.
     """
 
     def __init__(
@@ -80,14 +80,10 @@ class ServiceBase(IServiceManager, ServiceManagerEventMixin):
         self.logger.debug("Preparing service %s", self.service_name)
         self.plugin_loader = plugin_loader
 
-        # If we have access to plugin_loader's event system, use it
-        if (
-            plugin_loader
-            and hasattr(plugin_loader, "event_emitter")
-            and plugin_loader.event_emitter
-        ):
-            self.event_emitter = plugin_loader.event_emitter
-            self.logger.debug("Using shared event_emitter from plugin_loader")
+        # Note: event_emitter is already initialized in IServiceManager parent class
+        # It uses ServiceEventEmitter which provides typed service events
+        if hasattr(self, "event_emitter") and self.event_emitter:
+            self.logger.debug("ServiceEventEmitter already initialized")
 
         try:
             # Get test case name from service_config_to_test if available
@@ -225,7 +221,7 @@ class ServiceBase(IServiceManager, ServiceManagerEventMixin):
             event_name: The name of the event
             details: Additional details about the event
         """
-        if hasattr(self, "event_emitter") and self.event_emitter:
-            from panther.core.observer.events import ServiceEvent
-
-            self.event_emitter.emit_event(ServiceEvent(f"service.{event_name}", details or {}))
+        # Use the mixin methods from ServiceManagerEventMixin instead
+        # This method can be overridden if needed, but typically the specific
+        # notify methods from ServiceManagerEventMixin should be used
+        self.logger.debug("Service event '%s' with details: %s", event_name, details)

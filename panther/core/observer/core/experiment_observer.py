@@ -3,20 +3,30 @@ from typing import Optional, Any, TYPE_CHECKING
 from datetime import datetime
 
 from panther.core.observer.core.observer_interface import IObserver
-from panther.core.observer.events import (
-    Event,
+from panther.core.events import (
+    BaseEvent,
+    # Experiment events
     ExperimentFinishedEarlyEvent,
+    # Test events
+    TestExecutionStartedEvent,
+    TestExecutionCompletedEvent,
+    TestExecutionFailedEvent,
+    TestCompletedEvent,
+    # Step events
+    StepExecutionCompletedEvent,
     StepProgressEvent,
-    StepCompletedEvent,
+    # Environment events
     EnvironmentSetupStartedEvent,
     EnvironmentSetupCompletedEvent,
-    EnvironmentTeardownEvent,
+    EnvironmentTeardownStartedEvent,
+    # Service events
     ServiceEvent,
+    ServicePreparationStartedEvent,
+    ServicePreparationCompletedEvent,
+    ServiceDeploymentFailedEvent,
     ServiceStartedEvent,
     ServiceStoppedEvent,
-    TestExecutionStartedEvent,
-    TestCompletedEvent,
-    TestExecutionCompletedEvent,
+    # Metrics events
     MetricCollectedEvent,
 )
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
@@ -64,6 +74,12 @@ class ExperimentObserver(IObserver):
         self.environment_plugins: dict[str, IEnvironmentPlugin] = {}
         self.service_managers: dict[str, "IServiceManager"] = {}
 
+        # Enhanced state tracking
+        self.environment_states: dict[str, str] = {}  # environment_name -> state
+        self.service_states: dict[str, str] = {}  # service_name -> state
+        self.environment_setup_complete: dict[str, bool] = {}  # environment_name -> setup_complete
+        self.service_setup_complete: dict[str, bool] = {}  # service_name -> setup_complete
+
         # Set up logging using the interface method
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
         self.enable_colors = True
@@ -93,27 +109,31 @@ class ExperimentObserver(IObserver):
         self.event_handlers = {
             ExperimentFinishedEarlyEvent: self._handle_experiment_finished_early,
             StepProgressEvent: self._handle_step_progress,
-            StepCompletedEvent: self._handle_step_completed,
+            StepExecutionCompletedEvent: self._handle_step_completed,
             EnvironmentSetupStartedEvent: self._handle_environment_setup_started,
             EnvironmentSetupCompletedEvent: self._handle_environment_setup_completed,
-            EnvironmentTeardownEvent: self._handle_environment_teardown,
+            EnvironmentTeardownStartedEvent: self._handle_environment_teardown,
             ServiceEvent: self._handle_service_event,
             ServiceStartedEvent: self._handle_service_started,
             ServiceStoppedEvent: self._handle_service_stopped,
+            ServiceDeploymentFailedEvent: self._handle_service_deployment_failed,
+            ServicePreparationStartedEvent: self._handle_service_setup_started,
+            ServicePreparationCompletedEvent: self._handle_service_setup_completed,
+            TestExecutionFailedEvent: self._handle_test_execution_failed,
             TestExecutionStartedEvent: self._handle_test_execution_started,
             TestCompletedEvent: self._handle_test_completed,
             TestExecutionCompletedEvent: self._handle_test_execution_completed,
             MetricCollectedEvent: self._handle_metric_collected,
         }
 
-    def on_event(self, event: Event) -> bool:
+    def on_event(self, event: BaseEvent) -> bool:
         """
         Handles an experiment-related event with enhanced tracking.
 
         Uses type-based dispatch to specialized handler methods.
 
         Args:
-            event: The event to handle
+            event: BaseEvent to handle
 
         Returns:
             bool: True if the event was processed successfully
@@ -128,6 +148,9 @@ class ExperimentObserver(IObserver):
         # Find a handler for this event type using inheritance
         best_match = None
         best_match_cls = None
+
+        # Debug output to see registered handlers and event type
+        self.logger.debug("Event received: %s", event.__class__.__name__)
 
         # Find the most specific handler based on class hierarchy
         for event_cls, handler in self.event_handlers.items():
@@ -212,7 +235,7 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_step_completed(self, event: StepCompletedEvent) -> bool:
+    def _handle_step_completed(self, event: StepExecutionCompletedEvent) -> bool:
         """Handle step completion events."""
         step_id = event.data.get("step_id")
         success = event.data.get("success", False)
@@ -228,52 +251,61 @@ class ExperimentObserver(IObserver):
         return True
 
     def _handle_environment_setup_started(self, event: EnvironmentSetupStartedEvent) -> bool:
-        """Handle environment setup start events."""
+        """Handle environment setup started events with enhanced state tracking."""
         self.current_phase = "environment_setup"
-        env_type = event.data.get("type")
-        details = event.data.get("details") or {}
+        environment_type = event.data.get("environment_type", "unknown")
+        environment_name = event.data.get("environment_instance", "unknown")
+        test_case = event.data.get("test_case", "unknown_test")
 
-        self.logger.info("Environment setup started: %s", env_type)
+        # Update environment state
+        if environment_name in self.environment_states:
+            self.update_environment_state(environment_name, "setting_up")
 
-        # Log details with consistent indentation
-        if details:
-            for key, value in details.items():
-                self.logger.debug(f"  {key}: {value}")
+        self.logger.info(
+            "Environment setup started for %s environment in test '%s'", environment_type, test_case
+        )
+
+        if self.track_timing:
+            self._record_timing_info("environment_setup_start", event.timestamp)
 
         return True
 
     def _handle_environment_setup_completed(self, event: EnvironmentSetupCompletedEvent) -> bool:
-        """Handle environment setup completion events."""
-        self.current_phase = "environment_ready"
-        env_type = event.data.get("environment_type")
+        """Handle environment setup completed events with enhanced state tracking."""
         success = event.data.get("success", False)
-        details = event.data.get("details") or {}
+        details = event.data.get("details", {})
+        environment_type = details.get("environment_type", "unknown")
+        test_case = details.get("test_case", "unknown_test")
 
-        # Extract and store the environment instance if available
-        if "environment_instance" in details:
-            env_instance = details["environment_instance"]
-            if env_instance:
-                env_name = details.get("environment_name", env_type)
-                self.environment_plugins[env_name] = env_instance
-                self.logger.info(f"Stored environment '{env_name}' instance for monitoring")
+        # Get environment name if available
+        environment_name = details.get("environment_instance", environment_type)
 
-        self.logger.info(
-            "Environment setup completed: %s - %s", env_type, "Success" if success else "Failed"
-        )
+        # Update environment state based on success
+        if environment_name in self.environment_states:
+            new_state = "ready" if success else "failed"
+            self.update_environment_state(environment_name, new_state)
 
-        # Record timing information if tracking is enabled
+        if success:
+            self.logger.info(
+                "Environment setup completed successfully for %s environment in test '%s'",
+                environment_type,
+                test_case,
+            )
+        else:
+            error_msg = details.get("error", "Unknown error")
+            self.logger.error(
+                "Environment setup failed for %s environment in test '%s': %s",
+                environment_type,
+                test_case,
+                error_msg,
+            )
+
         if self.track_timing:
-            self._record_timing_info("environment_setup", self.start_time)
-
-        # Log details with consistent indentation
-        if details:
-            for key, value in details.items():
-                if key != "environment_instance":  # Don't log the instance object
-                    self.logger.debug(f"  {key}: {value}")
+            self._record_timing_info("environment_setup_end", event.timestamp)
 
         return True
 
-    def _handle_environment_teardown(self, event: EnvironmentTeardownEvent) -> bool:
+    def _handle_environment_teardown(self, event: EnvironmentTeardownStartedEvent) -> bool:
         """Handle environment teardown events."""
         self.current_phase = "environment_teardown"
         env_type = event.data.get("type")
@@ -298,6 +330,12 @@ class ExperimentObserver(IObserver):
         if details:
             for key, value in details.items():
                 self.logger.debug(f"  {key}: {value}")
+
+        # Update environment state
+        if env_name in self.environment_states:
+            self.environment_states[env_name] = "torn_down"
+            self.environment_setup_complete[env_name] = False
+            self.logger.debug(f"Environment '{env_name}' state updated to torn_down")
 
         return True
 
@@ -368,6 +406,9 @@ class ExperimentObserver(IObserver):
             if key != "service_instance":  # Don't log instance object
                 self.logger.debug(f"  {key}: {value}")
 
+        # Update service state
+        self.service_states[service_name] = "running"
+
         return True
 
     def _handle_service_stopped(self, event: ServiceStoppedEvent) -> bool:
@@ -391,10 +432,131 @@ class ExperimentObserver(IObserver):
         for key, value in details.items():
             self.logger.debug(f"  {key}: {value}")
 
+        # Update service state
+        self.service_states[service_name] = "stopped"
+
         return True
 
-    def _handle_test_execution_started(self, event: "TestExecutionStartedEvent") -> bool:
-        """Handle test execution started events."""
+    def _handle_service_deployment_failed(self, event: ServiceDeploymentFailedEvent) -> bool:
+        """Handle service deployment failure events."""
+        data = event.data or {}
+        environment = data.get("environment", "unknown")
+        service_name = data.get("service_name", "unknown service")
+        error = data.get("error", "Unknown error")
+        error_type = data.get("error_type", "Unknown error type")
+
+        self.current_phase = "service_deployment_failed"
+
+        # Log the error with appropriate severity
+        self.logger.error(
+            "Service deployment failed in environment %s: %s - %s (%s)",
+            environment,
+            service_name,
+            error,
+            error_type,
+        )
+
+        # Log additional details with consistent indentation
+        for key, value in data.items():
+            if key not in ["environment", "service_name", "error", "error_type"]:
+                self.logger.debug(f"  {key}: {value}")
+
+        return True
+
+    def _handle_service_setup_started(self, event: ServicePreparationStartedEvent) -> bool:
+        """Handle service setup started events with enhanced state tracking."""
+        test_case = event.data.get("test_case", "unknown_test")
+        service_names = event.data.get("service_names", [])
+
+        # Update states for all services
+        for service_name in service_names:
+            if service_name in self.service_states:
+                self.update_service_state(service_name, "starting")
+
+        self.logger.info(
+            "Service setup started for test '%s' with %d services: %s",
+            test_case,
+            len(service_names),
+            ", ".join(service_names),
+        )
+
+        if self.track_timing:
+            self._record_timing_info("service_setup_start", event.timestamp)
+
+        return True
+
+    def _handle_service_setup_completed(self, event: ServicePreparationCompletedEvent) -> bool:
+        """Handle service setup completed events with enhanced state tracking."""
+        test_case = event.data.get("test_case", "unknown_test")
+        service_names = event.data.get("service_names", [])
+        success = event.data.get("success", False)
+
+        # Update states for all services
+        for service_name in service_names:
+            if service_name in self.service_states:
+                new_state = "ready" if success else "failed"
+                self.update_service_state(service_name, new_state)
+
+        if success:
+            self.logger.info(
+                "Service setup completed successfully for test '%s' with services: %s",
+                test_case,
+                ", ".join(service_names),
+            )
+        else:
+            error = event.data.get("error", "Unknown error")
+            self.logger.error("Service setup failed for test '%s': %s", test_case, error)
+
+        if self.track_timing:
+            self._record_timing_info("service_setup_end", event.timestamp)
+
+        return True
+
+    def _handle_test_execution_failed(self, event: TestExecutionFailedEvent) -> bool:
+        """
+        Handle test execution failed events.
+
+        Args:
+            event: The TestExecutionFailedEvent to handle
+
+        Returns:
+            bool: True if the event was processed successfully
+        """
+        self.current_phase = "test_execution_failed"
+        test_name = event.data.get("test_name", "unknown test")
+        error_message = event.data.get("error_message", "Unknown error")
+        stack_trace = event.data.get("stack_trace")
+        error_details = event.data.get("error_details", {})
+
+        # Log the error with appropriate severity
+        self.logger.error("Test execution failed: %s - %s", test_name, error_message)
+
+        # Log stack trace if available
+        if stack_trace:
+            for line in stack_trace.splitlines():
+                self.logger.debug("  %s", line)
+
+        # Log error details with consistent indentation
+        if error_details:
+            for key, value in error_details.items():
+                self.logger.debug(f"  {key}: {value}")
+
+        # Record timing information
+        if self.track_timing:
+            self._record_timing_info("test_execution_failed", self.start_time)
+
+        return True
+
+    def _handle_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+        """
+        Handle test execution started events.
+
+        Args:
+            event: The TestExecutionStartedEvent to handle
+
+        Returns:
+            bool: True if the event was processed successfully
+        """
         self.current_phase = "test_execution_started"
         test_id = event.data.get("test_id")
         test_name = event.data.get("test_name")
@@ -408,8 +570,16 @@ class ExperimentObserver(IObserver):
 
         return True
 
-    def _handle_test_completed(self, event: "TestCompletedEvent") -> bool:
-        """Handle test completed events."""
+    def _handle_test_completed(self, event: TestCompletedEvent) -> bool:
+        """
+        Handle test completed events.
+
+        Args:
+            event: The TestCompletedEvent to handle
+
+        Returns:
+            bool: True if the event was processed successfully
+        """
         self.current_phase = "test_completed"
         test_name = event.data.get("test_name")
         success = event.data.get("success", False)
@@ -420,10 +590,23 @@ class ExperimentObserver(IObserver):
         if self.track_timing:
             self._record_timing_info("test_completed", self.start_time)
 
+        # Log result details with consistent indentation
+        if result:
+            for key, value in result.items():
+                self.logger.debug(f"  {key}: {value}")
+
         return True
 
-    def _handle_test_execution_completed(self, event: "TestExecutionCompletedEvent") -> bool:
-        """Handle test execution completed events."""
+    def _handle_test_execution_completed(self, event: TestExecutionCompletedEvent) -> bool:
+        """
+        Handle test execution completed events.
+
+        Args:
+            event: The TestExecutionCompletedEvent to handle
+
+        Returns:
+            bool: True if the event was processed successfully
+        """
         self.current_phase = "test_execution_completed"
         test_id = event.data.get("test_id")
         test_name = event.data.get("test_name")
@@ -435,16 +618,29 @@ class ExperimentObserver(IObserver):
             "Test execution completed: %s - %s (Duration: %s ms)",
             test_name,
             "Success" if success else "Failed",
-            duration_ms,
+            duration_ms if duration_ms is not None else "unknown",
         )
+
+        # Log results details with consistent indentation
+        if results:
+            for key, value in results.items():
+                self.logger.debug(f"  {key}: {value}")
 
         if self.track_timing:
             self._record_timing_info("test_execution_completed", self.start_time)
 
         return True
 
-    def _handle_metric_collected(self, event: "MetricCollectedEvent") -> bool:
-        """Handle metric collected events."""
+    def _handle_metric_collected(self, event: MetricCollectedEvent) -> bool:
+        """
+        Handle metric collected events.
+
+        Args:
+            event: The MetricCollectedEvent to handle
+
+        Returns:
+            bool: True if the event was processed successfully
+        """
         # Generally, we don't need to do much with metrics since they're already being collected
         # but we can log them at debug level
         metric_name = event.data.get("metric_name")
@@ -548,3 +744,121 @@ class ExperimentObserver(IObserver):
         # The type-based handlers in on_event make this unnecessary,
         # but keeping for compatibility with observer registry
         return True
+
+    def register_environment(self, env_name: str, environment: IEnvironmentPlugin) -> None:
+        """
+        Explicitly register an environment plugin with this observer.
+
+        Args:
+            env_name: Unique name identifier for the environment
+            environment: Environment plugin instance
+        """
+        self.logger.debug(
+            f"Registering environment '{env_name}' of type {environment.__class__.__name__}"
+        )
+        self.environment_plugins[env_name] = environment
+        self.environment_states[env_name] = "registered"
+        self.environment_setup_complete[env_name] = False
+
+    def register_service(self, service_name: str, service_manager: "IServiceManager") -> None:
+        """
+        Explicitly register a service manager with this observer.
+
+        Args:
+            service_name: Unique name identifier for the service
+            service_manager: Service manager instance
+        """
+        self.logger.debug(
+            f"Registering service '{service_name}' of type {service_manager.__class__.__name__}"
+        )
+        self.service_managers[service_name] = service_manager
+        self.service_states[service_name] = "registered"
+        self.service_setup_complete[service_name] = False
+
+    def update_environment_state(self, env_name: str, state: str) -> None:
+        """
+        Update the state of an environment.
+
+        Args:
+            env_name: Name of the environment
+            state: New state (e.g., 'setting_up', 'ready', 'failed', 'tear_down')
+        """
+        if env_name in self.environment_states:
+            self.logger.debug(
+                f"Environment '{env_name}' state changed: {self.environment_states[env_name]} -> {state}"
+            )
+            self.environment_states[env_name] = state
+
+            if state == "ready":
+                self.environment_setup_complete[env_name] = True
+            elif state == "failed":
+                self.environment_setup_complete[env_name] = False
+        else:
+            self.logger.warning(f"Attempted to update state for unknown environment: {env_name}")
+
+    def update_service_state(self, service_name: str, state: str) -> None:
+        """
+        Update the state of a service.
+
+        Args:
+            service_name: Name of the service
+            state: New state (e.g., 'starting', 'ready', 'failed', 'stopped')
+        """
+        if service_name in self.service_states:
+            self.logger.debug(
+                f"Service '{service_name}' state changed: {self.service_states[service_name]} -> {state}"
+            )
+            self.service_states[service_name] = state
+
+            if state == "ready":
+                self.service_setup_complete[service_name] = True
+            elif state == "failed":
+                self.service_setup_complete[service_name] = False
+        else:
+            self.logger.warning(f"Attempted to update state for unknown service: {service_name}")
+
+    def is_environment_ready(self, env_name: str) -> bool:
+        """
+        Check if an environment is ready.
+
+        Args:
+            env_name: Name of the environment to check
+
+        Returns:
+            bool: True if environment is ready, False otherwise
+        """
+        if env_name in self.environment_setup_complete:
+            return self.environment_setup_complete[env_name]
+        return False
+
+    def is_service_ready(self, service_name: str) -> bool:
+        """
+        Check if a service is ready.
+
+        Args:
+            service_name: Name of the service to check
+
+        Returns:
+            bool: True if service is ready, False otherwise
+        """
+        if service_name in self.service_setup_complete:
+            return self.service_setup_complete[service_name]
+        return False
+
+    def get_all_environment_states(self) -> dict:
+        """
+        Get the current state of all tracked environments.
+
+        Returns:
+            dict: Dictionary mapping environment names to their states
+        """
+        return self.environment_states.copy()
+
+    def get_all_service_states(self) -> dict:
+        """
+        Get the current state of all tracked services.
+
+        Returns:
+            dict: Dictionary mapping service names to their states
+        """
+        return self.service_states.copy()

@@ -25,8 +25,19 @@ except ImportError:
     PSUTIL_AVAILABLE = False
     psutil = None
 
-from panther.core.observer.core.observer_interface import IObserver
-from panther.core.observer.events import Event
+from panther.core.observer.core.typed_observer_interface import ITypedObserver
+from panther.core.events import (
+    TestExecutionStartedEvent,
+    TestCompletedEvent,
+    TestFailedEvent,
+    StepExecutionStartedEvent,
+    StepExecutionCompletedEvent,
+    StepExecutionFailedEvent,
+    StepSkippedEvent,
+    # Metrics events
+    MetricsSummaryEvent,
+    MetricCollectedEvent,
+)
 from panther.core.metrics.metrics_collector import MetricsCollector, MetricType, Phase
 from panther.core.metrics.resource_monitor import ResourceMonitor
 
@@ -276,7 +287,7 @@ class MetricsAggregator:
         }
 
 
-class MetricsObserver(IObserver):
+class MetricsObserver(ITypedObserver):
     """
     Metrics observer that provides comprehensive metrics collection,
     real-time monitoring, and advanced analytics capabilities.
@@ -319,6 +330,7 @@ class MetricsObserver(IObserver):
 
         # Initialize metrics collector with default values or use provided one
         # Will be properly configured when connected to a test case if not provided
+        super().__init__()
         self.experiment_name = "default_experiment"
         self.output_dir = Path(output_dir) if output_dir else Path("./outputs")
         self.metrics_collector = metrics_collector  # Use provided collector if available
@@ -372,140 +384,138 @@ class MetricsObserver(IObserver):
         if self.enable_real_time_monitoring:
             self.start_monitoring()
 
-    def on_event(self, event: Event):
-        """
-        Handle incoming events to collect metrics.
+    # Override typed event handlers
 
-        This method processes events related to tests, resources, and system metrics,
-        extracting relevant metrics data and storing it for later analysis.
+    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+        """Handle test started event."""
+        # Start tracking a new test
+        test_name = getattr(event, "test_name", event.test_id)
+        self.logger.info("Starting metrics collection for test: %s", test_name)
 
-        Args:
-            event: The event to handle
-        """
-        # super().processed_events_uuids.append(str(event.id))
-        try:
-            # Log at debug level to avoid excessive logging
-            self.logger.debug("Received event: %s", event.name)
+        # Initialize or update the metrics collector with test information
+        output_dir = getattr(event, "output_dir", self.output_dir)
+        if isinstance(output_dir, str):
+            output_dir = Path(output_dir)
 
-            # Process test lifecycle events
-            if event.name.startswith("test."):
-                self._handle_test_event(event)
-
-            # Process resource metrics events
-            elif event.name.startswith("resource."):
-                self._handle_resource_event(event)
-
-            # Process system metrics events
-            elif event.name.startswith("metrics."):
-                self._handle_metrics_event(event)
-
-            # Check if it's time to publish summary
-            current_time = time.time()
-            if current_time - self.last_publish_time >= self.publish_interval:
-                self.publish_metrics_summary()
-                self.last_publish_time = current_time
-
-        except Exception as e:
-            self.logger.error("Error processing event %s: %s", event.name, str(e))
-
-    def _handle_test_event(self, event: Event):
-        """Process test lifecycle events."""
-        if event.name == "test.start":
-            # Start tracking a new test
-            test_name = event.data.get("test_name", "UnknownTest")
-            self.logger.info("Starting metrics collection for test: %s", test_name)
-
-            # Initialize or update the metrics collector with test information
-            output_dir = event.data.get("output_dir", self.output_dir)
-            if isinstance(output_dir, str):
-                output_dir = Path(output_dir)
-
-            # Create metrics collector if it doesn't exist
-            if not self.metrics_collector:
-                experiment_name = event.data.get("experiment_name", self.experiment_name)
-                self.metrics_collector = MetricsCollector(
-                    experiment_name, output_dir, self.publish_interval
-                )
-
-            self.current_test_metrics = TestCaseMetrics(
-                test_name=test_name, start_time=datetime.now()
+        # Create metrics collector if it doesn't exist
+        if not self.metrics_collector:
+            experiment_name = getattr(event, "experiment_name", self.experiment_name)
+            self.metrics_collector = MetricsCollector(
+                experiment_name, output_dir, self.publish_interval
             )
 
-        elif event.name == "test.end":
-            # Finalize the current test metrics
-            if self.current_test_metrics:
-                self.current_test_metrics.end_time = datetime.now()
-                if self.current_test_metrics.start_time:
-                    self.current_test_metrics.duration_seconds = (
-                        self.current_test_metrics.end_time - self.current_test_metrics.start_time
-                    ).total_seconds()
+        self.current_test_metrics = TestCaseMetrics(test_name=test_name, start_time=datetime.now())
 
-                self.completed_test_metrics.append(self.current_test_metrics)
-                self.logger.info(
-                    "Completed metrics collection for test: %s (duration: %.2f seconds)",
-                    self.current_test_metrics.test_name,
-                    self.current_test_metrics.duration_seconds or 0,
-                )
-                self.current_test_metrics = None
+        # Check if it's time to publish summary
+        self._check_publish_interval()
+        return True
 
-        elif event.name == "test.step.start":
-            if self.current_test_metrics:
-                self.current_test_metrics.steps_executed += 1
+    def on_test_completed(self, event: TestCompletedEvent) -> bool:
+        """Handle test completed event."""
+        # Finalize the current test metrics
+        if self.current_test_metrics:
+            self.current_test_metrics.end_time = datetime.now()
+            if self.current_test_metrics.start_time:
+                self.current_test_metrics.duration_seconds = (
+                    self.current_test_metrics.end_time - self.current_test_metrics.start_time
+                ).total_seconds()
 
-        elif event.name == "test.step.end":
-            if self.current_test_metrics:
-                step_result = event.data.get("result", "unknown")
-                if step_result == "pass":
-                    self.current_test_metrics.steps_passed += 1
-                elif step_result == "fail":
-                    self.current_test_metrics.steps_failed += 1
-                elif step_result == "skip":
-                    self.current_test_metrics.steps_skipped += 1
+            self.completed_test_metrics.append(self.current_test_metrics)
+            self.logger.info(
+                "Completed metrics collection for test: %s (duration: %.2f seconds)",
+                self.current_test_metrics.test_name,
+                self.current_test_metrics.duration_seconds or 0,
+            )
+            self.current_test_metrics = None
 
-    def _handle_resource_event(self, event: Event):
-        """Process resource events."""
+        self._check_publish_interval()
+        return True
+
+    def on_test_failed(self, event: TestFailedEvent) -> bool:
+        """Handle test failed event."""
+        # Same as completed but mark as failed
+        return self.on_test_completed(event)
+
+    def on_step_execution_started(self, event: StepExecutionStartedEvent) -> bool:
+        """Handle step started event."""
+        if self.current_test_metrics:
+            self.current_test_metrics.steps_executed += 1
+        return True
+
+    def on_step_execution_completed(self, event: StepExecutionCompletedEvent) -> bool:
+        """Handle step completed event."""
+        if self.current_test_metrics:
+            self.current_test_metrics.steps_passed += 1
+        return True
+
+    def on_step_execution_failed(self, event: StepExecutionFailedEvent) -> bool:
+        """Handle step failed event."""
+        if self.current_test_metrics:
+            self.current_test_metrics.steps_failed += 1
+        return True
+
+    def on_step_skipped(self, event: StepSkippedEvent) -> bool:
+        """Handle step skipped event."""
+        if self.current_test_metrics:
+            self.current_test_metrics.steps_skipped += 1
+        return True
+
+    def on_metrics_summary(self, event: MetricsSummaryEvent) -> bool:
+        """Handle metrics snapshot event."""
         if not self.current_test_metrics:
-            return
+            return True
 
-        if event.name == "resource.snapshot":
-            if "cpu" in event.data and "memory" in event.data:
-                snapshot = MetricsSnapshot(
-                    timestamp=datetime.now(),
-                    cpu_percent=event.data.get("cpu", {}).get("percent", 0.0),
-                    memory_mb=event.data.get("memory", {}).get("used_mb", 0.0),
-                    disk_io_read=event.data.get("disk_io", {}).get("read_bytes", 0),
-                    disk_io_write=event.data.get("disk_io", {}).get("write_bytes", 0),
-                    network_sent=event.data.get("network", {}).get("sent_bytes", 0),
-                    network_recv=event.data.get("network", {}).get("received_bytes", 0),
-                )
+        snapshot_data = event.metrics if hasattr(event, "metrics") else {}
+        if "cpu" in snapshot_data and "memory" in snapshot_data:
+            snapshot = MetricsSnapshot(
+                timestamp=datetime.now(),
+                cpu_percent=snapshot_data.get("cpu", {}).get("percent", 0.0),
+                memory_mb=snapshot_data.get("memory", {}).get("used_mb", 0.0),
+                disk_io_read=snapshot_data.get("disk_io", {}).get("read_bytes", 0),
+                disk_io_write=snapshot_data.get("disk_io", {}).get("write_bytes", 0),
+                network_sent=snapshot_data.get("network", {}).get("sent_bytes", 0),
+                network_recv=snapshot_data.get("network", {}).get("received_bytes", 0),
+            )
 
-                # Update peak values
-                self.current_test_metrics.peak_cpu_percent = max(
-                    self.current_test_metrics.peak_cpu_percent, snapshot.cpu_percent
-                )
-                self.current_test_metrics.peak_memory_mb = max(
-                    self.current_test_metrics.peak_memory_mb, snapshot.memory_mb
-                )
+            # Update peak values
+            self.current_test_metrics.peak_cpu_percent = max(
+                self.current_test_metrics.peak_cpu_percent, snapshot.cpu_percent
+            )
+            self.current_test_metrics.peak_memory_mb = max(
+                self.current_test_metrics.peak_memory_mb, snapshot.memory_mb
+            )
 
-                # Add to snapshots list
-                self.current_test_metrics.snapshots.append(snapshot)
+            # Add to snapshots list
+            self.current_test_metrics.snapshots.append(snapshot)
 
-                # Calculate running averages
-                cpu_values = [s.cpu_percent for s in self.current_test_metrics.snapshots]
-                memory_values = [s.memory_mb for s in self.current_test_metrics.snapshots]
+            # Calculate running averages
+            cpu_values = [s.cpu_percent for s in self.current_test_metrics.snapshots]
+            memory_values = [s.memory_mb for s in self.current_test_metrics.snapshots]
 
-                self.current_test_metrics.avg_cpu_percent = sum(cpu_values) / len(cpu_values)
-                self.current_test_metrics.avg_memory_mb = sum(memory_values) / len(memory_values)
+            self.current_test_metrics.avg_cpu_percent = sum(cpu_values) / len(cpu_values)
+            self.current_test_metrics.avg_memory_mb = sum(memory_values) / len(memory_values)
 
-    def _handle_metrics_event(self, event: Event):
-        """Process metrics events."""
-        # Custom metrics handling
-        if event.name == "metrics.custom" and self.current_test_metrics:
-            metric_name = event.data.get("name")
-            metric_value = event.data.get("value")
-            if metric_name and metric_value is not None:
-                self.current_test_metrics.custom_metrics[metric_name] = metric_value
-                self.logger.debug("Recorded custom metric: %s = %s", metric_name, metric_value)
+        return True
+
+    def on_metric_collected(self, event: MetricCollectedEvent) -> bool:
+        """Handle custom metric recorded event."""
+        if (
+            self.current_test_metrics
+            and hasattr(event, "metric_name")
+            and hasattr(event, "metric_value")
+        ):
+            self.current_test_metrics.custom_metrics[event.metric_name] = event.metric_value
+            self.logger.debug(
+                "Recorded custom metric: %s = %s", event.metric_name, event.metric_value
+            )
+        return True
+
+    def _check_publish_interval(self):
+        """Check if it's time to publish metrics summary."""
+        current_time = time.time()
+        if current_time - self.last_publish_time >= self.publish_interval:
+            self.publish_metrics_summary()
+            self.last_publish_time = current_time
 
     def start_monitoring(self):
         """

@@ -10,13 +10,31 @@ from datetime import datetime
 from typing import Any
 from pathlib import Path
 
-from panther.core.observer.core.observer_interface import IObserver
-from panther.core.observer.core.core_events import Event
+from panther.core.observer.core.typed_observer_interface import ITypedObserver
+from panther.core.events import (
+    BaseEvent,
+    # Test events
+    TestExecutionStartedEvent,
+    TestCompletedEvent,
+    TestFailedEvent,
+    # Experiment events
+    ExperimentExecutionStartedEvent,
+    ExperimentCompletedEvent,
+    ExperimentFailedEvent,
+    ExperimentFinishedEarlyEvent,
+    # Service events
+    ServiceErrorEvent,
+    # Environment events
+    EnvironmentErrorEvent,
+    # Metrics events
+    MetricsSummaryEvent,
+    MetricCollectedEvent,
+)
 from panther.core.observer.storage.store_events import TestResultEvent
 from panther.core.observer.storage.results_manager import ResultsManager
 
 
-class StorageObserver(IObserver):
+class StorageObserver(ITypedObserver):
     """
     Storage observer that provides comprehensive data persistence using ResultsManager.
 
@@ -65,6 +83,7 @@ class StorageObserver(IObserver):
 
         self.log_level = log_level
 
+        super().__init__()
         self.logger = self._setup_logging(
             logger_name="StorageObserver",
             log_level=self.log_level,
@@ -104,56 +123,121 @@ class StorageObserver(IObserver):
 
         self.logger.info(f"StorageObserver initialized with storage path: {self.storage_path}")
 
-    def on_event(self, event: Event) -> bool:
+    def on_event(self, event: BaseEvent) -> bool:
         """
-        Handle an event by storing it appropriately.
+        Handle generic events and route to typed handlers.
 
-        Args:
-            event: The event to store
-
-        Returns:
-            bool: True if storage was successful, False otherwise.
-                 For "check" action events, returns True only if the event has actually occurred.
+        This method handles special cases like the experiment finished early check,
+        then delegates to the parent class for typed event routing.
         """
-        # super().processed_events_uuids.append(str(event.id))
-        try:
-            event_type = self._get_event_type_safely(event)
+        # Special handling for experiment finished early check action
+        if isinstance(event, ExperimentFinishedEarlyEvent):
             event_data = getattr(event, "data", {})
-
-            # Check if this is a query about whether an event has occurred
             if event_data.get("action") == "check":
-                # For experiment.finished_early events, we should return False
-                # as the storage observer doesn't track these state changes
-                if event_type == "experiment.finished_early" or event_type.endswith(
-                    ".finished_early"
-                ):
-                    self.logger.debug(
-                        f"Check request for '{event_type}' event - returning False as StorageObserver doesn't track this state"
-                    )
-                    return False
-
-                # For other event types, we could implement checks here
-                # For now, return False for all check actions
+                self.logger.debug(
+                    "Check request for ExperimentFinishedEarlyEvent - "
+                    "returning False as StorageObserver doesn't track this state"
+                )
                 return False
 
-            # Apply event type filters if configured
-            if self.event_type_filters and not self._should_store_event(event_type):
-                self.storage_stats["events_filtered"] += 1
-                return True
+        # Call parent to handle typed event routing
+        return super().on_event(event)
 
-            # Categorize and store the event
-            self._categorize_and_store_event(event, event_type)
+    # Typed event handlers
 
-            # Handle batched storage
-            if len(self.pending_events) >= self.batch_size:
-                self._flush_pending_events()
+    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+        """Handle test started event."""
+        self._store_test_event(event, "test.started")
+        return True
 
-            self.storage_stats["events_stored"] += 1
+    def on_test_completed(self, event: TestCompletedEvent) -> bool:
+        """Handle test completed event."""
+        # Create a TestResultEvent for ResultsManager
+        test_result_event = TestResultEvent(
+            name="test.completed",
+            test_name=event.test_name,
+            result="passed",
+            data={"test_id": event.test_id, "duration": getattr(event, "duration", None)},
+            metadata={"original_event_id": str(event.event_id)},
+        )
+        self.results_manager.on_event(test_result_event)
+        self._store_test_event(event, "test.completed")
+        return True
+
+    def on_test_failed(self, event: TestFailedEvent) -> bool:
+        """Handle test failed event."""
+        # Create a TestResultEvent for ResultsManager
+        test_result_event = TestResultEvent(
+            name="test.failed",
+            test_name=event.test_name,
+            result="failed",
+            data={
+                "test_id": event.test_id,
+                "failure_reason": getattr(event, "failure_reason", "Unknown"),
+            },
+            metadata={"original_event_id": str(event.event_id)},
+        )
+        self.results_manager.on_event(test_result_event)
+        self._store_error_event(event, "test.failed")
+        return True
+
+    def on_experiment_execution_started(self, event: ExperimentExecutionStartedEvent) -> bool:
+        """Handle experiment started event."""
+        self._store_system_event(event, "experiment.started")
+        return True
+
+    def on_experiment_completed(self, event: ExperimentCompletedEvent) -> bool:
+        """Handle experiment completed event."""
+        self._store_system_event(event, "experiment.completed")
+        # Flush all pending data when experiment completes
+        self.flush_all()
+        return True
+
+    def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
+        """Handle experiment failed event."""
+        self._store_error_event(event, "experiment.failed")
+        # Flush all pending data when experiment fails
+        self.flush_all()
+        return True
+
+    def on_service_error(self, event: ServiceErrorEvent) -> bool:
+        """Handle service error event."""
+        self._store_error_event(event, "service.error")
+        return True
+
+    def on_environment_error(self, event: EnvironmentErrorEvent) -> bool:
+        """Handle environment error event."""
+        self._store_error_event(event, "environment.error")
+        return True
+
+    def on_metrics_summary(self, event: MetricsSummaryEvent) -> bool:
+        """Handle metrics summary event."""
+        self._store_performance_event(event, "metrics.summary")
+        return True
+
+    def on_metric_collected(self, event: MetricCollectedEvent) -> bool:
+        """Handle custom metric collected event."""
+        self._store_performance_event(event, "metric.collected")
+        return True
+
+    def on_unknown_event(self, event: BaseEvent) -> bool:
+        """Handle unknown events."""
+        event_type = self._get_event_type_safely(event)
+
+        # Apply event type filters if configured
+        if self.event_type_filters and not self._should_store_event(event_type):
+            self.storage_stats["events_filtered"] += 1
             return True
 
-        except Exception as e:
-            self.logger.error(f"Failed to store event: {e}")
-            return False
+        # Store as generic event
+        self._categorize_and_store_event(event, event_type)
+
+        # Handle batched storage
+        if len(self.pending_events) >= self.batch_size:
+            self._flush_pending_events()
+
+        self.storage_stats["events_stored"] += 1
+        return True
 
     def _should_store_event(self, event_type: str) -> bool:
         """Check if an event type should be stored."""
@@ -162,7 +246,7 @@ class StorageObserver(IObserver):
 
         return any(event_type.startswith(filter_type) for filter_type in self.event_type_filters)
 
-    def _categorize_and_store_event(self, event: Event, event_type: str):
+    def _categorize_and_store_event(self, event: BaseEvent, event_type: str):
         """Categorize an event and store it in the appropriate category."""
         # Convert event to storage format
         event_data = self._convert_event_to_dict(event, event_type)
@@ -182,7 +266,7 @@ class StorageObserver(IObserver):
         elif "error" in event_type.lower() or "fail" in event_type.lower():
             self._handle_error_event(event, event_type)
 
-    def _convert_event_to_dict(self, event: Event, event_type: str) -> dict[str, Any]:
+    def _convert_event_to_dict(self, event: BaseEvent, event_type: str) -> dict[str, Any]:
         """Convert an event to a dictionary for storage."""
         return {
             "id": str(getattr(event, "id", "")),
@@ -210,7 +294,66 @@ class StorageObserver(IObserver):
         else:
             return "system_events"
 
-    def _handle_test_event(self, event: Event, event_type: str):
+    def _store_test_event(self, event: BaseEvent, event_type: str):
+        """Store test-related event."""
+        event_data = {
+            "event_id": str(event.event_id),
+            "event_type": event_type,
+            "timestamp": event.timestamp.isoformat(),
+            "test_id": getattr(event, "test_id", None),
+            "test_name": getattr(event, "test_name", None),
+            "data": getattr(event, "entity_metadata", {}),
+        }
+        self.pending_events.append(event_data)
+        self.event_categories["test_results"].append(event_data)
+
+    def _store_system_event(self, event: BaseEvent, event_type: str):
+        """Store system-related event."""
+        event_data = {
+            "event_id": str(event.event_id),
+            "event_type": event_type,
+            "timestamp": event.timestamp.isoformat(),
+            "data": getattr(event, "entity_metadata", {}),
+        }
+        self.pending_events.append(event_data)
+        self.event_categories["system_events"].append(event_data)
+
+    def _store_error_event(self, event: BaseEvent, event_type: str):
+        """Store error-related event."""
+        event_data = {
+            "event_id": str(event.event_id),
+            "event_type": event_type,
+            "timestamp": event.timestamp.isoformat(),
+            "severity": self._determine_error_severity(event_type, {}),
+            "error_message": getattr(event, "error_message", ""),
+            "data": getattr(event, "entity_metadata", {}),
+        }
+
+        # Write to error log immediately
+        error_file = self.storage_path / "error_events.jsonl"
+        self._append_to_file(error_file, event_data)
+
+        self.pending_events.append(event_data)
+        self.event_categories["error_events"].append(event_data)
+
+    def _store_performance_event(self, event: BaseEvent, event_type: str):
+        """Store performance-related event."""
+        event_data = {
+            "event_id": str(event.event_id),
+            "event_type": event_type,
+            "timestamp": event.timestamp.isoformat(),
+            "metrics": getattr(event, "metrics", {}),
+            "data": getattr(event, "entity_metadata", {}),
+        }
+
+        # Write to performance log
+        perf_file = self.storage_path / "performance_metrics.jsonl"
+        self._append_to_file(perf_file, event_data)
+
+        self.pending_events.append(event_data)
+        self.event_categories["performance_metrics"].append(event_data)
+
+    def _handle_test_event(self, event: BaseEvent, event_type: str):
         """Handle test-specific events using ResultsManager."""
         event_data = getattr(event, "data", {})
 
@@ -227,7 +370,7 @@ class StorageObserver(IObserver):
             # Store using ResultsManager
             self.results_manager.on_event(test_result_event)
 
-    def _handle_performance_event(self, event: Event, event_type: str):
+    def _handle_performance_event(self, event: BaseEvent, event_type: str):
         """Handle performance metrics events."""
         event_data = getattr(event, "data", {})
 
@@ -242,7 +385,7 @@ class StorageObserver(IObserver):
         perf_file = self.storage_path / "performance_metrics.jsonl"
         self._append_to_file(perf_file, perf_data)
 
-    def _handle_error_event(self, event: Event, event_type: str):
+    def _handle_error_event(self, event: BaseEvent, event_type: str):
         """Handle error events with special attention."""
         event_data = getattr(event, "data", {})
 
@@ -304,7 +447,7 @@ class StorageObserver(IObserver):
         except Exception as e:
             self.logger.error(f"Failed to calculate storage size: {e}")
 
-    def _get_event_type_safely(self, event: Event) -> str:
+    def _get_event_type_safely(self, event: BaseEvent) -> str:
         """Safely get the event type from an event object."""
         if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
             return event.get_type()

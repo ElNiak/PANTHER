@@ -8,7 +8,7 @@ to facilitate event delivery to plugins in the PANTHER framework.
 import logging
 from collections import defaultdict
 
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 from panther.core.observer.plugin.plugin_interface import IPluginObserver
 from panther.plugins.plugin_interface_enhanced import IPantherPlugin
 

@@ -9,7 +9,7 @@ from abc import abstractmethod
 from collections import defaultdict
 
 from panther.core.observer.core.observer_interface import IObserver
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 
 
 class IPluginObserver(IObserver):

@@ -16,7 +16,7 @@ from typing import Any, TypeVar
 from collections.abc import Callable
 
 from panther.core.observer.core.observer_interface import IObserver
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 from panther.core.observer.storage.store_events import TestResultEvent, EnhancedResultEvent
 
 # Type variable for generic result data

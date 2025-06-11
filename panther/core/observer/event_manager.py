@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent
 from panther.core.observer.core.observer_interface import IObserver
 
 
@@ -25,30 +25,35 @@ class EventManager:
         # Global observers receive all events
         self.global_observers: list[tuple[int, IObserver]] = []
         # Track recent events for debugging
-        self.event_history = []
-        self.max_history = 100
+        self.event_history: list[tuple[datetime, BaseEvent]] = []
+        self.max_history_size = 1000
         # Performance metrics
         self.metrics = {"processed": 0, "errors": 0, "by_type": {}}
         # Thread safety
         self._lock = threading.RLock()
 
-    def _get_event_type_safely(self, event: Event) -> str:
+    def _get_event_type_safely(self, event: BaseEvent) -> str:
         """
-        Safely get the event type from an event object, handling different event implementations.
+        Safely extract event type from BaseEvent.
 
         Args:
-            event: The event to get the type from
+            event: BaseEvent instance
 
         Returns:
             str: The event type
         """
-        if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
-            return event.get_type()
-        elif hasattr(event, "name"):
-            return event.name
-        else:
-            # Fallback if neither method is available
-            return str(event.__class__.__name__)
+        try:
+            # Use the new BaseEvent structure
+            return event.entity_type.value
+        except AttributeError:
+            # Fallback for compatibility during migration
+            if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
+                return event.get_type()
+            elif hasattr(event, "name"):
+                return event.name
+            else:
+                self.logger.warning(f"Event {event} missing entity_type, using class name")
+                return event.__class__.__name__
 
     def register_observer(
         self, observer: IObserver, event_types: list[str] = None, priority: int = 0
@@ -113,12 +118,12 @@ class EventManager:
                     "Unregistered observer '%s' from all event types", observer.__class__.__name__
                 )
 
-    def notify(self, event: Event) -> bool:
+    def notify(self, event: BaseEvent) -> bool:
         """
         Notify all relevant observers about an event.
 
         Args:
-            event: The event to publish
+            event: BaseEvent to publish
 
         Returns:
             bool: True if the event was successfully published
@@ -135,7 +140,7 @@ class EventManager:
         # Store in history
         with self._lock:
             self.event_history.append((datetime.now(), event))
-            if len(self.event_history) > self.max_history:
+            if len(self.event_history) > self.max_history_size:
                 self.event_history.pop(0)
 
         # Update metrics
@@ -210,7 +215,7 @@ class EventManager:
 
     def get_event_history(
         self, event_type: str = None, limit: int = None
-    ) -> list[tuple[datetime, Event]]:
+    ) -> list[tuple[datetime, BaseEvent]]:
         """
         Get recent events, optionally filtered by type.
 
@@ -221,7 +226,7 @@ class EventManager:
         Returns:
             List of (timestamp, event) tuples
         """
-        limit = limit or self.max_history
+        limit = limit or self.max_history_size
         with self._lock:
             if event_type:
                 filtered = [

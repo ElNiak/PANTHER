@@ -14,7 +14,7 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 
 
 class LocalhostSingleContainerEnvironment(INetworkEnvironment):

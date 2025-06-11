@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from panther.core.observer.events import Event
+from panther.core.events import BaseEvent as Event
 
 
 class EventObserverPlugin(ABC):

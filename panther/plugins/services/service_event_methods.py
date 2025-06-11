@@ -54,17 +54,17 @@ class ServiceManagerEventMixin:
             # Get service identifier with fallback mechanism
             service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
-            self.event_emitter.emit_service_started(
-                service_name, {"service_type": service_type, **(details or {})}
-            )
+            implementation = getattr(self, "implementation_name", "unknown")
 
-            self.event_emitter.emit_service_event(
-                name="service_started",
-                data={
-                    "service_name": service_name,
-                    "service_type": service_type,
-                    **(details or {}),
-                },
+            # Generate a unique service ID
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            # Use the new ServiceEventEmitter API
+            self.event_emitter.emit_service_started(
+                service_id=service_id,
+                service_name=service_name,
+                pid=details.get("pid") if details else None,
+                start_time=details.get("start_time") if details else None,
             )
 
     def notify_service_stopped(self, success: bool, details: dict[str, Any] | None = None):
@@ -79,18 +79,22 @@ class ServiceManagerEventMixin:
             # Get service identifier with fallback mechanism
             service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
-            self.event_emitter.emit_service_stopped(
-                service_name, success, {"service_type": service_type, **(details or {})}
-            )
+            implementation = getattr(self, "implementation_name", "unknown")
 
-            self.event_emitter.emit_service_event(
-                name="service_stopped",
-                data={
-                    "service_name": service_name,
-                    "service_type": service_type,
-                    "success": success,
-                    **(details or {}),
-                },
+            # Generate a unique service ID
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            # Use the new ServiceEventEmitter API
+            self.event_emitter.emit_service_stopped(
+                service_id=service_id,
+                service_name=service_name,
+                exit_code=0 if success else 1,
+                reason=(
+                    details.get("reason", "Normal termination" if success else "Error")
+                    if details
+                    else None
+                ),
+                uptime_seconds=details.get("uptime_seconds") if details else None,
             )
 
     def notify_service_error(
@@ -108,23 +112,18 @@ class ServiceManagerEventMixin:
             # Get service identifier with fallback mechanism
             service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
 
+            # Generate a unique service ID
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            # Use the new ServiceEventEmitter API
             self.event_emitter.emit_service_error(
-                service_name,
-                error_type,
-                error_message,
-                {"service_type": service_type, **(details or {})},
-            )
-
-            self.event_emitter.emit_service_event(
-                name="service_error",
-                data={
-                    "service_name": service_name,
-                    "service_type": service_type,
-                    "error_type": error_type,
-                    "error_message": error_message,
-                    **(details or {}),
-                },
+                service_id=service_id,
+                service_name=service_name,
+                error_message=error_message,
+                error_type=error_type,
+                error_details=details,
             )
 
     def notify_service_event(self, event_name: str, details: dict[str, Any] | None = None):
@@ -139,12 +138,39 @@ class ServiceManagerEventMixin:
             # Get service identifier with fallback mechanism
             service_name = self._get_service_identifier()
             service_type = getattr(self, "service_type", "unknown")
-            event_data = {
-                "service_name": service_name,
-                "service_type": service_type,
-                **(details or {}),
-            }
-            self.event_emitter.emit_service_event(event_name, event_data)
+            implementation = getattr(self, "implementation_name", "unknown")
+
+            # Generate a unique service ID
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            # Map common event names to specific emitter methods
+            if event_name == "service_created":
+                self.event_emitter.emit_service_created(
+                    service_id=service_id,
+                    service_name=service_name,
+                    service_type=service_type,
+                    implementation=implementation,
+                    config=details,
+                )
+            elif event_name == "service_ready":
+                self.event_emitter.emit_service_ready(
+                    service_id=service_id,
+                    service_name=service_name,
+                    readiness_checks=details.get("readiness_checks") if details else None,
+                )
+            elif event_name == "service_destroyed":
+                self.event_emitter.emit_service_destroyed(
+                    service_id=service_id, service_name=service_name, cleanup_details=details
+                )
+            else:
+                # For other events, emit as generic service error with event context
+                self.event_emitter.emit_service_error(
+                    service_id=service_id,
+                    service_name=service_name,
+                    error_message=f"Custom event: {event_name}",
+                    error_type="custom_event",
+                    error_details={"event_name": event_name, **(details or {})},
+                )
 
     def notify_service_step_progress(
         self,
@@ -165,13 +191,36 @@ class ServiceManagerEventMixin:
         if hasattr(self, "event_emitter") and self.event_emitter:
             # Get service identifier with fallback mechanism
             service_name = self._get_service_identifier()
-            step_details = details or {}
-            step_details["service_name"] = service_name
-            step_details["service_type"] = getattr(self, "service_type", "unknown")
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
 
-            self.event_emitter.emit_step_progress(
-                step_id=step_id, progress=progress, details=step_details
-            )
+            # Generate a unique service ID
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            # Service-specific progress is better represented as deployment or preparation progress
+            if step_id.startswith("deploy"):
+                self.event_emitter.emit_service_deployment_started(
+                    service_id=service_id,
+                    service_name=service_name,
+                    environment=details.get("environment", "default") if details else "default",
+                    deployment_config=details,
+                )
+            elif step_id.startswith("prepare"):
+                self.event_emitter.emit_service_preparation_started(
+                    service_id=service_id,
+                    service_name=service_name,
+                    preparation_steps=[message] if message else None,
+                )
+            else:
+                # For generic steps, we can emit a service error to track the progress
+                # This is not ideal but maintains compatibility
+                self.event_emitter.emit_service_error(
+                    service_id=service_id,
+                    service_name=service_name,
+                    error_message=f"Progress update: {message or f'Step {step_id} at {progress:.1%}'}",
+                    error_type="progress_update",
+                    error_details={"step_id": step_id, "progress": progress, **(details or {})},
+                )
 
     def notify_service_step_completed(
         self, step_id: str, success: bool, result: dict[str, Any] | None = None
@@ -187,13 +236,71 @@ class ServiceManagerEventMixin:
         if hasattr(self, "event_emitter") and self.event_emitter:
             # Get service identifier with fallback mechanism
             service_name = self._get_service_identifier()
-            step_result = result or {}
-            step_result["service_name"] = service_name
-            step_result["service_type"] = getattr(self, "service_type", "unknown")
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
 
-            self.event_emitter.emit_step_completed(
-                step_id=step_id, success=success, result=step_result
-            )
+            # Generate a unique service ID
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            # Map step completions to appropriate service events
+            if step_id.startswith("deploy"):
+                if success:
+                    self.event_emitter.emit_service_deployment_completed(
+                        service_id=service_id,
+                        service_name=service_name,
+                        environment=result.get("environment", "default") if result else "default",
+                        endpoint=result.get("endpoint") if result else None,
+                        ports=result.get("ports") if result else None,
+                        deployment_details=result,
+                    )
+                else:
+                    self.event_emitter.emit_service_deployment_failed(
+                        service_id=service_id,
+                        service_name=service_name,
+                        environment=result.get("environment", "default") if result else "default",
+                        error_message=(
+                            result.get("error", "Deployment failed")
+                            if result
+                            else "Deployment failed"
+                        ),
+                        error_type="deployment_error",
+                    )
+            elif step_id.startswith("prepare"):
+                if success:
+                    self.event_emitter.emit_service_preparation_completed(
+                        service_id=service_id,
+                        service_name=service_name,
+                        duration_seconds=result.get("duration") if result else None,
+                        artifacts=result,
+                    )
+                else:
+                    self.event_emitter.emit_service_preparation_failed(
+                        service_id=service_id,
+                        service_name=service_name,
+                        error_message=(
+                            result.get("error", "Preparation failed")
+                            if result
+                            else "Preparation failed"
+                        ),
+                        error_type="preparation_error",
+                        failed_step=step_id,
+                    )
+            else:
+                # For generic steps, emit a service ready event if successful
+                if success:
+                    self.event_emitter.emit_service_ready(
+                        service_id=service_id,
+                        service_name=service_name,
+                        readiness_checks={step_id: True},
+                    )
+                else:
+                    self.event_emitter.emit_service_error(
+                        service_id=service_id,
+                        service_name=service_name,
+                        error_message=f"Step {step_id} failed",
+                        error_type="step_failure",
+                        error_details={"step_id": step_id, "result": result},
+                    )
 
     def notify_service_metric(
         self,
@@ -216,14 +323,48 @@ class ServiceManagerEventMixin:
         if hasattr(self, "event_emitter") and self.event_emitter:
             # Get service identifier with fallback mechanism
             service_name = self._get_service_identifier()
-            metric_details = details or {}
-            metric_details["service_name"] = service_name
-            metric_details["service_type"] = getattr(self, "service_type", "unknown")
+            service_type = getattr(self, "service_type", "unknown")
+            implementation = getattr(self, "implementation_name", "unknown")
 
-            self.event_emitter.emit_metric(
-                metric_type=metric_type,
-                metric_name=metric_name,
-                value=value,
-                step_id=step_id,
-                details=metric_details,
-            )
+            # Generate a unique service ID
+            service_id = f"{service_type}_{implementation}_{service_name}"
+
+            # Map metrics to health check events when appropriate
+            if metric_type == "health" or metric_name.startswith("health_"):
+                if value:
+                    self.event_emitter.emit_service_health_check_passed(
+                        service_id=service_id,
+                        service_name=service_name,
+                        check_type=metric_name,
+                        endpoint=details.get("endpoint") if details else None,
+                        response_time_ms=details.get("response_time_ms") if details else None,
+                    )
+                else:
+                    self.event_emitter.emit_service_health_check_failed(
+                        service_id=service_id,
+                        service_name=service_name,
+                        check_type=metric_name,
+                        error_message=(
+                            details.get("error", "Health check failed")
+                            if details
+                            else "Health check failed"
+                        ),
+                        endpoint=details.get("endpoint") if details else None,
+                        status_code=details.get("status_code") if details else None,
+                    )
+            else:
+                # For other metrics, store as service error with metric context
+                # This maintains compatibility while using the new event system
+                self.event_emitter.emit_service_error(
+                    service_id=service_id,
+                    service_name=service_name,
+                    error_message=f"Metric: {metric_name}={value}",
+                    error_type="metric_report",
+                    error_details={
+                        "metric_type": metric_type,
+                        "metric_name": metric_name,
+                        "value": value,
+                        "step_id": step_id,
+                        **(details or {}),
+                    },
+                )

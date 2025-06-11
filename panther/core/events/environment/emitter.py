@@ -1,0 +1,477 @@
+"""
+Environment Event Emitter
+
+This module provides typed event emission for environment lifecycle events.
+"""
+
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from panther.core.observer.event_manager import EventManager
+
+from panther.core.events.environment.events import (
+    EnvironmentCreatedEvent,
+    EnvironmentInitializationStartedEvent,
+    EnvironmentInitializationCompletedEvent,
+    EnvironmentInitializationFailedEvent,
+    EnvironmentSetupStartedEvent,
+    EnvironmentSetupCompletedEvent,
+    EnvironmentSetupFailedEvent,
+    EnvironmentReadyEvent,
+    EnvironmentTeardownStartedEvent,
+    EnvironmentTeardownCompletedEvent,
+    EnvironmentTeardownFailedEvent,
+    EnvironmentDestroyedEvent,
+    EnvironmentErrorEvent,
+    EnvironmentResourceEvent,
+    EnvironmentConfigurationEvent,
+    EnvironmentMonitoringEvent,
+)
+
+
+class EnvironmentEventEmitter:
+    """
+    Type-safe event emitter for environment-related events.
+
+    This class provides methods for emitting all environment lifecycle events
+    with proper typing and validation.
+    """
+
+    def __init__(self, event_manager: "EventManager"):
+        """
+        Initialize the environment event emitter.
+
+        Args:
+            event_manager: Event manager to use for event emission
+        """
+        self.event_manager = event_manager
+
+    def emit_environment_created(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        environment_config: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment created event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment (docker_compose, shadow, etc.)
+            environment_config: Environment configuration details
+        """
+        event = EnvironmentCreatedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            config=environment_config,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_initialization_started(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        initialization_config: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment initialization started event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            initialization_config: Initialization configuration details
+        """
+        event = EnvironmentInitializationStartedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            initialization_type=(
+                initialization_config.get("type", "default") if initialization_config else "default"
+            ),
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_initialization_completed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        duration_seconds: float | None = None,
+        initialization_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment initialization completed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            duration_seconds: Time taken for initialization in seconds
+            initialization_details: Details about the initialization
+        """
+        event = EnvironmentInitializationCompletedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            duration=duration_seconds or 0.0,
+            initialization_details=initialization_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_initialization_failed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        error_message: str,
+        error_type: str | None = None,
+        error_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment initialization failed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            error_message: Error message describing the failure
+            error_type: Type/category of error
+            error_details: Additional error details
+        """
+        event = EnvironmentInitializationFailedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            error_message=error_message,
+            error_details=error_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_setup_started(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        setup_config: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment setup started event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            setup_config: Setup configuration details
+        """
+        event = EnvironmentSetupStartedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            setup_config=setup_config,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_setup_completed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        duration_seconds: float | None = None,
+        setup_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment setup completed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            duration_seconds: Time taken for setup in seconds
+            setup_details: Details about the setup
+        """
+        event = EnvironmentSetupCompletedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            duration=duration_seconds or 0.0,
+            resources_allocated=setup_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_setup_failed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        error_message: str,
+        error_type: str | None = None,
+        failed_component: str | None = None,
+    ) -> None:
+        """
+        Emit an environment setup failed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            error_message: Error message describing the failure
+            error_type: Type/category of error
+            failed_component: Component that failed during setup
+        """
+        event = EnvironmentSetupFailedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            error_message=error_message,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_ready(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        readiness_checks: dict[str, bool] | None = None,
+        resources: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment ready event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            readiness_checks: Results of readiness checks
+            resources: Available resources in the environment
+        """
+        event = EnvironmentReadyEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            readiness_checks=readiness_checks,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_teardown_started(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        reason: str | None = None,
+    ) -> None:
+        """
+        Emit an environment teardown started event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            reason: Reason for teardown
+        """
+        event = EnvironmentTeardownStartedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_teardown_completed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        duration_seconds: float | None = None,
+        cleanup_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment teardown completed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            duration_seconds: Time taken for teardown in seconds
+            cleanup_details: Details about the cleanup
+        """
+        event = EnvironmentTeardownCompletedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            duration=duration_seconds or 0.0,
+            resources_released=cleanup_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_teardown_failed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        error_message: str,
+        error_type: str | None = None,
+        partial_cleanup: bool | None = None,
+    ) -> None:
+        """
+        Emit an environment teardown failed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            error_message: Error message describing the failure
+            error_type: Type/category of error
+            partial_cleanup: Whether partial cleanup was achieved
+        """
+        event = EnvironmentTeardownFailedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            error_message=error_message,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_destroyed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        cleanup_summary: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment destroyed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            cleanup_summary: Summary of what was cleaned up
+        """
+        event = EnvironmentDestroyedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            cleanup_duration=0.0,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_error(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        error_message: str,
+        error_type: str | None = None,
+        error_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment error event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            error_message: Error message
+            error_type: Type/category of error
+            error_details: Additional error details
+        """
+        event = EnvironmentErrorEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            error_message=error_message,
+            error_type=error_type,
+            error_details=error_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_resource(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        resource_type: str,
+        resource_action: str,
+        resource_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit an environment resource event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            resource_type: Type of resource (container, network, volume, etc.)
+            resource_action: Action performed (created, started, stopped, deleted)
+            resource_details: Additional resource details
+        """
+        event = EnvironmentResourceEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            resource_type=resource_type,
+            resource_action=resource_action,
+            resource_details=resource_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_configuration(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        configuration_action: str,
+        configuration: dict[str, Any],
+        validation_result: bool | None = None,
+    ) -> None:
+        """
+        Emit an environment configuration event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            configuration_action: Action performed (loaded, validated, applied)
+            configuration: Configuration data
+            validation_result: Result of configuration validation
+        """
+        event = EnvironmentConfigurationEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            config_change=configuration,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_monitoring(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        monitoring_type: str,
+        metrics: dict[str, Any],
+        timestamp: str | None = None,
+    ) -> None:
+        """
+        Emit an environment monitoring event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            monitoring_type: Type of monitoring data (resources, performance, health)
+            metrics: Monitoring metrics data
+            timestamp: Timestamp of the monitoring data
+        """
+        event = EnvironmentMonitoringEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            metric_name=monitoring_type,
+            metric_value=metrics,
+        )
+        self.event_manager.notify(event)
