@@ -349,19 +349,3 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Tears down the environment after experiments are completed.
         """
         raise NotImplementedError()
-
-    @abstractmethod
-    def initialize(self, test_config, output_dir, event_manager, global_config):
-        """
-        Initializes the environment with configuration settings.
-
-        Args:
-            test_config: Test configuration to use for this environment
-            output_dir: Directory to write environment files
-            event_manager: Shared event manager instance for emitting events
-            global_config: Global configuration settings
-
-        Returns:
-            bool: True if initialization succeeded, False otherwise
-        """
-        raise NotImplementedError("Subclasses must implement this method")

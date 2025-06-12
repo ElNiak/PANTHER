@@ -656,7 +656,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
                             "docker",
                             "compose",
                             "-f",
-                            self.services_network_config_file_path,
+                            str(self.rendered_services_network_config_file_path),
                             "down",
                         ],
                         check=True,
@@ -850,3 +850,99 @@ class DockerComposeEnvironment(INetworkEnvironment):
                 # Don't raise exception for logs failure as it's not critical
 
         self.logger.info("Docker Compose environment logs captured successfully.")
+
+    def _do_setup_environment(
+        self,
+        services_managers: list["IServiceManager"],
+        test_config: "TestConfig",
+        global_config: "GlobalConfig",
+        timestamp: str,
+        plugin_loader: PluginLoader,
+        execution_environment: list["IExecutionEnvironment"],
+    ) -> None:
+        """
+        Implementation of environment setup for Docker Compose.
+
+        This method is called by the base class setup_environment after emitting
+        the appropriate start events.
+        """
+        # Store configuration
+        self.update_environment(
+            execution_environment,
+            global_config,
+            plugin_loader,
+            services_managers,
+            test_config,
+        )
+
+        # Call the internal setup method
+        if not self._setup_environment_and_verify_files(timestamp):
+            raise RuntimeError("Docker Compose environment setup failed")
+
+        # Mark setup as complete
+        self.plugin_setup = True
+
+    def _do_deploy_services(self) -> None:
+        """
+        Implementation of service deployment for Docker Compose.
+
+        This method is called by the base class deploy_services after emitting
+        the appropriate start events.
+        """
+        # Launch the Docker Compose services
+        self.launch_environment_services()
+
+    def _do_teardown_environment(self) -> None:
+        """
+        Implementation of environment teardown for Docker Compose.
+
+        This method is called by the base class teardown_environment after emitting
+        the appropriate start events.
+        """
+        # Perform the actual teardown operations
+        log_dir = os.path.join(self.output_dir, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+
+        with open(os.path.join(log_dir, "docker-compose-teardown.log"), "w") as log_file:
+            with open(
+                os.path.join(log_dir, "docker-compose-teardown.err.log"),
+                "w",
+            ) as log_file_err:
+                try:
+                    # For other network drivers, use docker-compose
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "-f",
+                            str(self.rendered_services_network_config_file_path),
+                            "down",
+                        ],
+                        check=True,
+                        capture_output=True,
+                        text=True,  # Ensures that output is in string format
+                    )
+                    # Write both stdout and stderr to the log file
+                    log_file.write(result.stdout)
+                    log_file_err.write(result.stderr)
+                    os.system("docker volume prune -a -f")
+                    self.logger.info("Docker Compose environment torn down successfully")
+                    # Note: Event notification is handled by the base class
+                except subprocess.CalledProcessError as e:
+                    self.logger.error(
+                        "Failed to tear down Docker Compose environment: %s", e.stderr
+                    )
+                    raise e
+
+    def handle_event(self, event) -> None:
+        """
+        Handle events sent to this plugin.
+
+        The Docker Compose environment doesn't need to handle specific events,
+        so this is a no-op implementation.
+
+        Args:
+            event: The event to handle
+        """
+        # Docker Compose environment doesn't handle events
+        pass

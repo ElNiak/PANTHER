@@ -867,3 +867,96 @@ class ExecutionEnvironmentLimitExceededEvent(ExecutionEnvironmentEvent):
     @property
     def action_taken(self) -> str:
         return self.data.get("action_taken", "none")
+
+
+# Output Collection Events (for collecting outputs from execution environments)
+
+
+class OutputCollectionStartedEvent(EnvironmentEvent):
+    """Event emitted when output collection starts from execution environments."""
+
+    def __init__(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        collection_targets: list[str] | None = None,
+        collection_config: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            "output_collection_started",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "collection_targets": collection_targets or [],
+                "collection_config": collection_config or {},
+                "action": "output_collection_started",
+            },
+        )
+        self.collection_targets = collection_targets or []
+        self.collection_config = collection_config or {}
+
+
+class OutputCollectedEvent(EnvironmentEvent):
+    """Event emitted when an output is collected from an execution environment."""
+
+    def __init__(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        output_type: str,
+        output_path: str,
+        output_size: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            "output_collected",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "output_type": output_type,
+                "output_path": output_path,
+                "output_size": output_size,
+                "metadata": metadata or {},
+                "action": "output_collected",
+            },
+        )
+        self.output_type = output_type
+        self.output_path = output_path
+        self.output_size = output_size
+        self.metadata = metadata or {}
+
+
+class OutputCollectionCompletedEvent(EnvironmentEvent):
+    """Event emitted when output collection completes from all execution environments."""
+
+    def __init__(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        outputs: dict[str, str],
+        total_outputs: int,
+        collection_duration: float | None = None,
+        collection_summary: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            "output_collection_completed",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "outputs": outputs,
+                "total_outputs": total_outputs,
+                "collection_duration": collection_duration,
+                "collection_summary": collection_summary or {},
+                "action": "output_collection_completed",
+            },
+        )
+        self.outputs = outputs
+        self.total_outputs = total_outputs
+        self.collection_duration = collection_duration
+        self.collection_summary = collection_summary or {}

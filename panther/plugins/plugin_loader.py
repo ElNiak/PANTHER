@@ -47,7 +47,9 @@ class PluginLoader:
 
         # Docker builder for image management
         try:
-            self.docker_builder = DockerBuilder()
+            self.docker_builder = DockerBuilder(
+                build_log_file=global_config.docker.log_docker_image_build
+            )
         except Exception as e:
             self.logger.warning("Failed to initialize DockerBuilder: %s", e)
             self.docker_builder = None
@@ -250,6 +252,27 @@ class PluginLoader:
 
     def build_docker_image(self, impl_name: str, versions: str):
         """Keep existing docker build logic."""
+        self.logger.debug(
+            "Looking for Dockerfile for '%s' in dockerfiles: %s",
+            impl_name,
+            list(self.dockerfiles.keys()),
+        )
+
+        # If not found, try to discover it from the protocol implementations
+        if impl_name not in self.dockerfiles:
+            # Try to find the protocol this implementation belongs to
+            for protocol_dir in (Path(os.path.dirname(__file__)) / "services" / "iut").iterdir():
+                if protocol_dir.is_dir():
+                    impl_dir = protocol_dir / impl_name
+                    if impl_dir.exists() and (impl_dir / "Dockerfile").exists():
+                        self.dockerfiles[impl_name] = impl_dir / "Dockerfile"
+                        self.logger.info(
+                            "Discovered Dockerfile for '%s' at '%s'",
+                            impl_name,
+                            impl_dir / "Dockerfile",
+                        )
+                        break
+
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
             self.logger.debug(
@@ -327,6 +350,7 @@ class PluginLoader:
 
     def get_implementations_for_protocol(self, protocol: str) -> list[str]:
         """Enhanced version that uses catalog when possible."""
+        self.logger.debug("Getting implementations for protocol: %s", protocol)
         implementations = []
 
         # First check catalog
@@ -339,17 +363,18 @@ class PluginLoader:
             implementations_dir = Path(os.path.dirname(__file__)) / "services" / "iut" / protocol
             self.logger.debug("Checking for implementations in '%s'", implementations_dir)
             if implementations_dir and implementations_dir.exists():
+                self.logger.info("Scanning implementations directory: %s", implementations_dir)
                 for item in implementations_dir.iterdir():
                     if (
                         item.is_dir()
                         and not item.name.startswith("__")
                         and item.name != "templates"
                     ):
-                        self.logger.debug("Found implementation '%s' at '%s'", item.name, item)
+                        self.logger.info("Found implementation '%s' at '%s'", item.name, item)
                         implementations.append(item.name)
                         if (item / "Dockerfile").exists():
                             self.dockerfiles[item.name] = item / "Dockerfile"
-                            self.logger.debug(
+                            self.logger.info(
                                 "Registered Dockerfile for protocol '%s' implementation '%s' at '%s'",
                                 protocol,
                                 item.name,

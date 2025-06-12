@@ -362,3 +362,145 @@ class ServiceTestResultsEvent(ServiceEvent):
     @property
     def test_summary(self) -> dict[str, Any]:
         return self.data.get("test_summary", {})
+
+
+class CommandGenerationStartedEvent(ServiceEvent):
+    """Event emitted when command generation starts for a service."""
+
+    def __init__(
+        self,
+        service_id: str,
+        service_name: str,
+        phase: str,
+        config: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.PREPARATION_STARTED,
+            service_id=service_id,
+            data={
+                "service_name": service_name,
+                "phase": phase,
+                "config": config or {},
+                "action": "command_generation_started",
+            },
+        )
+
+
+class CommandGeneratedEvent(ServiceEvent):
+    """Event emitted when a command is generated for a service."""
+
+    def __init__(
+        self,
+        service_id: str,
+        service_name: str,
+        phase: str,
+        command: str,
+        command_type: str | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.PREPARATION_COMPLETED,
+            service_id=service_id,
+            data={
+                "service_name": service_name,
+                "phase": phase,
+                "command": command,
+                "command_type": command_type,
+                "action": "command_generated",
+            },
+        )
+
+
+class DockerBuildStartedEvent(ServiceEvent):
+    """Event emitted when Docker build starts for a service."""
+
+    def __init__(
+        self,
+        service_id: str,
+        service_name: str,
+        dockerfile_path: str,
+        image_name: str | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.PREPARATION_STARTED,
+            service_id=service_id,
+            data={
+                "service_name": service_name,
+                "dockerfile_path": dockerfile_path,
+                "image_name": image_name,
+                "action": "docker_build_started",
+            },
+        )
+
+
+class DockerBuildCompletedEvent(ServiceEvent):
+    """Event emitted when Docker build completes for a service."""
+
+    def __init__(
+        self,
+        service_id: str,
+        service_name: str,
+        image_name: str,
+        success: bool,
+        error_message: str | None = None,
+        build_duration: float | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.PREPARATION_COMPLETED,
+            service_id=service_id,
+            data={
+                "service_name": service_name,
+                "image_name": image_name,
+                "success": success,
+                "error_message": error_message,
+                "build_duration": build_duration,
+                "action": "docker_build_completed",
+            },
+        )
+
+
+class TesterAnalysisStartedEvent(ServiceEvent):
+    """Event emitted when tester starts analyzing collected outputs."""
+
+    def __init__(
+        self,
+        service_id: str,
+        tester_name: str,
+        inputs: dict[str, str],
+        analysis_type: str,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.TEST_RESULTS,
+            service_id=service_id,
+            data={
+                "tester_name": tester_name,
+                "inputs": inputs,
+                "analysis_type": analysis_type,
+                "action": "tester_analysis_started",
+            },
+        )
+
+
+class TesterAnalysisCompletedEvent(ServiceEvent):
+    """Event emitted when tester completes analysis of collected outputs."""
+
+    def __init__(
+        self,
+        service_id: str,
+        tester_name: str,
+        passed: bool,
+        failed_checks: list[str],
+        warnings: list[str] | None = None,
+        detailed_results: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.TEST_RESULTS,
+            service_id=service_id,
+            data={
+                "tester_name": tester_name,
+                "passed": passed,
+                "failed_checks": failed_checks,
+                "warnings": warnings or [],
+                "detailed_results": detailed_results or {},
+                "action": "tester_analysis_completed",
+            },
+        )

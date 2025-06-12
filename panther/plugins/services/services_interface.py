@@ -13,6 +13,7 @@ from panther.core.command_processor.command import ShellCommand
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.plugin_interface import IPlugin
 from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
+from panther.plugins.services.command_event_mixin import CommandEventMixin
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
@@ -116,7 +117,7 @@ def validate_structure(data, schema, path="root"):
             raise TypeError(f"Expected {schema.__name__} at '{path}', got {type(data).__name__}.")
 
 
-class IServiceManager(IPlugin, ServiceManagerEventMixin):
+class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
     """
     IServiceManager is an interface for managing services within the PANTHER-SCP framework. It extends the IPlugin class and provides methods for initializing and rendering commands, as well as generating various types of commands required for service deployment and execution.
 
@@ -166,6 +167,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         event_manager: EventManager | None = None,
     ):
         super().__init__()
+        CommandEventMixin.__init__(self)  # Initialize the CommandEventMixin
 
         self.available_types = ["TESTERS", "IUT", "testers", "iut"]
         self.service_type = str(service_type.name)
@@ -212,6 +214,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         self.event_manager = event_manager
         if event_manager:
             self.event_emitter = ServiceEventEmitter(event_manager)
+            self.service_emitter = self.event_emitter  # For CommandEventMixin
 
         # Service-specific attributes
         # Some attributes are set by the plugin loader, others are set by the plugin itself and the experiment manager
@@ -385,12 +388,15 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         Returns:
             list: A list of either string commands or ShellCommand objects if available
         """
+        # Emit command generation started event
+        self.emit_command_generation_started("pre_compile")
+
         # ShellCommand is imported at the top of the file, so we use it directly
         # for better shell command representation with metadata and proper escaping
 
         try:
             # Using ShellCommand objects for better structure, error handling, and debugging support
-            return [
+            commands = [
                 ShellCommand(
                     command="set -x;", description="Enable command tracing", is_critical=True
                 ),
@@ -415,19 +421,29 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
                     is_critical=False,
                 ),
             ]
+            # Emit command generated event
+            for cmd in commands:
+                self.logger.debug("Generated pre-compile command: %s", cmd)
+            self.emit_command_generated("pre_compile", f"{len(commands)} pre-compile commands")
+            return commands
         except (ImportError, AttributeError) as e:
             # Fallback to plain string commands if ShellCommand can't be used
             self.logger.warning(
                 "Error using ShellCommand objects: %s. Falling back to legacy string commands.",
                 str(e),
             )
-            return [
+            commands = [
                 "set -x;",
                 "export SHELLOPTS",
                 "export PATH=$PATH:$ADDITIONAL_PATH;",
                 "export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
                 "env >> /app/logs/env.log;",
             ]
+            # Emit command generated event
+            self.emit_command_generated(
+                "pre_compile", f"{len(commands)} pre-compile commands (legacy)"
+            )
+            return commands
 
     def generate_compile_commands(self) -> list[str]:
         """
@@ -437,7 +453,12 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         Returns:
             list: An empty list representing the compile commands.
         """
-        return []
+        # Emit command generation started event
+        self.emit_command_generation_started("compile")
+        commands = []
+        # Emit command generated event
+        self.emit_command_generated("compile", "No compile commands")
+        return commands
 
     def generate_post_compile_commands(self) -> list[str]:
         """
@@ -447,8 +468,12 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         Returns:
             List[str]: An empty list of post-compile commands.
         """
-
-        return []
+        # Emit command generation started event
+        self.emit_command_generation_started("post_compile")
+        commands = []
+        # Emit command generated event
+        self.emit_command_generated("post_compile", "No post-compile commands")
+        return commands
 
     def generate_pre_run_commands(self) -> list[str]:
         """
@@ -458,8 +483,12 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         Returns:
             List[str]: An empty list of strings representing pre-run commands.
         """
-
-        return []
+        # Emit command generation started event
+        self.emit_command_generation_started("pre_run")
+        commands = []
+        # Emit command generated event
+        self.emit_command_generated("pre_run", "No pre-run commands")
+        return commands
 
     def generate_run_command(self) -> dict:
         """
@@ -472,8 +501,10 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
             - "timeout" (int): The timeout value for the command execution.
             - "environment" (dict): The environment variables for the command.
         """
+        # Emit command generation started event
+        self.emit_command_generation_started("run")
 
-        return {
+        run_cmd = {
             "working_dir": "",
             "command_binary": "",
             "command_args": "",
@@ -481,11 +512,22 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
             "environment": {},
         }
 
+        # Emit command generated event with a summary
+        cmd_summary = f"Run command: {run_cmd.get('command_binary', 'No binary')}"
+        self.emit_command_generated("run", cmd_summary)
+
+        return run_cmd
+
     def generate_post_run_commands(self):
         """
         Generates post-run commands.
         """
-        return []
+        # Emit command generation started event
+        self.emit_command_generation_started("post_run")
+        commands = []
+        # Emit command generated event
+        self.emit_command_generated("post_run", "No post-run commands")
+        return commands
 
     def get_implementation_name(self) -> str:
         return self.implementation_name
@@ -680,33 +722,6 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         self.event_manager = event_manager
         self.event_emitter = ServiceEventEmitter(event_manager)
 
-    def render_template_with_structured_args(
-        self, template_name, params=None, command_args=None, env_vars=None
-    ):
-        """
-        Render a template using structured arguments, ensuring proper escaping and formatting.
-
-        Args:
-            template_name: The name of the template to render
-            params: Basic template parameters
-            command_args: Structured command arguments
-            env_vars: Environment variables to include
-
-        Returns:
-            str: The rendered template string
-        """
-        try:
-            self.logger.debug("Rendering structured template '%s'", template_name)
-            return self.render_commands(params or {}, template_name, command_args, env_vars)
-        except Exception as e:
-            self.logger.error("Failed to render structured template '%s': %s", template_name, e)
-            if not os.path.isdir(self.templates_dir):
-                self.logger.error("Templates directory '%s' does not exist", self.templates_dir)
-            else:
-                templates = os.listdir(self.templates_dir)
-                self.logger.error("Available templates in '%s': %s", self.templates_dir, templates)
-            raise
-
     def prepare(self, plugin_loader: PluginLoader | None = None):
         """
         Prepare the service with proper event notifications.
@@ -784,6 +799,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
             # Re-raise the exception
             raise
 
+    @abstractmethod
     def _do_prepare(self, plugin_loader: PluginLoader | None = None):
         """
         Perform the actual preparation work.
@@ -793,7 +809,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         Args:
             plugin_loader: Optional plugin loader to use for preparation
         """
-        raise NotImplementedError("Subclasses must implement _do_prepare")
+        pass
 
     def stop(self):
         """
@@ -843,9 +859,6 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
 
         Returns:
             Implementation-specific result. By default, returns True to indicate success.
-
-        Raises:
-            NotImplementedError: This base implementation doesn't raise, but subclasses may.
         """
         # Default implementation just succeeds
         self.logger.debug("Default _do_stop implementation called for %s", self.service_name)
@@ -863,3 +876,30 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin):
         # This method can be overridden if needed, but typically the specific
         # notify methods from ServiceManagerEventMixin should be used
         self.logger.debug("Service event '%s' with details: %s", event_name, details)
+
+    def handle_event(self, event: "BaseEvent") -> None:
+        """
+        Default implementation of handle_event for service managers.
+
+        This provides a basic event handling mechanism that can be overridden
+        by specific service manager implementations if they need custom event handling.
+
+        Args:
+            event: The event to handle
+        """
+        event_type = type(event).__name__
+        self.logger.debug("Service %s received event: %s", self.service_name, event_type)
+
+        # Basic event handling for common service events
+        # Subclasses can override this method for more specific handling
+        if event_type == "ServiceStartRequestedEvent":
+            self.logger.info("Service start requested for %s", self.service_name)
+        elif event_type == "ServiceStopRequestedEvent":
+            self.logger.info("Service stop requested for %s", self.service_name)
+        elif event_type == "TestRunRequestedEvent":
+            self.logger.info("Test run requested for %s", self.service_name)
+        else:
+            # Log unhandled events at debug level
+            self.logger.debug(
+                "Unhandled event type %s for service %s", event_type, self.service_name
+            )

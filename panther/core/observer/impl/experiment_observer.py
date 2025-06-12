@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from datetime import datetime
 
 from panther.core.observer.base.observer_interface import IObserver
@@ -29,11 +29,10 @@ from panther.core.events import (
     # Metrics events
     MetricCollectedEvent,
 )
-from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    from panther.plugins.services.services_interface import IServiceManager
+    pass
 
 
 class ExperimentObserver(IObserver):
@@ -71,14 +70,12 @@ class ExperimentObserver(IObserver):
             track_steps: Whether to track step completion
             global_config: Global configuration object with logging settings
         """
-        self.environment_plugins: dict[str, IEnvironmentPlugin] = {}
-        self.service_managers: dict[str, "IServiceManager"] = {}
+        # Track what we've observed for logging purposes only
+        self.observed_environments: set[str] = set()  # Just track what we've seen
+        self.observed_services: set[str] = set()  # Just track what we've seen
 
-        # Enhanced state tracking
-        self.environment_states: dict[str, str] = {}  # environment_name -> state
-        self.service_states: dict[str, str] = {}  # service_name -> state
-        self.environment_setup_complete: dict[str, bool] = {}  # environment_name -> setup_complete
-        self.service_setup_complete: dict[str, bool] = {}  # service_name -> setup_complete
+        # Remove all state dictionaries - state is managed centrally by StateManager
+        # These were causing orchestration behavior
 
         # Set up logging using the interface method
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
@@ -185,9 +182,8 @@ class ExperimentObserver(IObserver):
             reason = event.data.get("reason", "No reason provided")
             self.logger.debug(f"Reason: {reason}")
 
-            # Tear down any active environments
-            for env_name, env_plugin in self.environment_plugins.items():
-                env_plugin.teardown_environment()
+            # Just log that experiment finished early - no orchestration
+            self.logger.info("Experiment finished early notification received")
 
             if self.track_timing:
                 self._record_timing_info("early_termination", self.start_time)
@@ -203,35 +199,40 @@ class ExperimentObserver(IObserver):
         """Handle step progress events."""
         self.current_phase = "running_steps"
         step_id = event.data.get("step_id")
-        progress = event.data.get("progress")
+        step_name = event.data.get("step_name", step_id)
+        progress_percentage = event.data.get("progress_percentage")
+        progress_message = event.data.get("progress_message", "")
+        test_case_id = event.data.get("test_case_id")
         details = event.data.get("details") or {}
 
         # Track step progress
         if self.track_steps and step_id:
             if step_id not in self.step_progress:
                 self.step_progress[step_id] = []
-            self.step_progress[step_id].append(progress)
+            self.step_progress[step_id].append(
+                {
+                    "percentage": progress_percentage,
+                    "message": progress_message,
+                    "timestamp": datetime.now(),
+                }
+            )
 
-        # Log progress
-        self.logger.debug(
-            "Step progress: %s at %s",
-            step_id,
-            progress if isinstance(progress, (int, float)) else "",
-        )
+        # Log progress with proper formatting
+        if progress_percentage is not None:
+            self.logger.debug(
+                "Step progress: %s (%s) at %.1f%% - %s",
+                step_name,
+                test_case_id if test_case_id else "unknown test",
+                progress_percentage,
+                progress_message,
+            )
+        else:
+            self.logger.debug("Step progress: %s - %s", step_name, progress_message)
 
         # Log details with consistent indentation
         if details:
             for key, value in details.items():
                 self.logger.debug(f"  {key}: {value}")
-
-        # Monitor active environments if available
-        for env_name, env_plugin in self.environment_plugins.items():
-            if hasattr(env_plugin, "monitor_environment"):
-                try:
-                    env_plugin.monitor_environment()
-                    self.logger.debug(f"  Environment monitoring triggered for {env_name}")
-                except Exception as e:
-                    self.logger.warning(f"  Failed to monitor environment {env_name}: {e}")
 
         return True
 
@@ -257,9 +258,8 @@ class ExperimentObserver(IObserver):
         environment_name = event.data.get("environment_instance", "unknown")
         test_case = event.data.get("test_case", "unknown_test")
 
-        # Update environment state
-        if environment_name in self.environment_states:
-            self.update_environment_state(environment_name, "setting_up")
+        # Just track that we've seen this environment
+        self.observed_environments.add(environment_name)
 
         self.logger.info(
             "Environment setup started for %s environment in test '%s'", environment_type, test_case
@@ -280,10 +280,8 @@ class ExperimentObserver(IObserver):
         # Get environment name if available
         environment_name = details.get("environment_instance", environment_type)
 
-        # Update environment state based on success
-        if environment_name in self.environment_states:
-            new_state = "ready" if success else "failed"
-            self.update_environment_state(environment_name, new_state)
+        # Just log the completion status
+        status_msg = "successfully" if success else "with errors"
 
         if success:
             self.logger.info(
@@ -316,11 +314,9 @@ class ExperimentObserver(IObserver):
             "Environment teardown: %s - %s", env_type, "Success" if success else "Failed"
         )
 
-        # Find and remove the environment from our tracking
+        # Just note that we've seen this environment teardown
         env_name = details.get("environment_name", env_type)
-        if env_name in self.environment_plugins:
-            del self.environment_plugins[env_name]
-            self.logger.debug(f"Removed environment '{env_name}' from tracking")
+        self.logger.debug(f"Observed environment '{env_name}' teardown")
 
         # Record timing information
         if self.track_timing:
@@ -331,11 +327,8 @@ class ExperimentObserver(IObserver):
             for key, value in details.items():
                 self.logger.debug(f"  {key}: {value}")
 
-        # Update environment state
-        if env_name in self.environment_states:
-            self.environment_states[env_name] = "torn_down"
-            self.environment_setup_complete[env_name] = False
-            self.logger.debug(f"Environment '{env_name}' state updated to torn_down")
+        # Just log the teardown
+        self.logger.debug(f"Environment '{env_name}' teardown observed")
 
         return True
 
@@ -358,14 +351,13 @@ class ExperimentObserver(IObserver):
 
             self.logger.info("Services deployed: %s", ", ".join(services) if services else "None")
 
-            # Store service instances if available
+            # Just track that we've seen these services
             if "service_instances" in data:
                 service_instances = data["service_instances"]
                 if isinstance(service_instances, dict):
-                    for name, instance in service_instances.items():
-                        if instance:
-                            self.service_managers[name] = instance
-                            self.logger.debug(f"Stored service '{name}' instance for monitoring")
+                    for name in service_instances.keys():
+                        self.observed_services.add(name)
+                        self.logger.debug(f"Observed service '{name}' deployment")
 
             # Record timing information
             if self.track_timing:
@@ -400,8 +392,8 @@ class ExperimentObserver(IObserver):
         if start_time:
             self.logger.debug(f"  Start time: {start_time}")
 
-        # Update service state
-        self.service_states[service_name] = "running"
+        # Just track that we've seen this service
+        self.observed_services.add(service_name)
 
         return True
 
@@ -418,18 +410,15 @@ class ExperimentObserver(IObserver):
             reason,
         )
 
-        # Remove service from tracking
-        if service_name in self.service_managers:
-            del self.service_managers[service_name]
-            self.logger.debug(f"Removed service '{service_name}' from tracking")
+        # Just log that the service stopped
+        self.logger.debug(f"Observed service '{service_name}' stop")
 
         # Log uptime if available
         uptime = event.data.get("uptime_seconds")
         if uptime is not None:
             self.logger.debug(f"  Service uptime: {uptime:.2f} seconds")
 
-        # Update service state
-        self.service_states[service_name] = "stopped"
+        # Service stop observed
 
         return True
 
@@ -476,9 +465,8 @@ class ExperimentObserver(IObserver):
                 if len(parts) > 1:
                     test_case = parts[0]
 
-        # Update service state
-        if service_name in self.service_states:
-            self.update_service_state(service_name, "starting")
+        # Just track that we've seen this service
+        self.observed_services.add(service_name)
 
         self.logger.info(
             "Service preparation started for '%s' in test '%s'%s",
@@ -508,9 +496,7 @@ class ExperimentObserver(IObserver):
             if len(parts) > 1:
                 test_case = parts[0]
 
-        # Update service state
-        if service_name in self.service_states:
-            self.update_service_state(service_name, "ready")
+        # Service setup completion observed
 
         self.logger.info(
             "Service preparation completed for '%s' in test '%s'%s",
@@ -683,47 +669,15 @@ class ExperimentObserver(IObserver):
         """
         return {
             "current_phase": self.current_phase,
-            "environments": list(self.environment_plugins.keys()),
-            "services": list(self.service_managers.keys()),
+            "observed_environments": list(self.observed_environments),
+            "observed_services": list(self.observed_services),
             "events_received": self.events_received,
             "experiment_finished_early": self.experiment_finished_early,
             "elapsed_time": (datetime.now() - self.start_time).total_seconds(),
             "step_progress": self.step_progress,
         }
 
-    def get_active_environment(self, name: str = None) -> IEnvironmentPlugin | None:
-        """
-        Get an active environment instance by name.
-
-        Args:
-            name: Name of the environment to retrieve, or None for any environment
-
-        Returns:
-            IEnvironmentPlugin instance or None if not found
-        """
-        if name:
-            return self.environment_plugins.get(name)
-        elif self.environment_plugins:
-            # Return any environment if name not specified
-            return next(iter(self.environment_plugins.values()))
-        return None
-
-    def get_active_service(self, name: str = None) -> Optional["IServiceManager"]:
-        """
-        Get an active service instance by name.
-
-        Args:
-            name: Name of the service to retrieve, or None for any service
-
-        Returns:
-            IServiceManager instance or None if not found
-        """
-        if name:
-            return self.service_managers.get(name)
-        elif self.service_managers:
-            # Return any service if name not specified
-            return next(iter(self.service_managers.values()))
-        return None
+    # Orchestration methods removed - ExperimentObserver is now purely observational
 
     def get_priority(self) -> int:
         """
@@ -757,132 +711,6 @@ class ExperimentObserver(IObserver):
         # but keeping for compatibility with observer registry
         return True
 
-    def register_environment(self, env_name: str, environment: IEnvironmentPlugin) -> None:
-        """
-        Explicitly register an environment plugin with this observer.
-
-        Args:
-            env_name: Unique name identifier for the environment
-            environment: Environment plugin instance
-        """
-        self.logger.debug(
-            f"Registering environment '{env_name}' of type {environment.__class__.__name__}"
-        )
-        self.environment_plugins[env_name] = environment
-        self.environment_states[env_name] = "registered"
-        self.environment_setup_complete[env_name] = False
-
-    def register_service(self, service_name: str, service_manager: "IServiceManager") -> None:
-        """
-        Explicitly register a service manager with this observer.
-
-        Args:
-            service_name: Unique name identifier for the service
-            service_manager: Service manager instance
-        """
-        self.logger.debug(
-            f"Registering service '{service_name}' of type {service_manager.__class__.__name__}"
-        )
-        self.service_managers[service_name] = service_manager
-        self.service_states[service_name] = "registered"
-        self.service_setup_complete[service_name] = False
-
-    def update_environment_state(self, env_name: str, state: str) -> None:
-        """
-        Update the state of an environment.
-
-        Args:
-            env_name: Name of the environment
-            state: New state (e.g., 'setting_up', 'ready', 'failed', 'tear_down')
-        """
-        if env_name in self.environment_states:
-            self.logger.debug(
-                f"Environment '{env_name}' state changed: {self.environment_states[env_name]} -> {state}"
-            )
-            self.environment_states[env_name] = state
-
-            if state == "ready":
-                self.environment_setup_complete[env_name] = True
-            elif state == "failed":
-                self.environment_setup_complete[env_name] = False
-        else:
-            self.logger.warning(f"Attempted to update state for unknown environment: {env_name}")
-
-    def get_environment_state(self, env_name: str) -> str | None:
-        """
-        Get the current state of an environment.
-
-        Args:
-            env_name: Name of the environment
-
-        Returns:
-            Current state of the environment or None if not found
-        """
-        return self.environment_states.get(env_name)
-
-    def update_service_state(self, service_name: str, state: str) -> None:
-        """
-        Update the state of a service.
-
-        Args:
-            service_name: Name of the service
-            state: New state (e.g., 'starting', 'ready', 'failed', 'stopped')
-        """
-        if service_name in self.service_states:
-            self.logger.debug(
-                f"Service '{service_name}' state changed: {self.service_states[service_name]} -> {state}"
-            )
-            self.service_states[service_name] = state
-
-            if state == "ready":
-                self.service_setup_complete[service_name] = True
-            elif state == "failed":
-                self.service_setup_complete[service_name] = False
-        else:
-            self.logger.warning(f"Attempted to update state for unknown service: {service_name}")
-
-    def is_environment_ready(self, env_name: str) -> bool:
-        """
-        Check if an environment is ready.
-
-        Args:
-            env_name: Name of the environment to check
-
-        Returns:
-            bool: True if environment is ready, False otherwise
-        """
-        if env_name in self.environment_setup_complete:
-            return self.environment_setup_complete[env_name]
-        return False
-
-    def is_service_ready(self, service_name: str) -> bool:
-        """
-        Check if a service is ready.
-
-        Args:
-            service_name: Name of the service to check
-
-        Returns:
-            bool: True if service is ready, False otherwise
-        """
-        if service_name in self.service_setup_complete:
-            return self.service_setup_complete[service_name]
-        return False
-
-    def get_all_environment_states(self) -> dict:
-        """
-        Get the current state of all tracked environments.
-
-        Returns:
-            dict: Dictionary mapping environment names to their states
-        """
-        return self.environment_states.copy()
-
-    def get_all_service_states(self) -> dict:
-        """
-        Get the current state of all tracked services.
-
-        Returns:
-            dict: Dictionary mapping service names to their states
-        """
-        return self.service_states.copy()
+    # All orchestration methods have been removed.
+    # State management is now handled centrally by StateManager.
+    # ExperimentObserver only observes and logs events.

@@ -433,3 +433,75 @@ class PluginServiceStoppedEvent(PluginEvent):
     @property
     def stop_reason(self) -> str:
         return self.data.get("stop_reason", "normal_shutdown")
+
+
+class PluginLoadedEvent(PluginEvent):
+    """Event emitted when a plugin is successfully loaded and available for use."""
+
+    def __init__(
+        self,
+        plugin_id: str,
+        plugin_name: str,
+        plugin_type: str,
+        plugin_path: str,
+        metadata: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=PluginEventType.LOADING_COMPLETED,
+            plugin_id=plugin_id,
+            plugin_name=plugin_name,
+            plugin_type=plugin_type,
+            data={
+                "plugin_path": plugin_path,
+                "metadata": metadata or {},
+                "action": "plugin_loaded",
+            },
+        )
+
+    @property
+    def plugin_path(self) -> str:
+        return self.data.get("plugin_path", "")
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return self.data.get("metadata", {})
+
+
+class ServiceManagerCreatedEvent(PluginEvent):
+    """Event emitted when a service manager is created from a plugin."""
+
+    def __init__(
+        self,
+        plugin_id: str,
+        plugin_name: str,
+        plugin_type: str,
+        service_name: str,
+        implementation: str,
+        protocol: str,
+        service_config: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=PluginEventType.SERVICE_CREATED,
+            plugin_id=plugin_id,
+            plugin_name=plugin_name,
+            plugin_type=plugin_type,
+            data={
+                "service_name": service_name,
+                "implementation": implementation,
+                "protocol": protocol,
+                "service_config": service_config or {},
+                "action": "service_manager_created",
+            },
+        )
+
+    @property
+    def service_name(self) -> str:
+        return self.data.get("service_name", "")
+
+    @property
+    def implementation(self) -> str:
+        return self.data.get("implementation", "")
+
+    @property
+    def protocol(self) -> str:
+        return self.data.get("protocol", "")

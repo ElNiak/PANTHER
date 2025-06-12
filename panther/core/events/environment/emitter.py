@@ -26,6 +26,9 @@ from panther.core.events.environment.events import (
     EnvironmentResourceEvent,
     EnvironmentConfigurationEvent,
     EnvironmentMonitoringEvent,
+    OutputCollectionStartedEvent,
+    OutputCollectedEvent,
+    OutputCollectionCompletedEvent,
 )
 
 
@@ -629,5 +632,129 @@ class EnvironmentEventEmitter:
             error_type=error_type,
             failed_services=failed_services,
             error_details=error_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_output_collection_started(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        collection_targets: list[str] | None = None,
+        collection_config: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit output collection started event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            collection_targets: List of environments being collected from
+            collection_config: Configuration for the collection process
+        """
+        event = OutputCollectionStartedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            collection_targets=collection_targets or [],
+            collection_config=collection_config or {},
+        )
+        self.event_manager.notify(event)
+
+    def emit_output_collected(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        output_type: str,
+        output_path: str,
+        output_size: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit output collected event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            output_type: Type of output collected (trace, profile, etc.)
+            output_path: Path to the collected output file
+            output_size: Size of the output file in bytes
+            metadata: Additional metadata about the output
+        """
+        event = OutputCollectedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            output_type=output_type,
+            output_path=output_path,
+            output_size=output_size,
+            metadata=metadata or {},
+        )
+        self.event_manager.notify(event)
+
+    def emit_output_collection_completed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        outputs: dict[str, str],
+        total_outputs: int,
+        collection_duration: float,
+        collection_summary: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit output collection completed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            outputs: Dictionary of collected outputs
+            total_outputs: Total number of outputs collected
+            collection_duration: Duration of the collection process in seconds
+            collection_summary: Summary of the collection process
+        """
+        event = OutputCollectionCompletedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            outputs=outputs,
+            total_outputs=total_outputs,
+            collection_duration=collection_duration,
+            collection_summary=collection_summary or {},
+        )
+        self.event_manager.notify(event)
+
+    def emit_output_collection_failed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        error_message: str,
+        error_type: str = "collection_error",
+        error_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit output collection failed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            error_message: Error message describing the failure
+            error_type: Type of error that occurred
+            error_details: Additional error details
+        """
+        # Create a generic EnvironmentErrorEvent for output collection failures
+        event = EnvironmentErrorEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            error_message=f"Output collection failed: {error_message}",
+            error_type=error_type,
+            error_details=error_details or {},
         )
         self.event_manager.notify(event)

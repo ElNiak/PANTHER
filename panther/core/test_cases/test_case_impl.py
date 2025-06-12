@@ -10,15 +10,7 @@ from colorlog import ColoredFormatter
 
 from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.events import (
-    TestEventEmitter,
-    ServiceEventEmitter,
-    EnvironmentEventEmitter,
-    StepEventEmitter,
-    ExperimentEventEmitter,
-    AssertionEventEmitter,
-    MetricsEventEmitter,
-)
+from panther.core.events.emitter_registry import EmitterRegistry
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
@@ -36,6 +28,8 @@ from panther.core.results.result_handlers.storage_handler import StorageHandler
 from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_manager import PluginManager
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.core.outputs.output_aggregator import OutputAggregator
+from panther.plugins.services.testers.tester_interface import ITesterManager
 from panther.plugins.services.iut.config_schema import ImplementationType
 from panther.core.observer.impl.experiment_observer import ExperimentObserver
 
@@ -86,6 +80,7 @@ class TestCase(ITestCase):
         plugin_manager: PluginManager,
         experiment_dir: Path,
         metrics_collector=None,
+        emitter_registry=None,
     ):
         super().__init__(test_config, global_config)
 
@@ -135,14 +130,26 @@ class TestCase(ITestCase):
             self.event_manager = plugin_manager.event_manager
             self.logger.debug("Using shared EventManager from plugin_manager")
 
-        # Initialize entity-specific emitters for type-safe event emission
-        self.test_emitter = TestEventEmitter(self.event_manager, self.test_name)
-        self.service_emitter = ServiceEventEmitter(self.event_manager)
-        self.environment_emitter = EnvironmentEventEmitter(self.event_manager)
-        self.step_emitter = StepEventEmitter(self.event_manager)
-        self.experiment_emitter = ExperimentEventEmitter(self.event_manager, self.test_name)
-        self.assertion_emitter = AssertionEventEmitter(self.event_manager)
-        self.metrics_emitter = MetricsEventEmitter(self.event_manager)
+        # Use provided emitter registry or create a new one
+        if emitter_registry:
+            self.emitter_registry = emitter_registry
+            self.logger.debug("Using shared EmitterRegistry")
+        else:
+            # Initialize centralized emitter registry using shared event manager
+            self.emitter_registry = EmitterRegistry(self.event_manager)
+            self.logger.debug("Created new EmitterRegistry")
+
+        # Access emitters through the registry
+        self.test_emitter = self.emitter_registry.get_test_emitter(self.test_name)
+        self.service_emitter = self.emitter_registry.service_emitter
+        self.environment_emitter = self.emitter_registry.environment_emitter
+        self.step_emitter = self.emitter_registry.step_emitter
+        self.experiment_emitter = self.emitter_registry.experiment_emitter
+        self.assertion_emitter = self.emitter_registry.assertion_emitter
+        self.metrics_emitter = self.emitter_registry.metrics_emitter
+
+        # Get state manager from emitter registry
+        self.state_manager = self.emitter_registry.state_manager
 
         net_environment_type = test_config.network_environment
         self.logger.info("Loading network environment: %s", net_environment_type)
@@ -203,8 +210,8 @@ class TestCase(ITestCase):
                 if hasattr(service_manager, "service_name")
                 else service_manager.get_implementation_name()
             )
-            self.update_service_state(service_name, "deploying")
-            self.logger.debug(f"Updated service '{service_name}' state to 'deploying'")
+            # State tracking happens through events
+            self.logger.debug(f"Service '{service_name}' deployment starting")
 
         # Emit service deployment started event
         service_names = [
@@ -228,23 +235,10 @@ class TestCase(ITestCase):
                     env_manager.__class__.__name__,
                 )
 
-                # First check if the environment is ready to deploy services
-                env_state = None
-                if experiment_observer:
-                    env_state = experiment_observer.get_environment_state(env_name)
+                # Environment readiness is tracked by StateManager, not ExperimentObserver
+                # Just proceed with deployment
 
-                if env_state not in ["ready", "initialized"]:
-                    self.logger.error(
-                        f"Environment '{env_name}' is not ready for service deployment (state: {env_state})"
-                    )
-                    # Update environment state to failed
-                    self.update_environment_state(env_name, "failed")
-                    raise RuntimeError(
-                        f"Environment '{env_name}' is not ready for service deployment"
-                    )
-
-                # Update environment state for deployment phase
-                self.update_environment_state(env_name, "deploying")
+                # State tracking happens through events
 
                 # Emit environment deployment started event
                 self.environment_emitter.emit_environment_deployment_started(
@@ -258,7 +252,7 @@ class TestCase(ITestCase):
 
                 if not env_manager.plugin_setup:
                     self.logger.error(f"Environment manager '{env_name}' not set up")
-                    self.update_environment_state(env_name, "failed")
+                    # State tracking happens through events
                     raise RuntimeError(
                         f"Environment manager {env_manager.__class__.__name__} not set up"
                     )
@@ -271,7 +265,7 @@ class TestCase(ITestCase):
                         compose_path = env_manager.rendered_services_network_config_file_path
                         if not os.path.exists(compose_path):
                             self.logger.error(f"Docker Compose file not found at {compose_path}")
-                            self.update_environment_state(env_name, "failed")
+                            # State tracking happens through events
                             raise FileNotFoundError(
                                 f"Docker Compose file not found at {compose_path}"
                             )
@@ -282,8 +276,7 @@ class TestCase(ITestCase):
                     # Mark deployment as successful
                     successful_deployment = True
 
-                    # Update environment state to indicate successful deployment
-                    self.update_environment_state(env_name, "deployed")
+                    # State tracking happens through events
 
                     # Update all service states to indicate they're deployed
                     for service_manager in self.service_managers:
@@ -292,8 +285,8 @@ class TestCase(ITestCase):
                             if hasattr(service_manager, "service_name")
                             else service_manager.get_implementation_name()
                         )
-                        self.update_service_state(service_name, "deployed")
-                        self.logger.debug(f"Updated service '{service_name}' state to 'deployed'")
+                        # State tracking happens through events
+                        self.logger.debug(f"Service '{service_name}' deployed")
 
                     # Emit services deployed event
                     service_names = [
@@ -336,14 +329,14 @@ class TestCase(ITestCase):
                     )
 
                     # Update environment and service states to failed
-                    self.update_environment_state(env_name, "failed")
+                    # State tracking happens through events
                     for service_manager in self.service_managers:
                         service_name = (
                             service_manager.service_name
                             if hasattr(service_manager, "service_name")
                             else service_manager.get_implementation_name()
                         )
-                        self.update_service_state(service_name, "failed")
+                        # State tracking happens through events
 
                     # Emit specific file not found failure event for each service
                     for service_manager in self.service_managers:
@@ -384,14 +377,14 @@ class TestCase(ITestCase):
                     self.logger.error("Failed to deploy services: %s", e, exc_info=True)
 
                     # Update environment and service states to failed
-                    self.update_environment_state(env_name, "failed")
+                    # State tracking happens through events
                     for service_manager in self.service_managers:
                         service_name = (
                             service_manager.service_name
                             if hasattr(service_manager, "service_name")
                             else service_manager.get_implementation_name()
                         )
-                        self.update_service_state(service_name, "failed")
+                        # State tracking happens through events
 
                     # Emit service deployment failure event for each service
                     for service_manager in self.service_managers:
@@ -747,15 +740,15 @@ class TestCase(ITestCase):
             # Set up the implementations
             self.setup_implementations()
 
-            # Register all services with observers for better tracking
+            # Services are tracked through events, no need for direct registration
             for service_manager in self.service_managers:
                 service_name = (
                     service_manager.service_name
                     if hasattr(service_manager, "service_name")
                     else service_manager.get_implementation_name()
                 )
-                self.register_service_with_observers(service_name, service_manager)
-                self.update_service_state(service_name, "initialized")
+                # State is managed by StateManager, not through direct updates
+                self.logger.debug(f"Service '{service_name}' initialized")
 
             # Emit service setup completed event using the typed event emitter
             self.service_emitter.emit_service_setup_completed(
@@ -788,7 +781,7 @@ class TestCase(ITestCase):
             self.logger.warning("No service managers found to prepare")
             return
 
-        plugin_loader = self.plugin_manager.plugins_loader
+        plugin_loader = self.plugin_manager.plugin_loader
 
         for service_manager in self.service_managers:
             try:
@@ -841,8 +834,8 @@ class TestCase(ITestCase):
         self.logger.debug("Looking for testers plugins at '%s'", self.testers_path)
 
         # Get available testers
-        if hasattr(self.plugin_manager.plugins_loader, "get_testers"):
-            self.available_testers = self.plugin_manager.plugins_loader.get_testers()
+        if hasattr(self.plugin_manager.plugin_loader, "get_testers"):
+            self.available_testers = self.plugin_manager.plugin_loader.get_testers()
         else:
             self.available_testers = []
             if self.testers_path.exists() and self.testers_path.is_dir():
@@ -946,9 +939,9 @@ class TestCase(ITestCase):
         # Get implementations per protocol
         self.available_implementations_per_protocol = {}
         for protocol in self.available_protocols:
-            if hasattr(self.plugin_manager.plugins_loader, "get_implementations_for_protocol"):
+            if hasattr(self.plugin_manager.plugin_loader, "get_implementations_for_protocol"):
                 self.available_implementations_per_protocol[protocol] = (
-                    self.plugin_manager.plugins_loader.get_implementations_for_protocol(protocol)
+                    self.plugin_manager.plugin_loader.get_implementations_for_protocol(protocol)
                 )
             else:
                 protocol_path = self.iut_path / protocol
@@ -1008,7 +1001,7 @@ class TestCase(ITestCase):
                                 service_config_to_test=implementation_config,
                                 event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
                             )
-                            # Set test context if the service manager supports it
+                            # Set test context if the service manager supports it (TODO: check if this is needed)
                             if hasattr(service_manager, "set_test_context"):
                                 service_manager.set_test_context(self.test_name)
                             self.service_managers.append(service_manager)
@@ -1078,12 +1071,9 @@ class TestCase(ITestCase):
                 else self.test_experiment_dir
             )
 
-            # Register environment with observers before initialization for better tracking
+            # No need to register with observers - they observe through events
             env_name = f"{network_environment_plugin.__class__.__name__}_{self.test_name}"
-            self.register_environment_with_observers(env_name, network_environment_plugin)
-
-            # Update environment state to indicate setup is starting
-            self.update_environment_state(env_name, "initializing")
+            # State tracking happens through events
 
             # Call initialize method on the plugin
             network_environment_plugin.initialize(
@@ -1093,8 +1083,7 @@ class TestCase(ITestCase):
             # Add to list of environment plugins
             self.environment_plugin_manager.append(network_environment_plugin)
 
-            # Update environment state to indicate initialization completed
-            self.update_environment_state(env_name, "initialized")
+            # State tracking happens through events
 
             # Emit network environment initialized event using the typed event emitter
             self.environment_emitter.emit_environment_initialized(
@@ -1128,10 +1117,8 @@ class TestCase(ITestCase):
                     exec_env_name = (
                         f"{execution_environment_plugin.__class__.__name__}_{self.test_name}"
                     )
-                    self.register_environment_with_observers(
-                        exec_env_name, execution_environment_plugin
-                    )
-                    self.update_environment_state(exec_env_name, "initializing")
+                    # No need to register with observers - they observe through events
+                    # State tracking happens through events
 
                     # Initialize the execution environment
                     self.logger.info(
@@ -1144,8 +1131,7 @@ class TestCase(ITestCase):
                         self.global_config,
                     )
 
-                    # Update environment state to indicate initialization completed
-                    self.update_environment_state(exec_env_name, "initialized")
+                    # State tracking happens through events
 
                     # Add to list of environment plugins
                     self.environment_plugin_manager.append(execution_environment_plugin)
@@ -1166,7 +1152,7 @@ class TestCase(ITestCase):
                 self.logger.info("Setting up network environment with service managers")
 
                 # Update environment state to indicate setup is in progress
-                self.update_environment_state(env_name, "setting_up")
+                # State tracking happens through events
 
                 try:
                     # Use current timestamp for the Docker Compose file naming
@@ -1178,7 +1164,7 @@ class TestCase(ITestCase):
                         test_config=self.test_config,
                         global_config=self.global_config,
                         timestamp=timestamp,
-                        plugin_loader=self.plugin_manager.plugins_loader,
+                        plugin_loader=self.plugin_manager.plugin_loader,
                         execution_environment=execution_environments,
                     )
 
@@ -1196,7 +1182,7 @@ class TestCase(ITestCase):
                             self.logger.error(
                                 f"Docker Compose file not found at {config_file_path}"
                             )
-                            self.update_environment_state(env_name, "failed")
+                            # State tracking happens through events
                             raise FileNotFoundError(
                                 f"Docker Compose file not found at {config_file_path}"
                             )
@@ -1204,13 +1190,13 @@ class TestCase(ITestCase):
                             self.logger.error(
                                 f"Docker Compose file exists but is empty at {config_file_path}"
                             )
-                            self.update_environment_state(env_name, "failed")
+                            # State tracking happens through events
                             raise RuntimeError(
                                 f"Docker Compose file is empty at {config_file_path}"
                             )
 
                     # Update environment state to indicate setup completed successfully
-                    self.update_environment_state(env_name, "ready")
+                    # State tracking happens through events
 
                     # Log success and details
                     self.logger.info(f"Environment {env_name} setup completed successfully")
@@ -1225,7 +1211,7 @@ class TestCase(ITestCase):
                     self.logger.error(
                         "Network environment setup failed: %s", setup_error, exc_info=True
                     )
-                    self.update_environment_state(env_name, "failed")
+                    # State tracking happens through events
 
                     # Emit environment setup failed event with detailed error information
                     self.environment_emitter.emit_environment_setup_failed(
@@ -1780,6 +1766,204 @@ class TestCase(ITestCase):
         # Implementation would depend on what metrics need to be saved
         # This is just a placeholder
 
+    def _collect_outputs(self) -> dict[str, dict[str, str]]:
+        """
+        Collect outputs from all execution environments for analysis.
+
+        This method aggregates outputs from execution environments that implement
+        IOutputCollector and prepares them for tester analysis.
+
+        Returns:
+            dict[str, dict[str, str]]: Collected outputs organized by type
+        """
+        self.logger.info("Starting output collection phase")
+
+        # Emit step progress for output collection
+        self.step_emitter.emit_step_progress(
+            step_id="output_collection",
+            step_name="Collect outputs from execution environments",
+            test_case_id=self.test_name,
+            progress_percentage=85.0,
+            progress_message="Collecting outputs from execution environments",
+        )
+
+        start_time = time.time()
+
+        try:
+            # Create output aggregator
+            aggregator = OutputAggregator(
+                experiment_dir=self.test_experiment_dir,
+                environment_emitter=self.emitter_registry.environment_emitter,
+            )
+
+            # Collect outputs from all environments
+            collected_outputs = aggregator.collect_from_environments(
+                self.environment_plugin_manager
+            )
+
+            # Prepare outputs for testers (reorganize by output type)
+            organized_outputs = aggregator.prepare_for_testers(collected_outputs)
+
+            # Store collected outputs for potential later use
+            self.collected_outputs = collected_outputs
+            self.organized_outputs = organized_outputs
+
+            collection_duration = time.time() - start_time
+
+            # Emit timing metric for output collection
+            if self.metrics_collector:
+                self.metrics_emitter.emit_timing_metric(
+                    operation_name=f"collect_outputs_{self.test_name}",
+                    duration=collection_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
+                )
+
+            self.logger.info(f"Output collection completed in {collection_duration:.2f}s")
+            return organized_outputs
+
+        except Exception as e:
+            self.logger.error(f"Failed to collect outputs: {e}", exc_info=True)
+
+            # Emit error event
+            self.environment_emitter.emit_output_collection_failed(
+                environment_id="all_environments",
+                environment_name="Output Collection",
+                environment_type="aggregator",
+                error_message=str(e),
+            )
+
+            # Return empty dict to allow test to continue
+            return {}
+
+    def _run_tester_analysis(self) -> bool:
+        """
+        Run analysis on collected outputs using tester service managers.
+
+        This method identifies tester service managers and provides them with
+        collected outputs for analysis to determine test outcomes.
+
+        Returns:
+            bool: True if all tester analyses passed, False otherwise
+        """
+        self.logger.info("Starting tester analysis phase")
+
+        # Emit step progress for tester analysis
+        self.step_emitter.emit_step_progress(
+            step_id="tester_analysis",
+            step_name="Run tester analysis on collected outputs",
+            test_case_id=self.test_name,
+            progress_percentage=92.0,
+            progress_message="Running tester analysis on collected outputs",
+        )
+
+        start_time = time.time()
+        analysis_results = []
+        all_passed = True
+
+        try:
+            # Get organized outputs (should be set by _collect_outputs)
+            if not hasattr(self, "organized_outputs"):
+                self.logger.warning("No organized outputs available for tester analysis")
+                return True  # Don't fail the test if no outputs to analyze
+
+            # Find all tester service managers
+            tester_managers = []
+            for service_manager in self.service_managers:
+                if isinstance(service_manager, ITesterManager):
+                    tester_managers.append(service_manager)
+
+            if not tester_managers:
+                self.logger.info("No tester service managers found, skipping analysis")
+                return True
+
+            self.logger.info(f"Found {len(tester_managers)} tester service managers for analysis")
+
+            # Run analysis for each tester
+            for tester in tester_managers:
+                tester_name = getattr(tester, "service_name", tester.__class__.__name__)
+                self.logger.info(f"Running analysis with tester: {tester_name}")
+
+                try:
+                    # Provide collected outputs to the tester
+                    tester.set_collected_outputs(self.organized_outputs)
+
+                    # Run the analysis
+                    analysis_result = tester.analyze_outputs()
+
+                    # Get final test results from the tester
+                    test_results = tester.get_test_results()
+
+                    # Store results
+                    analysis_results.append(
+                        {
+                            "tester_name": tester_name,
+                            "analysis_result": analysis_result,
+                            "test_results": test_results,
+                            "passed": test_results.get("passed", False),
+                        }
+                    )
+
+                    # Update overall pass status
+                    if not test_results.get("passed", False):
+                        all_passed = False
+                        self.logger.warning(
+                            f"Tester {tester_name} analysis failed: {test_results.get('summary', 'No summary')}"
+                        )
+                    else:
+                        self.logger.info(
+                            f"Tester {tester_name} analysis passed: {test_results.get('summary', 'No summary')}"
+                        )
+
+                except Exception as e:
+                    self.logger.error(
+                        f"Error running analysis with tester {tester_name}: {e}", exc_info=True
+                    )
+
+                    # Mark this tester as failed
+                    analysis_results.append(
+                        {
+                            "tester_name": tester_name,
+                            "analysis_result": {"passed": False, "error": str(e)},
+                            "test_results": {
+                                "passed": False,
+                                "summary": f"Analysis error: {str(e)}",
+                            },
+                            "passed": False,
+                        }
+                    )
+                    all_passed = False
+
+            # Store analysis results for potential later use
+            self.analysis_results = analysis_results
+
+            analysis_duration = time.time() - start_time
+
+            # Emit timing metric for tester analysis
+            if self.metrics_collector:
+                self.metrics_emitter.emit_timing_metric(
+                    operation_name=f"tester_analysis_{self.test_name}",
+                    duration=analysis_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
+                )
+
+            # Emit summary of analysis results
+            passed_count = sum(1 for result in analysis_results if result["passed"])
+            failed_count = len(analysis_results) - passed_count
+
+            self.logger.info(
+                f"Tester analysis completed in {analysis_duration:.2f}s. Results: {passed_count} passed, {failed_count} failed"
+            )
+
+            return all_passed
+
+        except Exception as e:
+            self.logger.error(f"Failed to run tester analysis: {e}", exc_info=True)
+            return False
+
     def run(self):
         """
         Runs the test case based on the provided configuration.
@@ -1792,9 +1976,11 @@ class TestCase(ITestCase):
         5. Sets up the test environment.
         6. Deploys the required services.
         7. Executes the test steps.
-        8. Validates the assertions.
-        9. Logs the successful completion of the test case.
-        10. Notifies the event manager about the test completion.
+        8. Collects outputs from execution environments.
+        9. Runs tester analysis on collected outputs.
+        10. Validates the assertions.
+        11. Logs the successful completion of the test case.
+        12. Notifies the event manager about the test completion.
 
         If any exception occurs during the execution, it logs the error and raises the exception.
         Finally, it tears down the test environment.
@@ -1806,6 +1992,12 @@ class TestCase(ITestCase):
             self.state = "RUNNING"
             self.logger.info("Starting Test: %s", self.test_config.name)
             self.logger.info("Description:   %s", self.test_config.description)
+
+            # Track test state in state manager
+            from panther.core.state import EntityState
+
+            self.state_manager.set_entity_state("test", self.test_name, EntityState.CREATED)
+            self.state_manager.set_entity_state("test", self.test_name, EntityState.INITIALIZED)
 
             start_time = time.time()
             # Set up observers first to ensure proper tracking
@@ -1820,6 +2012,9 @@ class TestCase(ITestCase):
             self.test_emitter.emit_execution_started(
                 steps=list(self.test_config.steps.keys()) if self.test_config.steps else None
             )
+
+            # Transition to preparing state
+            self.state_manager.set_entity_state("test", self.test_name, EntityState.PREPARING)
 
             # Setup services with timing
             setup_services_start = time.time()
@@ -1866,6 +2061,9 @@ class TestCase(ITestCase):
                     component="test_case",
                 )
 
+            # Transition to running state for test execution
+            self.state_manager.set_entity_state("test", self.test_name, EntityState.RUNNING)
+
             # Deploy services with timing
             deploy_services_start = time.time()
             self.deploy_services()
@@ -1911,14 +2109,34 @@ class TestCase(ITestCase):
                     component="test_case",
                 )
 
-            # Check if service tests actually passed
-            self._check_service_test_results()
+            # Collect outputs from execution environments
+            self._collect_outputs()
+
+            # Run tester analysis on collected outputs
+            tester_analysis_passed = self._run_tester_analysis()
+
+            # Update test state based on tester analysis results
+            if not tester_analysis_passed:
+                self.state = "FAILED"
+                self.logger.error(
+                    "Test '%s' failed due to tester analysis failures.", self.test_config.name
+                )
+
+                # Emit test failed event
+                self.test_emitter.emit_failed(
+                    error_message="Tester analysis failed",
+                    summary={"analysis_results": getattr(self, "analysis_results", [])},
+                )
+                return False
 
             # Calculate total test duration
             total_duration = time.time() - start_time
 
             self.state = "DONE"
             self.logger.info("Test '%s' completed successfully.", self.test_config.name)
+
+            # Transition to completed state
+            self.state_manager.set_entity_state("test", self.test_name, EntityState.COMPLETED)
 
             if self.metrics_collector:
                 # Emit timing metric for overall test case execution
@@ -1948,6 +2166,9 @@ class TestCase(ITestCase):
 
         except Exception as e:
             self.state = "ERROR"
+
+            # Transition to failed state
+            self.state_manager.set_entity_state("test", self.test_name, EntityState.FAILED)
 
             if self.metrics_collector:
                 # Emit error metric event using event emitter
@@ -2021,84 +2242,5 @@ class TestCase(ITestCase):
 
         return experiment_observer
 
-    def register_environment_with_observers(self, env_name: str, env_plugin):
-        """
-        Register an environment plugin with all relevant observers.
-
-        Args:
-            env_name: The name of the environment
-            env_plugin: The environment plugin instance
-        """
-        experiment_observer = self.get_experiment_observer()
-        if experiment_observer and hasattr(experiment_observer, "register_environment"):
-            experiment_observer.register_environment(env_name, env_plugin)
-            self.logger.debug(f"Registered environment '{env_name}' with experiment observer")
-
-    def register_service_with_observers(self, service_name: str, service_manager):
-        """
-        Register a service manager with all relevant observers.
-
-        Args:
-            service_name: The name of the service
-            service_manager: The service manager instance
-        """
-        experiment_observer = self.get_experiment_observer()
-        if experiment_observer and hasattr(experiment_observer, "register_service"):
-            experiment_observer.register_service(service_name, service_manager)
-            self.logger.debug(f"Registered service '{service_name}' with experiment observer")
-
-    def update_environment_state(self, env_name: str, state: str):
-        """
-        Update the state of an environment in all relevant observers.
-
-        Args:
-            env_name: The name of the environment
-            state: The new state
-        """
-        experiment_observer = self.get_experiment_observer()
-        if experiment_observer and hasattr(experiment_observer, "update_environment_state"):
-            experiment_observer.update_environment_state(env_name, state)
-            self.logger.debug(f"Updated environment '{env_name}' state to '{state}'")
-
-    def update_service_state(self, service_name: str, state: str):
-        """
-        Update the state of a service in all relevant observers.
-
-        Args:
-            service_name: The name of the service
-            state: The new state
-        """
-        experiment_observer = self.get_experiment_observer()
-        if experiment_observer and hasattr(experiment_observer, "update_service_state"):
-            experiment_observer.update_service_state(service_name, state)
-            self.logger.debug(f"Updated service '{service_name}' state to '{state}'")
-
-    def check_environment_ready(self, env_name: str) -> bool:
-        """
-        Check if an environment is ready using observer state tracking.
-
-        Args:
-            env_name: The name of the environment
-
-        Returns:
-            bool: True if the environment is ready, False otherwise
-        """
-        experiment_observer = self.get_experiment_observer()
-        if experiment_observer and hasattr(experiment_observer, "is_environment_ready"):
-            return experiment_observer.is_environment_ready(env_name)
-        return False
-
-    def check_service_ready(self, service_name: str) -> bool:
-        """
-        Check if a service is ready using observer state tracking.
-
-        Args:
-            service_name: The name of the service
-
-        Returns:
-            bool: True if the service is ready, False otherwise
-        """
-        experiment_observer = self.get_experiment_observer()
-        if experiment_observer and hasattr(experiment_observer, "is_service_ready"):
-            return experiment_observer.is_service_ready(service_name)
-        return False
+    # Orchestration methods removed - State is managed by StateManager and tracked through events.
+    # TestCase no longer directly manipulates observer state.

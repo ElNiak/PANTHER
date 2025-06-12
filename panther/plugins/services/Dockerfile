@@ -31,13 +31,28 @@ ARG USER_UID=1000
 ARG USER_GID=1000
 ARG USER_N=crochetch
 
-RUN getent group ${USER_N} || addgroup --gid ${USER_GID} ${USER_N} && \
-    id -u ${USER_N} || adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
-    id -nG ${USER_N} | grep -qw wireshark || usermod -aG wireshark ${USER_N}
+# Create group and user more robustly
+RUN if ! getent group ${USER_N} > /dev/null 2>&1; then \
+        addgroup --gid ${USER_GID} ${USER_N} || echo "Failed to add group ${USER_N}"; \
+    fi && \
+    if ! id -u ${USER_N} > /dev/null 2>&1; then \
+        adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} || echo "Failed to add user ${USER_N}"; \
+    fi && \
+    if id -u ${USER_N} > /dev/null 2>&1; then \
+        usermod -aG wireshark ${USER_N} || echo "Failed to add ${USER_N} to wireshark group"; \
+    fi
 
 RUN usermod -aG wireshark root
 
 # Give the user ownership of the /app directory (or any directories you need)
-RUN mkdir -p /app
-RUN chown -R ${USER_N}:${USER_N} /app
-RUN chown -R ${USER_N}:${USER_N} /opt
+# Create directories first before changing ownership
+RUN mkdir -p /app /opt
+
+# Use a more robust approach - check if user exists before chown
+# This prevents failures if the user creation failed for some reason
+RUN if id -u ${USER_N} > /dev/null 2>&1; then \
+        chown -R ${USER_N}:${USER_N} /app || true && \
+        chown -R ${USER_N}:${USER_N} /opt || true; \
+    else \
+        echo "Warning: User ${USER_N} does not exist, skipping chown"; \
+    fi || true

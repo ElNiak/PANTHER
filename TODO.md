@@ -3,7 +3,6 @@
 !!! note "Development Roadmap"
     This document tracks planned improvements and known issues. Contributions are welcome for any of these items.
 
-
 * detached mode for experiences
 
 * Analysis plugins (perf report, qvis etc)
@@ -12,9 +11,11 @@
       "network_recv_mb_total": 14.197265625,
 
 * Command behavioral design pattern
-  * https://refactoring.guru/design-patterns/command/python/example#example-0
+  * <https://refactoring.guru/design-patterns/command/python/example#example-0>
 
-* https://refactoring.guru/design-patterns/state
+* <https://refactoring.guru/design-patterns/state>
+
+* Create a template module with helper functions linked to command generation module
 
 ## PANTHER Ivy
 

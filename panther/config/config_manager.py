@@ -131,6 +131,9 @@ class ConfigLoader:
             build_docker_image=loaded_config.get("docker", {}).get(
                 "build_docker_image", default_docker.build_docker_image
             ),
+            log_docker_image_build=loaded_config.get("docker", {}).get(
+                "log_docker_image_build", default_docker.log_docker_image_build
+            ),
             remove_docker_image=loaded_config.get("docker", {}).get(
                 "remove_docker_image", default_docker.remove_docker_image
             ),
@@ -914,11 +917,9 @@ class ConfigLoader:
         implem_type = implementation["implementation"]["type"]
         protocol = implementation["protocol"]["name"]
         protocol_version = implementation["protocol"]["version"]
-        if implem_type == "IUT":
+        if implem_type == "IUT" or implem_type.lower() == "iut":
             # Assuming schema files are in plugins
-            module_path = (
-                f"panther.plugins.services.{implem_type.lower()}.{protocol}.{name}.config_schema"
-            )
+            module_path = f"panther.plugins.services.iut.{protocol}.{name}.config_schema"
         else:
             module_path = f"panther.plugins.services.{implem_type.lower()}.{name}.config_schema"
 
@@ -936,7 +937,7 @@ class ConfigLoader:
             version_class_name = PluginLoader.get_class_name(name, "Version")
             version_config_class = getattr(schema_module, version_class_name)
             # TODO cleanup
-            if implem_type == "IUT":
+            if implem_type == "IUT" or implem_type.lower() == "iut":
                 version_configs_dir = (
                     str(self._panther_dir).replace("/panther", "")
                     + "/"
@@ -960,7 +961,12 @@ class ConfigLoader:
                 OmegaConf.merge(OmegaConf.structured(version_config_class), raw_version_config)
             )
 
-            implementation_instance = config_class(**implementation["implementation"])
+            # Convert type to uppercase for enum compatibility
+            impl_config = implementation["implementation"].copy()
+            if "type" in impl_config and isinstance(impl_config["type"], str):
+                impl_config["type"] = impl_config["type"].upper()
+
+            implementation_instance = config_class(**impl_config)
             implementation_instance.version = protocol_version
 
             return OmegaConf.merge(config_class, implementation_instance)

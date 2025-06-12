@@ -1,3 +1,6 @@
+from abc import abstractmethod
+from typing import Any
+
 from panther.config.config_experiment_schema import ServiceConfig
 from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.core.observer.management.event_manager import EventManager
@@ -29,6 +32,7 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
             "details": {},
         }
         self.test_results = {}
+        self.collected_outputs = {}
 
     def run_tests(self):
         """
@@ -66,14 +70,63 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
             )
             raise
 
+    @abstractmethod
     def _do_run_tests(self):
         """
         Actual implementation of test running, to be overridden by subclasses.
 
         Returns:
             Dict: Test results containing at minimum a 'success' key with boolean value
-
-        Raises:
-            NotImplementedError: If the subclass does not implement this method
         """
-        raise NotImplementedError("Subclasses must implement _do_run_tests")
+        pass
+
+    def set_collected_outputs(self, outputs: dict[str, dict[str, str]]) -> None:
+        """
+        Set the outputs collected from execution environments for analysis.
+
+        Args:
+            outputs: Dictionary organized by output type, then by environment
+                    Example: {
+                        "trace": {"strace": "/path/to/trace.out"},
+                        "cpu_profile": {"gperf_cpu": "/path/to/profile.data"}
+                    }
+        """
+        self.collected_outputs = outputs
+        self.logger.info(
+            f"Received {len(outputs)} output types for analysis: {list(outputs.keys())}"
+        )
+
+    @abstractmethod
+    def analyze_outputs(self) -> dict[str, Any]:
+        """
+        Analyze the collected outputs from execution environments.
+
+        This method should examine the outputs provided via set_collected_outputs()
+        and perform tester-specific analysis to determine test outcomes.
+
+        Returns:
+            dict[str, Any]: Analysis results including:
+                - passed: bool - Whether analysis passed
+                - failed_checks: list[str] - List of failed checks
+                - warnings: list[str] - List of warnings
+                - detailed_results: dict - Detailed analysis results
+                - analysis_summary: str - Human-readable summary
+        """
+        pass
+
+    @abstractmethod
+    def get_test_results(self) -> dict[str, Any]:
+        """
+        Get the final test results after analysis.
+
+        This method should return the results of both the test execution
+        and the analysis of collected outputs.
+
+        Returns:
+            dict[str, Any]: Complete test results including:
+                - passed: bool - Overall test success
+                - execution_results: dict - Results from test execution
+                - analysis_results: dict - Results from output analysis
+                - summary: str - Overall summary
+        """
+        pass

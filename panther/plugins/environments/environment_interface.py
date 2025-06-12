@@ -1,18 +1,22 @@
 from abc import abstractmethod
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
+
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.events import EnvironmentEventEmitter
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.plugin_interface import IPlugin
 from panther.plugins.environments.environment_event_methods import EnvironmentPluginEventMixin
 from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.services.services_interface import IServiceManager
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
-from panther.plugins.environments.execution_environment.execution_environment_interface import (
-    IExecutionEnvironment,
-)
+
+if TYPE_CHECKING:
+    from panther.plugins.services.services_interface import IServiceManager
+    from panther.config.config_experiment_schema import TestConfig
+    from panther.config.config_global_schema import GlobalConfig
+    from panther.plugins.environments.execution_environment.execution_environment_interface import (
+        IExecutionEnvironment,
+    )
 
 
 class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
@@ -62,8 +66,6 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         # Initialize event emitter for standardized event emission
         self.event_emitter = EnvironmentEventEmitter(event_manager)
 
-        self._plugin_dir = Path(os.path.dirname(__file__)).parent.parent.parent / "plugins"
-
         # Initialize properties
         self.services_managers = []
         self.test_config = None
@@ -89,12 +91,12 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
 
     def setup_environment(
         self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
+        services_managers: list["IServiceManager"],
+        test_config: "TestConfig",
+        global_config: "GlobalConfig",
         timestamp: str,
         plugin_loader: PluginLoader,
-        execution_environment: list[IExecutionEnvironment],
+        execution_environment: list["IExecutionEnvironment"],
     ) -> None:
         """
         Sets up the environment with proper event notifications.
@@ -149,19 +151,20 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
             )
             raise
 
+    @abstractmethod
     def _do_setup_environment(
         self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
+        services_managers: list["IServiceManager"],
+        test_config: "TestConfig",
+        global_config: "GlobalConfig",
         timestamp: str,
         plugin_loader: PluginLoader,
-        execution_environment: list[IExecutionEnvironment],
+        execution_environment: list["IExecutionEnvironment"],
     ) -> None:
         """
         Implementation of environment setup, to be overridden by subclasses.
         """
-        raise NotImplementedError("Subclasses must implement _do_setup_environment")
+        pass
 
     def deploy_services(self) -> None:
         """
@@ -205,11 +208,12 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
             )
             raise
 
+    @abstractmethod
     def _do_deploy_services(self) -> None:
         """
         Implementation of service deployment, to be overridden by subclasses.
         """
-        raise NotImplementedError("Subclasses must implement _do_deploy_services")
+        pass
 
     def teardown_environment(self) -> None:
         """
@@ -245,11 +249,12 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
             # Don't re-raise; allow other cleanup to continue
             self.logger.error(f"Error during environment teardown: {e}", exc_info=True)
 
+    @abstractmethod
     def _do_teardown_environment(self) -> None:
         """
         Implementation of environment teardown, to be overridden by subclasses.
         """
-        raise NotImplementedError("Subclasses must implement _do_teardown_environment")
+        pass
 
     def update_environment(
         self,
@@ -266,3 +271,19 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         self.test_config = test_config
         self.global_config = global_config
         self.plugin_loader = plugin_loader
+
+    @abstractmethod
+    def initialize(self, test_config, output_dir, event_manager, global_config):
+        """
+        Initialize the environment with configuration settings.
+
+        Args:
+            test_config: Test configuration to use for this environment
+            output_dir: Directory to write environment files
+            event_manager: Shared event manager instance for emitting events
+            global_config: Global configuration settings
+
+        Returns:
+            bool: True if initialization succeeded, False otherwise
+        """
+        pass

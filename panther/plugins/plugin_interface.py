@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
+from typing import Any
 from panther.core.events import BaseEvent
 
 

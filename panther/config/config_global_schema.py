@@ -101,6 +101,7 @@ class DockerConfig:
     """
 
     build_docker_image: bool = True
+    log_docker_image_build: bool = True
     remove_docker_image: bool = False
     remove_docker_container: bool = False
     remove_docker_network: bool = True

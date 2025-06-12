@@ -15,14 +15,7 @@ from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.plugin_manager import PluginManager
 from panther.core.test_cases.test_case_impl import TestCase
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.events import (
-    ExperimentEventEmitter,
-    TestEventEmitter,
-    ServiceEventEmitter,
-    EnvironmentEventEmitter,
-    MetricsEventEmitter,
-    PluginEventEmitter,
-)
+from panther.core.events.emitter_registry import EmitterRegistry
 from panther.core.observer.factory import ObserverFactory, get_observer_factory
 from panther.core.observer.factory.factory_builders import (
     create_logger,
@@ -36,7 +29,6 @@ from panther.core.exceptions.experiment_exceptions import (
     TestExecutionError,
     PluginValidationError,
 )
-import sys
 
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
@@ -110,13 +102,20 @@ class ExperimentManager:
         factory = get_observer_factory(self.global_config)
         factory.set_event_manager(self.event_manager)
 
-        # Initialize entity-specific emitters for type-safe event emission
-        self.experiment_emitter = ExperimentEventEmitter(self.event_manager, self.experiment_name)
-        # Note: TestEventEmitter instances are created per test case in _initialize_test_cases() and run_tests()
-        self.service_emitter = ServiceEventEmitter(self.event_manager)
-        self.environment_emitter = EnvironmentEventEmitter(self.event_manager)
-        self.metrics_emitter = MetricsEventEmitter(self.event_manager)
-        self.plugin_emitter = PluginEventEmitter(self.event_manager)
+        # Initialize state manager
+        from panther.core.state import StateManager
+
+        self.state_manager = StateManager()
+
+        # Initialize centralized emitter registry with state manager
+        self.emitter_registry = EmitterRegistry(self.event_manager, self.state_manager)
+
+        # Access emitters through the registry
+        self.experiment_emitter = self.emitter_registry.experiment_emitter
+        self.service_emitter = self.emitter_registry.service_emitter
+        self.environment_emitter = self.emitter_registry.environment_emitter
+        self.metrics_emitter = self.emitter_registry.metrics_emitter
+        self.plugin_emitter = self.emitter_registry.plugin_emitter
 
         # Setup plugin loader with event manager
         self.plugin_loader = PluginLoader(plugin_dir, global_config=self.global_config)
@@ -135,6 +134,11 @@ class ExperimentManager:
     def initialize_experiments(self, experiment_config: ExperimentConfig):
         """Initializes plugins, environment, and validates configuration."""
         try:
+            # Set initial workflow state
+            from panther.core.state import WorkflowState
+
+            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.CREATED)
+
             self.experiment_config = experiment_config
             self._save_configuration()
 
@@ -144,6 +148,11 @@ class ExperimentManager:
                     "experiment_name": self.experiment_name,
                     "test_count": len(experiment_config.tests),
                 }
+            )
+
+            # Transition to loading plugins state
+            self.state_manager.set_workflow_state(
+                self.experiment_name, WorkflowState.LOADING_PLUGINS
             )
 
             # Validate plugins before loading
@@ -156,6 +165,10 @@ class ExperimentManager:
         except PluginValidationError as e:
             # Handle plugin validation errors specifically
             self.logger.error("Plugin validation failed: %s", e)
+
+            # Transition to failed state
+            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.FAILED)
+
             self.experiment_emitter.emit_finished_early(
                 reason="Plugin Validation Failed",
                 details={
@@ -167,6 +180,10 @@ class ExperimentManager:
             raise
         except (ImportError, ModuleNotFoundError) as e:
             # Handle import-related errors separately
+
+            # Transition to failed state
+            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.FAILED)
+
             # Emit experiment finished early event with error details
             self.experiment_emitter.emit_finished_early(
                 reason=f"Import Error: {type(e).__name__}",
@@ -183,6 +200,9 @@ class ExperimentManager:
 
         # We need to catch all exceptions to properly handle them as initialization errors
         except Exception as e:  # pylint: disable=broad-except
+            # Transition to failed state
+            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.FAILED)
+
             # Emit experiment finished early event with error details
             self.experiment_emitter.emit_finished_early(
                 reason=f"Initialization Error: {type(e).__name__}",
@@ -238,8 +258,8 @@ class ExperimentManager:
             for test_config in self.experiment_config.tests:
                 self.logger.info("Initializing test case: %s", test_config.name)
 
-                # Create a test-specific emitter for this test case
-                test_specific_emitter = TestEventEmitter(self.event_manager, test_config.name)
+                # Get or create a test-specific emitter for this test case
+                test_specific_emitter = self.emitter_registry.get_test_emitter(test_config.name)
 
                 # Emit test initialization start event with test-specific emitter
                 test_specific_emitter.emit_created(
@@ -248,13 +268,14 @@ class ExperimentManager:
                     config={"phase": "initialization"},
                 )
 
-                # Create the test case
+                # Create the test case with shared emitter registry
                 test_case = TestCase(
                     test_config=test_config,
                     global_config=self.global_config,
                     plugin_manager=self.plugin_manager,
                     experiment_dir=self.experiment_dir,
                     metrics_collector=self.metrics_collector,
+                    emitter_registry=self.emitter_registry,
                 )
 
                 self.logger.info("Initialized test case '%s'", test_case)
@@ -285,6 +306,11 @@ class ExperimentManager:
     def run_tests(self):
         """Runs the tests defined in the experiment configuration."""
         try:
+            # Transition to running state
+            from panther.core.state import WorkflowState
+
+            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.RUNNING)
+
             # Experiment-level execution tracking is handled by experiment_emitter
             self.logger.info("Starting test execution for experiment: %s", self.experiment_name)
 
@@ -300,7 +326,7 @@ class ExperimentManager:
                     leave=True,
                     bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
                     dynamic_ncols=False,
-                    file=sys.stdout,
+                    # file=sys.stdout,
                 ) as progress_bar:
                     successful_tests = 0
                     failed_tests = 0
@@ -308,9 +334,9 @@ class ExperimentManager:
                     for test_case in progress_bar:
                         self.logger.info("Running test case: %s", test_case.test_config.name)
 
-                        # Create a test-specific emitter for this test case
-                        test_specific_emitter = TestEventEmitter(
-                            self.event_manager, test_case.test_config.name
+                        # Get test-specific emitter for this test case
+                        test_specific_emitter = self.emitter_registry.get_test_emitter(
+                            test_case.test_config.name
                         )
 
                         # Emit test execution started event
@@ -371,7 +397,7 @@ class ExperimentManager:
                                         error_type="AttributeError",
                                         phase="setup",
                                     )
-                                except:
+                                except Exception:  # pylint: disable=broad-except
                                     pass  # Ignore any secondary errors
                             else:
                                 self._handle_test_error(test_case, test_error)
@@ -389,9 +415,9 @@ class ExperimentManager:
                                 type(test_error).__name__,
                             )
 
-                        progress_bar.set_postfix({"Running": f"{test_case}"})
+                        # progress_bar.set_postfix({"Running": f"{test_case}"})
 
-            tqdm.write("")  # Ensures the bar stays at the bottom after completion
+            # tqdm.write("")  # Ensures the bar stays at the bottom after completion
 
             # Experiment-level summary is handled by experiment_emitter
             self.logger.info(
@@ -429,8 +455,8 @@ class ExperimentManager:
 
     def _handle_test_error(self, test_case, test_error):
         """Helper method to handle test errors consistently."""
-        # Create a test-specific emitter for this test case
-        test_specific_emitter = TestEventEmitter(self.event_manager, test_case.test_config.name)
+        # Get test-specific emitter for this test case
+        test_specific_emitter = self.emitter_registry.get_test_emitter(test_case.test_config.name)
 
         # Emit test failed event
         test_specific_emitter.emit_failed(

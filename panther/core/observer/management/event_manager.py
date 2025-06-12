@@ -1,7 +1,7 @@
 import logging
 import threading
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from panther.core.events import BaseEvent

@@ -25,6 +25,10 @@ from panther.core.events.service.events import (
     ServiceErrorEvent,
     ServiceDestroyedEvent,
     ServiceTestResultsEvent,
+    CommandGenerationStartedEvent,
+    CommandGeneratedEvent,
+    DockerBuildStartedEvent,
+    DockerBuildCompletedEvent,
 )
 
 
@@ -575,3 +579,141 @@ class ServiceEventEmitter:
                 error_type="generic_event",
                 error_details=data,
             )
+
+    def emit_command_generation_started(
+        self,
+        service_id: str,
+        service_name: str,
+        phase: str,
+        implementation: str | None = None,
+        protocol: str | None = None,
+        config: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit command generation started event.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            phase: Command generation phase (pre_compile, compile, etc.)
+            implementation: Implementation name
+            protocol: Protocol name
+            config: Configuration for command generation
+        """
+        event = CommandGenerationStartedEvent(
+            service_id=service_id,
+            service_name=service_name,
+            phase=phase,
+            config=config,
+        )
+        self.event_manager.notify(event)
+
+    def emit_command_generated(
+        self,
+        service_id: str,
+        service_name: str,
+        phase: str,
+        command: str,
+        implementation: str | None = None,
+        protocol: str | None = None,
+    ) -> None:
+        """
+        Emit command generated event.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            phase: Command generation phase
+            command: Generated command
+            implementation: Implementation name
+            protocol: Protocol name
+        """
+        event = CommandGeneratedEvent(
+            service_id=service_id,
+            service_name=service_name,
+            phase=phase,
+            command=command,
+        )
+        self.event_manager.notify(event)
+
+    def emit_docker_build_started(
+        self,
+        service_id: str,
+        service_name: str,
+        dockerfile_path: str,
+        implementation: str | None = None,
+        image_name: str | None = None,
+    ) -> None:
+        """
+        Emit Docker build started event.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            dockerfile_path: Path to Dockerfile
+            implementation: Implementation name
+            image_name: Docker image name being built
+        """
+        event = DockerBuildStartedEvent(
+            service_id=service_id,
+            service_name=service_name,
+            dockerfile_path=dockerfile_path,
+            image_name=image_name or "",
+        )
+        self.event_manager.notify(event)
+
+    def emit_docker_build_completed(
+        self,
+        service_id: str,
+        service_name: str,
+        image_name: str,
+        success: bool,
+        build_duration: float | None = None,
+    ) -> None:
+        """
+        Emit Docker build completed event.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            image_name: Docker image name that was built
+            success: Whether build was successful
+            build_duration: Build duration in seconds
+        """
+        event = DockerBuildCompletedEvent(
+            service_id=service_id,
+            service_name=service_name,
+            image_name=image_name,
+            success=success,
+            build_duration=build_duration or 0,
+        )
+        self.event_manager.notify(event)
+
+    def emit_docker_build_failed(
+        self,
+        service_id: str,
+        service_name: str,
+        error_message: str,
+        dockerfile_path: str = "",
+        image_name: str = "",
+    ) -> None:
+        """
+        Emit Docker build failed event using service error.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            error_message: Error message describing the failure
+            dockerfile_path: Path to Dockerfile
+            image_name: Docker image name that failed to build
+        """
+        self.emit_service_error(
+            service_id=service_id,
+            service_name=service_name,
+            error_message=f"Docker build failed: {error_message}",
+            error_type="docker_build_error",
+            error_details={
+                "dockerfile_path": dockerfile_path,
+                "image_name": image_name,
+            },
+        )

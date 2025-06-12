@@ -230,12 +230,12 @@ cmd_type="POST_COMPILE"
 
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-(touch /app/logs/picoquic_client.pcap; tshark -a duration:50 -i any -w /app/logs/picoquic_client.pcap;) &
+(touch /app/logs/picoquic_client.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_client.pcap;) &
 ENDOFCOMMAND
 )
 # Execute multi-line command with error tracking
 log "Executing multi-line $cmd_type command #3"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_client.pcap; tshark -a duration:50 -i any -w /app/logs/picoquic_client.pcap;) & " "true" "true" || {
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_client.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_client.pcap;) & " "true" "true" || {
   exit $?
 }
 
@@ -253,7 +253,7 @@ cd "/opt/picoquic" || {
 
 
 # Prepare command and execute it
-FULL_CMD="./picoquicdemo -T  /opt/ticket/ticket.key  -a  hq-interop  -l - -D -L  -e  eth0  -v  00000001  ivy_server  4443"
+FULL_CMD="./picoquicdemo -c  /opt/certs/cert.pem  -k  /opt/certs/key.pem  -T  /opt/ticket/ticket.key  -a  hq-interop  -l - -D -L  -v  00000001  ivy_server  4443  >  /app/logs/client.log  2>  /app/logs/client.err.log"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
 
 if [ -z "$FULL_CMD" ]; then
@@ -262,13 +262,13 @@ if [ -z "$FULL_CMD" ]; then
 else
   log "Running command: $FULL_CMD"
 
-  timeout 50 $FULL_CMD > /app/logs/picoquic_client_run_cmd.log 2> /app/logs/picoquic_client_run_cmd_error.log
+  timeout 100 $FULL_CMD > /app/logs/picoquic_client_run_cmd.log 2> /app/logs/picoquic_client_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 50 seconds"
+    log "WARNING: Command timed out after 100 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
     exit $RUN_STATUS

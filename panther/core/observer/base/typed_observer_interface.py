@@ -62,10 +62,18 @@ from panther.core.events import (
     ServiceStoppedEvent,
     ServiceErrorEvent,
     ServiceDestroyedEvent,
+    ServiceTestResultsEvent,
+    CommandGenerationStartedEvent,
+    CommandGeneratedEvent,
+    DockerBuildStartedEvent,
+    DockerBuildCompletedEvent,
+    TesterAnalysisStartedEvent,
+    TesterAnalysisCompletedEvent,
     # Environment events
     EnvironmentCreatedEvent,
     EnvironmentSetupStartedEvent,
     EnvironmentSetupCompletedEvent,
+    EnvironmentSetupFailedEvent,
     EnvironmentTeardownStartedEvent,
     EnvironmentTeardownCompletedEvent,
     EnvironmentErrorEvent,
@@ -181,10 +189,18 @@ class ITypedObserver(IObserver):
             ServiceStoppedEvent: self.on_service_stopped,
             ServiceErrorEvent: self.on_service_error,
             ServiceDestroyedEvent: self.on_service_destroyed,
+            ServiceTestResultsEvent: self.on_service_test_results,
+            CommandGenerationStartedEvent: self.on_command_generation_started,
+            CommandGeneratedEvent: self.on_command_generated,
+            DockerBuildStartedEvent: self.on_docker_build_started,
+            DockerBuildCompletedEvent: self.on_docker_build_completed,
+            TesterAnalysisStartedEvent: self.on_tester_analysis_started,
+            TesterAnalysisCompletedEvent: self.on_tester_analysis_completed,
             # Environment events
             EnvironmentCreatedEvent: self.on_environment_created,
             EnvironmentSetupStartedEvent: self.on_environment_setup_started,
             EnvironmentSetupCompletedEvent: self.on_environment_setup_completed,
+            EnvironmentSetupFailedEvent: self.on_environment_setup_failed,
             EnvironmentTeardownStartedEvent: self.on_environment_teardown_started,
             EnvironmentTeardownCompletedEvent: self.on_environment_teardown_completed,
             EnvironmentErrorEvent: self.on_environment_error,
@@ -281,7 +297,11 @@ class ITypedObserver(IObserver):
         Default implementation logs a warning and returns True.
         Override this method to handle custom event types.
         """
-        self.logger.warning("Received unknown event type: %s", type(event).__name__)
+        self.logger.warning(
+            "Received unknown event type: %s in observer: %s",
+            type(event).__name__,
+            self.__class__.__name__,
+        )
         return True
 
     # Experiment event handlers
@@ -493,6 +513,34 @@ class ITypedObserver(IObserver):
         """Handle service destroyed event."""
         return True
 
+    def on_service_test_results(self, event: ServiceTestResultsEvent) -> bool:
+        """Handle service test results event."""
+        return True
+
+    def on_command_generation_started(self, event: CommandGenerationStartedEvent) -> bool:
+        """Handle command generation started event."""
+        return True
+
+    def on_command_generated(self, event: CommandGeneratedEvent) -> bool:
+        """Handle command generated event."""
+        return True
+
+    def on_docker_build_started(self, event: DockerBuildStartedEvent) -> bool:
+        """Handle Docker build started event."""
+        return True
+
+    def on_docker_build_completed(self, event: DockerBuildCompletedEvent) -> bool:
+        """Handle Docker build completed event."""
+        return True
+
+    def on_tester_analysis_started(self, event: TesterAnalysisStartedEvent) -> bool:
+        """Handle tester analysis started event."""
+        return True
+
+    def on_tester_analysis_completed(self, event: TesterAnalysisCompletedEvent) -> bool:
+        """Handle tester analysis completed event."""
+        return True
+
     # Environment event handlers
     def on_environment_created(self, event: EnvironmentCreatedEvent) -> bool:
         """Handle environment created event."""
@@ -504,6 +552,10 @@ class ITypedObserver(IObserver):
 
     def on_environment_setup_completed(self, event: EnvironmentSetupCompletedEvent) -> bool:
         """Handle environment setup completed event."""
+        return True
+
+    def on_environment_setup_failed(self, event: EnvironmentSetupFailedEvent) -> bool:
+        """Handle environment setup failed event."""
         return True
 
     def on_environment_teardown_started(self, event: EnvironmentTeardownStartedEvent) -> bool:

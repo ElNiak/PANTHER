@@ -5,6 +5,7 @@ Plugin Manager for Panther Framework
 import importlib
 import importlib.util
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -134,17 +135,18 @@ class PluginManager:
             # Check services
             if hasattr(test, "services"):
                 for service_name, service_config in test.services.items():
-                    if "implementation" in service_config:
-                        impl = service_config["implementation"]
-                        impl_name = impl.get("name")
-                        impl_type = impl.get("type", "iut").lower()
+                    if hasattr(service_config, "implementation") and service_config.implementation:
+                        impl = service_config.implementation
+                        impl_name = impl.name if hasattr(impl, "name") else None
+                        impl_type = impl.type.lower() if hasattr(impl, "type") else "iut"
 
-                        if impl_type == "testers":
-                            plugin_id = f"{PluginType.TESTER.value}:{impl_name}"
-                        else:
-                            plugin_id = f"{PluginType.IUT.value}:{impl_name}"
+                        if impl_name:
+                            if impl_type == "testers":
+                                plugin_id = f"{PluginType.TESTER.value}:{impl_name}"
+                            else:
+                                plugin_id = f"{PluginType.IUT.value}:{impl_name}"
 
-                        required_plugins.add(plugin_id)
+                            required_plugins.add(plugin_id)
 
         # Validate each required plugin
         for plugin_id in required_plugins:
@@ -461,3 +463,184 @@ class PluginManager:
         """Refresh the plugin catalog by rescanning directories."""
         self.plugin_catalog.scan_plugins(use_cache=False)
         self.logger.info("Plugin catalog refreshed")
+
+    def get_network_environment_plugin(self, environment_type: str) -> INetworkEnvironment:
+        """
+        Get a network environment plugin by type.
+
+        Args:
+            environment_type: The type of the network environment plugin to retrieve
+
+        Returns:
+            INetworkEnvironment: The requested network environment plugin if found
+
+        Raises:
+            ValueError: If the environment type is not found
+        """
+        self.logger.debug("Getting network environment plugin for type: %s", environment_type)
+
+        # First try to get from our own cache
+        if environment_type in self.network_environment_plugins:
+            return self.network_environment_plugins[environment_type]
+
+        # If not found and we have a plugins loader, check there
+        if self.plugin_loader and hasattr(self.plugin_loader, "environment_plugins"):
+            plugin_path = None
+
+            # Check for flat structure (catalog-based discovery)
+            network_key = f"network_{environment_type}"
+            if network_key in self.plugin_loader.environment_plugins:
+                plugin_path = self.plugin_loader.environment_plugins[network_key]
+
+            # Check for nested structure (legacy file-based discovery)
+            elif (
+                "network_environment" in self.plugin_loader.environment_plugins
+                and environment_type
+                in self.plugin_loader.environment_plugins["network_environment"]
+            ):
+                plugin_path = self.plugin_loader.environment_plugins["network_environment"][
+                    environment_type
+                ]
+
+            if plugin_path:
+                # We need to create an actual plugin instance, not just return the path
+                try:
+                    # Create the environment manager instance
+                    from panther.plugins.environments.config_schema import EnvironmentConfig
+
+                    env_config_to_test = EnvironmentConfig(type=environment_type)
+
+                    # Now create the actual plugin instance
+                    env_type = "network_environment"
+                    env_sub_type = environment_type
+
+                    # Create an output directory if needed
+                    output_dir = "/tmp/panther_output"  # This will be overridden by the test case
+                    os.makedirs(output_dir, exist_ok=True)
+
+                    # Create an event manager if needed
+                    event_manager = self.event_manager or EventManager()
+
+                    # Create the environment manager using the create_environment_manager method
+                    plugin_instance = self.create_environment_manager(
+                        environment=environment_type,
+                        test_config=None,  # This will be set later by the test case
+                        environment_dir=plugin_path.parent,  # Parent directory contains all environments
+                        output_dir=output_dir,
+                        event_manager=event_manager,
+                    )
+
+                    # Cache and return the instance
+                    self.network_environment_plugins[environment_type] = plugin_instance
+                    return plugin_instance
+                except Exception as e:
+                    self.logger.error(
+                        "Failed to instantiate network environment plugin %s: %s",
+                        environment_type,
+                        str(e),
+                        exc_info=True,
+                    )
+                    return None
+
+        # Not found anywhere
+        self.logger.error("Network environment plugin not found: %s", environment_type)
+        available_plugins = list(self.network_environment_plugins.keys())
+        if self.plugin_loader and hasattr(self.plugin_loader, "environment_plugins"):
+            # Check for flat structure
+            for key in self.plugin_loader.environment_plugins.keys():
+                if key.startswith("network_"):
+                    plugin_name = key.replace("network_", "")
+                    if plugin_name not in available_plugins:
+                        available_plugins.append(plugin_name)
+
+            # Check for nested structure
+            if "network_environment" in self.plugin_loader.environment_plugins:
+                for plugin_name in self.plugin_loader.environment_plugins[
+                    "network_environment"
+                ].keys():
+                    if plugin_name not in available_plugins:
+                        available_plugins.append(plugin_name)
+
+        self.logger.error("Available network environment plugins: %s", available_plugins)
+        return None
+
+    def get_execution_environment_plugin(self, environment_type: str) -> IExecutionEnvironment:
+        """
+        Get an execution environment plugin by type.
+
+        Args:
+            environment_type: The type of the execution environment plugin to retrieve
+
+        Returns:
+            IExecutionEnvironment: The requested execution environment plugin if found
+
+        Raises:
+            ValueError: If the environment type is not found
+        """
+        self.logger.debug("Getting execution environment plugin for type: %s", environment_type)
+
+        # First try to get from our own cache
+        if environment_type in self.execution_environment_plugins:
+            return self.execution_environment_plugins[environment_type]
+
+        # If not found and we have a plugins loader, check there
+        if self.plugin_loader and hasattr(self.plugin_loader, "environment_plugins"):
+            plugin_path = None
+
+            # Check for flat structure (catalog-based discovery)
+            execution_key = f"execution_{environment_type}"
+            if execution_key in self.plugin_loader.environment_plugins:
+                plugin_path = self.plugin_loader.environment_plugins[execution_key]
+
+            # Check for nested structure (legacy file-based discovery)
+            elif (
+                "execution_environment" in self.plugin_loader.environment_plugins
+                and environment_type
+                in self.plugin_loader.environment_plugins["execution_environment"]
+            ):
+                plugin_path = self.plugin_loader.environment_plugins["execution_environment"][
+                    environment_type
+                ]
+
+            if plugin_path:
+                # We need to create an actual plugin instance, not just return the path
+                try:
+                    # Create the environment manager instance
+                    from panther.plugins.environments.config_schema import EnvironmentConfig
+
+                    env_config_to_test = EnvironmentConfig(type=environment_type)
+
+                    # Now create the actual plugin instance
+                    env_type = "execution_environment"
+                    env_sub_type = environment_type
+
+                    # Create an output directory if needed
+                    output_dir = "/tmp/panther_output"  # This will be overridden by the test case
+                    os.makedirs(output_dir, exist_ok=True)
+
+                    # Create an event manager if needed
+                    event_manager = self.event_manager or EventManager()
+
+                    # Create the environment manager using the create_environment_manager method
+                    plugin_instance = self.create_environment_manager(
+                        environment=environment_type,
+                        test_config=None,  # This will be set later by the test case
+                        environment_dir=plugin_path.parent,  # Parent directory contains all environments
+                        output_dir=output_dir,
+                        event_manager=event_manager,
+                    )
+
+                    # Cache and return the instance
+                    self.execution_environment_plugins[environment_type] = plugin_instance
+                    return plugin_instance
+                except Exception as e:
+                    self.logger.error(
+                        "Failed to instantiate execution environment plugin %s: %s",
+                        environment_type,
+                        str(e),
+                        exc_info=True,
+                    )
+                    return None
+        # Not found anywhere
+        self.logger.error("Execution environment plugin not found: %s", environment_type)
+        return None
