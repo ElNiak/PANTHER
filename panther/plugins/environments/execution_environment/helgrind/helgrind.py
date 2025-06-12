@@ -84,7 +84,37 @@ class HelgrindEnvironment(IExecutionEnvironment, ABC):
         self.logger.debug("Services config: %s", self.env_config_to_test)
         for service in self.services_managers:
             self.logger.debug("Service cmds: %s", service.run_cmd)
+            service_name = getattr(service, "service_name", service.__class__.__name__)
+
+            # Emit environment modification started event
+            if hasattr(self, "environment_emitter") and self.environment_emitter:
+                self.environment_emitter.emit_environment_modification_started(
+                    environment_id=f"helgrind_{service_name}",
+                    environment_name="helgrind",
+                    environment_type="execution",
+                    target_service=service_name,
+                    modification_type="command_wrapping",
+                )
+
+            # Store original command
+            original_cmd = service.run_cmd["pre_run_cmds"].copy()
             service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command()]
+
+            # Emit environment modification completed event
+            if hasattr(self, "environment_emitter") and self.environment_emitter:
+                self.environment_emitter.emit_environment_modification_completed(
+                    environment_id=f"helgrind_{service_name}",
+                    environment_name="helgrind",
+                    environment_type="execution",
+                    modifications={
+                        "pre_run_cmds": {
+                            "original": original_cmd,
+                            "modified": service.run_cmd["pre_run_cmds"],
+                        }
+                    },
+                    modification_summary="Added valgrind helgrind command to pre_run_cmds",
+                )
+
             self.logger.debug("Service cmds: %s", service.run_cmd)
 
         self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))

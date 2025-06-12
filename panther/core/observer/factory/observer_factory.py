@@ -114,6 +114,22 @@ class ObserverFactory:
 
             # Store observer if name is provided
             if name:
+                # Check if observer with this name already exists
+                if name in self._observer_instances:
+                    self.logger.warning(
+                        "Observer with name '%s' already exists. Replacing with new instance.", name
+                    )
+                    # Unregister the old observer from event manager if it exists
+                    old_observer = self._observer_instances[name]
+                    if (
+                        auto_register
+                        and self._event_manager
+                        and hasattr(self._event_manager, "unregister_observer")
+                    ):
+                        try:
+                            self._event_manager.unregister_observer(old_observer)
+                        except Exception:
+                            pass  # Best effort cleanup
                 self.register_observer(name, observer)
 
             # Auto-register with event manager if requested and event manager is set

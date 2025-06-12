@@ -103,7 +103,13 @@ class StateManager:
 
         Returns:
             bool: True if state was set successfully, False otherwise
+
+        Raises:
+            ValueError: If the workflow name is empty or None
         """
+        if not name:
+            raise ValueError("Workflow name cannot be empty")
+
         with self._lock:
             current_state = self._workflow_states.get(name)
 
@@ -114,19 +120,24 @@ class StateManager:
                     self.logger.info(f"Workflow '{name}' created with state: {state.value}")
                     return True
                 else:
-                    self.logger.error(f"Cannot create workflow '{name}' in state: {state.value}")
+                    self.logger.error(
+                        f"Cannot create workflow '{name}' in state: {state.value}. Must start with CREATED state."
+                    )
                     return False
 
             # Validate transition
             if self.validate_workflow_transition(current_state, state):
+                old_state = current_state
                 self._workflow_states[name] = state
                 self.logger.info(
-                    f"Workflow '{name}' transitioned from {current_state.value} to {state.value}"
+                    f"Workflow '{name}' transitioned from {old_state.value} to {state.value}"
                 )
                 return True
             else:
+                allowed = list(self.WORKFLOW_TRANSITIONS.get(current_state, set()))
                 self.logger.error(
-                    f"Invalid workflow transition for '{name}': {current_state.value} -> {state.value}"
+                    f"Invalid workflow transition for '{name}': {current_state.value} -> {state.value}. "
+                    f"Allowed transitions from {current_state.value}: {[s.value for s in allowed]}"
                 )
                 return False
 
@@ -154,7 +165,13 @@ class StateManager:
 
         Returns:
             bool: True if state was set successfully, False otherwise
+
+        Raises:
+            ValueError: If entity_type or entity_id is empty
         """
+        if not entity_type or not entity_id:
+            raise ValueError("Entity type and ID cannot be empty")
+
         with self._lock:
             if entity_type not in self._entity_states:
                 self._entity_states[entity_type] = {}
@@ -171,20 +188,23 @@ class StateManager:
                     return True
                 else:
                     self.logger.error(
-                        f"Cannot create entity '{entity_type}:{entity_id}' in state: {state.value}"
+                        f"Cannot create entity '{entity_type}:{entity_id}' in state: {state.value}. Must start with CREATED state."
                     )
                     return False
 
             # Validate transition
             if self.validate_entity_transition(current_state, state):
+                old_state = current_state
                 self._entity_states[entity_type][entity_id] = state
                 self.logger.info(
-                    f"Entity '{entity_type}:{entity_id}' transitioned from {current_state.value} to {state.value}"
+                    f"Entity '{entity_type}:{entity_id}' transitioned from {old_state.value} to {state.value}"
                 )
                 return True
             else:
+                allowed = list(self.ENTITY_TRANSITIONS.get(current_state, set()))
                 self.logger.error(
-                    f"Invalid entity transition for '{entity_type}:{entity_id}': {current_state.value} -> {state.value}"
+                    f"Invalid entity transition for '{entity_type}:{entity_id}': {current_state.value} -> {state.value}. "
+                    f"Allowed transitions from {current_state.value}: {[s.value for s in allowed]}"
                 )
                 return False
 
@@ -336,3 +356,124 @@ class StateManager:
             self._workflow_states.clear()
             self._entity_states.clear()
             self.logger.info("Cleared all states")
+
+    def is_workflow_in_terminal_state(self, name: str) -> bool:
+        """
+        Check if a workflow is in a terminal state (COMPLETED or FAILED).
+
+        Args:
+            name: Name of the workflow
+
+        Returns:
+            bool: True if in terminal state, False otherwise
+        """
+        with self._lock:
+            state = self._workflow_states.get(name)
+            if state is None:
+                return False
+            return state in {WorkflowState.COMPLETED, WorkflowState.FAILED}
+
+    def is_entity_in_terminal_state(self, entity_type: str, entity_id: str) -> bool:
+        """
+        Check if an entity is in a terminal state.
+
+        Args:
+            entity_type: Type of entity
+            entity_id: Unique identifier for the entity
+
+        Returns:
+            bool: True if in terminal state, False otherwise
+        """
+        with self._lock:
+            state = self.get_entity_state(entity_type, entity_id)
+            if state is None:
+                return False
+            return state in {EntityState.COMPLETED, EntityState.FAILED, EntityState.CANCELLED}
+
+    def get_allowed_transitions(self, entity_type: str, current_state_str: str) -> list[str]:
+        """
+        Get list of allowed state transitions from current state.
+
+        Args:
+            entity_type: Type of entity or "workflow"
+            current_state_str: Current state as string
+
+        Returns:
+            list[str]: List of allowed state names
+        """
+        if entity_type == "workflow":
+            try:
+                current = WorkflowState(current_state_str)
+                allowed = self.WORKFLOW_TRANSITIONS.get(current, set())
+                return [s.value for s in allowed]
+            except ValueError:
+                return []
+        else:
+            try:
+                current = EntityState(current_state_str)
+                allowed = self.ENTITY_TRANSITIONS.get(current, set())
+                return [s.value for s in allowed]
+            except ValueError:
+                return []
+
+    def force_fail_workflow(self, name: str, reason: str = "Forced failure") -> bool:
+        """
+        Force a workflow to FAILED state regardless of current state.
+        Used for error recovery.
+
+        Args:
+            name: Name of the workflow
+            reason: Reason for forcing failure
+
+        Returns:
+            bool: True if successfully set to FAILED
+        """
+        with self._lock:
+            current_state = self._workflow_states.get(name)
+            if current_state is None:
+                self.logger.error(f"Cannot force fail non-existent workflow '{name}'")
+                return False
+
+            if current_state == WorkflowState.FAILED:
+                return True  # Already failed
+
+            self._workflow_states[name] = WorkflowState.FAILED
+            self.logger.warning(
+                f"Forced workflow '{name}' from {current_state.value} to FAILED: {reason}"
+            )
+            return True
+
+    def force_fail_entity(
+        self, entity_type: str, entity_id: str, reason: str = "Forced failure"
+    ) -> bool:
+        """
+        Force an entity to FAILED state regardless of current state.
+        Used for error recovery.
+
+        Args:
+            entity_type: Type of entity
+            entity_id: Unique identifier for the entity
+            reason: Reason for forcing failure
+
+        Returns:
+            bool: True if successfully set to FAILED
+        """
+        with self._lock:
+            current_state = self.get_entity_state(entity_type, entity_id)
+            if current_state is None:
+                self.logger.error(
+                    f"Cannot force fail non-existent entity '{entity_type}:{entity_id}'"
+                )
+                return False
+
+            if current_state == EntityState.FAILED:
+                return True  # Already failed
+
+            if entity_type not in self._entity_states:
+                self._entity_states[entity_type] = {}
+
+            self._entity_states[entity_type][entity_id] = EntityState.FAILED
+            self.logger.warning(
+                f"Forced entity '{entity_type}:{entity_id}' from {current_state.value} to FAILED: {reason}"
+            )
+            return True

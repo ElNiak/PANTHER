@@ -407,14 +407,21 @@ class TestCompletedEvent(TestEvent):
     def __init__(
         self,
         test_id: str,
+        test_name: str | None = None,
         total_duration_seconds: float | None = None,
         summary: dict[str, Any] | None = None,
     ):
         super().__init__(
             event_type=TestEventType.COMPLETED,
             test_id=test_id,
-            data={"total_duration_seconds": total_duration_seconds, "summary": summary or {}},
+            data={
+                "test_name": test_name or test_id,
+                "total_duration_seconds": total_duration_seconds,
+                "summary": summary or {},
+            },
         )
+        self.test_name = test_name or test_id
+        self.test_id = test_id
 
 
 class TestFailedEvent(TestEvent):
@@ -423,7 +430,8 @@ class TestFailedEvent(TestEvent):
     def __init__(
         self,
         test_id: str,
-        error_message: str,
+        test_name: str | None = None,
+        error_message: str = "",
         error_type: str | None = None,
         phase: str | None = None,
         summary: dict[str, Any] | None = None,
@@ -432,12 +440,15 @@ class TestFailedEvent(TestEvent):
             event_type=TestEventType.FAILED,
             test_id=test_id,
             data={
+                "test_name": test_name or test_id,
                 "error_message": error_message,
                 "error_type": error_type,
                 "phase": phase,
                 "summary": summary or {},
             },
         )
+        self.test_name = test_name or test_id
+        self.test_id = test_id
 
 
 class TestResultEvent(TestEvent):

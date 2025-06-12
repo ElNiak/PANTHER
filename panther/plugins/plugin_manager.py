@@ -519,7 +519,7 @@ class PluginManager:
                     os.makedirs(output_dir, exist_ok=True)
 
                     # Create an event manager if needed
-                    event_manager = self.event_manager or EventManager()
+                    event_manager = self.event_manager or EventManager.get_instance()
 
                     # Create the environment manager using the create_environment_manager method
                     plugin_instance = self.create_environment_manager(
@@ -619,7 +619,7 @@ class PluginManager:
                     os.makedirs(output_dir, exist_ok=True)
 
                     # Create an event manager if needed
-                    event_manager = self.event_manager or EventManager()
+                    event_manager = self.event_manager or EventManager.get_instance()
 
                     # Create the environment manager using the create_environment_manager method
                     plugin_instance = self.create_environment_manager(

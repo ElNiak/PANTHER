@@ -82,6 +82,22 @@ class GperfHeapEnvironment(IExecutionEnvironment, ABC):
         for service in self.services_managers:
             self.logger.debug("Service cmds: %s", service.run_cmd)
             if service.service_config_to_test.implementation.gperf_compatible:
+                service_name = getattr(service, "service_name", service.__class__.__name__)
+
+                # Emit environment modification started event
+                if hasattr(self, "environment_emitter") and self.environment_emitter:
+                    self.environment_emitter.emit_environment_modification_started(
+                        environment_id=f"gperf_heap_{service_name}",
+                        environment_name="gperf_heap",
+                        environment_type="execution",
+                        target_service=service_name,
+                        modification_type="environment_variables",
+                    )
+
+                # Store original environment
+                original_env = service.run_cmd["run_cmd"].get("command_env", {}).copy()
+                original_post_run = service.run_cmd.get("post_run_cmds", []).copy()
+
                 service.environments["GPERF"] = True
                 service.run_cmd["run_cmd"]["command_env"][
                     "HEAPPROFILE"
@@ -90,6 +106,26 @@ class GperfHeapEnvironment(IExecutionEnvironment, ABC):
                 service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [
                     f"pprof --pdf /app/logs/{service.service_name}_heap.prof > /app/logs/{service.service_name}_heap.pdf"
                 ]
+
+                # Emit environment modification completed event
+                if hasattr(self, "environment_emitter") and self.environment_emitter:
+                    self.environment_emitter.emit_environment_modification_completed(
+                        environment_id=f"gperf_heap_{service_name}",
+                        environment_name="gperf_heap",
+                        environment_type="execution",
+                        modifications={
+                            "command_env": {
+                                "original": original_env,
+                                "modified": service.run_cmd["run_cmd"]["command_env"],
+                            },
+                            "post_run_cmds": {
+                                "original": original_post_run,
+                                "modified": service.run_cmd["post_run_cmds"],
+                            },
+                        },
+                        modification_summary="Added heap profiling environment variable and post-processing command",
+                    )
+
                 self.logger.debug("Service cmds: %s", service.run_cmd)
             else:
                 self.logger.debug("Service %s is not gperf compatible", service)

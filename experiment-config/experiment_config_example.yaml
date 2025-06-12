@@ -1,5 +1,5 @@
 logging:
-  level: DEBUG
+  level: INFO
   format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
 
 paths:
@@ -9,7 +9,35 @@ paths:
   plugin_dir: "panther/plugins"
 
 docker:
-  build_docker_image: True
+  build_docker_image: False
+
+observers:
+  logger:
+    enabled: true
+    log_level: "INFO"
+    enable_colors: true
+    correlation_tracking: true
+
+  metrics:
+    enabled: true
+    collect_system_metrics: true
+    log_level: "INFO"
+    publish_interval: 30
+
+  storage:
+    enabled: true
+    storage_path: "outputs/storage"
+    enable_compression: true
+    log_level: "INFO"
+    retention_days: 30
+
+  experiment:
+    enabled: true
+    auto_register: true
+    priority: 115
+    log_level: "DEBUG"  # Log all messages for experiment observer
+    track_timing: true
+    track_steps: true
 
 tests:
   - name: "QUIC Client-Server Communication Test"
@@ -17,11 +45,12 @@ tests:
     network_environment:
       type: "docker_compose"  # Environment plugin name
     iterations: 1
-    execution_environment: []
+    execution_environment:
+      - type: "strace"
     debug_environment: [ ]
     services:
       picoquic_client:
-        timeout: 100
+        timeout: 60
         name: "picoquic_client"  # Added 'name' key
         implementation:
           name: "picoquic"
@@ -40,7 +69,7 @@ tests:
 
       ivy_server:
         name: "ivy_server"  # Added 'name' key
-        timeout: 100
+        timeout: 60
         implementation:
           type: "TESTERS"
           name: "panther_ivy"
@@ -55,47 +84,47 @@ tests:
           - "8080:8080"  # Health check endpoint
         generate_new_certificates: True
     steps:
-      wait: 200  # seconds to wait during the test
+      wait: 60  # seconds to wait during the test
 
-  - name: "QUIC IyvClient-Server Communication Test"
-    description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
-    network_environment:
-      type: "docker_compose"
-    iterations: 1
-    should_be_ignore : "should_be_ignore"
-    services:
-      picoquic_server:
-        name: "picoquic_server"
-        timeout: 200
-        implementation:
-          name: "picoquic" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
-          type: "IUT"      # plugin is present plugins/services/iut/quic/picoquic
-        protocol:          # plugin is present plugins/services/iut/quic
-          name: "quic"
-          version: "rfc9000"
-          role: "server"
-        ports:
-          - "4443:4443"
-          - "8080:8080"  # Health check endpoint
-        generate_new_certificates: True
-        should_be_ignore : "should_be_ignore"
+  # - name: "QUIC IyvClient-Server Communication Test"
+  #   description: "Verify that the Picoquic server can communicate with the Ivy-Tester client over Docker Compose network."
+  #   network_environment:
+  #     type: "docker_compose"
+  #   iterations: 1
+  #   should_be_ignore : "should_be_ignore"
+  #   services:
+  #     picoquic_server:
+  #       name: "picoquic_server"
+  #       timeout: 60
+  #       implementation:
+  #         name: "picoquic" # parameters are presents in folder plugins/services/implementations/quic/picoquic/config.yaml
+  #         type: "IUT"      # plugin is present plugins/services/iut/quic/picoquic
+  #       protocol:          # plugin is present plugins/services/iut/quic
+  #         name: "quic"
+  #         version: "rfc9000"
+  #         role: "server"
+  #       ports:
+  #         - "4443:4443"
+  #         - "8080:8080"  # Health check endpoint
+  #       generate_new_certificates: True
+  #       should_be_ignore : "should_be_ignore"
 
-      ivy_client:
-        name: "ivy_client"  # Added 'name' key
-        timeout: 200
-        implementation:
-          name: "panther_ivy"
-          type: "TESTERS"# plugin is present plugins/services/testers/panther_ivy
-          test: quic_server_test_stream
-        protocol:  # plugin is present plugins/services/iut/quic
-          name: "quic"
-          version: "rfc9000"
-          role: "client"
-          target: "picoquic_server"  # Docker Compose service name
-        ports:
-          - "5000:5000"
-          - "4987:4987"
-          - "8081:8081"
-        generate_new_certificates: True
-    steps:
-      wait: 200  # seconds to wait during the test
+  #     ivy_client:
+  #       name: "ivy_client"  # Added 'name' key
+  #       timeout: 60
+  #       implementation:
+  #         name: "panther_ivy"
+  #         type: "TESTERS"# plugin is present plugins/services/testers/panther_ivy
+  #         test: quic_server_test_stream
+  #       protocol:  # plugin is present plugins/services/iut/quic
+  #         name: "quic"
+  #         version: "rfc9000"
+  #         role: "client"
+  #         target: "picoquic_server"  # Docker Compose service name
+  #       ports:
+  #         - "5000:5000"
+  #         - "4987:4987"
+  #         - "8081:8081"
+  #       generate_new_certificates: True
+  #   steps:
+  #     wait: 60  # seconds to wait during the test

@@ -80,6 +80,16 @@ class EnvironmentPluginEventMixin:
             environment_name = getattr(self, "env_name", self.__class__.__name__)
             environment_id = f"{environment_type}_{environment_name}"
 
+            # First ensure environment is created
+            if not hasattr(self, "_environment_created"):
+                self.event_emitter.emit_environment_created(
+                    environment_id=environment_id,
+                    environment_name=environment_name,
+                    environment_type=environment_type,
+                    config=details,
+                )
+                self._environment_created = True
+
             # Emit the appropriate event based on success
             if success:
                 self.event_emitter.emit_environment_setup_completed(

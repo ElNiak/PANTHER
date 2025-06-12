@@ -106,7 +106,6 @@ class TestCase(ITestCase):
             test_config,
         )
 
-        # TODO Create too early the experiment directory
         self.result_collectors = ResultCollector()
         self.result_collectors.register_handler(
             f"storage_{self.test_name}", StorageHandler(experiment_dir, self.test_name)
@@ -125,7 +124,7 @@ class TestCase(ITestCase):
             self.logger.warning(
                 "No EventManager provided by plugin_manager, creating a new one. This may lead to event propagation issues."
             )
-            self.event_manager = EventManager()
+            self.event_manager = EventManager.get_instance()
         else:
             self.event_manager = plugin_manager.event_manager
             self.logger.debug("Using shared EventManager from plugin_manager")
@@ -154,12 +153,12 @@ class TestCase(ITestCase):
         net_environment_type = test_config.network_environment
         self.logger.info("Loading network environment: %s", net_environment_type)
 
-        self.execution_environment = []  # TODO
+        self.execution_environment = []
         self.plugin_manager = plugin_manager
 
         self.services = test_config.services
 
-        self._fail_on_error = global_config.features.fast_fail  # TODO
+        self._fail_on_error = global_config.features.fast_fail
 
         self._panther_dir = Path(os.path.dirname(__file__)).parent.parent.parent
 
@@ -201,7 +200,7 @@ class TestCase(ITestCase):
         self.logger.info("Deploying services through environment managers")
 
         # Get the experiment observer if available
-        experiment_observer = self.get_experiment_observer()
+        self.get_experiment_observer()
 
         # Update service states to indicate deployment is starting
         for service_manager in self.service_managers:
@@ -1036,12 +1035,19 @@ class TestCase(ITestCase):
         """
         self.logger.info("Setting up environment based on test configuration")
 
-        # Get the experiment observer if available for direct coordination
-        experiment_observer = self.get_experiment_observer()
+        # TODO; should these event emitted from the environment themself ? same for service etc.
+        # First emit environment created event
+        env_id = f"{self.test_config.network_environment.type}_{self.test_name}"
+        self.environment_emitter.emit_environment_created(
+            environment_id=env_id,
+            environment_name=self.test_name,
+            environment_type=self.test_config.network_environment.type,
+            config={"test_case": self.test_name},
+        )
 
-        # Emit environment setup started event using the typed event emitter
+        # Then emit environment setup started event using the typed event emitter
         self.environment_emitter.emit_environment_setup_started(
-            environment_id=f"{self.test_config.network_environment.type}_{self.test_name}",
+            environment_id=env_id,
             environment_name=self.test_name,
             environment_type=self.test_config.network_environment.type,
             setup_config={"test_case": self.test_name},
@@ -1886,6 +1892,17 @@ class TestCase(ITestCase):
                 self.logger.info(f"Running analysis with tester: {tester_name}")
 
                 try:
+                    tester_start_time = time.time()
+
+                    # Emit tester analysis started event
+                    self.service_emitter.emit_tester_analysis_started(
+                        service_id=f"{self.test_name}_{tester_name}",
+                        service_name=tester_name,
+                        test_name=self.test_name,
+                        output_types=list(self.organized_outputs.keys()),
+                        tester_config={},
+                    )
+
                     # Provide collected outputs to the tester
                     tester.set_collected_outputs(self.organized_outputs)
 
@@ -1915,6 +1932,20 @@ class TestCase(ITestCase):
                         self.logger.info(
                             f"Tester {tester_name} analysis passed: {test_results.get('summary', 'No summary')}"
                         )
+
+                    # Calculate actual duration
+                    tester_duration = time.time() - tester_start_time
+
+                    # Emit tester analysis completed event
+                    self.service_emitter.emit_tester_analysis_completed(
+                        service_id=f"{self.test_name}_{tester_name}",
+                        service_name=tester_name,
+                        test_name=self.test_name,
+                        analysis_passed=test_results.get("passed", False),
+                        findings=analysis_result,
+                        summary=test_results.get("summary", ""),
+                        duration=tester_duration,
+                    )
 
                 except Exception as e:
                     self.logger.error(
@@ -1993,11 +2024,8 @@ class TestCase(ITestCase):
             self.logger.info("Starting Test: %s", self.test_config.name)
             self.logger.info("Description:   %s", self.test_config.description)
 
-            # Track test state in state manager
-            from panther.core.state import EntityState
-
-            self.state_manager.set_entity_state("test", self.test_name, EntityState.CREATED)
-            self.state_manager.set_entity_state("test", self.test_name, EntityState.INITIALIZED)
+            # State tracking now happens automatically through events
+            # The StateEventObserver will update states when events are emitted
 
             start_time = time.time()
             # Set up observers first to ensure proper tracking
@@ -2013,8 +2041,7 @@ class TestCase(ITestCase):
                 steps=list(self.test_config.steps.keys()) if self.test_config.steps else None
             )
 
-            # Transition to preparing state
-            self.state_manager.set_entity_state("test", self.test_name, EntityState.PREPARING)
+            # State transitions are handled automatically by StateEventObserver
 
             # Setup services with timing
             setup_services_start = time.time()
@@ -2030,6 +2057,8 @@ class TestCase(ITestCase):
                     test_case=self.test_config.name,
                     component="test_case",
                 )
+
+            # State transitions are handled automatically by StateEventObserver
 
             # Prepare services (build Docker images) with timing
             prepare_services_start = time.time()
@@ -2061,8 +2090,7 @@ class TestCase(ITestCase):
                     component="test_case",
                 )
 
-            # Transition to running state for test execution
-            self.state_manager.set_entity_state("test", self.test_name, EntityState.RUNNING)
+            # State transitions are handled automatically by StateEventObserver
 
             # Deploy services with timing
             deploy_services_start = time.time()
@@ -2078,6 +2106,8 @@ class TestCase(ITestCase):
                     test_case=self.test_config.name,
                     component="test_case",
                 )
+
+            # State transitions are handled automatically by StateEventObserver
 
             # Execute steps with timing
             execute_steps_start = time.time()
@@ -2109,8 +2139,12 @@ class TestCase(ITestCase):
                     component="test_case",
                 )
 
+            # State transitions are handled automatically by StateEventObserver
+
             # Collect outputs from execution environments
             self._collect_outputs()
+
+            # State transitions are handled automatically by StateEventObserver
 
             # Run tester analysis on collected outputs
             tester_analysis_passed = self._run_tester_analysis()
@@ -2135,8 +2169,7 @@ class TestCase(ITestCase):
             self.state = "DONE"
             self.logger.info("Test '%s' completed successfully.", self.test_config.name)
 
-            # Transition to completed state
-            self.state_manager.set_entity_state("test", self.test_name, EntityState.COMPLETED)
+            # State transitions are handled automatically by StateEventObserver
 
             if self.metrics_collector:
                 # Emit timing metric for overall test case execution
@@ -2164,11 +2197,12 @@ class TestCase(ITestCase):
                 duration_seconds=total_duration, assertions_passed=True
             )
 
+            # State transitions are handled automatically by StateEventObserver
+
         except Exception as e:
             self.state = "ERROR"
 
-            # Transition to failed state
-            self.state_manager.set_entity_state("test", self.test_name, EntityState.FAILED)
+            # State transitions are handled automatically by StateEventObserver
 
             if self.metrics_collector:
                 # Emit error metric event using event emitter
@@ -2218,12 +2252,18 @@ class TestCase(ITestCase):
                     component="test_case",
                 )
             # Unregister observers
-            factory = get_observer_factory()
-            for observer_name in self.registered_observers:
-                factory.unregister_observer(observer_name)
-                self.logger.debug("Unregistered observer '%s'", observer_name)
-            self.registered_observers.clear()  # Clear the list after unregistration
-            self.logger.debug("Unregistered all observers after test completion")
+            try:
+                factory = get_observer_factory()
+                for observer_name in self.registered_observers:
+                    if factory.unregister_observer(observer_name):
+                        self.logger.debug("Unregistered observer '%s'", observer_name)
+                    else:
+                        self.logger.warning("Failed to unregister observer '%s'", observer_name)
+                self.registered_observers.clear()  # Clear the list after unregistration
+                self.logger.debug("Unregistered all observers after test completion")
+            except Exception as e:
+                self.logger.error("Error during observer cleanup: %s", e)
+                # Continue with cleanup even if observer unregistration fails
 
     def get_experiment_observer(self):
         """

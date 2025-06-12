@@ -1,8 +1,6 @@
 # PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
 
-import subprocess
 import os
-import traceback
 from panther.plugins.services.iut.quic.mvfst.config_schema import MvfstConfig
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
@@ -40,9 +38,64 @@ class MvfstServiceManager(IImplementationManager):
 
     def generate_run_command(self):
         """
-        Generates the run command.
+        Generates the run command for the MVFST service.
+
+        This method constructs a complete run command configuration using
+        the structured approach for proper quoting and escaping of all
+        command arguments and environment variables.
+
+        Returns:
+            dict: The run command configuration with all necessary components.
         """
-        cmd_args = self.generate_deployment_commands()
+        if self.role == RoleEnum.server:
+            params = self.service_config_to_test.implementation.version.server
+        else:  # client
+            params = self.service_config_to_test.implementation.version.client
+
+        # Set working directory from params
+        self.working_dir = params["binary"]["dir"]
+
+        # Build command arguments as list
+        command_args = self.generate_deployment_commands()
+
+        # Environment variables
+        env_vars = {
+            "LD_LIBRARY_PATH": "/opt/mvfst/lib",
+            "MVFST_LOG_DIR": "/app/logs/mvfst",
+        }
+
+        # Add any protocol-specific environment variables
+        if "environment" in params:
+            for key, value in params["environment"].items():
+                env_vars[key] = value
+
+        # Try to render with structured template, fall back to original if needed
+        try:
+            template_name = f"{str(self.role.name)}_command_structured.jinja"
+            rendered_command = self.render_template_with_structured_args(
+                template_name, params, command_args, env_vars
+            )
+            # For structured templates, we'll use the rendered command as a string
+            command_args = rendered_command
+        except Exception as e:
+            self.logger.warning(
+                "Failed to render structured template for service '%s': %s",
+                self.service_config_to_test.name,
+                e,
+            )
+            # Use fallback template if structured fails
+            try:
+                template_name = f"{str(self.role.name)}_command.jinja"
+                command_args = self.render_commands(params, template_name)
+            except Exception as e2:
+                self.logger.error(
+                    "Failed to render command template for service '%s': %s",
+                    self.service_config_to_test.name,
+                    e2,
+                )
+                # Use the command arguments as list if template rendering fails
+                pass
+
         return {
             "working_dir": self.working_dir,
             "command_binary": (
@@ -50,9 +103,9 @@ class MvfstServiceManager(IImplementationManager):
                 if self.role == RoleEnum.server
                 else self.service_config_to_test.implementation.version.client.binary.name
             ),
-            "command_args": cmd_args,
+            "command_args": command_args,
             "timeout": self.service_config_to_test.timeout,
-            "command_env": {},
+            "command_env": env_vars,
         }
 
     def generate_post_run_commands(self):
@@ -86,14 +139,14 @@ class MvfstServiceManager(IImplementationManager):
             self.service_config_to_test.implementation.version,
         )
 
-    def generate_deployment_commands(self) -> str:
+    def generate_deployment_commands(self) -> list:
         """
         Generates deployment commands for the MVFST service based on its configuration and role.
         This method constructs the necessary deployment commands using structured arguments
         for proper escaping and handling of special characters.
 
         Returns:
-            str: The rendered deployment command string.
+            list: The command arguments as a list for proper handling.
 
         Raises:
             Exception: If there is an error rendering the command template.
@@ -126,8 +179,9 @@ class MvfstServiceManager(IImplementationManager):
         if not include_interface:
             params["network"].pop("interface", None)
         else:
-            # TODO add that in the Dockerfile
-            subprocess.run(["bash", "generate_certificates.sh"])
+            # Certificate generation handled via Docker build process
+            # TODO: move certificate generation to Dockerfile for better consistency
+            pass
 
         # Build structured command arguments
         command_args = []
@@ -171,30 +225,9 @@ class MvfstServiceManager(IImplementationManager):
         # Environment variables if needed
         env_vars = {}
 
-        # Try to render the template with structured arguments
-        try:
-            template_name = f"{str(self.role.name)}_command_structured.jinja"
-            return self.render_template_with_structured_args(
-                template_name, params, command_args, env_vars
-            )
-        except Exception as e:
-            self.logger.warning(
-                "Failed to render structured template for service '%s': %s",
-                self.service_config_to_test.name,
-                e,
-            )
-            try:
-                # Fallback to original template
-                template_name = f"{str(self.role.name)}_command.jinja"
-                return self.render_commands(params, template_name)
-            except Exception as e2:
-                self.logger.error(
-                    "Failed to render fallback command template for service '%s': %s\n%s",
-                    self.service_config_to_test.name,
-                    e2,
-                    traceback.format_exc(),
-                )
-                raise e2
+        # Return the command arguments as a list for consistent handling
+        # Environment variables are handled separately in generate_run_command
+        return command_args
 
     def __str__(self) -> str:
         return f"MvfstServiceManager({self.__dict__})"

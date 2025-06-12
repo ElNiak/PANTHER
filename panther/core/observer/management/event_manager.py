@@ -52,7 +52,7 @@ class EventManager:
 
         # Event deduplication
         self._recent_events: dict[str, datetime] = {}
-        self._dedup_window_ms = 100  # 100ms deduplication window
+        self._dedup_window_ms = 1000  # 1000ms (1 second) deduplication window
 
         # Event correlation tracking
         self._active_contexts: dict[str, dict[str, Any]] = {}
@@ -85,18 +85,13 @@ class EventManager:
         Returns:
             str: The event type
         """
-        try:
-            # Use the new BaseEvent structure
-            return event.entity_type.value
-        except AttributeError:
-            # Fallback for compatibility during migration
-            if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
-                return event.get_type()
-            elif hasattr(event, "name"):
-                return event.name
-            else:
-                self.logger.warning(f"Event {event} missing entity_type, using class name")
-                return event.__class__.__name__
+        # Standardize on BaseEvent.get_type() method
+        if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
+            return event.get_type()
+        else:
+            # This should not happen with properly constructed BaseEvent instances
+            self.logger.error(f"Event {event.__class__.__name__} missing get_type() method")
+            return f"{event.__class__.__name__}.unknown"
 
     def register_observer(
         self, observer: IObserver, event_types: list[str] = None, priority: int = 0
@@ -142,24 +137,32 @@ class EventManager:
         """
         with self._lock:
             if event_types:
-                for event_type in event_types:
-                    self.observers[event_type] = [
-                        (p, o) for p, o in self.observers[event_type] if o != observer
-                    ]
-                    self.logger.debug(
-                        "Unregistered observer '%s' from event type '%s'",
-                        observer.__class__.__name__,
-                        event_type,
-                    )
+                self._unregister_from_specific_types(observer, event_types)
             else:
-                self.global_observers = [(p, o) for p, o in self.global_observers if o != observer]
-                for event_type in self.observers:
-                    self.observers[event_type] = [
-                        (p, o) for p, o in self.observers[event_type] if o != observer
-                    ]
-                self.logger.debug(
-                    "Unregistered observer '%s' from all event types", observer.__class__.__name__
-                )
+                self._unregister_from_all_types(observer)
+
+    def _unregister_from_specific_types(self, observer: IObserver, event_types: list[str]):
+        """Helper to unregister observer from specific event types."""
+        for event_type in event_types:
+            self.observers[event_type] = [
+                (p, o) for p, o in self.observers[event_type] if o != observer
+            ]
+            self.logger.debug(
+                "Unregistered observer '%s' from event type '%s'",
+                observer.__class__.__name__,
+                event_type,
+            )
+
+    def _unregister_from_all_types(self, observer: IObserver):
+        """Helper to unregister observer from all event types."""
+        self.global_observers = [(p, o) for p, o in self.global_observers if o != observer]
+        for event_type in self.observers:
+            self.observers[event_type] = [
+                (p, o) for p, o in self.observers[event_type] if o != observer
+            ]
+        self.logger.debug(
+            "Unregistered observer '%s' from all event types", observer.__class__.__name__
+        )
 
     def _generate_event_signature(self, event: BaseEvent) -> str:
         """Generate a signature for event deduplication."""
@@ -222,37 +225,51 @@ class EventManager:
             self.logger.debug("Duplicate event detected, skipping: %s", event)
             return True
 
-        # Validate event if it has a validate method
+        # Validate event
+        if not self._validate_event(event):
+            return False
+
+        # Record event
+        self._record_event(event)
+
+        # Get and notify matching observers
+        event_type = self._get_event_type_safely(event)
+        matching_observers = self._get_matching_observers(event_type)
+        self._notify_observers(matching_observers, event, event_type)
+
+        return True
+
+    def _validate_event(self, event: BaseEvent) -> bool:
+        """Validate the event if it has a validate method."""
         if hasattr(event, "validate") and callable(getattr(event, "validate")):
             if not event.validate():
-                # Get event type safely for the error message
                 event_type = self._get_event_type_safely(event)
                 event_data = getattr(event, "data", {})
                 self.logger.error("Invalid event data for %s: %s", event_type, event_data)
                 return False
+        return True
 
-        # Store in history
+    def _record_event(self, event: BaseEvent):
+        """Record event in history and update metrics."""
         with self._lock:
             self.event_history.append((datetime.now(), event))
             if len(self.event_history) > self.max_history_size:
                 self.event_history.pop(0)
 
-        # Update metrics
         self.metrics["processed"] += 1
         event_type = self._get_event_type_safely(event)
         self.metrics["by_type"][event_type] = self.metrics["by_type"].get(event_type, 0) + 1
-
-        # Always log the event for debugging, but at a lower level to avoid noise
-        # LoggerObserver will provide more detailed logs for normal operations
         self.logger.debug("Publishing event: %s", event)
 
-        # Get matching observers
-        matching_observers = []
+    def _get_matching_observers(self, event_type: str) -> list[tuple[int, IObserver]]:
+        """Get all observers that should be notified for this event type."""
         with self._lock:
+            matching_observers = []
+
             # Add specific observers for this event type
             matching_observers.extend(self.observers.get(event_type, []))
 
-            # Add observers for parent event types (using dot notation hierarchy)
+            # Add observers for parent event types
             parts = event_type.split(".")
             for i in range(1, len(parts)):
                 parent_type = ".".join(parts[:-i])
@@ -262,7 +279,6 @@ class EventManager:
             matching_observers.extend(self.global_observers)
 
             # Remove duplicates while preserving highest priority
-            # Create a dictionary keyed by observer with highest priority value
             observer_priorities = {}
             for priority, observer in matching_observers:
                 if observer not in observer_priorities or priority > observer_priorities[observer]:
@@ -276,8 +292,13 @@ class EventManager:
             # Sort by priority (highest first)
             matching_observers.sort(key=lambda x: x[0], reverse=True)
 
-        # Notify observers
-        for priority, observer in matching_observers:
+            return matching_observers
+
+    def _notify_observers(
+        self, observers: list[tuple[int, IObserver]], event: BaseEvent, event_type: str
+    ):
+        """Notify all matching observers about the event."""
+        for priority, observer in observers:
             try:
                 if hasattr(observer, "is_interested") and callable(
                     getattr(observer, "is_interested")
@@ -285,7 +306,6 @@ class EventManager:
                     if not observer.is_interested(event_type):
                         continue
 
-                # Call the observer and handle the event
                 observer.on_event(event)
 
             except (AttributeError, ValueError, TypeError) as e:
@@ -304,8 +324,6 @@ class EventManager:
                     str(e),
                 )
                 self.metrics["errors"] += 1
-
-        return True
 
     def get_event_history(
         self, event_type: str = None, limit: int = None
@@ -361,7 +379,7 @@ class EventManager:
                     return observer
 
             # Then check event-specific observers
-            for event_type, observers in self.observers.items():
+            for _, observers in self.observers.items():
                 for _, observer in observers:
                     if isinstance(observer, observer_type):
                         return observer

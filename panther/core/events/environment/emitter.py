@@ -31,6 +31,8 @@ from panther.core.events.environment.events import (
     OutputCollectionCompletedEvent,
 )
 
+from panther.core.events import ExperimentFinishedEarlyEvent
+
 
 class EnvironmentEventEmitter:
     """
@@ -382,14 +384,27 @@ class EnvironmentEventEmitter:
             error_type: Type/category of error
             error_details: Additional error details
         """
-        event = EnvironmentErrorEvent(
-            environment_id=environment_id,
-            environment_name=environment_name,
-            environment_type=environment_type,
-            error_message=error_message,
-            error_type=error_type,
-            error_details=error_details,
-        )
+        if error_type == "early_termination":
+            # Special case for early termination errors
+            error_message = f"Early termination: {error_message}"
+            error_type = "environment_error"
+            event = ExperimentFinishedEarlyEvent(
+                environment_id=environment_id,
+                environment_name=environment_name,
+                environment_type=environment_type,
+                error_message=error_message,
+                error_type=error_type,
+                error_details=error_details or {},
+            )
+        else:
+            event = EnvironmentErrorEvent(
+                environment_id=environment_id,
+                environment_name=environment_name,
+                environment_type=environment_type,
+                error_message=error_message,
+                error_type=error_type,
+                error_details=error_details,
+            )
         self.event_manager.notify(event)
 
     def emit_environment_resource(

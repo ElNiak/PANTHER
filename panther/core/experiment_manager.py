@@ -98,7 +98,7 @@ class ExperimentManager:
         self.plugin_dir = Path(plugin_dir)
 
         # Initialize event manager for experiment-level events
-        self.event_manager = EventManager()
+        self.event_manager = EventManager.get_instance()
         factory = get_observer_factory(self.global_config)
         factory.set_event_manager(self.event_manager)
 
@@ -134,10 +134,7 @@ class ExperimentManager:
     def initialize_experiments(self, experiment_config: ExperimentConfig):
         """Initializes plugins, environment, and validates configuration."""
         try:
-            # Set initial workflow state
-            from panther.core.state import WorkflowState
-
-            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.CREATED)
+            # State tracking now happens automatically through events
 
             self.experiment_config = experiment_config
             self._save_configuration()
@@ -150,24 +147,27 @@ class ExperimentManager:
                 }
             )
 
-            # Transition to loading plugins state
-            self.state_manager.set_workflow_state(
-                self.experiment_name, WorkflowState.LOADING_PLUGINS
-            )
+            # State transitions are handled automatically by StateEventObserver
+
+            # Emit plugin loading started event
+            self.experiment_emitter.emit_plugin_loading_started()
 
             # Validate plugins before loading
             self._validate_plugins()
 
             # Load plugins and initialize test cases
             self.plugin_loader.load_plugins()
+
+            # Emit plugin loading completed event
+            self.experiment_emitter.emit_plugin_loading_completed()
+
             self._initialize_test_cases()
 
         except PluginValidationError as e:
             # Handle plugin validation errors specifically
             self.logger.error("Plugin validation failed: %s", e)
 
-            # Transition to failed state
-            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.FAILED)
+            # State transitions are handled automatically by StateEventObserver
 
             self.experiment_emitter.emit_finished_early(
                 reason="Plugin Validation Failed",
@@ -181,8 +181,7 @@ class ExperimentManager:
         except (ImportError, ModuleNotFoundError) as e:
             # Handle import-related errors separately
 
-            # Transition to failed state
-            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.FAILED)
+            # State transitions are handled automatically by StateEventObserver
 
             # Emit experiment finished early event with error details
             self.experiment_emitter.emit_finished_early(
@@ -200,8 +199,7 @@ class ExperimentManager:
 
         # We need to catch all exceptions to properly handle them as initialization errors
         except Exception as e:  # pylint: disable=broad-except
-            # Transition to failed state
-            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.FAILED)
+            # State transitions are handled automatically by StateEventObserver
 
             # Emit experiment finished early event with error details
             self.experiment_emitter.emit_finished_early(
@@ -306,10 +304,7 @@ class ExperimentManager:
     def run_tests(self):
         """Runs the tests defined in the experiment configuration."""
         try:
-            # Transition to running state
-            from panther.core.state import WorkflowState
-
-            self.state_manager.set_workflow_state(self.experiment_name, WorkflowState.RUNNING)
+            # State transitions are handled automatically by StateEventObserver
 
             # Experiment-level execution tracking is handled by experiment_emitter
             self.logger.info("Starting test execution for experiment: %s", self.experiment_name)
@@ -357,14 +352,14 @@ class ExperimentManager:
                                 }
                             )
 
-                        except (KeyboardInterrupt, SystemExit) as e:
+                        except (KeyboardInterrupt, SystemExit):
                             # Emit interrupted test event
                             self.logger.warning(
                                 "Test interrupted: %s", test_case.test_config.name, exc_info=True
                             )
                             test_specific_emitter.emit_failed(
                                 error_message="Test interrupted",
-                                error_type=type(e).__name__,
+                                error_type="KeyboardInterrupt",
                                 phase="execution",
                             )
                             raise  # Re-raise to break out of the loop
@@ -506,6 +501,15 @@ class ExperimentManager:
     def _setup_observers(self, factory: ObserverFactory):
         """Sets up the observers for the experiment manager."""
         try:
+            # Register StateEventObserver to sync state with events
+            from panther.core.observer.impl import StateEventObserver
+
+            self.state_observer = StateEventObserver(
+                self.state_manager, priority=50
+            )  # Higher priority
+            self.event_manager.register_observer(self.state_observer)
+            self.logger.info("Registered StateEventObserver for event-driven state management")
+
             # File Handler for logging
             if self.global_config.observers.logger.enabled:
                 # Create enhanced logger observer
@@ -612,3 +616,44 @@ class ExperimentManager:
             )
             self.logger.error("Failed to set up observers: %s", e, exc_info=True)
             raise
+
+    def cleanup(self):
+        """Clean up resources including observers and event handlers."""
+        self.logger.info("Starting experiment cleanup")
+
+        try:
+            # Clean up state observer
+            if hasattr(self, "state_observer"):
+                self.event_manager.unregister_observer(self.state_observer)
+                self.logger.debug("Unregistered StateEventObserver")
+
+            # Clean up other observers through factory
+            factory = get_observer_factory()
+
+            # List of observer names we created
+            observer_names = ["experiment_logger", "experiment_metrics", "experiment_observer"]
+
+            for observer_name in observer_names:
+                if factory.unregister_observer(observer_name):
+                    self.logger.debug(f"Unregistered {observer_name}")
+                else:
+                    self.logger.debug(f"{observer_name} was not registered or already removed")
+
+            # Clear state manager states for this experiment
+            if hasattr(self, "state_manager"):
+                self.state_manager.clear_workflow_state(self.experiment_name)
+                self.logger.debug("Cleared workflow state for experiment")
+
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}", exc_info=True)
+            # Don't raise - we want cleanup to be best-effort
+
+    def __enter__(self):
+        """Context manager entry - return self for use in with statements."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensure cleanup happens."""
+        self.cleanup()
+        # Don't suppress exceptions
+        return False

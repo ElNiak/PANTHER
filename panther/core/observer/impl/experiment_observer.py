@@ -171,7 +171,7 @@ class ExperimentObserver(IObserver):
         return True
 
     def _handle_experiment_finished_early(self, event: ExperimentFinishedEarlyEvent) -> bool:
-        """Handle early experiment termination events."""
+        """Handle early experiment teExperimentFinishedEarlyEventrmination events."""
         action = event.data.get("action", "notify")
 
         if action == "notify":

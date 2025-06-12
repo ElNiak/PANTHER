@@ -29,6 +29,8 @@ from panther.core.events.service.events import (
     CommandGeneratedEvent,
     DockerBuildStartedEvent,
     DockerBuildCompletedEvent,
+    TesterAnalysisStartedEvent,
+    TesterAnalysisCompletedEvent,
 )
 
 
@@ -90,18 +92,30 @@ class ServiceEventEmitter:
             service_count: Number of services being set up
             service_names: List of service names
         """
-        # This is a placeholder event using service preparation started
-        # In the future, we might want to create a specific ServiceSetupStartedEvent
+        # First emit service created events for each service
         for service_name in service_names or []:
-            event = ServicePreparationStartedEvent(
-                service_id=f"{test_case}_{service_name}",
+            service_id = f"{test_case}_{service_name}"
+
+            # Emit service created event first
+            created_event = ServiceCreatedEvent(
+                service_id=service_id,
+                service_name=service_name,
+                service_type="unknown",  # Will be determined later
+                implementation="unknown",  # Will be determined later
+                config={"test_case": test_case},
+            )
+            self.event_manager.notify(created_event)
+
+            # Then emit service preparation started event
+            prep_event = ServicePreparationStartedEvent(
+                service_id=service_id,
                 service_name=service_name,
                 preparation_steps=["setup"],
             )
             # Add test metadata to the event data
-            event.add_data("test_case", test_case)
-            event.add_data("service_count", service_count)
-            self.event_manager.notify(event)
+            prep_event.add_data("test_case", test_case)
+            prep_event.add_data("service_count", service_count)
+            self.event_manager.notify(prep_event)
 
     def emit_service_setup_failed(
         self,
@@ -537,6 +551,63 @@ class ServiceEventEmitter:
             test_results=test_results,
             overall_success=overall_success,
             test_summary=test_summary,
+        )
+        self.event_manager.notify(event)
+
+    def emit_tester_analysis_started(
+        self,
+        service_id: str,
+        service_name: str,
+        test_name: str,
+        output_types: list[str] | None = None,
+        tester_config: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit a tester analysis started event.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            test_name: Name of the test being analyzed
+            output_types: Types of outputs being analyzed
+            tester_config: Tester configuration data
+        """
+        event = TesterAnalysisStartedEvent(
+            service_id=service_id,
+            service_name=service_name,
+            test_name=test_name,
+            output_types=output_types,
+            tester_config=tester_config,
+        )
+        self.event_manager.notify(event)
+
+    def emit_tester_analysis_completed(
+        self,
+        service_id: str,
+        service_name: str,
+        test_name: str,
+        analysis_results: dict[str, Any] | None = None,
+        success: bool = True,
+        duration_seconds: float | None = None,
+    ) -> None:
+        """
+        Emit a tester analysis completed event.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            test_name: Name of the test analyzed
+            analysis_results: Results from the analysis
+            success: Whether the analysis was successful
+            duration_seconds: Duration of the analysis
+        """
+        event = TesterAnalysisCompletedEvent(
+            service_id=service_id,
+            service_name=service_name,
+            test_name=test_name,
+            analysis_results=analysis_results,
+            success=success,
+            duration_seconds=duration_seconds,
         )
         self.event_manager.notify(event)
 
