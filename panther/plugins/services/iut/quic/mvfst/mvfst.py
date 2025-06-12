@@ -8,8 +8,20 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="iut",
+    name="mvfst",
+    version="1.0.0",
+    description="MVFST - Facebook's implementation of QUIC transport protocol",
+    author="PANTHER Team",
+    dependencies=["docker"],
+    supported_protocols=["quic"],
+    capabilities=["rfc9000", "0rtt", "migration", "congestion_control"],
+    external_dependencies=["docker"],
+)
 class MvfstServiceManager(IImplementationManager):
     def __init__(
         self,

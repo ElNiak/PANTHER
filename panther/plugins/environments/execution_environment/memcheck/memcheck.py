@@ -2,7 +2,7 @@ from abc import ABC
 
 from omegaconf import OmegaConf
 
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.environments.execution_environment.memcheck.config_schema import (
@@ -13,8 +13,18 @@ from panther.plugins.environments.execution_environment.execution_environment_in
 )
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="environment",
+    name="memcheck",
+    version="1.0.0",
+    description="Memory error detection using Valgrind Memcheck",
+    author="PANTHER Team",
+    capabilities=["memory_error_detection", "leak_detection", "use_after_free", "buffer_overflow"],
+    external_dependencies=["valgrind>=3.15"],
+)
 class MemcheckEnvironment(IExecutionEnvironment, ABC):
     """
     MemcheckEnvironment provides an execution environment for running services under Valgrind's Memcheck tool.

@@ -290,6 +290,93 @@ class EnvironmentTeardownFailedEvent(EnvironmentEvent):
         self.error_details = error_details or {}
 
 
+class EnvironmentDeploymentStartedEvent(EnvironmentEvent):
+    """Event emitted when environment deployment starts."""
+
+    def __init__(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        services: list[str],
+        deployment_config: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            "deployment_started",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "services": services,
+                "deployment_config": deployment_config or {},
+            },
+        )
+        self.services = services
+        self.deployment_config = deployment_config or {}
+
+
+class EnvironmentDeploymentCompletedEvent(EnvironmentEvent):
+    """Event emitted when environment deployment completes."""
+
+    def __init__(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        success: bool,
+        deployed_services: dict[str, str],
+        duration: float,
+        deployment_details: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            "deployment_completed",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "success": success,
+                "deployed_services": deployed_services,
+                "duration": duration,
+                "deployment_details": deployment_details or {},
+            },
+        )
+        self.success = success
+        self.deployed_services = deployed_services
+        self.duration = duration
+        self.deployment_details = deployment_details or {}
+
+
+class EnvironmentDeploymentFailedEvent(EnvironmentEvent):
+    """Event emitted when environment deployment fails."""
+
+    def __init__(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        error_message: str,
+        error_type: str = "deployment_error",
+        failed_services: list[str] | None = None,
+        error_details: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            "deployment_failed",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "error_message": error_message,
+                "error_type": error_type,
+                "failed_services": failed_services or [],
+                "error_details": error_details or {},
+            },
+        )
+        self.error_message = error_message
+        self.error_type = error_type
+        self.failed_services = failed_services or []
+        self.error_details = error_details or {}
+
+
 class EnvironmentDestroyedEvent(EnvironmentEvent):
     """Event emitted when environment is destroyed."""
 

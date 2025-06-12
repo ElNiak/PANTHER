@@ -4,7 +4,7 @@ import subprocess
 import traceback
 from typing import Any
 import yaml
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.services.services_interface import IServiceManager
@@ -16,8 +16,18 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="environment",
+    name="shadow_ns",
+    version="1.0.0",
+    description="Shadow Network Simulator - Deterministic network simulation environment",
+    author="PANTHER Team",
+    capabilities=["network_simulation", "deterministic", "time_control", "topology_modeling"],
+    external_dependencies=["docker", "shadow>=2.0"],
+)
 class ShadowNsEnvironment(INetworkEnvironment):
     """
     ShadowNsEnvironment is a class that manages the Shadow NS environment for testing purposes.

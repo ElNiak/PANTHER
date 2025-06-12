@@ -1,13 +1,13 @@
 from abc import ABC
 from panther.config.config_experiment_schema import ServiceConfig
 from panther.plugins.protocols.config_schema import ProtocolConfig
-from panther.core.observer.event_manager import EventManager
-from panther.plugins.services.service_base import ServiceBase
+from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.services.services_interface import IServiceManager
 
 
-class IImplementationManager(ServiceBase, ABC):
+class IImplementationManager(IServiceManager, ABC):
     """
-    IImplementationManager is an abstract base class that inherits from ServiceBase and ABC.
+    IImplementationManager is an abstract base class that inherits from IServiceManager and ABC.
 
     Attributes:
         service_config_to_test (ServiceConfig): The configuration of the service to be tested.

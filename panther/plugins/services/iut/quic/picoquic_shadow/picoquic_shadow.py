@@ -7,8 +7,20 @@ from panther.plugins.services.iut.quic.picoquic_shadow.config_schema import (
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="iut",
+    name="picoquic_shadow",
+    version="1.0.0",
+    description="PicoQUIC Shadow - PicoQUIC implementation for Shadow network simulator",
+    author="PANTHER Team",
+    dependencies=["docker"],
+    supported_protocols=["quic"],
+    capabilities=["rfc9000", "0rtt", "migration", "shadow_ns"],
+    external_dependencies=["docker"],
+)
 class PicoquicShadowServiceManager(IImplementationManager):
     """
     PicoquicShadowServiceManager is a service manager for handling Picoquic services.
@@ -101,7 +113,10 @@ class PicoquicShadowServiceManager(IImplementationManager):
         plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    self._plugin_dir,
+                    os.getcwd(),
+                    "panther",
+                    "plugins",
+                    "services",
                     "Dockerfile",
                 )
             ),

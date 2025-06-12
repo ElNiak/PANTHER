@@ -1,4 +1,8 @@
-# PANTHER-SCP/panther/utils/plugin_loader.py
+"""
+Updated PluginLoader that integrates with the new PluginCatalog system.
+
+This version maintains backward compatibility while adding catalog-based discovery.
+"""
 
 import logging
 import os
@@ -8,24 +12,19 @@ from pathlib import Path
 from omegaconf import OmegaConf
 from panther.core.utils.docker_builder import DockerBuilder
 from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.plugin_catalog import PluginCatalog
+from panther.plugins.plugin_manifest import PluginType
 
 
 class PluginLoader:
     """
-    PluginLoader is responsible for discovering, registering, and building Docker images for protocol, environment, and tester plugins.
+    Enhanced PluginLoader that uses the new PluginCatalog system while maintaining
+    backward compatibility with the existing file-based and entry points discovery.
 
-    This class supports both file-based (legacy) plugin discovery and entry points-based plugin discovery.
-
-    Attributes:
-        logger (logging.Logger): Logger instance for the PluginLoader.
-        plugins_base_dir (Path): Base directory for plugins.
-        plugins_optional_dir (Optional[Path]): Optional directory for additional plugins.
-        docker_builder (DockerBuilder): Instance of DockerBuilder for building Docker images.
-        built_images (Dict[str, str]): Dictionary mapping implementation names to Docker image tags.
-        protocol_plugins (Dict[str, Path]): Dictionary mapping protocol plugin names to their paths.
-        environment_plugins (Dict[str, Path]): Dictionary mapping environment plugin names to their paths.
-        tester_plugins (Dict[str, Path]): Dictionary mapping tester plugin names to their paths.
-        dockerfiles (Dict[str, Path]): Dictionary mapping implementation names to Dockerfile paths.
+    This loader now integrates with:
+    - PluginCatalog for manifest-based discovery
+    - Legacy file-based discovery
+    - Entry points discovery
     """
 
     def __init__(
@@ -37,8 +36,16 @@ class PluginLoader:
         self.logger = logging.getLogger("PluginLoader")
 
         self.plugins_base_dir = Path(plugins_base_dir)
-        # Support for optional plugins
         self.plugins_optional_dir = Path(plugins_optional_dir) if plugins_optional_dir else None
+
+        # Initialize plugin catalog with discovery paths
+        discovery_paths = [str(self.plugins_base_dir)]
+        if self.plugins_optional_dir:
+            discovery_paths.append(str(self.plugins_optional_dir))
+
+        self.plugin_catalog = PluginCatalog(discovery_paths)
+
+        # Docker builder for image management
         try:
             self.docker_builder = DockerBuilder()
         except Exception as e:
@@ -47,15 +54,11 @@ class PluginLoader:
 
         self.global_config = global_config
 
-        # Event system integration - initialize with default values
-        # These will be set by ExperimentManager after creation
+        # Event system integration
         self.event_manager = None
         self.event_emitter = None
 
-        # Initialize logger with class name
-        self.logger = logging.getLogger("PluginLoader")
-
-        # Dictionaries to store plugins
+        # Dictionaries to store plugins (backward compatibility)
         self.built_images = {}
         self.protocol_plugins = {}
         self.environment_plugins = {}
@@ -63,41 +66,192 @@ class PluginLoader:
         self.service_plugins = {}
         self.dockerfiles = {}
 
-    @staticmethod
-    def get_class_name(plugin_name, suffix="Config"):
+        # Load plugins on initialization
+        self.load_plugins()
+
+    def load_plugins(self) -> None:
         """
-        Generates a class name by capitalizing parts of the plugin name and appending a suffix.
+        Discovers and registers all plugins using multiple methods:
+        1. Catalog-based discovery (preferred)
+        2. Entry points-based discovery
+        3. File-based discovery (legacy)
+        """
+        self.logger.info("Loading plugins...")
+
+        # First, use catalog-based discovery
+        self._catalog_based_plugin_discovery()
+
+        # Then try entry points-based discovery
+        self.discover_entry_point_plugins()
+
+        # Finally, fall back to file-based discovery
+        self._legacy_file_based_plugin_discovery()
+
+        self.logger.info(
+            "Plugin discovery complete. Found %d plugins in catalog.",
+            len(self.plugin_catalog.catalog),
+        )
+
+    def _catalog_based_plugin_discovery(self) -> None:
+        """
+        Discover plugins using the new catalog system with manifest files.
+        """
+        self.logger.info("Discovering plugins via catalog system...")
+
+        # Scan for plugins with manifests
+        plugins = self.plugin_catalog.scan_plugins(use_cache=False)
+
+        for plugin_id, manifest in plugins.items():
+            plugin_path = Path(manifest.file_path).parent
+
+            # Map to legacy dictionaries for backward compatibility
+            if manifest.type == PluginType.PROTOCOL:
+                self.protocol_plugins[manifest.name] = plugin_path
+                self.logger.debug(
+                    "Registered protocol plugin '%s' from manifest at '%s'",
+                    manifest.name,
+                    plugin_path,
+                )
+
+            elif manifest.type == PluginType.ENVIRONMENT:
+                # Determine if it's network or execution environment
+                if "network" in str(plugin_path):
+                    key = f"network_{manifest.name}"
+                else:
+                    key = f"execution_{manifest.name}"
+                self.environment_plugins[key] = plugin_path
+                self.logger.debug(
+                    "Registered environment plugin '%s' from manifest at '%s'", key, plugin_path
+                )
+
+            elif manifest.type == PluginType.TESTER:
+                self.tester_plugins[manifest.name] = plugin_path
+                self.logger.debug(
+                    "Registered tester plugin '%s' from manifest at '%s'",
+                    manifest.name,
+                    plugin_path,
+                )
+
+            elif manifest.type in [PluginType.SERVICE, PluginType.IUT]:
+                self.service_plugins[manifest.name] = plugin_path
+                self.logger.debug(
+                    "Registered service plugin '%s' from manifest at '%s'",
+                    manifest.name,
+                    plugin_path,
+                )
+
+            # Register Dockerfile if it exists
+            dockerfile_path = plugin_path / "Dockerfile"
+            if dockerfile_path.exists():
+                self.dockerfiles[manifest.name] = dockerfile_path
+                self.logger.debug(
+                    "Registered Dockerfile for plugin '%s' at '%s'", manifest.name, dockerfile_path
+                )
+
+    def get_plugin_manifest(self, plugin_name: str, plugin_type: str | None = None):
+        """
+        Get the manifest for a specific plugin.
 
         Args:
-            plugin_name (str): The name of the plugin, with parts separated by underscores.
-            suffix (str, optional): The suffix to append to the generated class name. Defaults to "Config".
+            plugin_name: Name of the plugin
+            plugin_type: Optional type hint to disambiguate
 
         Returns:
-            str: The generated class name.
+            PluginManifest if found, None otherwise
         """
+        # Try with type hint first
+        if plugin_type:
+            plugin_id = f"{plugin_type}:{plugin_name}"
+            if plugin_id in self.plugin_catalog.catalog:
+                return self.plugin_catalog.catalog[plugin_id]
+
+        # Search without type
+        for plugin_id, manifest in self.plugin_catalog.catalog.items():
+            if manifest.name == plugin_name:
+                return manifest
+
+        return None
+
+    def validate_plugin_dependencies(self, plugin_name: str) -> tuple[bool, list[str]]:
+        """
+        Validate that all dependencies for a plugin are satisfied.
+
+        Args:
+            plugin_name: Name of the plugin to validate
+
+        Returns:
+            Tuple of (is_valid, list_of_missing_dependencies)
+        """
+        manifest = self.get_plugin_manifest(plugin_name)
+        if not manifest:
+            return False, [f"Plugin '{plugin_name}' not found"]
+
+        # Find the plugin ID
+        plugin_id = None
+        for pid, m in self.plugin_catalog.catalog.items():
+            if m.name == plugin_name:
+                plugin_id = pid
+                break
+
+        if not plugin_id:
+            return False, [f"Plugin ID not found for '{plugin_name}'"]
+
+        # Use catalog's dependency resolution
+        _, missing = self.plugin_catalog.resolve_dependencies([plugin_id])
+
+        return len(missing) == 0, missing
+
+    def get_plugin_version(self, plugin_name: str) -> str | None:
+        """
+        Get the version of a plugin.
+
+        Args:
+            plugin_name: Name of the plugin
+
+        Returns:
+            Version string if found, None otherwise
+        """
+        manifest = self.get_plugin_manifest(plugin_name)
+        return manifest.version if manifest else None
+
+    def list_available_plugins(self) -> dict[str, list[dict[str, str]]]:
+        """
+        List all available plugins grouped by type.
+
+        Returns:
+            Dictionary mapping plugin types to lists of plugin info
+        """
+        plugins_by_type = {}
+
+        for plugin_id, manifest in self.plugin_catalog.catalog.items():
+            plugin_type = manifest.type.value
+            if plugin_type not in plugins_by_type:
+                plugins_by_type[plugin_type] = []
+
+            plugins_by_type[plugin_type].append(
+                {
+                    "name": manifest.name,
+                    "version": manifest.version,
+                    "description": manifest.description,
+                    "author": manifest.author,
+                }
+            )
+
+        return plugins_by_type
+
+    # Keep all existing methods for backward compatibility
+    @staticmethod
+    def get_class_name(plugin_name, suffix="Config"):
+        """Keep for backward compatibility."""
         class_name_parts = plugin_name.split("_")
         class_name_parts = [part.capitalize() for part in class_name_parts]
         class_name = "".join(class_name_parts) + suffix
         return class_name
 
     def build_docker_image(self, impl_name: str, versions: str):
-        """
-        Build a Docker image for the specified implementation and version.
-        Args:
-            impl_name (str): The name of the implementation for which the Docker image is to be built.
-            versions (str): The version information for the implementation. This should include attributes like 'version', 'commit', and 'dependencies'.
-        Returns:
-            None
-        Logs:
-            - Debug: When a configuration for the implementation is found.
-            - Error: If the Docker image build fails or if the Dockerfile for the implementation is not found.
-        Side Effects:
-            - Updates the `built_images` dictionary with the new image tag if the build is successful.
-            - Exits the program with status code 1 if the Dockerfile is not found.
-        """
+        """Keep existing docker build logic."""
         if impl_name in self.dockerfiles:
             dockerfile_path = self.dockerfiles[impl_name]
-            # Load version-specific configurations from panther.config.yaml
             self.logger.debug(
                 "Found configuration for implementation '%s': %s", impl_name, versions
             )
@@ -114,7 +268,7 @@ class PluginLoader:
                         "dependencies": OmegaConf.to_container(versions.dependencies),
                     }
                 ),
-                tag_version="latest",  # or use version if desired
+                tag_version="latest",
                 build_image_force=(
                     self.global_config.docker.build_docker_image if self.global_config else True
                 ),
@@ -135,32 +289,13 @@ class PluginLoader:
                 impl_name,
                 self.dockerfiles,
             )
-            raise FileNotFoundError(
-                f"Dockerfile not found for implementation '{impl_name}'. Please ensure the Dockerfile exists in the expected path."
-            )
+            raise FileNotFoundError(f"Dockerfile not found for implementation '{impl_name}'.")
 
     def build_docker_image_from_path(self, path: Path, name: str, version: str | None = None):
-        """
-        Builds a Docker image from the specified path.
-        This method builds a Docker image using the Dockerfile located at the given path.
-        It also loads version-specific configurations from `panther.config.yaml` and tags
-        the built image with the specified version or "latest" if no version is provided.
-        Args:
-            path (Path): The path to the Dockerfile.
-            name (str): The name of the implementation.
-            version (str | None, optional): The version of the implementation. Defaults to None.
-        Returns:
-            str: The tag of the built Docker image if successful, otherwise None.
-        """
-
-        self.logger.info("Building image from path '%s'", path.name)
-        dockerfile_path = path
-        # Load version-specific configurations from panther.config.yaml
-        versions = {
-            version: {
-                # TODO: define version-specific configurations here
-            }
-        }
+        """Keep existing docker build from path logic."""
+        self.logger.info("Building image from path '%s'", path)
+        dockerfile_path = path.resolve()
+        versions = {version: {}}
         self.logger.debug("Found configuration for path '%s': %s", path.name, versions)
         for version, version_config in versions.items():
             self.logger.info("Building image for path '%s' version '%s'", path.name, version)
@@ -168,9 +303,9 @@ class PluginLoader:
                 impl_name=name,
                 version=version,
                 dockerfile_path=dockerfile_path,
-                context_path=dockerfile_path.parent,
+                context_path=dockerfile_path.parent.resolve(),
                 config=version_config,
-                tag_version="latest",  # TODO or use version if desired
+                tag_version="latest",
                 build_image_force=(
                     self.global_config.docker.build_docker_image if self.global_config else True
                 ),
@@ -186,76 +321,78 @@ class PluginLoader:
                     "Image build failed for implementation '%s' version '%s'", path.name, version
                 )
                 raise RuntimeError(
-                    f"Image build failed for implementation '{path.name}' version '{version}'. Please check the logs for details."
+                    f"Image build failed for implementation '{path.name}' version '{version}'."
                 )
             return image_tag
 
     def get_implementations_for_protocol(self, protocol: str) -> list[str]:
-        """
-        Retrieves a list of implementation directories for a given protocol.
-        This method searches for directories within the 'services/iut/<protocol>'
-        path that represent different implementations of the specified protocol.
-        It excludes directories that start with '__' or are named 'templates'.
-        Args:
-            protocol (str): The name of the protocol for which to find implementations.
-        Returns:
-            list[str]: A list of directory names representing implementations of the protocol.
-        """
+        """Enhanced version that uses catalog when possible."""
         implementations = []
-        implementations_dir = Path(os.path.dirname(__file__)) / "services" / "iut" / protocol
-        self.logger.debug("Checking for implementations in '%s'", implementations_dir)
-        if implementations_dir and implementations_dir.exists():
-            for item in implementations_dir.iterdir():
-                if item.is_dir() and not item.name.startswith("__") and item.name != "templates":
-                    self.logger.debug("Found implementation '%s' at '%s'", item.name, item)
-                    implementations.append(item.name)
-                    if (item / "Dockerfile").exists():
-                        self.dockerfiles[item.name] = item / "Dockerfile"
-                        self.logger.debug(
-                            "Registered Dockerfile for protocol '%s' implementation '%s' at '%s'",
-                            protocol,
-                            item.name,
-                            item / "Dockerfile",
-                        )
-            self.logger.debug(
-                "Found implementations for protocol '%s': %s", protocol, implementations
-            )
-        else:
-            self.logger.warning("Protocol plugin '%s' not found or does not exist.", protocol)
+
+        # First check catalog
+        for plugin_id, manifest in self.plugin_catalog.catalog.items():
+            if manifest.type == PluginType.IUT and protocol in manifest.supported_protocols:
+                implementations.append(manifest.name)
+
+        # If no results from catalog, fall back to file-based discovery
+        if not implementations:
+            implementations_dir = Path(os.path.dirname(__file__)) / "services" / "iut" / protocol
+            self.logger.debug("Checking for implementations in '%s'", implementations_dir)
+            if implementations_dir and implementations_dir.exists():
+                for item in implementations_dir.iterdir():
+                    if (
+                        item.is_dir()
+                        and not item.name.startswith("__")
+                        and item.name != "templates"
+                    ):
+                        self.logger.debug("Found implementation '%s' at '%s'", item.name, item)
+                        implementations.append(item.name)
+                        if (item / "Dockerfile").exists():
+                            self.dockerfiles[item.name] = item / "Dockerfile"
+                            self.logger.debug(
+                                "Registered Dockerfile for protocol '%s' implementation '%s' at '%s'",
+                                protocol,
+                                item.name,
+                                item / "Dockerfile",
+                            )
+                self.logger.debug(
+                    "Found implementations for protocol '%s': %s", protocol, implementations
+                )
+            else:
+                self.logger.warning("Protocol plugin '%s' not found or does not exist.", protocol)
+
         return implementations
 
     def get_testers(self) -> list[str]:
-        """
-        Scans the 'services/testers' directory for subdirectories that represent testers.
-        This method iterates through the 'services/testers' directory, checking each item.
-        It collects the names of all subdirectories that do not start with '__' and are not named 'templates'.
-        The collected names are considered as testers.
-        Returns:
-            list[str]: A list of tester names found in the 'services/testers' directory.
-        """
+        """Enhanced version that uses catalog when possible."""
+        testers = []
 
-        implementations = []
-        implementations_dir = Path(os.path.dirname(__file__)) / "services" / "testers"
-        self.logger.debug("Checking for testers in '%s'", implementations_dir)
-        for item in implementations_dir.iterdir():
-            self.logger.debug("Checking item '%s'", item)
-            if item.is_dir() and not item.name.startswith("__") and item.name != "templates":
-                implementations.append(item.name)
-                if (item / "Dockerfile").exists():
-                    self.dockerfiles[item.name] = item / "Dockerfile"
-                    self.logger.debug(
-                        "Registered Dockerfile for tester '%s' at '%s'",
-                        item.name,
-                        item / "Dockerfile",
-                    )
-        self.logger.debug("Found testers: %s", implementations)
-        return implementations
+        # First check catalog
+        for plugin_id, manifest in self.plugin_catalog.catalog.items():
+            if manifest.type == PluginType.TESTER:
+                testers.append(manifest.name)
+
+        # If no results from catalog, fall back to file-based discovery
+        if not testers:
+            implementations_dir = Path(os.path.dirname(__file__)) / "services" / "testers"
+            self.logger.debug("Checking for testers in '%s'", implementations_dir)
+            for item in implementations_dir.iterdir():
+                self.logger.debug("Checking item '%s'", item)
+                if item.is_dir() and not item.name.startswith("__") and item.name != "templates":
+                    testers.append(item.name)
+                    if (item / "Dockerfile").exists():
+                        self.dockerfiles[item.name] = item / "Dockerfile"
+                        self.logger.debug(
+                            "Registered Dockerfile for tester '%s' at '%s'",
+                            item.name,
+                            item / "Dockerfile",
+                        )
+            self.logger.debug("Found testers: %s", testers)
+
+        return testers
 
     def discover_entry_point_plugins(self) -> None:
-        """
-        Discovers plugins registered via entry points.
-        This is the modern way to discover plugins and should be preferred over file-based discovery.
-        """
+        """Keep existing entry point discovery."""
         self.logger.info("Discovering plugins via entry points...")
 
         # Discover protocol plugins
@@ -264,13 +401,11 @@ class PluginLoader:
             for ep in protocol_eps:
                 self.logger.info("Found protocol plugin: %s", ep.name)
                 try:
-                    # We don't load the plugin here, just register its existence
                     plugin_path = Path(ep.value.split(":")[0].replace(".", "/"))
                     self.protocol_plugins[ep.name] = plugin_path
                     self.logger.debug(
                         "Registered protocol plugin '%s' with path '%s'", ep.name, plugin_path
                     )
-                    # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
                     if dockerfile_path.exists():
                         self.dockerfiles[ep.name] = dockerfile_path
@@ -297,7 +432,6 @@ class PluginLoader:
                         ep.name,
                         plugin_path,
                     )
-                    # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
                     if dockerfile_path.exists():
                         self.dockerfiles[f"execution_{ep.name}"] = dockerfile_path
@@ -326,7 +460,6 @@ class PluginLoader:
                         ep.name,
                         plugin_path,
                     )
-                    # If the plugin has a Dockerfile, register it
                     dockerfile_path = plugin_path / "Dockerfile"
                     if dockerfile_path.exists():
                         self.dockerfiles[f"network_{ep.name}"] = dockerfile_path
@@ -341,19 +474,6 @@ class PluginLoader:
                     )
         except Exception as e:
             self.logger.warning("Error discovering network environment plugins: %s", e)
-
-    def load_plugins(self) -> None:
-        """
-        Discovers and registers all protocol, environment, and tester plugins.
-        Uses both entry points-based discovery (preferred) and file-based discovery (for backward compatibility).
-        """
-        self.logger.info("Loading plugins...")
-
-        # First try entry points-based discovery (modern approach)
-        self.discover_entry_point_plugins()
-
-        # Then fall back to file-based discovery (legacy approach)
-        self._legacy_file_based_plugin_discovery()
 
     def _legacy_file_based_plugin_discovery(self) -> None:
         """Legacy file-based plugin discovery method for backward compatibility."""
@@ -397,7 +517,7 @@ class PluginLoader:
             for testers in testers_dir.iterdir():
                 if testers.is_dir() and not testers.name.startswith("__"):
                     if (testers / f"{testers.name}.py").exists():
-                        self.tester_plugins[testers.name] = item
+                        self.tester_plugins[testers.name] = testers
                         self.logger.debug(
                             "Discovered testers plugin '%s' at '%s'", testers.name, testers
                         )

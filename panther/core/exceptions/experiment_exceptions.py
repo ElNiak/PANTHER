@@ -34,3 +34,9 @@ class ConfigurationError(PantherExperimentError):
     """Error raised when there are issues with the experiment configuration."""
 
     pass
+
+
+class PluginValidationError(PantherExperimentError):
+    """Error raised when plugin validation fails."""
+
+    pass

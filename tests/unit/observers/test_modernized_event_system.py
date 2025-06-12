@@ -5,15 +5,13 @@ This module contains tests for the new observer configuration system
 and metrics integration features.
 """
 
-import os
 import unittest
 import tempfile
 import shutil
 
-from panther.core.observer.event_manager import EventManager
-from panther.core.observer.observer_config import ObserverRegistry
-from panther.core.observer.events import ResourceMetricEvent, TimingMetricEvent, CounterMetricEvent
-from panther.core.observer.metrics.metrics_observer import MetricsObserver
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.observer.factory.observer_factory import ObserverFactory
+from panther.core.observer.impl.metrics_observer import MetricsObserver
 from panther.core.metrics.metrics_collector import MetricsCollector
 
 
@@ -24,103 +22,38 @@ class TestObserverConfig(unittest.TestCase):
         """Set up test environment."""
         self.temp_dir = tempfile.mkdtemp()
         self.event_manager = EventManager()
-        self.registry = ObserverRegistry(self.event_manager)
+        self.factory = ObserverFactory()
 
     def tearDown(self):
         """Clean up after tests."""
         shutil.rmtree(self.temp_dir)
 
-    def test_load_config_dict(self):
-        """Test loading configuration from a dictionary."""
+    def test_create_logger_observer(self):
+        """Test creating a logger observer through factory."""
+        config = {"logger": {"enabled": True, "log_level": "DEBUG", "correlation_tracking": True}}
+
+        observer = self.factory.create_observer("logger", self.event_manager, config["logger"])
+        self.assertIsNotNone(observer)
+        self.assertEqual(observer.__class__.__name__, "LoggerObserver")
+
+    def test_create_metrics_observer(self):
+        """Test creating a metrics observer through factory."""
         config = {
-            "observers": [
-                {
-                    "id": "test_observer",
-                    "class_path": "panther.core.observer.logger_observer.LoggerObserver",
-                    "enabled": True,
-                    "priority": 10,
-                    "params": {"log_level": "DEBUG"},
-                }
-            ]
+            "metrics": {"enabled": True, "collect_system_metrics": True, "publish_interval": 30}
         }
 
-        success = self.registry.load_config_dict(config)
-        self.assertTrue(success)
-        self.assertEqual(len(self.registry.configs), 1)
+        observer = self.factory.create_observer("metrics", self.event_manager, config["metrics"])
+        self.assertIsNotNone(observer)
+        self.assertEqual(observer.__class__.__name__, "MetricsObserver")
 
-        observer_config = self.registry.configs["test_observer"]
-        self.assertEqual(
-            observer_config.class_path, "panther.core.observer.logger_observer.LoggerObserver"
+    def test_invalid_observer_type(self):
+        """Test creating an observer with invalid type."""
+        config = {"unknown": {"enabled": True}}
+
+        observer = self.factory.create_observer(
+            "unknown_type", self.event_manager, config["unknown"]
         )
-        self.assertEqual(observer_config.priority, 10)
-        self.assertEqual(observer_config.params["log_level"], "DEBUG")
-
-    def test_load_config_file(self):
-        """Test loading configuration from a YAML file."""
-        config_path = os.path.join(self.temp_dir, "test_config.yaml")
-        with open(config_path, "w") as f:
-            f.write(
-                """
-observers:
-  - id: test_observer
-    class_path: panther.core.observer.logger_observer.LoggerObserver
-    enabled: true
-    priority: 20
-    params:
-      log_level: INFO
-      include_data: true
-"""
-            )
-
-        success = self.registry.load_config_file(config_path)
-        self.assertTrue(success)
-        self.assertEqual(len(self.registry.configs), 1)
-
-        observer_config = self.registry.configs["test_observer"]
-        self.assertEqual(observer_config.priority, 20)
-        self.assertEqual(observer_config.params["log_level"], "INFO")
-        self.assertTrue(observer_config.params["include_data"])
-
-    def test_load_invalid_config(self):
-        """Test loading an invalid configuration."""
-        # Missing observers key
-        config = {"not_observers": []}
-        success = self.registry.load_config_dict(config)
-        self.assertFalse(success)
-
-        # Missing class_path
-        config = {"observers": [{"id": "bad_observer", "enabled": True}]}
-        success = self.registry.load_config_dict(config)
-        self.assertFalse(success)
-
-    def test_load_config_directory(self):
-        """Test loading configurations from a directory."""
-        # Create multiple config files
-        os.makedirs(os.path.join(self.temp_dir, "config"))
-
-        with open(os.path.join(self.temp_dir, "config", "observers1.yaml"), "w") as f:
-            f.write(
-                """
-observers:
-  - id: observer1
-    class_path: panther.core.observer.logger_observer.LoggerObserver
-"""
-            )
-
-        with open(os.path.join(self.temp_dir, "config", "observers2.yaml"), "w") as f:
-            f.write(
-                """
-observers:
-  - id: observer2
-    class_path: panther.core.observer.result_observer.ResultObserver
-"""
-            )
-
-        count = self.registry.load_config_directory(os.path.join(self.temp_dir, "config"))
-        self.assertEqual(count, 2)
-        self.assertEqual(len(self.registry.configs), 2)
-        self.assertIn("observer1", self.registry.configs)
-        self.assertIn("observer2", self.registry.configs)
+        self.assertIsNone(observer)
 
 
 class MockMetricsCollector(MetricsCollector):
@@ -151,11 +84,14 @@ class TestMetricsIntegration(unittest.TestCase):
 
     def test_metrics_event_to_metric(self):
         """Test conversion from metrics events to metrics."""
+        # Import the correct ResourceMetricEvent
+        from panther.core.events.metrics.events import ResourceMetricEvent
+
         # Create and notify a resource metric event
         resource_event = ResourceMetricEvent(
             resource_type="memory", usage_value=512.0, component="test_component"
         )
-        self.event_manager.notify(resource_event)
+        self.event_manager.publish(resource_event)
 
         # Check that the metric was recorded
         self.assertGreaterEqual(len(self.metrics_collector.recorded_metrics), 1)
@@ -173,10 +109,12 @@ class TestMetricsIntegration(unittest.TestCase):
 
     def test_timing_metric_event(self):
         """Test handling timing metric events."""
+        from panther.core.events.metrics.events import TimingMetricEvent
+
         timing_event = TimingMetricEvent(
-            operation="function_call", duration=1.25, component="test_module"
+            operation_name="function_call", duration=1.25, component="test_module"
         )
-        self.event_manager.notify(timing_event)
+        self.event_manager.publish(timing_event)
 
         # Check that the metric was recorded
         timing_metric = None
@@ -191,10 +129,12 @@ class TestMetricsIntegration(unittest.TestCase):
 
     def test_counter_metric_event(self):
         """Test handling counter metric events."""
+        from panther.core.events.metrics.events import CounterMetricEvent
+
         counter_event = CounterMetricEvent(
             counter_name="api_calls", value=5, increment=True, component="api_client"
         )
-        self.event_manager.notify(counter_event)
+        self.event_manager.publish(counter_event)
 
         # Since we're using a mock, we don't have the actual counter value,
         # but we can check that a metric was recorded with the right name

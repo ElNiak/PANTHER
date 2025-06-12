@@ -4,62 +4,75 @@ This package implements the observer pattern for event handling in the PANTHER f
 Enhanced with comprehensive observer registry, metrics collection, and storage management.
 """
 
-# Core observer infrastructure (primary API)
-# from . import events  # Temporarily disabled due to missing events
-from . import event_manager
-from .core.observer_interface import IObserver
-from .storage.event_store import EventStore
-from .core.experiment_observer import ExperimentObserver
-from .gui.gui_observer import GUIObserver
+# Base interfaces
+from .base.observer_interface import IObserver
+from .base.typed_observer_interface import ITypedObserver
 
-# Import from reorganized structure
-from .plugin.plugin_interface import IPluginObserver
-from .plugin.plugin_observer_factory import (
+# Observer implementations
+from .impl import (
+    ExperimentObserver,
+    LoggerObserver,
+    MetricsObserver,
+    StorageObserver,
+    GUIObserver,
+    PluginObserver,
+)
+
+# Event and results management
+from .management import EventManager, ResultsManager
+
+# Factory system
+from .factory import (
+    ObserverFactory,
+    get_observer_factory,
+    create_observer,
+    create_default_observers,
+    # Builder methods
+    create_logger,
+    create_metrics,
+    create_storage,
+    create_experiment_observer,
+    create_default_observer_set,
+    # Config loading
+    load_observer_config,
+)
+
+# Plugin observer infrastructure
+from .plugins.plugin_interface import IPluginObserver
+from .plugins.plugin_observer_factory import (
     PluginObserverFactory,
     create_plugin_observer,
     register_plugin_observer,
 )
 
-# Import from metrics
-from .metrics.metrics_observer import MetricsObserver
-
-# Import from storage
-from .storage.results_manager import ResultsManager
-from .storage.storage_observer import StorageObserver
-
-# Import from logger
-from .logger.logger_observer import LoggerObserver
-
-# Factory system
-from .observer_factory import (
-    ObserverFactory,
-    get_observer_factory,
-    create_observer,
-    create_default_observers,
-)
-
 # Define the public API
 __all__ = [
-    # Event imports
-    # "events",  # Temporarily disabled due to missing events
-    # Core observer classes
+    # Base interfaces
     "IObserver",
-    "ExperimentObserver",
-    "GUIObserver",
-    "IPluginObserver",
-    # Event handling
-    "event_manager",
-    "EventStore",
+    "ITypedObserver",
     # Observer implementations
-    "MetricsObserver",
-    "ResultsManager",
-    "StorageObserver",
+    "ExperimentObserver",
     "LoggerObserver",
-    # Factory system classes
+    "MetricsObserver",
+    "StorageObserver",
+    "GUIObserver",
+    "PluginObserver",
+    "IPluginObserver",
+    # Management
+    "EventManager",
+    "ResultsManager",
+    # Factory system
     "ObserverFactory",
     "get_observer_factory",
     "create_observer",
     "create_default_observers",
+    "create_logger",
+    "create_metrics",
+    "create_storage",
+    "create_experiment_observer",
+    "create_default_observer_set",
+    "load_observer_config",
+    # Plugin observer
     "PluginObserverFactory",
     "create_plugin_observer",
     "register_plugin_observer",

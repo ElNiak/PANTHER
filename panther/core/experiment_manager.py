@@ -14,7 +14,7 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.plugin_manager import PluginManager
 from panther.core.test_cases.test_case_impl import TestCase
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.core.events import (
     ExperimentEventEmitter,
     TestEventEmitter,
@@ -23,12 +23,18 @@ from panther.core.events import (
     MetricsEventEmitter,
     PluginEventEmitter,
 )
-from panther.core.observer.observer_factory import ObserverFactory, get_observer_factory
+from panther.core.observer.factory import ObserverFactory, get_observer_factory
+from panther.core.observer.factory.factory_builders import (
+    create_logger,
+    create_metrics,
+    create_experiment_observer,
+)
 from panther.core.exceptions.experiment_exceptions import (
     PantherExperimentError,
     ExperimentInitializationError,
     TestCaseInitializationError,
     TestExecutionError,
+    PluginValidationError,
 )
 import sys
 
@@ -117,7 +123,11 @@ class ExperimentManager:
         self.plugin_loader.event_manager = self.event_manager
 
         # Setup plugin manager with the plugin loader that has the event manager
-        self.plugin_manager = PluginManager(self.plugin_loader)
+        self.plugin_manager = PluginManager(
+            plugin_loader=self.plugin_loader,
+            plugin_directories=[str(self.plugin_dir)],
+            event_manager=self.event_manager,
+        )
 
         self._setup_observers(factory)
         self.test_cases: list[ITestCase] = []
@@ -136,10 +146,25 @@ class ExperimentManager:
                 }
             )
 
+            # Validate plugins before loading
+            self._validate_plugins()
+
             # Load plugins and initialize test cases
             self.plugin_loader.load_plugins()
             self._initialize_test_cases()
 
+        except PluginValidationError as e:
+            # Handle plugin validation errors specifically
+            self.logger.error("Plugin validation failed: %s", e)
+            self.experiment_emitter.emit_finished_early(
+                reason="Plugin Validation Failed",
+                details={
+                    "phase": "initialization",
+                    "error": str(e),
+                    "type": "PluginValidationError",
+                },
+            )
+            raise
         except (ImportError, ModuleNotFoundError) as e:
             # Handle import-related errors separately
             # Emit experiment finished early event with error details
@@ -170,6 +195,32 @@ class ExperimentManager:
 
             self.logger.error("Initialization failed: %s", e, exc_info=True)
             raise ExperimentInitializationError(f"Failed to initialize experiment: {str(e)}") from e
+
+    def _validate_plugins(self):
+        """
+        Validate that all required plugins are available and compatible
+        before attempting to run the experiment.
+        """
+        self.logger.info("Validating plugins for experiment...")
+
+        # Use PluginManager's validation method
+        is_valid, errors = self.plugin_manager.validate_experiment_plugins(self.experiment_config)
+
+        if not is_valid:
+            error_message = "Plugin validation failed:\n" + "\n".join(
+                f"  - {error}" for error in errors
+            )
+            self.logger.error(error_message)
+
+            # Log additional helpful information
+            available_plugins = self.plugin_manager.list_available_plugins()
+            self.logger.info("Available plugins:")
+            for plugin_type, plugins in available_plugins.items():
+                self.logger.info("  %s: %s", plugin_type, plugins)
+
+            raise PluginValidationError(error_message)
+
+        self.logger.info("All required plugins validated successfully")
 
     def _save_configuration(self):
         """Save the experiment configuration file in the experiment folder."""
@@ -304,7 +355,26 @@ class ExperimentManager:
                         ) as test_error:
                             # Handle all expected error types with a single handler
                             failed_tests += 1
-                            self._handle_test_error(test_case, test_error)
+                            # Add recursion protection for AttributeError
+                            if isinstance(
+                                test_error, AttributeError
+                            ) and "emit_service_setup_completed" in str(test_error):
+                                self.logger.error(
+                                    "Test case %s failed due to missing event emitter method: %s",
+                                    test_case.test_config.name,
+                                    str(test_error),
+                                )
+                                # Emit a simple failed event without triggering more errors
+                                try:
+                                    test_specific_emitter.emit_failed(
+                                        error_message=str(test_error),
+                                        error_type="AttributeError",
+                                        phase="setup",
+                                    )
+                                except:
+                                    pass  # Ignore any secondary errors
+                            else:
+                                self._handle_test_error(test_case, test_error)
                             # Continue with other tests
 
                         # We have to catch Exception to ensure the test loop continues
@@ -423,8 +493,8 @@ class ExperimentManager:
                         else logging.getLevelName(self.log_level)
                     )
 
-                    # Use the factory to create an enhanced logger
-                    factory.create_logger(
+                    # Use the standalone function to create an enhanced logger
+                    create_logger(
                         name="experiment_logger",
                         global_config=self.global_config,
                         auto_register=True,
@@ -451,9 +521,10 @@ class ExperimentManager:
                         else "INFO"
                     )
 
-                    # Use the factory to create an enhanced metrics observer
-                    factory.create_metrics(
+                    # Use the standalone function to create an enhanced metrics observer
+                    create_metrics(
                         name="experiment_metrics",
+                        global_config=self.global_config,
                         auto_register=True,
                         output_dir=str(self.logs_dir),
                         metrics_collector=self.metrics_collector,
@@ -467,15 +538,15 @@ class ExperimentManager:
                     )
 
             # Create an experiment observer to handle experiment-specific events
-            experiment_observer = factory.create_experiment_observer(
+            create_experiment_observer(
                 name="experiment_observer",
+                global_config=self.global_config,
                 auto_register=True,
                 priority=10,  # Higher priority to ensure it gets events first
                 output_dir=str(self.logs_dir),
                 test_name=self.experiment_name,
                 track_timing=True,
                 track_steps=True,
-                global_config=self.global_config,
             )
             self.logger.info("Registered ExperimentObserver")
 

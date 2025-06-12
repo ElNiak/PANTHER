@@ -438,3 +438,59 @@ class TestFailedEvent(TestEvent):
                 "summary": summary or {},
             },
         )
+
+
+class TestResultEvent(TestEvent):
+    """Event for basic test results."""
+
+    def __init__(
+        self,
+        name: str,
+        test_name: str,
+        result: bool,
+        data: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=TestEventType.COMPLETED if result else TestEventType.FAILED,
+            test_id=test_name,
+            data=data or {},
+        )
+        self.test_name = test_name
+        self.result = result
+        self.metadata = metadata or {}
+
+
+class EnhancedResultEvent(TestEvent):
+    """Event for enhanced test results with categorization and tags."""
+
+    def __init__(
+        self,
+        name: str,
+        test_name: str,
+        result: bool,
+        result_data: Any = None,
+        metadata: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        category: str = "default",
+    ):
+        data = {
+            "result_data": result_data,
+            "category": category,
+            "tags": tags or [],
+        }
+
+        super().__init__(
+            event_type=TestEventType.COMPLETED if result else TestEventType.FAILED,
+            test_id=test_name,
+            data=data,
+        )
+        self.test_name = test_name
+        self.result = result
+        self.metadata = metadata or {}
+        self.tags = tags or []
+        self.category = category
+
+    def get_result_data(self) -> Any:
+        """Get the result data."""
+        return self.data.get("result_data")

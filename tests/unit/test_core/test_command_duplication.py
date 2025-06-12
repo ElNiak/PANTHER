@@ -20,7 +20,7 @@ from panther.core.command_processor.command import ShellCommand
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 
 
 class MockService:

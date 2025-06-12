@@ -8,7 +8,7 @@ from panther.config.config_experiment_schema import TestConfig
 
 from panther.plugins.services.services_interface import IServiceManager
 
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 

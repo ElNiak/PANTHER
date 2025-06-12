@@ -7,7 +7,7 @@ This module provides typed event emission for experiment lifecycle events.
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from panther.core.observer.event_manager import EventManager
+    from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.experiment.events import (
     ExperimentInitializedEvent,

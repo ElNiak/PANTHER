@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import subprocess
 import traceback
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.environments.config_schema import EnvironmentConfig
@@ -15,8 +15,18 @@ from panther.plugins.environments.network_environment.network_environment_interf
     INetworkEnvironment,
 )
 from panther.core.events import BaseEvent as Event
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="environment",
+    name="localhost_single_container",
+    version="1.0.0",
+    description="Single container environment for fast local testing",
+    author="PANTHER Team",
+    capabilities=["single_container", "fast_deployment", "local_testing"],
+    external_dependencies=["docker"],
+)
 class LocalhostSingleContainerEnvironment(INetworkEnvironment):
     """
        LocalhostSingleContainerEnvironment is a class that manages a single container environment on localhost for testing purposes.

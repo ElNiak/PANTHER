@@ -7,7 +7,7 @@ Unit tests for non-critical command creation and processing in Docker Compose en
 import unittest
 from unittest.mock import MagicMock
 
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )

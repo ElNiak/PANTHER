@@ -12,7 +12,7 @@ from panther.config.config_global_schema import GlobalConfig
 
 from panther.plugins.plugin_loader import PluginLoader
 
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
@@ -230,9 +230,9 @@ class INetworkEnvironment(IEnvironmentPlugin):
             structured_commands=structured_commands,
             log_dir=self.log_dirs,
             output_dir=self.output_dir,
-            experiment_name=self.output_dir.split("/")[-1],
+            experiment_name=str(self.output_dir).split("/")[-1],
         )
-        # Write the rendered content to shadow.generated.yml
+        # Write the rendered content to <env>.generated.yml
         with open(out_file, "w") as f:
             f.write(rendered)
         with open(rendered_out_file, "w") as f:

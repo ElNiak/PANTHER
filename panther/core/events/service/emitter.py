@@ -7,7 +7,7 @@ This module provides a type-safe event emitter for service-related events.
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from panther.core.observer.event_manager import EventManager
+    from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.service.events import (
     ServiceCreatedEvent,
@@ -24,6 +24,7 @@ from panther.core.events.service.events import (
     ServiceStoppedEvent,
     ServiceErrorEvent,
     ServiceDestroyedEvent,
+    ServiceTestResultsEvent,
 )
 
 
@@ -71,8 +72,67 @@ class ServiceEventEmitter:
         )
         self.event_manager.notify(event)
 
+    def emit_service_setup_started(
+        self,
+        test_case: str,
+        service_count: int,
+        service_names: list[str] | None = None,
+    ) -> None:
+        """
+        Emit a service setup started event for a test case.
+
+        Args:
+            test_case: Name of the test case
+            service_count: Number of services being set up
+            service_names: List of service names
+        """
+        # This is a placeholder event using service preparation started
+        # In the future, we might want to create a specific ServiceSetupStartedEvent
+        for service_name in service_names or []:
+            event = ServicePreparationStartedEvent(
+                service_id=f"{test_case}_{service_name}",
+                service_name=service_name,
+                preparation_steps=["setup"],
+            )
+            # Add test metadata to the event data
+            event.add_data("test_case", test_case)
+            event.add_data("service_count", service_count)
+            self.event_manager.notify(event)
+
+    def emit_service_setup_failed(
+        self,
+        test_case: str,
+        error_message: str,
+        service_names: list[str] | None = None,
+        error_type: str | None = None,
+    ) -> None:
+        """
+        Emit a service setup failed event for a test case.
+
+        Args:
+            test_case: Name of the test case
+            error_message: Error message describing the failure
+            service_names: List of service names that failed
+            error_type: Type/category of error
+        """
+        # This is a placeholder event using service preparation failed
+        # In the future, we might want to create a specific ServiceSetupFailedEvent
+        for service_name in service_names or []:
+            event = ServicePreparationFailedEvent(
+                service_id=f"{test_case}_{service_name}",
+                service_name=service_name,
+                error_message=error_message,
+                error_type=error_type,
+                failed_step="setup",
+            )
+            self.event_manager.notify(event)
+
     def emit_service_preparation_started(
-        self, service_id: str, service_name: str, preparation_steps: list[str] | None = None
+        self,
+        service_id: str,
+        service_name: str,
+        preparation_steps: list[str] | None = None,
+        test_case: str | None = None,
     ) -> None:
         """
         Emit a service preparation started event.
@@ -81,10 +141,14 @@ class ServiceEventEmitter:
             service_id: Unique service identifier
             service_name: Human-readable service name
             preparation_steps: List of preparation steps to be performed
+            test_case: Optional test case name for context
         """
         event = ServicePreparationStartedEvent(
             service_id=service_id, service_name=service_name, preparation_steps=preparation_steps
         )
+        # Add test metadata if provided
+        if test_case:
+            event.add_data("test_case", test_case)
         self.event_manager.notify(event)
 
     def emit_service_preparation_completed(
@@ -382,3 +446,132 @@ class ServiceEventEmitter:
             service_id=service_id, service_name=service_name, cleanup_details=cleanup_details
         )
         self.event_manager.notify(event)
+
+    def emit_service_setup_completed(
+        self,
+        test_case: str,
+        services: list[str],
+        success: bool = True,
+        duration_seconds: float | None = None,
+    ) -> None:
+        """
+        Emit service setup completed event for a test case.
+
+        This is a convenience method that emits preparation completed events
+        for all services in a test case.
+
+        Args:
+            test_case: Name of the test case
+            services: List of service names that were set up
+            success: Whether the setup was successful
+            duration_seconds: Total time taken for setup
+        """
+        # Emit a preparation completed event for each service
+        for service_name in services:
+            service_id = f"{test_case}_{service_name}"
+            if success:
+                self.emit_service_preparation_completed(
+                    service_id=service_id,
+                    service_name=service_name,
+                    duration_seconds=duration_seconds / len(services) if duration_seconds else None,
+                )
+            else:
+                self.emit_service_preparation_failed(
+                    service_id=service_id,
+                    service_name=service_name,
+                    error_message="Setup failed",
+                    failed_step="setup",
+                )
+
+    def emit_service_deployed(
+        self,
+        environment: str,
+        service_instances: dict[str, Any],
+        deployment_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit service deployed event for multiple services.
+
+        This is a convenience method that emits deployment completed events
+        for all deployed services.
+
+        Args:
+            environment: Environment where services were deployed
+            service_instances: Dictionary mapping service names to service instances
+            deployment_details: Additional deployment details
+        """
+        for service_name, service_instance in service_instances.items():
+            service_id = f"{environment}_{service_name}"
+            self.emit_service_deployment_completed(
+                service_id=service_id,
+                service_name=service_name,
+                environment=environment,
+                deployment_details=deployment_details,
+            )
+
+    def emit_service_test_results(
+        self,
+        service_id: str,
+        service_name: str,
+        test_results: dict[str, Any],
+        overall_success: bool,
+        test_summary: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit a service test results event.
+
+        Args:
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            test_results: Test result data from the service
+            overall_success: Whether all tests passed
+            test_summary: Summary of test execution
+        """
+        event = ServiceTestResultsEvent(
+            service_id=service_id,
+            service_name=service_name,
+            test_results=test_results,
+            overall_success=overall_success,
+            test_summary=test_summary,
+        )
+        self.event_manager.notify(event)
+
+    def emit_service_event(
+        self,
+        event_type: str,
+        service_id: str,
+        service_name: str,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit a generic service event.
+
+        This method provides a flexible way to emit service events
+        that don't fit into the predefined categories.
+
+        Args:
+            event_type: Type of event to emit
+            service_id: Unique service identifier
+            service_name: Human-readable service name
+            data: Event-specific data
+        """
+        # Map generic event types to specific methods if possible
+        event_map = {
+            "started": self.emit_service_started,
+            "stopped": self.emit_service_stopped,
+            "error": self.emit_service_error,
+            "ready": self.emit_service_ready,
+        }
+
+        if event_type in event_map:
+            method = event_map[event_type]
+            method(service_id=service_id, service_name=service_name)
+        else:
+            # For unmapped events, emit as a service error with the event data
+            self.emit_service_error(
+                service_id=service_id,
+                service_name=service_name,
+                error_message=f"Generic service event: {event_type}",
+                error_type="generic_event",
+                error_details=data,
+            )

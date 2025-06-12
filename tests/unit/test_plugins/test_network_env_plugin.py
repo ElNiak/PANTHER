@@ -4,7 +4,7 @@ from panther.plugins.environments.network_environment.network_environment_interf
     INetworkEnvironment,
 )
 from panther.plugins.environments.config_schema import EnvironmentConfig
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 
 
 class MockNetworkEnvironment(INetworkEnvironment):

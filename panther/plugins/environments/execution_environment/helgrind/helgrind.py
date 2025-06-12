@@ -2,7 +2,7 @@ from abc import ABC
 
 from omegaconf import OmegaConf
 
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.environments.execution_environment.helgrind.config_schema import (
@@ -13,8 +13,23 @@ from panther.plugins.environments.execution_environment.execution_environment_in
 )
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="environment",
+    name="helgrind",
+    version="1.0.0",
+    description="Thread error detection using Valgrind Helgrind",
+    author="PANTHER Team",
+    capabilities=[
+        "race_detection",
+        "deadlock_detection",
+        "thread_safety",
+        "synchronization_errors",
+    ],
+    external_dependencies=["valgrind>=3.15"],
+)
 class HelgrindEnvironment(IExecutionEnvironment, ABC):
     """
     HelgrindEnvironment is a class that sets up and manages the execution environment for Helgrind profiling.

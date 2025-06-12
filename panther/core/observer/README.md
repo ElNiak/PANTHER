@@ -1,500 +1,310 @@
 # Observer Pattern — Event-Driven Architecture 📡
 
-**Purpose:** Decoupled communication between framework components
-**Components:** Event management, observers, lifecycle notifications
-**Dependencies:** Core framework, logging system
+**Purpose:** Decoupled communication between framework components through typed event handling
+**Components:** Event management, typed observers, lifecycle notifications
+**Dependencies:** Core framework, typed event system
 
-PANTHER's observer pattern enables loose coupling between components through event-driven communication, supporting real-time monitoring and coordinated component interactions.
+PANTHER's observer pattern enables loose coupling between components through a modern typed event-driven system, supporting real-time monitoring and coordinated component interactions.
 
 ---
 
 ## Architecture Overview
 
 ```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/observer/
-# Event-based communication system
-# - Publishers emit events without knowing subscribers
-# - Observers react to events they're interested in
+# Observer system with typed event handling
+# - Publishers emit strongly-typed events
+# - Observers implement specific handler methods for event types
+# - Type-safe event routing with performance benefits
 # - Framework lifecycle events coordinate component behavior
 ```
 
 ### Event Flow
 
-1. **Event Registration** → Components register as observers for specific events
-2. **Event Publishing** → Framework components emit events at key moments
-3. **Event Distribution** → Event manager notifies all registered observers
-4. **Observer Reaction** → Observers process events and potentially emit new ones
-5. **Lifecycle Coordination** → Framework components coordinate through events
+1. **Observer Registration** → Observers register with EventManager
+2. **Event Publishing** → Components emit typed events (e.g., TestStartedEvent)
+3. **Type-Based Routing** → Events routed to specific handler methods
+4. **Observer Processing** → Typed handlers process events with full type information
+5. **Lifecycle Coordination** → Components coordinate through structured event flow
+
+---
+
+## Directory Structure
+
+```
+panther/core/observer/
+├── base/                    # Base interfaces and abstractions
+│   ├── observer_interface.py       # IObserver base interface
+│   └── typed_observer_interface.py # ITypedObserver with typed handlers
+├── impl/                    # Observer implementations
+│   ├── experiment_observer.py # Core experiment coordinator
+│   ├── logger_observer.py     # Event logging with debug features
+│   ├── metrics_observer.py    # Metrics collection and monitoring
+│   ├── storage_observer.py    # Event persistence and results
+│   ├── plugin_observer.py     # Plugin event distribution
+│   └── gui/                   # GUI observer (future work)
+│       └── gui_observer.py
+├── factory/                 # Observer creation and configuration
+│   ├── observer_factory.py    # Core factory class
+│   ├── factory_builders.py    # Specialized builder methods
+│   └── factory_config.py      # Configuration loading
+├── management/              # Event and results management
+│   ├── event_manager.py       # Event distribution system
+│   └── results_manager.py     # Test results handling
+├── plugins/                 # Plugin observer infrastructure
+│   ├── plugin_interface.py
+│   ├── plugin_observer_factory.py
+│   └── plugin_registry.py
+└── utils/                   # Utility modules
+    └── event_colors.py        # Terminal color formatting
+```
 
 ---
 
 ## Core Components
 
+### Typed Observer Interface
+
+**Location:** `base/typed_observer_interface.py`
+
+The modern observer interface with typed event handlers:
+
+```python
+class ITypedObserver(IObserver):
+    """Observer with typed event handler methods"""
+
+    # Experiment lifecycle handlers
+    def on_experiment_initialized(self, event: ExperimentInitializedEvent) -> bool:
+        return True
+
+    # Test execution handlers
+    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+        return True
+
+    # Service management handlers
+    def on_service_started(self, event: ServiceStartedEvent) -> bool:
+        return True
+
+    # ... specific handlers for all event types
+```
+
 ### Event Management System
 
-**Location:** `panther/core/observer/`
+**Location:** `management/event_manager.py`
 
-The observer system manages event subscription and distribution:
+Central hub for event distribution:
 
 ```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/observer/
 class EventManager:
-    """Central event coordination and distribution"""
+    """Manages observer registration and event distribution"""
 
-    def register_observer(self, event_type: str, observer: Observer):
-        """Register an observer for specific event types"""
+    def register_observer(
+        self,
+        observer: IObserver,
+        event_types: list[type[BaseEvent]] | None = None,
+        priority: int = 0
+    ):
+        """Register observer with optional event type filtering"""
 
-    def publish_event(self, event: Event):
-        """Publish event to all registered observers"""
-
-    def unregister_observer(self, event_type: str, observer: Observer):
-        """Remove observer registration"""
+    def publish_event(self, event: BaseEvent):
+        """Publish typed event to registered observers"""
 ```
 
-### Logger Observer
+### Observer Implementations
 
-**Location:** `panther/core/observer/logger_observer.py`
+#### ExperimentObserver
+**Location:** `impl/experiment_observer.py`
+- Central coordinator for experiment workflow
+- Tracks experiment state and progress
+- Manages test execution lifecycle
 
-Built-in observer for experiment lifecycle logging:
+#### LoggerObserver
+**Location:** `impl/logger_observer.py`
+- Event logging with color-coded output
+- Includes debug observer functionality
+- Configurable log levels and formatting
+
+#### MetricsObserver
+**Location:** `impl/metrics_observer.py`
+- Real-time metrics collection
+- Resource monitoring integration
+- Performance statistics aggregation
+
+#### StorageObserver
+**Location:** `impl/storage_observer.py`
+- Event persistence to disk
+- Results management integration
+- Batch processing for efficiency
+
+---
+
+## Factory System
+
+### Observer Creation
+
+The factory system provides multiple ways to create observers:
 
 ```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/observer/logger_observer.py
-class LoggerObserver:
-    """Observer that logs framework events for debugging and monitoring"""
+# Using specialized builders
+logger = create_logger(
+    name="my_logger",
+    log_level="DEBUG",
+    enable_colors=True
+)
 
-    def on_experiment_started(self, event):
-        """Log experiment initialization"""
+metrics = create_metrics(
+    name="my_metrics",
+    collect_system_metrics=True,
+    publish_interval=30
+)
 
-    def on_test_case_started(self, event):
-        """Log individual test case execution"""
+# Using generic factory
+factory = get_observer_factory()
+observer = factory.create_observer("storage", name="my_storage")
 
-    def on_plugin_loaded(self, event):
-        """Log plugin loading and initialization"""
+# Creating default set
+observers = create_default_observer_set(config)
 ```
 
-### Results Manager
+### Configuration Loading
 
-**Location:** `panther/core/observer/results_manager.py`
+Load observer configurations from YAML:
 
-Comprehensive solution for collecting, aggregating, and exporting test results:
+```yaml
+# observer_config.yaml
+observers:
+  - class_path: panther.core.observer.impl.logger_observer.LoggerObserver
+    enabled: true
+    priority: 100
+    params:
+      log_level: DEBUG
+      enable_colors: true
+
+  - class_path: panther.core.observer.impl.metrics_observer.MetricsObserver
+    enabled: true
+    priority: 50
+    params:
+      collect_system_metrics: true
+```
 
 ```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/observer/results_manager.py
-class ResultsManager(IEnhancedObserver):
-    """Comprehensive manager for test results"""
-
-    def on_event(self, event: Event):
-        """Handle and collect test result events"""
-
-    def export_results(self, format_type: str, filename: str = None) -> str:
-        """Export results to specified format (JSON, CSV, HTML, Markdown)"""
-
-    def get_results_by_category(self, category: str) -> List[Dict[str, Any]]:
-        """Get results filtered by category"""
-
-    def get_results_by_tag(self, tag: str) -> List[Dict[str, Any]]:
-        """Get results filtered by tag"""
+# Load configuration
+load_observer_config("observer_config.yaml")
 ```
 
 ---
 
-## Event Types
+## Creating Custom Observers
 
-### Framework Lifecycle Events
+### Typed Observer Pattern
 
-**Experiment Level:**
+```python
+from panther.core.observer import ITypedObserver
+from panther.core.events import TestExecutionStartedEvent, TestCompletedEvent
 
-- `experiment.started` — Experiment initialization begins
-- `experiment.configured` — Configuration loading completed
-- `experiment.finished` — Experiment execution completed
-- `experiment.error` — Experiment encountered fatal error
+class MyCustomObserver(ITypedObserver):
+    """Custom observer with typed event handlers"""
 
-**Test Case Level:**
+    def __init__(self):
+        super().__init__()
+        self.test_count = 0
 
-- `test_case.started` — Individual test case begins
-- `test_case.setup_complete` — Test environment ready
-- `test_case.execution_started` — Test execution phase begins
-- `test_case.results_collected` — Test outputs gathered
-- `test_case.finished` — Test case completed
-- `test_case.error` — Test case failed or encountered error
+    def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+        """Handle test start with full type information"""
+        self.test_count += 1
+        print(f"Test {event.test_name} starting (#{self.test_count})")
+        return True
 
-### Plugin Events
+    def on_test_completed(self, event: TestCompletedEvent) -> bool:
+        """Handle test completion"""
+        duration = event.duration_seconds
+        print(f"Test {event.test_name} completed in {duration}s")
+        return True
+```
 
-**Plugin Lifecycle:**
+### Registration and Usage
 
-- `plugin.discovered` — Plugin found during discovery
-- `plugin.loaded` — Plugin successfully imported
-- `plugin.initialized` — Plugin setup completed
-- `plugin.error` — Plugin initialization or execution failed
+```python
+# Create and register observer
+observer = MyCustomObserver()
+event_manager = EventManager()
+event_manager.register_observer(observer)
 
-**Service Events:**
+# Observer automatically receives typed events
+# No string parsing or type checking needed!
+```
 
-- `service.starting` — Service initialization begins
-- `service.ready` — Service available for testing
-- `service.stopping` — Service shutdown initiated
-- `service.stopped` — Service cleanup completed
+---
 
-### Result Events
+## Event Types and Handlers
 
-**Standard Results:**
+The typed event system provides specific events for each entity:
 
-- `test.result.*` — Test result events using standard format
+### Experiment Events
+- `ExperimentInitializedEvent` → `on_experiment_initialized()`
+- `ExperimentExecutionStartedEvent` → `on_experiment_execution_started()`
+- `ExperimentCompletedEvent` → `on_experiment_completed()`
 
-**Enhanced Results:**
+### Test Events
+- `TestCreatedEvent` → `on_test_created()`
+- `TestExecutionStartedEvent` → `on_test_execution_started()`
+- `TestCompletedEvent` → `on_test_completed()`
 
-- `enhanced.result.*` — Enhanced result events with type parameters, categories, and tags
+### Service Events
+- `ServiceCreatedEvent` → `on_service_created()`
+- `ServiceStartedEvent` → `on_service_started()`
+- `ServiceStoppedEvent` → `on_service_stopped()`
 
 ### Environment Events
-
-**Network Environment:**
-
-- `network.setup_started` — Network environment creation begins
-- `network.ready` — Network infrastructure available
-- `network.teardown_started` — Network cleanup begins
-- `network.teardown_complete` — Network resources released
-
-**Execution Environment:**
-
-- `execution.environment_ready` — Execution context prepared
-- `execution.environment_error` — Environment setup failed
+- `EnvironmentSetupStartedEvent` → `on_environment_setup_started()`
+- `EnvironmentReadyEvent` → `on_environment_ready()`
+- `EnvironmentTeardownCompletedEvent` → `on_environment_teardown_completed()`
 
 ---
 
-## Usage Patterns
+## Benefits of Typed Observer System
 
-### Creating Custom Observers
-
-```python
-from panther.core.observer.base_observer import Observer
-
-class CustomMonitoringObserver(Observer):
-    """Custom observer for experiment monitoring"""
-
-    def __init__(self):
-        self.test_metrics = {}
-
-    def on_test_case_started(self, event):
-        """Track test case start times"""
-        self.test_metrics[event.test_name] = {
-            'start_time': event.timestamp,
-            'status': 'running'
-        }
-
-    def on_test_case_finished(self, event):
-        """Calculate test duration and status"""
-        if event.test_name in self.test_metrics:
-            self.test_metrics[event.test_name].update({
-                'end_time': event.timestamp,
-                'duration': event.timestamp - self.test_metrics[event.test_name]['start_time'],
-                'status': 'completed' if event.success else 'failed'
-            })
-```
-
-### Using Enhanced Result Events
-
-```python
-from panther.core.observer.events import EnhancedResultEvent
-from typing import Dict, List
-
-# Create strongly typed result events
-class NetworkTestResult:
-    def __init__(self, latency: float, packet_loss: float, jitter: float):
-        self.latency = latency
-        self.packet_loss = packet_loss
-        self.jitter = jitter
-
-# Create an enhanced result event with strong typing
-event = EnhancedResultEvent[NetworkTestResult](
-    name="network_test",
-    test_name="latency_test",
-    result=True,  # Test passed
-    result_data=NetworkTestResult(latency=10.5, packet_loss=0.01, jitter=1.2),
-    tags=["network", "latency", "performance"],
-    category="network_performance"
-)
-
-# Publish the event
-event_manager.publish_event(event)
-```
-
-### Registering Observers
-
-```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/experiment_manager.py
-# Register observers during experiment initialization
-event_manager = EventManager()
-logger_observer = LoggerObserver()
-custom_observer = CustomMonitoringObserver()
-results_manager = ResultsManager(output_dir="./results")
-
-event_manager.register_observer("test_case.*", logger_observer)
-event_manager.register_observer("test_case.*", custom_observer)
-event_manager.register_observer("test.result.*", results_manager)
-event_manager.register_observer("enhanced.result.*", results_manager)
-```
-
-### Publishing Events
-
-```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/test_cases/test_case_impl.py
-# Emit events at key points in test execution
-def execute(self):
-    # Notify test case start
-    self.event_manager.publish_event(TestCaseStartedEvent(
-        test_name=self.name,
-        timestamp=datetime.now(),
-        configuration=self.config
-    ))
-
-    try:
-        # Execute test logic
-        result = self._run_test()
-
-        # Notify successful completion with enhanced result
-        self.event_manager.publish_event(EnhancedResultEvent(
-            name="test_completion",
-            test_name=self.name,
-            result=True,
-            result_data=result,
-            category="performance_test",
-            tags=["automated", "regression"]
-        ))
-    except Exception as e:
-        # Notify error
-        self.event_manager.publish_event(TestCaseErrorEvent(
-            test_name=self.name,
-            timestamp=datetime.now(),
-            error=str(e)
-        ))
-```
+1. **Type Safety**: Full IDE support with autocomplete and type checking
+2. **Performance**: Direct method dispatch instead of string parsing
+3. **Clarity**: Clear method signatures show exactly what data is available
+4. **Maintainability**: Easy to add new event types without breaking existing code
+5. **Debugging**: Stack traces show exact handler methods
 
 ---
 
-## Working with Result Events
+## Migration from Legacy Observers
 
-### Collecting and Processing Results
-
-```python
-# Create a results manager with a specific output directory
-results_manager = ResultsManager(output_dir="./test_results")
-
-# Register for both standard and enhanced result events
-event_manager.register_observer("test.result.*", results_manager)
-event_manager.register_observer("enhanced.result.*", results_manager)
-
-# Register a callback for successful results
-def on_test_success(event):
-    print(f"Test passed: {event.test_name}")
-
-results_manager.register_callback("*.success", on_test_success)
-```
-
-### Filtering and Analyzing Results
+If you have legacy observers using string-based events:
 
 ```python
-# Get results by category
-network_results = results_manager.get_results_by_category("network")
+# Old pattern
+def on_event(self, event):
+    if event.name == "test.started":
+        # Handle test start
 
-# Get results by tag
-performance_results = results_manager.get_results_by_tag("performance")
-
-# Get statistics by category
-category_stats = results_manager.get_category_stats()
-print(f"Network tests: {category_stats['network']['success']} passed, {category_stats['network']['failure']} failed")
-
-# Get statistics by tag
-tag_stats = results_manager.get_tag_stats()
-success_rate = tag_stats['critical']['success'] / (tag_stats['critical']['success'] + tag_stats['critical']['failure'])
-print(f"Critical test success rate: {success_rate * 100:.2f}%")
+# New pattern
+def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
+    # Handle test start with typed event
+    return True
 ```
 
-### Exporting Results
-
-```python
-# Export to a specific format
-json_path = results_manager.export_results("json", "test_run_results.json")
-csv_path = results_manager.export_results("csv", "test_run_results.csv")
-
-# Export to all supported formats
-export_paths = results_manager.export_all_formats("test_results_2023")
-print(f"Results exported to: {', '.join(export_paths.values())}")
-```
+Simply implement the typed handler methods for the events you care about. The base `ITypedObserver` class handles routing automatically.
 
 ---
 
-## Integration Points
+## Best Practices
 
-### With Experiment Engine
-
-The experiment manager uses events to coordinate component interactions:
-
-```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/experiment_manager.py
-def run_tests(self):
-    """Execute tests with event coordination"""
-    self.event_manager.publish_event(ExperimentStartedEvent())
-
-    for test_case in self.test_cases:
-        # Events coordinate setup, execution, and cleanup
-        test_case.execute()  # Emits test case lifecycle events
-
-    self.event_manager.publish_event(ExperimentFinishedEvent())
-```
-
-### With Plugin System
-
-Plugins can both observe and emit events:
-
-```python
-# Plugin implementations can observe framework events
-class PluginImplementation:
-    def __init__(self, event_manager):
-        self.event_manager = event_manager
-        event_manager.register_observer("service.ready", self.on_service_ready)
-
-    def on_service_ready(self, event):
-        """React to service availability"""
-        if event.service_name == self.target_service:
-            self.start_interaction()
-```
-
-### With Results System
-
-Results collection can be event-driven:
-
-```python
-# filepath: /Users/elniak/Documents/Project/PANTHER/panther/core/results/result_collector.py
-class ResultCollector(Observer):
-    """Collect results based on test case events"""
-
-    def on_test_case_finished(self, event):
-        """Automatically collect results when test completes"""
-        self.collect_test_artifacts(event.test_name)
-        self.validate_results(event.result)
-```
+1. **Use Typed Handlers**: Always prefer typed event handlers over generic `on_event`
+2. **Return Boolean**: Handler methods should return `True` to continue propagation
+3. **Handle Errors**: Wrap handler logic in try-except to prevent observer failures
+4. **Minimal Processing**: Keep handlers fast to avoid blocking event flow
+5. **Use Factory**: Leverage the factory system for consistent observer creation
 
 ---
 
-## Real-Time Monitoring
+## Future Enhancements
 
-### Progress Tracking
-
-```python
-class ProgressObserver(Observer):
-    """Track experiment progress in real-time"""
-
-    def __init__(self):
-        self.total_tests = 0
-        self.completed_tests = 0
-        self.failed_tests = 0
-
-    def on_experiment_started(self, event):
-        self.total_tests = len(event.test_cases)
-        print(f"Starting experiment with {self.total_tests} tests")
-
-    def on_test_case_finished(self, event):
-        self.completed_tests += 1
-        if not event.success:
-            self.failed_tests += 1
-
-        progress = (self.completed_tests / self.total_tests) * 100
-        print(f"Progress: {progress:.1f}% ({self.completed_tests}/{self.total_tests})")
-```
-
-### Metrics Collection
-
-```python
-class MetricsObserver(Observer):
-    """Collect performance and execution metrics"""
-
-    def on_test_case_started(self, event):
-        self.start_time = time.time()
-
-    def on_test_case_finished(self, event):
-        duration = time.time() - self.start_time
-        self.metrics.append({
-            'test_name': event.test_name,
-            'duration': duration,
-            'success': event.success
-        })
-```
-
----
-
-## Extending the Observer System
-
-### Custom Event Types
-
-Define events for domain-specific needs:
-
-```python
-@dataclass
-class CustomProtocolEvent:
-    """Custom event for protocol-specific notifications"""
-    protocol: str
-    message_type: str
-    payload: dict
-    timestamp: datetime
-```
-
-### Using Generic Type Support
-
-For strongly typed result data:
-
-```python
-from typing import List, Dict, TypeVar, Generic
-
-# Define a custom result data type
-class PerformanceMetrics:
-    def __init__(self, latency: float, throughput: float, cpu_usage: float):
-        self.latency = latency
-        self.throughput = throughput
-        self.cpu_usage = cpu_usage
-
-# Use type parameter with enhanced result event
-event = EnhancedResultEvent[PerformanceMetrics](
-    name="perf_test",
-    test_name="api_performance",
-    result=True,
-    result_data=PerformanceMetrics(latency=120.5, throughput=1500, cpu_usage=45.2),
-    tags=["api", "performance", "load_test"],
-    category="api_performance"
-)
-
-# Get strongly typed result data
-metrics: PerformanceMetrics = event.get_result_data()
-print(f"API Latency: {metrics.latency}ms")
-```
-
-### Asynchronous Observers
-
-For I/O intensive operations:
-
-```python
-import asyncio
-
-class AsyncObserver(Observer):
-    """Observer with asynchronous event processing"""
-
-    async def on_event_async(self, event):
-        """Process events asynchronously"""
-        await self.perform_io_operation(event)
-
-    def on_event(self, event):
-        """Synchronous wrapper that schedules async processing"""
-        asyncio.create_task(self.on_event_async(event))
-```
-
-### Debugging Observer Issues
-
-- Enable event logging to trace event flow
-- Check observer registration timing
-- Verify event type matching (wildcards vs. specific types)
-- Monitor for observer exceptions that could break event chains
-
----
-
-**Related Documentation:**
-
-- [Experiment Engine](panther/core/EXPERIMENT_ENGINE.md) — How events coordinate experiment execution
-- [Plugin Development](panther/plugins/development.md) — Integrating events in plugins
+- **GUI Observer**: Full implementation for real-time UI updates
+- **Remote Observers**: Network-based event distribution
+- **Event Replay**: Record and replay event streams
+- **Advanced Filtering**: Complex event filtering rules
+- **Performance Metrics**: Built-in observer performance monitoring

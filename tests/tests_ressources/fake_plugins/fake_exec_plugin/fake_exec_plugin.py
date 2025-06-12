@@ -1,6 +1,6 @@
 from omegaconf import OmegaConf
 
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
@@ -22,9 +22,7 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(
-            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
-        )
+        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.env_config_to_test = env_config_to_test
 
     def setup_environment(

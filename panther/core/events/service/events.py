@@ -27,6 +27,7 @@ class ServiceEventType(Enum):
     STOPPED = "stopped"
     ERROR = "error"
     DESTROYED = "destroyed"
+    TEST_RESULTS = "test_results"
 
 
 class ServiceEvent(BaseEvent):
@@ -325,3 +326,39 @@ class ServiceDestroyedEvent(ServiceEvent):
             service_id=service_id,
             data={"service_name": service_name, "cleanup_details": cleanup_details or {}},
         )
+
+
+class ServiceTestResultsEvent(ServiceEvent):
+    """Event emitted when service test results are available."""
+
+    def __init__(
+        self,
+        service_id: str,
+        service_name: str,
+        test_results: dict[str, Any],
+        overall_success: bool,
+        test_summary: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.TEST_RESULTS,
+            service_id=service_id,
+            data={
+                "service_name": service_name,
+                "test_results": test_results,
+                "overall_success": overall_success,
+                "test_summary": test_summary or {},
+                "action": "service_test_results",
+            },
+        )
+
+    @property
+    def test_results(self) -> dict[str, Any]:
+        return self.data.get("test_results", {})
+
+    @property
+    def overall_success(self) -> bool:
+        return self.data.get("overall_success", False)
+
+    @property
+    def test_summary(self) -> dict[str, Any]:
+        return self.data.get("test_summary", {})

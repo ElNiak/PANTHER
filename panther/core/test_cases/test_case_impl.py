@@ -5,12 +5,11 @@ from typing import Literal
 import requests
 import re
 import time
-import traceback
 from urllib.parse import urljoin
 from colorlog import ColoredFormatter
 
 from panther.core.test_cases.test_interface_impl import ITestCase
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.core.events import (
     TestEventEmitter,
     ServiceEventEmitter,
@@ -23,7 +22,13 @@ from panther.core.events import (
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from panther.core.observer.observer_factory import get_observer_factory
+from panther.core.observer.factory import get_observer_factory
+from panther.core.observer.factory.factory_builders import (
+    create_logger,
+    create_metrics,
+    create_storage,
+    create_experiment_observer,
+)
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.core.results.result_collector import ResultCollector
@@ -32,7 +37,7 @@ from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_manager import PluginManager
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.services.iut.config_schema import ImplementationType
-from panther.core.observer.core.experiment_observer import ExperimentObserver
+from panther.core.observer.impl.experiment_observer import ExperimentObserver
 
 
 class TestCase(ITestCase):
@@ -241,6 +246,16 @@ class TestCase(ITestCase):
                 # Update environment state for deployment phase
                 self.update_environment_state(env_name, "deploying")
 
+                # Emit environment deployment started event
+                self.environment_emitter.emit_environment_deployment_started(
+                    environment_id=env_name,
+                    environment_name=self.test_name,
+                    environment_type=env_manager.__class__.__name__,
+                    services=service_names,
+                    deployment_config={"test_case": self.test_name},
+                )
+                self.logger.debug("Emitted environment_deployment_started event")
+
                 if not env_manager.plugin_setup:
                     self.logger.error(f"Environment manager '{env_name}' not set up")
                     self.update_environment_state(env_name, "failed")
@@ -249,6 +264,8 @@ class TestCase(ITestCase):
                     )
 
                 try:
+                    deployment_start_time = time.time()
+
                     # For Docker Compose environments, verify the Docker Compose file exists
                     if hasattr(env_manager, "rendered_services_network_config_file_path"):
                         compose_path = env_manager.rendered_services_network_config_file_path
@@ -296,6 +313,21 @@ class TestCase(ITestCase):
                     )
                     self.logger.debug("Emitted service_deployed event")
 
+                    # Calculate deployment duration and emit environment deployment completed event
+                    deployment_duration = time.time() - deployment_start_time
+                    deployed_services_dict = {name: "deployed" for name in service_names}
+
+                    self.environment_emitter.emit_environment_deployment_completed(
+                        environment_id=env_name,
+                        environment_name=self.test_name,
+                        environment_type=env_manager.__class__.__name__,
+                        success=True,
+                        deployed_services=deployed_services_dict,
+                        duration=deployment_duration,
+                        deployment_details={"service_count": len(self.service_managers)},
+                    )
+                    self.logger.debug("Emitted environment_deployment_completed event")
+
                     self.logger.info("Services successfully deployed")
 
                 except FileNotFoundError as file_error:
@@ -313,14 +345,37 @@ class TestCase(ITestCase):
                         )
                         self.update_service_state(service_name, "failed")
 
-                    # Emit specific file not found failure event
-                    self.service_emitter.emit_service_deployment_failed(
-                        environment=env_manager.__class__.__name__,
-                        error=str(file_error),
-                        error_type="FileNotFoundError",
-                        details={"missing_file": str(file_error), "environment": env_name},
-                    )
+                    # Emit specific file not found failure event for each service
+                    for service_manager in self.service_managers:
+                        service_name = (
+                            service_manager.service_name
+                            if hasattr(service_manager, "service_name")
+                            else service_manager.get_implementation_name()
+                        )
+                        service_id = f"{self.test_name}_{service_name}"
+                        self.service_emitter.emit_service_deployment_failed(
+                            service_id=service_id,
+                            service_name=service_name,
+                            environment=env_manager.__class__.__name__,
+                            error_message=str(file_error),
+                            error_type="FileNotFoundError",
+                        )
                     self.logger.debug("Emitted service_deployment_failed event for file not found")
+
+                    # Emit environment deployment failed event
+                    failed_services = [name for name in service_names]
+                    self.environment_emitter.emit_environment_deployment_failed(
+                        environment_id=env_name,
+                        environment_name=self.test_name,
+                        environment_type=env_manager.__class__.__name__,
+                        error_message=str(file_error),
+                        error_type="FileNotFoundError",
+                        failed_services=failed_services,
+                        error_details={"file_path": str(file_error)},
+                    )
+                    self.logger.debug(
+                        "Emitted environment_deployment_failed event for file not found"
+                    )
 
                     # Re-raise the exception
                     raise
@@ -338,14 +393,35 @@ class TestCase(ITestCase):
                         )
                         self.update_service_state(service_name, "failed")
 
-                    # Emit service deployment failure event
-                    self.service_emitter.emit_service_deployment_failed(
-                        environment=env_manager.__class__.__name__,
-                        error=str(e),
-                        error_type=type(e).__name__,
-                        details={"stack_trace": traceback.format_exc(), "environment": env_name},
-                    )
+                    # Emit service deployment failure event for each service
+                    for service_manager in self.service_managers:
+                        service_name = (
+                            service_manager.service_name
+                            if hasattr(service_manager, "service_name")
+                            else service_manager.get_implementation_name()
+                        )
+                        service_id = f"{self.test_name}_{service_name}"
+                        self.service_emitter.emit_service_deployment_failed(
+                            service_id=service_id,
+                            service_name=service_name,
+                            environment=env_manager.__class__.__name__,
+                            error_message=str(e),
+                            error_type=type(e).__name__,
+                        )
                     self.logger.debug("Emitted service_deployment_failed event")
+
+                    # Emit environment deployment failed event
+                    failed_services = [name for name in service_names]
+                    self.environment_emitter.emit_environment_deployment_failed(
+                        environment_id=env_name,
+                        environment_name=self.test_name,
+                        environment_type=env_manager.__class__.__name__,
+                        error_message=str(e),
+                        error_type=type(e).__name__,
+                        failed_services=failed_services,
+                        error_details={"exception": str(e)},
+                    )
+                    self.logger.debug("Emitted environment_deployment_failed event")
 
                     # Re-raise the exception to be handled by the calling method
                     raise
@@ -373,7 +449,12 @@ class TestCase(ITestCase):
 
         # Emit step execution started event using the typed event emitter
         step_names = list(self.test_config.steps.keys())
-        self.step_emitter.emit_step_execution_started(test_case=self.test_name, steps=step_names)
+        self.step_emitter.emit_step_execution_started(
+            step_id="execute_steps",
+            step_name="Execute test steps",
+            test_case_id=self.test_name,
+            step_config={"steps": step_names},
+        )
 
         for step_name, step_details in self.test_config.steps.items():
             # Check if the experiment should be finished early
@@ -418,8 +499,10 @@ class TestCase(ITestCase):
                 # Emit step progress event before starting using the typed event emitter
                 self.step_emitter.emit_step_progress(
                     step_id=step_name,
-                    progress=0,
-                    message=f"Starting wait for {step_details} seconds",
+                    step_name=step_name,
+                    test_case_id=self.test_name,
+                    progress_percentage=0.0,
+                    progress_message=f"Starting wait for {step_details} seconds",
                 )
 
                 # Split the wait into smaller intervals to allow checking for early termination
@@ -441,8 +524,10 @@ class TestCase(ITestCase):
                     # Emit progress event using the typed event emitter
                     self.step_emitter.emit_step_progress(
                         step_id=step_name,
-                        progress=progress_percentage,
-                        message=f"Waiting: {wait_time_remaining:.1f} seconds remaining",
+                        step_name=step_name,
+                        test_case_id=self.test_name,
+                        progress_percentage=progress_percentage,
+                        progress_message=f"Waiting: {wait_time_remaining:.1f} seconds remaining",
                     )
 
                     # Check for early termination
@@ -471,8 +556,12 @@ class TestCase(ITestCase):
                         step_details - wait_time_remaining if should_terminate else step_details
                     ),
                 }
-                self.step_emitter.emit_step_completed(
-                    step_id=step_name, success=not should_terminate, result=result
+                self.step_emitter.emit_step_execution_completed(
+                    step_id=step_name,
+                    step_name=step_name,
+                    test_case_id=self.test_name,
+                    duration=result.get("duration_s"),
+                    result=result,
                 )
 
                 if should_terminate:
@@ -482,13 +571,17 @@ class TestCase(ITestCase):
                 # Emit unsupported step event using the typed event emitter
                 self.step_emitter.emit_step_unsupported(
                     step_id=step_name,
-                    step_details=str(step_details),
-                    message=f"Unsupported step type: {step_name}",
+                    step_name=step_name,
+                    test_case_id=self.test_name,
+                    reason=f"Unsupported step type: {step_name} = {step_details}",
                 )
 
         # Emit step execution completed event using the typed event emitter
         self.step_emitter.emit_step_execution_completed(
-            test_case=self.test_name, completed_steps=list(self.test_config.steps.keys())
+            step_id="execute_steps",
+            step_name="Execute test steps",
+            test_case_id=self.test_name,
+            result={"completed_steps": list(self.test_config.steps.keys())},
         )
 
     def validate_assertions(self):
@@ -509,7 +602,11 @@ class TestCase(ITestCase):
 
         # Emit assertions validation started event using the typed event emitter
         self.assertion_emitter.emit_assertions_validation_started(
-            test_case=self.test_name, assertions=self.test_config.assertions
+            assertion_id="test_assertions",
+            assertion_name="Test Case Assertions",
+            test_case_id=self.test_name,
+            total_assertions=len(self.test_config.assertions),
+            validation_config={"assertions": [str(a) for a in self.test_config.assertions]},
         )
 
         all_assertions_passed = True
@@ -533,12 +630,12 @@ class TestCase(ITestCase):
                     )
 
                     # Emit assertion progress event using the typed event emitter
+                    assertion_id = f"{service_name}_{assertion_type}"
                     self.assertion_emitter.emit_assertion_progress(
-                        assertion_type=assertion_type,
-                        service=service_name,
-                        endpoint=endpoint,
-                        expected_status=expected_status,
-                        status="checking",
+                        assertion_id=assertion_id,
+                        assertion_name=f"Service {service_name} responsiveness",
+                        test_case_id=self.test_name,
+                        progress_message=f"Checking {service_name} at {endpoint} (expected {expected_status})",
                     )
 
                     # Perform the actual check
@@ -552,13 +649,18 @@ class TestCase(ITestCase):
 
                     # Emit assertion result event using the typed event emitter
                     self.assertion_emitter.emit_assertion_result(
-                        assertion_type=assertion_type,
-                        service=service_name,
-                        endpoint=endpoint,
-                        expected_status=expected_status,
-                        success=result["success"],
-                        actual_status=result.get("status"),
-                        message=result.get("message", ""),
+                        assertion_id=assertion_id,
+                        assertion_name=f"Service {service_name} responsiveness",
+                        test_case_id=self.test_name,
+                        assertion_passed=result["success"],
+                        expected_value=expected_status,
+                        actual_value=result.get("status"),
+                        assertion_message=result.get("message", ""),
+                        assertion_details={
+                            "assertion_type": assertion_type,
+                            "service": service_name,
+                            "endpoint": endpoint,
+                        },
                     )
 
                 else:
@@ -570,8 +672,13 @@ class TestCase(ITestCase):
                     all_assertions_passed = False
 
                     # Emit unknown assertion type event using the typed event emitter
+                    unknown_assertion_id = f"unknown_{assertion_type}"
                     self.assertion_emitter.emit_assertion_unknown(
-                        assertion_type=assertion_type, details=assertion
+                        assertion_id=unknown_assertion_id,
+                        assertion_name=f"Unknown assertion: {assertion_type}",
+                        test_case_id=self.test_name,
+                        reason=f"Unknown assertion type: {assertion_type}",
+                        context=assertion,
                     )
 
             except Exception as e:
@@ -586,16 +693,27 @@ class TestCase(ITestCase):
                 all_assertions_passed = False
 
                 # Emit assertion error event using the typed event emitter
+                error_assertion_id = f"error_{assertion_type}"
                 self.assertion_emitter.emit_assertion_error(
-                    assertion_type=assertion_type,
+                    assertion_id=error_assertion_id,
+                    assertion_name=f"Error in {assertion_type} assertion",
+                    test_case_id=self.test_name,
                     error_message=str(e),
                     error_type=type(e).__name__,
-                    details=assertion,
+                    error_details=assertion,
                 )
 
         # Emit assertions validation completed event using the typed event emitter
+        passed_count = sum(1 for r in assertion_results.values() if r.get("success", False))
+        failed_count = len(assertion_results) - passed_count
         self.assertion_emitter.emit_assertions_validation_completed(
-            test_case=self.test_name, all_passed=all_assertions_passed, results=assertion_results
+            assertion_id="test_assertions",
+            assertion_name="Test Case Assertions",
+            test_case_id=self.test_name,
+            passed_count=passed_count,
+            failed_count=failed_count,
+            total_count=len(assertion_results),
+            summary=assertion_results,
         )
 
         return all_assertions_passed, assertion_results
@@ -656,6 +774,51 @@ class TestCase(ITestCase):
             )
             self.logger.error("Service setup failed: %s", e, exc_info=True)
             raise
+
+    def prepare_services(self):
+        """
+        Prepares all service managers by calling their prepare() method to build Docker images.
+
+        This method should be called after setup_services() but before setup_environment()
+        to ensure Docker images are built when build_docker_image is enabled.
+        """
+        self.logger.info("Preparing services (building Docker images if required)")
+
+        if not hasattr(self, "service_managers") or not self.service_managers:
+            self.logger.warning("No service managers found to prepare")
+            return
+
+        plugin_loader = self.plugin_manager.plugins_loader
+
+        for service_manager in self.service_managers:
+            try:
+                service_name = (
+                    service_manager.service_name
+                    if hasattr(service_manager, "service_name")
+                    else service_manager.get_implementation_name()
+                )
+
+                self.logger.debug("Preparing service manager: %s", service_name)
+
+                # Call prepare method if it exists
+                if hasattr(service_manager, "prepare") and callable(
+                    getattr(service_manager, "prepare")
+                ):
+                    service_manager.prepare(plugin_loader)
+                    self.logger.debug("Successfully prepared service: %s", service_name)
+                else:
+                    self.logger.debug(
+                        "Service manager %s has no prepare method, skipping", service_name
+                    )
+
+            except Exception as e:
+                self.logger.error(
+                    "Failed to prepare service manager %s: %s",
+                    service_name if "service_name" in locals() else "unknown",
+                    e,
+                    exc_info=True,
+                )
+                raise
 
     def setup_testers(self):
         """
@@ -721,8 +884,11 @@ class TestCase(ITestCase):
                         implementation=tester_config.implementation,
                         implementation_dir=implementation_dir,
                         service_config_to_test=tester_config,
+                        event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
                     )
-                    service_manager.event_emitter = self.event_emitter  # TODO make cleaner
+                    # Set test context if the service manager supports it
+                    if hasattr(service_manager, "set_test_context"):
+                        service_manager.set_test_context(self.test_name)
                     self.service_managers.append(service_manager)
                     self.logger.debug(
                         "Added service manager for tester '%s' under protocol '%s'",
@@ -840,8 +1006,11 @@ class TestCase(ITestCase):
                                 implementation=implementation_config.implementation,
                                 implementation_dir=implementation_dir,
                                 service_config_to_test=implementation_config,
+                                event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
                             )
-                            service_manager.event_emitter = self.event_emitter  # TODO make cleaner
+                            # Set test context if the service manager supports it
+                            if hasattr(service_manager, "set_test_context"):
+                                service_manager.set_test_context(self.test_name)
                             self.service_managers.append(service_manager)
                             self.logger.debug(
                                 "Added service manager for implementation '%s' under protocol '%s'",
@@ -879,7 +1048,10 @@ class TestCase(ITestCase):
 
         # Emit environment setup started event using the typed event emitter
         self.environment_emitter.emit_environment_setup_started(
-            test_case=self.test_name, network_environment=self.test_config.network_environment.type
+            environment_id=f"{self.test_config.network_environment.type}_{self.test_name}",
+            environment_name=self.test_name,
+            environment_type=self.test_config.network_environment.type,
+            setup_config={"test_case": self.test_name},
         )
 
         try:
@@ -926,9 +1098,9 @@ class TestCase(ITestCase):
 
             # Emit network environment initialized event using the typed event emitter
             self.environment_emitter.emit_environment_initialized(
-                environment_type="network",
-                plugin_name=network_environment_plugin.name,
-                plugin_type=self.test_config.network_environment.type,
+                environment_type=self.test_config.network_environment.type,
+                environment_name=self.test_name,
+                config={"plugin_name": network_environment_plugin.name},
             )
 
             # Get the execution environment plugins if defined
@@ -982,8 +1154,11 @@ class TestCase(ITestCase):
                     # Emit execution environment initialized event using the typed event emitter
                     self.environment_emitter.emit_environment_initialized(
                         environment_type="execution",
-                        plugin_name=execution_environment_plugin.name,
-                        plugin_type=env_type,
+                        environment_name=exec_env_name,
+                        config={
+                            "plugin_name": execution_environment_plugin.name,
+                            "plugin_type": env_type,
+                        },
                     )
 
             # Setup network environment with timestamp and verify files
@@ -1054,14 +1229,11 @@ class TestCase(ITestCase):
 
                     # Emit environment setup failed event with detailed error information
                     self.environment_emitter.emit_environment_setup_failed(
-                        test_case=self.test_name,
+                        environment_id=f"{self.test_config.network_environment.type}_{self.test_name}",
+                        environment_name=self.test_name,
+                        environment_type=self.test_config.network_environment.type,
                         error_message=str(setup_error),
                         error_type=type(setup_error).__name__,
-                        details={
-                            "environment_name": env_name,
-                            "environment_type": network_environment_plugin.__class__.__name__,
-                            "stack_trace": traceback.format_exc(),
-                        },
                     )
                     raise setup_error
 
@@ -1072,16 +1244,23 @@ class TestCase(ITestCase):
                 if plugin != network_environment_plugin
             ]
             self.environment_emitter.emit_environment_setup_completed(
-                test_case=self.test_name,
-                network_environment=network_environment_plugin.name,
-                execution_environments=execution_env_names,
-                success=True,
+                environment_id=f"{self.test_config.network_environment.type}_{self.test_name}",
+                environment_name=self.test_name,
+                environment_type=self.test_config.network_environment.type,
+                setup_details={
+                    "network_environment": network_environment_plugin.name,
+                    "execution_environments": execution_env_names,
+                },
             )
 
         except Exception as e:
             # Emit environment setup failed event using the typed event emitter
             self.environment_emitter.emit_environment_setup_failed(
-                test_case=self.test_name, error_message=str(e), error_type=type(e).__name__
+                environment_id=f"{self.test_config.network_environment.type}_{self.test_name}",
+                environment_name=self.test_name,
+                environment_type=self.test_config.network_environment.type,
+                error_message=str(e),
+                error_type=type(e).__name__,
             )
             self.logger.error("Environment setup failed: %s", e, exc_info=True)
             raise
@@ -1103,10 +1282,11 @@ class TestCase(ITestCase):
                         "Test environment torn down via '%s'", env_manager.__class__.__name__
                     )
                     # Use the typed event emitter for environment teardown event
-                    self.environment_emitter.emit_environment_teardown(
+                    self.environment_emitter.emit_environment_teardown_completed(
+                        environment_id=f"{env_manager.__class__.__name__}_{self.test_name}",
+                        environment_name=self.test_name,
                         environment_type=env_manager.__class__.__name__,
-                        success=True,
-                        details={"test_name": self.test_config.name},
+                        cleanup_details={"test_name": self.test_config.name},
                     )
                 except Exception as e:
                     self.logger.error(
@@ -1216,14 +1396,14 @@ class TestCase(ITestCase):
                     else logging.getLevelName(self.log_level)
                 )
 
-                factory.create_logger(
+                create_logger(
                     name="test_logger",
+                    global_config=self.global_config,
                     auto_register=True,
                     log_level=log_level,  # Use observer-specific log level
                     enable_colors=True,
                     output_file=str(self.test_experiment_dir / "event_log.log"),
                     correlation_tracking=True,
-                    global_config=self.global_config,
                 )
                 self.registered_observers.append("test_logger")
                 self.logger.debug("Registered enhanced logger observer")
@@ -1242,12 +1422,17 @@ class TestCase(ITestCase):
                     else "INFO"
                 )
 
-                factory.create_metrics(
+                # Ensure metrics directory exists
+                metrics_dir = self.test_experiment_dir / "metrics"
+                metrics_dir.mkdir(parents=True, exist_ok=True)
+
+                create_metrics(
                     name="test_metrics",
+                    global_config=self.global_config,
                     auto_register=True,
                     publish_metrics=True,
                     collect_system_metrics=True,
-                    output_dir=str(self.test_experiment_dir / "metrics"),
+                    output_dir=str(metrics_dir),
                     publish_interval=30,
                     enable_real_time_monitoring=True,
                     log_level=metrics_log_level,  # Use observer-specific log level
@@ -1261,8 +1446,9 @@ class TestCase(ITestCase):
         if self.global_config.observers.storage.enabled:
             try:
                 self.logger.info("Creating enhanced storage observer")
-                factory.create_storage(
+                create_storage(
                     name="test_storage",
+                    global_config=self.global_config,
                     auto_register=True,
                     storage_path=str(
                         self.test_experiment_dir
@@ -1282,14 +1468,14 @@ class TestCase(ITestCase):
         # Create and register experiment observer (always enabled for tracking)
         try:
             self.logger.debug("Creating experiment observer")
-            factory.create_experiment_observer(
+            create_experiment_observer(
                 name="test_experiment",
+                global_config=self.global_config,
                 auto_register=True,
                 output_dir=str(self.test_experiment_dir),
                 test_name=self.test_name,
                 track_timing=True,
                 track_steps=True,
-                global_config=self.global_config,
             )
             self.registered_observers.append("test_experiment")
             self.logger.debug("Registered experiment observer")
@@ -1375,8 +1561,10 @@ class TestCase(ITestCase):
         # Record the test result check through event system
         self.step_emitter.emit_step_progress(
             step_id="service_test_results",
-            progress=0.9,  # Almost done with the test
-            details={"status": "checking", "test_name": self.test_config.name},
+            step_name="Check service test results",
+            test_case_id=self.test_name,
+            progress_percentage=90.0,  # Almost done with the test
+            progress_message="Checking service test results",
         )
 
         # Initialize aggregated test results
@@ -1414,14 +1602,13 @@ class TestCase(ITestCase):
             self.logger.debug("Collecting test results from tester: %s", service_name)
 
             # Report progress for current tester
+            progress_pct = 90.0 + (10.0 * (tester_count / len(self.service_managers)))
             self.step_emitter.emit_step_progress(
                 step_id="service_test_results",
-                progress=0.9 + (0.1 * (tester_count / len(self.service_managers))),
-                details={
-                    "status": "checking_tester",
-                    "tester": service_name,
-                    "test_name": self.test_config.name,
-                },
+                step_name="Check service test results",
+                test_case_id=self.test_name,
+                progress_percentage=progress_pct,
+                progress_message=f"Checking tester: {service_name}",
             )
 
             # Check if service has test results
@@ -1486,22 +1673,25 @@ class TestCase(ITestCase):
                             aggregated_results["overall_success"] = False
 
                         # Emit metric for this tester's results
-                        self.metrics_emitter.emit_metric(
-                            metric_type="test_results",
-                            metric_name=f"{service_name}_tests_passed",
+                        self.metrics_emitter.emit_counter_metric(
+                            counter_name=f"{service_name}_tests_passed",
                             value=result_info.get("passed", 0),
-                            test_id=self.test_config.name,
-                            details={"tester": service_name, "service_success": service_success},
+                            increment=False,  # absolute value
+                            test_case=self.test_config.name,
+                            component=service_name,
+                            metadata={"tester": service_name, "service_success": service_success},
                         )
 
                         # Emit service test results event
-                        self.service_emitter.emit_service_event(
-                            name="service_test_results",
-                            data={
-                                "service_name": service_name,
+                        service_id = f"{self.test_name}_{service_name}"
+                        self.service_emitter.emit_service_test_results(
+                            service_id=service_id,
+                            service_name=service_name,
+                            test_results=result_info,
+                            overall_success=service_success,
+                            test_summary={
                                 "service_type": getattr(service_manager, "service_type", "tester"),
-                                "success": service_success,
-                                "results": result_info,
+                                "raw_results": test_results,
                             },
                         )
                     else:
@@ -1525,13 +1715,14 @@ class TestCase(ITestCase):
                     aggregated_results["overall_success"] = False
 
                     # Emit error event
-                    self.service_emitter.emit_service_event(
-                        name="service_test_error",
-                        data={
-                            "service_name": service_name,
+                    service_id = f"{self.test_name}_{service_name}"
+                    self.service_emitter.emit_service_error(
+                        service_id=service_id,
+                        service_name=service_name,
+                        error_message=str(e),
+                        error_type="test_results_failed",
+                        error_details={
                             "service_type": getattr(service_manager, "service_type", "tester"),
-                            "error_type": "test_results_failed",
-                            "error_message": str(e),
                         },
                     )
             else:
@@ -1548,20 +1739,23 @@ class TestCase(ITestCase):
         success = aggregated_results["overall_success"]
 
         # Emit completion metric
-        self.metrics_emitter.emit_metric(
-            metric_type="test_results",
-            metric_name="total_tests_passed",
+        self.metrics_emitter.emit_counter_metric(
+            counter_name="total_tests_passed",
             value=aggregated_results["tests_passed"],
-            test_id=self.test_config.name,
-            details={
+            increment=False,  # absolute value
+            test_case=self.test_config.name,
+            metadata={
                 "total_tests": aggregated_results["tests_total"],
                 "total_failed": aggregated_results["tests_failed"],
             },
         )
 
         # Emit step completed event for service result checking
-        self.step_emitter.emit_step_completed(
-            step_id="service_test_results", success=success, result=aggregated_results
+        self.step_emitter.emit_step_execution_completed(
+            step_id="service_test_results",
+            step_name="Check service test results",
+            test_case_id=self.test_name,
+            result={"success": success, "aggregated_results": aggregated_results},
         )
 
         return success
@@ -1594,12 +1788,13 @@ class TestCase(ITestCase):
         1. Logs the start of the test case.
         2. Registers default observers.
         3. Sets up necessary services.
-        4. Sets up the test environment.
-        5. Deploys the required services.
-        6. Executes the test steps.
-        7. Validates the assertions.
-        8. Logs the successful completion of the test case.
-        9. Notifies the event manager about the test completion.
+        4. Prepares services (builds Docker images if required).
+        5. Sets up the test environment.
+        6. Deploys the required services.
+        7. Executes the test steps.
+        8. Validates the assertions.
+        9. Logs the successful completion of the test case.
+        10. Notifies the event manager about the test completion.
 
         If any exception occurs during the execution, it logs the error and raises the exception.
         Finally, it tears down the test environment.
@@ -1634,10 +1829,26 @@ class TestCase(ITestCase):
             # Emit timing metric event for service setup
             if self.metrics_collector:  # Check if metrics are enabled
                 self.metrics_emitter.emit_timing_metric(
-                    metric_name=f"setup_services_{self.test_name}",
-                    duration_ms=int(setup_services_duration * 1000),
-                    test_id=self.test_config.name,
-                    details={"phase": "TEST_EXECUTION", "component": "test_case"},
+                    operation_name=f"setup_services_{self.test_name}",
+                    duration=setup_services_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
+                )
+
+            # Prepare services (build Docker images) with timing
+            prepare_services_start = time.time()
+            self.prepare_services()
+            prepare_services_duration = time.time() - prepare_services_start
+
+            # Emit timing metric event for service preparation
+            if self.metrics_collector:
+                self.metrics_emitter.emit_timing_metric(
+                    operation_name=f"prepare_services_{self.test_name}",
+                    duration=prepare_services_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
                 )
 
             # Setup environment with timing
@@ -1648,10 +1859,11 @@ class TestCase(ITestCase):
             # Emit timing metric event for environment setup
             if self.metrics_collector:
                 self.metrics_emitter.emit_timing_metric(
-                    metric_name=f"setup_environment_{self.test_name}",
-                    duration_ms=int(setup_env_duration * 1000),
-                    test_id=self.test_config.name,
-                    details={"phase": "TEST_EXECUTION", "component": "test_case"},
+                    operation_name=f"setup_environment_{self.test_name}",
+                    duration=setup_env_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
                 )
 
             # Deploy services with timing
@@ -1662,10 +1874,11 @@ class TestCase(ITestCase):
             # Emit timing metric event for service deployment
             if self.metrics_collector:
                 self.metrics_emitter.emit_timing_metric(
-                    metric_name=f"deploy_services_{self.test_name}",
-                    duration_ms=int(deploy_services_duration * 1000),
-                    test_id=self.test_config.name,
-                    details={"phase": "TEST_EXECUTION", "component": "test_case"},
+                    operation_name=f"deploy_services_{self.test_name}",
+                    duration=deploy_services_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
                 )
 
             # Execute steps with timing
@@ -1676,10 +1889,11 @@ class TestCase(ITestCase):
             # Emit timing metric event for steps execution
             if self.metrics_collector:
                 self.metrics_emitter.emit_timing_metric(
-                    metric_name=f"execute_steps_{self.test_name}",
-                    duration_ms=int(execute_steps_duration * 1000),
-                    test_id=self.test_config.name,
-                    details={"phase": "TEST_EXECUTION", "component": "test_case"},
+                    operation_name=f"execute_steps_{self.test_name}",
+                    duration=execute_steps_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
                 )
 
             # Validate assertions with timing
@@ -1690,10 +1904,11 @@ class TestCase(ITestCase):
             # Emit timing metric event for assertions validation
             if self.metrics_collector:
                 self.metrics_emitter.emit_timing_metric(
-                    metric_name=f"validate_assertions_{self.test_name}",
-                    duration_ms=int(validate_assertions_duration * 1000),
-                    test_id=self.test_config.name,
-                    details={"phase": "TEST_EXECUTION", "component": "test_case"},
+                    operation_name=f"validate_assertions_{self.test_name}",
+                    duration=validate_assertions_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
                 )
 
             # Check if service tests actually passed
@@ -1708,10 +1923,11 @@ class TestCase(ITestCase):
             if self.metrics_collector:
                 # Emit timing metric for overall test case execution
                 self.metrics_emitter.emit_timing_metric(
-                    metric_name=f"test_case_total_{self.test_name}",
-                    duration_ms=int(total_duration * 1000),
-                    test_id=self.test_config.name,
-                    details={"phase": "TEST_EXECUTION", "component": "test_case"},
+                    operation_name=f"test_case_total_{self.test_name}",
+                    duration=total_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
                 )
 
                 # Record artifact metrics through event system
@@ -1735,12 +1951,12 @@ class TestCase(ITestCase):
 
             if self.metrics_collector:
                 # Emit error metric event using event emitter
-                self.metrics_emitter.emit_metric(
-                    metric_type="status",
-                    metric_name="error",
-                    value=0,  # 0 for error/failure
-                    test_id=self.test_config.name,
-                    details={
+                self.metrics_emitter.emit_counter_metric(
+                    counter_name="test_error",
+                    value=1,  # 1 to count the error
+                    increment=True,  # increment counter
+                    test_case=self.test_config.name,
+                    metadata={
                         "error_type": type(e).__name__,
                         "error_message": str(e),
                         "test_phase": str(self.state),
@@ -1774,10 +1990,11 @@ class TestCase(ITestCase):
             # Emit timing metric for teardown
             if self.metrics_collector:
                 self.metrics_emitter.emit_timing_metric(
-                    metric_name=f"teardown_environment_{self.test_name}",
-                    duration_ms=int(teardown_duration * 1000),
-                    test_id=self.test_config.name,
-                    details={"phase": "TEST_EXECUTION", "component": "test_case"},
+                    operation_name=f"teardown_environment_{self.test_name}",
+                    duration=teardown_duration,
+                    phase="TEST_EXECUTION",
+                    test_case=self.test_config.name,
+                    component="test_case",
                 )
             # Unregister observers
             factory = get_observer_factory()

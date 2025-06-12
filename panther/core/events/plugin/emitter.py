@@ -7,7 +7,7 @@ This module provides a type-safe emitter for plugin events.
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from panther.core.observer.event_manager import EventManager
+    from panther.core.observer.management.event_manager import EventManager
 from .events import (
     PluginLoadingStartedEvent,
     PluginLoadingCompletedEvent,

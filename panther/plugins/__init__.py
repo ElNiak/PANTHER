@@ -7,7 +7,6 @@ This package contains all plugins for the PANTHER framework.
 __all__ = [
     "plugin_interface",
     "plugin_loader",
-    "plugin_entry_points",
     "plugin_manager",
     "plugin_creator",
 ]
@@ -22,17 +21,12 @@ def __getattr__(name):
     elif name == "plugin_loader":
         from . import plugin_loader
 
-        return plugin_loader
-    elif name == "plugin_entry_points":
-        from . import plugin_entry_points
-
-        return plugin_entry_points
     elif name == "plugin_manager":
         from . import plugin_manager
 
         return plugin_manager
     elif name == "plugin_creator":
-        from . import plugin_creator
+        from ..tools.plugins import plugin_creator
 
         return plugin_creator
     else:

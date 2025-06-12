@@ -31,6 +31,8 @@ from .events import (
     TestTeardownCompletedEvent,
     TestCompletedEvent,
     TestFailedEvent,
+    TestResultEvent,
+    EnhancedResultEvent,
 )
 
 from .states import (
@@ -68,6 +70,8 @@ __all__ = [
     "TestTeardownCompletedEvent",
     "TestCompletedEvent",
     "TestFailedEvent",
+    "TestResultEvent",
+    "EnhancedResultEvent",
     # States
     "TestState",
     "TestStateManager",

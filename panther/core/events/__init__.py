@@ -53,6 +53,8 @@ from panther.core.events.test import (
     TestTeardownCompletedEvent,
     TestCompletedEvent,
     TestFailedEvent,
+    TestResultEvent,
+    EnhancedResultEvent,
 )
 from panther.core.events.service import (
     ServiceState,
@@ -193,6 +195,8 @@ __all__ = [
     "TestTeardownCompletedEvent",
     "TestCompletedEvent",
     "TestFailedEvent",
+    "TestResultEvent",
+    "EnhancedResultEvent",
     # Service
     "ServiceState",
     "ServiceEvent",

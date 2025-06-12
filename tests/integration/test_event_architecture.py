@@ -24,10 +24,11 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import required components
-from panther.core.observer.event_manager import EventManager
-from panther.core.observer.event_emitter import EventEmitter
-from panther.core.observer.core.core_events import ServiceEvent, ExperimentInitializedEvent
-from panther.core.observer.plugin.plugin_observer import PluginObserver
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.events.base.event_emitter import EventEmitter
+from panther.core.events.service.events import ServiceEvent
+from panther.core.events.experiment.events import ExperimentInitializedEvent
+from panther.core.observer.impl.plugin_observer import PluginObserver
 from panther.plugins.plugin_manager import PluginManager
 from panther.plugins.plugin_interface_enhanced import IPantherPlugin
 
@@ -179,7 +180,7 @@ def test_event_architecture():
 
     # Create plugin manager with temp directory for plugins
     plugin_dir = tempfile.mkdtemp()
-    plugin_manager = PluginManager(plugin_directories=[plugin_dir])
+    plugin_manager = PluginManager(plugin_directories=[plugin_dir], event_manager=event_manager)
 
     # Set event emitter on plugin manager
     plugin_manager.set_event_emitter(event_emitter)

@@ -7,7 +7,7 @@ This module provides typed event emission for environment lifecycle events.
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from panther.core.observer.event_manager import EventManager
+    from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.environment.events import (
     EnvironmentCreatedEvent,
@@ -473,5 +473,161 @@ class EnvironmentEventEmitter:
             environment_type=environment_type,
             metric_name=monitoring_type,
             metric_value=metrics,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_initialized(
+        self,
+        environment_type: str,
+        environment_name: str,
+        config: dict[str, Any] | None = None,
+        duration_seconds: float | None = None,
+    ) -> None:
+        """
+        Emit environment initialized event (compatibility wrapper).
+
+        This is a convenience method that wraps emit_environment_initialization_completed
+        for backward compatibility.
+
+        Args:
+            environment_type: Type of environment
+            environment_name: Name of the environment
+            config: Environment configuration
+            duration_seconds: Time taken to initialize
+        """
+        # Generate a consistent environment ID
+        environment_id = f"{environment_type}_{environment_name}"
+
+        self.emit_environment_initialization_completed(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            duration_seconds=duration_seconds,
+            initialization_details={"config": config} if config else None,
+        )
+
+    def emit_environment_teardown(
+        self,
+        environment_type: str,
+        environment_name: str,
+        reason: str | None = None,
+    ) -> None:
+        """
+        Emit environment teardown event (compatibility wrapper).
+
+        This is a convenience method that wraps emit_environment_teardown_started
+        for backward compatibility.
+
+        Args:
+            environment_type: Type of environment
+            environment_name: Name of the environment
+            reason: Reason for teardown
+        """
+        # Generate a consistent environment ID
+        environment_id = f"{environment_type}_{environment_name}"
+
+        self.emit_environment_teardown_started(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            reason=reason,
+        )
+
+    def emit_environment_deployment_started(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        services: list[str],
+        deployment_config: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit environment deployment started event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            services: List of services being deployed
+            deployment_config: Deployment configuration details
+        """
+        from .events import EnvironmentDeploymentStartedEvent
+
+        event = EnvironmentDeploymentStartedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            services=services,
+            deployment_config=deployment_config,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_deployment_completed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        success: bool,
+        deployed_services: dict[str, str],
+        duration: float,
+        deployment_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit environment deployment completed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            success: Whether deployment succeeded
+            deployed_services: Dictionary of service names to deployment status
+            duration: Time taken for deployment
+            deployment_details: Additional deployment details
+        """
+        from .events import EnvironmentDeploymentCompletedEvent
+
+        event = EnvironmentDeploymentCompletedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            success=success,
+            deployed_services=deployed_services,
+            duration=duration,
+            deployment_details=deployment_details,
+        )
+        self.event_manager.notify(event)
+
+    def emit_environment_deployment_failed(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        error_message: str,
+        error_type: str = "deployment_error",
+        failed_services: list[str] | None = None,
+        error_details: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Emit environment deployment failed event.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            error_message: Error message describing the failure
+            error_type: Type of error that occurred
+            failed_services: List of services that failed to deploy
+            error_details: Additional error details
+        """
+        from .events import EnvironmentDeploymentFailedEvent
+
+        event = EnvironmentDeploymentFailedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            error_message=error_message,
+            error_type=error_type,
+            failed_services=failed_services,
+            error_details=error_details,
         )
         self.event_manager.notify(event)

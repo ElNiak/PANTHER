@@ -1,16 +1,15 @@
-from abc import ABC
-
 from panther.config.config_experiment_schema import ServiceConfig
 from panther.plugins.protocols.config_schema import ProtocolConfig
-from panther.core.observer.event_manager import EventManager
-from panther.plugins.services.service_base import ServiceBase
+from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.services.testers.tester_event_methods import TesterManagerEventMixin
 
 
-class ITesterManager(ServiceBase, ABC):
+class ITesterManager(IServiceManager, TesterManagerEventMixin):
     """
     Interface for tester service managers.
 
-    Extends ServiceBase (which already includes ServiceManagerEventMixin) with standardized
+    Extends ServiceBase (which already includes TesterManagerEventMixin) with standardized
     test run reporting and monitoring capabilities.
     """
 
@@ -25,64 +24,56 @@ class ITesterManager(ServiceBase, ABC):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-        # Note: event_emitter is initialized in parent classes with ServiceEventEmitter
-
-    def notify_test_started(self, test_name: str, details: dict = None):
-        """
-        Notify that a test has started.
-
-        Args:
-            test_name: The name of the test being run
-            details: Additional details about the test
-        """
-        # Use the service event notification method from ServiceManagerEventMixin
-        test_details = {
-            "service_name": self.service_name,
-            "service_type": self.service_type,
-            "protocol": self.protocol.name,
-            "test_name": test_name,
-            **(details or {}),
+        self._status = {
+            "state": "created",
+            "details": {},
         }
-        self.notify_service_event("test_started", test_details)
+        self.test_results = {}
 
-    def notify_test_completed(self, test_name: str, success: bool, result: dict = None):
+    def run_tests(self):
         """
-        Notify that a test has completed.
+        Run tests with proper event notifications.
 
-        Args:
-            test_name: The name of the test that completed
-            success: Whether the test was successful
-            result: The test result data
+        Returns:
+            Dict: Test results
         """
-        # Use the service event notification method from ServiceManagerEventMixin
-        test_details = {
-            "service_name": self.service_name,
-            "service_type": self.service_type,
-            "protocol": self.protocol.name,
-            "test_name": test_name,
-            "success": success,
-            "result": result or {},
-        }
-        self.notify_service_event("test_completed", test_details)
+        try:
+            # Notify test run started
+            test_name = getattr(self, "test_to_compile", "unknown")
+            self.notify_test_started(
+                test_name=test_name,
+                details={
+                    "service_name": self.service_name,
+                    "service_type": self.service_type,
+                },
+            )
 
-    def notify_test_error(self, test_name: str, error_message: str, error_details: dict = None):
-        """
-        Notify that a test has encountered an error.
+            # Run the tests
+            results = self._do_run_tests()
 
-        Args:
-            test_name: The name of the test that failed
-            error_message: The error message
-            error_details: Additional details about the error
+            # Notify test run completed
+            self.emit_test_completed(
+                test_name=test_name, success=results.get("success", False), results=results
+            )
+
+            return results
+        except Exception as e:  # pylint: disable=broad-except
+            # Notify test run failed
+            self.emit_test_completed(
+                test_name=getattr(self, "test_to_compile", "unknown"),
+                success=False,
+                results={"error": str(e), "error_type": type(e).__name__},
+            )
+            raise
+
+    def _do_run_tests(self):
         """
-        # Use the service error notification method from ServiceManagerEventMixin
-        error_info = {
-            "service_name": self.service_name,
-            "service_type": self.service_type,
-            "protocol": self.protocol.name,
-            "test_name": test_name,
-            "error_message": error_message,
-            **(error_details or {}),
-        }
-        self.notify_service_error(
-            error_type="test_error", error_message=error_message, details=error_info
-        )
+        Actual implementation of test running, to be overridden by subclasses.
+
+        Returns:
+            Dict: Test results containing at minimum a 'success' key with boolean value
+
+        Raises:
+            NotImplementedError: If the subclass does not implement this method
+        """
+        raise NotImplementedError("Subclasses must implement _do_run_tests")

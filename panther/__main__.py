@@ -21,7 +21,7 @@ from panther.core.metrics import (
 
 # Import the plugin creation utility functions
 try:
-    from panther.plugins.plugin_creator import (
+    from panther.tools.plugins.plugin_creator import (
         is_development_mode,
         create_plugin,
         run_tutorial,
@@ -50,7 +50,6 @@ except ImportError:
 
 from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
-from panther.plugins.plugin_params import list_plugin_parameters
 
 
 def initialize_metrics(args):
@@ -327,6 +326,11 @@ def main():
         help="Flag to validate the configuration.",
     )
     parser.add_argument(
+        "--list-plugins",
+        action="store_true",
+        help="List all available plugins organized by type.",
+    )
+    parser.add_argument(
         "--list-plugin-params",
         type=str,
         metavar="PLUGIN_NAME",
@@ -385,6 +389,41 @@ def main():
         "--production-mode",
         action="store_true",
         help="Force production mode for plugin creation (put plugins in user directory).",
+    )
+
+    # Plugin migration and management subcommands
+    migration_group = parser.add_argument_group("Plugin Migration and Management")
+    migration_group.add_argument(
+        "--migrate-plugins",
+        action="store_true",
+        help="Migrate plugins to new manifest system.",
+    )
+    migration_group.add_argument(
+        "--scan-plugins",
+        action="store_true",
+        help="Scan for plugins and show migration status.",
+    )
+    migration_group.add_argument(
+        "--validate-plugin",
+        type=str,
+        metavar="PLUGIN_PATH",
+        help="Validate a specific plugin and show generated manifest.",
+    )
+    migration_group.add_argument(
+        "--check-plugin-deps",
+        type=str,
+        metavar="PLUGIN_PATH",
+        help="Check external dependencies for a specific plugin.",
+    )
+    migration_group.add_argument(
+        "--migration-dry-run",
+        action="store_true",
+        help="Show what migration would do without making changes.",
+    )
+    migration_group.add_argument(
+        "--migration-force",
+        action="store_true",
+        help="Force overwrite existing manifests during migration.",
     )
 
     parser.add_argument(
@@ -518,7 +557,7 @@ def main():
 
         try:
             # Import the subplugin creation function
-            from panther.plugins.plugin_creator import create_subplugin
+            from panther.tools.plugins.plugin_creator import create_subplugin
 
             success = create_subplugin(
                 plugin_type, plugin_name, subplugin_type, in_development_mode=dev_mode
@@ -540,12 +579,191 @@ def main():
     if args.interactive_tutorials:
         try:
             # Import the interactive tutorials function
-            from panther.plugins.plugin_creator import launch_interactive_tutorials
+            from panther.tools.plugins.plugin_creator import launch_interactive_tutorials
 
             launch_interactive_tutorials()
             return 0
         except Exception as e:
             logging.error(f"❌ Error launching interactive tutorials: {e}")
+            return 1
+
+    # Handle plugin migration and management
+    if any([args.migrate_plugins, args.scan_plugins, args.validate_plugin, args.check_plugin_deps]):
+        try:
+            from panther.plugins.plugin_migration_tool import PluginMigrationTool
+            from pathlib import Path
+
+            tool = PluginMigrationTool()
+            base_path = Path.cwd()  # Use current directory as base path
+
+            if args.scan_plugins:
+                results = tool.scan_plugins(base_path, include_manifested=True)
+
+                print("\nPlugin Scan Results:")
+                print(f"- Total plugins found: {len(results['plugins_found'])}")
+                print(f"- With manifests: {len(results['manifested'])}")
+                print(f"- Without manifests: {len(results['unmanifested'])}")
+                print(f"- Categories: {len(results['categories'])}")
+                print(f"- Implementations: {len(results['implementations'])}")
+
+                if results["analysis_errors"]:
+                    print(f"\nAnalysis errors: {len(results['analysis_errors'])}")
+                    for error in results["analysis_errors"]:
+                        print(f"  - {error['path']}: {error['error']}")
+
+                return 0
+
+            elif args.migrate_plugins:
+                results = tool.migrate_plugins(
+                    base_path,
+                    dry_run=args.migration_dry_run,
+                    force=args.migration_force,
+                    update_existing=True,
+                )
+
+                if args.migration_dry_run:
+                    print("\nDRY RUN - No files were modified")
+
+                print("\nMigration Results:")
+                print(f"- Created/Overwritten: {len(results['created'])}")
+                print(f"- Updated: {len(results['updated'])}")
+                print(f"- Skipped: {len(results['skipped'])}")
+                print(f"- Errors: {len(results['errors'])}")
+
+                if results["created"]:
+                    print("\nCreated/Overwritten:")
+                    for item in results["created"]:
+                        print(f"  - {item['name']} ({item['action']})")
+
+                if results["updated"]:
+                    print("\nUpdated:")
+                    for item in results["updated"]:
+                        print(f"  - {item['name']}")
+
+                if results["errors"]:
+                    print("\nErrors:")
+                    for error in results["errors"]:
+                        print(f"  - {error['name']}: {error['error']}")
+
+                return 0 if results["success"] else 1
+
+            elif args.validate_plugin:
+                plugin_path = base_path / args.validate_plugin
+                if not plugin_path.exists():
+                    print(f"Error: Plugin path not found: {plugin_path}")
+                    return 1
+
+                manifest = tool.generate_manifest(plugin_path)
+
+                print(f"\nGenerated manifest for {manifest.name}:")
+                print(f"- Type: {manifest.type.value}")
+                print(f"- Version: {manifest.version}")
+                print(f"- Is Category: {manifest.is_category}")
+
+                if manifest.implementations:
+                    print(f"- Implementations: {', '.join(manifest.implementations)}")
+
+                if manifest.dependencies:
+                    print("- Plugin Dependencies:")
+                    for dep in manifest.dependencies:
+                        print(
+                            f"  - {dep.name} ({dep.plugin_type.value if dep.plugin_type else 'unknown'})"
+                        )
+
+                if manifest.external_dependencies:
+                    print("- External Dependencies:")
+                    for dep in manifest.external_dependencies:
+                        print(f"  - {dep}")
+
+                return 0
+
+            elif args.check_plugin_deps:
+                plugin_path = base_path / args.check_plugin_deps
+                manifest_path = plugin_path / "plugin.yaml"
+
+                if not manifest_path.exists():
+                    print(f"Error: No manifest found at {manifest_path}")
+                    return 1
+
+                import yaml
+
+                with open(manifest_path) as f:
+                    manifest_data = yaml.safe_load(f)
+
+                from panther.plugins.plugin_manifest import PluginManifest, PluginType
+
+                manifest = PluginManifest(
+                    name=manifest_data["name"],
+                    version=manifest_data["version"],
+                    type=PluginType[manifest_data["type"].upper()],
+                    external_dependencies=manifest_data.get("external_dependencies", []),
+                )
+
+                results = tool.validate_external_dependencies(manifest)
+
+                print(f"\nExternal dependency check for {manifest.name}:")
+
+                if results["satisfied"]:
+                    print("\nSatisfied dependencies:")
+                    for dep in results["satisfied"]:
+                        print(f"  ✓ {dep['dependency']}: {dep['message']}")
+
+                if results["missing"]:
+                    print("\nMissing dependencies:")
+                    for dep in results["missing"]:
+                        print(f"  ✗ {dep['dependency']}: {dep['message']}")
+
+                if results["errors"]:
+                    print("\nErrors:")
+                    for dep in results["errors"]:
+                        print(f"  ! {dep['dependency']}: {dep['error']}")
+
+                return 0
+
+        except Exception as e:
+            logging.error(f"❌ Error in plugin migration: {e}")
+            return 1
+
+    if args.list_plugins:
+        # List all available plugins
+        from panther.plugins.plugin_manager import PluginManager
+        from pathlib import Path
+
+        try:
+            # Create a plugin manager to discover plugins
+            plugin_manager = PluginManager()
+
+            # Get all available plugins
+            available_plugins = plugin_manager.list_available_plugins()
+
+            if not available_plugins:
+                logging.info("No plugins found.")
+                return 0
+
+            # Display plugins organized by type
+            logging.info("\nAvailable plugins organized by type:\n")
+            logging.info("=" * 60)
+
+            for plugin_type, plugins in sorted(available_plugins.items()):
+                if plugins:
+                    logging.info(f"\n{plugin_type.upper()} PLUGINS:")
+                    logging.info("-" * 40)
+                    for plugin in sorted(plugins):
+                        logging.info(f"  • {plugin}")
+
+            logging.info("\n" + "=" * 60)
+            logging.info(f"\nTotal plugin types: {len(available_plugins)}")
+            total_plugins = sum(len(plugins) for plugins in available_plugins.values())
+            logging.info(f"Total plugins found: {total_plugins}")
+
+            # Provide helpful information
+            logging.info("\nFor more information about a specific plugin, use:")
+            logging.info("  python -m panther --list-plugin-params <plugin_name>")
+
+            return 0
+
+        except Exception as e:
+            logging.error(f"Error listing plugins: {e}")
             return 1
 
     if args.list_plugin_params:
@@ -559,7 +777,7 @@ def main():
         )
 
         # Use the dedicated function for listing plugin parameters
-        params = list_plugin_parameters(
+        params = config_loader.list_plugin_parameters(
             plugin_name=args.list_plugin_params,
             plugin_type=args.plugin_type,
             protocol=args.protocol,  # Pass the protocol parameter

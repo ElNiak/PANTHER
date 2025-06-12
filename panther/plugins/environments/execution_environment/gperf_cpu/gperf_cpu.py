@@ -1,6 +1,6 @@
 from abc import ABC
 from omegaconf import OmegaConf
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
@@ -11,8 +11,18 @@ from panther.plugins.environments.execution_environment.execution_environment_in
 )
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="environment",
+    name="gperf_cpu",
+    version="1.0.0",
+    description="CPU profiling execution environment using Google Performance Tools",
+    author="PANTHER Team",
+    capabilities=["cpu_profiling", "performance_analysis", "hotspot_detection"],
+    external_dependencies=["gperf"],
+)
 class GperfCpuEnvironment(IExecutionEnvironment, ABC):
     """
     GperfCpuEnvironment is a class that sets up and manages the execution environment

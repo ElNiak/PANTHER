@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import subprocess
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.services.services_interface import IServiceManager
@@ -14,8 +14,18 @@ import traceback
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="environment",
+    name="docker_compose",
+    version="1.0.0",
+    description="Docker Compose network environment for container orchestration",
+    author="PANTHER Team",
+    capabilities=["container_orchestration", "network_isolation", "service_discovery"],
+    external_dependencies=["docker", "docker-compose>=2.0"],
+)
 class DockerComposeEnvironment(INetworkEnvironment):
     """
     DockerComposeEnvironment is a class that manages the setup, deployment, monitoring, and teardown of a
@@ -181,6 +191,9 @@ class DockerComposeEnvironment(INetworkEnvironment):
 
             # Log successful setup
             self.logger.info("Docker Compose environment setup complete")
+
+            # Mark plugin as successfully set up
+            self.plugin_setup = True
             return True
         except Exception as e:
             self.logger.error(
@@ -740,25 +753,63 @@ class DockerComposeEnvironment(INetworkEnvironment):
         ):
 
             # Run Docker Compose up
+            docker_compose_cmd = [
+                "docker",
+                "compose",
+                "-f",
+                compose_file_path,
+                "up",
+                "-d",  # Detached mode: Run containers in the background
+                "-V",  # Recreate anonymous volumes
+                "--remove-orphans",  # Remove orphaned containers
+            ]
+
             result = subprocess.run(
-                [
-                    "docker",
-                    "compose",
-                    "-f",
-                    compose_file_path,
-                    "up",
-                    "-d",  # Detached mode: Run containers in the background
-                    "-V",  # Recreate anonymous volumes
-                    "--remove-orphans",  # Remove orphaned containers
-                ],
-                check=True,
+                docker_compose_cmd,
                 capture_output=True,
                 text=True,
+                cwd=os.path.dirname(compose_file_path),
             )
 
             # Write logs
             log_file.write(result.stdout)
             log_file_err.write(result.stderr)
+
+            # Check for failure and emit detailed error event
+            if result.returncode != 0:
+                error_details = {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "command": " ".join(docker_compose_cmd),
+                    "return_code": result.returncode,
+                    "compose_file": compose_file_path,
+                    "working_directory": os.path.dirname(compose_file_path),
+                }
+
+                # Emit environment error with detailed information
+                if hasattr(self, "environment_emitter") and self.environment_emitter:
+                    self.environment_emitter.emit_environment_error(
+                        environment_id=f"docker_compose_{os.path.basename(compose_file_path)}",
+                        error_message=f"Docker compose failed: {result.stderr}",
+                        error_type="docker_compose_failure",
+                        error_details=error_details,
+                    )
+
+                # Also log the detailed error
+                self.logger.error(
+                    "Docker Compose command failed with return code %d", result.returncode
+                )
+                self.logger.error("Command: %s", " ".join(docker_compose_cmd))
+                self.logger.error("Stdout: %s", result.stdout)
+                self.logger.error("Stderr: %s", result.stderr)
+
+                # Raise exception with comprehensive information
+                raise subprocess.CalledProcessError(
+                    result.returncode,
+                    docker_compose_cmd,
+                    output=result.stdout,
+                    stderr=result.stderr,
+                )
 
         self.logger.info("Docker Compose environment launched successfully.")
         self.notify_environment_setup_started()
@@ -769,22 +820,33 @@ class DockerComposeEnvironment(INetworkEnvironment):
             open(os.path.join(log_dir, "docker-compose.err.log"), "w") as log_file_err,
         ):
 
+            docker_logs_cmd = [
+                "docker",
+                "compose",
+                "-f",
+                compose_file_path,
+                "logs",
+                "--no-color",
+            ]
+
             result_exp = subprocess.run(
-                [
-                    "docker",
-                    "compose",
-                    "-f",
-                    compose_file_path,
-                    "logs",
-                    "--no-color",
-                ],
-                check=True,
+                docker_logs_cmd,
                 capture_output=True,
                 text=True,
+                cwd=os.path.dirname(compose_file_path),
             )
 
             # Write logs
             log_file.write(result_exp.stdout)
             log_file_err.write(result_exp.stderr)
+
+            # Check for failure in logs command (non-critical)
+            if result_exp.returncode != 0:
+                self.logger.warning(
+                    "Docker Compose logs command failed with return code %d", result_exp.returncode
+                )
+                self.logger.warning("Command: %s", " ".join(docker_logs_cmd))
+                self.logger.warning("Stderr: %s", result_exp.stderr)
+                # Don't raise exception for logs failure as it's not critical
 
         self.logger.info("Docker Compose environment logs captured successfully.")

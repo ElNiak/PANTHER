@@ -7,6 +7,7 @@ from contextlib import nullcontext
 from dataclasses import asdict
 from omegaconf import DictConfig, OmegaConf, ValidationError, ListConfig
 import yaml
+from panther.core.exceptions.experiment_exceptions import PluginValidationError
 from panther.config.config_global_schema import (
     AdditionalPathsConfig,
     DockerConfig,
@@ -426,12 +427,45 @@ class ConfigLoader:
         self.logger.debug("Plugin schema class: %s", plugin_schema_class)
         structured_schema = OmegaConf.structured(plugin_schema_class)
         self.logger.debug("Structured schema: %s", structured_schema)
+
+        # Check for unknown parameters
+        if hasattr(plugin_schema_class, "__dataclass_fields__"):
+            valid_params = set(plugin_schema_class.__dataclass_fields__.keys())
+            provided_params = (
+                set(plugin_config.keys()) if isinstance(plugin_config, DictConfig) else set()
+            )
+
+            # Always include 'type' as a valid parameter
+            valid_params.add("type")
+
+            unknown_params = provided_params - valid_params
+            if unknown_params:
+                self.logger.warning(
+                    "Unknown parameters for %s/%s: %s. These will be ignored.",
+                    plugin_type,
+                    plugin_name,
+                    unknown_params,
+                )
+
+                # Provide helpful information about valid parameters
+                self.logger.info(
+                    "Valid parameters for %s/%s: %s", plugin_type, plugin_name, sorted(valid_params)
+                )
+                self.logger.info(
+                    "Use --list-plugin-params %s to see parameter details", plugin_name
+                )
+
         try:
             return OmegaConf.merge(structured_schema, plugin_config)
         except ValidationError as e:
-            raise ValidationError(
+            # Enhanced error message with helpful information
+            error_msg = (
                 f"Plugin configuration validation failed for {plugin_type}/{plugin_name}: {e}"
             )
+            error_msg += f"\n\nTo see valid parameters, run: python -m panther --list-plugin-params {plugin_name}"
+            if plugin_type in ["iut", "tester"]:
+                error_msg += f" --plugin-type {plugin_type}"
+            raise ValidationError(error_msg)
 
     def construct_experiment_config(self, loaded_config: DictConfig) -> ExperimentConfig:
         """
@@ -523,6 +557,76 @@ class ConfigLoader:
         )
         return experiment_config
 
+    def validate_plugins_availability(
+        self, experiment_config: ExperimentConfig
+    ) -> tuple[bool, list[str]]:
+        """
+        Validate that all plugins required by the experiment configuration are available.
+
+        :param experiment_config: The experiment configuration to validate
+        :return: Tuple of (is_valid, error_messages)
+        """
+        from panther.plugins.plugin_manager import PluginManager
+        from panther.plugins.plugin_manifest import PluginType
+
+        errors = []
+        required_plugins = set()
+
+        # Create a unified plugin manager for validation
+        plugin_manager = PluginManager(
+            plugin_loader=None,  # Plugin loader not needed for validation
+            plugin_directories=[str(self._panther_dir / self.global_config.paths.plugin_dir)],
+        )
+
+        # Extract required plugins from experiment config
+        for test in experiment_config.tests:
+            # Check network environment
+            if hasattr(test, "network_environment") and test.network_environment:
+                env_type = test.network_environment.type
+                if env_type:
+                    plugin_id = f"{PluginType.ENVIRONMENT.value}:{env_type}"
+                    required_plugins.add((plugin_id, env_type, "network environment"))
+
+            # Check execution environments
+            if hasattr(test, "execution_environment") and test.execution_environment:
+                for exec_env in test.execution_environment:
+                    if hasattr(exec_env, "type") and exec_env.type:
+                        plugin_id = f"{PluginType.ENVIRONMENT.value}:{exec_env.type}"
+                        required_plugins.add((plugin_id, exec_env.type, "execution environment"))
+
+            # Check services
+            if hasattr(test, "services") and test.services:
+                for service_name, service_config in test.services.items():
+                    if hasattr(service_config, "implementation"):
+                        impl = service_config.implementation
+                        impl_name = impl.name
+                        impl_type = impl.type if hasattr(impl, "type") else "iut"
+
+                        # Handle string or enum type
+                        impl_type_str = impl_type if isinstance(impl_type, str) else impl_type.value
+                        if impl_type_str.lower() == "testers":
+                            plugin_id = f"{PluginType.TESTER.value}:{impl_name}"
+                            required_plugins.add((plugin_id, impl_name, "tester"))
+                        else:
+                            plugin_id = f"{PluginType.IUT.value}:{impl_name}"
+                            required_plugins.add((plugin_id, impl_name, "IUT implementation"))
+
+        # Validate each required plugin
+        for plugin_id, plugin_name, plugin_desc in required_plugins:
+            if plugin_id not in plugin_manager.plugin_catalog.catalog:
+                errors.append(f"Required {plugin_desc} plugin '{plugin_name}' not found")
+
+        # Resolve dependencies if no errors yet
+        if not errors:
+            pass  # TODO: Not implemented yet, but could be useful in the future
+            plugin_ids = [p[0] for p in required_plugins]
+            _, missing_deps = plugin_manager.plugin_catalog.resolve_dependencies(plugin_ids)
+            if missing_deps:
+                for dep in missing_deps:
+                    errors.append(f"Missing dependency: {dep}")
+
+        return len(errors) == 0, errors
+
     def load_and_validate_experiment_config(self) -> ExperimentConfig:
         """
         Load and validate the entire experiment configuration, including plugin-specific validation.
@@ -576,6 +680,29 @@ class ConfigLoader:
                     self.logger.warning(
                         "Experiment config is not a valid dataclass: %s", experiment_config
                     )
+
+                # Validate plugin availability
+                if self.metrics_collector:
+                    with self.metrics_collector.time_operation("plugin_availability_validation"):
+                        is_valid, plugin_errors = self.validate_plugins_availability(
+                            experiment_config
+                        )
+                else:
+                    is_valid, plugin_errors = self.validate_plugins_availability(experiment_config)
+
+                if not is_valid:
+                    error_msg = "Plugin validation failed:\n" + "\n".join(
+                        f"  - {err}" for err in plugin_errors
+                    )
+                    if self.metrics_collector:
+                        self.metrics_collector.record_error(
+                            phase="plugin_availability_validation",
+                            error_type="PluginValidationError",
+                            error_message=error_msg,
+                            component="config_manager",
+                            metadata={"errors": plugin_errors},
+                        )
+                    raise PluginValidationError(error_msg)
 
                 self.logger.info("Experiment configuration successfully validated.")
 
@@ -1104,17 +1231,32 @@ class ConfigLoader:
                     # If not found, it might be under a protocol subdirectory
                     # Look for it in different protocol directories
                     found = False
-                    for protocol_dir in ["quic", "http", "minip"]:
+
+                    # If protocol is provided, try that first
+                    if protocol:
                         try:
-                            module_path = f"panther.plugins.services.{plugin_type}.{protocol_dir}.{plugin_name}.config_schema"
+                            module_path = f"panther.plugins.services.{plugin_type}.{protocol}.{plugin_name}.config_schema"
                             plugin_module = importlib.import_module(module_path)
                             found = True
-                            break
                         except ImportError:
-                            continue
+                            pass
+
+                    # If not found with provided protocol or no protocol provided, search through known protocols
+                    if not found:
+                        for protocol_dir in ["quic", "http", "minip"]:
+                            try:
+                                module_path = f"panther.plugins.services.{plugin_type}.{protocol_dir}.{plugin_name}.config_schema"
+                                plugin_module = importlib.import_module(module_path)
+                                found = True
+                                break
+                            except ImportError:
+                                continue
 
                     if not found:
-                        raise ImportError(f"Could not find plugin schema for {plugin_name}")
+                        error_msg = f"Could not find plugin schema for {plugin_name}"
+                        if protocol:
+                            error_msg += f" (protocol: {protocol})"
+                        raise ImportError(error_msg)
             else:
                 # For environment plugins
                 module_path = (

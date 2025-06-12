@@ -8,8 +8,20 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="iut",
+    name="quinn",
+    version="1.0.0",
+    description="Quinn - Rust async-friendly QUIC implementation",
+    author="PANTHER Team",
+    dependencies=["docker"],
+    supported_protocols=["quic"],
+    capabilities=["rfc9000", "0rtt", "migration", "async"],
+    external_dependencies=["docker"],
+)
 class QuinnServiceManager(IImplementationManager):
     """
     QuinnServiceManager is a class responsible for managing the Quinn service implementation.
@@ -89,7 +101,10 @@ class QuinnServiceManager(IImplementationManager):
         plugin_loader.build_docker_image_from_path(
             Path(
                 os.path.join(
-                    self._plugin_dir,
+                    os.getcwd(),
+                    "panther",
+                    "plugins",
+                    "services",
                     "Dockerfile",
                 )
             ),

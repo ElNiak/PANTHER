@@ -13,12 +13,13 @@ import tempfile
 import shutil
 from threading import Event as ThreadingEvent
 
-from panther.core.observer.events import Event, TestEvent, SystemEvent, TestResultEvent
-from panther.core.observer.async_event_manager import AsyncEventManager, TypeBasedBufferingStrategy
-from panther.core.observer.storage.results_manager import ResultsManager
-from panther.core.observer.plugin.plugin_interface import IObserverPlugin
-from panther.core.observer.core.observer_interface import IObserver
-from panther.core.observer.plugin.plugin_registry import PluginRegistry
+from panther.core.events.base.event_emitter import Event
+from panther.core.events.test.events import TestEvent, TestResultEvent
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.observer.management.results_manager import ResultsManager
+from panther.core.observer.plugins.plugin_interface import IPluginObserver
+from panther.core.observer.base.observer_interface import IObserver
+from panther.core.observer.plugins.plugin_registry import PluginRegistry
 
 
 class TestObserver(IObserver):
@@ -54,7 +55,7 @@ class TestObserver(IObserver):
         self.event_received.clear()
 
 
-class TestPlugin(IObserverPlugin):
+class TestPlugin(IPluginObserver):
     """Test plugin for plugin system testing."""
 
     VERSION = "0.1.0"
@@ -76,19 +77,12 @@ class TestPlugin(IObserverPlugin):
         return True
 
 
-class AsyncEventManagerTests(unittest.TestCase):
-    """Tests for AsyncEventManager functionality."""
+class EventManagerTests(unittest.TestCase):
+    """Tests for EventManager functionality."""
 
     def setUp(self):
-        # Create a buffering strategy for testing
-        self.buffer_strategy = TypeBasedBufferingStrategy(
-            buffer_types=["test.buffered"], max_buffer_size=3, max_buffer_time=0.5
-        )
-
-        # Create an event manager with the buffering strategy
-        self.manager = AsyncEventManager(
-            max_workers=2, queue_size=100, buffering_strategy=self.buffer_strategy
-        )
+        # Create an event manager
+        self.manager = EventManager()
 
         # Create test observers
         self.observer1 = TestObserver()
@@ -100,18 +94,14 @@ class AsyncEventManagerTests(unittest.TestCase):
         self.manager.register_observer(self.observer2, ["test"])
 
     def tearDown(self):
-        # Shutdown the event manager
-        self.manager.shutdown(wait=True)
+        # Clear observers
+        self.manager.observers.clear()
 
     def test_basic_notification(self):
         """Test basic event notification."""
         # Create and notify an event
         event = TestEvent("basic", {"value": 42})
-        future = self.manager.notify(event)
-
-        # Wait for the event to be processed
-        self.assertTrue(self.observer1.event_received.wait(timeout=1.0))
-        self.assertTrue(future.done())
+        self.manager.publish(event)
 
         # Verify observers received the event
         self.assertEqual(len(self.observer1.events), 1)
@@ -121,7 +111,7 @@ class AsyncEventManagerTests(unittest.TestCase):
     def test_prioritization(self):
         """Test observer prioritization."""
         # Create event manager with test observers in reversed priority order
-        manager = AsyncEventManager()
+        manager = EventManager()
 
         # Create test observers with different priorities
         observer_low = TestObserver()
@@ -143,128 +133,19 @@ class AsyncEventManagerTests(unittest.TestCase):
 
         def add_to_order(obs_name):
             notification_order.append(obs_name)
+            return True
 
         # Override on_event to track notification order
         observer_low.on_event = lambda e: add_to_order("low")
         observer_mid.on_event = lambda e: add_to_order("mid")
         observer_high.on_event = lambda e: add_to_order("high")
 
-        # Notify the event and wait for processing
-        event = Event("test.priority")
-        future = manager.notify(event)
-        future.result(timeout=1.0)
+        # Notify the event
+        event = Event(event_id="test1", event_type="test.priority", timestamp=time.time(), data={})
+        manager.publish(event)
 
         # Verify notification order (highest priority first)
         self.assertEqual(notification_order, ["high", "mid", "low"])
-
-        # Clean up
-        manager.shutdown()
-
-    def test_buffering(self):
-        """Test event buffering."""
-        # Create buffered events
-        event1 = Event("test.buffered.type1", {"seq": 1})
-        event2 = Event("test.buffered.type1", {"seq": 2})  # Same type, should replace event1
-        event3 = Event("test.buffered.type2", {"seq": 3})  # Different type
-
-        # Notify events
-        self.manager.notify(event1)
-        self.manager.notify(event2)
-        self.manager.notify(event3)
-
-        # Wait for buffer flush (max size reached)
-        time.sleep(0.1)
-
-        # Verify observer received the consolidated events (only event2 and event3)
-        self.observer1.event_received.wait(timeout=1.0)
-
-        # Give time for all events to be processed
-        time.sleep(0.2)
-
-        # Should have 2 events (event2 and event3), as event1 was replaced by event2
-        self.assertEqual(len(self.observer1.events), 2)
-
-        # Verify event2 (seq 2) was kept and event1 (seq 1) was discarded
-        event_seqs = [e.data["seq"] for e in self.observer1.events]
-        self.assertIn(2, event_seqs)
-        self.assertIn(3, event_seqs)
-        self.assertNotIn(1, event_seqs)
-
-    def test_time_based_buffer_flush(self):
-        """Test time-based buffer flushing."""
-        # Create a buffered event
-        event = Event("test.buffered.timeout", {"value": "timeout_test"})
-
-        # Notify the event
-        self.manager.notify(event)
-
-        # Wait for time-based flush
-        time.sleep(0.6)  # Buffer time is 0.5s
-
-        # Verify observer received the event
-        self.assertEqual(len(self.observer1.events), 1)
-        self.assertEqual(self.observer1.events[0].data["value"], "timeout_test")
-
-    def test_error_handling_and_retry(self):
-        """Test error handling and retry mechanism."""
-        # Create an observer that fails initially then succeeds
-        fail_count = [0]  # Use list for mutable state in closure
-
-        class FailingObserver(IObserver):
-            def on_event(self, event: Event):
-                if fail_count[0] < 2:  # Fail twice
-                    fail_count[0] += 1
-                    raise ValueError("Intentional failure")
-                return True  # Succeed on third try
-
-            def is_interested(self, event_type: str) -> bool:
-                return True
-
-        # Register the failing observer
-        failing_observer = FailingObserver()
-        self.manager.register_observer(failing_observer)
-
-        # Create and notify an event
-        event = Event("test.retry")
-        future = self.manager.notify(event)
-
-        # Wait for the event to be processed (including retries)
-        try:
-            result = future.result(timeout=3.0)
-            self.assertTrue(result)
-            self.assertEqual(fail_count[0], 2)  # Should have failed twice before success
-        except Exception as e:
-            self.fail(f"Event processing failed after retries: {e}")
-
-    def test_metrics(self):
-        """Test metrics collection."""
-        # Clear existing events
-        self.observer1.clear()
-
-        # Create and notify several events
-        events = [
-            Event("test.metric.1", {"value": 1}),
-            Event("test.metric.2", {"value": 2}),
-            SystemEvent("status", {"status": "ready"}),
-        ]
-
-        for event in events:
-            self.manager.notify(event)
-
-        # Wait for events to be processed
-        time.sleep(0.5)
-
-        # Get metrics
-        metrics = self.manager.get_metrics()
-
-        # Verify basic metrics
-        self.assertGreaterEqual(metrics["processed"], 3)
-        self.assertEqual(metrics["errors"], 0)
-
-        # Verify event type metrics
-        self.assertIn("test.metric.1", metrics["by_type"])
-        self.assertIn("test.metric.2", metrics["by_type"])
-        self.assertIn("system.status", metrics["by_type"])
 
 
 class PluginRegistryTests(unittest.TestCase):
@@ -278,16 +159,18 @@ class PluginRegistryTests(unittest.TestCase):
         with open(os.path.join(self.test_plugin_dir, "test_plugin.py"), "w") as f:
             f.write(
                 """
-from panther.core.observer.plugin.plugin_interface import IObserverPlugin
-from panther.core.observer.events import Event
+from panther.core.observer.plugins.plugin_interface import IPluginObserver
+from panther.core.events.base.event_emitter import Event
 
-class TestPlugin(IObserverPlugin):
+
+class TestPlugin(IPluginObserver):
     VERSION = "1.0.0"
     AUTHOR = "Test Author"
     EVENTS = ["test.plugin"]
 
     def on_event(self, event: Event):
         return True
+
 
 class AnotherPlugin(IObserverPlugin):
     VERSION = "0.5.0"
@@ -369,9 +252,9 @@ class ResultsManagerTests(unittest.TestCase):
 
         # Create some test result events
         self.result_events = [
-            TestResultEvent("result1", "test_case_1", True, {"score": 100}),
-            TestResultEvent("result2", "test_case_2", False, {"error": "Failed assertion"}),
-            TestResultEvent("result3", "test_case_3", True, {"performance": "good"}),
+            TestResultEvent("test_case_1", "passed", {"score": 100}),
+            TestResultEvent("test_case_2", "failed", {"error": "Failed assertion"}),
+            TestResultEvent("test_case_3", "passed", {"performance": "good"}),
         ]
 
     def tearDown(self):

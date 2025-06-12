@@ -6,8 +6,20 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.plugins.plugin_decorators import register_plugin
 
 
+@register_plugin(
+    plugin_type="iut",
+    name="aioquic",
+    version="1.0.0",
+    description="AioQUIC - Python asyncio implementation of QUIC and HTTP/3",
+    author="PANTHER Team",
+    dependencies=["docker"],
+    supported_protocols=["quic", "http3"],
+    capabilities=["rfc9000", "0rtt", "migration", "http3", "datagrams", "webtransport"],
+    external_dependencies=["docker"],
+)
 class AioquicServiceManager(IImplementationManager):
     """
     Manages the Aioquic service implementation for QUIC protocol testing.

@@ -8,7 +8,7 @@ correctly with proper event emission and handling across service managers.
 import pytest
 from unittest.mock import Mock
 
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.event_emitter import EventEmitter
 from panther.core.observer.events import (
     ServiceStartedEvent,
@@ -194,7 +194,7 @@ class TestEventDrivenIntegration:
     def test_plugin_manager_event_emitter_propagation(self, event_manager):
         """Test that PluginManager properly propagates event emitters to service managers."""
         # Create plugin manager with event manager
-        plugin_manager = PluginManager(event_manager)
+        plugin_manager = PluginManager(event_manager=event_manager)
 
         # Create mock service manager
         mock_service = Mock()
