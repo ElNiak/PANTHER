@@ -5,7 +5,6 @@ This module provides a mixin class for emitting command generation and Docker bu
 from service managers.
 """
 
-import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,8 +21,8 @@ class CommandEventMixin:
 
     def __init__(self):
         """Initialize the mixin. Assumes the class has a logger and service_emitter."""
-        if not hasattr(self, "logger"):
-            self.logger = logging.getLogger(self.__class__.__name__)
+        # Logger is expected to be provided by LoggerMixin or similar
+        pass
 
     def emit_command_generation_started(self, phase: str) -> None:
         """

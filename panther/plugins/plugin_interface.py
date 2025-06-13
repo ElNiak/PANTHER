@@ -2,9 +2,10 @@ from abc import ABC, abstractmethod
 import logging
 from typing import Any
 from panther.core.events import BaseEvent
+from panther.core.utils.logging_mixin import LoggerMixin
 
 
-class IPlugin(ABC):
+class IPlugin(LoggerMixin, ABC):
     def __init__(self, plugin_id: str = None, name: str = None):
         """
         Initialize a new plugin instance.
@@ -13,9 +14,12 @@ class IPlugin(ABC):
             plugin_id: Optional unique identifier for this plugin instance
             name: Optional human-readable name for this plugin
         """
+        super().__init__()
         self.plugin_id = plugin_id or self.__class__.__name__
         self.name = name or self.__class__.__name__
-        self.logger = logging.getLogger(f"Plugin:{self.name}")
+        # LoggerMixin will handle logger creation, but we can customize it
+        if hasattr(self, "_logger") and self._logger is None:
+            self._logger = logging.getLogger(f"Plugin:{self.name}")
         self.event_emitter = None
         self.config = {}
         self.is_initialized = False

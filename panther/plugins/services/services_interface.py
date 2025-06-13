@@ -729,7 +729,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         Args:
             plugin_loader: Plugin loader for creating dependencies
         """
-        self.logger = logging.getLogger(f"{self.__class__.__name__}")
+        # Logger is provided by LoggerMixin
         self.logger.debug("Preparing service %s", self.service_name)
         self.plugin_loader = plugin_loader
 

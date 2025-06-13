@@ -9,10 +9,11 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
+from panther.core.events.base.event_emitter_base import EntityEventEmitterBase
 from panther.core.events.test.events import *
 
 
-class TestEventEmitter:
+class TestEventEmitter(EntityEventEmitterBase):
     """Type-safe event emitter for test events."""
 
     def __init__(self, event_manager: "EventManager", test_id: str):
@@ -23,26 +24,28 @@ class TestEventEmitter:
             event_manager: Event manager to emit events through
             test_id: ID of the test this emitter handles
         """
-        self.event_manager = event_manager
-        self.test_id = test_id
+        super().__init__(event_manager, test_id, "test")
+
+    @property
+    def test_id(self) -> str:
+        """Get the test ID."""
+        return self.entity_id
 
     def emit_created(
         self, test_name: str, description: str | None = None, config: dict[str, Any] | None = None
     ) -> None:
         """Emit test created event."""
-        event = TestCreatedEvent(
-            test_id=self.test_id, test_name=test_name, description=description, config=config
+        self._create_and_emit_entity_event(
+            TestCreatedEvent, test_name=test_name, description=description, config=config
         )
-        self.event_manager.notify(event)
 
     def emit_setup_started(
         self, service_count: int | None = None, service_names: list[str] | None = None
     ) -> None:
         """Emit test setup started event."""
-        event = TestSetupStartedEvent(
-            test_id=self.test_id, service_count=service_count, service_names=service_names
+        self._create_and_emit_entity_event(
+            TestSetupStartedEvent, service_count=service_count, service_names=service_names
         )
-        self.event_manager.notify(event)
 
     def emit_setup_completed(
         self, services: list[str] | None = None, duration_seconds: float | None = None

@@ -17,6 +17,7 @@ from panther.plugins.environments.execution_environment.output_collector import 
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.environment_utils import ExecutionEnvironmentMixin
 
 
 @register_plugin(
@@ -28,7 +29,7 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["cpu_profiling", "performance_analysis", "hotspot_detection"],
     external_dependencies=["gperf"],
 )
-class GperfCpuEnvironment(IExecutionEnvironment, IOutputCollector, ABC):
+class GperfCpuEnvironment(ExecutionEnvironmentMixin, IExecutionEnvironment, IOutputCollector, ABC):
     """
     GperfCpuEnvironment is a class that sets up and manages the execution environment
     for CPU profiling using gperf.
@@ -69,8 +70,10 @@ class GperfCpuEnvironment(IExecutionEnvironment, IOutputCollector, ABC):
         event_manager: EventManager,
     ):
         super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
-        self.global_config = None
-        self.env_config_to_test = env_config_to_test
+        # Use standardized environment initialization
+        self.standardized_environment_initialization(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
         self.profile_files = []
 
     def setup_environment(
@@ -81,12 +84,10 @@ class GperfCpuEnvironment(IExecutionEnvironment, IOutputCollector, ABC):
         timestamp: str,
         plugin_loader: PluginLoader,
     ):
-        self.services_managers: list[IServiceManager] = services_managers
-        self.test_config = test_config
-        self.plugin_loader = plugin_loader
-        self.global_config = global_config
-        self.logger.debug("Setup environment with:")
-        self.logger.debug("Services config: %s", self.env_config_to_test)
+        # Use standardized setup from mixin
+        self.setup_execution_environment(
+            services_managers, test_config, global_config, timestamp, plugin_loader
+        )
         for service in self.services_managers:
             self.logger.debug("Service cmds: %s", service.run_cmd)
             if service.service_config_to_test.implementation.gperf_compatible:

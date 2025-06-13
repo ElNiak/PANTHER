@@ -4,11 +4,11 @@ Plugin Manager for Panther Framework
 
 import importlib
 import importlib.util
-import logging
 import os
 from pathlib import Path
 from typing import Any
 
+from panther.core.utils.logging_mixin import LoggerMixin
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.impl.plugin_observer import PluginObserver
 from panther.config.config_experiment_schema import ServiceConfig, TestConfig
@@ -27,7 +27,7 @@ from panther.plugins.plugin_catalog import PluginCatalog
 from panther.plugins.plugin_manifest import PluginType, PluginRegistration
 
 
-class PluginManager:
+class PluginManager(LoggerMixin):
     """
     Unified plugin manager that combines traditional and enhanced plugin functionality.
 
@@ -53,7 +53,7 @@ class PluginManager:
             plugin_directories: Directories to scan for plugins
             event_manager: Event manager for plugin events
         """
-        self.logger = logging.getLogger("PluginManager")
+        super().__init__()
 
         # Traditional plugin system support
         self.plugin_loader = plugin_loader

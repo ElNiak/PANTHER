@@ -163,6 +163,12 @@ class ExperimentManager:
 
             self._initialize_test_cases()
 
+            # Emit test cases initialized event to trigger workflow transition
+            test_names = [test.test_config.name for test in self.test_cases]
+            self.experiment_emitter.emit_test_cases_initialized(
+                test_count=len(self.test_cases), test_names=test_names
+            )
+
         except PluginValidationError as e:
             # Handle plugin validation errors specifically
             self.logger.error("Plugin validation failed: %s", e)
@@ -305,6 +311,9 @@ class ExperimentManager:
         """Runs the tests defined in the experiment configuration."""
         try:
             # State transitions are handled automatically by StateEventObserver
+
+            # Emit execution started event to trigger proper workflow transition
+            self.experiment_emitter.emit_execution_started(test_count=len(self.test_cases))
 
             # Experiment-level execution tracking is handled by experiment_emitter
             self.logger.info("Starting test execution for experiment: %s", self.experiment_name)

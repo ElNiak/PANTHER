@@ -128,65 +128,6 @@ execute_with_error_tracking() {
 
 # Execute pre-compilation setup commands
 log "Executing pre-compilation commands..."
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "set -x;" "1" "set -x;" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "export SHELLOPTS" "2" "export SHELLOPTS" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-export PATH=$PATH:$ADDITIONAL_PATH;
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #3"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "export PATH=$PATH:$ADDITIONAL_PATH;" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #4"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "4" "export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-env >> /app/logs/env.log;
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #5"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "5" "env >> /app/logs/env.log;" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
 
 # Execute compilation commands with error checking
 log "Executing compilation commands..."
@@ -195,50 +136,6 @@ log "Compilation completed successfully."
 
 # Execute post-compilation commands
 log "Executing post-compilation commands..."
-# Set command type for this context
-cmd_type="POST_COMPILE"
-
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-while [ ! -f /app/sync_logs/ivy_ready.log ]; do
-	echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;
-	sleep 2;
-done;
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #1"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "while [ ! -f /app/sync_logs/ivy_ready.log ]; do
-	echo \"Waiting for Ivy testers to be ready...\" >> /app/logs/tester_ready.log;
-	sleep 2;
-done;" "true" "true" || {
-  exit $?
-}
-
-# Set command type for this context
-cmd_type="POST_COMPILE"
-
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing shell builtin: echo \"Ivy testers is ready, starting picoquic_client...\" >> /app/logs/tester_ready.log;"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "echo "Ivy testers is ready, starting picoquic_client..." >> /app/logs/tester_ready.log;" || {
-  exit $?
-}
-
-# Set command type for this context
-cmd_type="POST_COMPILE"
-
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-(touch /app/logs/picoquic_client.pcap; tshark -a duration:60 -i any -w /app/logs/picoquic_client.pcap;) &
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #3"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_client.pcap; tshark -a duration:60 -i any -w /app/logs/picoquic_client.pcap;) & " "true" "true" || {
-  exit $?
-}
-
 
 # Execute pre-run commands
 log "Executing pre-run commands..."
@@ -253,7 +150,7 @@ cd "/opt/picoquic" || {
 
 
 # Prepare command and execute it
-FULL_CMD="./picoquicdemo -c  /opt/certs/cert.pem  -k  /opt/certs/key.pem  -T  /opt/ticket/ticket.key  -a  hq-interop  -l - -D -L  -v  00000001  ivy_server  4443  >  /app/logs/client.log  2>  /app/logs/client.err.log"
+FULL_CMD="./picoquicdemo -c  /opt/certs/cert.pem  -k  /opt/certs/key.pem  -T  /opt/ticket/ticket.key  -a  hq-interop  -l - -D -L  -v  00000001  ivy_server  4443"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
 
 if [ -z "$FULL_CMD" ]; then
@@ -262,16 +159,15 @@ if [ -z "$FULL_CMD" ]; then
 else
   log "Running command: $FULL_CMD"
 
-  timeout 60 $FULL_CMD > /app/logs/picoquic_client_run_cmd.log 2> /app/logs/picoquic_client_run_cmd_error.log
+  timeout 100 $FULL_CMD > /app/logs/picoquic_client_run_cmd.log 2> /app/logs/picoquic_client_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 60 seconds"
+    log "WARNING: Command timed out after 100 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
-    exit $RUN_STATUS
   fi
 fi
 
@@ -286,4 +182,4 @@ execute_with_error_tracking "$cmd_type" "cp /opt/picoquic/picoquicdemo /app/logs
 }
 
 log "All commands executed successfully. Service 'picoquic_client' entrypoint complete."
-exit 0
+exit $RUN_STATUS

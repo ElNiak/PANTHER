@@ -723,6 +723,15 @@ class TestCase(ITestCase):
         """
         self.logger.info("Setting up services based on test configuration")
 
+        # Emit workflow-level command generation started event to trigger state transition
+        # This should happen before service setup to ensure proper workflow state management
+        self.service_emitter.emit_command_generation_started(
+            service_id="workflow_setup",
+            service_name="Command Generation Workflow",
+            phase="setup",
+            config={"test_case": self.test_name, "service_count": len(self.services)},
+        )
+
         # Emit service setup started event using the typed event emitter
         service_names = list(self.services.keys())
         self.service_emitter.emit_service_setup_started(
@@ -1042,7 +1051,7 @@ class TestCase(ITestCase):
             environment_id=env_id,
             environment_name=self.test_name,
             environment_type=self.test_config.network_environment.type,
-            config={"test_case": self.test_name},
+            environment_config={"test_case": self.test_name},
         )
 
         # Then emit environment setup started event using the typed event emitter

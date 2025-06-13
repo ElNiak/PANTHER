@@ -500,8 +500,15 @@ class DockerComposeEnvironment(INetworkEnvironment):
         command_processor = CommandProcessor()
         adapter = DockerComposeCommandAdapter()
 
+        # Finalize commands to ensure latest implementation is used
+        finalized_commands = (
+            service.finalize_commands()
+            if hasattr(service, "finalize_commands")
+            else service.run_cmd
+        )
+
         # Process commands using the command processor
-        processed_commands = command_processor.process_commands(service.run_cmd)
+        processed_commands = command_processor.process_commands(finalized_commands)
 
         # Apply Docker Compose specific adaptations
         processed_commands = adapter.adapt_commands(processed_commands)

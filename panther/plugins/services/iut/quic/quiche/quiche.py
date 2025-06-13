@@ -7,6 +7,7 @@ from panther.plugins.services.iut.implementation_interface import IImplementatio
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
 
 
 @register_plugin(
@@ -20,7 +21,7 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["rfc9000", "0rtt", "migration", "http3", "qlog"],
     external_dependencies=["docker"],
 )
-class QuicheServiceManager(IImplementationManager):
+class QuicheServiceManager(IUTServiceManagerMixin, IImplementationManager):
     """
     QuicheServiceManager is a class responsible for managing the Quiche service implementation.
 

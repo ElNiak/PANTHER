@@ -8,11 +8,11 @@ PANTHER experiment workflow.
 
 import time
 import threading
-import logging
 from pathlib import Path
 from typing import Any
 from dataclasses import dataclass, field
 from enum import Enum
+from panther.core.utils.logging_mixin import LoggerMixin
 
 
 class MetricType(Enum):
@@ -93,7 +93,7 @@ class TimingContext:
     start_time: float | None = None
 
 
-class MetricsCollector:
+class MetricsCollector(LoggerMixin):
     """
     Central metrics collection system for PANTHER experiments.
 
@@ -110,6 +110,7 @@ class MetricsCollector:
             experiment_name: Name of the experiment
             output_dir: Directory where metrics will be stored
         """
+        super().__init__()
         self.experiment_name = experiment_name
         self.output_dir = output_dir
         self.metrics: list[Metric] = []
@@ -117,7 +118,6 @@ class MetricsCollector:
         # Use separate locks to reduce contention
         self.metrics_lock = threading.Lock()
         self.timers_lock = threading.Lock()
-        self.logger = logging.getLogger(self.__class__.__name__)
 
         # Thread management
         self.collection_thread = None

@@ -8,6 +8,8 @@ from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
+
+from panther.core.events.base.event_emitter_base import EventEmitterBase
 from .events import (
     PluginLoadingStartedEvent,
     PluginLoadingCompletedEvent,
@@ -22,11 +24,11 @@ from .events import (
 )
 
 
-class PluginEventEmitter:
+class PluginEventEmitter(EventEmitterBase):
     """Event emitter for plugin-related events."""
 
     def __init__(self, event_manager: "EventManager"):
-        self.event_manager = event_manager
+        super().__init__(event_manager)
 
     def emit_plugin_loading_started(
         self,

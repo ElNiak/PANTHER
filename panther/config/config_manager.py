@@ -7,6 +7,7 @@ from contextlib import nullcontext
 from dataclasses import asdict
 from omegaconf import DictConfig, OmegaConf, ValidationError, ListConfig
 import yaml
+from panther.core.utils.logging_mixin import LoggerMixin
 from panther.core.exceptions.experiment_exceptions import PluginValidationError
 from panther.config.config_global_schema import (
     AdditionalPathsConfig,
@@ -32,7 +33,7 @@ from panther.config.config_observer_schema import (
 from importlib_resources import files
 
 
-class ConfigLoader:
+class ConfigLoader(LoggerMixin):
     def __init__(
         self,
         experiment_file: str,
@@ -44,6 +45,7 @@ class ConfigLoader:
         metrics_collector=None,
         debug_override: bool = False,
     ):
+        super().__init__()
         self.experiment_file = experiment_file
         self.output_dir = output_dir
         self.metrics_collector = metrics_collector
@@ -52,8 +54,6 @@ class ConfigLoader:
         self.net_env_dir = net_env_dir
         self.iut_dir = iut_dir
         self.testers_dir = testers_dir
-
-        self.logger = logging.getLogger("ConfigLoader")
         self.global_config: GlobalConfig = None
 
         self._panther_dir = Path(os.path.dirname(__file__)).parent

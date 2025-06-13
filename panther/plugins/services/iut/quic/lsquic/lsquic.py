@@ -7,6 +7,7 @@ from panther.plugins.services.iut.implementation_interface import IImplementatio
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
 
 
 @register_plugin(
@@ -20,7 +21,7 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["rfc9000", "0rtt", "migration", "http3", "push"],
     external_dependencies=["docker"],
 )
-class LsquicServiceManager(IImplementationManager):
+class LsquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
     def __init__(
         self,
         service_config_to_test: LsquicConfig,
@@ -32,9 +33,12 @@ class LsquicServiceManager(IImplementationManager):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-        self.logger.debug("Initializing Lsquic service manager for '%s'", implementation_name)
-        self.logger.debug("Loaded Lsquic configuration: %s", self.service_config_to_test)
-        self.initialize_commands()
+        # Use standardized initialization from mixin
+        self.standardized_initialization(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
+        # Set up IUT-specific attributes
+        self.setup_iut_specific_attributes(protocol, service_config_to_test)
 
     def generate_run_command(self):
         """

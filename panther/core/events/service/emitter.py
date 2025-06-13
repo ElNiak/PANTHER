@@ -9,6 +9,7 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
+from panther.core.events.base.event_emitter_base import EventEmitterBase
 from panther.core.events.service.events import (
     ServiceCreatedEvent,
     ServicePreparationStartedEvent,
@@ -34,7 +35,7 @@ from panther.core.events.service.events import (
 )
 
 
-class ServiceEventEmitter:
+class ServiceEventEmitter(EventEmitterBase):
     """
     Type-safe event emitter for service-related events.
 
@@ -49,7 +50,7 @@ class ServiceEventEmitter:
         Args:
             event_manager: Event manager to use for event emission
         """
-        self.event_manager = event_manager
+        super().__init__(event_manager)
 
     def emit_service_created(
         self,
@@ -69,14 +70,14 @@ class ServiceEventEmitter:
             implementation: Implementation name
             config: Service configuration
         """
-        event = ServiceCreatedEvent(
+        self._create_and_emit_event(
+            ServiceCreatedEvent,
             service_id=service_id,
             service_name=service_name,
             service_type=service_type,
             implementation=implementation,
             config=config,
         )
-        self.event_manager.notify(event)
 
     def emit_service_setup_started(
         self,
@@ -518,7 +519,7 @@ class ServiceEventEmitter:
             service_instances: Dictionary mapping service names to service instances
             deployment_details: Additional deployment details
         """
-        for service_name, service_instance in service_instances.items():
+        for service_name, _ in service_instances.items():
             service_id = f"{environment}_{service_name}"
             self.emit_service_deployment_completed(
                 service_id=service_id,

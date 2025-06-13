@@ -5,9 +5,9 @@ This module provides centralized state management for PANTHER experiments,
 ensuring valid state transitions and workflow tracking.
 """
 
-import logging
 from enum import Enum
 from threading import RLock
+from panther.core.utils.logging_mixin import LoggerMixin
 
 # TODO link the workflow state to the event state ?
 
@@ -48,7 +48,7 @@ class EntityState(Enum):
     CANCELLED = "cancelled"
 
 
-class StateManager:
+class StateManager(LoggerMixin):
     """
     Manages state transitions and workflow tracking for PANTHER experiments.
 
@@ -88,7 +88,7 @@ class StateManager:
 
     def __init__(self):
         """Initialize the state manager."""
-        self.logger = logging.getLogger(self.__class__.__name__)
+        super().__init__()
         self._lock = RLock()
         self._workflow_states: dict[str, WorkflowState] = {}
         self._entity_states: dict[str, dict[str, EntityState]] = {}

@@ -86,7 +86,7 @@ class EnvironmentPluginEventMixin:
                     environment_id=environment_id,
                     environment_name=environment_name,
                     environment_type=environment_type,
-                    config=details,
+                    environment_config=details,
                 )
                 self._environment_created = True
 

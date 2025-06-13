@@ -8,6 +8,7 @@ from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
 
 
 @register_plugin(
@@ -21,7 +22,7 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["rfc9000", "0rtt", "migration"],
     external_dependencies=["docker"],
 )
-class PicoquicServiceManager(IImplementationManager):
+class PicoquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
     """
     PicoquicServiceManager is a service manager for handling Picoquic services.
     This class is responsible for initializing the service manager, generating various commands required for the service lifecycle, and preparing the service manager for use.
@@ -51,9 +52,12 @@ class PicoquicServiceManager(IImplementationManager):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-        self.logger.debug("Initializing Picoquic service manager for '%s'", implementation_name)
-        self.logger.debug("Loaded Picoquic configuration: %s", self.service_config_to_test)
-        self.initialize_commands()
+        # Use standardized initialization from mixin
+        self.standardized_initialization(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
+        # Set up IUT-specific attributes
+        self.setup_iut_specific_attributes(protocol, service_config_to_test)
 
     def get_service_name(self) -> str:
         return self.service_name
@@ -241,12 +245,7 @@ class PicoquicServiceManager(IImplementationManager):
             command_args.append(params["target"])
             command_args.append(str(params["network"]["port"]))
 
-        # Add logging parameters
-        if "logging" in params:
-            command_args.append(">")
-            command_args.append(params["logging"]["log_path"])
-            command_args.append("2>")
-            command_args.append(params["logging"]["err_path"])
+        # Note: Logging redirection is handled by the Docker environment, not as command arguments
 
         # Environment variables if needed
         env_vars = {}
