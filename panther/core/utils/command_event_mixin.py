@@ -76,20 +76,26 @@ class CommandEventMixin:
                 f"Emitted command generated event for phase {phase}: {command_preview}"
             )
 
-    def emit_docker_build_started(self, dockerfile_path: str) -> None:
+    def emit_docker_build_started(self, dockerfile_path: str, image_name: str = None) -> None:
         """
         Emit an event when Docker image build starts.
 
         Args:
             dockerfile_path: Path to the Dockerfile being built
+            image_name: Name of the image being built (optional)
         """
         if hasattr(self, "service_emitter") and self.service_emitter:
             service_name = getattr(self, "service_name", self.__class__.__name__)
+            # Use provided image_name or try to infer from implementation_name
+            if image_name is None:
+                image_name = getattr(self, "implementation_name", "unknown")
+
             self.service_emitter.emit_docker_build_started(
                 service_id=service_name,
                 service_name=service_name,
                 dockerfile_path=dockerfile_path,
                 implementation=getattr(self, "implementation_name", "unknown"),
+                image_name=image_name,
             )
             self.logger.info(f"Emitted Docker build started event for: {dockerfile_path}")
 

@@ -10,12 +10,18 @@ from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.plugin_loader import PluginLoader
+
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
-from panther.core.events import BaseEvent as Event
+from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.plugins.plugin_decorators import register_plugin
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 
 @register_plugin(
@@ -49,7 +55,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                Returns a string representation of the LocalhostSingleContainerEnvironment instance.
            prepare_environment():
                Prepares the service manager for use.
-           setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader, execution_environment):
+           setup_environment(services_managers, test_config, global_config, timestamp, plugin_manager, execution_environment):
            deploy_services():
                Deploys the services in the Localhost environment.
            generate_environment_services(paths, timestamp):
@@ -114,7 +120,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         """
         self.logger.info("Preparing Localhost service manager...")
         # Additional setup can be implemented here
-        self.plugin_loader.build_docker_image_from_path(
+        self.plugin_manager.build_docker_image_from_path(
             Path(
                 os.path.join(
                     self._plugin_dir.parent,
@@ -232,7 +238,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
         execution_environment: list[IExecutionEnvironment],
     ):
         """
@@ -243,7 +249,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
             test_config: Test configuration
             global_config: Global configuration
             timestamp: Timestamp string for file naming
-            plugin_loader: Plugin loader instance
+            plugin_manager: Plugin loader instance
             execution_environment: List of execution environment plugins
 
         Raises:
@@ -252,7 +258,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         self.update_environment(
             execution_environment,
             global_config,
-            plugin_loader,
+            plugin_manager,
             services_managers,
             test_config,
         )
@@ -547,7 +553,17 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
                         self.logger.debug(
                             "Docker Compose environment monitored successfully - Experiment finished earlier"
                         )
-                        self.event_manager.notify(Event(name="experiment_finished_early", data={}))
+                        # Emit typed event
+                        if self.event_manager:
+                            event = ExperimentFinishedEarlyEvent(
+                                experiment_id=getattr(self.test_config, "id", "unknown"),
+                                reason="Container count mismatch",
+                                details={
+                                    "expected_containers": len(self.services_managers),
+                                    "actual_containers": len(std_split) - 1,
+                                },
+                            )
+                            self.event_manager.publish(event)
 
                 self.logger.debug("Docker Compose environment monitored successfully.")
         except subprocess.CalledProcessError as e:
@@ -677,7 +693,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         test_config: "TestConfig",
         global_config: "GlobalConfig",
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
         execution_environment: list["IExecutionEnvironment"],
     ) -> None:
         """
@@ -690,7 +706,7 @@ class LocalhostSingleContainerEnvironment(INetworkEnvironment):
         self.update_environment(
             execution_environment,
             global_config,
-            plugin_loader,
+            plugin_manager,
             services_managers,
             test_config,
         )

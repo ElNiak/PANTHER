@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 import subprocess
+from typing import TYPE_CHECKING
+
 from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
@@ -9,12 +11,17 @@ from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.plugin_loader import PluginLoader
+
+# PluginManager functionality now integrated into PluginManager
 import traceback
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils import ErrorHandlerMixin, TemplateRenderer
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 
 @register_plugin(
@@ -26,7 +33,7 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["container_orchestration", "network_isolation", "service_discovery"],
     external_dependencies=["docker", "docker-compose>=2.0"],
 )
-class DockerComposeEnvironment(INetworkEnvironment):
+class DockerComposeEnvironment(INetworkEnvironment, ErrorHandlerMixin):
     """
     DockerComposeEnvironment is a class that manages the setup, deployment, monitoring, and teardown of a
     Docker Compose environment.
@@ -43,7 +50,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             Returns a string representation of the DockerComposeEnvironment instance.
         initialize(test_config, output_dir, event_manager, global_config):
             Initializes the environment with configuration and resources.
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader, execution_environment):
+        setup_environment(services_managers, test_config, global_config, timestamp, plugin_manager, execution_environment):
         prepare_environment():
             Prepares the environment (currently not implemented).
         deploy_services():
@@ -95,6 +102,11 @@ class DockerComposeEnvironment(INetworkEnvironment):
         )
         self.rendered_services_network_script_file_path: Path = Path(
             os.path.join(self.output_dir, "entrypoint.sh")
+        )
+
+        # Initialize template renderer
+        self.template_renderer = TemplateRenderer(
+            Path(self._plugin_dir) / env_type / env_sub_type / "templates"
         )
 
     def __str__(self):
@@ -207,7 +219,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
         execution_environment: list[IExecutionEnvironment],
     ):
         """
@@ -218,7 +230,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
             test_config: Test configuration
             global_config: Global configuration
             timestamp: Timestamp string for file naming
-            plugin_loader: Plugin loader instance
+            plugin_manager: Plugin loader instance
             execution_environment: List of execution environment plugins
 
         Raises:
@@ -227,7 +239,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.update_environment(
             execution_environment,
             global_config,
-            plugin_loader,
+            plugin_manager,
             services_managers,
             test_config,
         )
@@ -235,21 +247,20 @@ class DockerComposeEnvironment(INetworkEnvironment):
         # Get test case name for events
         test_case_name = test_config.name if hasattr(test_config, "name") else "unknown_test"
 
-        try:
-            # Notify environment setup started
-            if hasattr(self, "event_emitter") and self.event_emitter:
-                self.notify_environment_setup_started(
-                    details={
-                        "environment_instance": self.__class__.__name__,
-                        "environment_type": "docker_compose",
-                        "test_case": test_case_name,
-                    }
-                )
+        # Emit environment setup started event
+        self.notify_environment_setup_started(
+            details={
+                "environment_type": "docker_compose",
+                "test_case": test_case_name,
+            }
+        )
 
+        try:
             # First ensure base environment setup is complete
             if not self._setup_environment():
-                self.logger.error("Base environment setup failed")
-                raise RuntimeError("Base environment setup failed")
+                error_msg = "Base environment setup failed"
+                self.logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             # Then generate Docker Compose file and verify it exists
             success = self._setup_environment_and_verify_files(timestamp)
@@ -257,50 +268,31 @@ class DockerComposeEnvironment(INetworkEnvironment):
             # Check if the setup was not successful
             if not success:
                 error_msg = f"Failed to set up Docker Compose environment: Docker Compose file not found at {os.path.abspath(str(self.rendered_services_network_config_file_path))}"
-                self.logger.error(error_msg)
-
-                # Notify about environment setup failure
-                if hasattr(self, "event_emitter") and self.event_emitter:
-                    self.notify_environment_setup_completed(
-                        success=False,
-                        details={
-                            "environment_type": "docker_compose",
-                            "test_case": test_case_name,
-                            "error": error_msg,
-                        },
-                    )
-
                 raise RuntimeError(error_msg)
 
-            # Notify about successful environment setup
-            if hasattr(self, "event_emitter") and self.event_emitter:
-                self.notify_environment_setup_completed(
-                    success=True,
-                    details={
-                        "docker_compose_file": os.path.abspath(
-                            str(self.rendered_services_network_config_file_path)
-                        ),
-                        "environment_type": "docker_compose",
-                        "test_case": test_case_name,
-                    },
-                )
+            # Emit successful completion
+            self.notify_environment_setup_completed(
+                success=True,
+                details={
+                    "docker_compose_file": os.path.abspath(
+                        str(self.rendered_services_network_config_file_path)
+                    ),
+                    "environment_type": "docker_compose",
+                    "test_case": test_case_name,
+                },
+            )
 
         except Exception as e:
-            self.logger.error("Failed to set up Docker Compose environment: %s", e, exc_info=True)
-
-            # Notify about environment setup failure
-            if hasattr(self, "event_emitter") and self.event_emitter:
-                self.notify_environment_setup_completed(
-                    success=False,
-                    details={
-                        "environment_type": "docker_compose",
-                        "test_case": test_case_name,
-                        "error": str(e),
-                    },
-                )
-
-            # Propagate the error
-            raise RuntimeError(f"Docker Compose environment setup failed: {str(e)}")
+            # Use error handler mixin
+            self.notify_environment_setup_completed(
+                success=False,
+                details={
+                    "environment_type": "docker_compose",
+                    "test_case": test_case_name,
+                    "error": str(e),
+                },
+            )
+            self.handle_error(e, "set up Docker Compose environment")
 
     def prepare_environment(self):
         pass
@@ -864,7 +856,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         test_config: "TestConfig",
         global_config: "GlobalConfig",
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
         execution_environment: list["IExecutionEnvironment"],
     ) -> None:
         """
@@ -877,7 +869,7 @@ class DockerComposeEnvironment(INetworkEnvironment):
         self.update_environment(
             execution_environment,
             global_config,
-            plugin_loader,
+            plugin_manager,
             services_managers,
             test_config,
         )

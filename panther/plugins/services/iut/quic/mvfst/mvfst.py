@@ -1,12 +1,22 @@
 # PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
 
-import os
-from panther.plugins.services.iut.quic.mvfst.config_schema import MvfstConfig
-from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from panther.plugins.services.iut.quic.mvfst.config_schema import MvfstConfig
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
+from panther.core.utils import (
+    ServiceCommandBuilder,
+    ServiceTemplateRenderer,
+    ServiceManagerDockerMixin,
+    ErrorHandlerMixin,
+)
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 
 @register_plugin(
@@ -20,7 +30,9 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["rfc9000", "0rtt", "migration", "congestion_control"],
     external_dependencies=["docker"],
 )
-class MvfstServiceManager(IImplementationManager):
+class MvfstServiceManager(
+    IUTServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, IImplementationManager
+):
     def __init__(
         self,
         service_config_to_test: MvfstConfig,
@@ -32,9 +44,22 @@ class MvfstServiceManager(IImplementationManager):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-        self.logger.debug("Initializing Mvfst service manager for '%s'", implementation_name)
-        self.logger.debug("Loaded Mvfst configuration: %s", self.service_config_to_test)
-        self.initialize_commands()
+
+        # Use standardized initialization from mixin
+        self.standardized_initialization(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
+
+        # Set up IUT-specific attributes
+        self.setup_iut_specific_attributes(protocol, service_config_to_test)
+
+        # Initialize template renderer with plugin directory
+        plugin_dir = Path(__file__).parent
+        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+
+        # Set Docker attributes for ServiceManagerDockerMixin
+        self.docker_image_name = "mvfst:latest"
+        self.docker_file_path = plugin_dir / "Dockerfile"
 
     def generate_run_command(self):
         """
@@ -47,6 +72,9 @@ class MvfstServiceManager(IImplementationManager):
         Returns:
             dict: The run command configuration with all necessary components.
         """
+        # Emit command generation started
+        self.emit_command_generation_started("run")
+
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
         else:  # client
@@ -71,12 +99,11 @@ class MvfstServiceManager(IImplementationManager):
 
         # Try to render with structured template, fall back to original if needed
         try:
-            template_name = f"{str(self.role.name)}_command_structured.jinja"
-            rendered_command = self.render_template_with_structured_args(
-                template_name, params, command_args, env_vars
+            cmd = self.template_renderer.render_structured_command(
+                self.role.name, params, command_args, env_vars
             )
             # For structured templates, we'll use the rendered command as a string
-            command_args = rendered_command
+            command_args = cmd.command
         except Exception as e:
             self.logger.warning(
                 "Failed to render structured template for service '%s': %s",
@@ -96,7 +123,7 @@ class MvfstServiceManager(IImplementationManager):
                 # Use the command arguments as list if template rendering fails
                 pass
 
-        return {
+        run_command = {
             "working_dir": self.working_dir,
             "command_binary": (
                 self.service_config_to_test.implementation.version.server.binary.name
@@ -108,6 +135,20 @@ class MvfstServiceManager(IImplementationManager):
             "command_env": env_vars,
         }
 
+        # Notify service event
+        self.notify_service_event(
+            "run_command_generated",
+            {
+                "service_name": self.service_name,
+                "role": self.role.name if hasattr(self.role, "name") else str(self.role),
+            },
+        )
+
+        # Emit command generated
+        self.emit_command_generated("run", str(run_command))
+
+        return run_command
+
     def generate_post_run_commands(self):
         """
         Generates post-run commands.
@@ -116,28 +157,17 @@ class MvfstServiceManager(IImplementationManager):
             "cp /opt/mvfst/picoquicdemo /app/logs/picoquicdemo;"
         ]
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
         Prepare the service manager for use.
+
+        The ServiceManagerDockerMixin handles all Docker-related preparation including:
+        - Building base images
+        - Building service-specific images
+        - Setting up Docker environments
+        - Initializing commands
         """
-        self.logger.debug("Preparing Mvfst service manager...")
-        plugin_loader.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
-                    "Dockerfile",
-                )
-            ),
-            "panther_base",
-            "service",
-        )
-        plugin_loader.build_docker_image(
-            self.get_implementation_name(),
-            self.service_config_to_test.implementation.version,
-        )
+        super().prepare(plugin_manager)
 
     def generate_deployment_commands(self) -> list:
         """
@@ -183,51 +213,49 @@ class MvfstServiceManager(IImplementationManager):
             # TODO: move certificate generation to Dockerfile for better consistency
             pass
 
-        # Build structured command arguments
-        command_args = []
+        # Use ServiceCommandBuilder to build structured command arguments
+        builder = ServiceCommandBuilder(self.role)
 
         # Add certificate parameters if available
         if "certificates" in params:
-            command_args.append(params["certificates"]["cert_param"])
-            command_args.append(params["certificates"]["cert_file"])
-            command_args.append(params["certificates"]["key_param"])
-            command_args.append(params["certificates"]["key_file"])
+            builder.add_flag_with_value(
+                params["certificates"]["cert_param"], params["certificates"]["cert_file"]
+            )
+            builder.add_flag_with_value(
+                params["certificates"]["key_param"], params["certificates"]["key_file"]
+            )
 
         # Add protocol parameters
         if "protocol" in params and "additional_parameters" in params["protocol"]:
-            command_args.append(params["protocol"]["additional_parameters"])
+            builder.add_positional(params["protocol"]["additional_parameters"])
 
         # Add network interface if applicable
         if include_interface and "network" in params and "interface" in params["network"]:
-            command_args.append(params["network"]["interface"]["param"])
-            command_args.append(params["network"]["interface"]["value"])
+            builder.add_flag_with_value(
+                params["network"]["interface"]["param"], params["network"]["interface"]["value"]
+            )
 
         # Add role-specific parameters
         if self.role == RoleEnum.server:
             # Add server-specific parameters
             if "network" in params and "port" in params["network"]:
-                command_args.append("-p")
-                command_args.append(str(params["network"]["port"]))
+                builder.add_flag_with_value("-p", str(params["network"]["port"]))
         elif self.role == RoleEnum.client:
             # Add client-specific parameters including target and port
             if params["target"] and "network" in params and "port" in params["network"]:
-                command_args.append(
+                builder.add_positional(
                     f"https://{params['target']}:{params['network']['port']}/index.html"
                 )
 
-        # Add logging parameters
+        # Add logging parameters using output redirection
         if "logging" in params:
-            command_args.append(">")
-            command_args.append(params["logging"]["log_path"])
-            command_args.append("2>")
-            command_args.append(params["logging"]["err_path"])
-
-        # Environment variables if needed
-        env_vars = {}
+            builder.set_output_redirection(
+                stdout=params["logging"]["log_path"], stderr=params["logging"]["err_path"]
+            )
 
         # Return the command arguments as a list for consistent handling
         # Environment variables are handled separately in generate_run_command
-        return command_args
+        return builder.build()
 
     def __str__(self) -> str:
         return f"MvfstServiceManager({self.__dict__})"

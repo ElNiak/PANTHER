@@ -1,13 +1,17 @@
-from pathlib import Path
-import os
 import traceback
-from panther.plugins.services.iut.quic.picoquic_shadow.config_schema import (
-    PicoquicShadowConfig,
-)
-from panther.plugins.plugin_loader import PluginLoader
+from typing import TYPE_CHECKING
+
+from panther.plugins.services.iut.quic.picoquic_shadow.config_schema import PicoquicShadowConfig
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.command_builder import ServiceCommandBuilder
+from panther.core.utils.template_renderer import ServiceTemplateRenderer
+from panther.core.utils.docker_operations_mixin import ServiceManagerDockerMixin
+from panther.core.utils.error_handler_mixin import ErrorHandlerMixin
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 
 @register_plugin(
@@ -21,7 +25,9 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["rfc9000", "0rtt", "migration", "shadow_ns"],
     external_dependencies=["docker"],
 )
-class PicoquicShadowServiceManager(IImplementationManager):
+class PicoquicShadowServiceManager(
+    IImplementationManager, ServiceManagerDockerMixin, ErrorHandlerMixin
+):
     """
     PicoquicShadowServiceManager is a service manager for handling Picoquic services.
     This class is responsible for initializing the service manager, generating various commands required for the service lifecycle, and preparing the service manager for use.
@@ -35,7 +41,7 @@ class PicoquicShadowServiceManager(IImplementationManager):
         generate_pre_run_commands(self):
         generate_run_command(self):
         generate_post_run_commands(self):
-        prepare(self, plugin_loader: Optional[PluginLoader] = None):
+        prepare(self, plugin_manager: Optional[PluginManager] = None):
             Prepares the service manager for use.
         generate_deployment_commands(self) -> str:
     """
@@ -51,8 +57,16 @@ class PicoquicShadowServiceManager(IImplementationManager):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
+        ServiceManagerDockerMixin.__init__(self)
+        ErrorHandlerMixin.__init__(self)
+
         self.logger.debug("Initializing Picoquic service manager for '%s'", implementation_name)
         self.logger.debug("Loaded Picoquic configuration: %s", self.service_config_to_test)
+
+        # Initialize command builder and template renderer
+        self.command_builder = ServiceCommandBuilder()
+        self.template_renderer = ServiceTemplateRenderer()
+
         self.initialize_commands()
 
     def get_service_name(self) -> str:
@@ -101,32 +115,29 @@ class PicoquicShadowServiceManager(IImplementationManager):
             "cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"
         ]
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
         Prepares the Picoquic service manager by building the necessary Docker images.
         Args:
-            plugin_loader (PluginLoader | None): An optional PluginLoader instance used to build Docker images.
+            plugin_manager (Any | None): An optional PluginManager instance used to build Docker images.
         Raises:
-            Any exceptions raised by the plugin_loader methods.
+            Any exceptions raised by the plugin_manager methods.
         """
         self.logger.debug("Preparing Picoquic service manager...")
-        plugin_loader.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
-                    "Dockerfile",
-                )
-            ),
-            "panther_base",
-            "service",
-        )
-        plugin_loader.build_docker_image(
-            self.get_implementation_name(),
-            self.service_config_to_test.implementation.version,
-        )
+        try:
+            # Use the mixin's prepare method for common initialization
+            super().prepare(plugin_manager)
+
+            # Build Docker images using the mixin methods
+            self.build_docker_image_with_manager(plugin_manager, "panther_base", "service")
+
+            self.build_docker_image_with_manager(
+                plugin_manager,
+                self.get_implementation_name(),
+                self.service_config_to_test.implementation.version,
+            )
+        except Exception as e:
+            self.handle_error(e, "preparing Picoquic service manager")
 
     def generate_deployment_commands(self) -> str:
         """
@@ -169,60 +180,65 @@ class PicoquicShadowServiceManager(IImplementationManager):
         if not include_interface:
             params["network"].pop("interface", None)
 
-        # Build structured command arguments
-        command_args = []
+        # Use ServiceCommandBuilder to build structured command arguments
+        builder = self.command_builder
 
         # Add certificate parameters
         if "certificates" in params:
-            command_args.append(params["certificates"]["cert_param"])
-            command_args.append(params["certificates"]["cert_file"])
-            command_args.append(params["certificates"]["key_param"])
-            command_args.append(params["certificates"]["key_file"])
+            builder.add_flag_with_value(
+                params["certificates"]["cert_param"], params["certificates"]["cert_file"]
+            )
+            builder.add_flag_with_value(
+                params["certificates"]["key_param"], params["certificates"]["key_file"]
+            )
 
         # Add ticket file parameters for client
         if self.role == RoleEnum.client and "ticket_file" in params:
-            command_args.append(params["ticket_file"]["param"])
-            command_args.append(params["ticket_file"]["file"])
+            builder.add_flag_with_value(
+                params["ticket_file"]["param"], params["ticket_file"]["file"]
+            )
 
         # Add protocol parameters (ALPN)
         if "protocol" in params and "alpn" in params["protocol"]:
-            command_args.append(params["protocol"]["alpn"]["param"])
-            command_args.append(params["protocol"]["alpn"]["value"])
+            builder.add_flag_with_value(
+                params["protocol"]["alpn"]["param"], params["protocol"]["alpn"]["value"]
+            )
 
         # Add additional protocol parameters if available
         if "protocol" in params and "additional_parameters" in params["protocol"]:
-            command_args.append(params["protocol"]["additional_parameters"])
+            builder.add_positional(params["protocol"]["additional_parameters"])
 
         # Add network interface if applicable
         if include_interface and "network" in params and "interface" in params["network"]:
-            command_args.append(params["network"]["interface"]["param"])
-            command_args.append(params["network"]["interface"]["value"])
+            builder.add_flag_with_value(
+                params["network"]["interface"]["param"], params["network"]["interface"]["value"]
+            )
 
         # Add initial version for client if specified
         if self.role == RoleEnum.client and "initial_version" in params:
-            command_args.append("-v")
-            command_args.append(params["initial_version"])
+            builder.add_flag_with_value("-v", params["initial_version"])
 
         # Add role-specific parameters
         if self.role == RoleEnum.server:
             # Add port for server
             if "network" in params and "port" in params["network"]:
-                command_args.append("-p")
-                command_args.append(str(params["network"]["port"]))
+                builder.add_flag_with_value("-p", str(params["network"]["port"]))
         elif self.role == RoleEnum.client:
             # Add target and port for client
-            command_args.append(params["target"])
-            command_args.append(str(params["network"]["port"]))
+            builder.add_positional(params["target"])
+            builder.add_positional(str(params["network"]["port"]))
 
         # Add logging parameters
         if "logging" in params:
-            command_args.append(">")
-            command_args.append(params["logging"]["log_path"])
-            command_args.append("2>")
-            command_args.append(params["logging"]["err_path"])
+            builder.set_output_redirection(
+                stdout=params["logging"]["log_path"], stderr=params["logging"]["err_path"]
+            )
 
         # Environment variables if needed
         env_vars = {}
+
+        # Build command arguments
+        command_args = builder.build()
 
         # Try to render the template with structured arguments
         try:

@@ -108,24 +108,41 @@ class EventManager:
         with self._lock:
             if event_types:
                 for event_type in event_types:
-                    self.observers[event_type].append((priority, observer))
+                    # Check if this observer is already registered for this event type
+                    existing_observers = [obs for _, obs in self.observers[event_type]]
+                    if observer not in existing_observers:
+                        self.observers[event_type].append((priority, observer))
+                        # Sort by priority (highest first)
+                        self.observers[event_type].sort(key=lambda x: x[0], reverse=True)
+                        self.logger.debug(
+                            "Registered observer '%s' for event type '%s' with priority %d",
+                            observer.__class__.__name__,
+                            event_type,
+                            priority,
+                        )
+                    else:
+                        self.logger.debug(
+                            "Observer '%s' already registered for event type '%s', skipping duplicate",
+                            observer.__class__.__name__,
+                            event_type,
+                        )
+            else:
+                # Check if this observer is already registered as global observer
+                existing_global_observers = [obs for _, obs in self.global_observers]
+                if observer not in existing_global_observers:
+                    self.global_observers.append((priority, observer))
                     # Sort by priority (highest first)
-                    self.observers[event_type].sort(key=lambda x: x[0], reverse=True)
+                    self.global_observers.sort(key=lambda x: x[0], reverse=True)
                     self.logger.debug(
-                        "Registered observer '%s' for event type '%s' with priority %d",
+                        "Registered observer '%s' as global observer with priority %d",
                         observer.__class__.__name__,
-                        event_type,
                         priority,
                     )
-            else:
-                self.global_observers.append((priority, observer))
-                # Sort by priority (highest first)
-                self.global_observers.sort(key=lambda x: x[0], reverse=True)
-                self.logger.debug(
-                    "Registered observer '%s' as global observer with priority %d",
-                    observer.__class__.__name__,
-                    priority,
-                )
+                else:
+                    self.logger.debug(
+                        "Observer '%s' already registered as global observer, skipping duplicate",
+                        observer.__class__.__name__,
+                    )
 
     def unregister_observer(self, observer: IObserver, event_types: list[str] = None):
         """

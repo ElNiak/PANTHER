@@ -254,9 +254,25 @@ class ExperimentObserver(IObserver):
     def _handle_environment_setup_started(self, event: EnvironmentSetupStartedEvent) -> bool:
         """Handle environment setup started events with enhanced state tracking."""
         self.current_phase = "environment_setup"
-        environment_type = event.data.get("environment_type", "unknown")
-        environment_name = event.data.get("environment_instance", "unknown")
-        test_case = event.data.get("test_case", "unknown_test")
+
+        # Debug: Log the event structure
+        self.logger.debug("EnvironmentSetupStartedEvent data: %s", event.data)
+        self.logger.debug(
+            "EnvironmentSetupStartedEvent environment_type attribute: %s",
+            getattr(event, "environment_type", "not found"),
+        )
+
+        # Try to get environment_type from event attribute first, then from data
+        environment_type = getattr(
+            event, "environment_type", event.data.get("environment_type", "unknown")
+        )
+        environment_name = getattr(
+            event, "environment_name", event.data.get("environment_instance", "unknown")
+        )
+
+        # Test case might be in setup_config
+        setup_config = event.data.get("setup_config", {})
+        test_case = setup_config.get("test_case", event.data.get("test_case", "unknown_test"))
 
         # Just track that we've seen this environment
         self.observed_environments.add(environment_name)

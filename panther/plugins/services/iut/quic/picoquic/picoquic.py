@@ -1,14 +1,23 @@
 from pathlib import Path
-import os
-import traceback
+from typing import TYPE_CHECKING
 from panther.plugins.services.iut.quic.picoquic.config_schema import (
     PicoquicConfig,
 )
-from panther.plugins.plugin_loader import PluginLoader
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
 from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
+from panther.core.utils import (
+    ServiceCommandBuilder,
+    ServiceTemplateRenderer,
+    ServiceManagerDockerMixin,
+    ErrorHandlerMixin,
+)
+from typing import TYPE_CHECKING
 
 
 @register_plugin(
@@ -22,7 +31,9 @@ from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
     capabilities=["rfc9000", "0rtt", "migration"],
     external_dependencies=["docker"],
 )
-class PicoquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
+class PicoquicServiceManager(
+    IUTServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, IImplementationManager
+):
     """
     PicoquicServiceManager is a service manager for handling Picoquic services.
     This class is responsible for initializing the service manager, generating various commands required for the service lifecycle, and preparing the service manager for use.
@@ -36,7 +47,7 @@ class PicoquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
         generate_pre_run_commands(self):
         generate_run_command(self):
         generate_post_run_commands(self):
-        prepare(self, plugin_loader: Optional[PluginLoader] = None):
+        prepare(self, plugin_manager: Optional["PluginManager"] = None):
             Prepares the service manager for use.
         generate_deployment_commands(self) -> str:
     """
@@ -58,6 +69,25 @@ class PicoquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
         )
         # Set up IUT-specific attributes
         self.setup_iut_specific_attributes(protocol, service_config_to_test)
+
+        # Initialize template renderer
+        plugin_dir = Path(__file__).parent
+        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+
+        # Set Docker attributes for ServiceManagerDockerMixin
+        # Extract version string from version object
+        version_str = "latest"
+        if hasattr(service_config_to_test.implementation, "version"):
+            version_obj = service_config_to_test.implementation.version
+            if hasattr(version_obj, "version"):
+                version_str = version_obj.version
+            elif isinstance(version_obj, str):
+                version_str = version_obj
+            else:
+                version_str = "latest"
+
+        self.docker_image_name = f"picoquic:{version_str}"
+        self.docker_file_path = plugin_dir / "Dockerfile"
 
     def get_service_name(self) -> str:
         return self.service_name
@@ -105,60 +135,22 @@ class PicoquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
             "cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"
         ]
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
-        Prepares the Picoquic service manager by building the necessary Docker images.
-        Args:
-            plugin_loader (PluginLoader | None): An optional PluginLoader instance used to build Docker images.
-        Raises:
-            Any exceptions raised by the plugin_loader methods.
-        """
-        self.logger.debug("Preparing Picoquic service manager...")
-        plugin_loader.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
-                    "Dockerfile",
-                )
-            ),
-            "panther_base",
-            "service",
-        )
-        plugin_loader.build_docker_image(
-            self.get_implementation_name(),
-            self.service_config_to_test.implementation.version,
-        )
+        Simplified prepare method - just delegate to the enhanced mixin.
 
-    def _do_prepare(self, plugin_loader: PluginLoader | None = None):
-        """
-        Perform the actual preparation work.
+        The ServiceManagerDockerMixin now handles:
+        - Building base image only once per experiment
+        - Building service-specific image
+        - Proper event emission
+        - Error handling
 
         Args:
-            plugin_loader: Optional plugin loader to use for preparation
+            plugin_manager: Optional plugin manager for Docker operations
         """
-        self.logger.debug("Performing Picoquic preparation...")
-        if plugin_loader:
-            plugin_loader.build_docker_image_from_path(
-                Path(
-                    os.path.join(
-                        os.getcwd(),
-                        "panther",
-                        "plugins",
-                        "services",
-                        "Dockerfile",
-                    )
-                ),
-                "panther_base",
-                "service",
-            )
-            plugin_loader.build_docker_image(
-                self.get_implementation_name(),
-                self.service_config_to_test.implementation.version,
-            )
+        super().prepare(plugin_manager)
 
+    @ErrorHandlerMixin.with_error_handling("generate deployment commands")
     def generate_deployment_commands(self) -> str:
         """
         Generates deployment commands for the service based on its configuration and role.
@@ -171,106 +163,63 @@ class PicoquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
         Raises:
             Exception: If there is an error rendering the command template.
         """
-
         self.logger.debug(
             "Generating deployment commands for service: %s with service parameters: %s",
             self.service_name,
             self.service_config_to_test,
         )
 
-        self.logger.debug("Role: %s, Version: %s", self.role, self.service_version)
-
-        # For regular picoquic (non-shadow), we don't need special network interface handling
-        include_interface = False
-
         # Build parameters for the command template
-        if self.role == RoleEnum.server:
-            params = self.service_config_to_test.implementation.version.server
-        # For the client, include target and message if available
-        elif self.role == RoleEnum.client:
-            params = self.service_config_to_test.implementation.version.client
+        params = (
+            self.service_config_to_test.implementation.version.server
+            if self.role == RoleEnum.server
+            else self.service_config_to_test.implementation.version.client
+        )
 
         params["target"] = self.service_config_to_test.protocol.target
-
-        self.logger.debug("Parameters for command template: %s", params)
-        self.logger.debug("Role: %s", self.role)
         self.working_dir = params["binary"]["dir"]
 
-        # Conditionally include network interface parameters
-        if not include_interface:
-            params["network"].pop("interface", None)
+        # For regular picoquic (non-shadow), we don't need special network interface handling
+        params["network"].pop("interface", None)
 
-        # Build structured command arguments
-        command_args = []
+        # Build command using ServiceCommandBuilder
+        builder = ServiceCommandBuilder(self.role)
 
-        # Add certificate parameters
-        if "certificates" in params:
-            command_args.append(params["certificates"]["cert"]["param"])
-            command_args.append(params["certificates"]["cert"]["file"])
-            command_args.append(params["certificates"]["key"]["param"])
-            command_args.append(params["certificates"]["key"]["file"])
+        # Add standard parameters
+        # TODO: we must make sure the cert are present - builder.add_certificates(params)
+        builder.add_protocol_params(params)
 
-        # Add ticket file parameters for client
+        # Add picoquic-specific parameters
         if self.role == RoleEnum.client and "ticket_file" in params:
-            command_args.append(params["ticket_file"]["param"])
-            command_args.append(params["ticket_file"]["file"])
+            builder.add_option(params["ticket_file"]["param"], params["ticket_file"]["file"])
 
-        # Add protocol parameters (ALPN)
-        if "protocol" in params and "alpn" in params["protocol"]:
-            command_args.append(params["protocol"]["alpn"]["param"])
-            command_args.append(params["protocol"]["alpn"]["value"])
-
-        # Add additional protocol parameters if available
+        # Add additional protocol parameters
         if "protocol" in params and "additional_parameters" in params["protocol"]:
-            command_args.append(params["protocol"]["additional_parameters"])
+            builder.add_argument(params["protocol"]["additional_parameters"])
 
-        # Add network interface if applicable (disabled for regular picoquic)
-        if include_interface and "network" in params and "interface" in params["network"]:
-            command_args.append(params["network"]["interface"]["param"])
-            command_args.append(params["network"]["interface"]["value"])
-
-        # Add initial version for client if specified
+        # Add initial version for client
         if self.role == RoleEnum.client and "initial_version" in params:
-            command_args.append("-v")
-            command_args.append(params["initial_version"])
+            builder.add_option("-v", params["initial_version"])
 
         # Add role-specific parameters
-        if self.role == RoleEnum.server:
-            # Add port for server
-            if "network" in params and "port" in params["network"]:
-                command_args.append("-p")
-                command_args.append(str(params["network"]["port"]))
-        elif self.role == RoleEnum.client:
-            # Add target and port for client
-            command_args.append(params["target"])
-            command_args.append(str(params["network"]["port"]))
+        builder.add_role_specific_params(params, server_port_param="-p")
 
-        # Note: Logging redirection is handled by the Docker environment, not as command arguments
+        # Get built arguments
+        command_args = builder.build_args()
+        env_vars = builder.build_env()
 
-        # Environment variables if needed
-        env_vars = {}
-
-        # Try to render the template with structured arguments
+        # Render using template renderer
         try:
-            template_name = f"{str(self.role.name)}_command_structured.jinja"
-            return self.render_template_with_structured_args(
-                template_name, params, command_args, env_vars
+            cmd = self.template_renderer.render_structured_command(
+                self.role.name, params, command_args, env_vars
             )
+            return cmd.command
         except Exception as e:
             self.logger.warning(
                 "Failed to render structured template for service '%s': %s",
                 self.service_config_to_test.name,
                 e,
             )
-            try:
-                # Fallback to original template
-                template_name = f"{str(self.role.name)}_command.jinja"
-                return self.render_commands(params, template_name)
-            except Exception as e2:
-                self.logger.error(
-                    "Failed to render fallback command template for service '%s': %s\n%s",
-                    self.service_config_to_test.name,
-                    e2,
-                    traceback.format_exc(),
-                )
-                raise e2
+            # Fallback to original template
+            template_name = f"{str(self.role.name)}_command.jinja"
+            return self.render_commands(params, template_name)

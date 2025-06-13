@@ -171,7 +171,7 @@ from pathlib import Path
 from typing import Optional
 
 from panther.plugins.services.{self.plugin_type}.{self.plugin_name}.config_schema import {config_class}
-from panther.plugins.plugin_loader import PluginLoader
+# PluginManager functionality now integrated into PluginManager
 from {import_path} import {base_class}
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 
@@ -245,7 +245,7 @@ class {class_name}({base_class}):
         # Add cleanup or post-processing steps here
         return []
 
-    def prepare(self, plugin_loader: Optional[PluginLoader] = None):
+    def prepare(self, plugin_manager: Optional[PluginManager] = None):
         """Prepare the service for execution"""
         self.logger.debug("Preparing service for execution")
         # Add any preparation logic here

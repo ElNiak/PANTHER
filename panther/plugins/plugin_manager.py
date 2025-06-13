@@ -8,55 +8,62 @@ import os
 from pathlib import Path
 from typing import Any
 
-from panther.core.utils.logging_mixin import LoggerMixin
-from panther.core.observer.management.event_manager import EventManager
-from panther.core.observer.impl.plugin_observer import PluginObserver
+from omegaconf import OmegaConf
+
 from panther.config.config_experiment_schema import ServiceConfig, TestConfig
-from panther.plugins.protocols.config_schema import ProtocolConfig
-from panther.plugins.services.iut.config_schema import ImplementationConfig
-from panther.plugins.services.services_interface import IServiceManager
-from panther.plugins.environments.network_environment.network_environment_interface import (
-    INetworkEnvironment,
-)
+from panther.config.config_global_schema import GlobalConfig
+from panther.core.observer.impl.plugin_observer import PluginObserver
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.utils.docker_builder import DockerBuilder
+from panther.core.utils.logging_mixin import LoggerMixin
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.environments.environment_interface import IEnvironmentPlugin
-from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.environments.network_environment.network_environment_interface import (
+    INetworkEnvironment,
+)
 from panther.plugins.plugin_catalog import PluginCatalog
-from panther.plugins.plugin_manifest import PluginType, PluginRegistration
+from panther.plugins.plugin_manifest import PluginRegistration, PluginType
+from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.iut.config_schema import ImplementationConfig
+from panther.plugins.services.services_interface import IServiceManager
 
 
 class PluginManager(LoggerMixin):
     """
-    Unified plugin manager that combines traditional and enhanced plugin functionality.
+    Unified plugin manager using catalog-based plugin functionality.
 
     This manager provides:
     - Configuration-based plugin loading
     - Catalog-based discovery and validation
     - Dependency resolution
     - Event-driven architecture support
-    - Backward compatibility with existing plugins
     """
+
+    @staticmethod
+    def _get_class_name(plugin_name: str, suffix: str = "Config") -> str:
+        """Convert plugin name to class name format."""
+        class_name_parts = plugin_name.split("_")
+        class_name_parts = [part.capitalize() for part in class_name_parts]
+        class_name = "".join(class_name_parts) + suffix
+        return class_name
 
     def __init__(
         self,
-        plugin_loader: PluginLoader | None = None,
         plugin_directories: list[str] | None = None,
         event_manager: EventManager | None = None,
+        global_config: GlobalConfig | None = None,
     ):
         """
         Initialize the unified plugin manager.
 
         Args:
-            plugin_loader: Traditional plugin loader for backward compatibility
             plugin_directories: Directories to scan for plugins
             event_manager: Event manager for plugin events
+            global_config: Global configuration for Docker and other settings
         """
         super().__init__()
-
-        # Traditional plugin system support
-        self.plugin_loader = plugin_loader
 
         # Plugin catalog for discovery and validation
         self.plugin_directories = plugin_directories or []
@@ -65,16 +72,28 @@ class PluginManager(LoggerMixin):
         # Event system
         self.event_manager = event_manager
         self.plugin_observer = None
+        self.plugin_event_emitter = None
         if self.event_manager:
             self._setup_event_system()
 
         # Plugin registrations
         self.registrations: dict[str, PluginRegistration] = {}
 
-        # Legacy plugin caches (for backward compatibility)
-        self.protocol_plugins: dict[str, IServiceManager] = {}
-        self.network_environment_plugins: dict[str, INetworkEnvironment] = {}
-        self.execution_environment_plugins: dict[str, IExecutionEnvironment] = {}
+        # Docker management
+        self.global_config = global_config
+        try:
+            self.docker_builder = DockerBuilder(
+                build_log_file=(
+                    global_config.docker.log_docker_image_build if global_config else None
+                )
+            )
+        except Exception as e:
+            self.logger.warning("Failed to initialize DockerBuilder: %s", e)
+            self.docker_builder = None
+
+        # Built images and dockerfiles tracking
+        self.built_images = {}
+        self.dockerfiles = {}
 
         # Scan for available plugins
         self._discover_plugins()
@@ -107,7 +126,21 @@ class PluginManager(LoggerMixin):
             self.plugin_catalog = PluginCatalog(self.plugin_directories)
 
         # Scan for plugins
-        self.plugin_catalog.scan_plugins()
+        plugins = self.plugin_catalog.scan_plugins(use_cache=False)
+
+        # Register Dockerfiles from discovered plugins
+        for plugin_id, manifest in plugins.items():
+            plugin_path = Path(manifest.file_path) if manifest.file_path else None
+            if plugin_path:
+                dockerfile_path = plugin_path / "Dockerfile"
+                if dockerfile_path.exists():
+                    self.dockerfiles[manifest.name] = dockerfile_path
+                    self.logger.debug(
+                        "Registered Dockerfile for plugin '%s' at '%s'",
+                        manifest.name,
+                        dockerfile_path,
+                    )
+
         self.logger.info("Discovered %d plugins", len(self.plugin_catalog.catalog))
 
     def validate_experiment_plugins(self, experiment_config: Any) -> tuple[bool, list[str]]:
@@ -171,13 +204,12 @@ class PluginManager(LoggerMixin):
         event_manager: EventManager | None = None,
     ) -> IServiceManager:
         """
-        Create a service manager instance (backward compatible method).
-
-        This maintains compatibility with the existing plugin system while
-        internally using the new catalog-based approach when possible.
+        Create a service manager instance using the catalog-based approach.
         """
         self.logger.debug(
-            "Creating service manager for %s (%s)", implementation.name, implementation.type
+            "Creating service manager for %s (%s)",
+            implementation.name,
+            implementation.type,
         )
 
         # Check if we have a catalog entry for this plugin
@@ -206,22 +238,14 @@ class PluginManager(LoggerMixin):
 
             self.logger.debug("Loading service module from %s", service_file_path)
 
-            # Import the module
-            spec = importlib.util.spec_from_file_location(service_module_name, service_file_path)
-            if spec is None or spec.loader is None:
-                raise ImportError(f"Could not find module at {service_file_path}")
+            # Use PluginManagerUtils to load the plugin class
+            from panther.core.utils import PluginManagerUtils
 
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-
-            # Get the class name
-            class_name = PluginLoader.get_class_name(impl_name, suffix="ServiceManager")
-            service_manager_class = getattr(module, class_name, None)
-
-            if service_manager_class is None:
-                raise AttributeError(
-                    f"Could not find class {class_name} in module {service_module_name}"
-                )
+            service_manager_class = PluginManagerUtils.load_plugin_class(
+                plugin_path=service_file_path,
+                class_suffix="ServiceManager",
+                name_transform=lambda name: self._get_class_name(name, suffix=""),
+            )
 
             # Create the instance
             service_manager = service_manager_class(  # type: ignore[misc]
@@ -298,7 +322,7 @@ class PluginManager(LoggerMixin):
         event_manager: EventManager,
     ) -> IEnvironmentPlugin:
         """
-        Create an environment manager instance (backward compatible method).
+        Create an environment manager instance using the catalog-based approach.
         """
         self.logger.debug("Creating environment manager for %s", environment)
 
@@ -311,29 +335,16 @@ class PluginManager(LoggerMixin):
             env_type = None
             env_sub_type = environment
 
-            # Check in plugin loader's discovered plugins
-            if self.plugin_loader and hasattr(self.plugin_loader, "environment_plugins"):
-                if "network_environment" in self.plugin_loader.environment_plugins:
-                    if environment in self.plugin_loader.environment_plugins["network_environment"]:
-                        env_type = "network_environment"
-                elif "execution_environment" in self.plugin_loader.environment_plugins:
-                    if (
-                        environment
-                        in self.plugin_loader.environment_plugins["execution_environment"]
-                    ):
-                        env_type = "execution_environment"
-
-            if env_type is None:
-                # Try to infer from manifest or directory structure
-                if manifest:
-                    # Use manifest information
-                    if "network" in manifest.tags or "network" in manifest.capabilities:
-                        env_type = "network_environment"
-                    elif "execution" in manifest.tags or "execution" in manifest.capabilities:
-                        env_type = "execution_environment"
-                else:
-                    # Default to network environment
+            # Try to infer from manifest or directory structure
+            if manifest:
+                # Use manifest information
+                if "network" in manifest.tags or "network" in manifest.capabilities:
                     env_type = "network_environment"
+                elif "execution" in manifest.tags or "execution" in manifest.capabilities:
+                    env_type = "execution_environment"
+            else:
+                # Default to network environment
+                env_type = "network_environment"
 
             # Construct module name
             module_name = f"panther.plugins.environments.{env_type}.{env_sub_type}.{env_sub_type}"
@@ -346,20 +357,14 @@ class PluginManager(LoggerMixin):
 
             self.logger.debug("Loading environment module from %s", env_file_path)
 
-            # Import the module
-            spec = importlib.util.spec_from_file_location(module_name, env_file_path)
-            if spec is None or spec.loader is None:
-                raise ImportError(f"Could not find module at {env_file_path}")
+            # Use PluginManagerUtils to load the plugin class
+            from panther.core.utils import PluginManagerUtils
 
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-
-            # Get the class
-            class_name = PluginLoader.get_class_name(env_sub_type, suffix="Environment")
-            env_manager_class = getattr(module, class_name, None)
-
-            if env_manager_class is None:
-                raise AttributeError(f"Could not find class {class_name} in module {module_name}")
+            env_manager_class = PluginManagerUtils.load_plugin_class(
+                plugin_path=env_file_path,
+                class_suffix="Environment",
+                name_transform=lambda name: self._get_class_name(name, suffix=""),
+            )
 
             # Extract environment configuration
             from panther.plugins.environments.config_schema import EnvironmentConfig
@@ -464,183 +469,388 @@ class PluginManager(LoggerMixin):
         self.plugin_catalog.scan_plugins(use_cache=False)
         self.logger.info("Plugin catalog refreshed")
 
-    def get_network_environment_plugin(self, environment_type: str) -> INetworkEnvironment:
+    def get_implementations_for_protocol(self, protocol: str) -> list[str]:
+        """Get implementations for a specific protocol from catalog."""
+        self.logger.debug("Getting implementations for protocol: %s", protocol)
+        implementations = []
+
+        # Check catalog
+        for plugin_id, manifest in self.plugin_catalog.catalog.items():
+            if manifest.type == PluginType.IUT and protocol in manifest.supported_protocols:
+                implementations.append(manifest.name)
+
+        return implementations
+
+    def get_testers(self) -> list[str]:
+        """Get testers from catalog."""
+        testers = []
+
+        # Check catalog
+        for plugin_id, manifest in self.plugin_catalog.catalog.items():
+            if manifest.type == PluginType.TESTER:
+                testers.append(manifest.name)
+
+        return testers
+
+    def get_plugin_manifest(self, plugin_name: str, plugin_type: str | None = None):
         """
-        Get a network environment plugin by type.
+        Get the manifest for a specific plugin.
 
         Args:
-            environment_type: The type of the network environment plugin to retrieve
+            plugin_name: Name of the plugin
+            plugin_type: Optional type hint to disambiguate
 
         Returns:
-            INetworkEnvironment: The requested network environment plugin if found
-
-        Raises:
-            ValueError: If the environment type is not found
+            PluginManifest if found, None otherwise
         """
-        self.logger.debug("Getting network environment plugin for type: %s", environment_type)
+        # Try with type hint first
+        if plugin_type:
+            plugin_id = f"{plugin_type}:{plugin_name}"
+            if plugin_id in self.plugin_catalog.catalog:
+                return self.plugin_catalog.catalog[plugin_id]
 
-        # First try to get from our own cache
-        if environment_type in self.network_environment_plugins:
-            return self.network_environment_plugins[environment_type]
+        # Search without type
+        for plugin_id, manifest in self.plugin_catalog.catalog.items():
+            if manifest.name == plugin_name:
+                return manifest
 
-        # If not found and we have a plugins loader, check there
-        if self.plugin_loader and hasattr(self.plugin_loader, "environment_plugins"):
-            plugin_path = None
-
-            # Check for flat structure (catalog-based discovery)
-            network_key = f"network_{environment_type}"
-            if network_key in self.plugin_loader.environment_plugins:
-                plugin_path = self.plugin_loader.environment_plugins[network_key]
-
-            # Check for nested structure (legacy file-based discovery)
-            elif (
-                "network_environment" in self.plugin_loader.environment_plugins
-                and environment_type
-                in self.plugin_loader.environment_plugins["network_environment"]
-            ):
-                plugin_path = self.plugin_loader.environment_plugins["network_environment"][
-                    environment_type
-                ]
-
-            if plugin_path:
-                # We need to create an actual plugin instance, not just return the path
-                try:
-                    # Create the environment manager instance
-                    from panther.plugins.environments.config_schema import EnvironmentConfig
-
-                    env_config_to_test = EnvironmentConfig(type=environment_type)
-
-                    # Now create the actual plugin instance
-                    env_type = "network_environment"
-                    env_sub_type = environment_type
-
-                    # Create an output directory if needed
-                    output_dir = "/tmp/panther_output"  # This will be overridden by the test case
-                    os.makedirs(output_dir, exist_ok=True)
-
-                    # Create an event manager if needed
-                    event_manager = self.event_manager or EventManager.get_instance()
-
-                    # Create the environment manager using the create_environment_manager method
-                    plugin_instance = self.create_environment_manager(
-                        environment=environment_type,
-                        test_config=None,  # This will be set later by the test case
-                        environment_dir=plugin_path.parent,  # Parent directory contains all environments
-                        output_dir=output_dir,
-                        event_manager=event_manager,
-                    )
-
-                    # Cache and return the instance
-                    self.network_environment_plugins[environment_type] = plugin_instance
-                    return plugin_instance
-                except Exception as e:
-                    self.logger.error(
-                        "Failed to instantiate network environment plugin %s: %s",
-                        environment_type,
-                        str(e),
-                        exc_info=True,
-                    )
-                    return None
-
-        # Not found anywhere
-        self.logger.error("Network environment plugin not found: %s", environment_type)
-        available_plugins = list(self.network_environment_plugins.keys())
-        if self.plugin_loader and hasattr(self.plugin_loader, "environment_plugins"):
-            # Check for flat structure
-            for key in self.plugin_loader.environment_plugins.keys():
-                if key.startswith("network_"):
-                    plugin_name = key.replace("network_", "")
-                    if plugin_name not in available_plugins:
-                        available_plugins.append(plugin_name)
-
-            # Check for nested structure
-            if "network_environment" in self.plugin_loader.environment_plugins:
-                for plugin_name in self.plugin_loader.environment_plugins[
-                    "network_environment"
-                ].keys():
-                    if plugin_name not in available_plugins:
-                        available_plugins.append(plugin_name)
-
-        self.logger.error("Available network environment plugins: %s", available_plugins)
         return None
 
-    def get_execution_environment_plugin(self, environment_type: str) -> IExecutionEnvironment:
+    def validate_plugin_dependencies(self, plugin_name: str) -> tuple[bool, list[str]]:
         """
-        Get an execution environment plugin by type.
+        Validate that all dependencies for a plugin are satisfied.
 
         Args:
-            environment_type: The type of the execution environment plugin to retrieve
+            plugin_name: Name of the plugin to validate
 
         Returns:
-            IExecutionEnvironment: The requested execution environment plugin if found
-
-        Raises:
-            ValueError: If the environment type is not found
+            Tuple of (is_valid, list_of_missing_dependencies)
         """
-        self.logger.debug("Getting execution environment plugin for type: %s", environment_type)
+        manifest = self.get_plugin_manifest(plugin_name)
+        if not manifest:
+            return False, [f"Plugin '{plugin_name}' not found"]
 
-        # First try to get from our own cache
-        if environment_type in self.execution_environment_plugins:
-            return self.execution_environment_plugins[environment_type]
+        # Find the plugin ID
+        plugin_id = None
+        for pid, m in self.plugin_catalog.catalog.items():
+            if m.name == plugin_name:
+                plugin_id = pid
+                break
 
-        # If not found and we have a plugins loader, check there
-        if self.plugin_loader and hasattr(self.plugin_loader, "environment_plugins"):
-            plugin_path = None
+        if not plugin_id:
+            return False, [f"Plugin ID not found for '{plugin_name}'"]
 
-            # Check for flat structure (catalog-based discovery)
-            execution_key = f"execution_{environment_type}"
-            if execution_key in self.plugin_loader.environment_plugins:
-                plugin_path = self.plugin_loader.environment_plugins[execution_key]
+        # Use catalog's dependency resolution
+        _, missing = self.plugin_catalog.resolve_dependencies([plugin_id])
 
-            # Check for nested structure (legacy file-based discovery)
-            elif (
-                "execution_environment" in self.plugin_loader.environment_plugins
-                and environment_type
-                in self.plugin_loader.environment_plugins["execution_environment"]
-            ):
-                plugin_path = self.plugin_loader.environment_plugins["execution_environment"][
-                    environment_type
-                ]
+        return len(missing) == 0, missing
 
-            if plugin_path:
-                # We need to create an actual plugin instance, not just return the path
-                try:
-                    # Create the environment manager instance
-                    from panther.plugins.environments.config_schema import EnvironmentConfig
+    def get_plugin_version(self, plugin_name: str) -> str | None:
+        """
+        Get the version of a plugin.
 
-                    env_config_to_test = EnvironmentConfig(type=environment_type)
+        Args:
+            plugin_name: Name of the plugin
 
-                    # Now create the actual plugin instance
-                    env_type = "execution_environment"
-                    env_sub_type = environment_type
+        Returns:
+            Version string if found, None otherwise
+        """
+        manifest = self.get_plugin_manifest(plugin_name)
+        return manifest.version if manifest else None
 
-                    # Create an output directory if needed
-                    output_dir = "/tmp/panther_output"  # This will be overridden by the test case
-                    os.makedirs(output_dir, exist_ok=True)
+    def build_docker_image(self, impl_name: str, versions: str):
+        """Build Docker image for a plugin implementation."""
+        if not self.docker_builder:
+            self.logger.error("DockerBuilder not initialized, cannot build images")
+            raise RuntimeError("DockerBuilder not initialized")
 
-                    # Create an event manager if needed
-                    event_manager = self.event_manager or EventManager.get_instance()
+        self.logger.debug(
+            "Looking for Dockerfile for '%s' in dockerfiles: %s",
+            impl_name,
+            list(self.dockerfiles.keys()),
+        )
 
-                    # Create the environment manager using the create_environment_manager method
-                    plugin_instance = self.create_environment_manager(
-                        environment=environment_type,
-                        test_config=None,  # This will be set later by the test case
-                        environment_dir=plugin_path.parent,  # Parent directory contains all environments
-                        output_dir=output_dir,
-                        event_manager=event_manager,
-                    )
+        # If not found, try to discover it from the protocol implementations
+        if impl_name not in self.dockerfiles:
+            # Try to find the protocol this implementation belongs to
+            services_base = Path(os.path.dirname(__file__)) / "services"
 
-                    # Cache and return the instance
-                    self.execution_environment_plugins[environment_type] = plugin_instance
-                    return plugin_instance
-                except Exception as e:
-                    self.logger.error(
-                        "Failed to instantiate execution environment plugin %s: %s",
-                        environment_type,
-                        str(e),
-                        exc_info=True,
-                    )
-                    return None
-        # Not found anywhere
-        self.logger.error("Execution environment plugin not found: %s", environment_type)
-        return None
+            # Check both iut and testers directories
+            for service_type in ["iut", "testers"]:
+                service_type_dir = services_base / service_type
+                if not service_type_dir.exists():
+                    continue
+
+                if service_type == "iut":
+                    # For IUT services, look in protocol subdirectories
+                    for protocol_dir in service_type_dir.iterdir():
+                        if protocol_dir.is_dir():
+                            impl_dir = protocol_dir / impl_name
+                            if impl_dir.exists() and (impl_dir / "Dockerfile").exists():
+                                self.dockerfiles[impl_name] = impl_dir / "Dockerfile"
+                                self.logger.info(
+                                    "Discovered Dockerfile for '%s' at '%s'",
+                                    impl_name,
+                                    impl_dir / "Dockerfile",
+                                )
+                                break
+                else:
+                    # For testers services, look directly in the service type directory
+                    impl_dir = service_type_dir / impl_name
+                    if impl_dir.exists() and (impl_dir / "Dockerfile").exists():
+                        self.dockerfiles[impl_name] = impl_dir / "Dockerfile"
+                        self.logger.info(
+                            "Discovered Dockerfile for '%s' at '%s'",
+                            impl_name,
+                            impl_dir / "Dockerfile",
+                        )
+                        break
+
+                # If found, break from outer loop
+                if impl_name in self.dockerfiles:
+                    break
+
+        if impl_name in self.dockerfiles:
+            dockerfile_path = self.dockerfiles[impl_name]
+            self.logger.debug(
+                "Found configuration for implementation '%s': %s", impl_name, versions
+            )
+            image_tag = self.docker_builder.build_image(
+                impl_name=impl_name,
+                version=("unknown" if not hasattr(versions, "version") else versions.version),
+                dockerfile_path=dockerfile_path,
+                context_path=dockerfile_path.parent,
+                config=(
+                    {}
+                    if not hasattr(versions, "version")
+                    else {
+                        "commit": versions.commit,
+                        "dependencies": OmegaConf.to_container(versions.dependencies),
+                    }
+                ),
+                tag_version="latest",
+                build_image_force=(
+                    self.global_config.docker.build_docker_image if self.global_config else True
+                ),
+                remove_dangling=(
+                    self.global_config.docker.remove_dangling_images if self.global_config else True
+                ),
+            )
+            if image_tag:
+                key = f"{impl_name}_{versions}"
+                self.built_images[key] = image_tag
+            else:
+                self.logger.error(
+                    "Image build failed for implementation '%s' version '%s'",
+                    impl_name,
+                    versions,
+                )
+        else:
+            self.logger.error(
+                "Dockerfile not found for implementation '%s' in %s. Skipping.",
+                impl_name,
+                self.dockerfiles,
+            )
+            raise FileNotFoundError(f"Dockerfile not found for implementation '{impl_name}'.")
+
+    def build_docker_image_from_path(self, path: Path, name: str, version: str | None = None):
+        """Build Docker image from a specific path."""
+        if not self.docker_builder:
+            self.logger.error("DockerBuilder not initialized, cannot build images")
+            raise RuntimeError("DockerBuilder not initialized")
+
+        self.logger.info("Building image from path '%s'", path)
+        dockerfile_path = path.resolve()
+        versions = {version: {}} if version else {"latest": {}}
+        self.logger.debug("Found configuration for path '%s': %s", path.name, versions)
+        for version, version_config in versions.items():
+            self.logger.info("Building image for path '%s' version '%s'", path.name, version)
+            image_tag = self.docker_builder.build_image(
+                impl_name=name,
+                version=version,
+                dockerfile_path=dockerfile_path,
+                context_path=dockerfile_path.parent.resolve(),
+                config=version_config,
+                tag_version="latest",
+                build_image_force=(
+                    self.global_config.docker.build_docker_image if self.global_config else True
+                ),
+                remove_dangling=(
+                    self.global_config.docker.remove_dangling_images if self.global_config else True
+                ),
+            )
+            if image_tag:
+                key = f"{path.name}_{version}"
+                self.built_images[key] = image_tag
+            else:
+                self.logger.error(
+                    "Image build failed for implementation '%s' version '%s'",
+                    path.name,
+                    version,
+                )
+                raise RuntimeError(
+                    f"Image build failed for implementation '{path.name}' version '{version}'."
+                )
+            return image_tag
+
+    def get_network_environment_plugin(self, environment_type: str) -> INetworkEnvironment | None:
+        """
+        Get a network environment plugin instance by type.
+
+        Args:
+            environment_type: Type of network environment (e.g., 'docker_compose', 'localhost_single_container')
+
+        Returns:
+            Network environment plugin instance or None if not found
+        """
+        try:
+            # Check catalog for this environment
+            plugin_id = f"{PluginType.ENVIRONMENT.value}:{environment_type}"
+            manifest = self.plugin_catalog.catalog.get(plugin_id)
+
+            if not manifest:
+                self.logger.warning(
+                    "Network environment plugin '%s' not found in catalog",
+                    environment_type,
+                )
+                return None
+
+            # Get the path for this environment plugin
+            base_path = Path(__file__).parent
+            env_path = base_path / "environments" / "network_environment" / environment_type
+
+            if not env_path.exists():
+                self.logger.error("Network environment path does not exist: %s", env_path)
+                return None
+
+            # Load the plugin module
+            module_name = f"panther.plugins.environments.network_environment.{environment_type}.{environment_type}"
+
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as e:
+                self.logger.error(
+                    "Failed to import network environment module %s: %s", module_name, e
+                )
+                return None
+
+            # Get the environment class
+            class_name = self._get_class_name(environment_type, suffix="Environment")
+
+            try:
+                env_class = getattr(module, class_name)
+            except AttributeError:
+                self.logger.error(
+                    "Network environment class '%s' not found in module %s",
+                    class_name,
+                    module_name,
+                )
+                return None
+
+            # Create a minimal config for the plugin
+            from panther.plugins.environments.config_schema import EnvironmentConfig
+
+            env_config = EnvironmentConfig(type=environment_type)
+
+            # Create and return instance
+            env_instance = env_class(
+                env_config_to_test=env_config,
+                output_dir="",  # Will be set later
+                env_type="network_environment",
+                env_sub_type=environment_type,
+                event_manager=self.event_manager,
+            )
+
+            return env_instance
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to get network environment plugin '%s': %s",
+                environment_type,
+                e,
+                exc_info=True,
+            )
+            return None
+
+    def get_execution_environment_plugin(
+        self, environment_type: str
+    ) -> IExecutionEnvironment | None:
+        """
+        Get an execution environment plugin instance by type.
+
+        Args:
+            environment_type: Type of execution environment (e.g., 'strace', 'gperf_cpu')
+
+        Returns:
+            Execution environment plugin instance or None if not found
+        """
+        try:
+            # Check catalog for this environment
+            plugin_id = f"{PluginType.ENVIRONMENT.value}:{environment_type}"
+            manifest = self.plugin_catalog.catalog.get(plugin_id)
+
+            if not manifest:
+                self.logger.warning(
+                    "Execution environment plugin '%s' not found in catalog",
+                    environment_type,
+                )
+                return None
+
+            # Get the path for this environment plugin
+            base_path = Path(__file__).parent
+            env_path = base_path / "environments" / "execution_environment" / environment_type
+
+            if not env_path.exists():
+                self.logger.error("Execution environment path does not exist: %s", env_path)
+                return None
+
+            # Load the plugin module
+            module_name = f"panther.plugins.environments.execution_environment.{environment_type}.{environment_type}"
+
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as e:
+                self.logger.error(
+                    "Failed to import execution environment module %s: %s",
+                    module_name,
+                    e,
+                )
+                return None
+
+            # Get the environment class
+            class_name = self._get_class_name(environment_type, suffix="Environment")
+
+            try:
+                env_class = getattr(module, class_name)
+            except AttributeError:
+                self.logger.error(
+                    "Execution environment class '%s' not found in module %s",
+                    class_name,
+                    module_name,
+                )
+                return None
+
+            # Create a minimal config for the plugin
+            from panther.plugins.environments.config_schema import EnvironmentConfig
+
+            env_config = EnvironmentConfig(type=environment_type)
+
+            # Create and return instance
+            env_instance = env_class(
+                env_config_to_test=env_config,
+                output_dir="",  # Will be set later
+                env_type="execution_environment",
+                env_sub_type=environment_type,
+                event_manager=self.event_manager,
+            )
+
+            return env_instance
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to get execution environment plugin '%s': %s",
+                environment_type,
+                e,
+                exc_info=True,
+            )
+            return None

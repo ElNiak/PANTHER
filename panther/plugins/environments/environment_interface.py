@@ -8,7 +8,8 @@ from panther.core.events import EnvironmentEventEmitter
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.plugin_interface import IPlugin
 from panther.plugins.environments.environment_event_methods import EnvironmentPluginEventMixin
-from panther.plugins.plugin_loader import PluginLoader
+
+# PluginManager functionality now integrated into PluginManager
 
 if TYPE_CHECKING:
     from panther.plugins.services.services_interface import IServiceManager
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from panther.plugins.environments.execution_environment.execution_environment_interface import (
         IExecutionEnvironment,
     )
+    from panther.plugins.plugin_manager import PluginManager
 
 
 class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
@@ -29,7 +31,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         env_type (str): Type of the environment.
         env_sub_type (str): Subtype of the environment.
         log_dirs (str): Directory path for log files.
-        plugin_loader: Loader for the plugin (initially set to None).
+        plugin_manager: Plugin manager for loading plugins.
         env_config_to_test (EnvironmentConfig): Configuration of the environment to be tested.
         event_manager (EventManager): Manager for handling events.
 
@@ -59,7 +61,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         self.env_type = env_type
         self.env_sub_type = env_sub_type
         self.log_dirs = os.path.join(self.output_dir, "logs")
-        self.plugin_loader = None
+        self.plugin_manager = None
         self.env_config_to_test = env_config_to_test
         self.event_manager = event_manager
 
@@ -70,7 +72,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         self.services_managers = []
         self.test_config = None
         self.global_config = None
-        self.plugin_loader = None
+        self.plugin_manager = None
 
     @abstractmethod
     def is_network_environment(self):
@@ -95,7 +97,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         test_config: "TestConfig",
         global_config: "GlobalConfig",
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager | None",
         execution_environment: list["IExecutionEnvironment"],
     ) -> None:
         """
@@ -106,14 +108,14 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
             self.services_managers = services_managers
             self.test_config = test_config
             self.global_config = global_config
-            self.plugin_loader = plugin_loader
+            self.plugin_manager = plugin_manager
 
             # Emit environment setup started event
             self.notify_environment_setup_started(
                 details={
                     "environment_type": self.env_type,
                     "environment_name": self.env_sub_type,
-                    "test_name": test_config.name if test_config else "unknown",
+                    "test_case": test_config.name if test_config else "unknown",
                 }
             )
 
@@ -123,7 +125,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
                 test_config,
                 global_config,
                 timestamp,
-                plugin_loader,
+                plugin_manager,
                 execution_environment,
             )
 
@@ -133,7 +135,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
                 details={
                     "environment_type": self.env_type,
                     "environment_name": self.env_sub_type,
-                    "test_name": test_config.name if test_config else "unknown",
+                    "test_case": test_config.name if test_config else "unknown",
                 },
             )
 
@@ -146,7 +148,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
                     "environment_name": self.env_sub_type,
                     "error_type": type(e).__name__,
                     "error_message": str(e),
-                    "test_name": test_config.name if test_config else "unknown",
+                    "test_case": test_config.name if test_config else "unknown",
                 },
             )
             raise
@@ -158,7 +160,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         test_config: "TestConfig",
         global_config: "GlobalConfig",
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager | None",
         execution_environment: list["IExecutionEnvironment"],
     ) -> None:
         """
@@ -260,7 +262,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         self,
         execution_environment,
         global_config,
-        plugin_loader,
+        plugin_manager,
         services_managers,
         test_config,
     ) -> None:
@@ -270,7 +272,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         self.services_managers = services_managers
         self.test_config = test_config
         self.global_config = global_config
-        self.plugin_loader = plugin_loader
+        self.plugin_manager = plugin_manager
 
     @abstractmethod
     def initialize(self, test_config, output_dir, event_manager, global_config):

@@ -3,6 +3,7 @@ import time
 from abc import ABC
 from typing import Any
 
+
 from omegaconf import OmegaConf
 from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
@@ -14,7 +15,8 @@ from panther.plugins.environments.execution_environment.execution_environment_in
     IExecutionEnvironment,
 )
 from panther.plugins.environments.execution_environment.output_collector import IOutputCollector
-from panther.plugins.plugin_loader import PluginLoader
+
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_decorators import register_plugin
 from panther.core.utils.environment_utils import ExecutionEnvironmentMixin
@@ -43,16 +45,16 @@ class GperfCpuEnvironment(ExecutionEnvironmentMixin, IExecutionEnvironment, IOut
         global_config (GlobalConfig): Global configuration settings.
         services_managers (list[IServiceManager]): List of service managers.
         test_config (TestConfig): Configuration for the test.
-        plugin_loader (PluginLoader): Loader for plugins.
+        plugin_manager (PluginManager): Loader for plugins.
         logger (Logger): Logger for logging information.
 
     Methods:
         __init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager):
             Initializes the GperfCpuEnvironment with the given configuration and parameters.
 
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader):
+        setup_environment(services_managers, test_config, global_config, timestamp, plugin_manager):
             Sets up the environment with the provided services managers, test configuration,
-            global configuration, timestamp, and plugin loader.
+            global configuration, timestamp, and plugin manager.
 
         to_command(service_name):
             Generates the gperf command based on the configuration.
@@ -82,11 +84,11 @@ class GperfCpuEnvironment(ExecutionEnvironmentMixin, IExecutionEnvironment, IOut
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
     ):
         # Use standardized setup from mixin
         self.setup_execution_environment(
-            services_managers, test_config, global_config, timestamp, plugin_loader
+            services_managers, test_config, global_config, timestamp, plugin_manager
         )
         for service in self.services_managers:
             self.logger.debug("Service cmds: %s", service.run_cmd)

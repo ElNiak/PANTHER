@@ -9,8 +9,8 @@ import pytest
 from unittest.mock import Mock
 
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.observer.event_emitter import EventEmitter
-from panther.core.observer.events import (
+from panther.core.events.service.emitter import ServiceEventEmitter
+from panther.core.events.service.events import (
     ServiceStartedEvent,
     ServiceStoppedEvent,
     ServiceErrorEvent,
@@ -53,7 +53,7 @@ def event_manager():
 @pytest.fixture
 def event_emitter(event_manager):
     """Create an event emitter for testing."""
-    return EventEmitter(event_manager)
+    return ServiceEventEmitter(event_manager)
 
 
 @pytest.fixture
@@ -106,10 +106,10 @@ class TestEventDrivenIntegration:
     def test_event_emitter_initialization(self, event_manager, mock_service_manager):
         """Test that service managers properly initialize with event emitters."""
         # Set event emitter manually (normally done by plugin manager)
-        mock_service_manager.event_emitter = EventEmitter(event_manager)
+        mock_service_manager.event_emitter = ServiceEventEmitter(event_manager)
 
         assert mock_service_manager.event_emitter is not None
-        assert isinstance(mock_service_manager.event_emitter, EventEmitter)
+        assert isinstance(mock_service_manager.event_emitter, ServiceEventEmitter)
 
     def test_service_preparation_success_events(
         self, event_manager, mock_service_manager, mock_observer
@@ -119,7 +119,7 @@ class TestEventDrivenIntegration:
         event_manager.register_observer(mock_observer)
 
         # Set event emitter
-        mock_service_manager.event_emitter = EventEmitter(event_manager)
+        mock_service_manager.event_emitter = ServiceEventEmitter(event_manager)
 
         # Prepare service
         mock_service_manager.prepare()
@@ -148,7 +148,7 @@ class TestEventDrivenIntegration:
         event_manager.register_observer(mock_observer)
 
         # Set event emitter
-        mock_service_manager.event_emitter = EventEmitter(event_manager)
+        mock_service_manager.event_emitter = ServiceEventEmitter(event_manager)
 
         # Configure for failure
         mock_service_manager.prepare_success = False
@@ -252,7 +252,7 @@ class TestEventDrivenIntegration:
         event_manager.register_observer(mock_observer)
 
         # Set event emitter
-        mock_service_manager.event_emitter = EventEmitter(event_manager)
+        mock_service_manager.event_emitter = ServiceEventEmitter(event_manager)
 
         # Simulate complete lifecycle
         mock_service_manager.prepare()
@@ -278,7 +278,7 @@ class TestEventDrivenIntegration:
         event_manager.register_observer(mock_observer)
 
         # Set event emitter
-        mock_service_manager.event_emitter = EventEmitter(event_manager)
+        mock_service_manager.event_emitter = ServiceEventEmitter(event_manager)
 
         # Prepare service
         mock_service_manager.prepare()

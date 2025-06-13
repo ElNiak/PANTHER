@@ -219,92 +219,30 @@ class ShellCommand:
             f"comment_text={self.comment_text!r}, is_empty={self.is_empty})"
         )
 
-    def make_safe(self):
+    def get_shell_safe_command(self) -> str:
         """
-        Ensure the command is safe for execution by escaping it properly.
+        Get shell-safe version of the command with proper escaping.
 
-        This method modifies the command in place to ensure it can be safely
-        executed in a shell context, handling multiline commands and function definitions.
-        It also handles commands ending with control operators like &&, ;, or &.
+        This method escapes special characters that could cause issues
+        when the command is passed as a quoted string in shell scripts.
+
+        Returns:
+            Shell-safe version of the command
         """
-        # First normalize any problematic command endings
-        # self.command = normalize_command_ending(self.command)
+        if not self.command:
+            return ""
 
-        # Special case for incomplete control structures that end with 'do' without a 'done'
-        if self.command.strip().endswith("do") or self.command.strip().endswith("do;"):
-            # This is almost certainly an incomplete while/for loop
-            self.is_control_structure = True
-            self.is_multiline = True
-            # Force auto-completion by using format_multiline_command
-            self.command = format_multiline_command(self.command)
-            return
+        safe_cmd = self.command
+        # Escape backslashes first to avoid double-escaping
+        safe_cmd = safe_cmd.replace("\\", "\\\\")
+        # Escape double quotes
+        safe_cmd = safe_cmd.replace('"', '\\"')
+        # Escape dollar signs to prevent variable expansion
+        safe_cmd = safe_cmd.replace("$", "\\$")
+        # Escape backticks to prevent command substitution
+        safe_cmd = safe_cmd.replace("`", "\\`")
 
-        # Adaptive handling for control structures - ensure they're processed as multiline
-        # when they appear to be incomplete or contain typical multiline constructs
-        if self.is_control_structure and not self.is_multiline:
-            cmd_lower = self.command.lower()
-
-            # Force multiline handling for any control structure that appears to be incomplete
-            if (
-                cmd_lower.startswith("while ")
-                or cmd_lower.startswith("for ")
-                or cmd_lower.startswith("if ")
-                or cmd_lower.startswith("case ")
-                or "function " in cmd_lower
-                or "() {" in cmd_lower
-            ):
-
-                # Check if the control structure is likely incomplete
-                # (missing done/fi/esac or containing multiline indicators)
-                if (
-                    (
-                        cmd_lower.startswith("while ")
-                        and ("do" not in cmd_lower or "done" not in cmd_lower)
-                    )
-                    or (
-                        cmd_lower.startswith("for ")
-                        and ("do" not in cmd_lower or "done" not in cmd_lower)
-                    )
-                    or (
-                        cmd_lower.startswith("if ")
-                        and ("then" not in cmd_lower or "fi" not in cmd_lower)
-                    )
-                    or (
-                        cmd_lower.startswith("case ")
-                        and ("in" not in cmd_lower or "esac" not in cmd_lower)
-                    )
-                    or (("function " in cmd_lower or "() {" in cmd_lower) and "}" not in cmd_lower)
-                    or ("\n" in self.command)
-                    or (";" in self.command)
-                ):
-
-                    self.is_multiline = True
-
-        # Variable assignments that contain newlines should be treated as multiline
-        if self.is_variable_assignment and "\n" in self.command:
-            self.command = format_multiline_command(self.command)
-            return
-
-        # Skip escaping for special command types that should be preserved as-is
-        # but still run format_multiline_command for control structures that are multiline
-        if self.is_variable_assignment or self.is_shell_builtin or self.has_nested_quotes:
-            # These commands should not be escaped as they have special syntax
-            return
-        elif self.is_control_structure and self.is_multiline:
-            # For control structures that are multiline, we need special formatting
-            self.command = format_multiline_command(self.command)
-            return
-        elif self.is_control_structure:
-            # Non-multiline control structures are preserved as-is
-            return
-
-        # Apply appropriate formatting based on command type
-        if self.is_multiline:
-            self.command = format_multiline_command(self.command)
-        elif self.is_function_definition:
-            self.command = format_function_definition(self.command)
-        else:
-            self.command = escape_shell_command(self.command)
+        return safe_cmd
 
     def to_dict(self) -> dict[str, Any]:
         """
@@ -315,6 +253,7 @@ class ShellCommand:
         """
         return {
             "command": self.command,
+            "shell_safe_command": self.get_shell_safe_command(),
             "description": self.description,
             "is_critical": self.is_critical,
             "is_multiline": self.is_multiline,
@@ -370,7 +309,7 @@ class ShellCommand:
     def from_string(cls, command_str: str, is_critical: bool = True) -> "ShellCommand":
         """
         Create a ShellCommand from a plain string command.
-        This is useful for backward compatibility with existing code.
+        This is useful for plugin developers who need to create commands from strings.
 
         Args:
             command_str: The command string

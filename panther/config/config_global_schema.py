@@ -60,7 +60,7 @@ class PathsConfig:
     output_dir: str = "panther/outputs"
     log_dir: str = "panther/outputs"
     config_dir: str = "panther/configs"
-    plugin_dir: str = "panther/plugins"
+    plugin_dir: str = "plugins"
     services_dir: str = "services"
     iut_dir: str = "iut"
     testers_dir: str = "testers"

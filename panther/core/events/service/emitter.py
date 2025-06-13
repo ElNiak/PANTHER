@@ -84,6 +84,7 @@ class ServiceEventEmitter(EventEmitterBase):
         test_case: str,
         service_count: int,
         service_names: list[str] | None = None,
+        service_metadata: list[dict[str, Any]] | None = None,
     ) -> None:
         """
         Emit a service setup started event for a test case.
@@ -92,18 +93,28 @@ class ServiceEventEmitter(EventEmitterBase):
             test_case: Name of the test case
             service_count: Number of services being set up
             service_names: List of service names
+            service_metadata: List of service metadata dictionaries containing type and implementation info
         """
         # First emit service created events for each service
-        for service_name in service_names or []:
+        for i, service_name in enumerate(service_names or []):
             service_id = f"{test_case}_{service_name}"
+
+            # Extract metadata if available
+            metadata = {}
+            if service_metadata and i < len(service_metadata):
+                metadata = service_metadata[i]
+
+            service_type = metadata.get("service_type", "unknown")
+            implementation = metadata.get("implementation", "unknown")
+            config = metadata.get("config", {"test_case": test_case})
 
             # Emit service created event first
             created_event = ServiceCreatedEvent(
                 service_id=service_id,
                 service_name=service_name,
-                service_type="unknown",  # Will be determined later
-                implementation="unknown",  # Will be determined later
-                config={"test_case": test_case},
+                service_type=service_type,
+                implementation=implementation,
+                config=config,
             )
             self.event_manager.notify(created_event)
 

@@ -1,6 +1,8 @@
 #!/bin/bash -x
 # -x: trace every command (with expansions)
 
+
+
 # Define helper functions
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /app/logs/picoquic_server_entrypoint.log
@@ -60,6 +62,81 @@ check_connectivity() {
   fi
 }
 
+wait_for_dependency() {
+  local target="$1"
+  local port="${2:-4443}"
+  local timeout="${3:-300}"  # Default 5 minutes timeout
+  local interval="${4:-5}"   # Check every 5 seconds
+  local start_time=$(date +%s)
+
+  log "Waiting for dependency $target:$port to become ready (timeout: ${timeout}s)..."
+
+  # First wait for basic connectivity
+  while true; do
+    current_time=$(date +%s)
+    elapsed=$((current_time - start_time))
+
+    if [ $elapsed -gt $timeout ]; then
+      log "ERROR: Timeout waiting for $target after ${timeout} seconds"
+      return 1
+    fi
+
+    # Check if host is reachable
+    if ping -c 1 -W 2 "$target" >/dev/null 2>&1; then
+      log "Host $target is reachable, checking service port..."
+      break
+    fi
+
+    log "Waiting for $target to become reachable... (${elapsed}s elapsed)"
+    sleep $interval
+  done
+
+  # For tester services, check for ready marker files
+  if [[ "$target" == *"ivy"* ]] || [[ "$target" == *"tester"* ]]; then
+    log "Detected tester service, checking for ready marker..."
+    local ready_marker="/app/sync_logs/ivy_ready.log"
+
+    while true; do
+      current_time=$(date +%s)
+      elapsed=$((current_time - start_time))
+
+      if [ $elapsed -gt $timeout ]; then
+        log "ERROR: Timeout waiting for tester service $target to be ready after ${timeout} seconds"
+        return 1
+      fi
+
+      # Check if the ready marker exists
+      if [ -f "$ready_marker" ]; then
+        log "Tester service $target is ready (found ready marker)"
+        return 0
+      fi
+
+      log "Waiting for tester service $target to complete initialization... (${elapsed}s elapsed)"
+      sleep $interval
+    done
+  else
+    # For regular services, check port availability
+    while true; do
+      current_time=$(date +%s)
+      elapsed=$((current_time - start_time))
+
+      if [ $elapsed -gt $timeout ]; then
+        log "ERROR: Timeout waiting for $target:$port after ${timeout} seconds"
+        return 1
+      fi
+
+      # Use nc (netcat) to check if port is open
+      if nc -z -w 2 "$target" "$port" 2>/dev/null; then
+        log "Service $target:$port is ready"
+        return 0
+      fi
+
+      log "Waiting for $target:$port to become available... (${elapsed}s elapsed)"
+      sleep $interval
+    done
+  fi
+}
+
 report_exit() {
   local exit_status=$1
   local phase=$2
@@ -82,6 +159,7 @@ set_environment() {
 log "Setting up environment variables..."
 set_environment
 
+# Wait for dependencies if this is a client/IUT service
 
 
 # Function to track command failures with details
@@ -128,120 +206,21 @@ execute_with_error_tracking() {
 
 # Execute pre-compilation setup commands
 log "Executing pre-compilation commands..."
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "set -x;" "1" "set -x;" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "export SHELLOPTS" "2" "export SHELLOPTS" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-export PATH=$PATH:$ADDITIONAL_PATH;
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #3"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "export PATH=$PATH:$ADDITIONAL_PATH;" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #4"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "4" "export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-env >> /app/logs/env.log;
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #5"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "5" "env >> /app/logs/env.log;" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
 
 
 # Execute compilation commands with error checking
 log "Executing compilation commands..."
 
+
 log "Compilation completed successfully."
 
 # Execute post-compilation commands
 log "Executing post-compilation commands..."
-# Set command type for this context
-cmd_type="POST_COMPILE"
-
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-while [ ! -f /app/sync_logs/ivy_ready.log ]; do
-	echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;
-	sleep 2;
-done;
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #1"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "while [ ! -f /app/sync_logs/ivy_ready.log ]; do
-	echo \"Waiting for Ivy testers to be ready...\" >> /app/logs/tester_ready.log;
-	sleep 2;
-done;" "true" "true" || {
-  exit $?
-}
-
-# Set command type for this context
-cmd_type="POST_COMPILE"
-
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing shell builtin: echo \"Ivy testers is ready, starting picoquic_server...\" >> /app/logs/tester_ready.log;"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "echo "Ivy testers is ready, starting picoquic_server..." >> /app/logs/tester_ready.log;" || {
-  exit $?
-}
-
-# Set command type for this context
-cmd_type="POST_COMPILE"
-
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-(touch /app/logs/picoquic_server.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_server.pcap;) &
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #3"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_server.pcap; tshark -a duration:100 -i any -w /app/logs/picoquic_server.pcap;) & " "true" "true" || {
-  exit $?
-}
 
 
 # Execute pre-run commands
 log "Executing pre-run commands..."
+
 
 # Execute the main command if provided
 log "Executing main command..."
@@ -253,7 +232,7 @@ cd "/opt/picoquic" || {
 
 
 # Prepare command and execute it
-FULL_CMD="./picoquicdemo -c  /opt/certs/cert.pem  -k  /opt/certs/key.pem  -a  hq-interop  -l - -n servername -D -L  -p  4443  >  /app/logs/server.log  2>  /app/logs/server.err.log"
+FULL_CMD="./picoquicdemo -c /opt/certs/cert.pem  -k  /opt/certs/key.pem  -a  hq-interop  -l - -n servername -D -L  -p  4443"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
 
 if [ -z "$FULL_CMD" ]; then
@@ -271,7 +250,6 @@ if [ $RUN_STATUS -ne 0 ]; then
     log "WARNING: Command timed out after 100 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
-    exit $RUN_STATUS
   fi
 fi
 
@@ -285,5 +263,6 @@ execute_with_error_tracking "$cmd_type" "cp /opt/picoquic/picoquicdemo /app/logs
   exit $?
 }
 
+
 log "All commands executed successfully. Service 'picoquic_server' entrypoint complete."
-exit 0
+exit $RUN_STATUS

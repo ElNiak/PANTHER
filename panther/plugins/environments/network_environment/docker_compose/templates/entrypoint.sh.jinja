@@ -1,10 +1,181 @@
 #!/bin/bash -x
 # -x: trace every command (with expansions)
 
+{# Jinja2 Macros for reducing code duplication #}
+{% macro handle_control_operator_command(cmd_obj, cmd_type, loop_index) %}
+# Handle command with && operator
+log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
+
+# Extract parts of the command before and after &&
+FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
+REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
+
+# Create output files for this command
+FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop_index }}_first_part.log"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop_index }} first part" > "$FIRST_OUTPUT"
+echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
+echo "----------------------------------------" >> "$FIRST_OUTPUT"
+
+# First execute the part before && and capture output
+log "Executing first part: ${FIRST_PART}"
+# Check if this is a function call - needs special handling
+if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+  # Part is a function call, use eval to execute in current shell context
+  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
+  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
+  log "Detected function call to: ${FUNCTION_NAME}"
+  # Use log_function helper for tracking
+  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+else
+  # Not a function call, use bash -c as before
+  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
+  FIRST_STATUS=$?
+fi
+
+# Record completion time for first part
+echo "----------------------------------------" >> "$FIRST_OUTPUT"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
+
+# Log the captured output
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop_index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+
+if [ $FIRST_STATUS -eq 0 ]; then
+  # If first part succeeded, execute rest of command
+  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
+  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop_index }}_rest.log"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop_index }} rest part" > "$REST_OUTPUT"
+  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+
+  # Execute rest of command - check if it's a function call
+  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
+    # Part is a function call, use eval to execute in current shell context
+    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
+    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
+    log "Detected function call to: ${FUNCTION_NAME}"
+    # Use log_function helper for tracking
+    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  else
+    # Not a function call, use bash -c as before
+    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
+    REST_STATUS=$?
+  fi
+
+  # Record completion time for rest part
+  echo "----------------------------------------" >> "$REST_OUTPUT"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
+
+  # Log the captured output
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop_index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
+  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
+
+  # Exit with status from rest part
+  if [ $REST_STATUS -ne 0 ]; then
+    exit $REST_STATUS
+  fi
+else
+  exit $FIRST_STATUS
+fi
+{% endmacro %}
+
+{% macro execute_command_phase(commands, phase_name) %}
+{% if commands %}
+{% for cmd_obj in commands %}
+# Set command type for this context
+cmd_type="{{ phase_name }}"
+
+{% if cmd_obj.is_empty %}
+log "Skipping empty $cmd_type command #{{ loop.index }}"
+
+{% elif not cmd_obj.is_critical %}
+# Handle non-critical command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+
+# This command is marked as non-critical, execute it but don't fail if it returns error
+log "Executing non-critical $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
+  log "WARNING: Non-critical command failed but continuing execution"
+}
+
+{% elif cmd_obj.is_function_definition %}
+# Handle function definition
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+# This is a function definition, needs to be defined in the global scope
+log "Executing function definition: {{ cmd_obj.description }}"
+# Export the function to ensure it's available to all subprocesses
+eval "$MULTILINE_CMD"
+# Verify the function was properly defined
+# Extract function name more reliably - handle both "name()" and "name() {" formats
+FUNC_NAME=$(echo "{{ cmd_obj.command }}" | grep -o '^[[:space:]]*[[:alnum:]_]*[[:space:]]*()' | sed 's/[[:space:]]*()$//' | xargs)
+if ! declare -f "$FUNC_NAME" > /dev/null; then
+  log "ERROR: Function $FUNC_NAME failed to define correctly"
+  exit 1
+else
+  log "Function $FUNC_NAME defined successfully"
+fi
+
+{% elif cmd_obj.is_multiline %}
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #{{ loop.index }}"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
+  exit $?
+}
+
+{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
+{{ handle_control_operator_command(cmd_obj, '$cmd_type', loop.index) }}
+
+{% elif cmd_obj.is_function_call %}
+# Handle simple function call
+log "Executing function call: {{ cmd_obj.command }}"
+# Check if function exists first to avoid errors
+if declare -f {{ cmd_obj.command }} > /dev/null; then
+  {{ cmd_obj.command }} || {
+    exit $?
+  }
+else
+  log "ERROR: Function {{ cmd_obj.command }} not defined"
+  exit 1
+fi
+
+{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "{{ cmd_obj.command }}" || {
+  exit $?
+}
+
+{% else %}
+# Handle regular command
+{% set safe_cmd = cmd_obj.shell_safe_command | default(cmd_obj.command | replace('"', '\\"')) %}
+execute_with_error_tracking "$cmd_type" "{{ safe_cmd }}" "{{ loop.index }}" "{{ safe_cmd }}" "false" "true" || {
+  exit $?
+}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
 # Define helper functions
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /app/logs/{{additional_param.service_name}}_entrypoint.log
 }
+# Export log function so it's available in subshells
+export -f log
 
 log_function() {
   local fn_name="$1"
@@ -60,6 +231,134 @@ check_connectivity() {
   fi
 }
 
+resolve_hostname() {
+  local hostname="$1"
+  local format="${2:-ip}"  # Default to IP format, can be: ip, decimal, hex
+  local ip=""
+
+  # Try service discovery file first (most reliable for our services)
+  if [ -f "/app/sync_logs/${hostname}_ip.txt" ]; then
+    ip=$(cat "/app/sync_logs/${hostname}_ip.txt" 2>/dev/null | head -n1)
+    log "Found IP from service discovery: $ip" >&2
+  fi
+
+  if [ -z "$ip" ]; then
+    # Try getent (most reliable in Docker)
+    ip=$(getent hosts "$hostname" 2>/dev/null | awk '{ print $1 }' | head -n1)
+  fi
+
+  if [ -z "$ip" ]; then
+    # Fallback to nslookup
+    ip=$(nslookup "$hostname" 2>/dev/null | grep -A1 'Name:' | grep 'Address:' | tail -n1 | awk '{print $2}')
+  fi
+
+  if [ -z "$ip" ]; then
+    # Fallback to ping
+    ip=$(ping -c 1 "$hostname" 2>/dev/null | grep PING | sed -n 's/.*(\([0-9.]*\)).*/\1/p')
+  fi
+
+  if [ -n "$ip" ]; then
+    log "Resolved hostname '$hostname' to IP '$ip'" >&2
+
+    # Convert based on requested format
+    case "$format" in
+      decimal)
+        # Convert IP to decimal (for panther_ivy)
+        echo "$ip" | awk -F. '{printf("%.0f", ($1 * 256 * 256 * 256) + ($2 * 256 * 256) + ($3 * 256) + $4)}'
+        ;;
+      hex)
+        # Convert IP to hex
+        echo "$ip" | awk -F. '{printf("%02X%02X%02X%02X", $1, $2, $3, $4)}'
+        ;;
+      *)
+        # Default: return IP as-is
+        echo "$ip"
+        ;;
+    esac
+  else
+    log "WARNING: Could not resolve hostname '$hostname'" >&2
+    echo "$hostname"  # Return original hostname if resolution fails
+  fi
+}
+
+# Export the function so it's available in subshells
+export -f resolve_hostname
+
+wait_for_dependency() {
+  local target="$1"
+  local port="${2:-4443}"
+  local timeout="${3:-300}"  # Default 5 minutes timeout
+  local interval="${4:-5}"   # Check every 5 seconds
+  local start_time=$(date +%s)
+
+  log "Waiting for dependency $target:$port to become ready (timeout: ${timeout}s)..."
+
+  # First wait for basic connectivity
+  while true; do
+    current_time=$(date +%s)
+    elapsed=$((current_time - start_time))
+
+    if [ $elapsed -gt $timeout ]; then
+      log "ERROR: Timeout waiting for $target after ${timeout} seconds"
+      return 1
+    fi
+
+    # Check if host is reachable
+    if ping -c 1 -W 2 "$target" >/dev/null 2>&1; then
+      log "Host $target is reachable, checking service port..."
+      break
+    fi
+
+    log "Waiting for $target to become reachable... (${elapsed}s elapsed)"
+    sleep $interval
+  done
+
+  # For tester services, check for ready marker files
+  if [[ "$target" == *"ivy"* ]] || [[ "$target" == *"tester"* ]]; then
+    log "Detected tester service, checking for ready marker..."
+    local ready_marker="/app/sync_logs/ivy_ready.log"
+
+    while true; do
+      current_time=$(date +%s)
+      elapsed=$((current_time - start_time))
+
+      if [ $elapsed -gt $timeout ]; then
+        log "ERROR: Timeout waiting for tester service $target to be ready after ${timeout} seconds"
+        return 1
+      fi
+
+      # Check if the ready marker exists
+      if [ -f "$ready_marker" ]; then
+        log "Tester service $target is ready (found ready marker)"
+        return 0
+      fi
+
+      log "Waiting for tester service $target to complete initialization... (${elapsed}s elapsed)"
+      sleep $interval
+    done
+  else
+    # For regular services, check port availability
+    while true; do
+      current_time=$(date +%s)
+      elapsed=$((current_time - start_time))
+
+      if [ $elapsed -gt $timeout ]; then
+        log "ERROR: Timeout waiting for $target:$port after ${timeout} seconds"
+        return 1
+      fi
+
+      # Use nc (netcat) to check if port is open
+      if nc -z -w 2 "$target" "$port" 2>/dev/null; then
+        log "Service $target:$port is ready"
+        return 0
+      fi
+
+      log "Waiting for $target:$port to become available... (${elapsed}s elapsed)"
+      sleep $interval
+    done
+  fi
+}
+
 report_exit() {
   local exit_status=$1
   local phase=$2
@@ -85,6 +384,22 @@ set_environment() {
 log "Setting up environment variables..."
 set_environment
 
+# Service discovery: Write our IP to a shared file
+SERVICE_NAME="{{additional_param.service_name}}"
+SERVICE_IP=$(hostname -i | grep -v '^127' | head -n 1)
+if [ -n "$SERVICE_IP" ]; then
+  echo "$SERVICE_IP" > /app/sync_logs/${SERVICE_NAME}_ip.txt
+  log "Registered service IP: $SERVICE_IP"
+fi
+
+# Wait for dependencies if this is a client/IUT service
+{% if additional_param.service_targets %}
+log "This service depends on: {{ additional_param.service_targets }}"
+wait_for_dependency "{{ additional_param.service_targets }}" "{{ additional_param.service_port | default(4443) }}" || {
+  log "ERROR: Failed to connect to dependency {{ additional_param.service_targets }}"
+  exit 1
+}
+{% endif %}
 
 
 # Function to track command failures with details
@@ -131,652 +446,21 @@ execute_with_error_tracking() {
 
 # Execute pre-compilation setup commands
 log "Executing pre-compilation commands..."
-{% if structured_commands.get("pre_compile_cmds") %}
-{% for cmd_obj in structured_commands.get("pre_compile_cmds") %}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-{% if cmd_obj.is_empty %}
-log "Skipping empty pre-compile command #{{ loop.index }}"
-
-{% elif not cmd_obj.is_critical %}
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-{% elif cmd_obj.is_function_definition %}
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# This is a function definition, needs to be defined in the global scope
-log "Executing function definition: {{ cmd_obj.description }}"
-# Export the function to ensure it's available to all subprocesses
-eval "$MULTILINE_CMD"
-# Verify the function was properly defined
-if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
-  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
-  exit 1
-else
-  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
-fi
-
-{% elif cmd_obj.is_multiline %}
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
-  exit $?
-}
-
-{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
-# Handle command with && operator
-log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
-
-# Extract parts of the command before and after &&
-FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
-
-# Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: ${FIRST_PART}"
-# Check if this is a function call - needs special handling
-if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-  # Part is a function call, use eval to execute in current shell context
-  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
-  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
-  log "Detected function call to: ${FUNCTION_NAME}"
-  # Use log_function helper for tracking
-  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-else
-  # Not a function call, use bash -c as before
-  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-fi
-
-# Record completion time for first part
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute rest of command
-  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
-  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-
-  # Execute rest of command - check if it's a function call
-  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-    # Part is a function call, use eval to execute in current shell context
-    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
-    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
-    log "Detected function call to: ${FUNCTION_NAME}"
-    # Use log_function helper for tracking
-    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  else
-    # Not a function call, use bash -c as before
-    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  fi
-
-  # Record completion time for rest part
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  # Exit with status from rest part
-  if [ $REST_STATUS -ne 0 ]; then
-    exit $REST_STATUS
-  fi
-else
-  exit $FIRST_STATUS
-fi
-
-{% elif cmd_obj.is_function_call %}
-# Handle simple function call
-log "Executing function call: {{ cmd_obj.command }}"
-# Check if function exists first to avoid errors
-if declare -f {{ cmd_obj.command }} > /dev/null; then
-  {{ cmd_obj.command }} || {
-    exit $?
-  }
-else
-  log "ERROR: Function {{ cmd_obj.command }} not defined"
-  exit 1
-fi
-
-{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "{{ cmd_obj.command }}" || {
-  exit $?
-}
-
-{% else %}
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
-  exit $?
-}
-{% endif %}
-{% endfor %}
-{% endif %}
+{{ execute_command_phase(structured_commands.get("pre_compile_cmds"), "PRE_COMPILE") }}
 
 # Execute compilation commands with error checking
 log "Executing compilation commands..."
-{% if structured_commands.get("compile_cmds") %}
-{% for cmd_obj in structured_commands.get("compile_cmds") %}
-
-# Set command type for this context
-cmd_type="COMPILE"
-
-{% if cmd_obj.is_empty %}
-log "Skipping empty $cmd_type command #{{ loop.index }}"
-
-{% elif not cmd_obj.is_critical %}
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-{% elif cmd_obj.is_function_definition %}
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# This is a function definition, needs to be defined in the global scope
-log "Executing function definition: {{ cmd_obj.description }}"
-# Export the function to ensure it's available to all subprocesses
-eval "$MULTILINE_CMD"
-# Verify the function was properly defined
-if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
-  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
-  exit 1
-else
-  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
-fi
-
-{% elif cmd_obj.is_multiline %}
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
-  exit $?
-}
-
-{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
-# Handle command with && operator
-log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
-
-# Extract parts of the command before and after &&
-FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
-
-# Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: ${FIRST_PART}"
-# Check if this is a function call - needs special handling
-if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-  # Part is a function call, use eval to execute in current shell context
-  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
-  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
-  log "Detected function call to: ${FUNCTION_NAME}"
-  # Use log_function helper for tracking
-  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-else
-  # Not a function call, use bash -c as before
-  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-fi
-
-# Record completion time for first part
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute rest of command
-  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
-  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-
-  # Execute rest of command - check if it's a function call
-  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-    # Part is a function call, use eval to execute in current shell context
-    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
-    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
-    log "Detected function call to: ${FUNCTION_NAME}"
-    # Use log_function helper for tracking
-    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  else
-    # Not a function call, use bash -c as before
-    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  fi
-
-  # Record completion time for rest part
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  # Exit with status from rest part
-  if [ $REST_STATUS -ne 0 ]; then
-    exit $REST_STATUS
-  fi
-else
-  exit $FIRST_STATUS
-fi
-
-{% elif cmd_obj.is_function_call %}
-# Handle simple function call
-log "Executing function call: {{ cmd_obj.command }}"
-# Check if function exists first to avoid errors
-if declare -f {{ cmd_obj.command }} > /dev/null; then
-  {{ cmd_obj.command }} || {
-    exit $?
-  }
-else
-  log "ERROR: Function {{ cmd_obj.command }} not defined"
-  exit 1
-fi
-
-{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "{{ cmd_obj.command }}" || {
-  exit $?
-}
-
-{% else %}
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
-  exit $?
-}
-{% endif %}
-{% endfor %}
-{% endif %}
+{{ execute_command_phase(structured_commands.get("compile_cmds"), "COMPILE") }}
 
 log "Compilation completed successfully."
 
 # Execute post-compilation commands
 log "Executing post-compilation commands..."
-{% if structured_commands.get("post_compile_cmds") %}
-{% for cmd_obj in structured_commands.get("post_compile_cmds") %}
-# Set command type for this context
-cmd_type="POST_COMPILE"
-
-{% if cmd_obj.is_empty %}
-log "Skipping empty $cmd_type command #{{ loop.index }}"
-
-{% elif not cmd_obj.is_critical %}
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-{% elif cmd_obj.is_function_definition %}
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# This is a function definition, needs to be defined in the global scope
-log "Executing function definition: {{ cmd_obj.description }}"
-# Export the function to ensure it's available to all subprocesses
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
-  exit $?
-}
-# Verify the function was properly defined
-if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
-  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
-  exit 1
-else
-  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
-fi
-
-{% elif cmd_obj.is_multiline %}
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
-  exit $?
-}
-
-{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
-# Handle command with && operator
-log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
-
-# Extract parts of the command before and after &&
-FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
-
-# Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: ${FIRST_PART}"
-# Check if this is a function call - needs special handling
-if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-  # Part is a function call, use eval to execute in current shell context
-  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
-  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
-  log "Detected function call to: ${FUNCTION_NAME}"
-  # Use log_function helper for tracking
-  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-else
-  # Not a function call, use bash -c as before
-  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-fi
-
-# Record completion time for first part
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute rest of command
-  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
-  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-
-  # Execute rest of command - check if it's a function call
-  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-    # Part is a function call, use eval to execute in current shell context
-    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
-    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
-    log "Detected function call to: ${FUNCTION_NAME}"
-    # Use log_function helper for tracking
-    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  else
-    # Not a function call, use bash -c as before
-    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  fi
-
-  # Record completion time for rest part
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  # Exit with status from rest part
-  if [ $REST_STATUS -ne 0 ]; then
-    exit $REST_STATUS
-  fi
-else
-  exit $FIRST_STATUS
-fi
-
-{% elif cmd_obj.is_function_call %}
-# Handle simple function call
-log "Executing function call: {{ cmd_obj.command }}"
-# Check if function exists first to avoid errors
-if declare -f {{ cmd_obj.command }} > /dev/null; then
-  {{ cmd_obj.command }} || {
-    exit $?
-  }
-else
-  log "ERROR: Function {{ cmd_obj.command }} not defined"
-  exit 1
-fi
-
-{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "{{ cmd_obj.command }}" || {
-  exit $?
-}
-
-{% else %}
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
-  exit $?
-}
-{% endif %}
-{% endfor %}
-{% endif %}
+{{ execute_command_phase(structured_commands.get("post_compile_cmds"), "POST_COMPILE") }}
 
 # Execute pre-run commands
 log "Executing pre-run commands..."
-{% if structured_commands.get("pre_run_cmds") %}
-{% for cmd_obj in structured_commands.get("pre_run_cmds") %}
-# Set command type for this context
-cmd_type="PRE_RUN"
-
-{% if cmd_obj.is_empty %}
-log "Skipping empty $cmd_type command #{{ loop.index }}"
-
-{% elif not cmd_obj.is_critical %}
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-{% elif cmd_obj.is_function_definition %}
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# This is a function definition, needs to be defined in the global scope
-log "Executing function definition: {{ cmd_obj.description }}"
-# Export the function to ensure it's available to all subprocesses
-eval "$MULTILINE_CMD"
-# Verify the function was properly defined
-if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
-  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
-  exit 1
-else
-  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
-fi
-
-{% elif cmd_obj.is_multiline %}
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
-  exit $?
-}
-
-{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
-# Handle command with && operator
-log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
-
-# Extract parts of the command before and after &&
-FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
-
-# Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: ${FIRST_PART}"
-# Check if this is a function call - needs special handling
-if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-  # Part is a function call, use eval to execute in current shell context
-  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
-  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
-  log "Detected function call to: ${FUNCTION_NAME}"
-  # Use log_function helper for tracking
-  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-else
-  # Not a function call, use bash -c as before
-  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-fi
-
-# Record completion time for first part
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute rest of command
-  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
-  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-
-  # Execute rest of command - check if it's a function call
-  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-    # Part is a function call, use eval to execute in current shell context
-    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
-    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
-    log "Detected function call to: ${FUNCTION_NAME}"
-    # Use log_function helper for tracking
-    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  else
-    # Not a function call, use bash -c as before
-    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  fi
-
-  # Record completion time for rest part
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  # Exit with status from rest part
-  if [ $REST_STATUS -ne 0 ]; then
-    exit $REST_STATUS
-  fi
-else
-  exit $FIRST_STATUS
-fi
-
-{% elif cmd_obj.is_function_call %}
-# Handle simple function call
-log "Executing function call: {{ cmd_obj.command }}"
-# Check if function exists first to avoid errors
-if declare -f {{ cmd_obj.command }} > /dev/null; then
-  {{ cmd_obj.command }} || {
-    exit $?
-  }
-else
-  log "ERROR: Function {{ cmd_obj.command }} not defined"
-  exit 1
-fi
-
-{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "{{ cmd_obj.command }}" || {
-  exit $?
-}
-
-{% else %}
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
-  exit $?
-}
-{% endif %}
-{% endfor %}
-{% endif %}
+{{ execute_command_phase(structured_commands.get("pre_run_cmds"), "PRE_RUN") }}
 
 # Execute the main command if provided
 log "Executing main command..."
@@ -797,8 +481,31 @@ export {{ key }}="{{ value }}"
 {% endif %}
 
 # Prepare command and execute it
-FULL_CMD="{{ structured_commands.get("run_cmd").command_binary }} {{ structured_commands.get("run_cmd").command_args }}"
+# Handle both string and list command_args
+{% set cmd_args = structured_commands.get("run_cmd").command_args %}
+{% if cmd_args is string %}
+FULL_CMD="{{ structured_commands.get("run_cmd").command_binary }} {{ cmd_args }}"
+{% elif cmd_args is iterable and cmd_args is not string %}
+FULL_CMD="{{ structured_commands.get("run_cmd").command_binary }} {{ cmd_args | join(' ') }}"
+{% else %}
+FULL_CMD="{{ structured_commands.get("run_cmd").command_binary }}"
+{% endif %}
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
+
+# Resolve hostnames to IPs for better compatibility
+# This helps with applications that have DNS resolution issues in Docker
+# Match any service pattern: *_server, *_client, *_tester, *_iut
+while [[ "$FULL_CMD" =~ ([a-zA-Z][a-zA-Z0-9_-]*_(server|client|tester|iut)) ]]; do
+  SERVICE_HOSTNAME="${BASH_REMATCH[0]}"
+  SERVICE_IP=$(resolve_hostname "$SERVICE_HOSTNAME")
+  if [ -n "$SERVICE_IP" ] && [ "$SERVICE_IP" != "$SERVICE_HOSTNAME" ]; then
+    FULL_CMD="${FULL_CMD//$SERVICE_HOSTNAME/$SERVICE_IP}"
+    log "Replaced hostname '$SERVICE_HOSTNAME' with IP '$SERVICE_IP' in command"
+  else
+    # If we can't resolve, break to avoid infinite loop
+    break
+  fi
+done
 
 if [ -z "$FULL_CMD" ]; then
   log "WARNING: No command to run, skipping execution"
@@ -828,164 +535,7 @@ log "No main command provided, skipping."
 
 # Execute post-run commands
 log "Executing post-run commands..."
-{% if structured_commands.get("post_run_cmds") %}
-{% for cmd_obj in structured_commands.get("post_run_cmds") %}
-# Set command type for this context
-cmd_type="POST_RUN"
-
-{% if cmd_obj.is_empty %}
-log "Skipping empty $cmd_type command #{{ loop.index }}"
-
-{% elif not cmd_obj.is_critical %}
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-{% elif cmd_obj.is_function_definition %}
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# This is a function definition, needs to be defined in the global scope
-log "Executing function definition: {{ cmd_obj.description }}"
-# Export the function to ensure it's available to all subprocesses
-eval "$MULTILINE_CMD"
-# Verify the function was properly defined
-if ! declare -f {{ cmd_obj.command.split('(')[0].strip() }} > /dev/null; then
-  log "ERROR: Function {{ cmd_obj.command.split('(')[0].strip() }} failed to define correctly"
-  exit 1
-else
-  log "Function {{ cmd_obj.command.split('(')[0].strip() }} defined successfully"
-fi
-
-{% elif cmd_obj.is_multiline %}
-# Handle multi-line command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-{{ cmd_obj.command }}
-ENDOFCOMMAND
-)
-# Execute multi-line command with error tracking
-log "Executing multi-line $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
-  exit $?
-}
-
-{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
-# Handle command with && operator
-log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
-
-# Extract parts of the command before and after &&
-FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
-
-# Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} first part" > "$FIRST_OUTPUT"
-echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: ${FIRST_PART}"
-# Check if this is a function call - needs special handling
-if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-  # Part is a function call, use eval to execute in current shell context
-  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
-  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
-  log "Detected function call to: ${FUNCTION_NAME}"
-  # Use log_function helper for tracking
-  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-else
-  # Not a function call, use bash -c as before
-  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-fi
-
-# Record completion time for first part
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute rest of command
-  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop.index }}_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop.index }} rest part" > "$REST_OUTPUT"
-  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-
-  # Execute rest of command - check if it's a function call
-  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-    # Part is a function call, use eval to execute in current shell context
-    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
-    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
-    log "Detected function call to: ${FUNCTION_NAME}"
-    # Use log_function helper for tracking
-    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  else
-    # Not a function call, use bash -c as before
-    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  fi
-
-  # Record completion time for rest part
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop.index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  # Exit with status from rest part
-  if [ $REST_STATUS -ne 0 ]; then
-    exit $REST_STATUS
-  fi
-else
-  exit $FIRST_STATUS
-fi
-
-{% elif cmd_obj.is_function_call %}
-# Handle simple function call
-log "Executing function call: {{ cmd_obj.command }}"
-# Check if function exists first to avoid errors
-if declare -f {{ cmd_obj.command }} > /dev/null; then
-  {{ cmd_obj.command }} || {
-    exit $?
-  }
-else
-  log "ERROR: Function {{ cmd_obj.command }} not defined"
-  exit 1
-fi
-
-{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "{{ cmd_obj.command }}" || {
-  exit $?
-}
-
-{% else %}
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "{{ cmd_obj.command }}" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "false" "true" || {
-  exit $?
-}
-{% endif %}
-{% endfor %}
-{% endif %}
+{{ execute_command_phase(structured_commands.get("post_run_cmds"), "POST_RUN") }}
 
 log "All commands executed successfully. Service '{{additional_param.service_name}}' entrypoint complete."
 exit $RUN_STATUS

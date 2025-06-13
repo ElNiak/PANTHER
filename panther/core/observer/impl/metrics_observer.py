@@ -38,8 +38,13 @@ from panther.core.events import (
     MetricsSummaryEvent,
     MetricCollectedEvent,
 )
-from panther.core.metrics.metrics_collector import MetricsCollector, MetricType, Phase
-from panther.core.metrics.resource_monitor import ResourceMonitor
+from panther.core.metrics.enums import MetricType, Phase
+
+# Import TYPE_CHECKING to handle circular imports
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from panther.core.metrics.resource_monitor import ResourceMonitor
 
 
 @dataclass
@@ -400,6 +405,9 @@ class MetricsObserver(ITypedObserver):
         # Create metrics collector if it doesn't exist
         if not self.metrics_collector:
             experiment_name = getattr(event, "experiment_name", self.experiment_name)
+            # Lazy import to avoid circular dependency
+            from panther.core.metrics.metrics_collector import MetricsCollector
+
             self.metrics_collector = MetricsCollector(
                 experiment_name, output_dir, self.publish_interval
             )

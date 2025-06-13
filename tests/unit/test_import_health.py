@@ -11,9 +11,7 @@ class TestImportHealth:
     def test_no_circular_imports_core(self):
         """Test that core modules can be imported without circular dependencies."""
         # Clear any previously imported panther modules to test fresh imports
-        modules_to_clear = [
-            mod for mod in sys.modules.keys() if mod.startswith("panther")
-        ]
+        modules_to_clear = [mod for mod in sys.modules.keys() if mod.startswith("panther")]
         for mod in modules_to_clear:
             if mod in sys.modules:
                 del sys.modules[mod]
@@ -23,7 +21,7 @@ class TestImportHealth:
             "panther.core.utils.docker_builder",
             "panther.core.experiment_manager",
             "panther.config.config_manager",
-            "panther.plugins.plugin_loader",
+            "panther.plugins.plugin_manager",
             "panther.config.config_experiment_schema",
         ]
 
@@ -36,9 +34,7 @@ class TestImportHealth:
     def test_package_imports(self):
         """Test that package-level imports work correctly."""
         # Clear any previously imported panther modules
-        modules_to_clear = [
-            mod for mod in sys.modules.keys() if mod.startswith("panther")
-        ]
+        modules_to_clear = [mod for mod in sys.modules.keys() if mod.startswith("panther")]
         for mod in modules_to_clear:
             if mod in sys.modules:
                 del sys.modules[mod]
@@ -55,9 +51,7 @@ class TestImportHealth:
     def test_main_panther_import(self):
         """Test that the main panther package can be imported."""
         # Clear any previously imported panther modules
-        modules_to_clear = [
-            mod for mod in sys.modules.keys() if mod.startswith("panther")
-        ]
+        modules_to_clear = [mod for mod in sys.modules.keys() if mod.startswith("panther")]
         for mod in modules_to_clear:
             if mod in sys.modules:
                 del sys.modules[mod]

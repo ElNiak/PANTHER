@@ -1,12 +1,22 @@
 # PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
 
-import os
-from panther.plugins.services.iut.quic.quant.config_schema import QuantConfig
-from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from panther.plugins.services.iut.quic.quant.config_schema import QuantConfig
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
+from panther.core.utils import (
+    ServiceCommandBuilder,
+    ServiceTemplateRenderer,
+    ServiceManagerDockerMixin,
+    ErrorHandlerMixin,
+)
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 
 @register_plugin(
@@ -20,7 +30,9 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["rfc9000", "0rtt", "migration", "spinbit"],
     external_dependencies=["docker"],
 )
-class QuantServiceManager(IImplementationManager):
+class QuantServiceManager(
+    IUTServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, IImplementationManager
+):
     """
     QuantServiceManager is a class responsible for managing the QUIC service implementation using the Quant library.
     It extends the IImplementationManager and provides methods to initialize, prepare, and generate commands for running and deploying the service.
@@ -36,7 +48,7 @@ class QuantServiceManager(IImplementationManager):
             Generates the run command for the service.
         generate_post_run_commands(self):
             Generates post-run commands for the service.
-        prepare(self, plugin_loader: PluginLoader | None = None):
+        prepare(self, plugin_manager: "PluginManager | None" = None):
             Prepares the service manager for use, including building Docker images.
         generate_deployment_commands(self) -> list[str]:
             Generates a list of command arguments for deployment.
@@ -57,9 +69,22 @@ class QuantServiceManager(IImplementationManager):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-        self.logger.debug("Initializing Quant service manager for '%s'", implementation_name)
-        self.logger.debug("Loaded Quant configuration: %s", self.service_config_to_test)
-        self.initialize_commands()
+
+        # Use standardized initialization from mixin
+        self.standardized_initialization(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
+
+        # Set up IUT-specific attributes
+        self.setup_iut_specific_attributes(protocol, service_config_to_test)
+
+        # Initialize template renderer with plugin directory
+        plugin_dir = Path(__file__).parent
+        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+
+        # Set Docker attributes for ServiceManagerDockerMixin
+        self.docker_image_name = "quant:latest"
+        self.docker_file_path = plugin_dir / "Dockerfile"
 
     def generate_run_command(self):
         """
@@ -72,6 +97,9 @@ class QuantServiceManager(IImplementationManager):
         Returns:
             dict: The run command configuration with all necessary components.
         """
+        # Emit command generation started
+        self.emit_command_generation_started("run")
+
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
         else:  # client
@@ -94,19 +122,18 @@ class QuantServiceManager(IImplementationManager):
 
         # Try to render with structured template, fall back to original if needed
         try:
-            template_name = f"{str(self.role.name)}_command_structured.jinja"
-            rendered_command = self.render_template_with_structured_args(
-                template_name, params, command_args, env_vars
+            cmd = self.template_renderer.render_structured_command(
+                self.role.name, params, command_args, env_vars
             )
             # For structured templates, we'll use the rendered command as a string
-            command_args = rendered_command
+            command_args = cmd.command
         except Exception as e:
             self.logger.warning(
                 "Failed to use structured template for %s: %s. ", self.service_name, e
             )
             # Keep command_args as is if the structured template fails
 
-        return {
+        run_command = {
             "working_dir": self.working_dir,
             "command_binary": params["binary"]["name"],
             "command_args": command_args,
@@ -114,34 +141,41 @@ class QuantServiceManager(IImplementationManager):
             "command_env": env_vars,
         }
 
+        # Notify service event
+        self.notify_service_event(
+            "run_command_generated",
+            {
+                "service_name": self.service_name,
+                "role": self.role.name if hasattr(self.role, "name") else str(self.role),
+            },
+        )
+
+        # Emit command generated
+        self.emit_command_generated("run", str(run_command))
+
+        return run_command
+
     def generate_post_run_commands(self):
         """
         Generates post-run commands.
         """
         return super().generate_post_run_commands() + ["cp -r /opt/quant/bin /app/logs/quant/;"]
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
-        Prepare the service manager for use.
+        Simplified prepare method - just delegate to the enhanced mixin.
+
+        The ServiceManagerDockerMixin now handles:
+        - Building base image only once per experiment
+        - Building service-specific image
+        - Proper event emission
+        - Error handling
+        - Command initialization (if initialize_commands exists)
+
+        Args:
+            plugin_manager: Optional plugin manager for Docker operations
         """
-        self.logger.debug("Preparing Quant service manager...")
-        plugin_loader.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
-                    "Dockerfile",
-                )
-            ),
-            "panther_base",
-            "service",
-        )
-        plugin_loader.build_docker_image(
-            self.get_implementation_name(),
-            self.service_config_to_test.implementation.version,
-        )
+        super().prepare(plugin_manager)
 
     def generate_deployment_commands(self) -> list:
         """
@@ -166,16 +200,16 @@ class QuantServiceManager(IImplementationManager):
         else:  # client
             params = self.service_config_to_test.implementation.version.client
 
-        # Initialize the command argument list
-        cmd_args = []
+        # Use ServiceCommandBuilder to build structured command arguments
+        builder = ServiceCommandBuilder(self.role)
 
         # Add certificate parameters
         if "certificates" in params and params["certificates"]:
             certs = params["certificates"]
             if "cert_param" in certs and "cert_file" in certs:
-                cmd_args.extend([certs["cert_param"], certs["cert_file"]])
+                builder.add_flag_with_value(certs["cert_param"], certs["cert_file"])
             if "key_param" in certs and "key_file" in certs:
-                cmd_args.extend([certs["key_param"], certs["key_file"]])
+                builder.add_flag_with_value(certs["key_param"], certs["key_file"])
 
         # Add protocol parameters
         if "protocol" in params and params["protocol"]:
@@ -183,35 +217,39 @@ class QuantServiceManager(IImplementationManager):
             if "additional_parameters" in proto and proto["additional_parameters"]:
                 # Split additional parameters into separate arguments
                 additional_params = self.build_command_args(proto["additional_parameters"])
-                cmd_args.extend(additional_params)
+                for param in additional_params:
+                    builder.add_positional(param)
 
         # Add network interface if specified
         if "network" in params and params["network"]:
             network = params["network"]
             if "interface" in network and network["interface"]:
-                cmd_args.extend([network["interface"]["param"], network["interface"]["value"]])
+                builder.add_flag_with_value(
+                    network["interface"]["param"], network["interface"]["value"]
+                )
 
             # Add port for server or as part of URL for client
             if self.role == RoleEnum.server:
-                cmd_args.extend(["-p", str(network["port"])])
-                cmd_args.extend(["-v", "5"])  # Verbose output
+                builder.add_flag_with_value("-p", str(network["port"]))
+                builder.add_flag_with_value("-v", "5")  # Verbose output
 
         # Add initial version if specified
         if "initial_version" in params and params["initial_version"]:
-            cmd_args.extend(["-e", params["initial_version"]])
+            builder.add_flag_with_value("-e", params["initial_version"])
 
         # Add target URL for client
         if self.role == RoleEnum.client:
             target = self.service_config_to_test.protocol.target
             port = params["network"]["port"]
-            cmd_args.append(f"https://{target}:{port}/index.html")
+            builder.add_positional(f"https://{target}:{port}/index.html")
 
         # Add logging redirection
         if "logging" in params and params["logging"]:
-            cmd_args.extend(
-                [">", params["logging"]["log_path"], "2>", params["logging"]["err_path"]]
+            builder.set_output_redirection(
+                stdout=params["logging"]["log_path"], stderr=params["logging"]["err_path"]
             )
 
+        cmd_args = builder.build()
         self.logger.debug("Generated command arguments: %s", cmd_args)
         return cmd_args
 

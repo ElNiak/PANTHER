@@ -12,11 +12,17 @@ from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.plugin_loader import PluginLoader
+
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
 from panther.plugins.plugin_decorators import register_plugin
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 
 @register_plugin(
@@ -75,7 +81,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         prepare_environment(self):
             Prepares the service manager for use by building the Docker image.
 
-        setup_environment(self, services_managers: List[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader, execution_environment: List[IExecutionEnvironment]):
+        setup_environment(self, services_managers: List[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_manager: "PluginManager", execution_environment: List[IExecutionEnvironment]):
 
         deploy_services(self):
             Deploys the services in the Shadow NS environment.
@@ -147,7 +153,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         Prepare the service manager for use.
         """
         self.logger.info("Preparing Shadow NS service manager...")
-        self.plugin_loader.build_docker_image_from_path(
+        self.plugin_manager.build_docker_image_from_path(
             Path(
                 os.path.join(
                     self._plugin_dir,
@@ -260,7 +266,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
         execution_environment: list[IExecutionEnvironment],
     ):
         """
@@ -271,7 +277,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
             test_config: Test configuration
             global_config: Global configuration
             timestamp: Timestamp string for file naming
-            plugin_loader: Plugin loader instance
+            plugin_manager: Plugin loader instance
             execution_environment: List of execution environment plugins
 
         Raises:
@@ -280,7 +286,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.update_environment(
             execution_environment,
             global_config,
-            plugin_loader,
+            plugin_manager,
             services_managers,
             test_config,
         )
@@ -662,7 +668,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         test_config: "TestConfig",
         global_config: "GlobalConfig",
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
         execution_environment: list["IExecutionEnvironment"],
     ) -> None:
         """
@@ -675,7 +681,7 @@ class ShadowNsEnvironment(INetworkEnvironment):
         self.update_environment(
             execution_environment,
             global_config,
-            plugin_loader,
+            plugin_manager,
             services_managers,
             test_config,
         )

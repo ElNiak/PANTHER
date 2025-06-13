@@ -78,7 +78,7 @@ def generate_form(dataclass):
             choices = []
             all_choice = current_app.config["config_loader"].load_all_plugins()
             print(f"Field {field.name} is a type field with choices: {all_choice}")
-            # plugin_loader = current_app.config["config_loader"].load_all_plugins()
+            # plugin_manager = current_app.config["config_loader"].load_all_plugins()
             setattr(
                 DynamicForm,
                 field.name,

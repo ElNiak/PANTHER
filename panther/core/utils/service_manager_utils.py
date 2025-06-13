@@ -94,6 +94,9 @@ class ServiceManagerMixin(LoggerMixin):
         """
         Perform standardized service manager initialization.
 
+        This method sets up attributes and configuration but does NOT initialize commands.
+        Commands should be initialized later in prepare() after Docker images are built.
+
         Args:
             service_config_to_test: Service configuration
             service_type: Type of service
@@ -114,8 +117,8 @@ class ServiceManagerMixin(LoggerMixin):
             self.logger, implementation_name, service_config_to_test
         )
 
-        # Initialize commands
-        self.initialize_commands()
+        # DO NOT initialize commands here - they should be initialized in prepare()
+        # after Docker images are built and environment is ready
 
     def initialize_commands(self) -> None:
         """Initialize the command structure with defaults."""

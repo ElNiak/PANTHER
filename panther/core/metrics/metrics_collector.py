@@ -11,37 +11,8 @@ import threading
 from pathlib import Path
 from typing import Any
 from dataclasses import dataclass, field
-from enum import Enum
 from panther.core.utils.logging_mixin import LoggerMixin
-
-
-class MetricType(Enum):
-    """Types of metrics that can be collected."""
-
-    TIMING = "timing"
-    COUNTER = "counter"
-    GAUGE = "gauge"
-    HISTOGRAM = "histogram"
-    STATUS = "status"
-    RESOURCE = "resource"
-    ARTIFACT = "artifact"
-    ERROR = "error"
-
-
-class Phase(Enum):
-    """Experiment execution phases for metric categorization."""
-
-    CONFIG_LOADING = "config_loading"
-    CONFIG_VALIDATION = "config_validation"
-    EXPERIMENT_INITIALIZATION = "experiment_initialization"
-    TEST_CASE_INITIALIZATION = "test_case_initialization"
-    ENVIRONMENT_SETUP = "environment_setup"
-    SERVICE_DEPLOYMENT = "service_deployment"
-    TEST_EXECUTION = "test_execution"
-    STEP_EXECUTION = "step_execution"
-    ASSERTION_VALIDATION = "assertion_validation"
-    ENVIRONMENT_TEARDOWN = "environment_teardown"
-    EXPERIMENT_CLEANUP = "experiment_cleanup"
+from panther.core.metrics.enums import MetricType, Phase
 
 
 @dataclass

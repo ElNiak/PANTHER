@@ -10,14 +10,16 @@ from panther.core.observer.management.event_manager import EventManager
 from panther.core.events import ServiceEventEmitter
 from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.core.command_processor.command import ShellCommand
-from panther.plugins.plugin_loader import PluginLoader
+from panther.core.command_processor.command_processor import CommandProcessor
+
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.plugin_interface import IPlugin
 from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
-from panther.plugins.services.command_event_mixin import CommandEventMixin
+from panther.core.utils import CommandEventMixin
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
-    pass
+    from panther.plugins.plugin_manager import PluginManager
 
 
 def quote_shell(s: str) -> str:
@@ -126,7 +128,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         service_type (str): Type of the service (e.g., "testers", "iut").
         templates_dir (str): Directory path for service templates.
         config_versions_dir (str): Directory path for service configuration versions.
-        plugin_loader (Optional[PluginLoader]): Loader for the plugin.
+        plugin_manager (Optional[PluginManager]): Manager for the plugin.
         service_config_to_test ('ServiceConfig'): Configuration for the service to be tested.
         jinja_env (Environment): Jinja2 environment for template rendering.
         implementation_name (str): Name of the service implementation.
@@ -154,7 +156,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         generate_post_run_commands(): Generates post-run commands.
         get_implementation_name() -> str: Returns the name of the service implementation.
         is_tester() -> bool: Returns True if the service type is "testers".
-        prepare(plugin_loader: Optional[PluginLoader] = None): Abstract method to build the Docker image for the implementation.
+        prepare(plugin_manager: Optional[Any] = None): Abstract method to build the Docker image for the implementation.
         generate_deployment_commands() -> str: Abstract method to generate deployment commands based on service parameters.
     """
 
@@ -198,7 +200,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             templates = os.listdir(self.templates_dir)
             self.logger.debug("Available templates in '%s': %s", self.templates_dir, templates)
 
-        self.plugin_loader = None
+        self.plugin_manager = None
 
         # The service master configuration represents the configuration
         # file for the service defined by the plugin itself
@@ -217,7 +219,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             self.service_emitter = self.event_emitter  # For CommandEventMixin
 
         # Service-specific attributes
-        # Some attributes are set by the plugin loader, others are set by the plugin itself and the experiment manager
+        # Some attributes are set by the plugin manager, others are set by the plugin itself and the experiment manager
         self.implementation_name = implementation_name
         self.service_name = service_config_to_test.name
         self.service_protocol = protocol
@@ -319,58 +321,57 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             dict: A dictionary containing the commands for each stage.
         """
 
-        # Helper function to convert items to ShellCommand objects
-        def convert_to_shell_commands(commands):
+        # Use CommandProcessor for intelligent command processing
+        processor = CommandProcessor()
+
+        def process_command_list(commands):
+            """Process commands using CommandProcessor for better handling."""
             if not commands:
                 self.logger.debug("No commands provided, returning empty list.")
                 return []
 
-            result = []
-            for cmd in commands:
-                if isinstance(cmd, ShellCommand):
-                    self.logger.debug("Using existing ShellCommand object: %s", cmd)
-                    result.append(cmd)
-                elif isinstance(cmd, str):
-                    self.logger.debug("Converting string command to ShellCommand: %s", cmd)
-                    result.append(ShellCommand.from_string(cmd))
-                elif isinstance(cmd, dict) and "command" in cmd:
-                    self.logger.debug("Converting dict command to ShellCommand: %s", cmd)
-                    # Handle dict with command field
-                    result.append(ShellCommand.from_dict(cmd))
-                elif isinstance(cmd, list):
-                    self.logger.debug("Converting list command to ShellCommand: %s", cmd)
-                    # Handle list of commands, recursively convert each item
-                    result.extend(convert_to_shell_commands(cmd))
-                else:
-                    # Try to convert to string as a fallback
-                    self.logger.debug("Converting fallback command to ShellCommand: %s", cmd)
-                    try:
-                        result.append(ShellCommand.from_string(str(cmd)))
-                    except Exception as e:
-                        self.logger.warning(
-                            f"Could not convert command to ShellCommand: {cmd}, error: {e}"
-                        )
-                        # Skip this command
-            self.logger.debug("Converted commands to ShellCommand objects: %s", len(result))
-            return result
+            try:
+                processed = processor.process_command_list(commands, detect_properties=True)
+                self.logger.debug("Processed %d commands successfully", len(processed))
+                return processed
+            except Exception as e:
+                self.logger.warning(f"Failed to process commands with CommandProcessor: {e}")
+                # Fallback to manual conversion for backward compatibility
+                result = []
+                for cmd in commands:
+                    if isinstance(cmd, ShellCommand):
+                        result.append(cmd)
+                    elif isinstance(cmd, str):
+                        result.append(ShellCommand.from_string(cmd))
+                    elif isinstance(cmd, dict) and "command" in cmd:
+                        result.append(ShellCommand.from_dict(cmd))
+                    else:
+                        try:
+                            result.append(ShellCommand.from_string(str(cmd)))
+                        except Exception as inner_e:
+                            self.logger.warning(
+                                f"Could not convert command: {cmd}, error: {inner_e}"
+                            )
+                return result
 
-        # Get commands from the respective methods
+        # Get commands from the respective methods and process them
         self.logger.debug("Generating commands for service '%s' - pre-compile", self.service_name)
-        pre_compile = convert_to_shell_commands(self.generate_pre_compile_commands())
+        pre_compile = process_command_list(self.generate_pre_compile_commands())
         self.logger.debug("Generating commands for service '%s' - compile", self.service_name)
-        compile_cmds = convert_to_shell_commands(self.generate_compile_commands())
+        compile_cmds = process_command_list(self.generate_compile_commands())
         self.logger.debug("Generating commands for service '%s' - post-compile", self.service_name)
-        post_compile = convert_to_shell_commands(self.generate_post_compile_commands())
+        post_compile = process_command_list(self.generate_post_compile_commands())
         self.logger.debug("Generating commands for service '%s' - pre-run", self.service_name)
-        pre_run = convert_to_shell_commands(self.generate_pre_run_commands())
+        pre_run = process_command_list(self.generate_pre_run_commands())
         self.logger.debug("Generating commands for service '%s' - post-run", self.service_name)
-        post_run = convert_to_shell_commands(self.generate_post_run_commands())
+        post_run = process_command_list(self.generate_post_run_commands())
 
         # Special handling for run_cmd which is a dict, not a list
         self.logger.debug("Generating run command for service '%s'", self.service_name)
         run_cmd = self.generate_run_command()
 
-        self.run_cmd = {
+        # Build the complete command structure
+        command_structure = {
             "pre_compile_cmds": pre_compile,
             "compile_cmds": compile_cmds,
             "post_compile_cmds": post_compile,
@@ -378,6 +379,16 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             "run_cmd": run_cmd,
             "post_run_cmds": post_run,
         }
+
+        # Process the entire structure through CommandProcessor for consistency
+        try:
+            self.run_cmd = processor.process_commands(command_structure, target_format="service")
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to process complete command structure: {e}, using fallback"
+            )
+            self.run_cmd = command_structure
+
         self.logger.debug("Run commands: %s", self.run_cmd)
         return self.run_cmd
 
@@ -394,56 +405,35 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # ShellCommand is imported at the top of the file, so we use it directly
         # for better shell command representation with metadata and proper escaping
 
-        try:
-            # Using ShellCommand objects for better structure, error handling, and debugging support
-            commands = [
-                ShellCommand(
-                    command="set -x;", description="Enable command tracing", is_critical=True
-                ),
-                ShellCommand(
-                    command="export SHELLOPTS",
-                    description="Export shell options for subshells",
-                    is_critical=True,
-                ),
-                ShellCommand(
-                    command="export PATH=$PATH:$ADDITIONAL_PATH;",
-                    description="Set PATH environment variable",
-                    is_critical=False,  # Non-critical as ADDITIONAL_PATH might be empty
-                ),
-                ShellCommand(
-                    command="export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
-                    description="Set PYTHONPATH environment variable",
-                    is_critical=False,  # Non-critical as ADDITIONAL_PYTHONPATH might be empty
-                ),
-                ShellCommand(
-                    command="env >> /app/logs/env.log;",
-                    description="Log environment variables for debugging",
-                    is_critical=False,
-                ),
-            ]
-            # Emit command generated event
-            for cmd in commands:
-                self.logger.debug("Generated pre-compile command: %s", cmd)
-            self.emit_command_generated("pre_compile", f"{len(commands)} pre-compile commands")
-            return commands
-        except (ImportError, AttributeError) as e:
-            # Fallback to plain string commands if ShellCommand can't be used
-            self.logger.warning(
-                "Error using ShellCommand objects: %s. Falling back to legacy string commands.",
-                str(e),
-            )
-            commands = [
-                "set -x;",
-                "export SHELLOPTS",
-                "export PATH=$PATH:$ADDITIONAL_PATH;",
-                "export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
-                "env >> /app/logs/env.log;",
-            ]
-            # Emit command generated event
-            self.emit_command_generated(
-                "pre_compile", f"{len(commands)} pre-compile commands (legacy)"
-            )
-            return commands
+        # Using ShellCommand objects for better structure, error handling, and debugging support
+        commands = [
+            ShellCommand(command="set -x;", description="Enable command tracing", is_critical=True),
+            ShellCommand(
+                command="export SHELLOPTS",
+                description="Export shell options for subshells",
+                is_critical=True,
+            ),
+            ShellCommand(
+                command="export PATH=$PATH:$ADDITIONAL_PATH;",
+                description="Set PATH environment variable",
+                is_critical=False,  # Non-critical as ADDITIONAL_PATH might be empty
+            ),
+            ShellCommand(
+                command="export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
+                description="Set PYTHONPATH environment variable",
+                is_critical=False,  # Non-critical as ADDITIONAL_PYTHONPATH might be empty
+            ),
+            ShellCommand(
+                command="env >> /app/logs/env.log;",
+                description="Log environment variables for debugging",
+                is_critical=False,
+            ),
+        ]
+        # Emit command generated event
+        for cmd in commands:
+            self.logger.debug("Generated pre-compile command: %s", cmd)
+        self.emit_command_generated("pre_compile", f"{len(commands)} pre-compile commands")
+        return commands
 
     def generate_compile_commands(self) -> list[str]:
         """
@@ -624,94 +614,6 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             params, template_name, processed_args, processed_env, extra_fields
         )
 
-    def add_command(
-        self,
-        phase,
-        command,
-        description=None,
-        is_function_definition=False,
-        is_function_call=False,
-        is_variable_assignment=False,
-        is_multiline=False,
-        is_critical=True,
-        working_dir=None,
-        environment=None,
-        timeout=None,
-    ):
-        """
-        Add a command to a specific phase of execution
-
-        Args:
-            phase: The phase to add the command to (pre_compile, compile, post_compile, pre_run, run, post_run)
-            command: The command to add (str or ShellCommand)
-            description: Optional description of the command
-            is_function_definition: Whether this command is a shell function definition
-            is_multiline: Whether this command spans multiple lines
-            is_critical: Whether failure of this command should halt execution
-            working_dir: Working directory for the command execution
-            environment: Environment variables for the command
-            timeout: Command timeout in seconds
-
-        Returns:
-            None
-
-        Raises:
-            ValueError: If the phase is invalid
-        """
-        valid_phases = ["pre_compile", "compile", "post_compile", "pre_run", "post_run"]
-        if phase not in valid_phases:
-            raise ValueError(
-                f"Invalid command phase: {phase}. Must be one of: {', '.join(valid_phases)}"
-            )
-
-        command_key = f"{phase}_cmds"
-        if command_key not in self.run_cmd:
-            self.run_cmd[command_key] = []
-
-        # Check if the command is already a ShellCommand object
-        if isinstance(command, ShellCommand):
-            # Use the existing ShellCommand object
-            self.logger.debug("Adding %s to %s phase", command.description, phase)
-            self.run_cmd[command_key].append(command)
-        elif isinstance(command, list):
-            # Convert each item in the list to a ShellCommand if it's a string
-            for cmd in command:
-                if isinstance(cmd, ShellCommand):
-                    self.run_cmd[command_key].append(cmd)
-                else:
-                    # Create a new ShellCommand object
-                    shell_cmd = ShellCommand(
-                        command=cmd,
-                        description=description
-                        or f"Command: {cmd[:40]}{'...' if len(cmd) > 40 else ''}",
-                        is_critical=is_critical,
-                        is_multiline=is_multiline,
-                        is_function_definition=is_function_definition,
-                        is_function_call=is_function_call,
-                        working_dir=working_dir,
-                        environment=environment,
-                        timeout=timeout,
-                    )
-                    self.run_cmd[command_key].append(shell_cmd)
-        else:
-            # Create a new ShellCommand object for a string command
-            if description:
-                self.logger.debug("Adding %s to %s phase", description, phase)
-
-            shell_cmd = ShellCommand(
-                command=command,
-                description=description
-                or f"Command: {command[:40]}{'...' if len(command) > 40 else ''}",
-                is_critical=is_critical,
-                is_multiline=is_multiline,
-                is_function_definition=is_function_definition,
-                working_dir=working_dir,
-                is_function_call=is_function_call,
-                environment=environment,
-                timeout=timeout,
-            )
-            self.run_cmd[command_key].append(shell_cmd)
-
     def set_event_manager(self, event_manager: EventManager):
         """
         Set the event manager for this service manager.
@@ -722,16 +624,16 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         self.event_manager = event_manager
         self.event_emitter = ServiceEventEmitter(event_manager)
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
         Prepare the service with proper event notifications.
 
         Args:
-            plugin_loader: Plugin loader for creating dependencies
+            plugin_manager: Plugin manager for creating dependencies
         """
         # Logger is provided by LoggerMixin
         self.logger.debug("Preparing service %s", self.service_name)
-        self.plugin_loader = plugin_loader
+        self.plugin_manager = plugin_manager
 
         # Note: event_emitter is already initialized in IServiceManager parent class
         # It uses ServiceEventEmitter which provides typed service events
@@ -757,7 +659,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
                 self.logger.debug("Emitted service preparation started event")
 
             # Perform preparation
-            result = self._do_prepare(plugin_loader)
+            result = self._do_prepare(plugin_manager)
 
             # Also emit service started event with defensive check
             if hasattr(self, "event_emitter") and self.event_emitter:
@@ -800,14 +702,14 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             raise
 
     @abstractmethod
-    def _do_prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
         Perform the actual preparation work.
 
         This method should be overridden by subclasses.
 
         Args:
-            plugin_loader: Optional plugin loader to use for preparation
+            plugin_manager: Optional plugin manager to use for preparation
         """
         pass
 

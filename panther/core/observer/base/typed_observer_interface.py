@@ -746,32 +746,3 @@ class ITypedObserver(IObserver):
                 return True
 
         return False
-
-
-class ObserverAdapter(ITypedObserver):
-    """
-    Adapter class to help migrate existing observers to the typed system.
-
-    This adapter allows existing observers that implement the old on_event
-    method to work with the new typed event system.
-    """
-
-    def __init__(self, legacy_observer: IObserver):
-        super().__init__()
-        self.legacy_observer = legacy_observer
-
-    def on_event(self, event: BaseEvent):
-        """
-        Route events to the legacy observer.
-
-        This allows gradual migration of observers to the new system.
-        """
-        # First try the typed handlers
-        result = super().on_event(event)
-
-        # If not handled by typed handlers, pass to legacy observer
-        if result is None or result is True:
-            if hasattr(self.legacy_observer, "on_event"):
-                return self.legacy_observer.on_event(event)
-
-        return result

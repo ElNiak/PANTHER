@@ -34,6 +34,14 @@ from importlib_resources import files
 
 
 class ConfigLoader(LoggerMixin):
+    @staticmethod
+    def _get_class_name(plugin_name: str, suffix: str = "Config") -> str:
+        """Convert plugin name to class name format."""
+        class_name_parts = plugin_name.split("_")
+        class_name_parts = [part.capitalize() for part in class_name_parts]
+        class_name = "".join(class_name_parts) + suffix
+        return class_name
+
     def __init__(
         self,
         experiment_file: str,
@@ -575,10 +583,15 @@ class ConfigLoader(LoggerMixin):
         errors = []
         required_plugins = set()
 
-        # Create a unified plugin manager for validation
+        # Create a unified plugin manager for validation using correct plugin directory paths
+        plugin_directories = [
+            str(self._panther_dir / "plugins" / "services"),
+            str(self._panther_dir / "plugins" / "environments"),
+            str(self._panther_dir / "plugins" / "protocols"),
+        ]
         plugin_manager = PluginManager(
-            plugin_loader=None,  # Plugin loader not needed for validation
-            plugin_directories=[str(self._panther_dir / self.global_config.paths.plugin_dir)],
+            plugin_directories=plugin_directories,
+            event_manager=None,  # Event manager not needed for validation
         )
 
         # Extract required plugins from experiment config
@@ -858,13 +871,12 @@ class ConfigLoader(LoggerMixin):
         :return: The plugin's schema module.
         :raises ImportError: If the schema module cannot be found.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         plugin_module_path = (
             f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
         )
         try:
-            class_name = PluginLoader.get_class_name(plugin_name)
+            class_name = ConfigLoader._get_class_name(plugin_name)
             plugin_module = importlib.import_module(plugin_module_path)
             config_class = getattr(plugin_module, class_name)
             return config_class  # Assume PluginConfig is the schema class
@@ -910,7 +922,6 @@ class ConfigLoader(LoggerMixin):
         """
         Dynamically loads the appropriate implementation configuration class.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         self.logger.debug("Implementation: %s", implementation)
         name = implementation["implementation"]["name"]
@@ -927,14 +938,14 @@ class ConfigLoader(LoggerMixin):
         try:
             # Import the module and dynamically get the class
             schema_module = importlib.import_module(module_path)
-            class_name = PluginLoader.get_class_name(name)
+            class_name = self._get_class_name(name)
             config_class = getattr(schema_module, class_name)
             self.logger.debug(
                 "Implementation: %s - %s - %s", name, implementation["implementation"], config_class
             )
 
             # Load the version configuration
-            version_class_name = PluginLoader.get_class_name(name, "Version")
+            version_class_name = self._get_class_name(name, "Version")
             version_config_class = getattr(schema_module, version_class_name)
             # TODO cleanup
             if implem_type == "IUT" or implem_type.lower() == "iut":
@@ -979,7 +990,6 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of execution environment classes.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         exec_env_classes = []
         exec_env_dir = (
@@ -1001,9 +1011,7 @@ class ConfigLoader(LoggerMixin):
                     plugin_file = plugin_dir / f"{plugin_dir.name}.py"
                     if plugin_file.exists():
                         self.logger.debug("Found execution environment class: %s", plugin_dir.name)
-                        exec_env_classes.append(
-                            PluginLoader.get_class_name(plugin_dir.name, "Config")
-                        )
+                        exec_env_classes.append(self._get_class_name(plugin_dir.name, "Config"))
                     else:
                         self.logger.debug("No execution environment class found in %s", plugin_dir)
         except (FileNotFoundError, OSError) as e:
@@ -1020,7 +1028,6 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of network environment classes.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         exec_env_classes = []
         exec_env_dir = (
@@ -1042,9 +1049,7 @@ class ConfigLoader(LoggerMixin):
                     plugin_file = plugin_dir / f"{plugin_dir.name}.py"
                     if plugin_file.exists():
                         self.logger.debug("Found network environment class: %s", plugin_dir.name)
-                        exec_env_classes.append(
-                            PluginLoader.get_class_name(plugin_dir.name, "Config")
-                        )
+                        exec_env_classes.append(self._get_class_name(plugin_dir.name, "Config"))
                     else:
                         self.logger.debug("No network environment class found in %s", plugin_dir)
         except (FileNotFoundError, OSError) as e:
@@ -1061,7 +1066,6 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of protocol classes.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         protocol_classes = []
         protocol_dir = self._panther_dir / Path(self.global_config.paths.plugin_dir) / "protocols"
@@ -1081,7 +1085,7 @@ class ConfigLoader(LoggerMixin):
                             if protocol_file.exists():
                                 self.logger.debug("Found protocol class: %s", protocol_dir.name)
                                 protocol_classes.append(
-                                    PluginLoader.get_class_name(protocol_dir.name, "Config")
+                                    self._get_class_name(protocol_dir.name, "Config")
                                 )
                             else:
                                 self.logger.debug("No protocol class found in %s", protocol_dir)
@@ -1097,7 +1101,6 @@ class ConfigLoader(LoggerMixin):
 
         :return: A dictionary with protocols as keys and list of IUT classes as values.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         iut_classes = {}
         iut_dir = self._panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "iut"
@@ -1112,7 +1115,7 @@ class ConfigLoader(LoggerMixin):
                         if plugin_file.exists():
                             self.logger.debug("Found IUT class: %s", plugin_dir.name)
                             iut_classes[protocol_name].append(
-                                PluginLoader.get_class_name(plugin_dir.name, "Config")
+                                self._get_class_name(plugin_dir.name, "Config")
                             )
                         else:
                             self.logger.debug("No IUT class found in %s", plugin_dir)
@@ -1125,7 +1128,6 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of tester classes.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         tester_classes = []
         # tester_dir =  self.panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "testers"
@@ -1138,7 +1140,7 @@ class ConfigLoader(LoggerMixin):
                 plugin_file = plugin_dir / f"{plugin_dir.name}.py"
                 if plugin_file.exists():  # type: ignore
                     self.logger.debug("Found tester class: %s", plugin_dir.name)
-                    tester_classes.append(PluginLoader.get_class_name(plugin_dir.name, "Config"))
+                    tester_classes.append(self._get_class_name(plugin_dir.name, "Config"))
                 else:
                     self.logger.debug("No tester class found in %s", plugin_dir)
         self.logger.debug("Total tester classes found: %s", len(tester_classes))
@@ -1220,7 +1222,6 @@ class ConfigLoader(LoggerMixin):
         :param protocol: Optional protocol name for IUT/tester plugins (e.g., "quic", "http").
         :return: Dictionary of parameters with their types, defaults, and descriptions.
         """
-        from panther.plugins.plugin_loader import PluginLoader
 
         try:
             # Determine the correct module path based on plugin type
@@ -1273,7 +1274,7 @@ class ConfigLoader(LoggerMixin):
             self.logger.debug("Found plugin schema at %s", module_path)
 
             # Get the class name using the plugin loader helper
-            class_name = PluginLoader.get_class_name(plugin_name)
+            class_name = ConfigLoader._get_class_name(plugin_name)
             config_class = getattr(plugin_module, class_name)
 
             # Format and return the parameters

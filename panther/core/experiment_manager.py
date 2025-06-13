@@ -10,7 +10,6 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.config.config_experiment_schema import ExperimentConfig
 from panther.config.config_global_schema import GlobalConfig
-from panther.plugins.plugin_loader import PluginLoader
 from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.plugin_manager import PluginManager
 from panther.core.test_cases.test_case_impl import TestCase
@@ -45,7 +44,6 @@ class ExperimentManager:
         experiment_config (ExperimentConfig): Configuration specific to the experiment.
         experiment_dir (Path): Directory where experiment outputs are stored.
         logs_dir (Path): Directory where logs are stored.
-        plugin_loader (PluginLoader): Loader for experiment plugins.
         plugin_manager (PluginManager): Manager for experiment plugins.
         test_cases (list[ITestCase]): List of test cases to be executed.
 
@@ -117,15 +115,11 @@ class ExperimentManager:
         self.metrics_emitter = self.emitter_registry.metrics_emitter
         self.plugin_emitter = self.emitter_registry.plugin_emitter
 
-        # Setup plugin loader with event manager
-        self.plugin_loader = PluginLoader(plugin_dir, global_config=self.global_config)
-        self.plugin_loader.event_manager = self.event_manager
-
-        # Setup plugin manager with the plugin loader that has the event manager
+        # Setup plugin manager with event manager
         self.plugin_manager = PluginManager(
-            plugin_loader=self.plugin_loader,
             plugin_directories=[str(self.plugin_dir)],
             event_manager=self.event_manager,
+            global_config=self.global_config,
         )
 
         self._setup_observers(factory)
@@ -156,7 +150,7 @@ class ExperimentManager:
             self._validate_plugins()
 
             # Load plugins and initialize test cases
-            self.plugin_loader.load_plugins()
+            # Plugin loading is handled by PluginManager during initialization
 
             # Emit plugin loading completed event
             self.experiment_emitter.emit_plugin_loading_completed()

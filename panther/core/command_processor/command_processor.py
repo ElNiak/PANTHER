@@ -64,8 +64,12 @@ class CommandProcessor(ICommandProcessor):
                 "timeout": 60,
             }
 
-        # Process command_args
-        command_args = run_cmd.get("command_args", "").strip().replace("\n", "")
+        # Process command_args - handle both string and list formats
+        raw_args = run_cmd.get("command_args", "")
+        if isinstance(raw_args, list):
+            command_args = " ".join(str(arg) for arg in raw_args)
+        else:
+            command_args = str(raw_args).strip().replace("\n", "")
 
         # Process environment variables
         env_vars = {}

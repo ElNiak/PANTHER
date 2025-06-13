@@ -1,5 +1,6 @@
 from abc import ABC
 
+
 from omegaconf import OmegaConf
 
 from panther.core.observer.management.event_manager import EventManager
@@ -11,7 +12,8 @@ from panther.plugins.environments.execution_environment.helgrind.config_schema i
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.plugin_loader import PluginLoader
+
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_decorators import register_plugin
 
@@ -39,15 +41,15 @@ class HelgrindEnvironment(IExecutionEnvironment, ABC):
         env_config_to_test (HelgrindConfig): The specific configuration for the environment to test.
         services_managers (list[IServiceManager]): List of service managers.
         test_config (TestConfig): The test configuration.
-        plugin_loader (PluginLoader): The plugin loader.
+        plugin_manager (PluginManager): The plugin manager.
         logger (Logger): Logger for debugging and information.
 
     Methods:
         __init__(env_config_to_test: HelgrindConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
             Initializes the HelgrindEnvironment with the given configurations and event manager.
 
-        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader):
-            Sets up the environment with the provided service managers, test configuration, global configuration, timestamp, and plugin loader.
+        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_manager: "PluginManager"):
+            Sets up the environment with the provided service managers, test configuration, global configuration, timestamp, and plugin manager.
 
         to_command(service_name: str) -> str:
             Generates the gperf command based on the configuration.
@@ -74,11 +76,11 @@ class HelgrindEnvironment(IExecutionEnvironment, ABC):
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
     ):
         self.services_managers: list[IServiceManager] = services_managers
         self.test_config = test_config
-        self.plugin_loader = plugin_loader
+        self.plugin_manager = plugin_manager
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
         self.logger.debug("Services config: %s", self.env_config_to_test)

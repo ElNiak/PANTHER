@@ -1,13 +1,22 @@
 # PANTHER-SCP/panther/plugins/services/implementations/lsquic_rfc9000/service_manager.py
 
-import os
 from panther.plugins.services.iut.quic.lsquic.config_schema import LsquicConfig
-from panther.plugins.plugin_loader import PluginLoader
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
+
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
 from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
+from panther.core.utils import (
+    ServiceCommandBuilder,
+    ServiceTemplateRenderer,
+    ServiceManagerDockerMixin,
+    ErrorHandlerMixin,
+)
 
 
 @register_plugin(
@@ -21,7 +30,9 @@ from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
     capabilities=["rfc9000", "0rtt", "migration", "http3", "push"],
     external_dependencies=["docker"],
 )
-class LsquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
+class LsquicServiceManager(
+    IUTServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, IImplementationManager
+):
     def __init__(
         self,
         service_config_to_test: LsquicConfig,
@@ -39,6 +50,14 @@ class LsquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
         )
         # Set up IUT-specific attributes
         self.setup_iut_specific_attributes(protocol, service_config_to_test)
+
+        # Initialize template renderer
+        plugin_dir = Path(__file__).parent
+        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+
+        # Set Docker attributes for ServiceManagerDockerMixin
+        self.docker_image_name = "lsquic:latest"
+        self.docker_file_path = plugin_dir / "Dockerfile"
 
     def generate_run_command(self):
         """
@@ -100,36 +119,27 @@ class LsquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
         """
         return super().generate_post_run_commands() + ["cp /opt/lsquic/bin /app/logs/;"]
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
-        Prepare the service manager for use.
+        Simplified prepare method - just delegate to the enhanced mixin.
+
+        The ServiceManagerDockerMixin now handles:
+        - Building base image only once per experiment
+        - Building service-specific image
+        - Proper event emission
+        - Error handling
+
+        Args:
+            plugin_manager: Optional plugin manager for Docker operations
         """
-        self.logger.debug("Preparing Lsquic service manager...")
-        plugin_loader.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    os.getcwd(),
-                    "panther",
-                    "plugins",
-                    "services",
-                    "Dockerfile",
-                )
-            ),
-            "panther_base",
-            "service",
-        )
-        plugin_loader.build_docker_image(
-            self.get_implementation_name(),
-            self.service_config_to_test.implementation.version,
-        )
+        super().prepare(plugin_manager)
 
     def generate_deployment_commands(self) -> list:
         """
         Generates a structured list of deployment command arguments for the LSQUIC service.
 
-        This method constructs the command arguments using the structured approach,
-        creating a list of arguments rather than concatenating strings, which
-        ensures proper escaping and handling of special characters.
+        This method constructs the command arguments using the ServiceCommandBuilder,
+        ensuring proper escaping and handling of special characters.
 
         Returns:
             list: The list of command arguments.
@@ -146,47 +156,40 @@ class LsquicServiceManager(IUTServiceManagerMixin, IImplementationManager):
         else:  # client
             params = self.service_config_to_test.implementation.version.client
 
-        target = self.service_config_to_test.protocol.target
+        # Build command using ServiceCommandBuilder
+        builder = ServiceCommandBuilder(self.role)
 
-        # Initialize the command argument list
-        cmd_args = []
+        # Add standard parameters
+        builder.add_certificates(params, cert_param_key="cert_param", cert_file_key="cert_file")
+        builder.add_protocol_params(params)
 
-        # Add certificate parameters
-        if "certificates" in params and params["certificates"]:
-            certs = params["certificates"]
-            if "cert_param" in certs and "cert_file" in certs:
-                cmd_args.extend([certs["cert_param"], certs["cert_file"]])
-            if "key_param" in certs and "key_file" in certs:
-                cmd_args.extend([certs["key_param"], certs["key_file"]])
-
-        # Add ticket file parameters for client
+        # Add lsquic-specific parameters
         if self.role == RoleEnum.client and "ticket_file" in params:
-            ticket = params["ticket_file"]
-            if "param" in ticket and "file" in ticket:
-                cmd_args.extend([ticket["param"], ticket["file"]])
+            builder.add_option(params["ticket_file"]["param"], params["ticket_file"]["file"])
 
-        # Add protocol parameters (ALPN)
-        if "protocol" in params and params["protocol"]:
-            proto = params["protocol"]
-            if "alpn" in proto and proto["alpn"]:
-                cmd_args.extend([proto["alpn"]["param"], proto["alpn"]["value"]])
-
-            # Add additional parameters
-            if "additional_parameters" in proto and proto["additional_parameters"]:
-                # Split additional parameters into separate arguments
-                additional_params = self.build_command_args(proto["additional_parameters"])
-                cmd_args.extend(additional_params)
+        # Add additional protocol parameters
+        if "protocol" in params and "additional_parameters" in params["protocol"]:
+            additional_params = self.build_command_args(params["protocol"]["additional_parameters"])
+            builder.add_arguments(*additional_params)
 
         # Add network interface if specified
-        if "network" in params and params["network"] and "interface" in params["network"]:
-            network = params["network"]
-            cmd_args.extend([network["interface"]["param"], network["interface"]["value"]])
+        if "network" in params and "interface" in params["network"]:
+            builder.add_option(
+                params["network"]["interface"]["param"], params["network"]["interface"]["value"]
+            )
 
-        # Add server address parameter
+        # Add server address parameter for lsquic
         if "network" in params and "port" in params["network"]:
-            cmd_args.extend(["-s", f"{target}:{params['network']['port']}"])
+            target = self.service_config_to_test.protocol.target
+            builder.add_option("-s", f"{target}:{params['network']['port']}")
 
-        # Add logging redirection
+        # Add role-specific parameters
+        builder.add_role_specific_params(params, server_port_param="-p")
+
+        # Get built arguments
+        cmd_args = builder.build_args()
+
+        # Add logging redirection (these need to be handled separately as they're shell constructs)
         if "logging" in params and params["logging"]:
             cmd_args.extend(
                 [">", params["logging"]["log_path"], "2>", params["logging"]["err_path"]]

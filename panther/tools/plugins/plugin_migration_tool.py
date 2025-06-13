@@ -492,14 +492,14 @@ class PluginMigrationTool:
 
         # Extract plugin directories
         plugin_dirs = []
-        if hasattr(old_manager, "plugin_loader") and old_manager.plugin_loader:
-            base_dir = getattr(old_manager.plugin_loader, "plugins_base_dir", None)
+        if hasattr(old_manager, "plugin_manager") and old_manager.plugin_manager:
+            base_dir = getattr(old_manager.plugin_manager, "plugins_base_dir", None)
             if base_dir:
                 plugin_dirs.append(str(base_dir))
 
         # Create unified manager
         unified_manager = PluginManager(
-            plugin_loader=old_manager.plugins_loader,
+            plugin_manager=old_manager.plugins_loader,
             plugin_directories=plugin_dirs,
             event_manager=event_manager or getattr(old_manager, "event_manager", None),
         )

@@ -213,14 +213,50 @@ class TestCase(ITestCase):
             self.logger.debug(f"Service '{service_name}' deployment starting")
 
         # Emit service deployment started event
-        service_names = [
-            s.service_name if hasattr(s, "service_name") else s.get_implementation_name()
-            for s in self.service_managers
-        ]
+        service_names = []
+        service_metadata = []
+
+        for s in self.service_managers:
+            # Get service name
+            service_name = (
+                s.service_name if hasattr(s, "service_name") else s.get_implementation_name()
+            )
+            service_names.append(service_name)
+
+            # Build metadata for each service
+            metadata = {
+                "service_type": (
+                    s.get_service_type()
+                    if hasattr(s, "get_service_type")
+                    else s.service_config_to_test.implementation.type.value
+                ),
+                "implementation": (
+                    s.get_implementation_name()
+                    if hasattr(s, "get_implementation_name")
+                    else s.service_config_to_test.implementation.name
+                ),
+                "config": {
+                    "test_case": self.test_name,
+                    "protocol": (
+                        s.service_config_to_test.protocol.name
+                        if hasattr(s.service_config_to_test, "protocol")
+                        else "unknown"
+                    ),
+                    "role": (
+                        s.service_config_to_test.protocol.role
+                        if hasattr(s.service_config_to_test, "protocol")
+                        and hasattr(s.service_config_to_test.protocol, "role")
+                        else "unknown"
+                    ),
+                },
+            }
+            service_metadata.append(metadata)
+
         self.service_emitter.emit_service_setup_started(
             test_case=self.test_name,
             service_count=len(self.service_managers),
             service_names=service_names,
+            service_metadata=service_metadata,
         )
         self.logger.debug("Emitted service_setup_started event")
 
@@ -734,8 +770,43 @@ class TestCase(ITestCase):
 
         # Emit service setup started event using the typed event emitter
         service_names = list(self.services.keys())
+        service_metadata = []
+
+        # Build metadata from service configurations
+        for service_name, service_config in self.services.items():
+            metadata = {
+                "service_type": (
+                    service_config.implementation.type.value
+                    if hasattr(service_config.implementation, "type")
+                    else "unknown"
+                ),
+                "implementation": (
+                    service_config.implementation.name
+                    if hasattr(service_config.implementation, "name")
+                    else "unknown"
+                ),
+                "config": {
+                    "test_case": self.test_name,
+                    "protocol": (
+                        service_config.protocol.name
+                        if hasattr(service_config, "protocol")
+                        else "unknown"
+                    ),
+                    "role": (
+                        service_config.protocol.role
+                        if hasattr(service_config, "protocol")
+                        and hasattr(service_config.protocol, "role")
+                        else "unknown"
+                    ),
+                },
+            }
+            service_metadata.append(metadata)
+
         self.service_emitter.emit_service_setup_started(
-            test_case=self.test_name, service_count=len(self.services), service_names=service_names
+            test_case=self.test_name,
+            service_count=len(self.services),
+            service_names=service_names,
+            service_metadata=service_metadata,
         )
 
         # Initialize the list of service managers
@@ -786,10 +857,26 @@ class TestCase(ITestCase):
         self.logger.info("Preparing services (building Docker images if required)")
 
         if not hasattr(self, "service_managers") or not self.service_managers:
-            self.logger.warning("No service managers found to prepare")
+            # Check if services are actually configured
+            if hasattr(self, "services") and self.services:
+                self.logger.warning(
+                    "Services are configured but no service managers were created. Check plugin paths and service configurations."
+                )
+                self.logger.debug(
+                    "Configured services: %s",
+                    list(self.services.keys()) if self.services else "None",
+                )
+            else:
+                self.logger.debug("No services configured for this test")
             return
 
-        plugin_loader = self.plugin_manager.plugin_loader
+        # Reset base image flag for this test run to ensure base image is built once per experiment
+        from panther.core.utils import ServiceManagerDockerMixin
+
+        ServiceManagerDockerMixin.reset_base_image_flag()
+        self.logger.debug("Reset base Docker image flag for new test run")
+
+        plugin_manager = self.plugin_manager
 
         for service_manager in self.service_managers:
             try:
@@ -805,7 +892,7 @@ class TestCase(ITestCase):
                 if hasattr(service_manager, "prepare") and callable(
                     getattr(service_manager, "prepare")
                 ):
-                    service_manager.prepare(plugin_loader)
+                    service_manager.prepare(plugin_manager)
                     self.logger.debug("Successfully prepared service: %s", service_name)
                 else:
                     self.logger.debug(
@@ -827,33 +914,20 @@ class TestCase(ITestCase):
 
         This method performs the following steps:
         - Extracts the required testers from the services details.
-        - Loads the testers plugins from the plugins/services/testers directory.
+        - Uses the plugin catalog to discover available testers.
         - Creates a list of service managers that will be used to deploy the services.
 
         The method logs the progress and any issues encountered during the setup process.
         """
         self.logger.debug("Setup Testers plugins ...")
-        self.testers_path = (
-            self._panther_dir
-            / Path(self.global_config.paths.plugin_dir)
-            / Path(self.global_config.paths.services_dir)
-            / Path(self.global_config.paths.testers_dir)
-        )
-        self.logger.debug("Looking for testers plugins at '%s'", self.testers_path)
 
-        # Get available testers
-        if hasattr(self.plugin_manager.plugin_loader, "get_testers"):
-            self.available_testers = self.plugin_manager.plugin_loader.get_testers()
+        # Get available testers using the plugin catalog
+        if hasattr(self.plugin_manager, "get_testers"):
+            self.available_testers = self.plugin_manager.get_testers()
         else:
             self.available_testers = []
-            if self.testers_path.exists() and self.testers_path.is_dir():
-                self.available_testers = [
-                    p.name
-                    for p in self.testers_path.iterdir()
-                    if p.is_dir() and not p.name.startswith("__")
-                ]
 
-        self.logger.debug("Available testers: %s", self.available_testers)
+        self.logger.debug("Available testers from plugin catalog: %s", self.available_testers)
         self.test_defined_testers = [
             service_details
             for service_details in self.services.values()
@@ -865,21 +939,29 @@ class TestCase(ITestCase):
             return
 
         self.logger.debug("Test defined testers: %s", self.test_defined_testers)
-        if self.testers_path.exists() and self.testers_path.is_dir():
-            self.logger.debug("Found testers plugin at '%s'", self.testers_path)
 
-            # Process each tester
-            for tester_config in self.test_defined_testers:
-                if tester_config.implementation.name in self.available_testers:
-                    implementation_dir = self.testers_path / tester_config.implementation.name
+        # Process each tester using the plugin catalog
+        for tester_config in self.test_defined_testers:
+            tester_name = tester_config.implementation.name
 
-                    # Create service manager
+            # Use plugin catalog to find the tester
+            plugin_id = f"tester:{tester_name}"
+            plugin_manifest = self.plugin_manager.plugin_catalog.catalog.get(plugin_id)
+
+            if plugin_manifest and tester_name in self.available_testers:
+                # Get implementation directory from the manifest
+                implementation_dir = (
+                    Path(plugin_manifest.file_path) if plugin_manifest.file_path else None
+                )
+
+                if implementation_dir:
                     self.logger.debug(
                         "Creating service manager for tester '%s' under protocol '%s' found at '%s'",
                         tester_config,
                         tester_config.protocol,
                         implementation_dir,
                     )
+
                     service_manager = self.plugin_manager.create_service_manager(
                         protocol=tester_config.protocol,
                         implementation=tester_config.implementation,
@@ -887,6 +969,7 @@ class TestCase(ITestCase):
                         service_config_to_test=tester_config,
                         event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
                     )
+
                     # Set test context if the service manager supports it
                     if hasattr(service_manager, "set_test_context"):
                         service_manager.set_test_context(self.test_name)
@@ -897,13 +980,26 @@ class TestCase(ITestCase):
                         tester_config.protocol.name,
                     )
                 else:
-                    self.logger.warning(
-                        "Tester '%s' for protocol '%s' not found. Skipping.",
-                        tester_config.name,
-                        tester_config.protocol.name,
+                    self.logger.error(
+                        "Tester plugin manifest found for '%s' but no file path available",
+                        tester_name,
                     )
-        else:
-            self.logger.warning("Tester plugin not found at '%s'. Skipping.", self.testers_path)
+            else:
+                self.logger.warning(
+                    "Tester plugin not found: %s (available: %s)",
+                    plugin_id,
+                    self.available_testers,
+                )
+
+                # Emit tester plugin not found event for better debugging
+                if hasattr(self, "plugin_emitter"):
+                    self.plugin_emitter.emit_plugin_loading_failed(
+                        plugin_id=plugin_id,
+                        plugin_name=tester_name,
+                        plugin_type="tester",
+                        error_message=f"Tester plugin not found: {tester_name}",
+                        error_details={"available_testers": self.available_testers},
+                    )
 
     def setup_implementations(self):
         """
@@ -911,12 +1007,11 @@ class TestCase(ITestCase):
 
         This method performs the following steps:
         - Extracts the required implementations from the services details.
-        - Loads the protocol plugins from the plugins/services/iut directory.
+        - Uses the plugin catalog to discover available IUT implementations.
         - Creates a list of service managers that will be used to deploy the services.
 
         The method logs the progress and details at each step, including:
-        - The path where it looks for IUT plugins.
-        - The available protocols found.
+        - The implementations available from the plugin catalog.
         - The implementations defined in the test configuration.
         - The details of each service and its implementation.
         - The creation of service managers for each implementation under the respective protocol.
@@ -924,43 +1019,27 @@ class TestCase(ITestCase):
         If a protocol plugin or an implementation is not found, appropriate warnings are logged.
         """
         self.logger.debug("Setup Implementation Under Tests plugins ...")
-        self.iut_path = (
-            self._panther_dir
-            / Path(self.global_config.paths.plugin_dir)
-            / Path(self.global_config.paths.services_dir)
-            / Path(self.global_config.paths.iut_dir)
-        )
-        self.logger.debug("Looking for IUT plugins at '%s'", self.iut_path)
 
-        # Get available protocols
-        if self.iut_path.exists() and self.iut_path.is_dir():
-            self.available_protocols = [
-                p.name
-                for p in self.iut_path.iterdir()
-                if p.is_dir() and not p.name.startswith("__")
-            ]
-        else:
-            self.available_protocols = []
+        # Get available protocols and implementations from plugin catalog
 
-        self.logger.debug("Available protocols: %s", self.available_protocols)
-
-        # Get implementations per protocol
+        # Extract protocol names from IUT plugins in catalog
+        self.available_protocols = []
         self.available_implementations_per_protocol = {}
-        for protocol in self.available_protocols:
-            if hasattr(self.plugin_manager.plugin_loader, "get_implementations_for_protocol"):
-                self.available_implementations_per_protocol[protocol] = (
-                    self.plugin_manager.plugin_loader.get_implementations_for_protocol(protocol)
-                )
-            else:
-                protocol_path = self.iut_path / protocol
-                if protocol_path.exists() and protocol_path.is_dir():
-                    self.available_implementations_per_protocol[protocol] = [
-                        p.name
-                        for p in protocol_path.iterdir()
-                        if p.is_dir() and not p.name.startswith("__")
-                    ]
-                else:
-                    self.available_implementations_per_protocol[protocol] = []
+
+        for plugin_id, manifest in self.plugin_manager.plugin_catalog.catalog.items():
+            if manifest.type.value == "iut":
+                for protocol in manifest.supported_protocols:
+                    if protocol not in self.available_protocols:
+                        self.available_protocols.append(protocol)
+                    if protocol not in self.available_implementations_per_protocol:
+                        self.available_implementations_per_protocol[protocol] = []
+                    self.available_implementations_per_protocol[protocol].append(manifest.name)
+
+        self.logger.debug("Available protocols from plugin catalog: %s", self.available_protocols)
+        self.logger.debug(
+            "Available implementations per protocol: %s",
+            self.available_implementations_per_protocol,
+        )
 
         # Get implementations defined in the test
         self.test_defined_implementation = [
@@ -971,65 +1050,73 @@ class TestCase(ITestCase):
 
         self.logger.debug("Test defined implementations: %s", self.test_defined_implementation)
 
-        # Process each implementation
-        for protocol in self.available_protocols:
-            protocol_plugin_path = self.iut_path / protocol
-            if protocol_plugin_path.exists() and protocol_plugin_path.is_dir():
-                self.logger.debug(
-                    "Found protocol plugin at '%s' - checking implementations", protocol_plugin_path
+        # Process each implementation using the plugin catalog
+        for implementation_config in self.test_defined_implementation:
+            protocol_name = implementation_config.protocol.name
+            impl_name = implementation_config.implementation.name
+
+            # Use plugin catalog to find the implementation
+            plugin_id = f"iut:{impl_name}"
+            plugin_manifest = self.plugin_manager.plugin_catalog.catalog.get(plugin_id)
+
+            if plugin_manifest and protocol_name in plugin_manifest.supported_protocols:
+                # Get implementation directory from the manifest
+                implementation_dir = (
+                    Path(plugin_manifest.file_path) if plugin_manifest.file_path else None
                 )
 
-                for implementation_config in self.test_defined_implementation:
-                    if implementation_config.protocol.name == protocol:
-                        self.logger.debug(
-                            "Checking implementation '%s' for protocol '%s'",
-                            implementation_config,
-                            protocol,
-                        )
+                if implementation_dir:
+                    self.logger.debug(
+                        "Creating service manager for implementation '%s' under protocol '%s' found at '%s'",
+                        implementation_config,
+                        implementation_config.protocol,
+                        implementation_dir,
+                    )
 
-                        if (
-                            implementation_config.implementation.name
-                            in self.available_implementations_per_protocol[protocol]
-                        ):
-                            implementation_dir = (
-                                protocol_plugin_path / implementation_config.implementation.name
-                            )
+                    service_manager = self.plugin_manager.create_service_manager(
+                        protocol=implementation_config.protocol,
+                        implementation=implementation_config.implementation,
+                        implementation_dir=implementation_dir,
+                        service_config_to_test=implementation_config,
+                        event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
+                    )
 
-                            # Create service manager
-                            self.logger.debug(
-                                "Creating service manager for implementation '%s' under protocol '%s' found at '%s'",
-                                implementation_config,
-                                implementation_config.protocol,
-                                implementation_dir,
-                            )
-                            service_manager = self.plugin_manager.create_service_manager(
-                                protocol=implementation_config.protocol,
-                                implementation=implementation_config.implementation,
-                                implementation_dir=implementation_dir,
-                                service_config_to_test=implementation_config,
-                                event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
-                            )
-                            # Set test context if the service manager supports it (TODO: check if this is needed)
-                            if hasattr(service_manager, "set_test_context"):
-                                service_manager.set_test_context(self.test_name)
-                            self.service_managers.append(service_manager)
-                            self.logger.debug(
-                                "Added service manager for implementation '%s' under protocol '%s'",
-                                implementation_config,
-                                implementation_config.protocol,
-                            )
-                        else:
-                            self.logger.warning(
-                                "Implementation '%s' for protocol '%s' not found. Skipping.",
-                                implementation_config,
-                                protocol,
-                            )
+                    # Set test context if the service manager supports it
+                    if hasattr(service_manager, "set_test_context"):
+                        service_manager.set_test_context(self.test_name)
+                    self.service_managers.append(service_manager)
+                    self.logger.debug(
+                        "Added service manager for implementation '%s' under protocol '%s'",
+                        implementation_config,
+                        implementation_config.protocol,
+                    )
+                else:
+                    self.logger.error(
+                        "IUT plugin manifest found for '%s' but no file path available", impl_name
+                    )
             else:
                 self.logger.warning(
-                    "Protocol plugin '%s' not found at '%s'. Skipping.",
-                    protocol,
-                    protocol_plugin_path,
+                    "IUT plugin not found: %s for protocol %s (available implementations for %s: %s)",
+                    plugin_id,
+                    protocol_name,
+                    protocol_name,
+                    self.available_implementations_per_protocol.get(protocol_name, []),
                 )
+
+                # Emit IUT plugin not found event for better debugging
+                if hasattr(self, "plugin_emitter"):
+                    self.plugin_emitter.emit_plugin_loading_failed(
+                        plugin_id=plugin_id,
+                        plugin_name=impl_name,
+                        plugin_type="iut",
+                        error_message=f"IUT plugin not found: {impl_name} for protocol {protocol_name}",
+                        error_details={
+                            "protocol": protocol_name,
+                            "available_for_protocol": self.available_implementations_per_protocol.get(
+                                protocol_name, []
+                            ),
+                        },
+                    )
 
     def setup_environment(self):
         """
@@ -1179,7 +1266,7 @@ class TestCase(ITestCase):
                         test_config=self.test_config,
                         global_config=self.global_config,
                         timestamp=timestamp,
-                        plugin_loader=self.plugin_manager.plugin_loader,
+                        plugin_manager=self.plugin_manager,
                         execution_environment=execution_environments,
                     )
 
@@ -1373,8 +1460,7 @@ class TestCase(ITestCase):
         - Enhanced storage observer integrated with ResultsManager
         - Experiment observer for tracking test progress
 
-        Each observer is created with proper error handling and fallbacks
-        for backward compatibility.
+        Each observer is created with proper error handling.
         """
         self.logger.debug("Registering default observers using enhanced registry")
 

@@ -160,7 +160,7 @@ class ExecutionEnvironmentMixin(EnvironmentPluginMixin):
         self.services_managers = []
         self.test_config = None
         self.global_config = None
-        self.plugin_loader = None
+        self.plugin_manager = None
         self.timestamp = None
 
     def setup_execution_environment(
@@ -169,7 +169,7 @@ class ExecutionEnvironmentMixin(EnvironmentPluginMixin):
         test_config: Any,
         global_config: Any,
         timestamp: str,
-        plugin_loader: Any,
+        plugin_manager: Any,
     ) -> None:
         """
         Set up execution environment with service managers and configurations.
@@ -179,13 +179,13 @@ class ExecutionEnvironmentMixin(EnvironmentPluginMixin):
             test_config: Test configuration
             global_config: Global configuration
             timestamp: Execution timestamp
-            plugin_loader: Plugin loader instance
+            plugin_manager: Plugin loader instance
         """
         self.services_managers = services_managers
         self.test_config = test_config
         self.global_config = global_config
         self.timestamp = timestamp
-        self.plugin_loader = plugin_loader
+        self.plugin_manager = plugin_manager
 
         self.update_environment_state("setup_in_progress")
 

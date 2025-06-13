@@ -1,5 +1,10 @@
 from abc import abstractmethod
 import os
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
+
 
 from jinja2 import Environment, FileSystemLoader
 from omegaconf import OmegaConf
@@ -10,7 +15,7 @@ from panther.config.config_experiment_schema import TestConfig
 
 from panther.config.config_global_schema import GlobalConfig
 
-from panther.plugins.plugin_loader import PluginLoader
+# PluginManager functionality now integrated into PluginManager
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.config_schema import EnvironmentConfig
@@ -42,7 +47,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
             Initializes the network environment with the given configuration.
         setup_execution_plugins(timestamp):
             Sets up execution plugins for the environment.
-        update_environment(execution_environment, global_config, plugin_loader, services_managers, test_config):
+        update_environment(execution_environment, global_config, plugin_manager, services_managers, test_config):
             Updates the environment with the given configuration and services.
         create_log_dir(service):
             Creates a log directory for the given service.
@@ -61,7 +66,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
             Abstract method to launch the services in the network environment.
         deploy_services():
             Abstract method to deploy the specified services in the network environment.
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader, execution_environment):
+        setup_environment(services_managers, test_config, global_config, timestamp, plugin_manager, execution_environment):
             Abstract method to set up the required environment before running experiments.
         teardown_environment():
             Abstract method to tear down the environment after experiments are completed.
@@ -127,7 +132,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
                     test_config=self.test_config,
                     global_config=self.global_config,
                     timestamp=timestamp,
-                    plugin_loader=self.plugin_loader,
+                    plugin_manager=self.plugin_manager,
                 )
             except Exception as e:
                 self.logger.error("Failed to setup execution environment: %s", e)
@@ -136,7 +141,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self,
         execution_environment,
         global_config,
-        plugin_loader,
+        plugin_manager,
         services_managers,
         test_config,
     ):
@@ -146,7 +151,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Args:
             execution_environment (Any): The execution environment to be used.
             global_config (OmegaConf): The global configuration settings.
-            plugin_loader (Any): The plugin loader instance.
+            plugin_manager (Any): The plugin manager instance.
             services_managers (List[IServiceManager]): A list of service manager instances.
             test_config (OmegaConf): The test configuration settings.
 
@@ -156,7 +161,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self.services_managers: list[IServiceManager] = services_managers
         self.test_config = test_config
         self.execution_environment = execution_environment
-        self.plugin_loader = plugin_loader
+        self.plugin_manager = plugin_manager
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
         for service in self.services_managers:
@@ -242,14 +247,14 @@ class INetworkEnvironment(IEnvironmentPlugin):
         """
         Retrieves and sets the Docker container name by building a Docker image from a specified path.
 
-        This method uses the `plugin_loader` to build a Docker image from the provided Dockerfile path,
+        This method uses the `plugin_manager` to build a Docker image from the provided Dockerfile path,
         Docker name, and Docker version. It then extracts and sets the Docker container name by splitting
         the resulting Docker image name at the colon (':') character.
 
         Returns:
             str: The name of the Docker container.
         """
-        self.docker_name = self.plugin_loader.build_docker_image_from_path(
+        self.docker_name = self.plugin_manager.build_docker_image_from_path(
             self.services_network_docker_file_path,  # defined in inheritance chain
             self.docker_name,
             self.docker_version,
@@ -335,7 +340,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager | None",
         execution_environment: list[IExecutionEnvironment],
     ):
         """

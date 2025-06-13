@@ -6,7 +6,8 @@ for the PANTHER framework, tracking performance, resource usage, timing, and
 success/failure rates throughout the experiment execution process.
 """
 
-from .metrics_collector import MetricsCollector, MetricType, Phase, TimingContextManager
+from .enums import MetricType, Phase
+from .metrics_collector import MetricsCollector, TimingContextManager
 from .resource_monitor import ResourceMonitor
 from .metrics_reporter import MetricsReporter
 from .metrics_exporter import MetricsExporter

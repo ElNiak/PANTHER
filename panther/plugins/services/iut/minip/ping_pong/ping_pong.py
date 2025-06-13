@@ -1,11 +1,20 @@
-import os
-import traceback
-from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
-from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
+from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
+from panther.core.utils import (
+    ServiceCommandBuilder,
+    ServiceTemplateRenderer,
+    ServiceManagerDockerMixin,
+    ErrorHandlerMixin,
+)
+
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 
 @register_plugin(
@@ -19,7 +28,9 @@ from panther.plugins.plugin_decorators import register_plugin
     capabilities=["ping_pong", "basic_networking"],
     external_dependencies=["docker"],
 )
-class PingPongServiceManager(IImplementationManager):
+class PingPongServiceManager(
+    IUTServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, IImplementationManager
+):
     def __init__(
         self,
         service_config_to_test: PingPongConfig,
@@ -31,95 +42,137 @@ class PingPongServiceManager(IImplementationManager):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-        self.logger.debug("Initializing PingPong service manager for '%s'", implementation_name)
-        self.logger.debug("Loaded PingPong configuration: %s", self.service_config_to_test)
-        self.initialize_commands()
+
+        # Use standardized initialization from mixin
+        self.standardized_initialization(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
+
+        # Set up IUT-specific attributes
+        self.setup_iut_specific_attributes(protocol, service_config_to_test)
+
+        # Initialize template renderer with plugin directory
+        plugin_dir = Path(__file__).parent
+        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+
+        # Set Docker attributes for ServiceManagerDockerMixin
+        self.docker_image_name = "ping_pong:latest"
+        self.docker_file_path = plugin_dir / "Dockerfile"
 
     def generate_pre_compile_commands(self):
         """
-        Generates pre-compile commands.
+        Generates pre-compile commands using structured command building.
         """
-        return super().generate_pre_compile_commands() + [
-            "TARGET_IP=$(getent hosts " + self.service_targets + r' | awk "{ print \$1 }");',
-            'echo "Resolved '
-            + self.service_targets
-            + ' IP - $$TARGET_IP" >> /app/logs/ivy_setup.log;',
-            r'IVY_IP=$(hostname -I | awk "{ print \$1 }");',
-            'echo "Resolved  ' + self.service_name + ' IP - $$IVY_IP" >> /app/logs/ivy_setup.log;',
-            " ",
-            "ip_to_hex() {",
-            '  echo $1 | awk -F"." "{ printf(\\"%02X%02X%02X%02X\\", \\$1, \\$2, \\$3, \\$4) }";',
-            "}",
-            " ",
-            "ip_to_decimal() {",
-            '  echo $1 | awk -F"." "{ printf(\\"%.0f\\", (\\$1 * 256 * 256 * 256) + (\\$2 * 256 * 256) + (\\$3 * 256) + \\$4) }";',
-            "}",
-            " ",
-            "TARGET_IP_HEX=$(ip_to_decimal $$TARGET_IP);",
-            "IVY_IP_HEX=$(ip_to_decimal $$IVY_IP);",
-            'echo "Resolved '
-            + self.service_targets
-            + ' IP in hex - $$TARGET_IP_HEX" >> /app/logs/ivy_setup.log;',
-            'echo "Resolved '
-            + self.service_name
-            + ' IP in hex - $$IVY_IP_HEX" >> /app/logs/ivy_setup.log;',
-        ]
+        # Get base commands from parent
+        base_commands = super().generate_pre_compile_commands()
+
+        # Build commands using ServiceCommandBuilder
+        builder = ServiceCommandBuilder(self.role)
+
+        # Add IP resolution commands
+        builder.add_command(
+            f"TARGET_IP=$(getent hosts {self.service_targets} | awk '{{print $1}}')"
+        )
+        builder.add_command(
+            f'echo "Resolved {self.service_targets} IP - $TARGET_IP" >> /app/logs/ivy_setup.log'
+        )
+        builder.add_command("IVY_IP=$(hostname -I | awk '{print $1}')")
+        builder.add_command(
+            f'echo "Resolved {self.service_name} IP - $IVY_IP" >> /app/logs/ivy_setup.log'
+        )
+
+        # Add function definitions
+        # TODO: check from panther_ivy -> Wrong here
+        builder.add_command("")
+        builder.add_command("ip_to_hex() {")
+        builder.add_command(
+            '  echo "$1" | awk -F"." "{printf(\\"%02X%02X%02X%02X\\", $1, $2, $3, $4)}";'
+        )
+        builder.add_command("}")
+        builder.add_command("")
+        builder.add_command("ip_to_decimal() {")
+        builder.add_command(
+            '  echo "$1" | awk -F"." "{printf(\\"%.0f\\", ($1 * 256 * 256 * 256) + ($2 * 256 * 256) + ($3 * 256) + $4)}";'
+        )
+        builder.add_command("}")
+        builder.add_command("")
+
+        # Add IP conversion commands
+        builder.add_command("TARGET_IP_HEX=$(ip_to_decimal $TARGET_IP)")
+        builder.add_command("IVY_IP_HEX=$(ip_to_decimal $IVY_IP)")
+        builder.add_command(
+            f'echo "Resolved {self.service_targets} IP in hex - $TARGET_IP_HEX" >> /app/logs/ivy_setup.log'
+        )
+        builder.add_command(
+            f'echo "Resolved {self.service_name} IP in hex - $IVY_IP_HEX" >> /app/logs/ivy_setup.log'
+        )
+
+        return base_commands + builder.build()
 
     def generate_run_command(self):
         """
-        Generates the run command.
+        Generates the run command using structured command building.
         """
+        # Emit command generation started
+        self.emit_command_generation_started("run")
+
         cmd_args = self.generate_deployment_commands()
-        return {
+
+        # Notify service event
+        self.notify_service_event(
+            "run_command_generated",
+            {
+                "service_name": self.service_name,
+                "role": self.role.name if hasattr(self.role, "name") else str(self.role),
+            },
+        )
+
+        # Determine binary based on role
+        if self.role == RoleEnum.server:
+            command_binary = self.service_config_to_test.implementation.version.server.binary.name
+        else:
+            command_binary = self.service_config_to_test.implementation.version.client.binary.name
+
+        run_command = {
             "working_dir": self.working_dir,
-            "command_binary": (
-                self.service_config_to_test.implementation.version.server.binary.name
-                if self.role == RoleEnum.server
-                else self.service_config_to_test.implementation.version.client.binary.name
-            ),
+            "command_binary": command_binary,
             "command_args": cmd_args,
             "timeout": self.service_config_to_test.timeout,
-            "command_env": {},
+            "environment": {},
         }
+
+        # Emit command generated
+        self.emit_command_generated("run", str(run_command))
+
+        return run_command
 
     def generate_post_run_commands(self):
         """
         Generates post-run commands.
         """
-        return super().generate_post_run_commands() + [
-            "cp /opt/ping-pong/miniP_* /app/logs/miniP_*;"
-        ]
+        commands = super().generate_post_run_commands()
+        commands.append("cp /opt/ping-pong/miniP_* /app/logs/miniP_* 2>/dev/null || true")
+        return commands
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
+    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
         """
-        Prepare the service manager for use.
+        Simplified prepare method - just delegate to the enhanced mixin.
+
+        The ServiceManagerDockerMixin now handles:
+        - Building base image only once per experiment
+        - Building service-specific image
+        - Proper event emission
+        - Error handling
+        - Command initialization (if initialize_commands exists)
+
+        Args:
+            plugin_manager: Optional plugin manager for Docker operations
         """
-        self.logger.debug("Preparing PingPong service manager...")
-        plugin_loader.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    self._plugin_dir,
-                    "Dockerfile",
-                )
-            ),
-            "panther_base",
-            "service",
-        )
-        plugin_loader.build_docker_image(
-            self.get_implementation_name(),
-            self.service_config_to_test.implementation.version,
-        )
+        super().prepare(plugin_manager)
 
     def generate_deployment_commands(self) -> str:
         """
-        Generates deployment commands for the ping_pong service using structured arguments
-        for proper escaping and handling of special characters.
-
-        Returns:
-            str: The rendered deployment command string.
-
-        Raises:
-            Exception: If there is an error rendering the command template.
+        Generates deployment commands using ServiceCommandBuilder and ServiceTemplateRenderer.
         """
         self.logger.debug(
             "Generating deployment commands for service: %s with service parameters: %s",
@@ -127,79 +180,74 @@ class PingPongServiceManager(IImplementationManager):
             self.service_config_to_test,
         )
 
-        self.logger.debug("Role: %s, Version: %s", self.role.name, self.service_version)
+        self.logger.debug(
+            "Role: %s, Version: %s",
+            self.role.name if hasattr(self.role, "name") else self.role,
+            self.service_version,
+        )
 
-        # Build parameters for the command template
+        # Build parameters based on role
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
-        # For the client, include target and message if available
-        elif self.role == RoleEnum.client:
+        else:
             params = self.service_config_to_test.implementation.version.client
 
-        params["target"] = "$$TARGET_IP"
-
-        self.logger.debug("Parameters for command template: %s", params)
-        self.logger.debug("Role: %s", self.role.name)
+        params["target"] = "$TARGET_IP"
         self.working_dir = params["binary"]["dir"]
 
-        # Build structured command arguments
-        command_args = []
+        # Use ServiceCommandBuilder with role
+        builder = ServiceCommandBuilder(self.role)
 
         # Add seed parameter if available
         if "seed" in params:
-            command_args.append(f"seed={params['seed']}")
+            builder.add_positional(f"seed={params['seed']}")
 
         # Add server and client ports/addresses if available
         if "server_port" in params:
-            command_args.append(f"server_port={params['server_port']}")
+            builder.add_positional(f"server_port={params['server_port']}")
         if "server_addr" in params:
-            command_args.append(f"server_addr={params['server_addr']}")
+            builder.add_positional(f"server_addr={params['server_addr']}")
 
-        # Add client-specific parameters
-        if self.role == RoleEnum.client:
-            pass
-        # Add server-specific parameters
-        elif self.role == RoleEnum.server:
+        # Add role-specific parameters
+        if self.role == RoleEnum.server:
             if "client_port" in params:
-                command_args.append(f"client_port={params['client_port']}")
+                builder.add_positional(f"client_port={params['client_port']}")
             if "client_addr" in params:
-                command_args.append(f"client_addr={params['client_addr']}")
+                builder.add_positional(f"client_addr={params['client_addr']}")
 
         # Add logging parameters
         if "logging" in params:
-            command_args.append(f"> {params['logging']['log_path']}")
-            command_args.append(f"2> {params['logging']['err_path']}")
+            builder.set_output_redirection(
+                stdout=params["logging"]["log_path"], stderr=params["logging"]["err_path"]
+            )
 
-        # Environment variables if needed
-        env_vars = {}
+        # Build command arguments and environment
+        command_args = builder.build_args()
+        env_vars = builder.build_env()
 
         # Try to render the template with structured arguments
         try:
-            template_name = f"{str(self.role.name)}_command_structured.jinja"
-            return self.render_template_with_structured_args(
-                template_name, params, command_args, env_vars
+            cmd = self.template_renderer.render_structured_command(
+                self.role.name if hasattr(self.role, "name") else str(self.role),
+                params,
+                command_args,
+                env_vars,
             )
+            return cmd.command
         except Exception as e:
             self.logger.warning(
                 "Failed to render structured template for service '%s': %s",
                 self.service_config_to_test.name,
                 e,
             )
-            try:
-                # Fallback to original template
-                template_name = f"{str(self.role.name)}_command.jinja"
-                return self.render_commands(params, template_name)
-            except Exception as e2:
-                self.logger.error(
-                    "Failed to render fallback command template for service '%s': %s\n%s",
-                    self.service_config_to_test.name,
-                    e2,
-                    traceback.format_exc(),
-                )
-                raise e2
+            # Fallback to original template
+            template_name = (
+                f"{self.role.name if hasattr(self.role, 'name') else self.role}_command.jinja"
+            )
+            return self.render_commands(params, template_name)
 
     def __str__(self) -> str:
-        return f"PingPongServiceManager({self.__dict__})"
+        return f"PingPongServiceManager({self.service_config_to_test})"
 
     def __repr__(self):
-        return f"PingPongServiceManager({self.__dict__})"
+        return f"PingPongServiceManager({self.service_config_to_test})"

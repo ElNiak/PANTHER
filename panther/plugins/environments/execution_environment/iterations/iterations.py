@@ -1,5 +1,6 @@
 from abc import ABC
 
+
 from omegaconf import OmegaConf
 
 from panther.core.observer.management.event_manager import EventManager
@@ -11,7 +12,8 @@ from panther.plugins.environments.execution_environment.strace.config_schema imp
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.plugin_loader import PluginLoader
+
+# PluginManager functionality now integrated into PluginManager
 from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_decorators import register_plugin
 
@@ -34,14 +36,14 @@ class IterationsEnvironment(IExecutionEnvironment, ABC):
         env_config_to_test (StraceConfig): The specific configuration for the strace environment to test.
         services_managers (list[IServiceManager]): List of service managers to handle services within the environment.
         test_config (TestConfig): Configuration for the test being executed.
-        plugin_loader (PluginLoader): Loader for plugins used in the environment.
+        plugin_manager (PluginManager): Loader for plugins used in the environment.
 
     Methods:
         __init__(env_config_to_test: StraceConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
             Initializes the StraceEnvironment with the given configuration and parameters.
 
-        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader):
-            Sets up the environment with the provided service managers, test configuration, global configuration, and plugin loader.
+        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_manager: "PluginManager"):
+            Sets up the environment with the provided service managers, test configuration, global configuration, and plugin manager.
 
         to_command(pid: int | None = None) -> str:
             Generates the strace command for execution. Optionally attaches to a specific process ID.
@@ -69,11 +71,11 @@ class IterationsEnvironment(IExecutionEnvironment, ABC):
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
     ):
         self.services_managers: list[IServiceManager] = services_managers
         self.test_config = test_config
-        self.plugin_loader = plugin_loader
+        self.plugin_manager = plugin_manager
         self.global_config = global_config
         self.logger.debug("Setup environment with:")
         self.logger.debug("Services config: %s", self.env_config_to_test)

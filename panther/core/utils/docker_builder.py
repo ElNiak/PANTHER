@@ -180,9 +180,12 @@ class DockerBuilder:
                 log_filename = image_tag.replace(":", "_").replace("/", "_") + ".log"
                 log_f = open(log_filename, "w")
 
+            # Calculate relative path from context to dockerfile for Docker API
+            relative_dockerfile_path = Path(dockerfile_path).relative_to(context_path)
+
             image, build_logs = self.client.images.build(
                 path=str(context_path),
-                dockerfile=str(dockerfile_path),
+                dockerfile=str(relative_dockerfile_path),
                 tag=image_tag,
                 buildargs=build_args,
                 rm=False,  # Remove intermediate containers after build

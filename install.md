@@ -104,19 +104,20 @@ Examples:
 ```bash
 # (.venv)
 # For regular installation
-pip install --upgrade pip
+pip install --no-cache --upgrade pip setuptools wheel packaging build
 pip install .
 
 # For development installation (editable mode)
-pip install -e .
+pip install --no-cache --upgrade pip setuptools wheel packaging build
+pip install --no-cache -e .
 
 # For installation with specific extras
-pip install -e ".[tests]"  # Install with testing dependencies
-pip install -e ".[lint]"   # Install with linting dependencies
-pip install -e ".[doc]"    # Install with documentation dependencies (Python 3.8)
+pip install --no-cache -e ".[tests]"  # Install with testing dependencies
+pip install --no-cache -e ".[lint]"   # Install with linting dependencies
+pip install --no-cache -e ".[doc]"    # Install with documentation dependencies (Python 3.8)
 
-# Install with multiple extras
-pip install -e ".[tests,lint,doc]"
+# Install with multiple extras (For Mac you might want --prefer-binary)
+pip install --no-cache -e ".[tests,lint,doc]"
 ```
 
 Both methods read dependencies from **`pyproject.toml`**—**do not
