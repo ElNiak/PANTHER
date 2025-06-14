@@ -1,3 +1,9 @@
+"""Configuration management module for PANTHER framework.
+
+This module handles loading, validating, and managing configurations for experiments
+and plugins in the PANTHER framework.
+"""
+
 import importlib
 import logging
 import os
@@ -34,6 +40,8 @@ from importlib_resources import files
 
 
 class ConfigLoader(LoggerMixin):
+    """Handles loading and validation of PANTHER configurations."""
+
     @staticmethod
     def _get_class_name(plugin_name: str, suffix: str = "Config") -> str:
         """Convert plugin name to class name format."""
@@ -88,7 +96,11 @@ class ConfigLoader(LoggerMixin):
                 self.logger.warning("Invalid logging level '%s', using DEBUG", level_str)
                 level = LoggingLevel.DEBUG
         else:
-            level = level_str if isinstance(level_str, LoggingLevel) else default_logging.level
+            level = (
+                level_str
+                if isinstance(level_str, type(LoggingLevel.DEBUG))
+                else default_logging.level
+            )
 
         logging_config = LoggingConfig(
             level=level,
@@ -476,7 +488,7 @@ class ConfigLoader(LoggerMixin):
             error_msg += f"\n\nTo see valid parameters, run: python -m panther --list-plugin-params {plugin_name}"
             if plugin_type in ["iut", "tester"]:
                 error_msg += f" --plugin-type {plugin_type}"
-            raise ValidationError(error_msg)
+            raise ValidationError(error_msg) from e
 
     def construct_experiment_config(self, loaded_config: DictConfig) -> ExperimentConfig:
         """
@@ -577,8 +589,12 @@ class ConfigLoader(LoggerMixin):
         :param experiment_config: The experiment configuration to validate
         :return: Tuple of (is_valid, error_messages)
         """
-        from panther.plugins.plugin_manager import PluginManager
-        from panther.plugins.plugin_manifest import PluginType
+        from panther.plugins.plugin_manager import (
+            PluginManager,
+        )  # pylint: disable=import-outside-toplevel
+        from panther.plugins.plugin_manifest import (
+            PluginType,
+        )  # pylint: disable=import-outside-toplevel
 
         errors = []
         required_plugins = set()
@@ -612,7 +628,7 @@ class ConfigLoader(LoggerMixin):
 
             # Check services
             if hasattr(test, "services") and test.services:
-                for service_name, service_config in test.services.items():
+                for _, service_config in test.services.items():
                     if hasattr(service_config, "implementation"):
                         impl = service_config.implementation
                         impl_name = impl.name
@@ -688,7 +704,7 @@ class ConfigLoader(LoggerMixin):
                             "Constructed experiment config: %s",
                             OmegaConf.to_yaml(asdict(experiment_config)),
                         )
-                    except Exception as e:
+                    except Exception as e:  # pylint: disable=broad-exception-caught
                         self.logger.warning(
                             "Could not serialize experiment config for debug: %s", e
                         )
@@ -760,7 +776,7 @@ class ConfigLoader(LoggerMixin):
                     )
                 self.logger.error("YAML parsing error: %s", e)
                 raise
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 if self.metrics_collector:
                     self.metrics_collector.record_error(
                         phase="experiment_config_loading",
@@ -847,7 +863,7 @@ class ConfigLoader(LoggerMixin):
                     config_timer.stop()
             print(f"YAML parsing error: {e}")
             raise
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             if self.metrics_collector:
                 self.metrics_collector.increment_counter("config_load_errors")
                 self.metrics_collector.record_error(
@@ -880,12 +896,12 @@ class ConfigLoader(LoggerMixin):
             plugin_module = importlib.import_module(plugin_module_path)
             config_class = getattr(plugin_module, class_name)
             return config_class  # Assume PluginConfig is the schema class
-        except ImportError:
-            raise ImportError(f"Plugin schema '{plugin_module_path}' not found.")
-        except AttributeError:
+        except ImportError as exc:
+            raise ImportError(f"Plugin schema '{plugin_module_path}' not found.") from exc
+        except AttributeError as exc:
             raise ImportError(
                 f"Plugin schema '{plugin_module_path}' does not define a 'PluginConfig' class."
-            )
+            ) from exc
 
     def load_and_validate_protocol_config(
         self, implementation: ServiceConfig
@@ -914,7 +930,7 @@ class ConfigLoader(LoggerMixin):
             protocol_instance = config_class(**implementation.protocol)
             return OmegaConf.merge(config_class, protocol_instance)
         except (ImportError, AttributeError) as e:
-            raise ValueError(f"Failed to load protocol config for '{protocol}': {e}")
+            raise ValueError(f"Failed to load protocol config for '{protocol}': {e}") from e
 
     def load_and_validate_implementation_config(
         self, implementation: dict
@@ -982,7 +998,7 @@ class ConfigLoader(LoggerMixin):
 
             return OmegaConf.merge(config_class, implementation_instance)
         except (ImportError, AttributeError) as e:
-            raise ValueError(f"Failed to load implementation config for '{name}': {e}")
+            raise ValueError(f"Failed to load implementation config for '{name}': {e}") from e
 
     def get_all_exec_env_classes(self):
         """
@@ -1250,20 +1266,22 @@ class ConfigLoader(LoggerMixin):
 
                     # If not found with provided protocol or no protocol provided, search through known protocols
                     if not found:
+                        last_exc = None
                         for protocol_dir in ["quic", "http", "minip"]:
                             try:
                                 module_path = f"panther.plugins.services.{plugin_type}.{protocol_dir}.{plugin_name}.config_schema"
                                 plugin_module = importlib.import_module(module_path)
                                 found = True
                                 break
-                            except ImportError:
+                            except ImportError as exc:
+                                last_exc = exc
                                 continue
 
                     if not found:
                         error_msg = f"Could not find plugin schema for {plugin_name}"
                         if protocol:
                             error_msg += f" (protocol: {protocol})"
-                        raise ImportError(error_msg)
+                        raise ImportError(error_msg) from last_exc
             else:
                 # For environment plugins
                 module_path = (
@@ -1281,9 +1299,9 @@ class ConfigLoader(LoggerMixin):
             parameters = {}
 
             # Use dataclasses introspection to get fields
-            import dataclasses
-            import inspect
-            from typing import get_type_hints
+            import dataclasses  # pylint: disable=import-outside-toplevel
+            import inspect  # pylint: disable=import-outside-toplevel
+            from typing import get_type_hints  # pylint: disable=import-outside-toplevel
 
             if dataclasses.is_dataclass(config_class):
                 fields = dataclasses.fields(config_class)
@@ -1320,7 +1338,7 @@ class ConfigLoader(LoggerMixin):
         except AttributeError as e:
             logging.error("Error retrieving parameters for plugin '%s': %s", plugin_name, e)
             return {}
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logging.error(
                 "Unexpected error while listing parameters for plugin '%s': %s", plugin_name, e
             )

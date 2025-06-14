@@ -73,9 +73,7 @@ class TestPicoquicTemplates:
             ("host;malicious.com", "443", ["'host;malicious.com'", "443"]),
         ],
     )
-    def test_client_command_edge_cases(
-        self, jinja_manager, target, port, expected_in_output
-    ):
+    def test_client_command_edge_cases(self, jinja_manager, target, port, expected_in_output):
         """Test client command with edge case values."""
         context = {
             "command_args": [

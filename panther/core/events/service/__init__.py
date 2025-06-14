@@ -25,6 +25,7 @@ from panther.core.events.service.events import (
     CommandGeneratedEvent,
     DockerBuildStartedEvent,
     DockerBuildCompletedEvent,
+    DockerBuildFailedEvent,
     TesterAnalysisStartedEvent,
     TesterAnalysisCompletedEvent,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "CommandGeneratedEvent",
     "DockerBuildStartedEvent",
     "DockerBuildCompletedEvent",
+    "DockerBuildFailedEvent",
     "TesterAnalysisStartedEvent",
     "TesterAnalysisCompletedEvent",
     # States

@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from panther.core.utils.logging_mixin import LoggerMixin
-from panther.core.utils.command_utils import CommandUtils
+from panther.core.command_processor.command_utils import CommandUtils
 from panther.core.command_processor.command import ShellCommand
 
 logger = logging.getLogger(__name__)
@@ -236,11 +236,21 @@ class ServiceManagerMixin(LoggerMixin):
     def finalize_commands(self) -> dict[str, Any]:
         """
         Finalize and structure all commands for the service.
+        Preserves any modifications made by execution environments.
 
         Returns:
             dict: Complete command structure
         """
         self.initialize_commands()
+
+        # Log what we have before generating new commands
+        if hasattr(self, "logger"):
+            self.logger.debug(
+                "finalize_commands called for %s", getattr(self, "service_name", "unknown")
+            )
+            self.logger.debug(
+                "Existing pre_run_cmds before generation: %s", self.run_cmd.get("pre_run_cmds", [])
+            )
 
         # Generate all command phases
         pre_compile = self.generate_pre_compile_commands()
@@ -250,17 +260,31 @@ class ServiceManagerMixin(LoggerMixin):
         post_run = self.generate_post_run_commands()
         run_cmd = self.generate_run_command()
 
-        # Update the command structure
+        # Preserve existing execution environment modifications by merging instead of overwriting
+        existing_pre_compile = self.run_cmd.get("pre_compile_cmds", [])
+        existing_compile = self.run_cmd.get("compile_cmds", [])
+        existing_post_compile = self.run_cmd.get("post_compile_cmds", [])
+        existing_pre_run = self.run_cmd.get("pre_run_cmds", [])
+        existing_post_run = self.run_cmd.get("post_run_cmds", [])
+
+        # Merge execution environment modifications with generated commands
+        # Execution environment commands come first, then service-specific commands
         self.run_cmd.update(
             {
-                "pre_compile_cmds": pre_compile,
-                "compile_cmds": compile_cmds,
-                "post_compile_cmds": post_compile,
-                "pre_run_cmds": pre_run,
-                "post_run_cmds": post_run,
+                "pre_compile_cmds": existing_pre_compile + pre_compile,
+                "compile_cmds": existing_compile + compile_cmds,
+                "post_compile_cmds": existing_post_compile + post_compile,
+                "pre_run_cmds": existing_pre_run + pre_run,
+                "post_run_cmds": existing_post_run + post_run,
                 "run_cmd": run_cmd,
             }
         )
+
+        # Log the final state
+        if hasattr(self, "logger"):
+            self.logger.debug(
+                "Final pre_run_cmds after merge: %s", self.run_cmd.get("pre_run_cmds", [])
+            )
 
         return self.run_cmd
 
@@ -340,6 +364,125 @@ class IUTServiceManagerMixin(ServiceManagerMixin):
         """Get the target service name for client connections."""
         return getattr(self, "service_targets", None)
 
+    def standard_iut_initialization(
+        self,
+        service_config_to_test: Any = None,
+        service_type: str = None,
+        protocol: Any = None,
+        implementation_name: str = None,
+        event_manager: Any = None,
+        plugin_dir: Any = None,
+    ) -> None:
+        """
+        Template method for standard IUT service initialization.
+
+        This method encapsulates the common 6-line initialization pattern used by all IUT services:
+        1. Call standardized_initialization from ServiceManagerMixin
+        2. Set up IUT-specific attributes
+        3. Initialize template renderer
+        4. Set up Docker attributes
+
+        Services can override the hook methods to customize specific steps.
+
+        Args:
+            service_config_to_test: Service configuration (defaults to self.service_config_to_test)
+            service_type: Service type (defaults to self.service_type)
+            protocol: Protocol config (defaults to self.service_protocol)
+            implementation_name: Implementation name (defaults to self.implementation_name)
+            event_manager: Event manager (defaults to self.event_manager)
+            plugin_dir: Plugin directory path (required for template setup)
+        """
+        # Use provided parameters or fall back to instance attributes
+        service_config_to_test = service_config_to_test or getattr(
+            self, "service_config_to_test", None
+        )
+        service_type = service_type or getattr(self, "service_type", None)
+        protocol = protocol or getattr(self, "service_protocol", None)
+        implementation_name = implementation_name or getattr(self, "implementation_name", None)
+        event_manager = event_manager or getattr(self, "event_manager", None)
+
+        # Store plugin_dir for hook methods
+        self._plugin_dir = plugin_dir
+
+        # Step 1: Standardized initialization from ServiceManagerMixin
+        self.standardized_initialization(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
+
+        # Step 2: Set up IUT-specific attributes
+        self.setup_iut_specific_attributes(protocol, service_config_to_test)
+
+        # Step 3: Initialize template renderer (hook method for customization)
+        self._setup_template_renderer()
+
+        # Step 4: Set up Docker attributes (hook method for customization)
+        self._setup_docker_attributes()
+
+    def _get_plugin_dir(self):
+        """
+        Hook method: Get the plugin directory.
+
+        Override this method to customize plugin directory detection.
+        Default implementation gets the directory of the calling file.
+
+        Returns:
+            Path: Plugin directory path
+        """
+        from pathlib import Path
+        import inspect
+
+        # Get the directory of the calling class (the actual service implementation)
+        frame = inspect.currentframe()
+        try:
+            # Go up the stack to find the service class file
+            caller_frame = frame.f_back.f_back  # Skip standard_iut_initialization and __init__
+            if caller_frame and caller_frame.f_code.co_filename:
+                return Path(caller_frame.f_code.co_filename).parent
+        finally:
+            del frame
+
+        # Fallback to current file parent (not ideal but safe)
+        return Path(__file__).parent
+
+    def _get_docker_image_name(self, implementation_name: str = None) -> str:
+        """
+        Hook method: Get the Docker image name.
+
+        Override this method to customize Docker image naming.
+        Default implementation uses implementation_name:latest format.
+
+        Args:
+            implementation_name: Name of the implementation
+
+        Returns:
+            str: Docker image name
+        """
+        implementation_name = implementation_name or getattr(self, "implementation_name", "unknown")
+        return f"{implementation_name}:latest"
+
+    def _setup_template_renderer(self) -> None:
+        """
+        Hook method: Set up the template renderer.
+
+        Override this method to customize template renderer setup.
+        Default implementation creates a ServiceTemplateRenderer with plugin directory.
+        """
+        from panther.core.utils import ServiceTemplateRenderer
+
+        plugin_dir = self._plugin_dir or self._get_plugin_dir()
+        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+
+    def _setup_docker_attributes(self) -> None:
+        """
+        Hook method: Set up Docker-related attributes.
+
+        Override this method to customize Docker configuration.
+        Default implementation sets docker_image_name and docker_file_path.
+        """
+        self.docker_image_name = self._get_docker_image_name()
+        plugin_dir = self._plugin_dir or self._get_plugin_dir()
+        self.docker_file_path = plugin_dir / "Dockerfile"
+
 
 class TesterServiceManagerMixin(ServiceManagerMixin):
     """
@@ -379,3 +522,137 @@ class TesterServiceManagerMixin(ServiceManagerMixin):
         """Check if this is a formal verification tester (like Ivy)."""
         impl_name = getattr(self, "implementation_name", "").lower()
         return "ivy" in impl_name or "formal" in impl_name
+
+    def standard_tester_initialization(
+        self,
+        service_config_to_test: Any = None,
+        service_type: str = None,
+        protocol: Any = None,
+        implementation_name: str = None,
+        event_manager: Any = None,
+        include_protocol_in_template: bool = True,
+        plugin_dir: Any = None,
+    ) -> None:
+        """
+        Template method for standard tester service initialization.
+
+        This method encapsulates the common initialization pattern used by all tester services:
+        1. Call standardized_initialization from ServiceManagerMixin
+        2. Set up tester-specific attributes
+        3. Initialize template renderer (with optional protocol support)
+        4. Set up Docker attributes
+
+        Services can override the hook methods to customize specific steps.
+
+        Args:
+            service_config_to_test: Service configuration (defaults to self.service_config_to_test)
+            service_type: Service type (defaults to self.service_type)
+            protocol: Protocol config (defaults to self.service_protocol)
+            implementation_name: Implementation name (defaults to self.implementation_name)
+            event_manager: Event manager (defaults to self.event_manager)
+            include_protocol_in_template: Whether to include protocol in template renderer
+        """
+        # Use provided parameters or fall back to instance attributes
+        service_config_to_test = service_config_to_test or getattr(
+            self, "service_config_to_test", None
+        )
+        service_type = service_type or getattr(self, "service_type", None)
+        protocol = protocol or getattr(self, "service_protocol", None)
+        implementation_name = implementation_name or getattr(self, "implementation_name", None)
+        event_manager = event_manager or getattr(self, "event_manager", None)
+
+        # Store plugin_dir for hook methods
+        self._plugin_dir = plugin_dir
+
+        # Step 1: Standardized initialization from ServiceManagerMixin
+        self.standardized_initialization(
+            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        )
+
+        # Step 2: Set up tester-specific attributes
+        self.setup_tester_specific_attributes(service_config_to_test)
+
+        # Step 3: Initialize template renderer (hook method for customization)
+        self._setup_template_renderer(include_protocol_in_template, protocol)
+
+        # Step 4: Set up Docker attributes (hook method for customization)
+        self._setup_docker_attributes()
+
+    def _get_plugin_dir(self):
+        """
+        Hook method: Get the plugin directory.
+
+        Override this method to customize plugin directory detection.
+        Default implementation gets the directory of the calling file.
+
+        Returns:
+            Path: Plugin directory path
+        """
+        from pathlib import Path
+        import inspect
+
+        # Get the directory of the calling class (the actual service implementation)
+        frame = inspect.currentframe()
+        try:
+            # Go up the stack to find the service class file
+            caller_frame = frame.f_back.f_back  # Skip standard_tester_initialization and __init__
+            if caller_frame and caller_frame.f_code.co_filename:
+                return Path(caller_frame.f_code.co_filename).parent
+        finally:
+            del frame
+
+        # Fallback to current file parent (not ideal but safe)
+        return Path(__file__).parent
+
+    def _get_docker_image_name(self, implementation_name: str = None) -> str:
+        """
+        Hook method: Get the Docker image name.
+
+        Override this method to customize Docker image naming.
+        Default implementation uses implementation_name:latest format.
+
+        Args:
+            implementation_name: Name of the implementation
+
+        Returns:
+            str: Docker image name
+        """
+        implementation_name = implementation_name or getattr(self, "implementation_name", "unknown")
+        return f"{implementation_name}:latest"
+
+    def _setup_template_renderer(
+        self, include_protocol_in_template: bool = True, protocol: Any = None
+    ) -> None:
+        """
+        Hook method: Set up the template renderer.
+
+        Override this method to customize template renderer setup.
+        Default implementation creates a ServiceTemplateRenderer with optional protocol support.
+
+        Args:
+            include_protocol_in_template: Whether to include protocol in template setup
+            protocol: Protocol configuration
+        """
+        from panther.core.utils import ServiceTemplateRenderer
+
+        plugin_dir = self._plugin_dir or self._get_plugin_dir()
+
+        if include_protocol_in_template and protocol:
+            protocol_name = getattr(protocol, "name", None)
+            if protocol_name:
+                self.template_renderer = ServiceTemplateRenderer(plugin_dir, protocol_name)
+            else:
+                self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+        else:
+            self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+
+    def _setup_docker_attributes(self) -> None:
+        """
+        Hook method: Set up Docker-related attributes.
+
+        Override this method to customize Docker configuration.
+        Default implementation sets docker_image_name and docker_file_path.
+        """
+        self.docker_image_name = self._get_docker_image_name()
+        plugin_dir = self._plugin_dir or self._get_plugin_dir()
+        self.docker_file_path = plugin_dir / "Dockerfile"

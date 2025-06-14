@@ -1,3 +1,8 @@
+"""Experiment configuration schema for PANTHER framework.
+
+This module defines the data structures and schemas for experiment configurations.
+"""
+
 from enum import Enum
 from dataclasses import dataclass, field
 

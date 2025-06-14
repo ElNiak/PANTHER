@@ -7,6 +7,8 @@
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /app/logs/picoquic_server_entrypoint.log
 }
+# Export log function so it's available in subshells
+export -f log
 
 log_function() {
   local fn_name="$1"
@@ -61,6 +63,59 @@ check_connectivity() {
     return 1
   fi
 }
+
+resolve_hostname() {
+  local hostname="$1"
+  local format="${2:-ip}"  # Default to IP format, can be: ip, decimal, hex
+  local ip=""
+
+  # Try service discovery file first (most reliable for our services)
+  if [ -f "/app/sync_logs/${hostname}_ip.txt" ]; then
+    ip=$(cat "/app/sync_logs/${hostname}_ip.txt" 2>/dev/null | head -n1)
+    log "Found IP from service discovery: $ip" >&2
+  fi
+
+  if [ -z "$ip" ]; then
+    # Try getent (most reliable in Docker)
+    ip=$(getent hosts "$hostname" 2>/dev/null | awk '{ print $1 }' | head -n1)
+  fi
+
+  if [ -z "$ip" ]; then
+    # Fallback to nslookup
+    ip=$(nslookup "$hostname" 2>/dev/null | grep -A1 'Name:' | grep 'Address:' | tail -n1 | awk '{print $2}')
+  fi
+
+  if [ -z "$ip" ]; then
+    # Fallback to ping
+    ip=$(ping -c 1 "$hostname" 2>/dev/null | grep PING | sed -n 's/.*(\([0-9.]*\)).*/\1/p')
+  fi
+
+  if [ -n "$ip" ]; then
+    log "Resolved hostname '$hostname' to IP '$ip'" >&2
+
+    # Convert based on requested format
+    case "$format" in
+      decimal)
+        # Convert IP to decimal (for panther_ivy)
+        echo "$ip" | awk -F. '{printf("%.0f", ($1 * 256 * 256 * 256) + ($2 * 256 * 256) + ($3 * 256) + $4)}'
+        ;;
+      hex)
+        # Convert IP to hex
+        echo "$ip" | awk -F. '{printf("%02X%02X%02X%02X", $1, $2, $3, $4)}'
+        ;;
+      *)
+        # Default: return IP as-is
+        echo "$ip"
+        ;;
+    esac
+  else
+    log "WARNING: Could not resolve hostname '$hostname'" >&2
+    echo "$hostname"  # Return original hostname if resolution fails
+  fi
+}
+
+# Export the function so it's available in subshells
+export -f resolve_hostname
 
 wait_for_dependency() {
   local target="$1"
@@ -159,7 +214,13 @@ set_environment() {
 log "Setting up environment variables..."
 set_environment
 
-# Wait for dependencies if this is a client/IUT service
+# Service discovery: Write our IP to a shared file
+SERVICE_NAME="picoquic_server"
+SERVICE_IP=$(hostname -i | grep -v '^127' | head -n 1)
+if [ -n "$SERVICE_IP" ]; then
+  echo "$SERVICE_IP" > /app/sync_logs/${SERVICE_NAME}_ip.txt
+  log "Registered service IP: $SERVICE_IP"
+fi
 
 
 # Function to track command failures with details
@@ -216,7 +277,54 @@ log "Compilation completed successfully."
 
 # Execute post-compilation commands
 log "Executing post-compilation commands..."
+# Set command type for this context
+cmd_type="POST_COMPILE"
 
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+while [ ! -f /app/sync_logs/ivy_ready.log ]; do
+	echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;
+	sleep 2;
+done;
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #1"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "while [ ! -f /app/sync_logs/ivy_ready.log ]; do
+	echo \"Waiting for Ivy testers to be ready...\" >> /app/logs/tester_ready.log;
+	sleep 2;
+done;" "true" "true" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="POST_COMPILE"
+
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing shell builtin: echo \"Ivy testers is ready, starting picoquic_server...\" >> /app/logs/tester_ready.log;"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "echo "Ivy testers is ready, starting picoquic_server..." >> /app/logs/tester_ready.log;" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="POST_COMPILE"
+
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+(touch /app/logs/picoquic_server.pcap; tshark -a duration:60 -i any -w /app/logs/picoquic_server.pcap;) &
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #3"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_server.pcap; tshark -a duration:60 -i any -w /app/logs/picoquic_server.pcap;) & " "true" "true" || {
+  exit $?
+}
+
+
+
+
+# Wait for dependencies if this is a client/IUT service
 
 # Execute pre-run commands
 log "Executing pre-run commands..."
@@ -232,22 +340,46 @@ cd "/opt/picoquic" || {
 
 
 # Prepare command and execute it
-FULL_CMD="./picoquicdemo -c /opt/certs/cert.pem  -k  /opt/certs/key.pem  -a  hq-interop  -l - -n servername -D -L  -p  4443"
+# Handle both string and list command_args
+FULL_CMD="./picoquicdemo -a hq-interop  -l - -n servername -D -L  -p  4443"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
+
+# Resolve hostnames to IPs for better compatibility
+# This helps with applications that have DNS resolution issues in Docker
+# Match any service pattern: *_server, *_client, *_tester, *_iut
+while [[ "$FULL_CMD" =~ ([a-zA-Z][a-zA-Z0-9_-]*_(server|client|tester|iut)) ]]; do
+  SERVICE_HOSTNAME="${BASH_REMATCH[0]}"
+  SERVICE_IP=$(resolve_hostname "$SERVICE_HOSTNAME")
+  if [ -n "$SERVICE_IP" ] && [ "$SERVICE_IP" != "$SERVICE_HOSTNAME" ]; then
+    FULL_CMD="${FULL_CMD//$SERVICE_HOSTNAME/$SERVICE_IP}"
+    log "Replaced hostname '$SERVICE_HOSTNAME' with IP '$SERVICE_IP' in command"
+  else
+    # If we can't resolve, break to avoid infinite loop
+    break
+  fi
+done
 
 if [ -z "$FULL_CMD" ]; then
   log "WARNING: No command to run, skipping execution"
   RUN_STATUS=0
 else
-  log "Running command: $FULL_CMD"
+  # Check if execution environment wrappers are available and wrap the command
+  if [ -n "$EXEC_ENV_WRAPPERS" ]; then
+    WRAPPED_CMD="$EXEC_ENV_WRAPPERS $FULL_CMD"
+    log "Running command with execution environment wrappers: $WRAPPED_CMD"
+    echo "Execution environment wrappers applied: $EXEC_ENV_WRAPPERS" >> /app/logs/picoquic_server_exec_env_wrapping.log
+  else
+    WRAPPED_CMD="$FULL_CMD"
+    log "Running command: $WRAPPED_CMD"
+  fi
 
-  timeout 100 $FULL_CMD > /app/logs/picoquic_server_run_cmd.log 2> /app/logs/picoquic_server_run_cmd_error.log
+  timeout 60 $WRAPPED_CMD > /app/logs/picoquic_server_run_cmd.log 2> /app/logs/picoquic_server_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 100 seconds"
+    log "WARNING: Command timed out after 60 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
   fi

@@ -1,3 +1,9 @@
+"""Web application module for PANTHER framework.
+
+This module provides a Flask-based web interface for managing and running
+PANTHER experiments through a user-friendly web interface.
+"""
+
 import os
 import logging
 from flask import (
@@ -33,7 +39,8 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     experiment_manager = ExperimentManager(
         global_config=global_config, experiment_name=args.experiment_name
     )
-    experiment_manager.test_cases
+    # Initialize test cases (statement has effect through property access)
+    _ = experiment_manager.test_cases
     app.config["experiment_manager"] = experiment_manager
 
     experiment_config = config_loader.load_and_validate_experiment_config()
@@ -42,13 +49,15 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     # Once we have the experiments configurations, we can initialize the experiment
     experiment_manager.initialize_experiments(experiment_config)
 
-    from .experiment_setup import exp_manager
+    from .experiment_setup import exp_manager  # pylint: disable=import-outside-toplevel
 
     app.register_blueprint(exp_manager, url_prefix="/")
     app.logger.info("Flask app template - %s", app.template_folder)
 
     # Add Jinja helper functions
-    from panther.core.utils.jinja_manager import JinjaManager
+    from panther.core.utils.jinja_manager import (
+        JinjaManager,
+    )  # pylint: disable=import-outside-toplevel
 
     jinja_manager = JinjaManager(app.template_folder)
     app.jinja_env.globals["has_attr"] = jinja_manager.has_attr
@@ -86,9 +95,9 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
                 return jsonify({"status": "error", "message": f"Test {test_name} not found"})
             else:
                 # Run all tests
-                results = experiment_manager.run_tests()
-                return jsonify({"status": "success", "results": results})
-        except Exception as e:
+                experiment_manager.run_tests()
+                return jsonify({"status": "success", "message": "Experiments completed"})
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logging.error("Error running experiment: %s", e)
             return jsonify({"status": "error", "message": str(e)})
 
@@ -146,4 +155,10 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 def run(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     print("Running webapp")
     app = create_app(config_loader=config_loader, global_config=global_config, args=args)
-    app.run(host="0.0.0.0", port=8080, use_reloader=True, threaded=True, debug=True)
+
+    # Get configuration from environment variables for security
+    host = os.environ.get("PANTHER_WEBAPP_HOST", "127.0.0.1")  # Default to localhost only
+    port = int(os.environ.get("PANTHER_WEBAPP_PORT", "8080"))
+    debug = os.environ.get("PANTHER_WEBAPP_DEBUG", "false").lower() == "true"
+
+    app.run(host=host, port=port, use_reloader=debug, threaded=True, debug=debug)

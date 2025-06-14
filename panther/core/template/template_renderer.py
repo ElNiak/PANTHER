@@ -11,7 +11,7 @@ from typing import Any
 import jinja2
 
 from panther.core.utils.logging_mixin import LoggerMixin
-from panther.core.utils.error_handler_mixin import ErrorHandlerMixin
+from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
 from panther.core.command_processor.command import ShellCommand
 
 
@@ -218,6 +218,35 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
                     templates.append(template_path.name)
 
         return sorted(templates)
+
+
+class EnvironmentTemplateRenderer(TemplateRenderer):
+    """
+    Specialized template renderer for environments.
+
+    Provides additional functionality specific to environment command rendering.
+    """
+
+    def __init__(self, template_dir: str | Path, **kwargs):
+        """
+        Initialize environment template renderer.
+
+        Args:
+            template_dir: Directory containing environment templates
+            **kwargs: Additional arguments for TemplateRenderer
+        """
+        super().__init__(template_dir, **kwargs)
+        self.logger.debug(
+            f"Initialized EnvironmentTemplateRenderer with directory: {self.template_dir}"
+        )
+        # TODO
+        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_dir))
+        self.env.globals.update(
+            {
+                "get_env_var": self.get_env_var,
+                "get_service_name": self.get_service_name,
+            }
+        )
 
 
 class ServiceTemplateRenderer(TemplateRenderer):

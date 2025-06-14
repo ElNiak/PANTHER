@@ -1,3 +1,9 @@
+"""Experiment manager for PANTHER framework.
+
+This module contains the ExperimentManager class which manages the lifecycle
+of experiments including initialization, configuration, and execution.
+"""
+
 from datetime import datetime
 import logging
 from pathlib import Path
@@ -100,13 +106,15 @@ class ExperimentManager:
         factory = get_observer_factory(self.global_config)
         factory.set_event_manager(self.event_manager)
 
-        # Initialize state manager
-        from panther.core.state import StateManager
+        # Initialize workflow state tracker for experiment coordination
+        from panther.core.workflow import (
+            WorkflowStateTracker,
+        )  # pylint: disable=import-outside-toplevel
 
-        self.state_manager = StateManager()
+        self.workflow_tracker = WorkflowStateTracker()
 
-        # Initialize centralized emitter registry with state manager
-        self.emitter_registry = EmitterRegistry(self.event_manager, self.state_manager)
+        # Initialize centralized emitter registry
+        self.emitter_registry = EmitterRegistry(self.event_manager)
 
         # Access emitters through the registry
         self.experiment_emitter = self.emitter_registry.experiment_emitter
@@ -123,6 +131,12 @@ class ExperimentManager:
         )
 
         self._setup_observers(factory)
+
+        # Clean up any None observers that might exist
+        cleaned = self.event_manager.cleanup_none_observers()
+        if cleaned > 0:
+            self.logger.info("Cleaned up %d None observers during initialization", cleaned)
+
         self.test_cases: list[ITestCase] = []
 
     def initialize_experiments(self, experiment_config: ExperimentConfig):
@@ -266,7 +280,7 @@ class ExperimentManager:
                     config={"phase": "initialization"},
                 )
 
-                # Create the test case with shared emitter registry
+                # Create the test case with shared emitter registry and workflow tracker
                 test_case = TestCase(
                     test_config=test_config,
                     global_config=self.global_config,
@@ -274,6 +288,7 @@ class ExperimentManager:
                     experiment_dir=self.experiment_dir,
                     metrics_collector=self.metrics_collector,
                     emitter_registry=self.emitter_registry,
+                    workflow_tracker=self.workflow_tracker,
                 )
 
                 self.logger.info("Initialized test case '%s'", test_case)
@@ -413,6 +428,22 @@ class ExperimentManager:
                                 type(test_error).__name__,
                             )
 
+                        finally:
+                            # Clean up test-specific observers after each test completes
+                            # This prevents observer duplication when multiple tests run
+                            try:
+                                self.event_manager.cleanup_scoped_observers("test")
+                                self.logger.debug(
+                                    "Cleaned up test-scoped observers for test: %s",
+                                    test_case.test_config.name,
+                                )
+                            except Exception as cleanup_error:  # pylint: disable=broad-except
+                                self.logger.warning(
+                                    "Failed to cleanup test observers for %s: %s",
+                                    test_case.test_config.name,
+                                    cleanup_error,
+                                )
+
                         # progress_bar.set_postfix({"Running": f"{test_case}"})
 
             # tqdm.write("")  # Ensures the bar stays at the bottom after completion
@@ -501,14 +532,16 @@ class ExperimentManager:
         )
         self.logger.info("ExperimentManager initialized for experiment: %s", self.experiment_name)
 
-    def _setup_observers(self, factory: ObserverFactory):
+    def _setup_observers(self, factory: ObserverFactory):  # pylint: disable=unused-argument
         """Sets up the observers for the experiment manager."""
         try:
             # Register StateEventObserver to sync state with events
-            from panther.core.observer.impl import StateEventObserver
+            from panther.core.observer.impl import (
+                StateEventObserver,
+            )  # pylint: disable=import-outside-toplevel
 
             self.state_observer = StateEventObserver(
-                self.state_manager, priority=50
+                self.workflow_tracker, priority=50
             )  # Higher priority
             self.event_manager.register_observer(self.state_observer)
             self.logger.info("Registered StateEventObserver for event-driven state management")
@@ -537,9 +570,10 @@ class ExperimentManager:
                         include_event_id=True,
                     )
                     self.logger.info("Registered enhanced LoggerObserver")
-                except Exception as logger_error:
+                except Exception as logger_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
-                        f"Failed to create enhanced logger observer: {logger_error}. Falling back to basic observer."
+                        "Failed to create enhanced logger observer: %s. Falling back to basic observer.",
+                        logger_error,
                     )
 
             # Register metrics observer if metrics collector is available
@@ -564,7 +598,7 @@ class ExperimentManager:
                         log_level=metrics_log_level,  # Use observer-specific log level
                     )
                     self.logger.info("Registered enhanced metrics observer")
-                except Exception as metrics_error:
+                except Exception as metrics_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
                         "Failed to create enhanced metrics observer: %s. Using default configuration instead.",
                         metrics_error,
@@ -586,7 +620,9 @@ class ExperimentManager:
             # Create a logger observer with debug mode if debug logging is enabled
             if self.log_level <= logging.DEBUG:
                 try:
-                    from panther.core.observer.logger.logger_observer import LoggerObserver
+                    from panther.core.observer.logger.logger_observer import (
+                        LoggerObserver,
+                    )  # pylint: disable=import-outside-toplevel
 
                     debug_observer = LoggerObserver(
                         output_file=str(self.logs_dir / "event_debug.log"),
@@ -599,9 +635,10 @@ class ExperimentManager:
                     self.logger.info(
                         "Registered LoggerObserver with debug mode for detailed event tracking"
                     )
-                except Exception as debug_error:
+                except Exception as debug_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
-                        f"Failed to create debug observer: {debug_error}. Event debugging will be limited."
+                        "Failed to create debug observer: %s. Event debugging will be limited.",
+                        debug_error,
                     )
 
             self.logger.info("Observers set up for experiment: %s", self.experiment_name)
@@ -638,17 +675,17 @@ class ExperimentManager:
 
             for observer_name in observer_names:
                 if factory.unregister_observer(observer_name):
-                    self.logger.debug(f"Unregistered {observer_name}")
+                    self.logger.debug("Unregistered %s", observer_name)
                 else:
-                    self.logger.debug(f"{observer_name} was not registered or already removed")
+                    self.logger.debug("%s was not registered or already removed", observer_name)
 
-            # Clear state manager states for this experiment
-            if hasattr(self, "state_manager"):
-                self.state_manager.clear_workflow_state(self.experiment_name)
+            # Clear workflow tracker states for this experiment
+            if hasattr(self, "workflow_tracker"):
+                self.workflow_tracker.clear_workflow_state(self.experiment_name)
                 self.logger.debug("Cleared workflow state for experiment")
 
-        except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}", exc_info=True)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.error("Error during cleanup: %s", e, exc_info=True)
             # Don't raise - we want cleanup to be best-effort
 
     def __enter__(self):

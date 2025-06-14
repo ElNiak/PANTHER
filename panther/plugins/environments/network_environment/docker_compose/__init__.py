@@ -1,4 +1,8 @@
-"""PANTHER environment plugins.
+"""PANTHER docker_compose network environment plugin.
 
-This package contains environment plugins for different testing environments.
+This package contains the Docker Compose network environment plugin.
 """
+
+from .docker_compose import DockerComposeEnvironment
+
+__all__ = ["DockerComposeEnvironment"]

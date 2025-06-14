@@ -392,15 +392,6 @@ if [ -n "$SERVICE_IP" ]; then
   log "Registered service IP: $SERVICE_IP"
 fi
 
-# Wait for dependencies if this is a client/IUT service
-{% if additional_param.service_targets %}
-log "This service depends on: {{ additional_param.service_targets }}"
-wait_for_dependency "{{ additional_param.service_targets }}" "{{ additional_param.service_port | default(4443) }}" || {
-  log "ERROR: Failed to connect to dependency {{ additional_param.service_targets }}"
-  exit 1
-}
-{% endif %}
-
 
 # Function to track command failures with details
 execute_with_error_tracking() {
@@ -458,6 +449,16 @@ log "Compilation completed successfully."
 log "Executing post-compilation commands..."
 {{ execute_command_phase(structured_commands.get("post_compile_cmds"), "POST_COMPILE") }}
 
+
+# Wait for dependencies if this is a client/IUT service
+{% if additional_param.service_targets %}
+log "This service depends on: {{ additional_param.service_targets }}"
+wait_for_dependency "{{ additional_param.service_targets }}" "{{ additional_param.service_port | default(4443) }}" || {
+  log "ERROR: Failed to connect to dependency {{ additional_param.service_targets }}"
+  exit 1
+}
+{% endif %}
+
 # Execute pre-run commands
 log "Executing pre-run commands..."
 {{ execute_command_phase(structured_commands.get("pre_run_cmds"), "PRE_RUN") }}
@@ -511,13 +512,21 @@ if [ -z "$FULL_CMD" ]; then
   log "WARNING: No command to run, skipping execution"
   RUN_STATUS=0
 else
-  log "Running command: $FULL_CMD"
+  # Check if execution environment wrappers are available and wrap the command
+  if [ -n "$EXEC_ENV_WRAPPERS" ]; then
+    WRAPPED_CMD="$EXEC_ENV_WRAPPERS $FULL_CMD"
+    log "Running command with execution environment wrappers: $WRAPPED_CMD"
+    echo "Execution environment wrappers applied: $EXEC_ENV_WRAPPERS" >> /app/logs/{{additional_param.service_name}}_exec_env_wrapping.log
+  else
+    WRAPPED_CMD="$FULL_CMD"
+    log "Running command: $WRAPPED_CMD"
+  fi
 
   {% if structured_commands.get("run_cmd").timeout %}
-  timeout {{ structured_commands.get("run_cmd").timeout }} $FULL_CMD > /app/logs/{{additional_param.service_name}}_run_cmd.log 2> /app/logs/{{additional_param.service_name}}_run_cmd_error.log
+  timeout {{ structured_commands.get("run_cmd").timeout }} $WRAPPED_CMD > /app/logs/{{additional_param.service_name}}_run_cmd.log 2> /app/logs/{{additional_param.service_name}}_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
   {% else %}
-  $FULL_CMD > /app/logs/{{additional_param.service_name}}_run_cmd.log 2> /app/logs/{{additional_param.service_name}}_run_cmd_error.log
+  $WRAPPED_CMD > /app/logs/{{additional_param.service_name}}_run_cmd.log 2> /app/logs/{{additional_param.service_name}}_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
   {% endif %}
 fi

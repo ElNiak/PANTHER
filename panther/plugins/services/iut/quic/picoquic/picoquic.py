@@ -10,13 +10,12 @@ if TYPE_CHECKING:
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
-from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
+from panther.plugins.services.service_manager_utils import IUTServiceManagerMixin
 from panther.core.utils import (
-    ServiceCommandBuilder,
-    ServiceTemplateRenderer,
     ServiceManagerDockerMixin,
     ErrorHandlerMixin,
 )
+from panther.core.command_processor.command_builder import ServiceCommandBuilder
 from typing import TYPE_CHECKING
 
 
@@ -63,22 +62,24 @@ class PicoquicServiceManager(
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-        # Use standardized initialization from mixin
-        self.standardized_initialization(
-            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        # Use the new template method for standard initialization
+        self.standard_iut_initialization(
+            service_config_to_test,
+            service_type,
+            protocol,
+            implementation_name,
+            event_manager,
+            plugin_dir=Path(__file__).parent,
         )
-        # Set up IUT-specific attributes
-        self.setup_iut_specific_attributes(protocol, service_config_to_test)
 
-        # Initialize template renderer
-        plugin_dir = Path(__file__).parent
-        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
-
-        # Set Docker attributes for ServiceManagerDockerMixin
+    def _get_docker_image_name(self, implementation_name: str = None) -> str:
+        """
+        Override to extract version string from service configuration.
+        """
         # Extract version string from version object
         version_str = "latest"
-        if hasattr(service_config_to_test.implementation, "version"):
-            version_obj = service_config_to_test.implementation.version
+        if hasattr(self.service_config_to_test.implementation, "version"):
+            version_obj = self.service_config_to_test.implementation.version
             if hasattr(version_obj, "version"):
                 version_str = version_obj.version
             elif isinstance(version_obj, str):
@@ -86,8 +87,7 @@ class PicoquicServiceManager(
             else:
                 version_str = "latest"
 
-        self.docker_image_name = f"picoquic:{version_str}"
-        self.docker_file_path = plugin_dir / "Dockerfile"
+        return f"picoquic:{version_str}"
 
     def get_service_name(self) -> str:
         return self.service_name

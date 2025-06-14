@@ -250,8 +250,6 @@ if [ -n "$SERVICE_IP" ]; then
   log "Registered service IP: $SERVICE_IP"
 fi
 
-# Wait for dependencies if this is a client/IUT service
-
 
 # Function to track command failures with details
 execute_with_error_tracking() {
@@ -301,63 +299,56 @@ log "Executing pre-compilation commands..."
 cmd_type="PRE_COMPILE"
 
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "TARGET_IP=null" "1" "TARGET_IP=null" "false" "true" || {
+execute_with_error_tracking "$cmd_type" "echo '# Ivy environment variables' > /app/logs/ivy_env.sh" "1" "echo '# Ivy environment variables' > /app/logs/ivy_env.sh" "false" "true" || {
   exit $?
 }
 # Set command type for this context
 cmd_type="PRE_COMPILE"
 
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "TARGET_IP_DEC=null" "2" "TARGET_IP_DEC=null" "false" "true" || {
+execute_with_error_tracking "$cmd_type" "TARGET_IP=null && \\
+TARGET_IP_DEC=null && \\
+TARGET_IP_HEX=null && \\
+echo \"export TARGET_IP='\$TARGET_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_DEC='\$TARGET_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_HEX='\$TARGET_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export TARGET_IP TARGET_IP_DEC TARGET_IP_HEX && \\
+echo \"Server mode: target IP will be determined at runtime\" >> /app/logs/ivy_setup.log" "2" "TARGET_IP=null && \\
+TARGET_IP_DEC=null && \\
+TARGET_IP_HEX=null && \\
+echo \"export TARGET_IP='\$TARGET_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_DEC='\$TARGET_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_HEX='\$TARGET_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export TARGET_IP TARGET_IP_DEC TARGET_IP_HEX && \\
+echo \"Server mode: target IP will be determined at runtime\" >> /app/logs/ivy_setup.log" "false" "true" || {
   exit $?
 }
 # Set command type for this context
 cmd_type="PRE_COMPILE"
 
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "TARGET_IP_HEX=null" "3" "TARGET_IP_HEX=null" "false" "true" || {
+execute_with_error_tracking "$cmd_type" "IVY_IP=\$(resolve_hostname ivy_server) && \\
+IVY_IP_DEC=\$(resolve_hostname ivy_server decimal) && \\
+IVY_IP_HEX=\$(resolve_hostname ivy_server hex) && \\
+echo \"export IVY_IP='\$IVY_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_DEC='\$IVY_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_HEX='\$IVY_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export IVY_IP IVY_IP_DEC IVY_IP_HEX && \\
+echo \"Local ivy_server IP: \$IVY_IP (decimal: \$IVY_IP_DEC, hex: \$IVY_IP_HEX)\" >> /app/logs/ivy_setup.log" "3" "IVY_IP=\$(resolve_hostname ivy_server) && \\
+IVY_IP_DEC=\$(resolve_hostname ivy_server decimal) && \\
+IVY_IP_HEX=\$(resolve_hostname ivy_server hex) && \\
+echo \"export IVY_IP='\$IVY_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_DEC='\$IVY_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_HEX='\$IVY_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export IVY_IP IVY_IP_DEC IVY_IP_HEX && \\
+echo \"Local ivy_server IP: \$IVY_IP (decimal: \$IVY_IP_DEC, hex: \$IVY_IP_HEX)\" >> /app/logs/ivy_setup.log" "false" "true" || {
   exit $?
 }
 # Set command type for this context
 cmd_type="PRE_COMPILE"
 
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "echo \"Server mode: target IP will be determined at runtime\" >> /app/logs/ivy_setup.log" "4" "echo \"Server mode: target IP will be determined at runtime\" >> /app/logs/ivy_setup.log" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "IVY_IP=\$(hostname -i | grep -v '^127' | head -n 1)" "5" "IVY_IP=\$(hostname -i | grep -v '^127' | head -n 1)" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "IVY_IP_DEC=\$(resolve_hostname \"\$IVY_IP\" decimal)" "6" "IVY_IP_DEC=\$(resolve_hostname \"\$IVY_IP\" decimal)" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "IVY_IP_HEX=\$(resolve_hostname \"\$IVY_IP\" hex)" "7" "IVY_IP_HEX=\$(resolve_hostname \"\$IVY_IP\" hex)" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "echo \"Local ivy_server IP: \$IVY_IP (decimal: \$IVY_IP_DEC, hex: \$IVY_IP_HEX)\" >> /app/logs/ivy_setup.log" "8" "echo \"Local ivy_server IP: \$IVY_IP (decimal: \$IVY_IP_DEC, hex: \$IVY_IP_HEX)\" >> /app/logs/ivy_setup.log" "false" "true" || {
-  exit $?
-}
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle regular command
-execute_with_error_tracking "$cmd_type" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "9" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "false" "true" || {
+execute_with_error_tracking "$cmd_type" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "4" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "false" "true" || {
   exit $?
 }
 
@@ -555,6 +546,20 @@ log "Executing post-compilation commands..."
 # Set command type for this context
 cmd_type="POST_COMPILE"
 
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+(touch /app/logs/ivy_server.pcap; tshark -a duration:60 -i any -w /app/logs/ivy_server.pcap;) &
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #1"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "(touch /app/logs/ivy_server.pcap; tshark -a duration:60 -i any -w /app/logs/ivy_server.pcap;) & " "true" "true" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="POST_COMPILE"
+
 # Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
 log "Executing shell builtin: cd /opt/panther_ivy/protocol-testing/quic/"
 # Use eval to properly execute these special command types while preserving their syntax
@@ -574,8 +579,45 @@ eval "pwd >> /app/logs/ivy_post_compile.log" || {
 
 
 
+
+# Wait for dependencies if this is a client/IUT service
+
 # Execute pre-run commands
 log "Executing pre-run commands..."
+# Set command type for this context
+cmd_type="PRE_RUN"
+
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+if [ -z "$EXEC_ENV_WRAPPERS" ]; then
+    export EXEC_ENV_WRAPPERS="/usr/bin/strace -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/ivy_server_strace_2025-06-14_02-27-34.out"
+else
+    export EXEC_ENV_WRAPPERS="/usr/bin/strace -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/ivy_server_strace_2025-06-14_02-27-34.out $EXEC_ENV_WRAPPERS"
+fi
+echo "Added strace wrapper: /usr/bin/strace -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/ivy_server_strace_2025-06-14_02-27-34.out" >> /app/logs/ivy_server_exec_env_setup.log
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #1"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "if [ -z \"$EXEC_ENV_WRAPPERS\" ]; then
+    export EXEC_ENV_WRAPPERS=\"/usr/bin/strace -e trace=\"!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time\" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/ivy_server_strace_2025-06-14_02-27-34.out\"
+else
+    export EXEC_ENV_WRAPPERS=\"/usr/bin/strace -e trace=\"!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time\" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/ivy_server_strace_2025-06-14_02-27-34.out $EXEC_ENV_WRAPPERS\"
+fi
+echo \"Added strace wrapper: /usr/bin/strace -e trace=\"!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time\" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/ivy_server_strace_2025-06-14_02-27-34.out\" >> /app/logs/ivy_server_exec_env_setup.log" "true" "true" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="PRE_RUN"
+
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing shell builtin: source /app/logs/ivy_env.sh || true"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "source /app/logs/ivy_env.sh || true" || {
+  exit $?
+}
+
 
 
 # Execute the main command if provided
@@ -611,15 +653,23 @@ if [ -z "$FULL_CMD" ]; then
   log "WARNING: No command to run, skipping execution"
   RUN_STATUS=0
 else
-  log "Running command: $FULL_CMD"
+  # Check if execution environment wrappers are available and wrap the command
+  if [ -n "$EXEC_ENV_WRAPPERS" ]; then
+    WRAPPED_CMD="$EXEC_ENV_WRAPPERS $FULL_CMD"
+    log "Running command with execution environment wrappers: $WRAPPED_CMD"
+    echo "Execution environment wrappers applied: $EXEC_ENV_WRAPPERS" >> /app/logs/ivy_server_exec_env_wrapping.log
+  else
+    WRAPPED_CMD="$FULL_CMD"
+    log "Running command: $WRAPPED_CMD"
+  fi
 
-  timeout 100 $FULL_CMD > /app/logs/ivy_server_run_cmd.log 2> /app/logs/ivy_server_run_cmd_error.log
+  timeout 60 $WRAPPED_CMD > /app/logs/ivy_server_run_cmd.log 2> /app/logs/ivy_server_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 100 seconds"
+    log "WARNING: Command timed out after 60 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
   fi

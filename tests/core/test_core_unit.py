@@ -38,9 +38,7 @@ class TestExperimentManager:
         mock_config.paths.output_dir = str(temp_output_dir)
         mock_config.logging = Mock(spec=LoggingConfig)
         mock_config.logging.level = "INFO"
-        mock_config.logging.format = (
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        mock_config.logging.format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         return mock_config
 
     @pytest.fixture
@@ -64,15 +62,11 @@ class TestExperimentManager:
                 global_config=mock_global_config, experiment_name="test_experiment"
             )
 
-    def test_experiment_manager_initialization(
-        self, mock_global_config, temp_output_dir
-    ):
+    def test_experiment_manager_initialization(self, mock_global_config, temp_output_dir):
         """Test ExperimentManager initialization."""
         with (
             patch("panther.plugins.plugin_loader.PluginLoader") as mock_plugin_loader,
-            patch(
-                "panther.plugins.plugin_manager.PluginManager"
-            ) as mock_plugin_manager,
+            patch("panther.plugins.plugin_manager.PluginManager") as mock_plugin_manager,
         ):
 
             manager = ExperimentManager(
@@ -99,22 +93,16 @@ class TestExperimentManager:
             patch("panther.plugins.plugin_manager.PluginManager"),
         ):
 
-            manager1 = ExperimentManager(
-                global_config=mock_global_config, experiment_name="test"
-            )
+            manager1 = ExperimentManager(global_config=mock_global_config, experiment_name="test")
 
-            manager2 = ExperimentManager(
-                global_config=mock_global_config, experiment_name="test"
-            )
+            manager2 = ExperimentManager(global_config=mock_global_config, experiment_name="test")
 
             # Names should be different due to timestamps
             assert manager1.experiment_name != manager2.experiment_name
             assert manager1.experiment_name.startswith("test_")
             assert manager2.experiment_name.startswith("test_")
 
-    def test_experiment_manager_directory_creation(
-        self, mock_global_config, temp_output_dir
-    ):
+    def test_experiment_manager_directory_creation(self, mock_global_config, temp_output_dir):
         """Test that ExperimentManager creates required directories."""
         with (
             patch("panther.plugins.plugin_loader.PluginLoader"),
@@ -139,9 +127,7 @@ class TestExperimentManager:
             assert manager.logs_dir == expected_logs_dir
 
     @patch("panther.core.experiment_manager.ColoredFormatter")
-    def test_load_logging_configuration(
-        self, mock_colored_formatter, experiment_manager
-    ):
+    def test_load_logging_configuration(self, mock_colored_formatter, experiment_manager):
         """Test logging configuration loading."""
         # Test _load_logging method
         experiment_manager._load_logging()
@@ -153,16 +139,12 @@ class TestExperimentManager:
         assert experiment_manager.logger is not None
         assert experiment_manager.logger.name == "ExperimentManager"
 
-    def test_initialize_experiments_success(
-        self, experiment_manager, mock_experiment_config
-    ):
+    def test_initialize_experiments_success(self, experiment_manager, mock_experiment_config):
         """Test successful experiment initialization."""
         with (
             patch.object(experiment_manager, "_save_configuration") as mock_save,
             patch.object(experiment_manager.plugin_loader, "load_plugins") as mock_load,
-            patch.object(
-                experiment_manager, "_initialize_test_cases"
-            ) as mock_init_tests,
+            patch.object(experiment_manager, "_initialize_test_cases") as mock_init_tests,
         ):
 
             experiment_manager.initialize_experiments(mock_experiment_config)
@@ -209,9 +191,7 @@ class TestExperimentManager:
             mock_omega_conf.create.assert_called_once_with(mock_experiment_config)
             mock_omega_conf.to_yaml.assert_called_once()
 
-    def test_save_configuration_file_error(
-        self, experiment_manager, mock_experiment_config
-    ):
+    def test_save_configuration_file_error(self, experiment_manager, mock_experiment_config):
         """Test configuration saving with file write error."""
         experiment_manager.experiment_config = mock_experiment_config
 
@@ -248,9 +228,7 @@ class TestExperimentManager:
         assert len(experiment_manager.test_cases) == 1
         assert experiment_manager.test_cases[0] == mock_test_case_instance
 
-    def test_initialize_test_cases_multiple_tests(
-        self, experiment_manager, mock_experiment_config
-    ):
+    def test_initialize_test_cases_multiple_tests(self, experiment_manager, mock_experiment_config):
         """Test initialization with multiple test cases."""
         # Create multiple mock test configs
         mock_test_configs = []
@@ -262,9 +240,7 @@ class TestExperimentManager:
         mock_experiment_config.tests = mock_test_configs
         experiment_manager.experiment_config = mock_experiment_config
 
-        with patch(
-            "panther.core.test_cases.test_case_impl.TestCase"
-        ) as mock_test_case_class:
+        with patch("panther.core.test_cases.test_case_impl.TestCase") as mock_test_case_class:
             mock_test_case_class.return_value = Mock()
 
             experiment_manager._initialize_test_cases()
@@ -273,9 +249,7 @@ class TestExperimentManager:
             assert mock_test_case_class.call_count == 3
             assert len(experiment_manager.test_cases) == 3
 
-    def test_initialize_test_cases_empty_list(
-        self, experiment_manager, mock_experiment_config
-    ):
+    def test_initialize_test_cases_empty_list(self, experiment_manager, mock_experiment_config):
         """Test initialization with empty test list."""
         mock_experiment_config.tests = []
         experiment_manager.experiment_config = mock_experiment_config
@@ -351,9 +325,7 @@ class TestExperimentManager:
                 experiment_manager.test_cases, desc="Running tests", unit="test"
             )
 
-    def test_experiment_manager_state_consistency(
-        self, experiment_manager, mock_experiment_config
-    ):
+    def test_experiment_manager_state_consistency(self, experiment_manager, mock_experiment_config):
         """Test that ExperimentManager maintains consistent state."""
         # Initial state
         assert experiment_manager.experiment_config is None
@@ -371,9 +343,7 @@ class TestExperimentManager:
             # State should be updated
             assert experiment_manager.experiment_config == mock_experiment_config
 
-    def test_experiment_manager_error_recovery(
-        self, experiment_manager, mock_experiment_config
-    ):
+    def test_experiment_manager_error_recovery(self, experiment_manager, mock_experiment_config):
         """Test ExperimentManager error recovery mechanisms."""
         # Test recovery from configuration save error
         with (
@@ -409,9 +379,7 @@ class TestExperimentManager:
         assert experiment_manager.plugin_manager is not None
 
         # Test plugin loader interaction
-        with patch.object(
-            experiment_manager.plugin_loader, "load_plugins"
-        ) as mock_load:
+        with patch.object(experiment_manager.plugin_loader, "load_plugins") as mock_load:
             mock_load.return_value = {"loaded": 5, "failed": 0}
             result = experiment_manager.plugin_loader.load_plugins()
             assert result["loaded"] == 5
@@ -462,9 +430,7 @@ class TestExperimentManager:
 class TestExperimentManagerEdgeCases:
     """Edge case tests for ExperimentManager."""
 
-    def test_experiment_manager_with_special_characters_in_name(
-        self, mock_global_config
-    ):
+    def test_experiment_manager_with_special_characters_in_name(self, mock_global_config):
         """Test ExperimentManager with special characters in experiment name."""
         special_names = [
             "test-experiment",
@@ -481,14 +447,10 @@ class TestExperimentManagerEdgeCases:
                 patch("panther.plugins.plugin_manager.PluginManager"),
             ):
 
-                manager = ExperimentManager(
-                    global_config=mock_global_config, experiment_name=name
-                )
+                manager = ExperimentManager(global_config=mock_global_config, experiment_name=name)
 
                 # Should handle special characters gracefully
-                assert manager.experiment_name.startswith(
-                    name.replace("/", "_").replace("\\", "_")
-                )
+                assert manager.experiment_name.startswith(name.replace("/", "_").replace("\\", "_"))
                 assert manager.experiment_dir.exists()
 
     def test_experiment_manager_with_very_long_name(self, mock_global_config):
@@ -500,9 +462,7 @@ class TestExperimentManagerEdgeCases:
             patch("panther.plugins.plugin_manager.PluginManager"),
         ):
 
-            manager = ExperimentManager(
-                global_config=mock_global_config, experiment_name=long_name
-            )
+            manager = ExperimentManager(global_config=mock_global_config, experiment_name=long_name)
 
             # Should handle long names (may truncate)
             assert manager.experiment_name is not None

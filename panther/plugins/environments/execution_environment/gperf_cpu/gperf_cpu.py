@@ -1,8 +1,8 @@
-import os
-import time
 from abc import ABC
-from typing import Any
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
 
 from omegaconf import OmegaConf
 from panther.core.observer.management.event_manager import EventManager
@@ -14,12 +14,15 @@ from panther.plugins.environments.execution_environment.gperf_cpu.config_schema 
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.environments.execution_environment.output_collector import IOutputCollector
 
 # PluginManager functionality now integrated into PluginManager
 from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_decorators import register_plugin
 from panther.core.utils.environment_utils import ExecutionEnvironmentMixin
+from panther.core.outputs.execution_environment_mixins import (
+    StandardOutputCollectorMixin,
+    CommandModificationMixin,
+)
 
 
 @register_plugin(
@@ -31,7 +34,13 @@ from panther.core.utils.environment_utils import ExecutionEnvironmentMixin
     capabilities=["cpu_profiling", "performance_analysis", "hotspot_detection"],
     external_dependencies=["gperf"],
 )
-class GperfCpuEnvironment(ExecutionEnvironmentMixin, IExecutionEnvironment, IOutputCollector, ABC):
+class GperfCpuEnvironment(
+    ExecutionEnvironmentMixin,
+    StandardOutputCollectorMixin,
+    CommandModificationMixin,
+    IExecutionEnvironment,
+    ABC,
+):
     """
     GperfCpuEnvironment is a class that sets up and manages the execution environment
     for CPU profiling using gperf.
@@ -76,7 +85,6 @@ class GperfCpuEnvironment(ExecutionEnvironmentMixin, IExecutionEnvironment, IOut
         self.standardized_environment_initialization(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
-        self.profile_files = []
 
     def setup_environment(
         self,
@@ -90,199 +98,268 @@ class GperfCpuEnvironment(ExecutionEnvironmentMixin, IExecutionEnvironment, IOut
         self.setup_execution_environment(
             services_managers, test_config, global_config, timestamp, plugin_manager
         )
+
         for service in self.services_managers:
-            self.logger.debug("Service cmds: %s", service.run_cmd)
+            self.logger.debug("Service cmds before gperf_cpu modification: %s", service.run_cmd)
             if service.service_config_to_test.implementation.gperf_compatible:
                 service_name = getattr(service, "service_name", service.__class__.__name__)
 
-                # Emit environment modification started event
-                if hasattr(self, "environment_emitter") and self.environment_emitter:
-                    self.environment_emitter.emit_environment_modification_started(
-                        environment_id=f"gperf_cpu_{service_name}",
-                        environment_name="gperf_cpu",
-                        environment_type="execution",
-                        target_service=service_name,
-                        modification_type="environment_variables",
-                    )
+                # Use ServiceCommandBuilder for proper command building
+                from panther.core.command_processor.command_builder import ServiceCommandBuilder
+                from panther.plugins.protocols.config_schema import RoleEnum
 
-                # Store original environment
-                original_env = service.run_cmd["run_cmd"].get("command_env", {}).copy()
-                original_post_run = service.run_cmd.get("post_run_cmds", []).copy()
+                # Get the service role
+                service_role = getattr(service, "role", RoleEnum.server)
 
-                service.environments["GPERF"] = True
-                service.run_cmd["run_cmd"]["command_env"][
-                    "LD_PRELOAD"
-                ] = "/usr/local/lib/libprofiler.so"
-                profile_file = f"/app/logs/{service.service_name}_cpu.prof"
-                service.run_cmd["run_cmd"]["command_env"]["CPUPROFILE"] = profile_file
-                # Track profile files for output collection
-                self.profile_files.append(
-                    {
-                        "service": service.service_name,
-                        "prof_file": profile_file,
-                        "pdf_file": f"/app/logs/{service.service_name}_cpu.pdf",
-                    }
+                # Create command builder
+                command_builder = ServiceCommandBuilder(service_role)
+
+                # Generate output file paths
+                profile_file = f"/app/logs/{service_name}_cpu_profile_{timestamp}.prof"
+                pdf_file = f"/app/logs/{service_name}_cpu_profile_{timestamp}.pdf"
+
+                # Register output files with the mixin
+                self.register_output_file("cpu_profile", profile_file, service_name)
+                self.register_output_file("cpu_profile_pdf", pdf_file, service_name)
+
+                # Build gperf CPU wrapper setup command using the EXEC_ENV_WRAPPERS pattern
+                wrapper_setup_cmd = f"""
+# Setup gperf CPU profiling wrapper
+if [ -z "$EXEC_ENV_WRAPPERS" ]; then
+    export EXEC_ENV_WRAPPERS="env LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libprofiler.so.0 CPUPROFILE={profile_file}"
+else
+    export EXEC_ENV_WRAPPERS="env LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libprofiler.so.0 CPUPROFILE={profile_file} $EXEC_ENV_WRAPPERS"
+fi
+echo "Added gperf CPU profiling wrapper" >> /app/logs/{service_name}_exec_env_setup.log
+""".strip()
+
+                # Use CommandBuilder to add the command with proper metadata
+                command_builder.add_command(
+                    command=wrapper_setup_cmd,
+                    description=f"Setup gperf CPU profiling wrapper for {service_name}",
+                    is_multiline=True,
+                    is_critical=False,  # Don't fail if gperf setup fails
+                    environment={"CPUPROFILE_OUTPUT": profile_file},
                 )
-                # service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command(service.service_name)]
-                service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [
-                    f"pprof --pdf /app/logs/{service.service_name}_cpu.prof > /app/logs/{service.service_name}_cpu.pdf"
-                ]
 
-                # Emit environment modification completed event
-                if hasattr(self, "environment_emitter") and self.environment_emitter:
-                    self.environment_emitter.emit_environment_modification_completed(
-                        environment_id=f"gperf_cpu_{service_name}",
-                        environment_name="gperf_cpu",
-                        environment_type="execution",
-                        modifications={
-                            "command_env": {
-                                "original": original_env,
-                                "modified": service.run_cmd["run_cmd"]["command_env"],
-                            },
-                            "post_run_cmds": {
-                                "original": original_post_run,
-                                "modified": service.run_cmd["post_run_cmds"],
-                            },
-                        },
-                        modification_summary="Added CPU profiling environment variables and post-processing command",
+                # Add post-processing command to generate PDF if enabled
+                post_run_commands = []
+                if self.env_config_to_test.generate_pdf:
+                    pprof_options = (
+                        " ".join(self.env_config_to_test.pprof_options)
+                        if self.env_config_to_test.pprof_options
+                        else ""
+                    )
+                    post_process_cmd = f"""
+# Generate PDF from CPU profile
+if [ -f "{profile_file}" ]; then
+    pprof --pdf {pprof_options} {profile_file} > {pdf_file} 2>/dev/null || echo "Failed to generate CPU profile PDF"
+    echo "Generated CPU profile PDF: {pdf_file}" >> /app/logs/{service_name}_exec_env_setup.log
+else
+    echo "CPU profile not found: {profile_file}" >> /app/logs/{service_name}_exec_env_setup.log
+fi
+""".strip()
+
+                    command_builder.add_command(
+                        command=post_process_cmd,
+                        description=f"Generate PDF from CPU profile for {service_name}",
+                        is_multiline=True,
+                        is_critical=False,
                     )
 
-                self.logger.debug("Service cmds: %s", service.run_cmd)
+                # Process the commands through CommandProcessor
+                processed_commands = command_builder.process_commands()
+
+                # Extract the actual command strings from processed commands
+                if processed_commands:
+                    gperf_commands = []
+
+                    for i, cmd_dict in enumerate(processed_commands):
+                        if isinstance(cmd_dict, dict) and "command" in cmd_dict:
+                            if i == 0:  # First command is the wrapper setup
+                                gperf_commands.append(cmd_dict["command"])
+                            elif (
+                                self.env_config_to_test.generate_pdf and i == 1
+                            ):  # Second command is post-processing if PDF is enabled
+                                post_run_commands.append(cmd_dict["command"])
+                        else:
+                            # Fallback if structure is different
+                            gperf_commands.append(str(cmd_dict))
+
+                    # Use the CommandModificationMixin to properly modify the service
+                    # Add pre-run commands
+                    if gperf_commands:
+                        applied_modifications = self.modify_service_commands(
+                            service, "gperf_cpu_wrapper", {"pre_run_cmds": gperf_commands}
+                        )
+                        self.logger.info(
+                            "Added gperf CPU profiling wrapper to service %s", service_name
+                        )
+                        self.logger.debug(
+                            "Applied pre-run modifications: %s", applied_modifications
+                        )
+
+                    # Add post-run commands
+                    if post_run_commands:
+                        applied_post_modifications = self.modify_service_commands(
+                            service,
+                            "gperf_cpu_post_processing",
+                            {"post_run_cmds": post_run_commands},
+                        )
+                        self.logger.info(
+                            "Added gperf CPU post-processing to service %s", service_name
+                        )
+                        self.logger.debug(
+                            "Applied post-run modifications: %s", applied_post_modifications
+                        )
+
+                    # Mark that gperf is enabled for this service
+                    service.environments["GPERF"] = True
+
+                    self.logger.debug(
+                        "Service cmds after gperf_cpu modification: %s", service.run_cmd
+                    )
+                else:
+                    self.logger.warning(
+                        "No gperf CPU commands were processed for service %s", service_name
+                    )
             else:
                 self.logger.debug("Service %s is not gperf compatible", service)
 
         self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))
         self.logger.debug("Global Config: %s", OmegaConf.to_yaml(self.global_config))
 
-    def to_command(self, service_name: str) -> str:
+    def to_command(self, profile_file: str | None = None) -> str:
         """
-        Generate the gperf command based on the configuration.
+        Generate the gperf CPU profiling wrapper command.
+
+        :param profile_file: Optional path to the CPU profile output file.
+        :return: Command string for CPU profiling wrapper.
         """
-        conf = GperfCpuConfig(
-            # input_file="keywords.txt",
-            # output_file="output.c",
-            # language="C++",
-            # keyword_only=True,
-            # readonly_tables=True,
-            # includes=["my_header.h"],
-            # other_flags=["--ignore-case"]
+        # Build the LD_PRELOAD environment wrapper for CPU profiling
+        command_parts = ["env"]
+
+        # Add LD_PRELOAD for the profiler library
+        # Try multiple possible locations for the library
+        profiler_lib = (
+            self.env_config_to_test.profiler_library or "/usr/lib/x86_64-linux-gnu/libprofiler.so.0"
         )
-        command = ["gperf"]
+        command_parts.append(f"LD_PRELOAD={profiler_lib}")
 
-        # Input and output files
-        if conf.input_file:
-            command.append(f'"{conf.input_file}"')
-        if conf.output_file:
-            command.append(f'--output-file="{conf.output_file}"')
+        # Add CPUPROFILE environment variable if profile file is specified
+        if profile_file:
+            command_parts.append(f"CPUPROFILE={profile_file}")
 
-        # Language option
-        if conf.language:
-            command.append(f"--language={conf.language}")
+        # Add sampling frequency if specified
+        if (
+            hasattr(self.env_config_to_test, "sampling_frequency")
+            and self.env_config_to_test.sampling_frequency
+        ):
+            command_parts.append(
+                f"CPUPROFILE_FREQUENCY={self.env_config_to_test.sampling_frequency}"
+            )
 
-        # Flags
-        if conf.keyword_only:
-            command.append("--keyword-only")
-        if conf.readonly_tables:
-            command.append("--readonly-tables")
-        if conf.switch:
-            command.append("--switch")
-        if conf.compare_strncmp:
-            command.append("--compare-strncmp")
+        # Add real-time signal if specified
+        if (
+            hasattr(self.env_config_to_test, "use_realtime_signal")
+            and self.env_config_to_test.use_realtime_signal
+        ):
+            command_parts.append("CPUPROFILE_REALTIME=1")
 
-        # Custom functions
-        if conf.hash_function:
-            command.append(f'--hash-function="{conf.hash_function}"')
-        if conf.compare_function:
-            command.append(f'--compare-function="{conf.compare_function}"')
+        return " ".join(command_parts)
 
-        # Includes
-        for include in conf.includes:
-            command.append(f'--include="{include}"')
-
-        # Other flags
-        command.extend(conf.other_flags)
-
-        # Join and return the command
-        return " ".join(command)
-
-    def collect_outputs(self) -> dict[str, str]:
+    def initialize(self, test_config, output_dir, event_manager, global_config):
         """
-        Collect CPU profiling outputs generated by gperf.
+        Initialize the gperf CPU environment with configuration settings.
+
+        Args:
+            test_config: Test configuration to use for this environment
+            output_dir: Directory to write environment files
+            event_manager: Shared event manager instance for emitting events
+            global_config: Global configuration settings
 
         Returns:
-            dict[str, str]: Dictionary mapping output type to file path
+            bool: True if initialization succeeded, False otherwise
         """
-        outputs = {}
+        try:
+            self.test_config = test_config
+            self.output_dir = output_dir
+            self.event_manager = event_manager
+            self.global_config = global_config
+            self.is_initialized = True
+            self.logger.debug("GperfCpuEnvironment initialized successfully")
+            return True
+        except Exception as e:
+            self.logger.error("Failed to initialize GperfCpuEnvironment: %s", e)
+            return False
 
-        for profile_info in self.profile_files:
-            service_name = profile_info["service"]
-            prof_file = profile_info["prof_file"]
-            pdf_file = profile_info["pdf_file"]
-
-            # Map container paths to host paths (assuming standard mapping)
-            host_prof_file = prof_file.replace("/app/logs/", f"{self.output_dir}/")
-            host_pdf_file = pdf_file.replace("/app/logs/", f"{self.output_dir}/")
-
-            if os.path.exists(host_prof_file):
-                outputs[f"cpu_profile_{service_name}"] = host_prof_file
-                self.logger.debug(f"Collected CPU profile for {service_name}: {host_prof_file}")
-
-            if os.path.exists(host_pdf_file):
-                outputs[f"cpu_profile_pdf_{service_name}"] = host_pdf_file
-                self.logger.debug(f"Collected CPU profile PDF for {service_name}: {host_pdf_file}")
-
-        if not outputs:
-            self.logger.warning("No gperf CPU profile outputs found")
-
-        return outputs
-
-    def get_output_metadata(self) -> dict[str, Any]:
+    def _do_setup_environment(
+        self,
+        services_managers,
+        test_config,
+        global_config,
+        timestamp,
+        plugin_manager,
+        execution_environment=None,
+    ):
         """
-        Get metadata about the collected CPU profiling outputs.
+        Implementation of environment setup for gperf CPU (from parent interface).
 
-        Returns:
-            dict[str, Any]: Metadata including size, format, timestamp, etc.
+        Args:
+            services_managers: List of service managers
+            test_config: Test configuration
+            global_config: Global configuration
+            timestamp: Timestamp for this execution
+            plugin_manager: Plugin manager instance
+            execution_environment: List of execution environments (unused for gperf CPU)
         """
-        metadata = {}
+        # execution_environment is not needed for gperf CPU setup but required by interface
+        _ = execution_environment
+        # Delegate to the concrete implementation
+        self.setup_environment(
+            services_managers, test_config, global_config, timestamp, plugin_manager
+        )
 
-        for profile_info in self.profile_files:
-            service_name = profile_info["service"]
-            prof_file = profile_info["prof_file"]
-            pdf_file = profile_info["pdf_file"]
+    def _do_deploy_services(self):
+        """
+        Implementation of service deployment for gperf CPU.
 
-            # Map container paths to host paths
-            host_prof_file = prof_file.replace("/app/logs/", f"{self.output_dir}/")
-            host_pdf_file = pdf_file.replace("/app/logs/", f"{self.output_dir}/")
+        For execution environments like gperf CPU, deployment is typically handled
+        by the network environment, so this is usually a no-op.
+        """
+        self.logger.debug("GperfCpuEnvironment deployment: no specific deployment needed")
 
-            if os.path.exists(host_prof_file):
-                stat_info = os.stat(host_prof_file)
-                metadata[f"cpu_profile_{service_name}"] = {
-                    "size_bytes": stat_info.st_size,
-                    "format": "gperf_cpu_profile",
-                    "timestamp": time.ctime(stat_info.st_mtime),
-                    "path": host_prof_file,
-                    "environment": "gperf_cpu",
-                    "type": "cpu_profile",
-                    "service": service_name,
-                }
+    def _do_teardown_environment(self):
+        """
+        Implementation of environment teardown for gperf CPU.
+        """
+        self.logger.debug("GperfCpuEnvironment teardown: cleaning up gperf CPU resources")
+        # Collect any remaining output files
+        outputs = self.collect_outputs()
+        if outputs:
+            self.logger.info("Collected gperf CPU outputs: %s", list(outputs.keys()))
 
-            if os.path.exists(host_pdf_file):
-                stat_info = os.stat(host_pdf_file)
-                metadata[f"cpu_profile_pdf_{service_name}"] = {
-                    "size_bytes": stat_info.st_size,
-                    "format": "pdf",
-                    "timestamp": time.ctime(stat_info.st_mtime),
-                    "path": host_pdf_file,
-                    "environment": "gperf_cpu",
-                    "type": "cpu_profile_visualization",
-                    "service": service_name,
-                }
+    def handle_event(self, event):
+        """
+        Handle events sent to this execution environment.
 
-        return metadata
+        Args:
+            event: The event to handle
+        """
+        event_type = type(event).__name__
+        self.logger.debug("GperfCpuEnvironment received event: %s", event_type)
+
+        # Handle environment-specific events if needed
+        if event_type == "ServiceStartedEvent":
+            self.logger.debug("Service started, gperf CPU profiling should be active")
+        elif event_type == "ServiceStoppedEvent":
+            self.logger.debug("Service stopped, gperf CPU collection complete")
+        else:
+            self.logger.debug("Unhandled event type: %s", event_type)
 
     def __repr__(self):
         return (
-            f"GperfEnvironment("
+            f"GperfCpuEnvironment("
             f"env_config_to_test={self.env_config_to_test}, "
             f"output_dir={self.output_dir}, "
             f"event_manager={self.event_manager}, "

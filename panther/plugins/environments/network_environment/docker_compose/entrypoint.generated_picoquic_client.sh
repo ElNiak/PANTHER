@@ -222,13 +222,6 @@ if [ -n "$SERVICE_IP" ]; then
   log "Registered service IP: $SERVICE_IP"
 fi
 
-# Wait for dependencies if this is a client/IUT service
-log "This service depends on: ivy_server"
-wait_for_dependency "ivy_server" "4443" || {
-  log "ERROR: Failed to connect to dependency ivy_server"
-  exit 1
-}
-
 
 # Function to track command failures with details
 execute_with_error_tracking() {
@@ -284,10 +277,86 @@ log "Compilation completed successfully."
 
 # Execute post-compilation commands
 log "Executing post-compilation commands..."
+# Set command type for this context
+cmd_type="POST_COMPILE"
 
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+while [ ! -f /app/sync_logs/ivy_ready.log ]; do
+	echo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;
+	sleep 2;
+done;
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #1"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "while [ ! -f /app/sync_logs/ivy_ready.log ]; do
+	echo \"Waiting for Ivy testers to be ready...\" >> /app/logs/tester_ready.log;
+	sleep 2;
+done;" "true" "true" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="POST_COMPILE"
+
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing shell builtin: echo \"Ivy testers is ready, starting picoquic_client...\" >> /app/logs/tester_ready.log;"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "echo "Ivy testers is ready, starting picoquic_client..." >> /app/logs/tester_ready.log;" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="POST_COMPILE"
+
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+(touch /app/logs/picoquic_client.pcap; tshark -a duration:60 -i any -w /app/logs/picoquic_client.pcap;) &
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #3"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "3" "(touch /app/logs/picoquic_client.pcap; tshark -a duration:60 -i any -w /app/logs/picoquic_client.pcap;) & " "true" "true" || {
+  exit $?
+}
+
+
+
+
+# Wait for dependencies if this is a client/IUT service
+log "This service depends on: ivy_server"
+wait_for_dependency "ivy_server" "4443" || {
+  log "ERROR: Failed to connect to dependency ivy_server"
+  exit 1
+}
 
 # Execute pre-run commands
 log "Executing pre-run commands..."
+# Set command type for this context
+cmd_type="PRE_RUN"
+
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+if [ -z "$EXEC_ENV_WRAPPERS" ]; then
+    export EXEC_ENV_WRAPPERS="/usr/bin/strace -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/picoquic_client_strace_2025-06-14_02-27-34.out"
+else
+    export EXEC_ENV_WRAPPERS="/usr/bin/strace -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/picoquic_client_strace_2025-06-14_02-27-34.out $EXEC_ENV_WRAPPERS"
+fi
+echo "Added strace wrapper: /usr/bin/strace -e trace="!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/picoquic_client_strace_2025-06-14_02-27-34.out" >> /app/logs/picoquic_client_exec_env_setup.log
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #1"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "if [ -z \"$EXEC_ENV_WRAPPERS\" ]; then
+    export EXEC_ENV_WRAPPERS=\"/usr/bin/strace -e trace=\"!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time\" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/picoquic_client_strace_2025-06-14_02-27-34.out\"
+else
+    export EXEC_ENV_WRAPPERS=\"/usr/bin/strace -e trace=\"!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time\" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/picoquic_client_strace_2025-06-14_02-27-34.out $EXEC_ENV_WRAPPERS\"
+fi
+echo \"Added strace wrapper: /usr/bin/strace -e trace=\"!nanosleep,getitimer,alarm,setitimer,gettimeofday,times,rt_sigtimedwait,utime,adjtimex,settimeofday,time\" -e trace=network -e trace=file -y -r -f -s 32 -o /app/logs/picoquic_client_strace_2025-06-14_02-27-34.out\" >> /app/logs/picoquic_client_exec_env_setup.log" "true" "true" || {
+  exit $?
+}
+
 
 
 # Execute the main command if provided
@@ -323,15 +392,23 @@ if [ -z "$FULL_CMD" ]; then
   log "WARNING: No command to run, skipping execution"
   RUN_STATUS=0
 else
-  log "Running command: $FULL_CMD"
+  # Check if execution environment wrappers are available and wrap the command
+  if [ -n "$EXEC_ENV_WRAPPERS" ]; then
+    WRAPPED_CMD="$EXEC_ENV_WRAPPERS $FULL_CMD"
+    log "Running command with execution environment wrappers: $WRAPPED_CMD"
+    echo "Execution environment wrappers applied: $EXEC_ENV_WRAPPERS" >> /app/logs/picoquic_client_exec_env_wrapping.log
+  else
+    WRAPPED_CMD="$FULL_CMD"
+    log "Running command: $WRAPPED_CMD"
+  fi
 
-  timeout 100 $FULL_CMD > /app/logs/picoquic_client_run_cmd.log 2> /app/logs/picoquic_client_run_cmd_error.log
+  timeout 60 $WRAPPED_CMD > /app/logs/picoquic_client_run_cmd.log 2> /app/logs/picoquic_client_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 100 seconds"
+    log "WARNING: Command timed out after 60 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
   fi

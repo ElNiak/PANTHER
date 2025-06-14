@@ -11,7 +11,7 @@ import os
 
 from panther.core.utils.logging_mixin import LoggerMixin
 from panther.core.utils.docker_utils import DockerUtils, DockerOperationError
-from panther.core.utils.command_event_mixin import CommandEventMixin
+from panther.core.command_processor.command_event_mixin import CommandEventMixin
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -385,8 +385,18 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
         self.emit_docker_build_started(str(dockerfile_path), image_name)
 
         try:
-            # Get version from service config
-            version = getattr(self.service_config_to_test.implementation, "version", "latest")
+            # Get simple version string from service config (not the complex object)
+            version_obj = getattr(self.service_config_to_test.implementation, "version", "latest")
+
+            # Extract simple version string from complex version object
+            if hasattr(version_obj, "version"):
+                version = version_obj.version
+            elif hasattr(version_obj, "name"):
+                version = version_obj.name
+            elif isinstance(version_obj, str):
+                version = version_obj
+            else:
+                version = "latest"
 
             plugin_manager.build_docker_image(self.implementation_name, version)
             self.emit_docker_build_completed(image_name, True)

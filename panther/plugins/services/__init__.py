@@ -16,5 +16,5 @@ __all__ = [
     "quote_shell",
     "quote_yaml",
     "validate_cmd",
-    "validate_structure", 
+    "validate_structure",
 ]

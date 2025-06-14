@@ -282,9 +282,7 @@ valid_paths = st.text(
     ),
     min_size=1,
     max_size=100,
-).filter(
-    lambda x: all(c not in x for c in ["/", "\\", ":", "*", "?", '"', "<", ">", "|"])
-)
+).filter(lambda x: all(c not in x for c in ["/", "\\", ":", "*", "?", '"', "<", ">", "|"]))
 
 # Plugin name strategies
 plugin_names = st.text(

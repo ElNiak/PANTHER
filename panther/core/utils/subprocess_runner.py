@@ -11,7 +11,7 @@ from pathlib import Path
 import time
 
 from panther.core.utils.logging_mixin import LoggerMixin
-from panther.core.utils.error_handler_mixin import ErrorHandlerMixin
+from panther.core.exceptions import ErrorHandlerMixin
 
 
 class SubprocessResult:
@@ -97,9 +97,9 @@ class SubprocessRunner(ErrorHandlerMixin, LoggerMixin):
 
         # Build command string for logging
         cmd_str = command if isinstance(command, str) else " ".join(command)
-        self.logger.debug(f"Running command: {cmd_str}")
+        self.logger.debug("Running command: %s", cmd_str)
         if working_dir != self.working_dir:
-            self.logger.debug(f"Working directory: {working_dir}")
+            self.logger.debug("Working directory: %s", working_dir)
 
         # Prepare environment
         run_env = os.environ.copy()
@@ -123,7 +123,7 @@ class SubprocessRunner(ErrorHandlerMixin, LoggerMixin):
         # Run the command
         start_time = time.time()
         try:
-            result = subprocess.run(command, **kwargs)
+            result = subprocess.run(command, check=False, **kwargs)
             duration = time.time() - start_time
 
             # Extract output
@@ -133,9 +133,9 @@ class SubprocessRunner(ErrorHandlerMixin, LoggerMixin):
             # Log output if requested
             if log_output and capture_output:
                 if stdout and stdout.strip():
-                    self.logger.debug(f"Command stdout:\n{stdout}")
+                    self.logger.debug("Command stdout:\n%s", stdout)
                 if stderr and stderr.strip():
-                    self.logger.warning(f"Command stderr:\n{stderr}")
+                    self.logger.warning("Command stderr:\n%s", stderr)
 
             # Write to log files if specified
             if log_file and stdout:
@@ -160,19 +160,21 @@ class SubprocessRunner(ErrorHandlerMixin, LoggerMixin):
 
         except subprocess.TimeoutExpired:
             duration = time.time() - start_time
-            self.logger.error(f"Command timed out after {timeout} seconds: {cmd_str}")
+            self.logger.error("Command timed out after %s seconds: %s", timeout, cmd_str)
             raise
 
         except subprocess.CalledProcessError as e:
             duration = time.time() - start_time
             self.logger.error(
-                f"Command failed with exit code {e.returncode}: {cmd_str}\n"
-                f"stdout: {e.stdout}\n"
-                f"stderr: {e.stderr}"
+                "Command failed with exit code %s: %s\nstdout: %s\nstderr: %s",
+                e.returncode,
+                cmd_str,
+                e.stdout,
+                e.stderr,
             )
             raise
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             self.handle_error(e, f"run command: {cmd_str}")
 
     def run_with_retry(
@@ -198,12 +200,15 @@ class SubprocessRunner(ErrorHandlerMixin, LoggerMixin):
         for attempt in range(max_attempts):
             try:
                 return self.run(command, **kwargs)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 last_exception = e
                 if attempt < max_attempts - 1:
                     self.logger.warning(
-                        f"Attempt {attempt + 1}/{max_attempts} failed: {e}. "
-                        f"Retrying in {retry_delay} seconds..."
+                        "Attempt %s/%s failed: %s. Retrying in %s seconds...",
+                        attempt + 1,
+                        max_attempts,
+                        e,
+                        retry_delay,
                     )
                     time.sleep(retry_delay)
 
@@ -229,7 +234,7 @@ class SubprocessRunner(ErrorHandlerMixin, LoggerMixin):
             try:
                 result = self.run(command, **kwargs)
                 results.append(result)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 if stop_on_error:
                     raise
                 else:
@@ -270,7 +275,7 @@ class SubprocessRunner(ErrorHandlerMixin, LoggerMixin):
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(log_path, "w") as f:
+        with open(log_path, "w", encoding="utf-8") as f:
             f.write(content)
 
     @staticmethod

@@ -81,6 +81,7 @@ class TestCase(ITestCase):
         experiment_dir: Path,
         metrics_collector=None,
         emitter_registry=None,
+        workflow_tracker=None,
     ):
         super().__init__(test_config, global_config)
 
@@ -147,8 +148,8 @@ class TestCase(ITestCase):
         self.assertion_emitter = self.emitter_registry.assertion_emitter
         self.metrics_emitter = self.emitter_registry.metrics_emitter
 
-        # Get state manager from emitter registry
-        self.state_manager = self.emitter_registry.state_manager
+        # Get workflow tracker for experiment coordination
+        self.workflow_tracker = workflow_tracker
 
         net_environment_type = test_config.network_environment
         self.logger.info("Loading network environment: %s", net_environment_type)
@@ -968,6 +969,7 @@ class TestCase(ITestCase):
                         implementation_dir=implementation_dir,
                         service_config_to_test=tester_config,
                         event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
+                        emitter_registry=self.emitter_registry,  # Pass EmitterRegistry for state-aware events
                     )
 
                     # Set test context if the service manager supports it
@@ -1079,6 +1081,7 @@ class TestCase(ITestCase):
                         implementation_dir=implementation_dir,
                         service_config_to_test=implementation_config,
                         event_manager=self.event_manager,  # Pass event_manager to avoid duplicate emitters
+                        emitter_registry=self.emitter_registry,  # Pass EmitterRegistry for state-aware events
                     )
 
                     # Set test context if the service manager supports it
@@ -1471,83 +1474,158 @@ class TestCase(ITestCase):
         if not self.test_experiment_dir.exists():
             self.test_experiment_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create and register enhanced logger observer
+        # Create and register enhanced logger observer (test-scoped)
         if self.global_config.observers.logger.enabled:
             try:
-                self.logger.debug("Creating enhanced logger observer")
-                # Get log level from observer config if available, otherwise fallback to global log level
-                log_level = (
-                    self.global_config.observers.logger.log_level
-                    if hasattr(self.global_config, "observers")
-                    and hasattr(self.global_config.observers, "logger")
-                    else logging.getLevelName(self.log_level)
+                logger_id = f"test_logger_{self.test_name}"
+
+                # Check if observer already exists to prevent duplication
+                existing_observer = self.event_manager.register_observer_once(
+                    observer=None,  # Will be created by factory
+                    observer_id=logger_id,
+                    scope="test",
+                    event_types=None,  # Global observer
+                    priority=0,
                 )
 
-                create_logger(
-                    name="test_logger",
-                    global_config=self.global_config,
-                    auto_register=True,
-                    log_level=log_level,  # Use observer-specific log level
-                    enable_colors=True,
-                    output_file=str(self.test_experiment_dir / "event_log.log"),
-                    correlation_tracking=True,
-                )
-                self.registered_observers.append("test_logger")
-                self.logger.debug("Registered enhanced logger observer")
+                if existing_observer is None:
+                    self.logger.debug("Creating enhanced logger observer")
+                    # Get log level from observer config if available, otherwise fallback to global log level
+                    log_level = (
+                        self.global_config.observers.logger.log_level
+                        if hasattr(self.global_config, "observers")
+                        and hasattr(self.global_config.observers, "logger")
+                        else logging.getLevelName(self.log_level)
+                    )
+
+                    observer = create_logger(
+                        name=logger_id,
+                        global_config=self.global_config,
+                        auto_register=False,  # We handle registration manually
+                        log_level=log_level,  # Use observer-specific log level
+                        enable_colors=True,
+                        output_file=str(self.test_experiment_dir / "event_log.log"),
+                        correlation_tracking=True,
+                    )
+
+                    # Register the created observer with scope tracking
+                    self.event_manager.register_observer_once(
+                        observer=observer,
+                        observer_id=logger_id,
+                        scope="test",
+                        event_types=None,
+                        priority=0,
+                    )
+
+                    self.registered_observers.append(logger_id)
+                    self.logger.debug("Registered enhanced logger observer with scope tracking")
+                else:
+                    self.logger.debug("Logger observer already exists, reusing existing instance")
+
             except Exception as e:
                 self.logger.warning("Failed to create enhanced logger observer: %s. ", e)
 
-        # Create and register enhanced metrics observer
+        # Create and register enhanced metrics observer (test-scoped)
         if self.global_config.observers.metrics.enabled:
             try:
-                self.logger.info("Creating enhanced metrics observer")
-                # Get metrics observer log level if available
-                metrics_log_level = (
-                    self.global_config.observers.metrics.log_level
-                    if hasattr(self.global_config, "observers")
-                    and hasattr(self.global_config.observers, "metrics")
-                    else "INFO"
+                metrics_id = f"test_metrics_{self.test_name}"
+
+                # Check if observer already exists to prevent duplication
+                existing_observer = self.event_manager.register_observer_once(
+                    observer=None,  # Will be created by factory
+                    observer_id=metrics_id,
+                    scope="test",
+                    event_types=None,  # Global observer
+                    priority=10,
                 )
 
-                # Ensure metrics directory exists
-                metrics_dir = self.test_experiment_dir / "metrics"
-                metrics_dir.mkdir(parents=True, exist_ok=True)
+                if existing_observer is None:
+                    self.logger.info("Creating enhanced metrics observer")
+                    # Get metrics observer log level if available
+                    metrics_log_level = (
+                        self.global_config.observers.metrics.log_level
+                        if hasattr(self.global_config, "observers")
+                        and hasattr(self.global_config.observers, "metrics")
+                        else "INFO"
+                    )
 
-                create_metrics(
-                    name="test_metrics",
-                    global_config=self.global_config,
-                    auto_register=True,
-                    publish_metrics=True,
-                    collect_system_metrics=True,
-                    output_dir=str(metrics_dir),
-                    publish_interval=30,
-                    enable_real_time_monitoring=True,
-                    log_level=metrics_log_level,  # Use observer-specific log level
-                )
-                self.registered_observers.append("test_metrics")
-                self.logger.debug("Registered enhanced metrics observer")
+                    # Ensure metrics directory exists
+                    metrics_dir = self.test_experiment_dir / "metrics"
+                    metrics_dir.mkdir(parents=True, exist_ok=True)
+
+                    observer = create_metrics(
+                        name=metrics_id,
+                        global_config=self.global_config,
+                        auto_register=False,  # We handle registration manually
+                        publish_metrics=True,
+                        collect_system_metrics=True,
+                        output_dir=str(metrics_dir),
+                        publish_interval=30,
+                        enable_real_time_monitoring=True,
+                        log_level=metrics_log_level,  # Use observer-specific log level
+                    )
+
+                    # Register the created observer with scope tracking
+                    self.event_manager.register_observer_once(
+                        observer=observer,
+                        observer_id=metrics_id,
+                        scope="test",
+                        event_types=None,
+                        priority=10,
+                    )
+
+                    self.registered_observers.append(metrics_id)
+                    self.logger.debug("Registered enhanced metrics observer with scope tracking")
+                else:
+                    self.logger.debug("Metrics observer already exists, reusing existing instance")
+
             except Exception as e:
                 self.logger.warning("Failed to create enhanced metrics observer: %s", e)
 
-        # Create and register enhanced storage observer
+        # Create and register enhanced storage observer (test-scoped)
         if self.global_config.observers.storage.enabled:
             try:
-                self.logger.info("Creating enhanced storage observer")
-                create_storage(
-                    name="test_storage",
-                    global_config=self.global_config,
-                    auto_register=True,
-                    storage_path=str(
-                        self.test_experiment_dir
-                    ),  # Changed output_dir to storage_path
-                    enable_compression=True,  # Changed compression to enable_compression
-                    auto_backup=True,
-                    retention_days=30,
-                    batch_size=100,
-                    # Removed result_collectors as it's not in StorageObserver constructor
+                storage_id = f"test_storage_{self.test_name}"
+
+                # Check if observer already exists to prevent duplication
+                existing_observer = self.event_manager.register_observer_once(
+                    observer=None,  # Will be created by factory
+                    observer_id=storage_id,
+                    scope="test",
+                    event_types=None,  # Global observer
+                    priority=20,
                 )
-                self.registered_observers.append("test_storage")
-                self.logger.debug("Registered enhanced storage observer")
+
+                if existing_observer is None:
+                    self.logger.info("Creating enhanced storage observer")
+                    observer = create_storage(
+                        name=storage_id,
+                        global_config=self.global_config,
+                        auto_register=False,  # We handle registration manually
+                        storage_path=str(
+                            self.test_experiment_dir
+                        ),  # Changed output_dir to storage_path
+                        enable_compression=True,  # Changed compression to enable_compression
+                        auto_backup=True,
+                        retention_days=30,
+                        batch_size=100,
+                        # Removed result_collectors as it's not in StorageObserver constructor
+                    )
+
+                    # Register the created observer with scope tracking
+                    self.event_manager.register_observer_once(
+                        observer=observer,
+                        observer_id=storage_id,
+                        scope="test",
+                        event_types=None,
+                        priority=20,
+                    )
+
+                    self.registered_observers.append(storage_id)
+                    self.logger.debug("Registered enhanced storage observer with scope tracking")
+                else:
+                    self.logger.debug("Storage observer already exists, reusing existing instance")
+
             except Exception as e:
                 self.logger.warning("Failed to create enhanced storage observer: %s", e)
                 # No fallback for storage as it requires ResultsManager integration

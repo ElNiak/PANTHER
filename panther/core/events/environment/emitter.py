@@ -389,12 +389,14 @@ class EnvironmentEventEmitter:
             error_message = f"Early termination: {error_message}"
             error_type = "environment_error"
             event = ExperimentFinishedEarlyEvent(
-                environment_id=environment_id,
-                environment_name=environment_name,
-                environment_type=environment_type,
-                error_message=error_message,
-                error_type=error_type,
-                error_details=error_details or {},
+                experiment_id=environment_id,  # Use environment_id as experiment_id
+                reason=error_message,
+                details={
+                    "environment_name": environment_name,
+                    "environment_type": environment_type,
+                    "error_type": error_type,
+                    "error_details": error_details or {},
+                },
             )
         else:
             event = EnvironmentErrorEvent(

@@ -1,3 +1,9 @@
+"""Docker Compose network environment plugin for PANTHER framework.
+
+This module provides Docker Compose-based network environment implementation
+for orchestrating multi-service protocol testing scenarios.
+"""
+
 import os
 from pathlib import Path
 import subprocess
@@ -493,10 +499,16 @@ class DockerComposeEnvironment(INetworkEnvironment, ErrorHandlerMixin):
         adapter = DockerComposeCommandAdapter()
 
         # Finalize commands to ensure latest implementation is used
+        self.logger.debug(
+            "Service %s run_cmd before finalization: %s", service.service_name, service.run_cmd
+        )
         finalized_commands = (
             service.finalize_commands()
             if hasattr(service, "finalize_commands")
             else service.run_cmd
+        )
+        self.logger.debug(
+            "Service %s run_cmd after finalization: %s", service.service_name, finalized_commands
         )
 
         # Process commands using the command processor

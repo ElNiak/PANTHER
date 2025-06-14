@@ -1,3 +1,9 @@
+"""Ping-Pong service implementation for MiniP protocol testing.
+
+This module provides a ping-pong service implementation for testing
+MiniP protocol functionality within the PANTHER framework.
+"""
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -5,13 +11,12 @@ from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongC
 from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
-from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
+from panther.plugins.services.service_manager_utils import IUTServiceManagerMixin
 from panther.core.utils import (
-    ServiceCommandBuilder,
-    ServiceTemplateRenderer,
     ServiceManagerDockerMixin,
     ErrorHandlerMixin,
 )
+from panther.core.command_processor.command_builder import ServiceCommandBuilder
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -31,6 +36,8 @@ if TYPE_CHECKING:
 class PingPongServiceManager(
     IUTServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, IImplementationManager
 ):
+    """Service manager for Ping-Pong protocol implementation."""
+
     def __init__(
         self,
         service_config_to_test: PingPongConfig,
@@ -42,22 +49,15 @@ class PingPongServiceManager(
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-
-        # Use standardized initialization from mixin
-        self.standardized_initialization(
-            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        # Use the new template method for standard initialization
+        self.standard_iut_initialization(
+            service_config_to_test,
+            service_type,
+            protocol,
+            implementation_name,
+            event_manager,
+            plugin_dir=Path(__file__).parent,
         )
-
-        # Set up IUT-specific attributes
-        self.setup_iut_specific_attributes(protocol, service_config_to_test)
-
-        # Initialize template renderer with plugin directory
-        plugin_dir = Path(__file__).parent
-        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
-
-        # Set Docker attributes for ServiceManagerDockerMixin
-        self.docker_image_name = "ping_pong:latest"
-        self.docker_file_path = plugin_dir / "Dockerfile"
 
     def generate_pre_compile_commands(self):
         """
@@ -234,7 +234,7 @@ class PingPongServiceManager(
                 env_vars,
             )
             return cmd.command
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.warning(
                 "Failed to render structured template for service '%s': %s",
                 self.service_config_to_test.name,

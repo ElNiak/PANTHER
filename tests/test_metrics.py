@@ -210,9 +210,7 @@ class TestUtils:
 
         size_mb = get_directory_size_mb(tmp_path)
         expected_mb = 3.0 / 1024  # 3KB in MB
-        assert (
-            abs(size_mb - expected_mb) < 0.01
-        )  # Allow small floating point differences
+        assert abs(size_mb - expected_mb) < 0.01  # Allow small floating point differences
 
         # Non-existent directory
         assert get_directory_size_mb(tmp_path / "nonexistent") == 0.0
@@ -251,9 +249,7 @@ class TestGlobalAPI:
 
                 # Test recording
                 record("test.metric", 42.0, {"tag": "value"})
-                mock_collector.record.assert_called_once_with(
-                    "test.metric", 42.0, {"tag": "value"}
-                )
+                mock_collector.record.assert_called_once_with("test.metric", 42.0, {"tag": "value"})
 
                 # Test flushing
                 mock_collector.flush.return_value = "test-run-id"
@@ -285,9 +281,7 @@ class TestIntegration:
         collector.record("artifact.size_mb", 10.2)
 
         # Flush the metrics
-        run_id = collector.flush(
-            "build", {"config_hash": "abc123", "git_commit": "def456"}
-        )
+        run_id = collector.flush("build", {"config_hash": "abc123", "git_commit": "def456"})
 
         # Verify the data was stored correctly
         storage = JSONLinesStorage(tmp_path)

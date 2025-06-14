@@ -30,6 +30,7 @@ from panther.core.events.service.events import (
     CommandGeneratedEvent,
     DockerBuildStartedEvent,
     DockerBuildCompletedEvent,
+    DockerBuildFailedEvent,
     TesterAnalysisStartedEvent,
     TesterAnalysisCompletedEvent,
 )
@@ -584,12 +585,18 @@ class ServiceEventEmitter(EventEmitterBase):
             output_types: Types of outputs being analyzed
             tester_config: Tester configuration data
         """
+        # Map the parameters to match TesterAnalysisStartedEvent signature
+        inputs = {
+            "test_name": test_name,
+            "output_types": str(output_types or []),
+            "tester_config": str(tester_config or {}),
+        }
+
         event = TesterAnalysisStartedEvent(
             service_id=service_id,
-            service_name=service_name,
-            test_name=test_name,
-            output_types=output_types,
-            tester_config=tester_config,
+            tester_name=service_name,
+            inputs=inputs,
+            analysis_type="tester_analysis",
         )
         self.event_manager.notify(event)
 
@@ -598,9 +605,10 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         test_name: str,
-        analysis_results: dict[str, Any] | None = None,
-        success: bool = True,
-        duration_seconds: float | None = None,
+        analysis_passed: bool = True,
+        findings: dict[str, Any] | None = None,
+        summary: str = "",
+        duration: float | None = None,
     ) -> None:
         """
         Emit a tester analysis completed event.
@@ -609,17 +617,45 @@ class ServiceEventEmitter(EventEmitterBase):
             service_id: Unique service identifier
             service_name: Human-readable service name
             test_name: Name of the test analyzed
-            analysis_results: Results from the analysis
-            success: Whether the analysis was successful
-            duration_seconds: Duration of the analysis
+            analysis_passed: Whether the analysis passed
+            findings: Analysis findings/results
+            summary: Summary of the analysis
+            duration: Duration of the analysis in seconds
         """
+        # Extract failed checks and warnings from findings
+        failed_checks = []
+        warnings = []
+
+        if findings:
+            # Handle different formats of findings
+            if isinstance(findings, dict):
+                failed_checks = findings.get("failed_checks", [])
+                warnings = findings.get("warnings", [])
+                # If findings has errors or failures, extract them
+                if "errors" in findings:
+                    failed_checks.extend(findings["errors"])
+                if "failures" in findings:
+                    failed_checks.extend(findings["failures"])
+            elif isinstance(findings, list):
+                # If findings is a list, treat as failed checks
+                failed_checks = findings
+
+        # Create detailed results including all information
+        detailed_results = {
+            "test_name": test_name,
+            "summary": summary,
+            "duration_seconds": duration,
+            "findings": findings,
+        }
+
+        # Create the event with the correct constructor signature
         event = TesterAnalysisCompletedEvent(
             service_id=service_id,
-            service_name=service_name,
-            test_name=test_name,
-            analysis_results=analysis_results,
-            success=success,
-            duration_seconds=duration_seconds,
+            tester_name=service_name,
+            passed=analysis_passed,
+            failed_checks=failed_checks,
+            warnings=warnings,
+            detailed_results=detailed_results,
         )
         self.event_manager.notify(event)
 
@@ -777,26 +813,24 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         error_message: str,
-        dockerfile_path: str = "",
-        image_name: str = "",
+        dockerfile_path: str,
+        build_duration: float | None = None,
     ) -> None:
         """
-        Emit Docker build failed event using service error.
+        Emit Docker build failed event.
 
         Args:
             service_id: Unique service identifier
             service_name: Human-readable service name
             error_message: Error message describing the failure
-            dockerfile_path: Path to Dockerfile
-            image_name: Docker image name that failed to build
+            dockerfile_path: Path to Dockerfile that failed to build
+            build_duration: Duration of the failed build attempt
         """
-        self.emit_service_error(
+        event = DockerBuildFailedEvent(
             service_id=service_id,
             service_name=service_name,
-            error_message=f"Docker build failed: {error_message}",
-            error_type="docker_build_error",
-            error_details={
-                "dockerfile_path": dockerfile_path,
-                "image_name": image_name,
-            },
+            dockerfile_path=dockerfile_path,
+            error_message=error_message,
+            build_duration=build_duration,
         )
+        self.event_manager.notify(event)

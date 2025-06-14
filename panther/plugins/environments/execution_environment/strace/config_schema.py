@@ -49,3 +49,57 @@ class StraceConfig(ExecutionEnvironmentConfig):
     )  # Additional parameters for strace
     monitored_process: str | None = None  # Process name to monitor (if not PID-based)
     network_focus: bool = True  # Indicate if strace should emphasize network protocol syscalls
+
+    # Output format and detail options
+    output_format: str = field(
+        default="normal",
+        metadata={
+            "description": "Output format. Options: normal, raw, verbose. Default is normal."
+        },
+    )
+    decode_fds: bool = field(
+        default=True,
+        metadata={"description": "Decode file descriptors to show file names when possible."},
+    )
+    timestamps: bool = field(
+        default=True,
+        metadata={"description": "Include timestamps in output. Useful for performance analysis."},
+    )
+    timestamp_format: str = field(
+        default="relative",
+        metadata={
+            "description": "Timestamp format. Options: none, time, relative, unix, us. Default is relative."
+        },
+    )
+
+    # Performance and filtering options
+    buffer_size: int = field(
+        default=4096,
+        metadata={
+            "description": "Internal buffer size for syscall capture. Larger values may improve performance."
+        },
+    )
+    trace_children: bool = field(
+        default=True,
+        metadata={"description": "Follow forks and trace child processes."},
+    )
+    trace_file_syscalls: bool = field(
+        default=True,
+        metadata={"description": "Include file-related syscalls in trace."},
+    )
+
+    # Advanced options
+    string_limit: int | None = field(
+        default=32,
+        metadata={"description": "Limit for string output length. None for unlimited."},
+    )
+    stack_traces: bool = field(
+        default=False,
+        metadata={"description": "Print stack trace after each syscall."},
+    )
+    inject_errors: str | None = field(
+        default=None,
+        metadata={
+            "description": "Inject errors for testing. Format: 'syscall:error=errno:when=when_spec'"
+        },
+    )

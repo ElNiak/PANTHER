@@ -124,9 +124,7 @@ class TestPluginSchemaLoading:
         mock_loader_instance.load_plugin_schema.return_value = {"type": "object"}
 
         config_manager = ConfigManager()
-        schema = config_manager.load_plugin_schema(
-            "test_plugin", "execution_environment"
-        )
+        schema = config_manager.load_plugin_schema("test_plugin", "execution_environment")
 
         assert schema == {"type": "object"}
         mock_loader_instance.load_plugin_schema.assert_called_once_with(
@@ -145,9 +143,7 @@ class TestPluginSchemaLoading:
         config_manager = ConfigManager()
 
         with pytest.raises(EnvironmentPluginNotFound):
-            config_manager.load_plugin_schema(
-                "nonexistent_plugin", "execution_environment"
-            )
+            config_manager.load_plugin_schema("nonexistent_plugin", "execution_environment")
 
 
 class TestPluginParameterListing:
@@ -161,9 +157,7 @@ class TestPluginParameterListing:
         mock_loader_instance.list_plugin_parameters.return_value = ["param1", "param2"]
 
         config_manager = ConfigManager()
-        params = config_manager.list_plugin_parameters(
-            "test_plugin", "execution_environment"
-        )
+        params = config_manager.list_plugin_parameters("test_plugin", "execution_environment")
 
         assert params == ["param1", "param2"]
         mock_loader_instance.list_plugin_parameters.assert_called_once_with(
@@ -178,9 +172,7 @@ class TestPluginParameterListing:
         mock_loader_instance.list_plugin_parameters.return_value = []
 
         config_manager = ConfigManager()
-        params = config_manager.list_plugin_parameters(
-            "test_plugin", "execution_environment"
-        )
+        params = config_manager.list_plugin_parameters("test_plugin", "execution_environment")
 
         assert params == []
 
@@ -194,9 +186,7 @@ class TestPluginClassRetrieval:
         mock_loader_instance = Mock()
         mock_plugin_loader.return_value = mock_loader_instance
         expected_classes = {"basic": "BasicExecEnv", "strace": "StraceExecEnv"}
-        mock_loader_instance.get_all_execution_environment_classes.return_value = (
-            expected_classes
-        )
+        mock_loader_instance.get_all_execution_environment_classes.return_value = expected_classes
 
         config_manager = ConfigManager()
         classes = config_manager.get_all_exec_env_classes()
@@ -213,9 +203,7 @@ class TestPluginClassRetrieval:
             "localhost": "LocalhostNetEnv",
             "docker_compose": "DockerComposeNetEnv",
         }
-        mock_loader_instance.get_all_network_environment_classes.return_value = (
-            expected_classes
-        )
+        mock_loader_instance.get_all_network_environment_classes.return_value = expected_classes
 
         config_manager = ConfigManager()
         classes = config_manager.get_all_net_env_classes()
@@ -241,9 +229,7 @@ class TestPluginClassRetrieval:
         mock_loader_instance = Mock()
         mock_plugin_loader.return_value = mock_loader_instance
         expected_classes = {"aioquic": "AioQUICIUT", "picoquic": "PicoQUICIUT"}
-        mock_loader_instance.get_all_implementation_classes.return_value = (
-            expected_classes
-        )
+        mock_loader_instance.get_all_implementation_classes.return_value = expected_classes
 
         config_manager = ConfigManager()
         classes = config_manager.get_all_iut_classes()
@@ -286,8 +272,8 @@ class TestConfigValidation:
         """Test implementation config validation failure."""
         mock_loader_instance = Mock()
         mock_plugin_loader.return_value = mock_loader_instance
-        mock_loader_instance.validate_implementation_config.side_effect = (
-            ServicePluginNotFound("Implementation not found")
+        mock_loader_instance.validate_implementation_config.side_effect = ServicePluginNotFound(
+            "Implementation not found"
         )
 
         config_manager = ConfigManager()
@@ -321,9 +307,7 @@ class TestErrorHandling:
     @patch("panther.config.config_manager.PluginLoader")
     def test_plugin_loader_initialization_error(self, mock_plugin_loader):
         """Test handling of plugin loader initialization errors."""
-        mock_plugin_loader.side_effect = Exception(
-            "Plugin loader initialization failed"
-        )
+        mock_plugin_loader.side_effect = Exception("Plugin loader initialization failed")
 
         config_manager = ConfigManager()
 
@@ -350,9 +334,7 @@ class TestConfigManagerIntegration:
         # Test loading both configs
         with patch("pathlib.Path.exists", return_value=True):
             global_config = config_manager.load_global_config(str(global_config_file))
-            experiment_config = config_manager.load_experiment_config(
-                str(experiment_config_file)
-            )
+            experiment_config = config_manager.load_experiment_config(str(experiment_config_file))
 
         assert global_config is not None
         assert experiment_config is not None
@@ -426,12 +408,8 @@ class TestConfigManagerEdgeCases:
         """Test handling of large configuration files."""
         large_config = {
             "logging": {"level": "DEBUG"},
-            "paths": {
-                "output_dir": f"path_{i}" for i in range(1000)
-            },  # Large number of paths
-            "features": {
-                "feature_" + str(i): True for i in range(100)
-            },  # Many features
+            "paths": {"output_dir": f"path_{i}" for i in range(1000)},  # Large number of paths
+            "features": {"feature_" + str(i): True for i in range(100)},  # Many features
         }
 
         config_file = temp_dir / "large_config.yaml"

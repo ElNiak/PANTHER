@@ -30,12 +30,8 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "requires_docker: marks tests that require Docker daemon"
-    )
-    config.addinivalue_line(
-        "markers", "requires_network: marks tests that require network access"
-    )
+    config.addinivalue_line("markers", "requires_docker: marks tests that require Docker daemon")
+    config.addinivalue_line("markers", "requires_network: marks tests that require network access")
 
 
 # ===== CORE FIXTURES =====
@@ -518,9 +514,7 @@ def sample_experiment_config_data():
                     "version": "3.8",
                     "network_name": "test_network",
                 },
-                "execution_environments": [
-                    {"type": "localhost", "timeout": 300, "cpu_cores": 2}
-                ],
+                "execution_environments": [{"type": "localhost", "timeout": 300, "cpu_cores": 2}],
                 "iterations": 3,
                 "services": {
                     "web_server": {
@@ -830,9 +824,7 @@ def test_data_generator():
     class TestDataGenerator:
         @staticmethod
         def random_string(length=10):
-            return "".join(
-                random.choices(string.ascii_letters + string.digits, k=length)
-            )
+            return "".join(random.choices(string.ascii_letters + string.digits, k=length))
 
         @staticmethod
         def random_config():
@@ -855,9 +847,7 @@ def test_data_generator():
             # Create random files
             for i in range(random.randint(1, 5)):
                 file_path = project_path / f"file_{i}.py"
-                file_path.write_text(
-                    f"# Random content {TestDataGenerator.random_string(20)}"
-                )
+                file_path.write_text(f"# Random content {TestDataGenerator.random_string(20)}")
 
             return project_path
 
@@ -904,17 +894,13 @@ def cleanup_test_artifacts(temp_dir):
 def pytest_runtest_setup(item):
     """Setup for each test run."""
     # Skip slow tests unless explicitly requested
-    if "slow" in item.keywords and not item.config.getoption(
-        "--run-slow", default=False
-    ):
+    if "slow" in item.keywords and not item.config.getoption("--run-slow", default=False):
         pytest.skip("slow test skipped (use --run-slow to run)")
 
 
 def pytest_addoption(parser):
     """Add custom pytest command line options."""
-    parser.addoption(
-        "--run-slow", action="store_true", default=False, help="run slow tests"
-    )
+    parser.addoption("--run-slow", action="store_true", default=False, help="run slow tests")
     parser.addoption(
         "--run-docker",
         action="store_true",

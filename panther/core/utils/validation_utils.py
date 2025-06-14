@@ -5,6 +5,7 @@ This module provides utilities for common validation patterns,
 reducing duplication of validation logic across the codebase.
 """
 
+from __future__ import annotations
 from typing import Any
 from collections.abc import Callable
 from pathlib import Path
@@ -38,7 +39,7 @@ class ValidationResult:
         """Add a warning message."""
         self.warnings.append(message)
 
-    def merge(self, other: "ValidationResult") -> None:
+    def merge(self, other: ValidationResult) -> None:
         """Merge another validation result into this one."""
         self.errors.extend(other.errors)
         self.warnings.extend(other.warnings)

@@ -151,3 +151,37 @@ class MemcheckConfig(ExecutionEnvironmentConfig):
         default=None,
         metadata={"description": "Fill freed blocks with the specified byte (hex)."},
     )  # type: ignore
+
+    # Output configuration options
+    output_format: str = field(
+        default="xml",
+        metadata={
+            "description": "Output format for reports. Options: text, xml. Default is xml for machine-readable output."
+        },
+    )
+    generate_suppressions: bool = field(
+        default=False,
+        metadata={
+            "description": "Generate suppression entries for detected errors. Useful for creating suppression files."
+        },
+    )
+    suppression_file: str | None = field(
+        default=None,
+        metadata={
+            "description": "Path to suppression file to ignore known issues. Can be absolute or relative path."
+        },
+    )
+    xml_user_comment: str | None = field(
+        default=None,
+        metadata={
+            "description": "User comment to include in XML output. Useful for tagging test runs."
+        },
+    )
+
+    # Additional parameters for command line
+    additional_parameters: list[str] = field(
+        default_factory=list,
+        metadata={
+            "description": "Additional command line parameters to pass to valgrind memcheck."
+        },
+    )

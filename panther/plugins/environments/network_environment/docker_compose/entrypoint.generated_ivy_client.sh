@@ -7,6 +7,8 @@
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /app/logs/ivy_client_entrypoint.log
 }
+# Export log function so it's available in subshells
+export -f log
 
 log_function() {
   local fn_name="$1"
@@ -61,6 +63,59 @@ check_connectivity() {
     return 1
   fi
 }
+
+resolve_hostname() {
+  local hostname="$1"
+  local format="${2:-ip}"  # Default to IP format, can be: ip, decimal, hex
+  local ip=""
+
+  # Try service discovery file first (most reliable for our services)
+  if [ -f "/app/sync_logs/${hostname}_ip.txt" ]; then
+    ip=$(cat "/app/sync_logs/${hostname}_ip.txt" 2>/dev/null | head -n1)
+    log "Found IP from service discovery: $ip" >&2
+  fi
+
+  if [ -z "$ip" ]; then
+    # Try getent (most reliable in Docker)
+    ip=$(getent hosts "$hostname" 2>/dev/null | awk '{ print $1 }' | head -n1)
+  fi
+
+  if [ -z "$ip" ]; then
+    # Fallback to nslookup
+    ip=$(nslookup "$hostname" 2>/dev/null | grep -A1 'Name:' | grep 'Address:' | tail -n1 | awk '{print $2}')
+  fi
+
+  if [ -z "$ip" ]; then
+    # Fallback to ping
+    ip=$(ping -c 1 "$hostname" 2>/dev/null | grep PING | sed -n 's/.*(\([0-9.]*\)).*/\1/p')
+  fi
+
+  if [ -n "$ip" ]; then
+    log "Resolved hostname '$hostname' to IP '$ip'" >&2
+
+    # Convert based on requested format
+    case "$format" in
+      decimal)
+        # Convert IP to decimal (for panther_ivy)
+        echo "$ip" | awk -F. '{printf("%.0f", ($1 * 256 * 256 * 256) + ($2 * 256 * 256) + ($3 * 256) + $4)}'
+        ;;
+      hex)
+        # Convert IP to hex
+        echo "$ip" | awk -F. '{printf("%02X%02X%02X%02X", $1, $2, $3, $4)}'
+        ;;
+      *)
+        # Default: return IP as-is
+        echo "$ip"
+        ;;
+    esac
+  else
+    log "WARNING: Could not resolve hostname '$hostname'" >&2
+    echo "$hostname"  # Return original hostname if resolution fails
+  fi
+}
+
+# Export the function so it's available in subshells
+export -f resolve_hostname
 
 wait_for_dependency() {
   local target="$1"
@@ -187,12 +242,13 @@ set_environment() {
 log "Setting up environment variables..."
 set_environment
 
-# Wait for dependencies if this is a client/IUT service
-log "This service depends on: picoquic_server"
-wait_for_dependency "picoquic_server" "4443" || {
-  log "ERROR: Failed to connect to dependency picoquic_server"
-  exit 1
-}
+# Service discovery: Write our IP to a shared file
+SERVICE_NAME="ivy_client"
+SERVICE_IP=$(hostname -i | grep -v '^127' | head -n 1)
+if [ -n "$SERVICE_IP" ]; then
+  echo "$SERVICE_IP" > /app/sync_logs/${SERVICE_NAME}_ip.txt
+  log "Registered service IP: $SERVICE_IP"
+fi
 
 
 # Function to track command failures with details
@@ -242,182 +298,59 @@ log "Executing pre-compilation commands..."
 # Set command type for this context
 cmd_type="PRE_COMPILE"
 
-# Handle simple function call
-log "Executing function call: TARGET_IP=$(getent hosts picoquic_server | awk '{print $1}' | grep -v '^127' | head -n 1)"
-# Check if function exists first to avoid errors
-if declare -f TARGET_IP=$(getent hosts picoquic_server | awk '{print $1}' | grep -v '^127' | head -n 1) > /dev/null; then
-  TARGET_IP=$(getent hosts picoquic_server | awk '{print $1}' | grep -v '^127' | head -n 1) || {
-    exit $?
-  }
-else
-  log "ERROR: Function TARGET_IP=$(getent hosts picoquic_server | awk '{print $1}' | grep -v '^127' | head -n 1) not defined"
-  exit 1
-fi
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-echo "Resolved picoquic_server TARGET_IP IP - $TARGET_IP" >> /app/logs/ivy_setup.log
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #2"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "2" "echo \"Resolved picoquic_server TARGET_IP IP - $TARGET_IP\" >> /app/logs/ivy_setup.log" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle simple function call
-log "Executing function call: IVY_IP=$(hostname -I | awk '{print $1}' | grep -v '^127' | head -n 1)"
-# Check if function exists first to avoid errors
-if declare -f IVY_IP=$(hostname -I | awk '{print $1}' | grep -v '^127' | head -n 1) > /dev/null; then
-  IVY_IP=$(hostname -I | awk '{print $1}' | grep -v '^127' | head -n 1) || {
-    exit $?
-  }
-else
-  log "ERROR: Function IVY_IP=$(hostname -I | awk '{print $1}' | grep -v '^127' | head -n 1) not defined"
-  exit 1
-fi
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-echo "Resolved ivy_client IVY_IP IP - $IVY_IP" >> /app/logs/ivy_setup.log
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #4"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "4" "echo \"Resolved ivy_client IVY_IP IP - $IVY_IP\" >> /app/logs/ivy_setup.log" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle simple function call
-log "Executing function call: TARGET_IP_HEX=$(ip_to_decimal $TARGET_IP)"
-# Check if function exists first to avoid errors
-if declare -f TARGET_IP_HEX=$(ip_to_decimal $TARGET_IP) > /dev/null; then
-  TARGET_IP_HEX=$(ip_to_decimal $TARGET_IP) || {
-    exit $?
-  }
-else
-  log "ERROR: Function TARGET_IP_HEX=$(ip_to_decimal $TARGET_IP) not defined"
-  exit 1
-fi
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle simple function call
-log "Executing function call: IVY_IP_HEX=$(ip_to_decimal $IVY_IP)"
-# Check if function exists first to avoid errors
-if declare -f IVY_IP_HEX=$(ip_to_decimal $IVY_IP) > /dev/null; then
-  IVY_IP_HEX=$(ip_to_decimal $IVY_IP) || {
-    exit $?
-  }
-else
-  log "ERROR: Function IVY_IP_HEX=$(ip_to_decimal $IVY_IP) not defined"
-  exit 1
-fi
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-echo "Resolved picoquic_server IP in hex - $TARGET_IP_HEX" >> /app/logs/ivy_setup.log
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #7"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "7" "echo \"Resolved picoquic_server IP in hex - $TARGET_IP_HEX\" >> /app/logs/ivy_setup.log" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
-# Handle non-critical command
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-echo "Resolved ivy_client IP in hex - $IVY_IP_HEX" >> /app/logs/ivy_setup.log
-ENDOFCOMMAND
-)
-
-# This command is marked as non-critical, execute it but don't fail if it returns error
-log "Executing non-critical $cmd_type command #8"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "8" "echo \"Resolved ivy_client IP in hex - $IVY_IP_HEX\" >> /app/logs/ivy_setup.log" "false" "false" || {
-  log "WARNING: Non-critical command failed but continuing execution"
-}
-
-# Set command type for this context
-cmd_type="PRE_COMPILE"
-
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "9" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "false" "true" || {
+execute_with_error_tracking "$cmd_type" "echo '# Ivy environment variables' > /app/logs/ivy_env.sh" "1" "echo '# Ivy environment variables' > /app/logs/ivy_env.sh" "false" "true" || {
   exit $?
 }
 # Set command type for this context
 cmd_type="PRE_COMPILE"
 
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-ip_to_hex() {
-    echo "$1" | awk -F. '{printf("%02X%02X%02X%02X", $1, $2, $3, $4)}';
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "TARGET_IP=\$(resolve_hostname picoquic_server) && \\
+TARGET_IP_DEC=\$(resolve_hostname picoquic_server decimal) && \\
+TARGET_IP_HEX=\$(resolve_hostname picoquic_server hex) && \\
+echo \"export TARGET_IP='\$TARGET_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_DEC='\$TARGET_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_HEX='\$TARGET_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export TARGET_IP TARGET_IP_DEC TARGET_IP_HEX && \\
+echo \"Resolved picoquic_server to IP: \$TARGET_IP (decimal: \$TARGET_IP_DEC, hex: \$TARGET_IP_HEX)\" >> /app/logs/ivy_setup.log" "2" "TARGET_IP=\$(resolve_hostname picoquic_server) && \\
+TARGET_IP_DEC=\$(resolve_hostname picoquic_server decimal) && \\
+TARGET_IP_HEX=\$(resolve_hostname picoquic_server hex) && \\
+echo \"export TARGET_IP='\$TARGET_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_DEC='\$TARGET_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export TARGET_IP_HEX='\$TARGET_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export TARGET_IP TARGET_IP_DEC TARGET_IP_HEX && \\
+echo \"Resolved picoquic_server to IP: \$TARGET_IP (decimal: \$TARGET_IP_DEC, hex: \$TARGET_IP_HEX)\" >> /app/logs/ivy_setup.log" "false" "true" || {
+  exit $?
 }
-ENDOFCOMMAND
-)
-# This is a function definition, needs to be defined in the global scope
-log "Executing function definition: Function: ip_to_hex"
-# Export the function to ensure it's available to all subprocesses
-eval "$MULTILINE_CMD"
-# Verify the function was properly defined
-# Extract function name more reliably - handle both "name()" and "name() {" formats
-FUNC_NAME=$(echo "ip_to_hex() {
-    echo "$1" | awk -F. '{printf("%02X%02X%02X%02X", $1, $2, $3, $4)}';
-}" | grep -o '^[[:space:]]*[[:alnum:]_]*[[:space:]]*()' | sed 's/[[:space:]]*()$//' | xargs)
-if ! declare -f "$FUNC_NAME" > /dev/null; then
-  log "ERROR: Function $FUNC_NAME failed to define correctly"
-  exit 1
-else
-  log "Function $FUNC_NAME defined successfully"
-fi
-
 # Set command type for this context
 cmd_type="PRE_COMPILE"
 
-# Handle function definition
-MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
-ip_to_decimal() {
-    echo "$1" | awk -F. '{printf("%.0f", ($1 * 256 * 256 * 256) + ($2 * 256 * 256) + ($3 * 256) + $4)}';
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "IVY_IP=\$(resolve_hostname ivy_client) && \\
+IVY_IP_DEC=\$(resolve_hostname ivy_client decimal) && \\
+IVY_IP_HEX=\$(resolve_hostname ivy_client hex) && \\
+echo \"export IVY_IP='\$IVY_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_DEC='\$IVY_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_HEX='\$IVY_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export IVY_IP IVY_IP_DEC IVY_IP_HEX && \\
+echo \"Local ivy_client IP: \$IVY_IP (decimal: \$IVY_IP_DEC, hex: \$IVY_IP_HEX)\" >> /app/logs/ivy_setup.log" "3" "IVY_IP=\$(resolve_hostname ivy_client) && \\
+IVY_IP_DEC=\$(resolve_hostname ivy_client decimal) && \\
+IVY_IP_HEX=\$(resolve_hostname ivy_client hex) && \\
+echo \"export IVY_IP='\$IVY_IP'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_DEC='\$IVY_IP_DEC'\" >> /app/logs/ivy_env.sh && \\
+echo \"export IVY_IP_HEX='\$IVY_IP_HEX'\" >> /app/logs/ivy_env.sh && \\
+export IVY_IP IVY_IP_DEC IVY_IP_HEX && \\
+echo \"Local ivy_client IP: \$IVY_IP (decimal: \$IVY_IP_DEC, hex: \$IVY_IP_HEX)\" >> /app/logs/ivy_setup.log" "false" "true" || {
+  exit $?
 }
-ENDOFCOMMAND
-)
-# This is a function definition, needs to be defined in the global scope
-log "Executing function definition: Function: ip_to_decimal"
-# Export the function to ensure it's available to all subprocesses
-eval "$MULTILINE_CMD"
-# Verify the function was properly defined
-# Extract function name more reliably - handle both "name()" and "name() {" formats
-FUNC_NAME=$(echo "ip_to_decimal() {
-    echo "$1" | awk -F. '{printf("%.0f", ($1 * 256 * 256 * 256) + ($2 * 256 * 256) + ($3 * 256) + $4)}';
-}" | grep -o '^[[:space:]]*[[:alnum:]_]*[[:space:]]*()' | sed 's/[[:space:]]*()$//' | xargs)
-if ! declare -f "$FUNC_NAME" > /dev/null; then
-  log "ERROR: Function $FUNC_NAME failed to define correctly"
-  exit 1
-else
-  log "Function $FUNC_NAME defined successfully"
-fi
+# Set command type for this context
+cmd_type="PRE_COMPILE"
 
+# Handle regular command
+execute_with_error_tracking "$cmd_type" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "4" "rm -rf /opt/panther_ivy/protocol-testing/quic/build/*" "false" "true" || {
+  exit $?
+}
 
 
 # Execute compilation commands with error checking
@@ -470,7 +403,7 @@ eval "echo 'Copying updated Ivy files...' >> /app/logs/ivy_setup.log" || {
 cmd_type="COMPILE"
 
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "find /opt/panther_ivy/ivy/include/1.7/ -type f -name '*.ivy' -exec cp {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \; >> /app/logs/ivy_setup.log 2>&1" "6" "find /opt/panther_ivy/ivy/include/1.7/ -type f -name '*.ivy' -exec cp {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \; >> /app/logs/ivy_setup.log 2>&1" "false" "true" || {
+execute_with_error_tracking "$cmd_type" "find /opt/panther_ivy/ivy/include/1.7/ -type f -name '*.ivy' -exec cp {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \\; >> /app/logs/ivy_setup.log 2>&1" "6" "find /opt/panther_ivy/ivy/include/1.7/ -type f -name '*.ivy' -exec cp {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \\; >> /app/logs/ivy_setup.log 2>&1" "false" "true" || {
   exit $?
 }
 # Set command type for this context
@@ -549,7 +482,7 @@ eval "echo 'Updating include path from /opt/panther_ivy/protocol-testing/quic/' 
 cmd_type="COMPILE"
 
 # Handle regular command
-execute_with_error_tracking "$cmd_type" "find /opt/panther_ivy/protocol-testing/quic/ -type f -name '*.ivy' -exec cp -f {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \;" "16" "find /opt/panther_ivy/protocol-testing/quic/ -type f -name '*.ivy' -exec cp -f {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \;" "false" "true" || {
+execute_with_error_tracking "$cmd_type" "find /opt/panther_ivy/protocol-testing/quic/ -type f -name '*.ivy' -exec cp -f {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \\;" "16" "find /opt/panther_ivy/protocol-testing/quic/ -type f -name '*.ivy' -exec cp -f {} /usr/local/lib/python3.10/dist-packages/ivy/include/1.7/ \\;" "false" "true" || {
   exit $?
 }
 # Set command type for this context
@@ -562,83 +495,12 @@ execute_with_error_tracking "$cmd_type" "ls -l /usr/local/lib/python3.10/dist-pa
 # Set command type for this context
 cmd_type="COMPILE"
 
-# Handle command with && operator
-log "Command contains && operator: cd /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests && PYTHONPATH=$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=300 quic_server_test_stream.ivy >> /app/logs/ivy_setup.log 2>&1 || exit 1"
-
-# Extract parts of the command before and after &&
-FIRST_PART="cd /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests "
-REST_OF_CMD=" PYTHONPATH=$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=300 quic_server_test_stream.ivy >> /app/logs/ivy_setup.log 2>&1 || exit 1"
-
-# Create output files for this command
-FIRST_OUTPUT="/app/logs/ivy_client_$cmd_type-cmd18_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #18 first part" > "$FIRST_OUTPUT"
-echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: ${FIRST_PART}"
-# Check if this is a function call - needs special handling
-if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-  # Part is a function call, use eval to execute in current shell context
-  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
-  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
-  log "Detected function call to: ${FUNCTION_NAME}"
-  # Use log_function helper for tracking
-  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-else
-  # Not a function call, use bash -c as before
-  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-fi
-
-# Record completion time for first part
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #18 first part:" >> /app/logs/ivy_client_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/ivy_client_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute rest of command
-  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/ivy_client_$cmd_type-cmd18_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #18 rest part" > "$REST_OUTPUT"
-  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-
-  # Execute rest of command - check if it's a function call
-  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-    # Part is a function call, use eval to execute in current shell context
-    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
-    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
-    log "Detected function call to: ${FUNCTION_NAME}"
-    # Use log_function helper for tracking
-    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  else
-    # Not a function call, use bash -c as before
-    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  fi
-
-  # Record completion time for rest part
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #18 rest part:" >> /app/logs/ivy_client_commands.log
-  cat "$REST_OUTPUT" >> /app/logs/ivy_client_commands.log
-
-  # Exit with status from rest part
-  if [ $REST_STATUS -ne 0 ]; then
-    exit $REST_STATUS
-  fi
-else
-  exit $FIRST_STATUS
-fi
-
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing shell builtin: cd /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests ; PYTHONPATH=$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=300 quic_server_test_stream.ivy >> /app/logs/ivy_setup.log 2>&1 || exit 1"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "cd /opt/panther_ivy/protocol-testing/quic/quic_tests/server_tests ; PYTHONPATH=$PYTHON_IVY_DIR ivyc trace=false show_compiled=false target=test test_iters=300 quic_server_test_stream.ivy >> /app/logs/ivy_setup.log 2>&1 || exit 1" || {
+  exit $?
+}
 
 # Set command type for this context
 cmd_type="COMPILE"
@@ -684,17 +546,59 @@ log "Executing post-compilation commands..."
 # Set command type for this context
 cmd_type="POST_COMPILE"
 
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+(touch /app/logs/ivy_client.pcap; tshark -a duration:60 -i any -w /app/logs/ivy_client.pcap;) &
+ENDOFCOMMAND
+)
+# Execute multi-line command with error tracking
+log "Executing multi-line $cmd_type command #1"
+execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "1" "(touch /app/logs/ivy_client.pcap; tshark -a duration:60 -i any -w /app/logs/ivy_client.pcap;) & " "true" "true" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="POST_COMPILE"
+
 # Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing shell builtin: cd /opt/panther_ivy/protocol-testing/quic/;"
+log "Executing shell builtin: cd /opt/panther_ivy/protocol-testing/quic/"
 # Use eval to properly execute these special command types while preserving their syntax
-eval "cd /opt/panther_ivy/protocol-testing/quic/;" || {
+eval "cd /opt/panther_ivy/protocol-testing/quic/" || {
+  exit $?
+}
+
+# Set command type for this context
+cmd_type="POST_COMPILE"
+
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing shell builtin: pwd >> /app/logs/ivy_post_compile.log"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "pwd >> /app/logs/ivy_post_compile.log" || {
   exit $?
 }
 
 
 
+
+# Wait for dependencies if this is a client/IUT service
+log "This service depends on: picoquic_server"
+wait_for_dependency "picoquic_server" "4443" || {
+  log "ERROR: Failed to connect to dependency picoquic_server"
+  exit 1
+}
+
 # Execute pre-run commands
 log "Executing pre-run commands..."
+# Set command type for this context
+cmd_type="PRE_RUN"
+
+# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
+log "Executing shell builtin: source /app/logs/ivy_env.sh || true"
+# Use eval to properly execute these special command types while preserving their syntax
+eval "source /app/logs/ivy_env.sh || true" || {
+  exit $?
+}
+
 
 
 # Execute the main command if provided
@@ -707,22 +611,46 @@ cd "/opt/panther_ivy/protocol-testing/quic/" || {
 
 
 # Prepare command and execute it
-FULL_CMD="./build/quic_server_test_stream "
+# Handle both string and list command_args
+FULL_CMD="./build/quic_server_test_stream seed=0 the_cid=1 server_port=4443 iversion=1 server_addr=$TARGET_IP_DEC server_cid=10 client_port=4997 client_port_alt=4444 client_addr=$IVY_IP_DEC"
 FULL_CMD="$(echo "$FULL_CMD" | xargs)"  # Trim whitespace
+
+# Resolve hostnames to IPs for better compatibility
+# This helps with applications that have DNS resolution issues in Docker
+# Match any service pattern: *_server, *_client, *_tester, *_iut
+while [[ "$FULL_CMD" =~ ([a-zA-Z][a-zA-Z0-9_-]*_(server|client|tester|iut)) ]]; do
+  SERVICE_HOSTNAME="${BASH_REMATCH[0]}"
+  SERVICE_IP=$(resolve_hostname "$SERVICE_HOSTNAME")
+  if [ -n "$SERVICE_IP" ] && [ "$SERVICE_IP" != "$SERVICE_HOSTNAME" ]; then
+    FULL_CMD="${FULL_CMD//$SERVICE_HOSTNAME/$SERVICE_IP}"
+    log "Replaced hostname '$SERVICE_HOSTNAME' with IP '$SERVICE_IP' in command"
+  else
+    # If we can't resolve, break to avoid infinite loop
+    break
+  fi
+done
 
 if [ -z "$FULL_CMD" ]; then
   log "WARNING: No command to run, skipping execution"
   RUN_STATUS=0
 else
-  log "Running command: $FULL_CMD"
+  # Check if execution environment wrappers are available and wrap the command
+  if [ -n "$EXEC_ENV_WRAPPERS" ]; then
+    WRAPPED_CMD="$EXEC_ENV_WRAPPERS $FULL_CMD"
+    log "Running command with execution environment wrappers: $WRAPPED_CMD"
+    echo "Execution environment wrappers applied: $EXEC_ENV_WRAPPERS" >> /app/logs/ivy_client_exec_env_wrapping.log
+  else
+    WRAPPED_CMD="$FULL_CMD"
+    log "Running command: $WRAPPED_CMD"
+  fi
 
-  timeout 100 $FULL_CMD > /app/logs/ivy_client_run_cmd.log 2> /app/logs/ivy_client_run_cmd_error.log
+  timeout 60 $WRAPPED_CMD > /app/logs/ivy_client_run_cmd.log 2> /app/logs/ivy_client_run_cmd_error.log
   RUN_STATUS=${PIPESTATUS[0]}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after 100 seconds"
+    log "WARNING: Command timed out after 60 seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
   fi

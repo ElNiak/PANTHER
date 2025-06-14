@@ -67,9 +67,7 @@ class TestEnvironmentOverrides:
                 value = os.environ.get(key, str(default)).lower()
                 return value in ("true", "1", "yes", "on")
 
-            config.build_docker_image = env_bool(
-                "PANTHER_DOCKER_BUILD", config.build_docker_image
-            )
+            config.build_docker_image = env_bool("PANTHER_DOCKER_BUILD", config.build_docker_image)
             config.remove_docker_image = env_bool(
                 "PANTHER_DOCKER_REMOVE_IMAGE", config.remove_docker_image
             )
@@ -95,12 +93,8 @@ class TestEnvironmentOverrides:
                 value = os.environ.get(key, str(default)).lower()
                 return value in ("true", "1", "yes", "on")
 
-            config.logger_observer = env_bool(
-                "PANTHER_LOGGER_OBSERVER", config.logger_observer
-            )
-            config.storage_handler = env_bool(
-                "PANTHER_STORAGE_HANDLER", config.storage_handler
-            )
+            config.logger_observer = env_bool("PANTHER_LOGGER_OBSERVER", config.logger_observer)
+            config.storage_handler = env_bool("PANTHER_STORAGE_HANDLER", config.storage_handler)
             config.fast_fail = env_bool("PANTHER_FAST_FAIL", config.fast_fail)
 
             assert config.logger_observer is False
@@ -137,13 +131,9 @@ class TestEnvironmentOverrides:
                     return value in ("true", "1", "yes", "on")
 
                 result = env_bool("PANTHER_TEST_BOOL")
-                assert (
-                    result == expected
-                ), f"Value '{env_value}' should parse to {expected}"
+                assert result == expected, f"Value '{env_value}' should parse to {expected}"
 
-    def test_environment_precedence_over_config_file(
-        self, mock_env_fixture, valid_cfg_dict
-    ):
+    def test_environment_precedence_over_config_file(self, mock_env_fixture, valid_cfg_dict):
         """Test that environment variables take precedence over config file values."""
         # Config file has DEBUG, environment sets INFO
         with mock_env_fixture(PANTHER_LOG_LEVEL="INFO"):
@@ -207,9 +197,7 @@ class TestEnvironmentOverrides:
                     return default
 
             step_config.wait = env_int("PANTHER_STEP_WAIT", step_config.wait)
-            test_config.iterations = env_int(
-                "PANTHER_TEST_ITERATIONS", test_config.iterations
-            )
+            test_config.iterations = env_int("PANTHER_TEST_ITERATIONS", test_config.iterations)
 
             assert step_config.wait == 120
             assert test_config.iterations == 10
@@ -285,19 +273,13 @@ class TestEnvironmentOverrides:
             if env_level and env_level in LoggingLevel.__members__:
                 logging_config.level = LoggingLevel[env_level]
 
-            paths_config.output_dir = os.environ.get(
-                "PANTHER_OUTPUT_DIR", paths_config.output_dir
-            )
-            paths_config.plugin_dir = os.environ.get(
-                "PANTHER_PLUGIN_DIR", paths_config.plugin_dir
-            )
+            paths_config.output_dir = os.environ.get("PANTHER_OUTPUT_DIR", paths_config.output_dir)
+            paths_config.plugin_dir = os.environ.get("PANTHER_PLUGIN_DIR", paths_config.plugin_dir)
 
             docker_config.build_docker_image = env_bool(
                 "PANTHER_DOCKER_BUILD", docker_config.build_docker_image
             )
-            feature_config.fast_fail = env_bool(
-                "PANTHER_FAST_FAIL", feature_config.fast_fail
-            )
+            feature_config.fast_fail = env_bool("PANTHER_FAST_FAIL", feature_config.fast_fail)
 
             # Verify all overrides applied correctly
             assert logging_config.level == LoggingLevel.WARNING
@@ -334,9 +316,7 @@ class TestEnvironmentVariableNaming:
 
         # All variables should start with PANTHER_
         for var in expected_vars:
-            assert var.startswith(
-                "PANTHER_"
-            ), f"Variable {var} should start with PANTHER_"
+            assert var.startswith("PANTHER_"), f"Variable {var} should start with PANTHER_"
             assert var.isupper(), f"Variable {var} should be uppercase"
 
     def test_environment_variable_uniqueness(self):
@@ -351,9 +331,7 @@ class TestEnvironmentVariableNaming:
         ]
 
         # Should have no duplicates
-        assert len(vars_list) == len(
-            set(vars_list)
-        ), "Environment variable names should be unique"
+        assert len(vars_list) == len(set(vars_list)), "Environment variable names should be unique"
 
 
 class TestEnvironmentIntegration:
@@ -370,9 +348,7 @@ class TestEnvironmentIntegration:
         ):
             # Create a complete configuration
             logging_config = LoggingConfig(level=LoggingLevel.DEBUG)
-            paths_config = PathsConfig(
-                output_dir="default/output", log_dir="default/logs"
-            )
+            paths_config = PathsConfig(output_dir="default/output", log_dir="default/logs")
             docker_config = DockerConfig(build_docker_image=True)
             feature_config = FeatureConfig(fast_fail=False)
 
@@ -398,9 +374,7 @@ class TestEnvironmentIntegration:
                 config.paths.output_dir = os.environ.get(
                     "PANTHER_OUTPUT_DIR", config.paths.output_dir
                 )
-                config.paths.log_dir = os.environ.get(
-                    "PANTHER_LOG_DIR", config.paths.log_dir
-                )
+                config.paths.log_dir = os.environ.get("PANTHER_LOG_DIR", config.paths.log_dir)
 
                 # Apply docker overrides
                 config.docker.build_docker_image = env_bool(
@@ -408,9 +382,7 @@ class TestEnvironmentIntegration:
                 )
 
                 # Apply feature overrides
-                config.features.fast_fail = env_bool(
-                    "PANTHER_FAST_FAIL", config.features.fast_fail
-                )
+                config.features.fast_fail = env_bool("PANTHER_FAST_FAIL", config.features.fast_fail)
 
                 return config
 

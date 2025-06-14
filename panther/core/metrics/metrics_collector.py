@@ -8,11 +8,18 @@ PANTHER experiment workflow.
 
 import time
 import threading
+import os
+import logging
 from pathlib import Path
 from typing import Any
 from dataclasses import dataclass, field
 from panther.core.utils.logging_mixin import LoggerMixin
 from panther.core.metrics.enums import MetricType, Phase
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 
 @dataclass
@@ -155,7 +162,7 @@ class MetricsCollector(LoggerMixin):
                 # Collect basic system metrics
                 self._collect_basic_metrics()
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 # Log but continue - we never want to crash the collection thread
                 self.logger.error("Error in metrics collection loop: %s", e)
 
@@ -174,12 +181,12 @@ class MetricsCollector(LoggerMixin):
     def _collect_basic_metrics(self):
         """Collect basic system metrics."""
         try:
+            # Skip metrics collection if psutil is not available
+            if psutil is None:
+                return
+
             # Collect some basic system metrics directly
             # These operations are isolated from other metrics collection to avoid contention
-
-            # Example: Collect current process memory usage
-            import os
-            import psutil
 
             # Get process info - do this outside of any locks
             process = psutil.Process(os.getpid())
@@ -201,7 +208,7 @@ class MetricsCollector(LoggerMixin):
                 component="metrics_collector",
             )
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             # Silently ignore errors in background collection to avoid affecting the main process
             self.logger.debug("Error collecting basic metrics: %s", e)
             # Don't propagate the exception
@@ -572,15 +579,15 @@ class MetricsCollector(LoggerMixin):
                 )
 
                 self.logger.warning("Recorded error: %s - %s", safe_error_type, final_message)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 # Last resort fallback if recording fails
                 self.logger.error("Failed to record metric for error: %s", e)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             # Catch-all to prevent record_error from raising exceptions
             try:
                 self.logger.error("Exception in record_error: %s", e)
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 # If even logging fails, we can't do much more
                 pass
 
@@ -953,7 +960,7 @@ class MetricsCollector(LoggerMixin):
         # Create a context manager and manually start the timer
         timer = TimingContextManager(self, name, phase, test_case, component, labels)
         # Manually enter the context to start the timer
-        timer.__enter__()
+        timer.__enter__()  # pylint: disable=unnecessary-dunder-call
         return timer
 
 
@@ -990,7 +997,7 @@ class TimingContextManager:
             try:
                 self.collector.stop_timer(self.name, self.test_case, self.component)
                 self.timer_started = False
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 # Log but don't re-raise
                 if hasattr(self.collector, "logger"):
                     self.collector.logger.error("Error stopping timer '%s': %s", self.name, e)
@@ -1007,7 +1014,7 @@ class TimingContextManager:
                 self.name, self.phase, self.test_case, self.component, self.labels
             )
             self.timer_started = True
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             # If start_timer fails, log the error but don't prevent execution
             self.collector.logger.error("Failed to start timer '%s': %s", self.name, e)
         return self
@@ -1031,11 +1038,11 @@ class TimingContextManager:
                             exception=exc_val,
                             metadata={"context_name": self.name},
                         )
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     # Log but don't re-raise
                     if hasattr(self.collector, "logger"):
                         self.collector.logger.error("Failed to record timing context error: %s", e)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             # Never let __exit__ raise exceptions
             if (
                 hasattr(self, "collector")
@@ -1045,8 +1052,6 @@ class TimingContextManager:
                 self.collector.logger.error("Error in timing context __exit__: %s", e)
             else:
                 # Fallback to standard logging if collector logger is unavailable
-                import logging
-
                 logging.error("Error in timing context __exit__: %s", e)
 
         # Never suppress exceptions from the timed block

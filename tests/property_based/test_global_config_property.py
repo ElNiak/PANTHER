@@ -13,14 +13,9 @@ from panther.config.config_global_schema import (
 def test_default_global_config():
     config = GlobalConfig()
     assert config.logging.level == LoggingLevel.DEBUG
-    assert (
-        config.logging.format
-        == "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
-    )
+    assert config.logging.format == "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
     assert config.paths.output_dir == "panther/outputs"
-    assert (
-        config.paths.log_dir == "panther/outputs"
-    )  # Fixed: actual default is "panther/outputs"
+    assert config.paths.log_dir == "panther/outputs"  # Fixed: actual default is "panther/outputs"
     assert config.paths.config_dir == "panther/configs"
     assert config.paths.plugin_dir == "panther/plugins"
     assert config.paths.services_dir == "services"

@@ -61,7 +61,7 @@ class MetricsCollector:
             git_commit = self._get_git_commit()
 
             # Create the metrics record
-            record = {
+            record_data = {
                 "run_id": self.run_id,
                 "type": kind,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -75,7 +75,7 @@ class MetricsCollector:
                 record.update(extra)
 
             # Store the record
-            self.storage.write_record(record)
+            self.storage.write_record(record_data)
 
             # Clear metrics for next collection
             self._metrics.clear()
@@ -87,7 +87,7 @@ class MetricsCollector:
         """Get the current git commit hash."""
         try:
             result = subprocess.run(
-                ["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5
+                ["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5, check=False
             )
             if result.returncode == 0:
                 return result.stdout.strip()

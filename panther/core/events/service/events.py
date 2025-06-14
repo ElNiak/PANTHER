@@ -458,6 +458,30 @@ class DockerBuildCompletedEvent(ServiceEvent):
         )
 
 
+class DockerBuildFailedEvent(ServiceEvent):
+    """Event emitted when Docker build fails for a service."""
+
+    def __init__(
+        self,
+        service_id: str,
+        service_name: str,
+        dockerfile_path: str,
+        error_message: str,
+        build_duration: float | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.ERROR,
+            service_id=service_id,
+            data={
+                "service_name": service_name,
+                "dockerfile_path": dockerfile_path,
+                "error_message": error_message,
+                "build_duration": build_duration,
+                "action": "docker_build_failed",
+            },
+        )
+
+
 class TesterAnalysisStartedEvent(ServiceEvent):
     """Event emitted when tester starts analyzing collected outputs."""
 

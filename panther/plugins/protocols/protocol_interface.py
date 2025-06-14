@@ -46,8 +46,7 @@ class IProtocolManager(IPlugin):
         config_file = Path(self.service_config_to_test_path)
         if not config_file.exists():
             self.logger.error(
-                "Configuration file '%s' does not exist.",
-                self.service_config_to_test_path
+                "Configuration file '%s' does not exist.", self.service_config_to_test_path
             )
         with open(self.service_config_to_test_path) as f:
             return yaml.safe_load(f)

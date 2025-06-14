@@ -1,3 +1,8 @@
+"""Global configuration schema for PANTHER framework.
+
+This module defines the global configuration structures for PANTHER.
+"""
+
 from enum import Enum
 from dataclasses import dataclass, field
 from panther.config.config_observer_schema import ObserverConfig

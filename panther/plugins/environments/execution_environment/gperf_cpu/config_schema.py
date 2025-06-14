@@ -7,17 +7,32 @@ from panther.plugins.environments.execution_environment.config_schema import (
 @dataclass
 class GperfCpuConfig(ExecutionEnvironmentConfig):
     """
-    Configuration for gperf command generation.
+    Configuration for Google Performance Tools CPU profiling.
+
+    This configuration controls CPU profiling using gperftools (libprofiler),
+    not the gperf perfect hash function generator.
     """
 
-    input_file: str | None = None  # Input file for gperf
-    output_file: str | None = None  # Output file for gperf
-    language: str = "C"  # Language of the output, default is "C"
-    keyword_only: bool = False  # Generate keyword-only lookup
-    readonly_tables: bool = False  # Generate read-only tables
-    switch: bool = False  # Generate switch statements
-    compare_strncmp: bool = False  # Use strncmp for comparisons
-    hash_function: str | None = None  # Hash function to use
-    compare_function: str | None = None  # Comparison function to use
-    includes: list[str] = field(default_factory=list)  # List of includes to add
-    other_flags: list[str] = field(default_factory=list)  # Other gperf flags
+    # Profiler library configuration
+    profiler_library: str | None = None  # Path to libprofiler.so (defaults to system location)
+
+    # Profiling options
+    sampling_frequency: int | None = None  # CPU profiling frequency in Hz (default: 100)
+    use_realtime_signal: bool = False  # Use realtime signal for profiling
+
+    # Output configuration
+    output_format: str = "prof"  # Output format: prof (default), text, pdf
+    generate_pdf: bool = True  # Generate PDF visualization after profiling
+
+    # Performance options
+    profile_children: bool = True  # Profile child processes
+    start_profiling_delay: int = 0  # Delay in seconds before starting profiling
+
+    # Filtering options
+    exclude_functions: list[str] = field(
+        default_factory=list
+    )  # Functions to exclude from profiling
+    include_only_functions: list[str] = field(default_factory=list)  # Include only these functions
+
+    # Additional pprof options for post-processing
+    pprof_options: list[str] = field(default_factory=list)  # Additional options for pprof tool

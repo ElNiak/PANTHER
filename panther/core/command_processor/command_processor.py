@@ -35,6 +35,8 @@ class CommandProcessor(ICommandProcessor):
         # Process each command type in the dictionary
         for cmd_type, cmds in commands.items():
             self.logger.debug("Processing command type '%s'", cmd_type)
+            if cmd_type == "pre_run_cmds":
+                self.logger.debug("pre_run_cmds content: %s", cmds)
 
             if cmd_type == "run_cmd":
                 # Handle the special structure of run_cmd
@@ -78,6 +80,11 @@ class CommandProcessor(ICommandProcessor):
                 env_vars = {k: str(v) for k, v in run_cmd["environment"].items()}
             except (AttributeError, TypeError) as e:
                 self.logger.warning("Error processing env vars: %s. Using empty dict.", e)
+        elif run_cmd.get("command_env"):
+            try:
+                env_vars = {k: str(v) for k, v in run_cmd["command_env"].items()}
+            except (AttributeError, TypeError) as e:
+                self.logger.warning("Error processing command_env vars: %s. Using empty dict.", e)
 
         return {
             "working_dir": run_cmd.get("working_dir", ""),
@@ -152,7 +159,7 @@ class CommandProcessor(ICommandProcessor):
                     if not shell_cmd.command or shell_cmd.command.strip() == "":
                         continue
                     processed_list.append(shell_cmd.to_dict())
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
                         "Could not convert command to ShellCommand: %s, error: %s",
                         cmd,

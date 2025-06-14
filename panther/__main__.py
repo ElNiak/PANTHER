@@ -6,10 +6,12 @@ This module provides the command-line interface for the PANTHER framework.
 """
 
 import argparse
-import argcomplete
-import logging
 import sys
 from pathlib import Path
+import importlib.util
+
+import argcomplete
+import logging
 
 # Import metrics components
 from panther.core.metrics import (
@@ -22,16 +24,11 @@ from panther.core.metrics import (
 # Import the plugin creation utility functions
 try:
     from panther.tools.plugins.plugin_creator import (
-        is_development_mode,
         create_plugin,
         run_tutorial,
-        launch_interactive_tutorials,
     )
-except ImportError:
+except ImportError as exc:
     # Fallback if the import fails (can happen during development)
-    import importlib.util
-    import sys
-
     # Try to load the module directly
     plugin_creator_path = Path(__file__).parent / "plugins" / "plugin_creator.py"
     if plugin_creator_path.exists():
@@ -39,14 +36,12 @@ except ImportError:
         if spec is not None and spec.loader is not None:
             plugin_creator = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(plugin_creator)
-            is_development_mode = plugin_creator.is_development_mode
             create_plugin = plugin_creator.create_plugin
             run_tutorial = plugin_creator.run_tutorial
-            launch_interactive_tutorials = plugin_creator.launch_interactive_tutorials
         else:
-            raise ImportError("Could not import plugin_creator module")
+            raise ImportError("Could not import plugin_creator module") from exc
     else:
-        raise ImportError("Could not find plugin_creator.py module")
+        raise ImportError("Could not find plugin_creator.py module") from exc
 
 from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
@@ -73,12 +68,6 @@ def initialize_metrics(args):
         return None, None, None, None
 
     try:
-        from pathlib import Path
-
-        # We'll defer creating the metrics directory until we know if an experiment directory is available.
-        # For now, just store the path as specified in args if provided
-        metrics_output_dir_path = args.metrics_output_dir
-
         # Get experiment name or use a default
         experiment_name = args.experiment_name or "unnamed_experiment"
 
@@ -95,8 +84,8 @@ def initialize_metrics(args):
         if hasattr(metrics_collector, "initialize_error_handling"):
             metrics_collector.initialize_error_handling()
 
-        logging.info(f"✅ Metrics collector initialized for experiment: {experiment_name}")
-        logging.info(f"   Output directory: {metrics_output_dir}")
+        logging.info("✅ Metrics collector initialized for experiment: %s", experiment_name)
+        logging.info("   Output directory: %s", metrics_output_dir)
 
         # Initialize resource monitor if not disabled
         resource_monitor = None
@@ -109,8 +98,8 @@ def initialize_metrics(args):
                 # Add error handlers to resource monitor
                 if hasattr(resource_monitor, "initialize_error_handling"):
                     resource_monitor.initialize_error_handling()
-            except Exception as e:
-                logging.warning(f"⚠️ Warning: Failed to initialize resource monitor: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.warning("⚠️ Warning: Failed to initialize resource monitor: %s", e)
                 resource_monitor = None
 
         # Initialize reporter with error handling
@@ -125,18 +114,18 @@ def initialize_metrics(args):
 
         if not args.metrics_quiet:
             logging.info("✅ Metrics collection enabled")
-            logging.info(f"   Output directory: {args.metrics_output_dir}")
-            logging.info(f"   Export format: {args.metrics_export_format}")
+            logging.info("   Output directory: %s", args.metrics_output_dir)
+            logging.info("   Export format: %s", args.metrics_export_format)
             if resource_monitor:
-                logging.info(f"   Resource monitoring interval: {args.metrics_resource_interval}s")
+                logging.info("   Resource monitoring interval: %ss", args.metrics_resource_interval)
 
         return metrics_collector, resource_monitor, metrics_reporter, metrics_exporter
 
     except ImportError as e:
-        logging.error(f"❌ Failed to import metrics components: {e}")
+        logging.error("❌ Failed to import metrics components: %s", e)
         return None, None, None, None
-    except Exception as e:
-        logging.error(f"❌ Failed to initialize metrics: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logging.error("❌ Failed to initialize metrics: %s", e)
         return None, None, None, None
 
 
@@ -147,7 +136,7 @@ def finalize_metrics(
     metrics_reporter,
     metrics_exporter,
     execution_success,
-    experiment_manager=None,
+    experiment_manager=None,  # pylint: disable=unused-argument
 ):
     """
     Finalize metrics collection and generate reports/exports.
@@ -186,8 +175,8 @@ def finalize_metrics(
                 resource_monitor.stop()
                 if args and not getattr(args, "metrics_quiet", False):
                     logging.info("🔄 Stopped resource monitoring")
-            except Exception as e:
-                logging.warning(f"⚠️ Warning: Failed to stop resource monitor: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.warning("⚠️ Warning: Failed to stop resource monitor: %s", e)
 
         # Record final status in metrics collector
         try:
@@ -197,32 +186,28 @@ def finalize_metrics(
             else:
                 metrics_collector.increment_counter("experiments_failed")
                 metrics_collector.record_gauge("experiment_final_status", 0)  # 0 = failure
-        except Exception as e:
-            logging.warning(f"⚠️ Warning: Failed to record final experiment status: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.warning("⚠️ Warning: Failed to record final experiment status: %s", e)
 
         # Create output directory if it doesn't exist
         try:
-            from pathlib import Path
-
             metrics_output_dir = (
                 Path(args.metrics_output_dir)
                 if args and hasattr(args, "metrics_output_dir") and args.metrics_output_dir
                 else Path("metrics")
             )
             metrics_output_dir.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            logging.error(f"❌ Failed to create metrics output directory: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("❌ Failed to create metrics output directory: %s", e)
             # Use current directory as fallback
-            from pathlib import Path
-
             metrics_output_dir = Path(".")
 
         # Generate timestamp for files
         try:
-            from datetime import datetime
+            from datetime import datetime  # pylint: disable=import-outside-toplevel
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             timestamp = "unknown_time"
 
         # Export metrics data if exporter is available
@@ -251,11 +236,11 @@ def finalize_metrics(
                         # Make sure metrics are in dashboard-compatible format
                         metrics_exporter.prepare_dashboard_metrics()
                         export_success = metrics_exporter.export_dashboard_json(export_path)
-                except Exception as e:
-                    logging.error(f"❌ Failed to export metrics in {export_format} format: {e}")
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logging.error("❌ Failed to export metrics in %s format: %s", export_format, e)
                     export_success = False
-            except Exception as e:
-                logging.error(f"❌ Failed to prepare metrics data for export: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("❌ Failed to prepare metrics data for export: %s", e)
                 export_success = False
 
         # Generate human-readable report if requested and reporter is available
@@ -266,15 +251,17 @@ def finalize_metrics(
                 report_success = metrics_reporter.generate_report(str(report_path))
 
                 if not getattr(args, "metrics_quiet", False) and report_success:
-                    logging.info(f"📊 Metrics report generated: {report_path}")
-            except Exception as e:
-                logging.error(f"❌ Failed to generate metrics report: {e}")
+                    logging.info("📊 Metrics report generated: %s", report_path)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("❌ Failed to generate metrics report: %s", e)
 
         # Print summary info if not in quiet mode
         if args and not getattr(args, "metrics_quiet", False):
             if export_success:
                 logging.info(
-                    f"📁 Metrics exported ({getattr(args, 'metrics_export_format', 'json')}): {metrics_output_dir}"
+                    "📁 Metrics exported (%s): %s",
+                    getattr(args, "metrics_export_format", "json"),
+                    metrics_output_dir,
                 )
             else:
                 logging.warning("⚠️ Failed to export metrics or no exporter available")
@@ -292,17 +279,17 @@ def finalize_metrics(
                     )
 
                     logging.info("\n📈 Metrics Summary:")
-                    logging.info(f"   Total experiments: {total_experiments}")
-                    logging.info(f"   Successful: {successful_experiments}")
-                    logging.info(f"   Failed: {failed_experiments}")
-                    logging.info(f"   Total execution time: {total_execution_time:.2f}s")
+                    logging.info("   Total experiments: %s", total_experiments)
+                    logging.info("   Successful: %s", successful_experiments)
+                    logging.info("   Failed: %s", failed_experiments)
+                    logging.info("   Total execution time: %.2fs", total_execution_time)
                 else:
                     logging.warning("\n⚠️ No metrics collector available for summary")
-            except Exception as e:
-                logging.error(f"⚠️ Failed to show metrics summary: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("⚠️ Failed to show metrics summary: %s", e)
 
-    except Exception as e:
-        logging.error(f"❌ Error in finalize_metrics: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logging.error("❌ Error in finalize_metrics: %s", e)
 
 
 def main():
@@ -540,8 +527,8 @@ def main():
                 create_subplugins=args.with_subplugins,
             )
             return 0 if success else 1
-        except Exception as e:
-            logging.error(f"❌ Error creating plugin: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("❌ Error creating plugin: %s", e)
             return 1
 
     # Handle subplugin creation
@@ -557,44 +544,51 @@ def main():
 
         try:
             # Import the subplugin creation function
-            from panther.tools.plugins.plugin_creator import create_subplugin
+            from panther.tools.plugins.plugin_creator import (
+                create_subplugin,
+            )  # pylint: disable=import-outside-toplevel
 
             success = create_subplugin(
                 plugin_type, plugin_name, subplugin_type, in_development_mode=dev_mode
             )
             return 0 if success else 1
-        except Exception as e:
-            logging.error(f"❌ Error creating subplugin: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("❌ Error creating subplugin: %s", e)
             return 1
 
     # Handle tutorial execution
     if args.tutorial:
         try:
             return run_tutorial(args.tutorial)
-        except Exception as e:
-            logging.error(f"❌ Error running tutorial: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("❌ Error running tutorial: %s", e)
             return 1
 
     # Handle interactive tutorial menu
     if args.interactive_tutorials:
         try:
             # Import the interactive tutorials function
-            from panther.tools.plugins.plugin_creator import launch_interactive_tutorials
+            from panther.tools.plugins.plugin_creator import (
+                launch_interactive_tutorials,
+            )  # pylint: disable=import-outside-toplevel
 
             launch_interactive_tutorials()
             return 0
-        except Exception as e:
-            logging.error(f"❌ Error launching interactive tutorials: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("❌ Error launching interactive tutorials: %s", e)
             return 1
 
     # Handle plugin migration and management
     if any([args.migrate_plugins, args.scan_plugins, args.validate_plugin, args.check_plugin_deps]):
         try:
-            from panther.plugins.plugin_migration_tool import PluginMigrationTool
-            from pathlib import Path
+            from panther.plugins.plugin_migration_tool import (
+                PluginMigrationTool,
+            )  # pylint: disable=import-outside-toplevel
 
             tool = PluginMigrationTool()
-            base_path = Path.cwd()  # Use current directory as base path
+            base_path = (
+                Path.cwd()
+            )  # Use current directory as base path  # pylint: disable=used-before-assignment
 
             if args.scan_plugins:
                 results = tool.scan_plugins(base_path, include_manifested=True)
@@ -685,12 +679,15 @@ def main():
                     print(f"Error: No manifest found at {manifest_path}")
                     return 1
 
-                import yaml
+                import yaml  # pylint: disable=import-outside-toplevel
 
-                with open(manifest_path) as f:
+                with open(manifest_path, encoding="utf-8") as f:
                     manifest_data = yaml.safe_load(f)
 
-                from panther.plugins.plugin_manifest import PluginManifest, PluginType
+                from panther.plugins.plugin_manifest import (
+                    PluginManifest,
+                    PluginType,
+                )  # pylint: disable=import-outside-toplevel
 
                 manifest = PluginManifest(
                     name=manifest_data["name"],
@@ -720,14 +717,15 @@ def main():
 
                 return 0
 
-        except Exception as e:
-            logging.error(f"❌ Error in plugin migration: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("❌ Error in plugin migration: %s", e)
             return 1
 
     if args.list_plugins:
         # List all available plugins
-        from panther.plugins.plugin_manager import PluginManager
-        from pathlib import Path
+        from panther.plugins.plugin_manager import (
+            PluginManager,
+        )  # pylint: disable=import-outside-toplevel
 
         try:
             # Create a plugin manager to discover plugins
@@ -746,15 +744,15 @@ def main():
 
             for plugin_type, plugins in sorted(available_plugins.items()):
                 if plugins:
-                    logging.info(f"\n{plugin_type.upper()} PLUGINS:")
+                    logging.info("\n%s PLUGINS:", plugin_type.upper())
                     logging.info("-" * 40)
                     for plugin in sorted(plugins):
-                        logging.info(f"  • {plugin}")
+                        logging.info("  • %s", plugin)
 
-            logging.info("\n" + "=" * 60)
-            logging.info(f"\nTotal plugin types: {len(available_plugins)}")
+            logging.info("\n%s", "=" * 60)
+            logging.info("\nTotal plugin types: %s", len(available_plugins))
             total_plugins = sum(len(plugins) for plugins in available_plugins.values())
-            logging.info(f"Total plugins found: {total_plugins}")
+            logging.info("Total plugins found: %s", total_plugins)
 
             # Provide helpful information
             logging.info("\nFor more information about a specific plugin, use:")
@@ -762,8 +760,8 @@ def main():
 
             return 0
 
-        except Exception as e:
-            logging.error(f"Error listing plugins: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logging.error("Error listing plugins: %s", e)
             return 1
 
     if args.list_plugin_params:
@@ -788,7 +786,11 @@ def main():
 
         # Print parameters in a readable format
         logging.info(
-            f"\n{'Parameter':<20} {'Type':<30} {'Default':<20} {'Required':<10} Description"
+            "\n%s %s %s %s Description",
+            "Parameter".ljust(20),
+            "Type".ljust(30),
+            "Default".ljust(20),
+            "Required".ljust(10),
         )
         logging.info("-" * 100)
         for name, info in params.items():
@@ -806,7 +808,14 @@ def main():
                 if info.get("note"):
                     desc += f" - {info['note']}"
 
-            logging.info(f"{name:<20} {info['type']:<30} {default:<20} {required:<10} {desc}")
+            logging.info(
+                "%s %s %s %s %s",
+                name.ljust(20),
+                info["type"].ljust(30),
+                default.ljust(20),
+                required.ljust(10),
+                desc,
+            )
 
             # If this is a version field with client/server details, show them
             if name == "version" and "value" in info:
@@ -867,7 +876,6 @@ def main():
         )
 
         # Now determine the metrics output directory
-        from pathlib import Path
 
         # Check if user explicitly specified metrics output directory with --metrics-output-dir
         if args.metrics_output_dir != "metrics":  # Not using the default
@@ -895,19 +903,6 @@ def main():
 
         if args.webapp:
             raise NotImplementedError("WebApplication functionality is not fully implemented yet.")
-            try:
-                from panther.webapp.web_app import run
-
-                run(config_loader, global_config, args)
-                return 0
-            except Exception as e:
-                logging.error(e)
-                return 1
-            finally:
-                sys.stdout.close()
-                sys.stderr.close()
-                sys.stdout = sys.__stdout__
-                sys.stderr = sys.__stderr__
         else:
             execution_success = False
 
@@ -951,9 +946,10 @@ def main():
                 if metrics_collector:
                     metrics_collector.stop_timer("total_execution_time")
 
+                execution_success = True
                 return 0
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 if metrics_collector:
                     try:
                         metrics_collector.increment_counter("experiments_failed")
@@ -962,14 +958,14 @@ def main():
                         error_type = "UnknownError"
                         try:
                             error_type = type(e).__name__
-                        except Exception:
+                        except Exception:  # pylint: disable=broad-exception-caught
                             pass
 
                         # Get error message safely
                         error_message = "No details available"
                         try:
                             error_message = str(e)
-                        except Exception:
+                        except Exception:  # pylint: disable=broad-exception-caught
                             pass
 
                         # Record error with robust error handling
@@ -981,16 +977,26 @@ def main():
                                 component="main",
                                 exception=e,
                             )
-                        except Exception as err:
+                        except Exception as err:  # pylint: disable=broad-exception-caught
                             # If error recording fails, log it but don't raise
-                            logging.error(f"Failed to record error in metrics: {err}")
-                    except Exception as err:
+                            logging.error("Failed to record error in metrics: %s", err)
+                    except Exception as err:  # pylint: disable=broad-exception-caught
                         # Don't let metrics issues stop execution
-                        logging.error(f"Error during metrics error recording: {err}")
+                        logging.error("Error during metrics error recording: %s", err)
 
-                logging.error(f"Experiment execution failed: {e}")
+                logging.error("Experiment execution failed: %s", e)
                 return 1
             finally:
+                # Finalize metrics if enabled
+                finalize_metrics(
+                    args,
+                    metrics_collector,
+                    resource_monitor,
+                    metrics_reporter,
+                    metrics_exporter,
+                    execution_success,
+                    experiment_manager,
+                )
                 config_loader.cleanup()
 
 

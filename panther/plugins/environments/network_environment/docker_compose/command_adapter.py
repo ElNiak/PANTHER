@@ -28,6 +28,14 @@ class DockerComposeCommandAdapter(IEnvironmentCommandAdapter):
         # Process each command phase
         adapted_commands = {}
 
+        # Debug logging
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug("DockerComposeCommandAdapter processing commands: %s", commands.keys())
+        if "pre_run_cmds" in commands:
+            logger.debug("pre_run_cmds content: %s", commands["pre_run_cmds"])
+
         for phase, cmd_list in commands.items():
             if isinstance(cmd_list, list):
                 # Process each command in the list

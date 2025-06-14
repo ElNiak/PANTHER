@@ -4,7 +4,7 @@ import os
 import shlex
 import yaml
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from typing import Any, TYPE_CHECKING
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.events import ServiceEventEmitter
@@ -206,7 +206,10 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # file for the service defined by the plugin itself
         self.service_config_to_test = service_config_to_test
 
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(self.templates_dir),
+            autoescape=select_autoescape(["html", "xml", "sh"]),
+        )
         self.jinja_env.filters["realpath"] = lambda x: os.path.abspath(x)
         self.jinja_env.filters["is_dict"] = lambda x: isinstance(x, dict)
         self.jinja_env.trim_blocks = True

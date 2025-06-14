@@ -298,9 +298,7 @@ class {plugin_name.title().replace('_', '')}:
         assert "mock_tester" in plugins["testers"]
         assert "mock_protocol" in plugins["protocols"]
 
-    def test_load_all_plugins_with_import_errors(
-        self, config_loader_with_mock_panther_dir
-    ):
+    def test_load_all_plugins_with_import_errors(self, config_loader_with_mock_panther_dir):
         """Test load_all_plugins with import errors for some plugins."""
         config_loader = config_loader_with_mock_panther_dir
 
@@ -346,34 +344,23 @@ class {plugin_name.title().replace('_', '')}:
             assert plugin_type in plugins
             assert len(plugins[plugin_type]) == 0
 
-    @pytest.mark.skip(
-        reason="Plugin loader circular import issue causing recursion error"
-    )
-    def test_get_all_exec_env_classes_success(
-        self, config_loader_with_mock_panther_dir
-    ):
+    @pytest.mark.skip(reason="Plugin loader circular import issue causing recursion error")
+    def test_get_all_exec_env_classes_success(self, config_loader_with_mock_panther_dir):
         """Test successful retrieval of execution environment classes."""
         config_loader = config_loader_with_mock_panther_dir
 
         # Create mock execution environment directory and plugin
         exec_env_dir = (
-            Path(config_loader._panther_dir)
-            / "plugins"
-            / "environments"
-            / "execution_environment"
+            Path(config_loader._panther_dir) / "plugins" / "environments" / "execution_environment"
         )
         exec_env_dir.mkdir(parents=True, exist_ok=True)
 
         mock_plugin_dir = exec_env_dir / "mock_exec_env"
         mock_plugin_dir.mkdir(exist_ok=True)
-        (mock_plugin_dir / "mock_exec_env.py").write_text(
-            "class MockExecEnvConfig: pass"
-        )
+        (mock_plugin_dir / "mock_exec_env.py").write_text("class MockExecEnvConfig: pass")
 
         # Mock the import and get_class_name method to avoid recursion issues
-        with patch(
-            "panther.plugins.plugin_loader.PluginLoader"
-        ) as mock_plugin_loader_class:
+        with patch("panther.plugins.plugin_loader.PluginLoader") as mock_plugin_loader_class:
             mock_plugin_loader_class.get_class_name.return_value = "MockExecEnvConfig"
 
             classes = config_loader.get_all_exec_env_classes()
@@ -399,9 +386,7 @@ class {plugin_name.title().replace('_', '')}:
 
         assert classes == []
 
-    def test_get_all_network_environment_classes_success(
-        self, config_loader_with_mock_panther_dir
-    ):
+    def test_get_all_network_environment_classes_success(self, config_loader_with_mock_panther_dir):
         """Test successful retrieval of network environment classes."""
         config_loader = config_loader_with_mock_panther_dir
 
@@ -413,10 +398,7 @@ class {plugin_name.title().replace('_', '')}:
 
             # Create the expected directory structure in our temp directory
             net_env_dir = (
-                config_loader._panther_dir
-                / "plugins"
-                / "environments"
-                / "network_environment"
+                config_loader._panther_dir / "plugins" / "environments" / "network_environment"
             )
             net_env_dir.mkdir(parents=True, exist_ok=True)
 
@@ -433,9 +415,7 @@ class {plugin_name.title().replace('_', '')}:
         assert "TestPluginConfig" in classes
         config_loader.logger.debug.assert_called()
 
-    def test_get_all_protocol_classes_success(
-        self, config_loader_with_mock_panther_dir
-    ):
+    def test_get_all_protocol_classes_success(self, config_loader_with_mock_panther_dir):
         """Test successful retrieval of protocol classes."""
         config_loader = config_loader_with_mock_panther_dir
 
@@ -466,9 +446,7 @@ class {plugin_name.title().replace('_', '')}:
         assert "MockProtocolConfig" in classes
         config_loader.logger.debug.assert_called()
 
-    def test_get_all_protocol_classes_no_protocol_file(
-        self, config_loader_with_mock_panther_dir
-    ):
+    def test_get_all_protocol_classes_no_protocol_file(self, config_loader_with_mock_panther_dir):
         """Test get_all_protocol_classes when protocol files don't exist."""
         config_loader = config_loader_with_mock_panther_dir
 
@@ -507,9 +485,7 @@ class TestConfigManagerPluginParameters:
         config_loader.logger = Mock()
         return config_loader
 
-    def test_list_plugin_parameters_environment_plugin_success(
-        self, config_loader_for_params
-    ):
+    def test_list_plugin_parameters_environment_plugin_success(self, config_loader_for_params):
         """Test successful parameter listing for environment plugins."""
         config_loader = config_loader_for_params
 
@@ -541,9 +517,7 @@ class TestConfigManagerPluginParameters:
         assert params["enabled"]["default"] is True
         assert params["path"]["default"] is None
 
-    def test_list_plugin_parameters_iut_plugin_direct_path(
-        self, config_loader_for_params
-    ):
+    def test_list_plugin_parameters_iut_plugin_direct_path(self, config_loader_for_params):
         """Test parameter listing for IUT plugins with direct path."""
         config_loader = config_loader_for_params
 
@@ -569,9 +543,7 @@ class TestConfigManagerPluginParameters:
         assert params["port"]["default"] == 8080
         assert params["host"]["default"] == "localhost"
 
-    def test_list_plugin_parameters_iut_plugin_protocol_path(
-        self, config_loader_for_params
-    ):
+    def test_list_plugin_parameters_iut_plugin_protocol_path(self, config_loader_for_params):
         """Test parameter listing for IUT plugins under protocol directory."""
         config_loader = config_loader_for_params
 
@@ -607,13 +579,9 @@ class TestConfigManagerPluginParameters:
         """Test parameter listing when plugin is not found."""
         config_loader = config_loader_for_params
 
-        with patch(
-            "importlib.import_module", side_effect=ImportError("Module not found")
-        ):
+        with patch("importlib.import_module", side_effect=ImportError("Module not found")):
             with patch("builtins.print") as mock_print:
-                params = config_loader.list_plugin_parameters(
-                    "iut", "nonexistent_plugin"
-                )
+                params = config_loader.list_plugin_parameters("iut", "nonexistent_plugin")
 
         assert params == {}
         mock_print.assert_called()
@@ -643,9 +611,7 @@ class TestConfigManagerPluginParameters:
         """Test parameter listing with unexpected error."""
         config_loader = config_loader_for_params
 
-        with patch(
-            "importlib.import_module", side_effect=Exception("Unexpected error")
-        ):
+        with patch("importlib.import_module", side_effect=Exception("Unexpected error")):
             with patch("builtins.print") as mock_print:
                 params = config_loader.list_plugin_parameters(
                     "execution_environment", "mock_plugin"
@@ -725,9 +691,7 @@ class TestConfigManagerErrorHandling:
         # Should derive from default behavior (not from experiment file path)
         assert panther_dir is not None
 
-    def test_load_all_plugins_with_filesystem_errors(
-        self, config_loader_for_errors, tmp_path
-    ):
+    def test_load_all_plugins_with_filesystem_errors(self, config_loader_for_errors, tmp_path):
         """Test load_all_plugins with filesystem access errors."""
         config_loader = config_loader_for_errors
         config_loader._panther_dir = tmp_path
@@ -737,18 +701,14 @@ class TestConfigManagerErrorHandling:
         plugin_dir.mkdir()
 
         # Mock iterdir to raise PermissionError
-        with patch.object(
-            Path, "iterdir", side_effect=PermissionError("Access denied")
-        ):
+        with patch.object(Path, "iterdir", side_effect=PermissionError("Access denied")):
             plugins = config_loader.load_all_plugins()
 
         # Should handle error gracefully and return empty plugins
         for plugin_type in plugins.values():
             assert len(plugin_type) == 0
 
-    def test_copy_plugin_files_source_not_exists(
-        self, config_loader_for_errors, tmp_path
-    ):
+    def test_copy_plugin_files_source_not_exists(self, config_loader_for_errors, tmp_path):
         """Test copy_plugin_files when source directory doesn't exist."""
         config_loader = config_loader_for_errors
 

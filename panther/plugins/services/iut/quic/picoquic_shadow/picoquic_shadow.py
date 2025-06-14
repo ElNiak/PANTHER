@@ -1,3 +1,9 @@
+"""PicoQUIC Shadow service implementation for PANTHER framework.
+
+This module provides a PicoQUIC implementation optimized for use with
+the Shadow network simulator environment.
+"""
+
 import traceback
 from typing import TYPE_CHECKING
 
@@ -8,7 +14,7 @@ from panther.plugins.plugin_decorators import register_plugin
 from panther.core.utils.command_builder import ServiceCommandBuilder
 from panther.core.utils.template_renderer import ServiceTemplateRenderer
 from panther.core.utils.docker_operations_mixin import ServiceManagerDockerMixin
-from panther.core.utils.error_handler_mixin import ErrorHandlerMixin
+from panther.core.exceptions import ErrorHandlerMixin
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -131,10 +137,21 @@ class PicoquicShadowServiceManager(
             # Build Docker images using the mixin methods
             self.build_docker_image_with_manager(plugin_manager, "panther_base", "service")
 
+            # Extract simple version string from complex version object
+            version_obj = self.service_config_to_test.implementation.version
+            if hasattr(version_obj, "version"):
+                version = version_obj.version
+            elif hasattr(version_obj, "name"):
+                version = version_obj.name
+            elif isinstance(version_obj, str):
+                version = version_obj
+            else:
+                version = "latest"
+
             self.build_docker_image_with_manager(
                 plugin_manager,
                 self.get_implementation_name(),
-                self.service_config_to_test.implementation.version,
+                version,
             )
         except Exception as e:
             self.handle_error(e, "preparing Picoquic service manager")
@@ -163,12 +180,16 @@ class PicoquicShadowServiceManager(
         # Determine if network interface parameters should be included based on environment
         include_interface = True
 
-        # Build parameters for the command template
+        # Build parameters for the command template - initialize with default empty dict
+        params = {}
         if self.role == RoleEnum.server:
             params = self.service_config_to_test.implementation.version.server
         # For the client, include target and message if available
         elif self.role == RoleEnum.client:
             params = self.service_config_to_test.implementation.version.client
+        else:
+            # Default case - this should not happen but provides safety
+            self.logger.warning("Unknown role: %s, using empty parameters", self.role)
 
         params["target"] = self.service_config_to_test.protocol.target
 

@@ -9,11 +9,10 @@ from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
 from panther.plugins.plugin_decorators import register_plugin
 from panther.core.utils.service_manager_utils import IUTServiceManagerMixin
 from panther.core.utils import (
-    ServiceCommandBuilder,
-    ServiceTemplateRenderer,
     ServiceManagerDockerMixin,
     ErrorHandlerMixin,
 )
+from panther.core.command_processor.command_builder import ServiceCommandBuilder
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -74,22 +73,15 @@ class QuinnServiceManager(
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name, event_manager
         )
-
-        # Use standardized initialization from mixin
-        self.standardized_initialization(
-            service_config_to_test, service_type, protocol, implementation_name, event_manager
+        # Use the new template method for standard initialization
+        self.standard_iut_initialization(
+            service_config_to_test,
+            service_type,
+            protocol,
+            implementation_name,
+            event_manager,
+            plugin_dir=Path(__file__).parent,
         )
-
-        # Set up IUT-specific attributes
-        self.setup_iut_specific_attributes(protocol, service_config_to_test)
-
-        # Initialize template renderer with plugin directory
-        plugin_dir = Path(__file__).parent
-        self.template_renderer = ServiceTemplateRenderer(plugin_dir)
-
-        # Set Docker attributes for ServiceManagerDockerMixin
-        self.docker_image_name = "quinn:latest"
-        self.docker_file_path = plugin_dir / "Dockerfile"
 
     def generate_run_command(self):
         """

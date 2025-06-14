@@ -59,13 +59,30 @@ class ServiceManagerEventMixin:
             # Generate a unique service ID
             service_id = f"{service_type}_{implementation}_{service_name}"
 
-            # Use the new ServiceEventEmitter API
-            self.event_emitter.emit_service_started(
-                service_id=service_id,
-                service_name=service_name,
-                pid=details.get("pid") if details else None,
-                start_time=details.get("start_time") if details else None,
-            )
+            # Try to use EmitterRegistry's state-aware method if available
+            if hasattr(self.event_emitter, "emit_service_started_with_validation"):
+                success = self.event_emitter.emit_service_started_with_validation(
+                    service_id=service_id,
+                    service_name=service_name,
+                    pid=details.get("pid") if details else None,
+                    start_time=details.get("start_time") if details else None,
+                )
+                if not success:
+                    # Fallback to direct emission if state validation fails
+                    self.event_emitter.service_emitter.emit_service_started(
+                        service_id=service_id,
+                        service_name=service_name,
+                        pid=details.get("pid") if details else None,
+                        start_time=details.get("start_time") if details else None,
+                    )
+            else:
+                # Fallback to direct ServiceEventEmitter API
+                self.event_emitter.emit_service_started(
+                    service_id=service_id,
+                    service_name=service_name,
+                    pid=details.get("pid") if details else None,
+                    start_time=details.get("start_time") if details else None,
+                )
 
     def notify_service_stopped(self, success: bool, details: dict[str, Any] | None = None):
         """
@@ -84,18 +101,45 @@ class ServiceManagerEventMixin:
             # Generate a unique service ID
             service_id = f"{service_type}_{implementation}_{service_name}"
 
-            # Use the new ServiceEventEmitter API
-            self.event_emitter.emit_service_stopped(
-                service_id=service_id,
-                service_name=service_name,
-                exit_code=0 if success else 1,
-                reason=(
-                    details.get("reason", "Normal termination" if success else "Error")
-                    if details
-                    else None
-                ),
-                uptime_seconds=details.get("uptime_seconds") if details else None,
-            )
+            # Try to use EmitterRegistry's state-aware method if available
+            if hasattr(self.event_emitter, "emit_service_stopped_with_validation"):
+                success_emitted = self.event_emitter.emit_service_stopped_with_validation(
+                    service_id=service_id,
+                    service_name=service_name,
+                    exit_code=0 if success else 1,
+                    reason=(
+                        details.get("reason", "Normal termination" if success else "Error")
+                        if details
+                        else None
+                    ),
+                    uptime_seconds=details.get("uptime_seconds") if details else None,
+                )
+                if not success_emitted:
+                    # Fallback to direct emission if state validation fails
+                    self.event_emitter.service_emitter.emit_service_stopped(
+                        service_id=service_id,
+                        service_name=service_name,
+                        exit_code=0 if success else 1,
+                        reason=(
+                            details.get("reason", "Normal termination" if success else "Error")
+                            if details
+                            else None
+                        ),
+                        uptime_seconds=details.get("uptime_seconds") if details else None,
+                    )
+            else:
+                # Fallback to direct ServiceEventEmitter API
+                self.event_emitter.emit_service_stopped(
+                    service_id=service_id,
+                    service_name=service_name,
+                    exit_code=0 if success else 1,
+                    reason=(
+                        details.get("reason", "Normal termination" if success else "Error")
+                        if details
+                        else None
+                    ),
+                    uptime_seconds=details.get("uptime_seconds") if details else None,
+                )
 
     def notify_service_error(
         self, error_type: str, error_message: str, details: dict[str, Any] | None = None
@@ -117,14 +161,33 @@ class ServiceManagerEventMixin:
             # Generate a unique service ID
             service_id = f"{service_type}_{implementation}_{service_name}"
 
-            # Use the new ServiceEventEmitter API
-            self.event_emitter.emit_service_error(
-                service_id=service_id,
-                service_name=service_name,
-                error_message=error_message,
-                error_type=error_type,
-                error_details=details,
-            )
+            # Try to use EmitterRegistry's state-aware method if available
+            if hasattr(self.event_emitter, "emit_service_error_with_validation"):
+                success = self.event_emitter.emit_service_error_with_validation(
+                    service_id=service_id,
+                    service_name=service_name,
+                    error_message=error_message,
+                    error_type=error_type,
+                    error_details=details,
+                )
+                if not success:
+                    # Fallback to direct emission if state validation fails
+                    self.event_emitter.service_emitter.emit_service_error(
+                        service_id=service_id,
+                        service_name=service_name,
+                        error_message=error_message,
+                        error_type=error_type,
+                        error_details=details,
+                    )
+            else:
+                # Fallback to direct ServiceEventEmitter API
+                self.event_emitter.emit_service_error(
+                    service_id=service_id,
+                    service_name=service_name,
+                    error_message=error_message,
+                    error_type=error_type,
+                    error_details=details,
+                )
 
     def notify_service_event(self, event_name: str, details: dict[str, Any] | None = None):
         """
@@ -145,19 +208,53 @@ class ServiceManagerEventMixin:
 
             # Map common event names to specific emitter methods
             if event_name == "service_created":
-                self.event_emitter.emit_service_created(
-                    service_id=service_id,
-                    service_name=service_name,
-                    service_type=service_type,
-                    implementation=implementation,
-                    config=details,
-                )
+                # Try to use state-aware method first
+                if hasattr(self.event_emitter, "emit_service_created_with_validation"):
+                    success = self.event_emitter.emit_service_created_with_validation(
+                        service_id=service_id,
+                        service_name=service_name,
+                        service_type=service_type,
+                        implementation=implementation,
+                        config=details,
+                    )
+                    if not success:
+                        # Fallback to direct emission
+                        self.event_emitter.service_emitter.emit_service_created(
+                            service_id=service_id,
+                            service_name=service_name,
+                            service_type=service_type,
+                            implementation=implementation,
+                            config=details,
+                        )
+                else:
+                    self.event_emitter.emit_service_created(
+                        service_id=service_id,
+                        service_name=service_name,
+                        service_type=service_type,
+                        implementation=implementation,
+                        config=details,
+                    )
             elif event_name == "service_ready":
-                self.event_emitter.emit_service_ready(
-                    service_id=service_id,
-                    service_name=service_name,
-                    readiness_checks=details.get("readiness_checks") if details else None,
-                )
+                # Try to use state-aware method first
+                if hasattr(self.event_emitter, "emit_service_ready_with_validation"):
+                    success = self.event_emitter.emit_service_ready_with_validation(
+                        service_id=service_id,
+                        service_name=service_name,
+                        readiness_checks=details.get("readiness_checks") if details else None,
+                    )
+                    if not success:
+                        # Fallback to direct emission
+                        self.event_emitter.service_emitter.emit_service_ready(
+                            service_id=service_id,
+                            service_name=service_name,
+                            readiness_checks=details.get("readiness_checks") if details else None,
+                        )
+                else:
+                    self.event_emitter.emit_service_ready(
+                        service_id=service_id,
+                        service_name=service_name,
+                        readiness_checks=details.get("readiness_checks") if details else None,
+                    )
             elif event_name == "service_destroyed":
                 self.event_emitter.emit_service_destroyed(
                     service_id=service_id, service_name=service_name, cleanup_details=details

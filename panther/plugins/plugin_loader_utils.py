@@ -5,9 +5,12 @@ This module provides utilities for loading plugins dynamically, reducing duplica
 across plugin loading operations in PANTHER.
 """
 
+from __future__ import annotations
+
 import importlib.util
 from pathlib import Path
 from typing import Any, TypeVar
+from collections.abc import Callable
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -85,7 +88,7 @@ class PluginManagerUtils(LoggerMixin):
         plugin_path: Path,
         class_suffix: str,
         base_class: type[T] | None = None,
-        name_transform: callable | None = None,
+        name_transform: Callable | None = None,
     ) -> type[T]:
         """
         Load a plugin class using standard naming conventions.

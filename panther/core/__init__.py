@@ -15,34 +15,34 @@ __all__ = [
 ]
 
 
-def __getattr__(name):
+def __getattr__(name):  # pylint: disable=invalid-name
     """Lazy import implementation to avoid circular imports."""
     if name == "experiment_manager":
-        from . import experiment_manager
+        from . import experiment_manager  # pylint: disable=import-outside-toplevel
 
         return experiment_manager
     elif name == "experiment_strategy":
-        from . import experiment_strategy
+        from . import experiment_strategy  # pylint: disable=import-outside-toplevel
 
         return experiment_strategy
     elif name == "observer":
-        from . import observer
+        from . import observer  # pylint: disable=import-outside-toplevel
 
         return observer
     elif name == "results":
-        from . import results
+        from . import results  # pylint: disable=import-outside-toplevel
 
         return results
     elif name == "test_cases":
-        from . import test_cases
+        from . import test_cases  # pylint: disable=import-outside-toplevel
 
         return test_cases
     elif name == "utils":
-        from . import utils
+        from . import utils  # pylint: disable=import-outside-toplevel
 
         return utils
     elif name == "exceptions":
-        from . import exceptions
+        from . import exceptions  # pylint: disable=import-outside-toplevel
 
         return exceptions
     else:

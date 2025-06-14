@@ -133,9 +133,7 @@ class TestPantherCLIIntegration:
     def test_cli_version_command(self):
         """Test CLI version command execution."""
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = Mock(
-                returncode=0, stdout="PANTHER Version 1.0.0", stderr=""
-            )
+            mock_run.return_value = Mock(returncode=0, stdout="PANTHER Version 1.0.0", stderr="")
 
             result = subprocess.run(
                 [
@@ -170,9 +168,7 @@ class TestPantherCLIIntegration:
             assert config_loader.experiment_file == str(sample_experiment_config)
             assert config_loader.output_dir == str(temp_workspace / "outputs")
 
-    def test_experiment_workspace_creation(
-        self, temp_workspace, sample_experiment_config
-    ):
+    def test_experiment_workspace_creation(self, temp_workspace, sample_experiment_config):
         """Test creation of experiment workspace structure."""
         from panther.config.config_manager import ConfigLoader
 
@@ -194,9 +190,7 @@ class TestPantherCLIIntegration:
         assert outputs_dir.is_dir()
         assert logs_dir.is_dir()
 
-    def test_config_validation_integration(
-        self, temp_workspace, sample_experiment_config
-    ):
+    def test_config_validation_integration(self, temp_workspace, sample_experiment_config):
         """Test configuration validation in integration context."""
         from panther.config.config_manager import ConfigLoader
         from omegaconf import OmegaConf
@@ -264,9 +258,7 @@ class TestPantherCLIIntegration:
         ):
 
             mock_docker.return_value = Mock()
-            mock_run.return_value = Mock(
-                returncode=0, stdout="Successfully installed", stderr=""
-            )
+            mock_run.return_value = Mock(returncode=0, stdout="Successfully installed", stderr="")
 
             builder = BuildManager(project_path=str(temp_workspace))
             result = builder.install_dependencies()
@@ -482,9 +474,7 @@ class LocalhostConfig:
             assert global_config.paths.output_dir == override_output_dir
 
     @pytest.mark.slow
-    def test_performance_baseline_integration(
-        self, temp_workspace, sample_experiment_config
-    ):
+    def test_performance_baseline_integration(self, temp_workspace, sample_experiment_config):
         """Test performance baseline for integration operations."""
         import time
         from panther.config.config_manager import ConfigLoader
@@ -505,9 +495,7 @@ class LocalhostConfig:
         elapsed_time = time.time() - start_time
 
         # Should complete within reasonable time (adjust threshold as needed)
-        assert (
-            elapsed_time < 5.0
-        ), f"Integration operations took too long: {elapsed_time}s"
+        assert elapsed_time < 5.0, f"Integration operations took too long: {elapsed_time}s"
 
 
 class TestPantherWorkspaceIntegration:
