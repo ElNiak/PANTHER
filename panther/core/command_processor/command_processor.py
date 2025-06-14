@@ -6,8 +6,13 @@ and prepares them for various environments.
 """
 
 import logging
-from typing import Any
-from panther.core.command_processor.command import ShellCommand, combine_shell_constructs
+from typing import Any, Dict, List, Union
+
+from panther.core.command_processor.command import (
+    ShellCommand,
+    combine_shell_constructs,
+)
+
 from .interfaces import ICommandProcessor
 
 
@@ -18,8 +23,8 @@ class CommandProcessor(ICommandProcessor):
         self.logger = logging.getLogger(__name__)
 
     def process_commands(
-        self, commands: dict[str, Any], target_format: str = "generic"
-    ) -> dict[str, Any]:
+        self, commands: Dict[str, Any], target_format: str = "generic"
+    ) -> Dict[str, Any]:
         """
         Process a command structure into a target format.
 
@@ -47,7 +52,7 @@ class CommandProcessor(ICommandProcessor):
 
         return processed_commands
 
-    def _process_run_cmd(self, run_cmd: dict[str, Any]) -> dict[str, Any]:
+    def _process_run_cmd(self, run_cmd: Dict[str, Any]) -> Dict[str, Any]:
         """
         Process the special run_cmd structure.
 
@@ -79,24 +84,30 @@ class CommandProcessor(ICommandProcessor):
             try:
                 env_vars = {k: str(v) for k, v in run_cmd["environment"].items()}
             except (AttributeError, TypeError) as e:
-                self.logger.warning("Error processing env vars: %s. Using empty dict.", e)
+                self.logger.warning(
+                    "Error processing env vars: %s. Using empty dict.", e
+                )
         elif run_cmd.get("command_env"):
             try:
                 env_vars = {k: str(v) for k, v in run_cmd["command_env"].items()}
             except (AttributeError, TypeError) as e:
-                self.logger.warning("Error processing command_env vars: %s. Using empty dict.", e)
+                self.logger.warning(
+                    "Error processing command_env vars: %s. Using empty dict.", e
+                )
 
         return {
             "working_dir": run_cmd.get("working_dir", ""),
-            "command_binary": run_cmd.get("command_binary", "").strip().replace("\n", ""),
+            "command_binary": run_cmd.get("command_binary", "")
+            .strip()
+            .replace("\n", ""),
             "command_args": command_args,
             "environment": env_vars,
             "timeout": run_cmd.get("timeout", 60),
         }
 
     def process_command_list(
-        self, commands: list[Any], detect_properties: bool = True
-    ) -> list[dict[str, Any]]:
+        self, commands: List[Any], detect_properties: bool = True
+    ) -> List[Dict[str, Any]]:
         """
         Process a list of commands into a structured format.
 
@@ -169,7 +180,9 @@ class CommandProcessor(ICommandProcessor):
 
         return processed_list
 
-    def _validate_and_convert_commands(self, commands: list[Any]) -> list[ShellCommand | str]:
+    def _validate_and_convert_commands(
+        self, commands: List[Any]
+    ) -> List[Union[ShellCommand, str]]:
         """
         Validate and convert commands to ShellCommand objects.
 
@@ -191,7 +204,7 @@ class CommandProcessor(ICommandProcessor):
                 valid_cmds.append(ShellCommand.from_dict(c))
         return valid_cmds
 
-    def detect_command_properties(self, command: str) -> dict[str, bool]:
+    def detect_command_properties(self, command: str) -> Dict[str, bool]:
         """
         Detect properties of a command string.
 
@@ -228,7 +241,10 @@ class CommandProcessor(ICommandProcessor):
                 and ")" in first_line
                 and (
                     first_line.endswith("{")
-                    or (len(command.split("\n")) > 1 and command.split("\n")[1].strip() == "{")
+                    or (
+                        len(command.split("\n")) > 1
+                        and command.split("\n")[1].strip() == "{"
+                    )
                     or "{" in command.split("\n")[0]
                 )
             ):

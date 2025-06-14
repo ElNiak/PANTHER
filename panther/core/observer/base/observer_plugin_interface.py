@@ -8,8 +8,8 @@ import logging
 from abc import abstractmethod
 from collections import defaultdict
 
+from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_interface import IObserver
-from panther.core.events import BaseEvent as Event
 
 
 class IPluginObserver(IObserver):
@@ -163,7 +163,9 @@ class PluginObserver(IPluginObserver):
         interested_plugins = self.get_plugins_for_event(event_type)
 
         if interested_plugins:
-            self.logger.debug(f"Event '{event_type}' interests plugins: {interested_plugins}")
+            self.logger.debug(
+                f"Event '{event_type}' interests plugins: {interested_plugins}"
+            )
             # This is where you would notify the actual plugin instances
             # The specific implementation depends on your plugin system
             self._notify_plugins(event, interested_plugins)
@@ -181,7 +183,9 @@ class PluginObserver(IPluginObserver):
         """
         # Default implementation just logs the notification
         for plugin_id in plugin_ids:
-            self.logger.info(f"Notifying plugin '{plugin_id}' about event '{event.get_type()}'")
+            self.logger.info(
+                f"Notifying plugin '{plugin_id}' about event '{event.get_type()}'"
+            )
 
     def get_registered_plugins(self) -> list[str]:
         """

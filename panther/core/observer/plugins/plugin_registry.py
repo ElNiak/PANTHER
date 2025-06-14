@@ -5,13 +5,13 @@ This module provides functionality for discovering, loading, and managing
 observer plugins in the PANTHER framework.
 """
 
-import os
-import sys
 import importlib
 import inspect
+import os
+import sys
 from typing import Any
 
-from panther.core.observer.plugins.plugin_interface import IObserverPlugin
+from panther.core.observer.plugins.plugin_interface import IPluginObserver
 
 
 class PluginRegistry:
@@ -30,10 +30,10 @@ class PluginRegistry:
             plugin_paths: List of directories to search for plugins
         """
         self.plugin_paths = plugin_paths or []
-        self.plugins: dict[str, type[IObserverPlugin]] = {}
+        self.plugins: dict[str, type[IPluginObserver]] = {}
         self.plugin_metadata: dict[str, dict[str, Any]] = {}
 
-    def discover_plugins(self) -> dict[str, type[IObserverPlugin]]:
+    def discover_plugins(self) -> dict[str, type[IPluginObserver]]:
         """
         Discover available plugins in plugin directories.
 
@@ -60,8 +60,8 @@ class PluginRegistry:
                         for name, obj in inspect.getmembers(module):
                             if (
                                 inspect.isclass(obj)
-                                and issubclass(obj, IObserverPlugin)
-                                and obj != IObserverPlugin
+                                and issubclass(obj, IPluginObserver)
+                                and obj != IPluginObserver
                             ):
                                 self.plugins[name] = obj
 
@@ -81,7 +81,7 @@ class PluginRegistry:
 
         return self.plugins
 
-    def get_plugin_class(self, name: str) -> type[IObserverPlugin] | None:
+    def get_plugin_class(self, name: str) -> type[IPluginObserver] | None:
         """
         Get a plugin class by name.
 
@@ -105,7 +105,7 @@ class PluginRegistry:
         """
         return self.plugin_metadata.get(name, {})
 
-    def instantiate_plugin(self, name: str, *args, **kwargs) -> IObserverPlugin | None:
+    def instantiate_plugin(self, name: str, *args, **kwargs) -> IPluginObserver | None:
         """
         Instantiate a plugin by name.
 

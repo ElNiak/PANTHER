@@ -3,7 +3,7 @@ FROM --platform=linux/amd64 ubuntu:20.04 as panther_shadow_ns
 SHELL ["/bin/bash", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     findutils \
     golang-go \
@@ -25,7 +25,9 @@ RUN apt-get update && apt-get install -y \
     g++ \
     wget \
     curl \
-    rsync
+    rsync \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # rustup: https://rustup.rs
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none --profile minimal
@@ -36,21 +38,20 @@ ENV CONTAINER ubuntu:20.04
 ENV BUILDTYPE release
 ENV RUSTPROFILE minimal
 
-RUN git clone https://github.com/ElNiak/shadow.git && \
-    cd /shadow && \
-    git checkout rebasing_test
+WORKDIR /
+RUN git clone https://github.com/ElNiak/shadow.git
+WORKDIR /shadow
+RUN git checkout rebasing_test
 
 RUN ln -s shadow/ci/rust-toolchain-stable.toml rust-toolchain.toml; rustup toolchain install
 
 RUN go install -buildmode=shared -linkshared std
 
-RUN cd shadow; ./setup build -g --clean --test
+RUN ./setup build -g --clean --test
 
-RUN cd shadow; ./setup install
+RUN ./setup install
 #
     # ./setup test && # This command is not working # --test
 
 
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-
+# Cleanup already done in package installation step above

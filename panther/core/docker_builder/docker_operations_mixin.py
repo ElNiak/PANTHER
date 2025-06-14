@@ -3,18 +3,28 @@ Docker Operations Mixin
 
 This module provides a mixin class for Docker operations commonly used by service managers,
 eliminating duplication of Docker image preparation and management logic.
+
+Unified to use only DockerBuilder, removing the previous duplication with DockerUtils.
 """
 
-from typing import Optional, Any, TYPE_CHECKING
-from pathlib import Path
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
 
-from panther.core.utils.logging_mixin import LoggerMixin
-from panther.core.utils.docker_utils import DockerUtils, DockerOperationError
+from docker.errors import DockerException
+
 from panther.core.command_processor.command_event_mixin import CommandEventMixin
+from panther.core.docker_builder import DockerBuilder
+from panther.core.utils.logging_mixin import LoggerMixin
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
+
+
+class DockerOperationError(Exception):
+    """Exception raised when Docker operations fail."""
+
+    pass
 
 
 class DockerOperationsMixin(LoggerMixin):
@@ -26,7 +36,20 @@ class DockerOperationsMixin(LoggerMixin):
     - Image existence checking
     - Build context management
     - Container lifecycle operations
+
+    Now unified to use DockerBuilder throughout for consistency.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._docker_builder = None
+
+    @property
+    def docker_builder(self) -> DockerBuilder:
+        """Lazy initialization of DockerBuilder instance."""
+        if self._docker_builder is None:
+            self._docker_builder = DockerBuilder()
+        return self._docker_builder
 
     def prepare_docker_image(
         self,
@@ -34,7 +57,6 @@ class DockerOperationsMixin(LoggerMixin):
         dockerfile_path: str | Path | None = None,
         build_context: str | Path | None = None,
         build_args: dict[str, str] | None = None,
-        force_rebuild: bool = False,
         no_cache: bool = False,
     ) -> bool:
         """
@@ -51,7 +73,7 @@ class DockerOperationsMixin(LoggerMixin):
             build_context: Build context directory (defaults to dockerfile directory)
             build_args: Build arguments to pass to Docker
             force_rebuild: Force rebuild even if image exists
-            no_cache: Disable Docker build cache
+            no_cache: Whether to disable Docker build cache
 
         Returns:
             bool: True if image is ready (built or already exists)
@@ -82,41 +104,60 @@ class DockerOperationsMixin(LoggerMixin):
         if build_context is None:
             build_context = dockerfile_path.parent
 
-        # Check if image already exists
-        if not force_rebuild and DockerUtils.image_exists(image_name):
-            self.logger.info(f"Docker image '{image_name}' already exists")
+        force_build = (
+            self.global_config.docker.build_docker_image
+            if (
+                self.global_config
+                and hasattr(self.global_config.docker, "build_docker_image")
+            )
+            else True
+        )
+        if not force_build and self.docker_builder.image_exists(image_name):
+            self.logger.info(
+                "Docker image %s already exists, skipping build", image_name
+            )
             return True
 
         # Emit Docker build started event
         self.emit_docker_build_started(str(dockerfile_path), image_name)
 
-        # Build the image
+        # Build the image using DockerBuilder
         self.logger.info(f"Building Docker image '{image_name}'")
         try:
-            success = DockerUtils.build_image(
+            # Create a config dict compatible with DockerBuilder.build_image
+            config = {
+                "dependencies": build_args or {},
+                "commit": "master",  # Default value
+            }
+
+            # Use DockerBuilder to build the image
+            success_tag = self.docker_builder.build_image(
+                impl_name=image_name.split(":")[0],  # Extract name part
+                version="latest",
                 dockerfile_path=dockerfile_path,
-                image_name=image_name,
-                build_context=build_context,
-                build_args=build_args,
-                no_cache=no_cache,
+                context_path=Path(build_context),
+                config=config,
+                tag_version="latest",
             )
 
-            if success:
+            if success_tag:
                 self.logger.info(f"Successfully built Docker image '{image_name}'")
                 # Emit Docker build completed event with success
                 self.emit_docker_build_completed(image_name, True)
+                return True
             else:
                 self.logger.error(f"Failed to build Docker image '{image_name}'")
                 # Emit Docker build completed event with failure
-                self.emit_docker_build_completed(image_name, False, "Docker build failed")
+                self.emit_docker_build_completed(
+                    image_name, False, "Docker build failed"
+                )
+                return False
 
-            return success
-
-        except DockerOperationError as e:
+        except (DockerException, Exception) as e:
             self.logger.error(f"Docker operation failed: {e}")
             # Emit Docker build completed event with failure
             self.emit_docker_build_completed(image_name, False, str(e))
-            raise
+            raise DockerOperationError(f"Docker build failed: {e}")
 
     def prepare(self) -> None:
         """
@@ -134,12 +175,17 @@ class DockerOperationsMixin(LoggerMixin):
         Raises:
             DockerOperationError: If Docker is not available
         """
-        if not DockerUtils.is_docker_available():
+        try:
+            # Test Docker connection by pinging
+            self.docker_builder.client.ping()
+        except DockerException as e:
             raise DockerOperationError(
-                "Docker is not available. Please ensure Docker is installed and running."
+                f"Docker is not available: {e}. Please ensure Docker is installed and running."
             )
 
-    def remove_docker_image(self, image_name: str | None = None, force: bool = False) -> bool:
+    def remove_docker_image(
+        self, image_name: str | None = None, force: bool = False
+    ) -> bool:
         """
         Remove a Docker image.
 
@@ -156,7 +202,20 @@ class DockerOperationsMixin(LoggerMixin):
                 return False
             image_name = self.docker_image_name
 
-        return DockerUtils.remove_image(image_name, force=force)
+        try:
+            if not self.docker_builder.image_exists(image_name):
+                self.logger.debug(
+                    f"Image {image_name} does not exist, skipping removal"
+                )
+                return True
+
+            # Use Docker client to remove image
+            self.docker_builder.client.images.remove(image_name, force=force)
+            self.logger.info(f"Successfully removed Docker image: {image_name}")
+            return True
+        except DockerException as e:
+            self.logger.error(f"Failed to remove Docker image {image_name}: {e}")
+            return False
 
     def get_docker_image_tag(self) -> str:
         """
@@ -244,7 +303,9 @@ class DockerComposeOperationsMixin(DockerOperationsMixin):
 
         service_def = {
             "image": self.docker_image_name,
-            "container_name": getattr(self, "service_name", self.__class__.__name__.lower()),
+            "container_name": getattr(
+                self, "service_name", self.__class__.__name__.lower()
+            ),
             "networks": [getattr(self, "network_name", "default")],
         }
 
@@ -270,8 +331,8 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
     Combines all Docker-related functionality and integrates with
     the service manager patterns in PANTHER.
 
-    Now includes event emission capabilities for Docker build operations
-    and unified build system to eliminate duplication.
+    Now unified to use only DockerBuilder for all Docker operations,
+    eliminating the previous duplication between DockerUtils and DockerBuilder.
     """
 
     # Class-level tracking for base image to ensure it's built only once per experiment
@@ -293,16 +354,18 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
 
     def prepare(self, plugin_manager: Optional["PluginManager"] = None) -> None:
         """
-        Enhanced prepare method with unified Docker building.
+        Unified prepare method using only DockerBuilder.
 
-        This method unifies the two Docker build paths (PluginManager vs DockerUtils)
-        and ensures the base image is built only once per experiment.
+        This method now exclusively uses DockerBuilder for all Docker operations,
+        eliminating the previous dual-path complexity.
 
         Args:
             plugin_manager: Optional plugin manager for Docker operations
         """
         if self._docker_prepared:
-            self.logger.debug(f"Docker image already prepared for {self.__class__.__name__}")
+            self.logger.debug(
+                f"Docker image already prepared for {self.__class__.__name__}"
+            )
             return
 
         # Emit preparation started event
@@ -312,15 +375,15 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
             # Ensure Docker is available
             self.ensure_docker_available()
 
-            # Use plugin_manager if available, otherwise fall back to DockerUtils
+            # Use plugin_manager if available for service-specific builds
             if plugin_manager:
                 # Build base image only once per experiment
                 self._ensure_base_image_built(plugin_manager)
                 # Build service-specific image
-                self._build_service_image_unified(plugin_manager)
+                self._build_service_image_with_plugin_manager(plugin_manager)
             else:
-                # Fallback to DockerUtils
-                self._build_with_docker_utils()
+                # Use DockerBuilder directly
+                self._build_with_docker_builder()
 
             # Mark as prepared
             self._docker_prepared = True
@@ -330,7 +393,9 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
                 self.initialize_commands()
 
             # Emit preparation completed event
-            self.notify_service_event("preparation_completed", {"operation": "docker_build"})
+            self.notify_service_event(
+                "preparation_completed", {"operation": "docker_build"}
+            )
 
         except Exception as e:
             self.notify_service_event(
@@ -353,7 +418,9 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
                 )
 
                 base_dockerfile = Path(
-                    os.path.join(os.getcwd(), "panther", "plugins", "services", "Dockerfile")
+                    os.path.join(
+                        os.getcwd(), "panther", "plugins", "services", "Dockerfile"
+                    )
                 )
 
                 try:
@@ -367,37 +434,44 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
                     self.emit_docker_build_completed("panther_base", False, str(e))
                     raise
 
-    def _build_service_image_unified(self, plugin_manager: "PluginManager") -> None:
+    def _build_service_image_with_plugin_manager(
+        self, plugin_manager: "PluginManager"
+    ) -> None:
         """
-        Build service-specific image with unified event emission.
+        Build service-specific image using plugin manager.
 
         Args:
             plugin_manager: Plugin manager for Docker operations
         """
         if not hasattr(self, "implementation_name"):
-            self.logger.warning("No implementation_name attribute, skipping service image build")
+            self.logger.warning(
+                "No implementation_name attribute, skipping service image build"
+            )
             return
 
-        image_name = f"{self.implementation_name}:latest"
+        # Get simple version string from service config
+        version_obj = getattr(
+            self.service_config_to_test.implementation, "version", "latest"
+        )
+
+        # Extract simple version string from complex version object
+        if hasattr(version_obj, "version"):
+            version = version_obj.version
+        elif hasattr(version_obj, "name"):
+            version = version_obj.name
+        elif isinstance(version_obj, str):
+            version = version_obj
+        else:
+            version = "latest"
+
+        # Use correct version for image name in logging and events
+        image_name = f"{self.implementation_name}_{version}:latest"
         dockerfile_path = getattr(self, "docker_file_path", "Unknown")
 
         self.logger.info(f"Building service Docker image: {image_name}")
         self.emit_docker_build_started(str(dockerfile_path), image_name)
 
         try:
-            # Get simple version string from service config (not the complex object)
-            version_obj = getattr(self.service_config_to_test.implementation, "version", "latest")
-
-            # Extract simple version string from complex version object
-            if hasattr(version_obj, "version"):
-                version = version_obj.version
-            elif hasattr(version_obj, "name"):
-                version = version_obj.name
-            elif isinstance(version_obj, str):
-                version = version_obj
-            else:
-                version = "latest"
-
             plugin_manager.build_docker_image(self.implementation_name, version)
             self.emit_docker_build_completed(image_name, True)
             self.logger.info(f"Service Docker image {image_name} built successfully")
@@ -405,11 +479,11 @@ class ServiceManagerDockerMixin(DockerComposeOperationsMixin, CommandEventMixin)
             self.emit_docker_build_completed(image_name, False, str(e))
             raise
 
-    def _build_with_docker_utils(self) -> None:
+    def _build_with_docker_builder(self) -> None:
         """
-        Fallback build using DockerUtils (already emits events via prepare_docker_image).
+        Build using DockerBuilder directly (unified approach).
         """
-        self.logger.info("Building Docker image using DockerUtils fallback")
+        self.logger.info("Building Docker image using DockerBuilder")
         self.prepare_docker_image()
 
     @classmethod

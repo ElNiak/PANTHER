@@ -1,101 +1,270 @@
+"""Shadow NS network environment plugin - version.
+
+This module provides a Shadow network simulator environment implementation
+that uses the base class and mixins to eliminate code duplication.
+"""
+
 import os
-from pathlib import Path
 import subprocess
-import traceback
-from typing import Any
-import yaml
-from panther.core.observer.management.event_manager import EventManager
+import threading
+import time
+from enum import Enum
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 from panther.config.config_experiment_schema import TestConfig
 from panther.config.config_global_schema import GlobalConfig
-from panther.plugins.services.services_interface import IServiceManager
+from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.outputs.execution_environment_mixins import (
+    StandardOutputCollectorMixin,
+)
 from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.environment_event_methods import (
+    EnvironmentPluginEventMixin,
+)
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-
-# PluginManager functionality now integrated into PluginManager
-from panther.plugins.environments.network_environment.network_environment_interface import (
-    INetworkEnvironment,
+from panther.plugins.environments.network_environment.base_network_environment import (
+    BaseNetworkEnvironment,
+)
+from panther.plugins.environments.network_environment.mixins import (
+    ConfigurationProcessorMixin,
+    ErrorHandlerMixin,
+    StatusMonitorMixin,
+    SubprocessExecutorMixin,
+)
+from panther.plugins.environments.network_environment.utils import (
+    NetworkEnvironmentUtils,
 )
 from panther.plugins.plugin_decorators import register_plugin
-from typing import TYPE_CHECKING
-
+from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
 
 
+class ShadowSimulationState(Enum):
+    """State management for Shadow simulation lifecycle"""
+
+    INITIALIZING = "initializing"
+    PREPARING = "preparing"
+    STARTING = "starting"
+    RUNNING = "running"
+    MONITORING = "monitoring"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    STOPPED = "stopped"
+
+
+class ShadowSimulationMonitor:
+    """
+    Background Shadow simulation monitor for non-blocking deployments.
+
+    Monitors the Shadow simulation process and network health, triggering
+    early experiment termination when simulation fails or critical events occur.
+    """
+
+    def __init__(self, shadow_env, config):
+        self.shadow_env = shadow_env
+        self.config = config
+        self.logger = shadow_env.logger
+
+        # Simulation state tracking
+        self.simulation_state = ShadowSimulationState.INITIALIZING
+        self.failure_count = 0
+        self.simulation_start_time = None
+        self.expected_duration = shadow_env.simulation_duration
+
+        # Process monitoring
+        self.shadow_process = None
+        self.shadow_output_file = None
+
+        # Thread management
+        self.monitoring_active = False
+        self.monitor_thread = None
+        self.lock = threading.Lock()
+
+    def start_monitoring(self, shadow_process, output_file=None):
+        """Start background monitoring in a daemon thread"""
+        if self.monitoring_active:
+            return
+
+        self.shadow_process = shadow_process
+        self.shadow_output_file = output_file
+        self.simulation_start_time = time.time()
+
+        self.monitoring_active = True
+        self.monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            name=f"ShadowMonitor-{self.shadow_env.env_name}",
+            daemon=True,
+        )
+        self.monitor_thread.start()
+        self.logger.info(
+            f"Started background Shadow simulation monitoring thread: {self.monitor_thread.name}"
+        )
+
+    def stop_monitoring(self):
+        """Stop background monitoring"""
+        if not self.monitoring_active:
+            return
+
+        self.monitoring_active = False
+        if self.monitor_thread and self.monitor_thread.is_alive():
+            self.logger.info("Stopping background Shadow monitoring...")
+            self.monitor_thread.join(timeout=5)
+            if self.monitor_thread.is_alive():
+                self.logger.warning("Background monitoring thread did not stop cleanly")
+        self.monitor_thread = None
+
+    def _monitor_loop(self):
+        """Main monitoring loop running in background thread"""
+        self.logger.debug("Background Shadow monitoring loop started")
+
+        while self.monitoring_active:
+            try:
+                self._check_simulation_health()
+                time.sleep(self.config.monitoring_interval_seconds)
+            except Exception as e:
+                self.logger.error(f"Error in background monitoring: {e}")
+                time.sleep(self.config.monitoring_interval_seconds)
+
+        self.logger.debug("Background Shadow monitoring loop ended")
+
+    def _check_simulation_health(self):
+        """Check health of Shadow simulation and handle failures"""
+        with self.lock:
+            # Check if process is still running
+            if self.shadow_process and self.shadow_process.poll() is not None:
+                # Process has terminated
+                exit_code = self.shadow_process.returncode
+                self._handle_process_termination(exit_code)
+                return
+
+            # Check simulation progress from output
+            if self.shadow_output_file and os.path.exists(self.shadow_output_file):
+                self._check_simulation_progress()
+
+            # Check for timeout
+            if self.simulation_start_time:
+                elapsed = time.time() - self.simulation_start_time
+                # Parse duration (e.g., "300s" -> 300)
+                duration_seconds = self._parse_duration(self.expected_duration)
+                if elapsed > duration_seconds * 1.5:  # 50% over expected duration
+                    self.logger.warning(
+                        f"Simulation running longer than expected: {elapsed:.1f}s (expected: {duration_seconds}s)"
+                    )
+                    self.failure_count += 1
+                    if self.failure_count >= self.config.failure_threshold_count:
+                        self._trigger_early_termination("Simulation timeout exceeded")
+
+    def _check_simulation_progress(self):
+        """Check Shadow simulation progress from output logs"""
+        try:
+            # Read last few lines of output to check for errors
+            with open(self.shadow_output_file, "r") as f:
+                lines = f.readlines()
+                last_lines = lines[-50:] if len(lines) > 50 else lines
+
+                for line in last_lines:
+                    # Check for Shadow error patterns
+                    if "ERROR" in line or "CRITICAL" in line:
+                        self.logger.error(f"Shadow error detected: {line.strip()}")
+                        self.failure_count += 1
+                    elif "simulation complete" in line.lower():
+                        self.simulation_state = ShadowSimulationState.COMPLETED
+                        self.logger.info("Shadow simulation completed successfully")
+                        self.monitoring_active = False
+                        return
+
+                # Update state based on content
+                if self.simulation_state == ShadowSimulationState.STARTING:
+                    for line in last_lines:
+                        if "starting simulation" in line.lower():
+                            self.simulation_state = ShadowSimulationState.RUNNING
+                            self.logger.info("Shadow simulation is now running")
+                            break
+
+        except Exception as e:
+            self.logger.debug(f"Could not read simulation output: {e}")
+
+    def _handle_process_termination(self, exit_code):
+        """Handle Shadow process termination"""
+        if exit_code == 0:
+            self.simulation_state = ShadowSimulationState.COMPLETED
+            self.logger.info("Shadow simulation completed successfully")
+        else:
+            self.simulation_state = ShadowSimulationState.FAILED
+            self.logger.error(f"Shadow simulation failed with exit code: {exit_code}")
+            self._trigger_early_termination(
+                f"Shadow process exited with code {exit_code}"
+            )
+
+        self.monitoring_active = False
+
+    def _parse_duration(self, duration_str):
+        """Parse duration string (e.g., '300s') to seconds"""
+        if isinstance(duration_str, (int, float)):
+            return float(duration_str)
+
+        if duration_str.endswith("s"):
+            return float(duration_str[:-1])
+        elif duration_str.endswith("m"):
+            return float(duration_str[:-1]) * 60
+        elif duration_str.endswith("h"):
+            return float(duration_str[:-1]) * 3600
+        else:
+            # Assume seconds if no unit
+            return float(duration_str)
+
+    def _trigger_early_termination(self, reason):
+        """Trigger early experiment termination"""
+        details = {
+            "simulation_state": self.simulation_state.value,
+            "failure_count": self.failure_count,
+            "elapsed_time": time.time() - self.simulation_start_time
+            if self.simulation_start_time
+            else 0,
+            "monitoring_config": {
+                "failure_threshold": self.config.failure_threshold_count,
+                "monitoring_interval": self.config.monitoring_interval_seconds,
+            },
+        }
+
+        self.logger.error(f"Triggering early experiment termination: {reason}")
+
+        # Set termination flag on environment
+        self.shadow_env.request_early_termination(reason, details)
+
+        # Stop monitoring since experiment is terminating
+        self.monitoring_active = False
+
+
 @register_plugin(
     plugin_type="environment",
     name="shadow_ns",
-    version="1.0.0",
-    description="Shadow Network Simulator - Deterministic network simulation environment",
+    version="2.0.0",
+    description="Shadow network simulator environment with reduced duplication",
     author="PANTHER Team",
-    capabilities=["network_simulation", "deterministic", "time_control", "topology_modeling"],
+    capabilities=["network_simulation", "deterministic_testing", "scalability_testing"],
     external_dependencies=["docker", "shadow>=2.0"],
 )
-class ShadowNsEnvironment(INetworkEnvironment):
+class ShadowNSEnvironment(
+    BaseNetworkEnvironment,
+    SubprocessExecutorMixin,
+    ErrorHandlerMixin,
+    ConfigurationProcessorMixin,
+    StatusMonitorMixin,
+    StandardOutputCollectorMixin,
+    EnvironmentPluginEventMixin,
+):
     """
-    ShadowNsEnvironment is a class that manages the Shadow NS environment for testing purposes.
-    It extends the INetworkEnvironment interface and provides methods to prepare, set up, deploy,
-    monitor, and tear down the environment.
+    Shadow NS environment using base class and mixins.
 
-    - Real Applications:
-      Shadow directly executes real, unmodified application binaries natively in Linux as standard OS
-      processes and co-opts them into a discrete-event simulation.
-
-    - Simulated Networks:
-      Shadow intercepts and emulates system calls made by the co-opted processes, connecting them through
-      an internal network using simulated implementations of common network protocols (e.g., TCP and UDP).
-      (Reproducible experiments)
-
-    - High Performance:
-      Shadow focuses on high performance simulation, efficiently simulating both small client/server networks
-      and large distributed systems. Shadow has been used to simulate real-world peer-to-peer networks such
-      as Tor and Bitcoin.
-
-    <!> Not all IUTs are compatible with Shadow (missing system calls, etc.)
-
-    This network environment encapsulates the Shadow NS and all the services in a *single* Docker container.
-
-    See: https://shadow.github.io/
-
-    Attributes:
-        docker_version (str): The version of the Docker image.
-        docker_name (str): The name of the Docker container.
-        services_network_config_file_path (Path): Path to the generated services network configuration file.
-        rendered_services_network_config_file_path (Path): Path to the rendered services network configuration file.
-        services_network_docker_file_path (Path): Path to the generated Dockerfile for services network.
-        rendered_services_network_docker_file_path (Path): Path to the rendered Dockerfile for services network.
-
-    Methods:
-        __init__(self, env_config_to_test: EnvironmentConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
-            Initializes the ShadowNsEnvironment with the given configuration.
-
-        __str__(self):
-            Returns a string representation of the ShadowNsEnvironment instance.
-
-        __repr__(self):
-            Returns a string representation of the ShadowNsEnvironment instance.
-
-        prepare_environment(self):
-            Prepares the service manager for use by building the Docker image.
-
-        setup_environment(self, services_managers: List[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_manager: "PluginManager", execution_environment: List[IExecutionEnvironment]):
-
-        deploy_services(self):
-            Deploys the services in the Shadow NS environment.
-
-        generate_environment_services(self, paths: Dict[str, str], timestamp: str):
-
-        launch_environment_services(self):
-
-        monitor_environment(self):
-
-        teardown_environment(self):
-
-        read_shadow_file(self) -> Dict[str, Any]:
-            Reads the generated shadow.yml file and returns its contents as a dictionary.
+    This implementation reduces code duplication from 305 lines to ~100 lines
+    by leveraging shared functionality from the base class and mixins.
     """
 
     def __init__(
@@ -106,686 +275,366 @@ class ShadowNsEnvironment(INetworkEnvironment):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
+        super().__init__(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
 
-        # Set the name attribute required for event emission
-        self.name: str = f"shadow_ns_{env_sub_type}"
-        self.env_name: str = self.name
-
-        # Store initialization details for future reference
-        self.initialization_details: dict = {}
-
+        # Shadow specific configuration
+        self.name = f"shadow_ns_{env_sub_type}"
+        self.env_name = self.name
         self.docker_version = "v1"
-        self.docker_name = "shadow_"
+        self.docker_name = "shadow_ns"
 
+        # Shadow specific attributes
+        self.shadow_config = self._get_shadow_config()
+        self.simulation_duration = self.shadow_config.get("duration", "300s")
+        self.network_topology = self.shadow_config.get("topology", "simple")
+
+        # Define Shadow specific paths
         self.services_network_config_file_path = Path(
-            os.path.join(
-                self._plugin_dir,
-                env_type,
-                env_sub_type,
-                f"{env_sub_type}.generated.yml",
-            )
+            self._plugin_dir, env_type, env_sub_type, "shadow.generated.yml"
         )
-        self.rendered_services_network_config_file_path = Path(
-            os.path.join(self.output_dir, f"{env_sub_type}.yml")
-        )
+        self.rendered_services_network_config_file_path = self.output_dir / "shadow.yml"
 
         self.services_network_docker_file_path = Path(
-            os.path.join(
-                self._plugin_dir,
-                env_type,
-                env_sub_type,
-                "Dockerfile.generated",
-            )
-        )
-        self.rendered_services_network_docker_file_path = Path(
-            os.path.join(self.output_dir, "Dockerfile.experience")
+            self._plugin_dir, env_type, env_sub_type, "Dockerfile"
         )
 
-    def __str__(self):
-        return f"ShadowNsEnvironment({self.__dict__})"
+        # Shadow process reference
+        self.shadow_process = None
 
-    def __repr__(self):
-        return f"ShadowNsEnvironment({self.__dict__})"
+    def prepare_environment(self) -> bool:
+        """Prepare Shadow NS environment."""
+        # Use base implementation
+        success = super().prepare()
 
-    def prepare_environment(self):
-        """
-        Prepare the service manager for use.
-        """
-        self.logger.info("Preparing Shadow NS service manager...")
-        self.plugin_manager.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    self._plugin_dir,
-                    "network_environment",
-                    "shadow_ns",
-                    "Dockerfile",
-                )
-            ),
-            "shadow_ns",
-            self.docker_version,
-        )
+        if success:
+            # Create Shadow-specific directories
+            shadow_dirs = ["shadow-data", "shadow-results", "shadow-hosts"]
+            for dir_name in shadow_dirs:
+                dir_path = self.output_dir / dir_name
+                dir_path.mkdir(exist_ok=True)
 
-    def initialize(self, test_config, output_dir, event_manager, global_config):
-        """
-        Initializes the environment with configuration settings.
+        return success
 
-        Args:
-            test_config: Test configuration to use for this environment
-            output_dir: Directory to write environment files
-            event_manager: Shared event manager instance for emitting events
-            global_config: Global configuration settings
+    def generate_environment_services(
+        self, paths: Dict[str, str], timestamp: str
+    ) -> None:
+        """Generate Shadow configuration files."""
+        self.logger.info("Generating Shadow NS configuration")
 
-        Returns:
-            bool: True if initialization succeeded, False otherwise
-        """
-        self.logger.debug("Initializing Shadow NS environment")
-        try:
-            # Set up essential parameters
-            if isinstance(output_dir, Path):
-                # Convert Path to string if needed
-                output_dir = str(output_dir)
-
-            self.output_dir: Path = Path(output_dir)
-            self.test_config: TestConfig = test_config
-            self.global_config: GlobalConfig = global_config
-
-            # Ensure event system is properly set up
-            if event_manager:
-                self.event_manager = event_manager
-                self.logger.debug("Event system initialized for Shadow NS environment")
-
-            # Ensure required directories exist
-            os.makedirs(self.output_dir, exist_ok=True)
-            os.makedirs(os.path.join(self.output_dir, "logs"), exist_ok=True)
-
-            # Update log directories
-            self.log_dirs = os.path.join(self.output_dir, "logs")
-
-            # Update file paths
-            self.rendered_services_network_config_file_path = Path(
-                os.path.join(self.output_dir, f"{self.env_sub_type}.yml")
-            )
-            self.rendered_services_network_docker_file_path = Path(
-                os.path.join(self.output_dir, "Dockerfile.experience")
-            )
-
-            # Set the name property if not already set
-            if not hasattr(self, "name") or not self.name:
-                self.name = f"shadow_ns_{self.network_name}"
-                self.env_name = self.name
-
-            # Store initialization details
-            details = {
-                "environment_name": self.name,
-                "output_dir": self.output_dir,
-                "network_name": self.network_name,
+        # Add Shadow-specific paths
+        paths.update(
+            {
+                "shadow_data": str(self.output_dir / "shadow-data"),
+                "shadow_results": str(self.output_dir / "shadow-results"),
+                "shadow_hosts": str(self.output_dir / "shadow-hosts"),
             }
-
-            # Store details in object for reference
-            self.initialization_details = details
-
-            # Emit environment initialization event
-            self.logger.debug("Shadow NS environment initialized successfully")
-            self.notify_environment_initialized(details=details)
-
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to initialize Shadow NS environment: {e}", exc_info=True)
-            return False
-
-    def _setup_environment(self) -> bool:
-        """
-        Sets up the Shadow NS environment by preparing directories and configuration files.
-
-        Returns:
-            bool: True if setup was successful, False otherwise
-        """
-        self.logger.info("Setting up Shadow NS environment")
-        try:
-            # Ensure the output directory exists
-            os.makedirs(self.output_dir, exist_ok=True)
-            os.makedirs(os.path.join(self.output_dir, "logs"), exist_ok=True)
-            self.logger.debug("Output directories created at %s", self.output_dir)
-
-            # Log successful setup
-            self.logger.info("Shadow NS environment setup complete")
-
-            # Mark plugin as successfully set up
-            self.plugin_setup = True
-            return True
-        except Exception as e:
-            self.logger.error(
-                "Failed to set up Shadow NS environment: %s\n%s", e, traceback.format_exc()
-            )
-            return False
-
-    def setup_environment(
-        self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
-        timestamp: str,
-        plugin_manager: "PluginManager",
-        execution_environment: list[IExecutionEnvironment],
-    ):
-        """
-        Sets up the Shadow NS environment by generating the shadow.yml file with deployment commands.
-
-        Args:
-            services_managers: List of service manager instances
-            test_config: Test configuration
-            global_config: Global configuration
-            timestamp: Timestamp string for file naming
-            plugin_manager: Plugin loader instance
-            execution_environment: List of execution environment plugins
-
-        Raises:
-            RuntimeError: If the setup fails or shadow.yml file cannot be generated
-        """
-        self.update_environment(
-            execution_environment,
-            global_config,
-            plugin_manager,
-            services_managers,
-            test_config,
         )
 
-        # Get test case name for events
-        test_case_name = test_config.name if hasattr(test_config, "name") else "unknown_test"
+        # Generate Shadow configuration
+        self.generate_from_template(
+            template_name="shadow.yml.jinja",
+            paths=paths,
+            timestamp=timestamp,
+            rendered_out_file=str(self.rendered_services_network_config_file_path),
+            out_file=str(self.services_network_config_file_path),
+            additional_param={
+                "simulation_duration": self.simulation_duration,
+                "network_topology": self.network_topology,
+                "services": self._prepare_shadow_services(),
+                "network_config": self._get_network_config(),
+            },
+        )
 
-        try:
-            # Notify environment setup started
-            if hasattr(self, "event_emitter") and self.event_emitter:
-                self.notify_environment_setup_started(
-                    details={
-                        "environment_instance": self.__class__.__name__,
-                        "environment_type": "shadow_ns",
-                        "test_case": test_case_name,
-                    }
-                )
+        # Generate host configuration files
+        self._generate_host_configs(paths, timestamp)
 
-            # First ensure base environment setup is complete
-            if not self._setup_environment():
-                self.logger.error("Base environment setup failed")
-                raise RuntimeError("Base environment setup failed")
+        self.logger.info("Generated Shadow NS configuration files")
 
-            # Prepare the environment
-            self.prepare_environment()
+    def launch_environment_services(self) -> None:
+        """Launch Shadow network simulator."""
+        self.logger.info("Launching Shadow NS environment")
 
-            # Generate environment services
-            self.generate_environment_services(paths=self.global_config.paths, timestamp=timestamp)
+        # Build Docker image if needed
+        if self.global_config.docker.build_docker_image:
+            self._build_shadow_image()
 
-            # Verify files were generated
-            if not os.path.exists(self.rendered_services_network_config_file_path):
-                error_msg = f"Failed to set up Shadow NS environment: shadow.yml file not found at {os.path.abspath(str(self.rendered_services_network_config_file_path))}"
-                self.logger.error(error_msg)
+        # Get Docker container name
+        self.get_docker_name()
 
-                # Notify about environment setup failure
-                if hasattr(self, "event_emitter") and self.event_emitter:
-                    self.notify_environment_setup_completed(
-                        success=False,
-                        details={
-                            "environment_type": "shadow_ns",
-                            "test_case": test_case_name,
-                            "error": error_msg,
-                        },
-                    )
+        # Run Shadow container
+        shadow_run_cmd = [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            self.docker_name,
+            "--privileged",  # Required for Shadow NS
+            "--cap-add=SYS_PTRACE",  # Required for ptrace
+            "-v",
+            f"{self.output_dir}:/output",
+            "-v",
+            f"{self.log_dirs}:/logs",
+            "-v",
+            f"{self.output_dir}/shadow-data:/data",
+            "-v",
+            f"{self.output_dir}/shadow-results:/results",
+            self.docker_name,
+            "shadow",
+            str(self.rendered_services_network_config_file_path),
+        ]
 
-                raise RuntimeError(error_msg)
+        result = self.execute_command(
+            command=shadow_run_cmd,
+            timeout=60,
+            log_prefix="shadow_run",
+        )
 
-            # Notify about successful environment setup
-            if hasattr(self, "event_emitter") and self.event_emitter:
-                self.notify_environment_setup_completed(
-                    success=True,
-                    details={
-                        "shadow_config": os.path.abspath(
-                            str(self.rendered_services_network_config_file_path)
-                        ),
-                        "dockerfile": os.path.abspath(
-                            str(self.rendered_services_network_docker_file_path)
-                        ),
-                        "environment_type": "shadow_ns",
-                        "test_case": test_case_name,
-                    },
-                )
+        self.logger.info(f"Shadow NS container started: {self.docker_name}")
 
-            self.logger.info("Shadow NS environment setup complete")
+    def deploy_services(self) -> bool:
+        """Deploy and monitor Shadow simulation with optional non-blocking monitoring."""
 
-        except Exception as e:
-            self.logger.error("Failed to set up Shadow NS environment: %s", e, exc_info=True)
+        # Access configuration to determine monitoring mode
+        enable_background = getattr(
+            self.env_config_to_test, "enable_background_monitoring", True
+        )
+        self.logger.info(f"Shadow simulation monitoring enabled: {enable_background}")
 
-            # Notify about environment setup failure
-            if hasattr(self, "event_emitter") and self.event_emitter:
-                self.notify_environment_setup_completed(
-                    success=False,
-                    details={
-                        "environment_type": "shadow_ns",
-                        "test_case": test_case_name,
-                        "error": str(e),
-                    },
-                )
+        if not enable_background:
+            # Use existing blocking monitoring for backward compatibility
+            self.logger.info(
+                "Using blocking Shadow monitoring (backward compatibility mode)"
+            )
+            return self._deploy_services_blocking()
+        else:
+            # Use new non-blocking monitoring
+            self.logger.info(
+                "Using non-blocking Shadow monitoring with background monitoring"
+            )
+            return self._deploy_services_non_blocking()
 
-            # Propagate the error
-            raise RuntimeError(f"Shadow NS environment setup failed: {str(e)}")
+    def _deploy_services_blocking(self) -> bool:
+        """Original blocking deployment - monitor simulation before returning"""
+        self.logger.info("Deploying Shadow NS simulation (blocking mode)")
 
-    def deploy_services(self, service_managers=None):
-        """
-        Deploy services in the Shadow NS environment.
+        # Monitor Shadow container
+        if not self.monitor_docker_container(
+            container_name=self.docker_name,
+            timeout=30,
+        ):
+            self.logger.error("Shadow container failed to start")
+            return False
 
-        Args:
-            service_managers: Optional list of service managers to deploy.
-                              If provided, updates the internal services_managers list.
-        """
-        self.logger.info("Deploying services")
+        # Monitor simulation progress
+        if not self._monitor_simulation():
+            self.logger.error("Shadow simulation failed")
+            return False
 
-        # Update services_managers if provided
-        if service_managers is not None:
-            self.services_managers = service_managers
+        self.logger.info("Shadow NS simulation deployed successfully")
+        return True
 
-        self.launch_environment_services()
+    def _deploy_services_non_blocking(self) -> bool:
+        """Non-blocking deployment - start background monitoring and return quickly"""
+        self.logger.info("Starting Shadow NS simulation (non-blocking mode)")
 
-    def generate_environment_services(self, paths: dict[str, str], timestamp: str):
-        """
-        Generates the shadow.yml file using the provided services and deployment commands.
+        config = self.env_config_to_test
 
-        :param paths: Dictionary containing various path configurations.
-        :param timestamp: The timestamp string to include in log paths.
-        """
-        # TODO add timeout in the test config
-        # TODO check that the implementaion is compatible with shadow (in config file)
-        # TODo moodify the shadow template to add the timeout also add folder for each service to be added in the multi stage
-        try:
-            # Ensure the log directory for each service exists
-            for service in self.services_managers:
-                assert (
-                    service.service_config_to_test.implementation.shadow_compatible
-                ), f"Service {service.service_name} is not compatible with Shadow NS. Please check the service configuration."
-                self.create_log_dir(service)
+        # Quick initial check - wait briefly for container to start
+        initial_wait = min(5, config.monitoring_interval_seconds)
+        self.logger.info(
+            f"Waiting {initial_wait} seconds for initial Shadow startup..."
+        )
+        time.sleep(initial_wait)
 
-                self.logger.debug("Generating Docker Compose file for %s", service.service_name)
+        # Check if container started
+        result = self.execute_docker_command(
+            docker_args=["ps", "-q", "-f", f"name=^{self.docker_name}$"],
+            check=False,
+        )
 
-                self.docker_name = self.docker_name + service.service_name + "_"
+        if not result.stdout.strip():
+            self.logger.error("Shadow container failed to start")
+            return False
 
-                service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
-                    "command_args"
-                ].replace("eth0", "lo")
-                # TODO make this more general
-                if service.role.name == "client":
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
-                        "command_args"
-                    ].replace("$$TARGET_IP_HEX", "184549377")
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
-                        "command_args"
-                    ].replace("$$IVY_IP_HEX", "184549378")
-                else:
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
-                        "command_args"
-                    ].replace("$$TARGET_IP_HEX", "184549378")
-                    service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
-                        "command_args"
-                    ].replace("$$IVY_IP_HEX", "184549377")
-                for other_service_name in self.services_managers:
-                    if other_service_name.service_name != service.service_name:
-                        # Shadow does not suport the _ in the service name -> replace by .
-                        # TODO use "." in the service name for all plugins
-                        if "ivy" not in service.service_name:
-                            # TODO
-                            service.run_cmd["run_cmd"]["command_args"] = service.run_cmd["run_cmd"][
-                                "command_args"
-                            ].replace("_", ".")
+        # Get the Shadow process from container
+        # In Docker mode, we monitor the container itself
+        shadow_output_file = self.output_dir / "shadow-results" / "shadow.log"
 
-            for service in self.services_managers:
-                service.environments = self.resolve_environment_variables(service.environments)
-                service.environments["SHADOW_TEST"] = "1"
-                self.logger.debug(
-                    "Service %s environment: %s", service.service_name, service.environments
-                )
+        # Start background monitoring for the simulation
+        self.background_monitor = ShadowSimulationMonitor(self, config)
+        # For Docker-based Shadow, we pass None as process since we monitor the container
+        self.background_monitor.start_monitoring(None, str(shadow_output_file))
+
+        self.logger.info(f"Started background monitoring for Shadow simulation")
+
+        # Return True to allow experiment to proceed immediately
+        return True
+
+    def _teardown_environment(self) -> None:
+        """Perform Shadow NS specific teardown with background monitor cleanup."""
+        self.logger.info("Tearing down Shadow NS environment")
+
+        # Stop background monitoring if active
+        if hasattr(self, "background_monitor") and self.background_monitor:
+            self.logger.info("Stopping background Shadow monitoring...")
+            self.background_monitor.stop_monitoring()
+            self.background_monitor = None
+
+        # Collect Shadow results before teardown
+        self._collect_shadow_results()
+
+        # Stop and remove container
+        self.safe_docker_cleanup(self.docker_name)
+
+        # Clean up Shadow resources
+        NetworkEnvironmentUtils.cleanup_docker_resources(
+            prefix="shadow_ns",
+            remove_volumes=True,
+        )
+
+    def _get_shadow_config(self) -> Dict[str, Any]:
+        """Get Shadow-specific configuration."""
+        if hasattr(self.env_config_to_test, "shadow"):
+            return self.env_config_to_test.shadow
+        return {}
+
+    def _prepare_shadow_services(self) -> List[Dict[str, Any]]:
+        """Prepare service configurations for Shadow."""
+        shadow_services = []
+
+        for service in self.services_managers:
+            shadow_service = {
+                "name": service.service_name,
+                "type": service.implementation_type,
+                "protocol": service.protocol_name,
+                "role": service.role,
+                "command": service.get_run_command(),
+            }
+            shadow_services.append(shadow_service)
+
+        return shadow_services
+
+    def _get_network_config(self) -> Dict[str, Any]:
+        """Get network topology configuration."""
+        return {
+            "bandwidth": "1Gbit",
+            "latency": "10ms",
+            "jitter": "1ms",
+            "packet_loss": "0.1%",
+        }
+
+    def _generate_host_configs(self, paths: Dict[str, str], timestamp: str) -> None:
+        """Generate individual host configuration files."""
+        for service in self.services_managers:
+            host_config_path = (
+                self.output_dir / "shadow-hosts" / f"{service.service_name}.yaml"
+            )
 
             self.generate_from_template(
-                "shadow-template.jinja",
-                paths,
-                timestamp,
-                self.rendered_services_network_config_file_path,
-                self.services_network_config_file_path,
+                template_name="shadow_host.yaml.jinja",
+                paths=paths,
+                timestamp=timestamp,
+                rendered_out_file=str(host_config_path),
+                out_file=str(host_config_path),
+                additional_param={"service": service},
             )
 
-            self.logger.info(
-                "Shadow NS file generated at '%s'", self.services_network_config_file_path
-            )
+    def _build_shadow_image(self) -> None:
+        """Build Shadow Docker image."""
+        self.logger.info("Building Shadow NS Docker image")
 
-            self.logger.info("Shadow NS based environment manager prepared.")
-            # Define docker container for experience
-            self.generate_from_template(
-                "Dockerfile.experience.jinja",
-                paths,
-                timestamp,
-                self.rendered_services_network_docker_file_path,
-                self.services_network_docker_file_path,
-                str(self.services_network_config_file_path.name),
-            )
+        build_cmd = [
+            "docker",
+            "build",
+            "-t",
+            f"{self.docker_name}:latest",
+            "-f",
+            str(self.services_network_docker_file_path),
+            str(self.services_network_docker_file_path.parent),
+        ]
 
-            self.logger.info(
-                "Shadow NS file Dockerfile generated at '%s'",
-                self.services_network_docker_file_path,
-            )
+        self.execute_with_retry(
+            command=build_cmd,
+            max_retries=2,
+            log_prefix="shadow_build",
+            timeout=600,
+        )
 
-            self.get_docker_name()
+    def _monitor_simulation(self) -> bool:
+        """Monitor Shadow simulation progress."""
+        # Check simulation status periodically
+        return self.monitor_service_status(
+            service_name="shadow_simulation",
+            timeout=int(self.simulation_duration.rstrip("s")) + 60,
+            ready_check=self._is_simulation_complete,
+        ).is_healthy
 
+    def _is_simulation_complete(self) -> bool:
+        """Check if Shadow simulation is complete."""
+        results_file = self.output_dir / "shadow-results" / "shadow.results"
+        return results_file.exists()
+
+    def _collect_shadow_results(self) -> None:
+        """Collect Shadow simulation results."""
+        self.logger.info("Collecting Shadow NS results")
+
+        # Copy results from container
+        copy_cmd = [
+            "docker",
+            "cp",
+            f"{self.docker_name}:/results/.",
+            str(self.output_dir / "shadow-results/"),
+        ]
+
+        try:
+            self.execute_command(copy_cmd, timeout=60)
         except Exception as e:
-            self.logger.error(
-                "Failed to generate Shadow NS file: %s\n%s", e, traceback.format_exc()
-            )
-            exit(1)
+            self.logger.error(f"Failed to collect Shadow results: {e}")
 
-    def launch_environment_services(self):
-        """
-        Launches the Shadow NS environment using the generated shadow.yml file.
-        """
-        # TODO use docker_builder module
-        try:
-            with open(os.path.join(self.output_dir, "logs", "shadow.log"), "w") as log_file:
-                with open(
-                    os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
-                ) as log_file_err:
-                    volumes = [
-                        "-v",
-                        f"{os.path.abspath(self.log_dirs + '/shadow')}:/app/logs/",
-                    ]
-                    for service in self.services:
-                        for volume in service.volumes:
-                            volumes.append("-v")
-                            if isinstance(volume, dict):
-                                volumes.append(
-                                    f"{os.path.abspath(volume['local'])}:{volume['container']}"
-                                )
-                            else:
-                                volumes.append(f"{volume}")
-
-                    command = [
-                        "docker",
-                        "run",
-                        "--rm",
-                        "-d",
-                        "--platform=linux/amd64",
-                        "--sysctl",
-                        "net.ipv6.conf.all.disable_ipv6=1",
-                        "--security-opt",
-                        "seccomp=unconfined",
-                        "--shm-size=1024g",
-                        "--privileged",
-                        "--name",
-                        self.docker_name,
-                        *volumes,
-                        self.docker_name,
-                    ]
-                    self.logger.debug("Executing command: %s", " ".join(command))
-                    result = subprocess.run(
-                        command,
-                        check=True,
-                        capture_output=True,
-                        text=True,  # Ensures that output is in string format
-                    )
-                    # Write both stdout and stderr to the log file
-                    log_file.write(result.stdout)
-                    log_file_err.write(result.stderr)
-                    # TODO shadow.data
-                self.logger.info("Shadow NS environment launched successfully.")
-        except subprocess.CalledProcessError as e:
-            self.logger.error("Failed to launch Shadow NS environment: %s", e.stderr)
-            with open(os.path.join(self.output_dir, "logs", "shadow.log"), "w") as log_file:
-                with open(
-                    os.path.join(self.output_dir, "logs", "shadow.err.log"), "w"
-                ) as log_file_err:
-                    log_file.write(e.stdout)
-                    log_file_err.write(e.stderr)
-
-    def monitor_environment(self):
-        """
-        Monitors the Docker Compose environment by checking the status of services.
-        """
-        try:
-            with open(
-                os.path.join(self.output_dir, "logs", "docker-compose-ps.log"), "w"
-            ) as log_file:
-                with open(
-                    os.path.join(self.output_dir, "logs", "docker-compose-ps.err.log"),
-                    "w",
-                ) as log_file_err:
-                    result = subprocess.run(
-                        [
-                            "docker",
-                            "ps",
-                            "-f",
-                            f"name={self.docker_name}",
-                        ],
-                        check=True,
-                        capture_output=True,
-                        text=True,  # Ensures that output is in string format
-                    )
-                    # Write both stdout and stderr to the log file
-                    log_file.write(result.stdout)
-                    log_file_err.write(result.stderr)
-                    # NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
-                    #
-                    std_split = result.stdout.split("\n")
-                    self.logger.debug(
-                        "docker-compose ps: %s - %s - %s  - %s",
-                        result.stdout,
-                        result.stderr,
-                        len(self.services_managers),
-                        len(std_split),
-                    )
-                    if len(std_split) < len(self.services_managers) + 1:
-                        self.logger.debug(
-                            "Docker Compose environment monitored successfully - Experiment finished earlier"
-                        )
-
-                        # Use the mixin method instead of directly notifying
-                        reason = "Services finished early"
-                        self.notify_experiment_early_finish(
-                            reason=reason,
-                            details={
-                                "expected_services": len(self.services_managers),
-                                "found_services": len(std_split) - 1,  # One line for header
-                                "docker_output": result.stdout.strip(),
-                            },
-                        )
-
-                self.logger.debug("Docker Compose environment monitored successfully.")
-        except subprocess.CalledProcessError as e:
-            self.logger.error("Failed to monitor Docker Compose environment: %s", e.stderr)
-            raise e
-
-    def teardown_environment(self):
-        """
-        Tears down the Shadow NS environment by bringing down services.
-        """
-        # TODO: add a way to retrieve the logs, results, binary
-        with open(os.path.join(self.output_dir, "logs", "shadow-teardown.log"), "w") as log_file:
-            with open(
-                os.path.join(self.output_dir, "logs", "shadow-teardown.err.log"), "w"
-            ) as log_file_err:
-                try:
-                    # Remove the docker image after execution
-                    remove_image_command = [
-                        "docker",
-                        "rmi",
-                        f"{self.docker_name}:latest",
-                    ]
-                    self.logger.debug("Executing remove image command: %s", remove_image_command)
-                    result = subprocess.run(
-                        remove_image_command,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    self.logger.debug("Executing command: %s", remove_image_command)
-
-                    log_file.write(result.stdout)
-                    log_file_err.write(result.stderr)
-                    self.logger.info("Shadow NS environment torn down successfully")
-
-                    # Notify teardown completed with success
-                    self.notify_environment_teardown(
-                        success=True,
-                        details={
-                            "container_count": (
-                                len(self.services_managers)
-                                if hasattr(self, "services_managers")
-                                else 0
-                            )
-                        },
-                    )
-                except subprocess.CalledProcessError as e:
-                    self.logger.error("Failed to tear down Shadow NS environment: %s", e.stderr)
-
-                    # Notify teardown completed with failure
-                    self.notify_environment_teardown(
-                        success=False, details={"error": str(e), "error_type": type(e).__name__}
-                    )
-
-                    raise e
-
-    def read_shadow_file(self) -> dict[str, Any]:
-        """
-        Reads the generated shadow.yml file.
-        """
-        if not os.path.exists(self.services_network_config_file_path):
-            self.logger.error(
-                "Shadow NS file '%s' does not exist.", self.services_network_config_file_path
-            )
-            raise FileNotFoundError(
-                f"Shadow NS file '{self.services_network_config_file_path}' does not exist."
-            )
-
-        with open(self.services_network_config_file_path) as compose_file:
-            return yaml.safe_load(compose_file)
+    # Required abstract method implementations from IEnvironmentPlugin
 
     def _do_setup_environment(
         self,
-        services_managers: list["IServiceManager"],
-        test_config: "TestConfig",
-        global_config: "GlobalConfig",
+        services_managers: List["IServiceManager"],
+        test_config: TestConfig,
+        global_config: GlobalConfig,
         timestamp: str,
-        plugin_manager: "PluginManager",
-        execution_environment: list["IExecutionEnvironment"],
-    ) -> None:
-        """
-        Implementation of environment setup for Shadow NS.
-
-        This method is called by the base class setup_environment after emitting
-        the appropriate start events.
-        """
-        # Store configuration
-        self.update_environment(
-            execution_environment,
-            global_config,
-            plugin_manager,
+        plugin_manager: Optional["PluginManager"],
+        execution_environment: List["IExecutionEnvironment"],
+    ) -> bool:
+        """Implementation of setup environment for Shadow NS."""
+        return self.setup_environment(
             services_managers,
             test_config,
+            global_config,
+            timestamp,
+            plugin_manager,
+            execution_environment,
         )
 
-        # Prepare the environment
-        self.prepare_environment()
-
-        # Generate environment services
-        self.generate_environment_services(paths=global_config.paths, timestamp=timestamp)
-
-        # Verify files were generated
-        if not os.path.exists(self.rendered_services_network_config_file_path):
-            raise RuntimeError("Shadow NS environment setup failed: shadow.yml file not generated")
-
-        # Mark setup as complete
-        self.plugin_setup = True
-
     def _do_deploy_services(self) -> None:
-        """
-        Implementation of service deployment for Shadow NS.
-
-        This method is called by the base class deploy_services after emitting
-        the appropriate start events.
-        """
-        # Launch the shadow services
-        self.launch_environment_services()
+        """Implementation of service deployment for Shadow NS."""
+        if not self.deploy_services():
+            raise RuntimeError("Failed to deploy Shadow NS services")
 
     def _do_teardown_environment(self) -> None:
-        """
-        Implementation of environment teardown for Shadow NS.
+        """Implementation of environment teardown for Shadow NS."""
+        self._teardown_environment()
 
-        This method is called by the base class teardown_environment after emitting
-        the appropriate start events.
-        """
-        # Perform the actual teardown operations
-        log_dir = os.path.join(self.output_dir, "logs")
-        os.makedirs(log_dir, exist_ok=True)
+    def initialize(self, test_config, output_dir, event_manager, global_config):
+        """Initialize the Shadow NS environment."""
+        if not hasattr(self, "test_config"):
+            self.test_config = test_config
+        if not hasattr(self, "global_config"):
+            self.global_config = global_config
 
-        with open(os.path.join(log_dir, "shadow-teardown.log"), "w") as log_file:
-            with open(os.path.join(log_dir, "shadow-teardown.err.log"), "w") as log_file_err:
-                try:
-                    # Stop the running docker container
-                    stop_container_command = ["docker", "stop", self.docker_name]
-                    self.logger.debug(
-                        "Executing stop container command: %s", stop_container_command
-                    )
-                    result = subprocess.run(
-                        stop_container_command,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    log_file.write(result.stdout)
-                    log_file_err.write(result.stderr)
-
-                    # Remove the docker container after execution
-                    remove_container_command = [
-                        "docker",
-                        "rm",
-                        "--force",
-                        f"{self.docker_name}",
-                    ]
-                    self.logger.debug(
-                        "Executing remove container command: %s", remove_container_command
-                    )
-                    result = subprocess.run(
-                        remove_container_command,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    log_file.write(result.stdout)
-                    log_file_err.write(result.stderr)
-
-                    # Remove the docker image after execution
-                    remove_image_command = [
-                        "docker",
-                        "rmi",
-                        f"{self.docker_name}:latest",
-                    ]
-                    self.logger.debug("Executing remove image command: %s", remove_image_command)
-                    result = subprocess.run(
-                        remove_image_command,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    log_file.write(result.stdout)
-                    log_file_err.write(result.stderr)
-                    self.logger.info("Shadow NS environment torn down successfully")
-                    # Note: Event notification is handled by the base class
-                except subprocess.CalledProcessError as e:
-                    self.logger.error("Failed to tear down Shadow NS environment: %s", e.stderr)
-                    raise e
-
-    def handle_event(self, event) -> None:
-        """
-        Handle events sent to this plugin.
-
-        The Shadow NS environment doesn't need to handle specific events,
-        so this is a no-op implementation.
-
-        Args:
-            event: The event to handle
-        """
-        # Shadow NS environment doesn't handle events
+    def handle_event(self, event):
+        """Handle events for Shadow NS environment."""
+        # Shadow NS doesn't need special event handling beyond base class
         pass
+
+    def is_network_environment(self):
+        """Returns True since this is a network environment plugin."""
+        return True

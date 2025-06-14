@@ -3,8 +3,9 @@
 This module defines the global configuration structures for PANTHER.
 """
 
-from enum import Enum
 from dataclasses import dataclass, field
+from enum import Enum
+
 from panther.config.config_observer_schema import ObserverConfig
 
 # Logging Configuration
@@ -105,6 +106,7 @@ class DockerConfig:
         remove_docker_volume (bool): Flag to determine if the Docker volume should be removed.
     """
 
+    # TODO: rename: force_build_docker_image
     build_docker_image: bool = True
     log_docker_image_build: bool = True
     remove_docker_image: bool = False
@@ -112,6 +114,27 @@ class DockerConfig:
     remove_docker_network: bool = True
     remove_docker_volume: bool = True
     remove_dangling_images: bool = False
+
+
+# Progress Display Configuration
+@dataclass
+class ProgressDisplayConfig:
+    """
+    Configuration for progress display and terminal output during experiments.
+
+    Attributes:
+        enable_progress_bar (bool): Whether to show tqdm progress bar during test execution
+        show_test_status (bool): Whether to show test start/completion status messages
+        show_docker_events (bool): Whether to show Docker build/deployment status
+        use_emojis (bool): Whether to use emoji icons in status messages
+        redirect_logging (bool): Whether to redirect logging through tqdm to prevent interference
+    """
+
+    enable_progress_bar: bool = True
+    show_test_status: bool = True
+    show_docker_events: bool = True
+    use_emojis: bool = True
+    redirect_logging: bool = True
 
 
 # Feature Configuration
@@ -142,6 +165,7 @@ class GlobalConfig:
         optional_paths (AdditionalPathsConfig): Configuration for optional paths.
         docker (DockerConfig): Configuration for Docker.
         features (FeatureConfig): Configuration for features.
+        progress (ProgressDisplayConfig): Configuration for progress display and terminal output.
         observers (ObserverConfig): Configuration for application observers.
     """
 
@@ -150,4 +174,5 @@ class GlobalConfig:
     optional_paths: AdditionalPathsConfig = field(default_factory=AdditionalPathsConfig)
     docker: DockerConfig = field(default_factory=DockerConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
+    progress: ProgressDisplayConfig = field(default_factory=ProgressDisplayConfig)
     observers: ObserverConfig = field(default_factory=ObserverConfig)

@@ -10,10 +10,11 @@ from typing import Any
 
 from panther.config.config_experiment_schema import ServiceConfig, TestConfig
 from panther.config.config_global_schema import GlobalConfig
+from panther.core.docker_builder import DockerBuilder
 from panther.core.observer.impl.plugin_observer import PluginObserver
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.docker_builder import DockerBuilder
 from panther.core.utils.logging_mixin import LoggerMixin
+from panther.plugins.environment_factory import EnvironmentFactory
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (  # noqa: E501
     IExecutionEnvironment,
@@ -23,10 +24,9 @@ from panther.plugins.environments.network_environment.network_environment_interf
 )
 from panther.plugins.plugin_config_resolver import PluginConfigResolver
 from panther.plugins.plugin_discovery import PluginDiscovery
-from panther.plugins.service_factory import ServiceFactory
-from panther.plugins.environment_factory import EnvironmentFactory
 from panther.plugins.plugin_manifest import PluginRegistration
 from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.service_factory import ServiceFactory
 from panther.plugins.services.iut.config_schema import ImplementationConfig
 from panther.plugins.services.services_interface import IServiceManager
 
@@ -94,7 +94,9 @@ class PluginManager(LoggerMixin):
         try:
             self.docker_builder = DockerBuilder(
                 build_log_file=(
-                    global_config.docker.log_docker_image_build if global_config else None
+                    global_config.docker.log_docker_image_build
+                    if global_config
+                    else None
                 )
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -108,9 +110,9 @@ class PluginManager(LoggerMixin):
         """Set up the event system for plugin management."""
         try:
             # Import event emitter
-            from panther.core.events import (
+            from panther.core.events.plugin.emitter import (  # pylint: disable=import-outside-toplevel
                 PluginEventEmitter,
-            )  # pylint: disable=import-outside-toplevel
+            )
 
             # Create plugin observer
             self.plugin_observer = PluginObserver(event_manager=self.event_manager)
@@ -121,21 +123,6 @@ class PluginManager(LoggerMixin):
             self.logger.debug("Plugin event system initialized successfully")
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.warning("Failed to initialize plugin event system: %s", e)
-
-    # Backward compatibility methods - delegate to specialized classes
-
-    @staticmethod
-    def _get_class_name(plugin_name: str, suffix: str = "Config") -> str:
-        """Convert plugin name to class name format. (Backward compatibility)"""
-        return PluginConfigResolver.get_class_name(plugin_name, suffix)
-
-    def _create_execution_environment_config(self, environment_type: str):
-        """Create execution environment config. (Backward compatibility)"""
-        return self.config_resolver.create_execution_environment_config(environment_type)
-
-    def validate_experiment_plugins(self, experiment_config: Any) -> tuple[bool, list[str]]:
-        """Validate that all plugins required by an experiment are available."""
-        return self.plugin_discovery.validate_experiment_plugins(experiment_config)
 
     def create_service_manager(
         self,
@@ -213,7 +200,9 @@ class PluginManager(LoggerMixin):
         """Check if a plugin is available."""
         return self.plugin_discovery.is_plugin_available(plugin_id)
 
-    def get_network_environment_plugin(self, environment_type: str) -> INetworkEnvironment | None:
+    def get_network_environment_plugin(
+        self, environment_type: str
+    ) -> INetworkEnvironment | None:
         """Get a network environment plugin instance."""
         return self.environment_factory.get_network_environment_plugin(environment_type)
 
@@ -245,7 +234,9 @@ class PluginManager(LoggerMixin):
             dockerfile_path = dockerfiles.get(impl_name)
 
             if not dockerfile_path:
-                self.logger.warning("No Dockerfile found for implementation: %s", impl_name)
+                self.logger.warning(
+                    "No Dockerfile found for implementation: %s", impl_name
+                )
                 return
 
             # Extract version string from config object if necessary
@@ -271,12 +262,39 @@ class PluginManager(LoggerMixin):
                     )
 
             # Ensure version string is safe for Docker tag (no special characters)
-            safe_version = "".join(c if c.isalnum() or c in ".-_" else "_" for c in version_str)
+            safe_version = "".join(
+                c if c.isalnum() or c in ".-_" else "_" for c in version_str
+            )
 
             # Build the image
-            image_tag = f"{impl_name}:{safe_version}"
+            image_tag = f"{impl_name}_{safe_version}:latest"
 
-            self.logger.info("Building Docker image %s from %s", image_tag, dockerfile_path)
+            # Check if image already exists and whether to force rebuild
+            force_build = (
+                self.global_config.docker.build_docker_image
+                if (
+                    self.global_config
+                    and hasattr(self.global_config.docker, "build_docker_image")
+                )
+                else True
+            )
+
+            if not force_build and self.docker_builder.image_exists(image_tag):
+                self.logger.info(
+                    "Docker image %s already exists, skipping build", image_tag
+                )
+                self.built_images[impl_name] = {
+                    "tag": image_tag,
+                    "dockerfile": str(dockerfile_path),
+                    "build_time": None,
+                    "image_id": None,
+                    "already_existed": True,
+                }
+                return
+
+            self.logger.info(
+                "Building Docker image %s from %s", image_tag, dockerfile_path
+            )
 
             build_result = self.docker_builder.build_image(
                 impl_name=impl_name,
@@ -320,13 +338,17 @@ class PluginManager(LoggerMixin):
             if "'str' object has no attribute 'get'" in str(e):
                 self.logger.error(
                     "build_result type was: %s",
-                    type(build_result).__name__ if "build_result" in locals() else "undefined",
+                    type(build_result).__name__
+                    if "build_result" in locals()
+                    else "undefined",
                 )
             import traceback
 
             self.logger.debug("Full traceback: %s", traceback.format_exc())
 
-    def build_docker_image_from_path(self, path: Path, name: str, version: str | None = None):
+    def build_docker_image_from_path(
+        self, path: Path, name: str, version: str | None = None
+    ):
         """
         Build Docker image from a specific path.
 
@@ -355,9 +377,33 @@ class PluginManager(LoggerMixin):
                 return
 
             # Build image tag
-            image_tag = f"{name}:{version}" if version else name
+            image_tag = f"{name}_{version}:latest" if version else f"{name}:latest"
 
-            self.logger.info("Building Docker image %s from %s", image_tag, dockerfile_path)
+            # Check if image already exists and whether to force rebuild
+            force_build = (
+                self.global_config.docker.build_docker_image
+                if (
+                    self.global_config
+                    and hasattr(self.global_config.docker, "build_docker_image")
+                )
+                else True
+            )
+            if not force_build and self.docker_builder.image_exists(image_tag):
+                self.logger.info(
+                    "Docker image %s already exists, skipping build", image_tag
+                )
+                self.built_images[name] = {
+                    "tag": image_tag,
+                    "dockerfile": str(dockerfile_path),
+                    "build_time": None,
+                    "image_id": None,
+                    "already_existed": True,
+                }
+                return
+
+            self.logger.info(
+                "Building Docker image %s from %s", image_tag, dockerfile_path
+            )
 
             build_result = self.docker_builder.build_image(
                 impl_name=name,
@@ -401,7 +447,9 @@ class PluginManager(LoggerMixin):
             if "'str' object has no attribute 'get'" in str(e):
                 self.logger.error(
                     "build_result type was: %s",
-                    type(build_result).__name__ if "build_result" in locals() else "undefined",
+                    type(build_result).__name__
+                    if "build_result" in locals()
+                    else "undefined",
                 )
             import traceback
 

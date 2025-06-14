@@ -6,10 +6,10 @@ command representation, proper shell escaping, and serialization to shell script
 This utility is used across all PANTHER plugins to ensure consistent command handling.
 """
 
+import logging
 import re
 import shlex
-import logging
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 # Shell control operators that could cause issues if they appear at the end of a command
 SHELL_CONTROL_OPERATORS = ["&&", "||", ";", "&", "|", ">", ">>", "<<", "<"]
@@ -139,10 +139,10 @@ class ShellCommand:
         is_function_definition: bool = False,
         is_function_call: bool = False,
         has_control_operators: bool = False,
-        control_operators: list[str] | None = None,
-        working_dir: str | None = None,
-        environment: dict[str, str] | None = None,
-        timeout: int | None = None,
+        control_operators: Optional[List[str]] = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
         is_variable_assignment: bool = False,
         is_shell_builtin: bool = False,
         is_control_structure: bool = False,
@@ -244,7 +244,7 @@ class ShellCommand:
 
         return safe_cmd
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """
         Convert the command to a dictionary representation.
 
@@ -274,7 +274,7 @@ class ShellCommand:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ShellCommand":
+    def from_dict(cls, data: Dict[str, Any]) -> "ShellCommand":
         """
         Create a ShellCommand instance from a dictionary.
 
@@ -528,7 +528,9 @@ def escape_shell_command(cmd: str) -> str:
     # cmd = normalize_command_ending(cmd)
 
     # Remove surrounding quotes if they exist
-    if (cmd.startswith("'") and cmd.endswith("'")) or (cmd.startswith('"') and cmd.endswith('"')):
+    if (cmd.startswith("'") and cmd.endswith("'")) or (
+        cmd.startswith('"') and cmd.endswith('"')
+    ):
         cmd = cmd[1:-1]
 
     # Special handling for variable assignments and export commands with nested quotes
@@ -579,14 +581,22 @@ def escape_shell_command(cmd: str) -> str:
                 if any(op in stripped for op in REDIRECTION_OPERATORS):
                     cmd_part, redirections = parse_command_with_redirections(stripped)
                     if redirections:
-                        escaped_cmd = escape_shell_command_without_redirections(cmd_part)
+                        escaped_cmd = escape_shell_command_without_redirections(
+                            cmd_part
+                        )
                         parts.append(
-                            reconstruct_command_with_redirections(escaped_cmd, redirections)
+                            reconstruct_command_with_redirections(
+                                escaped_cmd, redirections
+                            )
                         )
                         continue
 
                 # Check if this is a variable assignment
-                if "=" in stripped and not stripped.startswith("-") and " = " not in stripped:
+                if (
+                    "=" in stripped
+                    and not stripped.startswith("-")
+                    and " = " not in stripped
+                ):
                     if re.match(r"^[a-zA-Z0-9_]+=.*$", stripped):
                         parts.append(stripped)
                         continue
@@ -610,24 +620,40 @@ def escape_shell_command(cmd: str) -> str:
                 stripped = part.strip()
                 if stripped:
                     # Check for redirections in this part
-                    if any(redirection_op in stripped for redirection_op in REDIRECTION_OPERATORS):
-                        cmd_part, redirections = parse_command_with_redirections(stripped)
+                    if any(
+                        redirection_op in stripped
+                        for redirection_op in REDIRECTION_OPERATORS
+                    ):
+                        cmd_part, redirections = parse_command_with_redirections(
+                            stripped
+                        )
                         if redirections:
-                            escaped_cmd = escape_shell_command_without_redirections(cmd_part)
+                            escaped_cmd = escape_shell_command_without_redirections(
+                                cmd_part
+                            )
                             parts.append(
-                                reconstruct_command_with_redirections(escaped_cmd, redirections)
+                                reconstruct_command_with_redirections(
+                                    escaped_cmd, redirections
+                                )
                             )
                             continue
 
                     # Check if this is a variable assignment
-                    if "=" in stripped and not stripped.startswith("-") and " = " not in stripped:
+                    if (
+                        "=" in stripped
+                        and not stripped.startswith("-")
+                        and " = " not in stripped
+                    ):
                         if re.match(r"^[a-zA-Z0-9_]+=.*$", stripped):
                             parts.append(stripped)
                             continue
 
                     # Check if this part starts with a shell builtin or control structure
                     part_cmd = stripped.split()[0] if stripped.split() else ""
-                    if part_cmd in SHELL_BUILTINS or part_cmd in SHELL_CONTROL_STRUCTURES:
+                    if (
+                        part_cmd in SHELL_BUILTINS
+                        or part_cmd in SHELL_CONTROL_STRUCTURES
+                    ):
                         parts.append(stripped)
                     else:
                         parts.append(shlex.quote(stripped))
@@ -841,7 +867,9 @@ def combine_shell_constructs(command_list):
         return []
 
     # Use filtered commands for processing
-    logger.debug("Processing %d commands in shell construct combination", len(filtered_commands))
+    logger.debug(
+        "Processing %d commands in shell construct combination", len(filtered_commands)
+    )
 
     # Track shell constructs we're looking for
     construct_patterns = {
@@ -891,7 +919,8 @@ def combine_shell_constructs(command_list):
             # Additional patterns to identify function definitions
             "patterns": [
                 # function name() { ... }
-                lambda s: s.strip().lower().startswith("function ") and ("() {" in s or "(){" in s),
+                lambda s: s.strip().lower().startswith("function ")
+                and ("() {" in s or "(){" in s),
                 # name() { ... }
                 lambda s: ("() {" in s or "(){" in s)
                 and not s.strip().lower().startswith("function "),
@@ -983,19 +1012,31 @@ def combine_shell_constructs(command_list):
                 # For closing braces of functions, ensure it's not part of another construct
                 if current_construct == "function" and "}" in cmd_lower:
                     # Make sure it's a standalone "}" or at the end of a line
-                    if cmd_lower == "}" or cmd_lower.endswith("}") or cmd_lower.endswith("};"):
+                    if (
+                        cmd_lower == "}"
+                        or cmd_lower.endswith("}")
+                        or cmd_lower.endswith("};")
+                    ):
                         ends_construct = True
                         active_constructs.pop()
-                        logger.debug("Ending %s construct: %s", current_construct, cmd.strip()[:40])
+                        logger.debug(
+                            "Ending %s construct: %s",
+                            current_construct,
+                            cmd.strip()[:40],
+                        )
                 # For other end patterns
                 else:
                     # Make sure the end pattern appears as a complete word
                     for pattern in end_patterns:
-                        if pattern in cmd_lower.split() or cmd_lower.endswith(pattern + ";"):
+                        if pattern in cmd_lower.split() or cmd_lower.endswith(
+                            pattern + ";"
+                        ):
                             ends_construct = True
                             active_constructs.pop()
                             logger.debug(
-                                "Ending %s construct: %s", current_construct, cmd.strip()[:40]
+                                "Ending %s construct: %s",
+                                current_construct,
+                                cmd.strip()[:40],
                             )
                             break
 
@@ -1008,7 +1049,11 @@ def combine_shell_constructs(command_list):
             not starts_construct and not active_constructs
         ):
             # If we have only one command in buffer and it's not part of a construct, add it as is
-            if len(construct_buffer) == 1 and not starts_construct and not ends_construct:
+            if (
+                len(construct_buffer) == 1
+                and not starts_construct
+                and not ends_construct
+            ):
                 # If the original command was a ShellCommand, return the original object
                 original_obj = construct_buffer_originals[0]
                 if original_obj is not None:
@@ -1020,7 +1065,9 @@ def combine_shell_constructs(command_list):
                 multiline_cmd = "\n".join(construct_buffer)
 
                 # Check if any of the original commands were ShellCommand objects
-                has_shell_command = any(obj is not None for obj in construct_buffer_originals)
+                has_shell_command = any(
+                    obj is not None for obj in construct_buffer_originals
+                )
 
                 if has_shell_command:
                     # Find the first ShellCommand object to use as a template
@@ -1042,7 +1089,11 @@ def combine_shell_constructs(command_list):
                             # Extract function name for better description
                             first_line = multiline_cmd.split("\n")[0].strip().lower()
                             if "function " in first_line:
-                                fn_name = first_line.replace("function ", "").split("{")[0].strip()
+                                fn_name = (
+                                    first_line.replace("function ", "")
+                                    .split("{")[0]
+                                    .strip()
+                                )
                                 if "(" in fn_name:
                                     fn_name = fn_name.split("(")[0].strip()
                             else:  # name() { syntax
@@ -1072,7 +1123,11 @@ def combine_shell_constructs(command_list):
                 construct_type = "unknown"
                 if construct_buffer and construct_buffer[0]:
                     first_line = construct_buffer[0].strip().lower()
-                    if "function " in first_line or "() {" in first_line or "(){" in first_line:
+                    if (
+                        "function " in first_line
+                        or "() {" in first_line
+                        or "(){" in first_line
+                    ):
                         construct_type = "function definition"
                     elif first_line.startswith("if "):
                         construct_type = "if block"
@@ -1098,7 +1153,10 @@ def combine_shell_constructs(command_list):
             logger.warning(
                 "Incomplete shell construct detected: %s. Commands: %s",
                 active_constructs,
-                [cmd.strip()[:40] + "..." if len(cmd) > 40 else cmd for cmd in construct_buffer],
+                [
+                    cmd.strip()[:40] + "..." if len(cmd) > 40 else cmd
+                    for cmd in construct_buffer
+                ],
             )
 
         # Still combine the remaining commands to avoid losing them
@@ -1140,7 +1198,10 @@ def combine_shell_constructs(command_list):
     if not result:
         logger.warning(
             "Shell construct combination resulted in empty list. Original commands: %s",
-            [str(cmd)[:40] + "..." if len(str(cmd)) > 40 else str(cmd) for cmd in command_list[:5]],
+            [
+                str(cmd)[:40] + "..." if len(str(cmd)) > 40 else str(cmd)
+                for cmd in command_list[:5]
+            ],
         )
 
         # If we have original ShellCommand objects, return those

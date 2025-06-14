@@ -1,11 +1,11 @@
 FROM ubuntu:20.04
 
-# TODOS - Question should we set '--not-install-recommends' -> might introduce issues
+# Using --no-install-recommends to reduce image size and security surface
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     apt-get update && \
-    apt-get install --auto-remove --show-upgraded  -y \
+    apt-get install --auto-remove --show-upgraded --no-install-recommends -y \
     build-essential git cmake software-properties-common \
     openssl libssl-dev pkg-config python3 net-tools tcpdump iperf traceroute \
     wireshark tshark clang libcap2-bin iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils \
@@ -17,8 +17,8 @@ WORKDIR /gperftools
 RUN ./autogen.sh
 RUN ./configure
 RUN make
-RUN sudo make install
-RUN apt-get install -y libunwind-dev google-perftools graphviz gv
+RUN make install
+RUN apt-get install --no-install-recommends -y libunwind-dev google-perftools graphviz gv
 RUN whereis libprofiler
 RUN whereis libtcmalloc
 

@@ -1,11 +1,11 @@
-import sqlite3
 import json
-import threading
 import logging
+import sqlite3
+import threading
 from datetime import datetime, timedelta
 from typing import Any
 
-from panther.core.events import BaseEvent as Event
+from panther.core.events.base.event_base import BaseEvent as Event
 
 
 class EventStore:
@@ -16,7 +16,9 @@ class EventStore:
     allowing for historical analysis, debugging, and audit trails.
     """
 
-    def __init__(self, db_path: str = None, retention_days: int = 7, max_batch_size: int = 100):
+    def __init__(
+        self, db_path: str = None, retention_days: int = 7, max_batch_size: int = 100
+    ):
         """
         Initialize a new EventStore.
 
@@ -52,7 +54,9 @@ class EventStore:
         )
         """
         )
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_event_type ON events(event_type)")
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_event_type ON events(event_type)"
+        )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON events(timestamp)")
         self.conn.commit()
         self.logger.info(f"Initialized EventStore with database {self.db_path}")
@@ -126,7 +130,9 @@ class EventStore:
                 self.batch.clear()
                 return True
             except Exception as e:
-                self.logger.error(f"Failed to store batch of {len(self.batch)} events: {e}")
+                self.logger.error(
+                    f"Failed to store batch of {len(self.batch)} events: {e}"
+                )
                 return False
 
     def get_events(
@@ -210,7 +216,9 @@ class EventStore:
         """
         try:
             cursor = self.conn.cursor()
-            cursor.execute("SELECT event_type, COUNT(*) as count FROM events GROUP BY event_type")
+            cursor.execute(
+                "SELECT event_type, COUNT(*) as count FROM events GROUP BY event_type"
+            )
             return {row[0]: row[1] for row in cursor.fetchall()}
         except Exception as e:
             self.logger.error(f"Failed to get event counts: {e}")

@@ -5,21 +5,22 @@ This module tests the new Jinja2 filters for secure command generation,
 ensuring proper escaping and quoting of shell commands and YAML values.
 """
 
-import pytest
-import yaml
 import shlex
 import tempfile
 from pathlib import Path
 
-from panther.core.utils.template_filters import (
+import pytest
+import yaml
+
+from panther.core.template.template_filters import (
+    TEMPLATE_FILTERS,
+    create_env_export,
+    join_command_args,
+    quote_json,
     quote_shell,
     quote_yaml,
-    quote_json,
-    join_command_args,
-    create_env_export,
-    TEMPLATE_FILTERS,
 )
-from panther.core.utils.jinja_manager import JinjaManager
+from panther.core.template.template_renderer import TemplateRenderer
 
 
 class TestTemplateFilters:
@@ -185,10 +186,10 @@ exec {{ command_args | join_command_args }}
 
     def test_jinja_manager_has_filters(self, temp_template_dir):
         """Test that JinjaManager includes all template filters."""
-        manager = JinjaManager(str(temp_template_dir))
+        manager = TemplateRenderer(str(temp_template_dir))
 
         for filter_name in TEMPLATE_FILTERS.keys():
-            assert filter_name in manager.env.filters
+            assert filter_name in manager.jinja_env.filters
 
     @pytest.mark.parametrize(
         "cmd_args,env_vars,expected_snippet",
@@ -210,7 +211,7 @@ exec {{ command_args | join_command_args }}
         self, temp_template_dir, cmd_args, env_vars, expected_snippet
     ):
         """Test entrypoint template rendering with edge cases."""
-        manager = JinjaManager(str(temp_template_dir))
+        manager = TemplateRenderer(str(temp_template_dir))
 
         context = {"command_args": cmd_args, "env_vars": env_vars}
 
@@ -228,7 +229,7 @@ exec {{ command_args | join_command_args }}
 
     def test_docker_compose_template_rendering(self, temp_template_dir):
         """Test Docker Compose template rendering with proper YAML escaping."""
-        manager = JinjaManager(str(temp_template_dir))
+        manager = TemplateRenderer(str(temp_template_dir))
 
         context = {
             "service_name": "test_service",

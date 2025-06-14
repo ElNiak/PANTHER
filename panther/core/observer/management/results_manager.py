@@ -5,19 +5,19 @@ This module provides a comprehensive solution for collecting, aggregating,
 and exporting test results from the event system.
 """
 
-import os
-import json
 import csv
-import logging
-import threading
 import datetime
+import json
+import logging
+import os
+import threading
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any, TypeVar
-from collections.abc import Callable
 
+from panther.core.events.base.event_base import BaseEvent as Event
+from panther.core.events.test.events import EnhancedResultEvent, TestResultEvent
 from panther.core.observer.base.observer_interface import IObserver
-from panther.core.events import BaseEvent as Event
-from panther.core.events import TestResultEvent, EnhancedResultEvent
 
 # Type variable for generic result data
 T = TypeVar("T")
@@ -41,9 +41,9 @@ class ResultAggregator:
         self.start_time: datetime | None = None
         self.end_time: datetime | None = None
         self.tags: dict[str, set[str]] = {}  # Maps test names to their tags
-        self.tag_stats: dict[str, dict[str, int]] = (
-            {}
-        )  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
+        self.tag_stats: dict[
+            str, dict[str, int]
+        ] = {}  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
         self.category_stats: dict[str, dict[str, int]] = {}  # Statistics by category
         self.lock = threading.RLock()
 
@@ -136,7 +136,9 @@ class ResultAggregator:
 
         return result_data
 
-    def add_result(self, result: TestResultEvent | EnhancedResultEvent | dict[str, Any]):
+    def add_result(
+        self, result: TestResultEvent | EnhancedResultEvent | dict[str, Any]
+    ):
         """
         Add a test result to the aggregator.
 
@@ -603,7 +605,9 @@ class ResultsManager(IObserver):
                     )
 
                 self.aggregator.add_result(result_event)
-                self.logger.debug("Converted and collected result for test: %s", test_name)
+                self.logger.debug(
+                    "Converted and collected result for test: %s", test_name
+                )
 
                 # Trigger callbacks
                 self._trigger_callbacks(event_type, result_event)
@@ -637,7 +641,9 @@ class ResultsManager(IObserver):
         return 10
 
     def register_callback(
-        self, event_type: str, callback: Callable[[TestResultEvent | EnhancedResultEvent], None]
+        self,
+        event_type: str,
+        callback: Callable[[TestResultEvent | EnhancedResultEvent], None],
     ):
         """
         Register a callback for a specific result event type.
@@ -651,7 +657,9 @@ class ResultsManager(IObserver):
 
         self.callbacks[event_type].append(callback)
 
-    def _trigger_callbacks(self, event_type: str, event: TestResultEvent | EnhancedResultEvent):
+    def _trigger_callbacks(
+        self, event_type: str, event: TestResultEvent | EnhancedResultEvent
+    ):
         """
         Trigger registered callbacks for an event type.
 

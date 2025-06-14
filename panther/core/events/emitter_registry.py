@@ -5,24 +5,22 @@ This module provides a centralized registry for all event emitters in PANTHER,
 ensuring single instances and preventing duplication issues.
 """
 
-from panther.core.observer.management.event_manager import EventManager
-from panther.core.events import (
-    ExperimentEventEmitter,
-    TestEventEmitter,
-    ServiceEventEmitter,
-    EnvironmentEventEmitter,
-    StepEventEmitter,
-    PluginEventEmitter,
-    AssertionEventEmitter,
-    MetricsEventEmitter,
-)
+from panther.core.events.assertion.emitter import AssertionEventEmitter
+from panther.core.events.environment.emitter import EnvironmentEventEmitter
+from panther.core.events.environment.states import EnvironmentStateManager
+from panther.core.events.experiment.emitter import ExperimentEventEmitter
 
 # Import event-based state managers
 from panther.core.events.experiment.states import ExperimentStateManager
-from panther.core.events.service.states import ServiceStateManager
-from panther.core.events.test.states import TestStateManager
-from panther.core.events.environment.states import EnvironmentStateManager
+from panther.core.events.metrics.emitter import MetricsEventEmitter
+from panther.core.events.plugin.emitter import PluginEventEmitter
 from panther.core.events.plugin.states import PluginStateManager
+from panther.core.events.service.emitter import ServiceEventEmitter
+from panther.core.events.service.states import ServiceStateManager
+from panther.core.events.step.emitter import StepEventEmitter
+from panther.core.events.test.emitter import TestEventEmitter
+from panther.core.events.test.states import TestStateManager
+from panther.core.observer.management.event_manager import EventManager
 
 
 class EmitterRegistry:
@@ -48,8 +46,12 @@ class EmitterRegistry:
             None  # Created when experiment starts
         )
         self.plugin_state = PluginStateManager()  # Can be created immediately
-        self.environment_states: dict[str, EnvironmentStateManager] = {}  # env_id -> state manager
-        self.service_states: dict[str, ServiceStateManager] = {}  # service_id -> state manager
+        self.environment_states: dict[
+            str, EnvironmentStateManager
+        ] = {}  # env_id -> state manager
+        self.service_states: dict[
+            str, ServiceStateManager
+        ] = {}  # service_id -> state manager
         self.test_states: dict[str, TestStateManager] = {}  # test_id -> state manager
 
         # Create single instances of each emitter type
@@ -75,7 +77,9 @@ class EmitterRegistry:
             TestEventEmitter: The test-specific emitter instance
         """
         if test_name not in self.test_emitters:
-            self.test_emitters[test_name] = TestEventEmitter(self.event_manager, test_name)
+            self.test_emitters[test_name] = TestEventEmitter(
+                self.event_manager, test_name
+            )
         return self.test_emitters[test_name]
 
     def get_experiment_state(self, experiment_id: str) -> ExperimentStateManager:
@@ -220,7 +224,9 @@ class EmitterRegistry:
         if not state_manager.can_transition_to(ServiceState.DEPLOYED):
             return False
 
-        state_manager.transition_to(ServiceState.DEPLOYED, trigger="deployment_completed")
+        state_manager.transition_to(
+            ServiceState.DEPLOYED, trigger="deployment_completed"
+        )
         self.service_emitter.emit_service_deployment_completed(
             service_id=service_id,
             service_name=service_name,
@@ -388,7 +394,9 @@ class EmitterRegistry:
         if not state_manager.can_transition_to(EnvironmentState.PREPARED):
             return False
 
-        state_manager.transition_to(EnvironmentState.PREPARED, trigger="environment_prepared")
+        state_manager.transition_to(
+            EnvironmentState.PREPARED, trigger="environment_prepared"
+        )
         self.environment_emitter.emit_environment_prepared(
             environment_type=environment_type,
             preparation_details=preparation_details,
@@ -408,7 +416,9 @@ class EmitterRegistry:
         if not state_manager.can_transition_to(EnvironmentState.DEPLOYED):
             return False
 
-        state_manager.transition_to(EnvironmentState.DEPLOYED, trigger="environment_deployed")
+        state_manager.transition_to(
+            EnvironmentState.DEPLOYED, trigger="environment_deployed"
+        )
         self.environment_emitter.emit_environment_deployed(
             environment_type=environment_type,
             deployment_details=deployment_details,

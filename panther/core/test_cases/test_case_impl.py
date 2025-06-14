@@ -1,37 +1,37 @@
 import logging
 import os
-from pathlib import Path
-from typing import Literal
-import requests
 import re
 import time
+from pathlib import Path
+from typing import Literal
 from urllib.parse import urljoin
+
+import requests
 from colorlog import ColoredFormatter
 
-from panther.core.test_cases.test_interface_impl import ITestCase
-from panther.core.observer.management.event_manager import EventManager
+from panther.config.config_experiment_schema import TestConfig
+from panther.config.config_global_schema import GlobalConfig
 from panther.core.events.emitter_registry import EmitterRegistry
-from panther.plugins.environments.network_environment.network_environment_interface import (
-    INetworkEnvironment,
-)
 from panther.core.observer.factory import get_observer_factory
 from panther.core.observer.factory.factory_builders import (
     create_logger,
     create_metrics,
     create_storage,
-    create_experiment_observer,
 )
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.core.observer.impl.experiment_observer import ExperimentObserver
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.outputs.output_aggregator import OutputAggregator
 from panther.core.results.result_collector import ResultCollector
 from panther.core.results.result_handlers.storage_handler import StorageHandler
-from panther.plugins.services.services_interface import IServiceManager
-from panther.plugins.plugin_manager import PluginManager
+from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
-from panther.core.outputs.output_aggregator import OutputAggregator
-from panther.plugins.services.testers.tester_interface import ITesterManager
+from panther.plugins.environments.network_environment.network_environment_interface import (
+    INetworkEnvironment,
+)
+from panther.plugins.plugin_manager import PluginManager
 from panther.plugins.services.iut.config_schema import ImplementationType
-from panther.core.observer.impl.experiment_observer import ExperimentObserver
+from panther.plugins.services.services_interface import IServiceManager
+from panther.plugins.services.testers.tester_interface import ITesterManager
 
 
 class TestCase(ITestCase):
@@ -93,11 +93,15 @@ class TestCase(ITestCase):
         self.available_testers = None
         self.available_protocols = None
         self.test_defined_implementation = None
-        self.log_level = getattr(logging, self.global_config.logging.level.name, logging.INFO)
+        self.log_level = getattr(
+            logging, self.global_config.logging.level.name, logging.INFO
+        )
         self.log_format = self.global_config.logging.format
 
         self.test_name = re.sub(r"[^a-zA-Z0-9_]", "_", test_config.name.strip())
-        self.test_name = re.sub(r"_+", "_", self.test_name)  # Do not allow 2 "_" in a row
+        self.test_name = re.sub(
+            r"_+", "_", self.test_name
+        )  # Do not allow 2 "_" in a row
         self.test_experiment_dir = experiment_dir / self.test_name
         self._load_logging()
         self.logger.debug(
@@ -163,7 +167,9 @@ class TestCase(ITestCase):
 
         self._panther_dir = Path(os.path.dirname(__file__)).parent.parent.parent
 
-        self.state: Literal["PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"] = "PENDING"
+        self.state: Literal[
+            "PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"
+        ] = "PENDING"
 
         self.registered_observers: list[str] = []
 
@@ -220,7 +226,9 @@ class TestCase(ITestCase):
         for s in self.service_managers:
             # Get service name
             service_name = (
-                s.service_name if hasattr(s, "service_name") else s.get_implementation_name()
+                s.service_name
+                if hasattr(s, "service_name")
+                else s.get_implementation_name()
             )
             service_names.append(service_name)
 
@@ -297,17 +305,23 @@ class TestCase(ITestCase):
                     deployment_start_time = time.time()
 
                     # For Docker Compose environments, verify the Docker Compose file exists
-                    if hasattr(env_manager, "rendered_services_network_config_file_path"):
-                        compose_path = env_manager.rendered_services_network_config_file_path
+                    if hasattr(
+                        env_manager, "rendered_services_network_config_file_path"
+                    ):
+                        compose_path = (
+                            env_manager.rendered_services_network_config_file_path
+                        )
                         if not os.path.exists(compose_path):
-                            self.logger.error(f"Docker Compose file not found at {compose_path}")
+                            self.logger.error(
+                                f"Docker Compose file not found at {compose_path}"
+                            )
                             # State tracking happens through events
                             raise FileNotFoundError(
                                 f"Docker Compose file not found at {compose_path}"
                             )
 
                     # Deploy services through the network environment
-                    env_manager.deploy_services(self.service_managers)
+                    env_manager.deploy_services()
 
                     # Mark deployment as successful
                     successful_deployment = True
@@ -344,7 +358,9 @@ class TestCase(ITestCase):
 
                     # Calculate deployment duration and emit environment deployment completed event
                     deployment_duration = time.time() - deployment_start_time
-                    deployed_services_dict = {name: "deployed" for name in service_names}
+                    deployed_services_dict = {
+                        name: "deployed" for name in service_names
+                    }
 
                     self.environment_emitter.emit_environment_deployment_completed(
                         environment_id=env_name,
@@ -353,7 +369,9 @@ class TestCase(ITestCase):
                         success=True,
                         deployed_services=deployed_services_dict,
                         duration=deployment_duration,
-                        deployment_details={"service_count": len(self.service_managers)},
+                        deployment_details={
+                            "service_count": len(self.service_managers)
+                        },
                     )
                     self.logger.debug("Emitted environment_deployment_completed event")
 
@@ -361,7 +379,8 @@ class TestCase(ITestCase):
 
                 except FileNotFoundError as file_error:
                     self.logger.error(
-                        "Service deployment failed due to missing file: %s", str(file_error)
+                        "Service deployment failed due to missing file: %s",
+                        str(file_error),
                     )
 
                     # Update environment and service states to failed
@@ -389,7 +408,9 @@ class TestCase(ITestCase):
                             error_message=str(file_error),
                             error_type="FileNotFoundError",
                         )
-                    self.logger.debug("Emitted service_deployment_failed event for file not found")
+                    self.logger.debug(
+                        "Emitted service_deployment_failed event for file not found"
+                    )
 
                     # Emit environment deployment failed event
                     failed_services = [name for name in service_names]
@@ -457,8 +478,12 @@ class TestCase(ITestCase):
 
         # If we get here with no successful deployment and no exceptions raised
         if not successful_deployment:
-            self.logger.error("No suitable network environment found for service deployment")
-            raise RuntimeError("No suitable network environment found for service deployment")
+            self.logger.error(
+                "No suitable network environment found for service deployment"
+            )
+            raise RuntimeError(
+                "No suitable network environment found for service deployment"
+            )
 
     def execute_steps(self):
         """
@@ -471,7 +496,9 @@ class TestCase(ITestCase):
         and if so, it stops the execution and returns.
         """
         if not self.test_config.steps:
-            self.logger.info("No steps defined in test configuration, skipping step execution")
+            self.logger.info(
+                "No steps defined in test configuration, skipping step execution"
+            )
             return
 
         self.logger.info("Executing steps: %s", self.test_config.steps)
@@ -494,7 +521,9 @@ class TestCase(ITestCase):
                 ):
                     should_terminate = env_manager.should_terminate_early()
                     if should_terminate:
-                        self.logger.warning("Early termination requested by environment manager")
+                        self.logger.warning(
+                            "Early termination requested by environment manager"
+                        )
                         # Emit early termination event using the typed event emitter
                         self.experiment_emitter.emit_finished_early(
                             reason="Environment requested early termination",
@@ -509,11 +538,17 @@ class TestCase(ITestCase):
                 break
 
             # Check for observers that might request early termination
-            experiment_observer = self.event_manager.get_observer_by_type(ExperimentObserver)
-            if experiment_observer and hasattr(experiment_observer, "should_terminate_early"):
+            experiment_observer = self.event_manager.get_observer_by_type(
+                ExperimentObserver
+            )
+            if experiment_observer and hasattr(
+                experiment_observer, "should_terminate_early"
+            ):
                 should_terminate = experiment_observer.should_terminate_early()
                 if should_terminate:
-                    self.logger.warning("Early termination requested by experiment observer")
+                    self.logger.warning(
+                        "Early termination requested by experiment observer"
+                    )
                     # Emit early termination event using the typed event emitter
                     self.experiment_emitter.emit_finished_early(
                         reason="Observer requested early termination",
@@ -535,7 +570,9 @@ class TestCase(ITestCase):
                 )
 
                 # Split the wait into smaller intervals to allow checking for early termination
-                interval = min(1.0, step_details / 10.0)  # Check at least 10 times during wait
+                interval = min(
+                    1.0, step_details / 10.0
+                )  # Check at least 10 times during wait
                 wait_time_remaining = step_details
                 while wait_time_remaining > 0:
                     # Calculate wait time for this iteration
@@ -574,7 +611,10 @@ class TestCase(ITestCase):
                         # Emit early termination event using the typed event emitter
                         self.experiment_emitter.emit_finished_early(
                             reason="Environment requested early termination during wait",
-                            details={"step": step_name, "progress": progress_percentage},
+                            details={
+                                "step": step_name,
+                                "progress": progress_percentage,
+                            },
                         )
                         break
 
@@ -582,7 +622,9 @@ class TestCase(ITestCase):
                 result = {
                     "completed": not should_terminate,
                     "duration_s": (
-                        step_details - wait_time_remaining if should_terminate else step_details
+                        step_details - wait_time_remaining
+                        if should_terminate
+                        else step_details
                     ),
                 }
                 self.step_emitter.emit_step_execution_completed(
@@ -596,7 +638,9 @@ class TestCase(ITestCase):
                 if should_terminate:
                     break
             else:
-                self.logger.warning("Unknown step type: %s = %s", step_name, step_details)
+                self.logger.warning(
+                    "Unknown step type: %s = %s", step_name, step_details
+                )
                 # Emit unsupported step event using the typed event emitter
                 self.step_emitter.emit_step_unsupported(
                     step_id=step_name,
@@ -623,8 +667,13 @@ class TestCase(ITestCase):
 
         Each assertion is checked and an event is emitted with the result.
         """
-        if not hasattr(self.test_config, "assertions") or not self.test_config.assertions:
-            self.logger.info("No assertions defined in test configuration, skipping validation")
+        if (
+            not hasattr(self.test_config, "assertions")
+            or not self.test_config.assertions
+        ):
+            self.logger.info(
+                "No assertions defined in test configuration, skipping validation"
+            )
             return
 
         self.logger.info("Validating assertions: %s", self.test_config.assertions)
@@ -635,7 +684,9 @@ class TestCase(ITestCase):
             assertion_name="Test Case Assertions",
             test_case_id=self.test_name,
             total_assertions=len(self.test_config.assertions),
-            validation_config={"assertions": [str(a) for a in self.test_config.assertions]},
+            validation_config={
+                "assertions": [str(a) for a in self.test_config.assertions]
+            },
         )
 
         all_assertions_passed = True
@@ -712,7 +763,10 @@ class TestCase(ITestCase):
 
             except Exception as e:
                 self.logger.error(
-                    "Error validating assertion %s: %s", assertion_type, str(e), exc_info=True
+                    "Error validating assertion %s: %s",
+                    assertion_type,
+                    str(e),
+                    exc_info=True,
                 )
                 assertion_results[f"error_{assertion_type}"] = {
                     "success": False,
@@ -733,7 +787,9 @@ class TestCase(ITestCase):
                 )
 
         # Emit assertions validation completed event using the typed event emitter
-        passed_count = sum(1 for r in assertion_results.values() if r.get("success", False))
+        passed_count = sum(
+            1 for r in assertion_results.values() if r.get("success", False)
+        )
         failed_count = len(assertion_results) - passed_count
         self.assertion_emitter.emit_assertions_validation_completed(
             assertion_id="test_assertions",
@@ -843,7 +899,9 @@ class TestCase(ITestCase):
         except Exception as e:
             # Emit service setup failed event using the typed event emitter
             self.service_emitter.emit_service_setup_failed(
-                test_case=self.test_name, error_message=str(e), error_type=type(e).__name__
+                test_case=self.test_name,
+                error_message=str(e),
+                error_type=type(e).__name__,
             )
             self.logger.error("Service setup failed: %s", e, exc_info=True)
             raise
@@ -897,7 +955,8 @@ class TestCase(ITestCase):
                     self.logger.debug("Successfully prepared service: %s", service_name)
                 else:
                     self.logger.debug(
-                        "Service manager %s has no prepare method, skipping", service_name
+                        "Service manager %s has no prepare method, skipping",
+                        service_name,
                     )
 
             except Exception as e:
@@ -928,7 +987,9 @@ class TestCase(ITestCase):
         else:
             self.available_testers = []
 
-        self.logger.debug("Available testers from plugin catalog: %s", self.available_testers)
+        self.logger.debug(
+            "Available testers from plugin catalog: %s", self.available_testers
+        )
         self.test_defined_testers = [
             service_details
             for service_details in self.services.values()
@@ -952,7 +1013,9 @@ class TestCase(ITestCase):
             if plugin_manifest and tester_name in self.available_testers:
                 # Get implementation directory from the manifest
                 implementation_dir = (
-                    Path(plugin_manifest.file_path) if plugin_manifest.file_path else None
+                    Path(plugin_manifest.file_path)
+                    if plugin_manifest.file_path
+                    else None
                 )
 
                 if implementation_dir:
@@ -1035,9 +1098,13 @@ class TestCase(ITestCase):
                         self.available_protocols.append(protocol)
                     if protocol not in self.available_implementations_per_protocol:
                         self.available_implementations_per_protocol[protocol] = []
-                    self.available_implementations_per_protocol[protocol].append(manifest.name)
+                    self.available_implementations_per_protocol[protocol].append(
+                        manifest.name
+                    )
 
-        self.logger.debug("Available protocols from plugin catalog: %s", self.available_protocols)
+        self.logger.debug(
+            "Available protocols from plugin catalog: %s", self.available_protocols
+        )
         self.logger.debug(
             "Available implementations per protocol: %s",
             self.available_implementations_per_protocol,
@@ -1050,7 +1117,9 @@ class TestCase(ITestCase):
             if service_details.implementation.type == ImplementationType.IUT
         ]
 
-        self.logger.debug("Test defined implementations: %s", self.test_defined_implementation)
+        self.logger.debug(
+            "Test defined implementations: %s", self.test_defined_implementation
+        )
 
         # Process each implementation using the plugin catalog
         for implementation_config in self.test_defined_implementation:
@@ -1064,7 +1133,9 @@ class TestCase(ITestCase):
             if plugin_manifest and protocol_name in plugin_manifest.supported_protocols:
                 # Get implementation directory from the manifest
                 implementation_dir = (
-                    Path(plugin_manifest.file_path) if plugin_manifest.file_path else None
+                    Path(plugin_manifest.file_path)
+                    if plugin_manifest.file_path
+                    else None
                 )
 
                 if implementation_dir:
@@ -1095,7 +1166,8 @@ class TestCase(ITestCase):
                     )
                 else:
                     self.logger.error(
-                        "IUT plugin manifest found for '%s' but no file path available", impl_name
+                        "IUT plugin manifest found for '%s' but no file path available",
+                        impl_name,
                     )
             else:
                 self.logger.warning(
@@ -1154,8 +1226,10 @@ class TestCase(ITestCase):
 
         try:
             # Get the network environment plugin
-            network_environment_plugin = self.plugin_manager.get_network_environment_plugin(
-                self.test_config.network_environment.type
+            network_environment_plugin = (
+                self.plugin_manager.get_network_environment_plugin(
+                    self.test_config.network_environment.type
+                )
             )
 
             if not network_environment_plugin:
@@ -1177,7 +1251,9 @@ class TestCase(ITestCase):
             )
 
             # No need to register with observers - they observe through events
-            env_name = f"{network_environment_plugin.__class__.__name__}_{self.test_name}"
+            env_name = (
+                f"{network_environment_plugin.__class__.__name__}_{self.test_name}"
+            )
             # State tracking happens through events
 
             # Call initialize method on the plugin
@@ -1201,33 +1277,40 @@ class TestCase(ITestCase):
             execution_environments = []
             if self.test_config.execution_environments:
                 self.logger.info(
-                    "Setting up execution environments: %s", self.test_config.execution_environments
+                    "Setting up execution environments: %s",
+                    self.test_config.execution_environments,
                 )
 
                 for env_config in self.test_config.execution_environments:
                     env_type = env_config.type
-                    self.logger.info("Getting execution environment plugin: %s", env_type)
+                    self.logger.info(
+                        "Getting execution environment plugin: %s", env_type
+                    )
 
                     execution_environment_plugin = (
-                        self.plugin_manager.get_execution_environment_plugin(env_type)
+                        self.plugin_manager.get_execution_environment_plugin(
+                            env_type,
+                            output_dir=str(self.test_experiment_dir),
+                            event_manager=self.event_manager,
+                        )
                     )
 
                     if not execution_environment_plugin:
                         self.logger.warning(
-                            "Execution environment plugin not found for type: %s", env_type
+                            "Execution environment plugin not found for type: %s",
+                            env_type,
                         )
                         continue
 
                     # Register execution environment with observers for tracking
-                    exec_env_name = (
-                        f"{execution_environment_plugin.__class__.__name__}_{self.test_name}"
-                    )
+                    exec_env_name = f"{execution_environment_plugin.__class__.__name__}_{self.test_name}"
                     # No need to register with observers - they observe through events
                     # State tracking happens through events
 
                     # Initialize the execution environment
                     self.logger.info(
-                        "Initializing execution environment: %s", execution_environment_plugin.name
+                        "Initializing execution environment: %s",
+                        execution_environment_plugin.name,
                     )
                     execution_environment_plugin.initialize(
                         self.test_config,
@@ -1274,11 +1357,14 @@ class TestCase(ITestCase):
                     )
 
                     # Verify the environment is actually ready by checking for required files
-                    self.logger.info("Verifying network environment setup completed successfully")
+                    self.logger.info(
+                        "Verifying network environment setup completed successfully"
+                    )
 
                     # For Docker Compose environments, check if the file was actually created
                     if hasattr(
-                        network_environment_plugin, "rendered_services_network_config_file_path"
+                        network_environment_plugin,
+                        "rendered_services_network_config_file_path",
                     ):
                         config_file_path = (
                             network_environment_plugin.rendered_services_network_config_file_path
@@ -1304,9 +1390,12 @@ class TestCase(ITestCase):
                     # State tracking happens through events
 
                     # Log success and details
-                    self.logger.info(f"Environment {env_name} setup completed successfully")
+                    self.logger.info(
+                        f"Environment {env_name} setup completed successfully"
+                    )
                     if hasattr(
-                        network_environment_plugin, "rendered_services_network_config_file_path"
+                        network_environment_plugin,
+                        "rendered_services_network_config_file_path",
                     ):
                         self.logger.info(
                             f"Docker Compose file created at: {network_environment_plugin.rendered_services_network_config_file_path}"
@@ -1314,7 +1403,9 @@ class TestCase(ITestCase):
 
                 except Exception as setup_error:
                     self.logger.error(
-                        "Network environment setup failed: %s", setup_error, exc_info=True
+                        "Network environment setup failed: %s",
+                        setup_error,
+                        exc_info=True,
                     )
                     # State tracking happens through events
 
@@ -1341,6 +1432,7 @@ class TestCase(ITestCase):
                 setup_details={
                     "network_environment": network_environment_plugin.name,
                     "execution_environments": execution_env_names,
+                    "test_case": self.test_name,  # Add test case name to setup details
                 },
             )
 
@@ -1370,7 +1462,8 @@ class TestCase(ITestCase):
                 try:
                     env_manager.teardown_environment()
                     self.logger.info(
-                        "Test environment torn down via '%s'", env_manager.__class__.__name__
+                        "Test environment torn down via '%s'",
+                        env_manager.__class__.__name__,
                     )
                     # Use the typed event emitter for environment teardown event
                     self.environment_emitter.emit_environment_teardown_completed(
@@ -1480,15 +1573,7 @@ class TestCase(ITestCase):
                 logger_id = f"test_logger_{self.test_name}"
 
                 # Check if observer already exists to prevent duplication
-                existing_observer = self.event_manager.register_observer_once(
-                    observer=None,  # Will be created by factory
-                    observer_id=logger_id,
-                    scope="test",
-                    event_types=None,  # Global observer
-                    priority=0,
-                )
-
-                if existing_observer is None:
+                if not self.event_manager.has_observer(logger_id):
                     self.logger.debug("Creating enhanced logger observer")
                     # Get log level from observer config if available, otherwise fallback to global log level
                     log_level = (
@@ -1518,12 +1603,18 @@ class TestCase(ITestCase):
                     )
 
                     self.registered_observers.append(logger_id)
-                    self.logger.debug("Registered enhanced logger observer with scope tracking")
+                    self.logger.debug(
+                        "Registered enhanced logger observer with scope tracking"
+                    )
                 else:
-                    self.logger.debug("Logger observer already exists, reusing existing instance")
+                    self.logger.debug(
+                        "Logger observer already exists, reusing existing instance"
+                    )
 
             except Exception as e:
-                self.logger.warning("Failed to create enhanced logger observer: %s. ", e)
+                self.logger.warning(
+                    "Failed to create enhanced logger observer: %s. ", e
+                )
 
         # Create and register enhanced metrics observer (test-scoped)
         if self.global_config.observers.metrics.enabled:
@@ -1531,15 +1622,7 @@ class TestCase(ITestCase):
                 metrics_id = f"test_metrics_{self.test_name}"
 
                 # Check if observer already exists to prevent duplication
-                existing_observer = self.event_manager.register_observer_once(
-                    observer=None,  # Will be created by factory
-                    observer_id=metrics_id,
-                    scope="test",
-                    event_types=None,  # Global observer
-                    priority=10,
-                )
-
-                if existing_observer is None:
+                if not self.event_manager.has_observer(metrics_id):
                     self.logger.info("Creating enhanced metrics observer")
                     # Get metrics observer log level if available
                     metrics_log_level = (
@@ -1575,9 +1658,13 @@ class TestCase(ITestCase):
                     )
 
                     self.registered_observers.append(metrics_id)
-                    self.logger.debug("Registered enhanced metrics observer with scope tracking")
+                    self.logger.debug(
+                        "Registered enhanced metrics observer with scope tracking"
+                    )
                 else:
-                    self.logger.debug("Metrics observer already exists, reusing existing instance")
+                    self.logger.debug(
+                        "Metrics observer already exists, reusing existing instance"
+                    )
 
             except Exception as e:
                 self.logger.warning("Failed to create enhanced metrics observer: %s", e)
@@ -1588,15 +1675,7 @@ class TestCase(ITestCase):
                 storage_id = f"test_storage_{self.test_name}"
 
                 # Check if observer already exists to prevent duplication
-                existing_observer = self.event_manager.register_observer_once(
-                    observer=None,  # Will be created by factory
-                    observer_id=storage_id,
-                    scope="test",
-                    event_types=None,  # Global observer
-                    priority=20,
-                )
-
-                if existing_observer is None:
+                if not self.event_manager.has_observer(storage_id):
                     self.logger.info("Creating enhanced storage observer")
                     observer = create_storage(
                         name=storage_id,
@@ -1622,32 +1701,27 @@ class TestCase(ITestCase):
                     )
 
                     self.registered_observers.append(storage_id)
-                    self.logger.debug("Registered enhanced storage observer with scope tracking")
+                    self.logger.debug(
+                        "Registered enhanced storage observer with scope tracking"
+                    )
                 else:
-                    self.logger.debug("Storage observer already exists, reusing existing instance")
+                    self.logger.debug(
+                        "Storage observer already exists, reusing existing instance"
+                    )
 
             except Exception as e:
                 self.logger.warning("Failed to create enhanced storage observer: %s", e)
                 # No fallback for storage as it requires ResultsManager integration
 
-        # Create and register experiment observer (always enabled for tracking)
-        try:
-            self.logger.debug("Creating experiment observer")
-            create_experiment_observer(
-                name="test_experiment",
-                global_config=self.global_config,
-                auto_register=True,
-                output_dir=str(self.test_experiment_dir),
-                test_name=self.test_name,
-                track_timing=True,
-                track_steps=True,
-            )
-            self.registered_observers.append("test_experiment")
-            self.logger.debug("Registered experiment observer")
-        except Exception as e:
-            self.logger.warning("Failed to create experiment observer: %s.", e)
+        # Note: ExperimentObserver is registered at the experiment level to avoid duplication.
+        # Individual test cases should not create their own ExperimentObserver instances.
+        self.logger.debug(
+            "ExperimentObserver is managed at experiment level - no test-level observer needed"
+        )
 
-    def check_service_responsiveness(self, service_name: str, endpoint: str, expected_status: int):
+    def check_service_responsiveness(
+        self, service_name: str, endpoint: str, expected_status: int
+    ):
         """
         Checks if a service's endpoint is responsive and returns the expected status code.
 
@@ -1675,7 +1749,9 @@ class TestCase(ITestCase):
                 break
 
         if not service_manager:
-            self.logger.error("Service manager for '%s' not found.", service_name, exc_info=True)
+            self.logger.error(
+                "Service manager for '%s' not found.", service_name, exc_info=True
+            )
             return
 
         # Assuming service manager provides the base URL or IP
@@ -1709,7 +1785,9 @@ class TestCase(ITestCase):
                 e,
                 exc_info=True,
             )
-            raise Exception(f"Could not reach service {service_name} at {url}: {str(e)}")
+            raise Exception(
+                f"Could not reach service {service_name} at {url}: {str(e)}"
+            )
 
     def _check_service_test_results(self):
         """
@@ -1762,7 +1840,9 @@ class TestCase(ITestCase):
                 continue
 
             tester_count += 1
-            service_name = getattr(service_manager, "service_name", f"tester_{tester_count}")
+            service_name = getattr(
+                service_manager, "service_name", f"tester_{tester_count}"
+            )
 
             self.logger.debug("Collecting test results from tester: %s", service_name)
 
@@ -1804,13 +1884,21 @@ class TestCase(ITestCase):
                             passed_count = test_results.get("passed", 0)
                             failed_count = test_results.get("failed", 0)
                             service_success = failed_count == 0
-                            result_info = {"passed": passed_count, "failed": failed_count}
+                            result_info = {
+                                "passed": passed_count,
+                                "failed": failed_count,
+                            }
                         elif isinstance(test_results, list):
                             # List of test results, count passes and failures
-                            passed_count = sum(1 for r in test_results if r.get("passed", False))
+                            passed_count = sum(
+                                1 for r in test_results if r.get("passed", False)
+                            )
                             failed_count = len(test_results) - passed_count
                             service_success = failed_count == 0
-                            result_info = {"passed": passed_count, "failed": failed_count}
+                            result_info = {
+                                "passed": passed_count,
+                                "failed": failed_count,
+                            }
                         else:
                             # Unknown format, assume success for now but log a warning
                             self.logger.warning(
@@ -1819,11 +1907,19 @@ class TestCase(ITestCase):
                                 type(test_results),
                             )
                             service_success = True
-                            result_info = {"passed": 1, "failed": 0, "format_warning": True}
+                            result_info = {
+                                "passed": 1,
+                                "failed": 0,
+                                "format_warning": True,
+                            }
 
                         # Update aggregated results
-                        aggregated_results["tests_passed"] += result_info.get("passed", 0)
-                        aggregated_results["tests_failed"] += result_info.get("failed", 0)
+                        aggregated_results["tests_passed"] += result_info.get(
+                            "passed", 0
+                        )
+                        aggregated_results["tests_failed"] += result_info.get(
+                            "failed", 0
+                        )
                         aggregated_results["tests_total"] += result_info.get(
                             "passed", 0
                         ) + result_info.get("failed", 0)
@@ -1844,7 +1940,10 @@ class TestCase(ITestCase):
                             increment=False,  # absolute value
                             test_case=self.test_config.name,
                             component=service_name,
-                            metadata={"tester": service_name, "service_success": service_success},
+                            metadata={
+                                "tester": service_name,
+                                "service_success": service_success,
+                            },
                         )
 
                         # Emit service test results event
@@ -1855,13 +1954,17 @@ class TestCase(ITestCase):
                             test_results=result_info,
                             overall_success=service_success,
                             test_summary={
-                                "service_type": getattr(service_manager, "service_type", "tester"),
+                                "service_type": getattr(
+                                    service_manager, "service_type", "tester"
+                                ),
                                 "raw_results": test_results,
                             },
                         )
                     else:
                         # No test results available
-                        self.logger.warning("No test results available from %s", service_name)
+                        self.logger.warning(
+                            "No test results available from %s", service_name
+                        )
                         aggregated_results["testers"][service_name] = {
                             "success": False,
                             "passed": 0,
@@ -1870,7 +1973,9 @@ class TestCase(ITestCase):
                         }
                 except Exception as e:
                     # Error getting test results
-                    self.logger.error("Error getting test results from %s: %s", service_name, e)
+                    self.logger.error(
+                        "Error getting test results from %s: %s", service_name, e
+                    )
                     aggregated_results["testers"][service_name] = {
                         "success": False,
                         "passed": 0,
@@ -1887,11 +1992,15 @@ class TestCase(ITestCase):
                         error_message=str(e),
                         error_type="test_results_failed",
                         error_details={
-                            "service_type": getattr(service_manager, "service_type", "tester"),
+                            "service_type": getattr(
+                                service_manager, "service_type", "tester"
+                            ),
                         },
                     )
             else:
-                self.logger.warning("Service %s does not provide test results", service_name)
+                self.logger.warning(
+                    "Service %s does not provide test results", service_name
+                )
 
         # Update tester count
         aggregated_results["tester_count"] = tester_count
@@ -1975,10 +2084,23 @@ class TestCase(ITestCase):
                 environment_emitter=self.emitter_registry.environment_emitter,
             )
 
-            # Collect outputs from all environments
-            collected_outputs = aggregator.collect_from_environments(
-                self.environment_plugin_manager
+            # Collect outputs from all environments (both network and execution environments)
+            all_environments = self.environment_plugin_manager.copy()
+
+            # Debug: Log which environments we're attempting to collect from
+            self.logger.info(
+                f"Attempting output collection from {len(all_environments)} environments:"
             )
+            for env in all_environments:
+                env_type = env.__class__.__name__
+                implements_collector = hasattr(env, "collect_outputs") and hasattr(
+                    env, "get_output_metadata"
+                )
+                self.logger.info(
+                    f"  - {env_type} (implements IOutputCollector: {implements_collector})"
+                )
+
+            collected_outputs = aggregator.collect_from_environments(all_environments)
 
             # Prepare outputs for testers (reorganize by output type)
             organized_outputs = aggregator.prepare_for_testers(collected_outputs)
@@ -1999,7 +2121,9 @@ class TestCase(ITestCase):
                     component="test_case",
                 )
 
-            self.logger.info(f"Output collection completed in {collection_duration:.2f}s")
+            self.logger.info(
+                f"Output collection completed in {collection_duration:.2f}s"
+            )
             return organized_outputs
 
         except Exception as e:
@@ -2044,7 +2168,9 @@ class TestCase(ITestCase):
         try:
             # Get organized outputs (should be set by _collect_outputs)
             if not hasattr(self, "organized_outputs"):
-                self.logger.warning("No organized outputs available for tester analysis")
+                self.logger.warning(
+                    "No organized outputs available for tester analysis"
+                )
                 return True  # Don't fail the test if no outputs to analyze
 
             # Find all tester service managers
@@ -2057,7 +2183,9 @@ class TestCase(ITestCase):
                 self.logger.info("No tester service managers found, skipping analysis")
                 return True
 
-            self.logger.info(f"Found {len(tester_managers)} tester service managers for analysis")
+            self.logger.info(
+                f"Found {len(tester_managers)} tester service managers for analysis"
+            )
 
             # Run analysis for each tester
             for tester in tester_managers:
@@ -2122,7 +2250,8 @@ class TestCase(ITestCase):
 
                 except Exception as e:
                     self.logger.error(
-                        f"Error running analysis with tester {tester_name}: {e}", exc_info=True
+                        f"Error running analysis with tester {tester_name}: {e}",
+                        exc_info=True,
                     )
 
                     # Mark this tester as failed
@@ -2211,7 +2340,9 @@ class TestCase(ITestCase):
 
             # Emit test execution started event according to workflow
             self.test_emitter.emit_execution_started(
-                steps=list(self.test_config.steps.keys()) if self.test_config.steps else None
+                steps=list(self.test_config.steps.keys())
+                if self.test_config.steps
+                else None
             )
 
             # State transitions are handled automatically by StateEventObserver
@@ -2233,6 +2364,15 @@ class TestCase(ITestCase):
 
             # State transitions are handled automatically by StateEventObserver
 
+            # Emit command generation started event for workflow coordination
+            self.service_emitter.emit_command_generation_started(
+                service_id="experiment",
+                service_name="experiment_services",
+                phase="command_generation",
+                protocol="all",
+                config={"test_case": self.test_name},
+            )
+
             # Prepare services (build Docker images) with timing
             prepare_services_start = time.time()
             self.prepare_services()
@@ -2247,6 +2387,14 @@ class TestCase(ITestCase):
                     test_case=self.test_config.name,
                     component="test_case",
                 )
+
+            # Emit Docker build started event for workflow coordination
+            self.service_emitter.emit_docker_build_started(
+                service_id="experiment",
+                service_name="experiment_services",
+                dockerfile_path="experiment_dockerfile",  # Placeholder for workflow coordination
+                implementation="experiment",
+            )
 
             # Setup environment with timing
             setup_env_start = time.time()
@@ -2326,7 +2474,8 @@ class TestCase(ITestCase):
             if not tester_analysis_passed:
                 self.state = "FAILED"
                 self.logger.error(
-                    "Test '%s' failed due to tester analysis failures.", self.test_config.name
+                    "Test '%s' failed due to tester analysis failures.",
+                    self.test_config.name,
                 )
 
                 # Emit test failed event
@@ -2362,7 +2511,10 @@ class TestCase(ITestCase):
             # Use event emitter for test completion notification instead of direct event_manager
             self.test_emitter.emit_completed(
                 total_duration_seconds=total_duration,
-                summary={"duration_ms": int(total_duration * 1000), "test_state": self.state},
+                summary={
+                    "duration_ms": int(total_duration * 1000),
+                    "test_state": self.state,
+                },
             )
 
             # Emit test execution completed event according to workflow
@@ -2431,7 +2583,9 @@ class TestCase(ITestCase):
                     if factory.unregister_observer(observer_name):
                         self.logger.debug("Unregistered observer '%s'", observer_name)
                     else:
-                        self.logger.warning("Failed to unregister observer '%s'", observer_name)
+                        self.logger.warning(
+                            "Failed to unregister observer '%s'", observer_name
+                        )
                 self.registered_observers.clear()  # Clear the list after unregistration
                 self.logger.debug("Unregistered all observers after test completion")
             except Exception as e:
@@ -2446,10 +2600,14 @@ class TestCase(ITestCase):
             ExperimentObserver or None: The experiment observer instance if found, None otherwise
         """
         if not hasattr(self, "event_manager") or self.event_manager is None:
-            self.logger.warning("No event_manager available for getting experiment observer")
+            self.logger.warning(
+                "No event_manager available for getting experiment observer"
+            )
             return None
 
-        experiment_observer = self.event_manager.get_observer_by_type(ExperimentObserver)
+        experiment_observer = self.event_manager.get_observer_by_type(
+            ExperimentObserver
+        )
         if experiment_observer is None:
             self.logger.warning("No ExperimentObserver found in event_manager")
 

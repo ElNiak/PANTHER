@@ -3,10 +3,11 @@
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import Dict, Optional
 
 import pytest
 
-from ..metrics import record, flush
+from ..metrics import flush, record
 from ..metrics.resource_sampler import ResourceSampler
 
 
@@ -14,9 +15,9 @@ class PantherMetricsPlugin:
     """Pytest plugin for collecting metrics during test sessions."""
 
     def __init__(self):
-        self.session_start_time: float | None = None
-        self.resource_sampler: ResourceSampler | None = None
-        self.test_results: dict[str, int] = {
+        self.session_start_time: Optional[float] = None
+        self.resource_sampler: Optional[ResourceSampler] = None
+        self.test_results: Dict[str, int] = {
             "passed": 0,
             "failed": 0,
             "skipped": 0,
@@ -65,7 +66,9 @@ class PantherMetricsPlugin:
         record("pytest.item_count", float(total_items), {"stage": "tests"})
         record("pytest.passed", float(self.test_results["passed"]), {"stage": "tests"})
         record("pytest.failed", float(self.test_results["failed"]), {"stage": "tests"})
-        record("pytest.skipped", float(self.test_results["skipped"]), {"stage": "tests"})
+        record(
+            "pytest.skipped", float(self.test_results["skipped"]), {"stage": "tests"}
+        )
         record("pytest.errors", float(self.test_results["errors"]), {"stage": "tests"})
 
         # Record resource metrics
@@ -84,7 +87,7 @@ class PantherMetricsPlugin:
         }
         flush("tests", extra_data)
 
-    def _get_coverage_percentage(self) -> float | None:
+    def _get_coverage_percentage(self) -> Optional[float]:
         """Extract coverage percentage from coverage reports."""
         # Try to find coverage.xml file
         project_root = Path.cwd()
@@ -104,7 +107,7 @@ class PantherMetricsPlugin:
         # Try to get from pytest-cov plugin if available
         return self._get_coverage_from_plugin()
 
-    def _parse_coverage_xml(self, coverage_file: Path) -> float | None:
+    def _parse_coverage_xml(self, coverage_file: Path) -> Optional[float]:
         """Parse coverage percentage from coverage.xml file."""
         try:
             tree = ET.parse(coverage_file)
@@ -128,7 +131,7 @@ class PantherMetricsPlugin:
 
         return None
 
-    def _get_coverage_from_plugin(self) -> float | None:
+    def _get_coverage_from_plugin(self) -> Optional[float]:
         """Try to get coverage from pytest-cov plugin if available."""
         try:
             # This is a bit hacky but works if pytest-cov is loaded

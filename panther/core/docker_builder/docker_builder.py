@@ -1,11 +1,13 @@
 import json
 import logging
+import os
 import subprocess
-import docker
-from docker.errors import DockerException, NotFound, BuildError
 from pathlib import Path
 from typing import Any
-import os
+
+import docker
+from docker.errors import BuildError, DockerException, NotFound
+
 from panther.core.exceptions import EnvironmentPluginNotFound, ServicePluginNotFound
 
 
@@ -91,7 +93,9 @@ class DockerBuilder:
                     elif "error" in output:
                         if log_f:
                             log_f.write(f"{task_name}:{output['error']}\n")
-                        self.logger.warning("Error from %s: %s", task_name, output["error"])
+                        self.logger.warning(
+                            "Error from %s: %s", task_name, output["error"]
+                        )
                 else:
                     # Handle raw output (bytes or string)
                     output_str = str(output).strip("\r\n").strip("\n")
@@ -113,7 +117,6 @@ class DockerBuilder:
         context_path: Path,
         config: dict[str, Any],
         tag_version: str = "latest",
-        build_image_force: bool = True,
         remove_dangling: bool = False,
     ) -> str | None:
         """
@@ -130,29 +133,20 @@ class DockerBuilder:
             str | None: The tag of the built Docker image, or None if the build was skipped.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot build Docker image.")
+            self.logger.error(
+                "Docker client is not available. Cannot build Docker image."
+            )
             raise RuntimeError(
                 "Docker client is not available. Please check Docker daemon is running."
             )
 
-        image_tag = f"{impl_name}_{version}_panther:{tag_version}"
+        image_tag = f"{impl_name}_{version}:{tag_version}"
         self.logger.debug(
             "Building Docker image '%s' from '%s' with context '%s'",
             image_tag,
             dockerfile_path,
             context_path,
         )
-
-        # Check if the image already exists
-        existing_image = self.image_exists(image_tag)
-        self.logger.debug("Checking if image '%s' exists: %s", image_tag, existing_image)
-        if existing_image and not build_image_force:
-            # TODO pass the force flag to the build_image function in the global config
-            self.logger.info(
-                "Docker image '%s' already exists and force rebuild is not enabled. Skipping build.",
-                image_tag,
-            )
-            return image_tag
 
         # Extract dependencies
         dependencies = config.get("dependencies", {})
@@ -165,7 +159,9 @@ class DockerBuilder:
             except (OSError, AttributeError):
                 # Fallback to environment variable or default
                 username = os.environ.get("USER", os.environ.get("USERNAME", "panther"))
-                self.logger.warning("Could not get login username, using fallback: %s", username)
+                self.logger.warning(
+                    "Could not get login username, using fallback: %s", username
+                )
 
             build_args = {
                 "VERSION": config.get("commit", "master"),
@@ -194,7 +190,9 @@ class DockerBuilder:
                 # platform="linux/arm64",
                 # squash=True,  # Squash layers to reduce image size
             )
-            self.log_docker_output(build_logs, f"Building Docker image '{image_tag}'", log_f)
+            self.log_docker_output(
+                build_logs, f"Building Docker image '{image_tag}'", log_f
+            )
             if log_f:
                 log_f.close()
             self.logger.info(
@@ -213,7 +211,9 @@ class DockerBuilder:
         except BuildError as e:
             self.logger.error("Failed to build Docker image '%s' : %s", image_tag, e)
             if log_f:
-                self.log_docker_output(e.build_log, f"Building Docker image '{image_tag}'", log_f)
+                self.log_docker_output(
+                    e.build_log, f"Building Docker image '{image_tag}'", log_f
+                )
                 log_f.write(f"ERROR: {e}\n")
                 log_f.close()
             raise RuntimeError(f"Failed to build Docker image '{image_tag}': {e}")
@@ -222,7 +222,9 @@ class DockerBuilder:
             if log_f:
                 log_f.write(f"ERROR: {e}\n")
                 log_f.close()
-            raise RuntimeError(f"Unexpected error during build of Docker image '{image_tag}': {e}")
+            raise RuntimeError(
+                f"Unexpected error during build of Docker image '{image_tag}': {e}"
+            )
 
     def image_exists(self, image_tag: str) -> bool:
         """
@@ -232,7 +234,9 @@ class DockerBuilder:
         :return: True if exists, else False.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot check if image exists.")
+            self.logger.error(
+                "Docker client is not available. Cannot check if image exists."
+            )
             return False
 
         try:
@@ -275,7 +279,9 @@ class DockerBuilder:
         # implementations_dir =  Path(os.path.dirname(__file__)) / Path(plugins_dir) / "services" / "iut"
         implementations_dir = Path(self.plugins_dir) / "services" / "iut"
 
-        self.logger.info("Scanning for Dockerfiles in '%s'", implementations_dir.resolve())
+        self.logger.info(
+            "Scanning for Dockerfiles in '%s'", implementations_dir.resolve()
+        )
         print(f"Scanning for Dockerfiles in '{implementations_dir.resolve()}'")
         if not implementations_dir.exists():
             self.logger.warning(
@@ -309,7 +315,9 @@ class DockerBuilder:
                     impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
                     dockerfiles[impl_name] = dockerfile.resolve()
                     self.logger.debug(
-                        "Found Dockerfile for testers '%s': %s", impl_name, dockerfile.resolve()
+                        "Found Dockerfile for testers '%s': %s",
+                        impl_name,
+                        dockerfile.resolve(),
                     )
 
         env_dir = Path(plugins_dir) / "environments"
@@ -326,7 +334,9 @@ class DockerBuilder:
                     impl_name = impl_dir.name  # e.g., 'picoquic', 'picotls'
                     dockerfiles[impl_name] = dockerfile.resolve()
                     self.logger.debug(
-                        "Found Dockerfile for environment '%s': %s", impl_name, dockerfile.resolve()
+                        "Found Dockerfile for environment '%s': %s",
+                        impl_name,
+                        dockerfile.resolve(),
                     )
 
         self.logger.info("Total Dockerfiles found: %s", len(dockerfiles))
@@ -352,27 +362,37 @@ class DockerBuilder:
             - Error: If there is an error during the push process.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot push image to registry.")
+            self.logger.error(
+                "Docker client is not available. Cannot push image to registry."
+            )
             return False
 
         registry_image_tag = f"{registry_url}/{image_tag.split(':')[0]}:{tag}"
-        self.logger.info("Pushing image '%s' to registry '%s'", image_tag, registry_image_tag)
+        self.logger.info(
+            "Pushing image '%s' to registry '%s'", image_tag, registry_image_tag
+        )
 
         try:
             # Tag the image for the registry
             image = self.client.images.get(image_tag)
             image.tag(registry_image_tag)
-            self.logger.debug("Tagged image '%s' as '%s'", image_tag, registry_image_tag)
+            self.logger.debug(
+                "Tagged image '%s' as '%s'", image_tag, registry_image_tag
+            )
 
             # Push the image
-            push_logs = self.client.images.push(registry_url, tag=tag, stream=True, decode=True)
+            push_logs = self.client.images.push(
+                registry_url, tag=tag, stream=True, decode=True
+            )
             for chunk in push_logs:
                 if "status" in chunk:
                     self.logger.debug("Pushing: %s", chunk["status"])
                 elif "error" in chunk:
                     self.logger.error("Pushing Error: %s", chunk["error"])
                     return False
-            self.logger.info("Successfully pushed image '%s' to registry.", registry_image_tag)
+            self.logger.info(
+                "Successfully pushed image '%s' to registry.", registry_image_tag
+            )
             return True
         except (NotFound, DockerException) as e:
             self.logger.error("Failed to push image '%s' to registry: %s", image_tag, e)
@@ -388,7 +408,9 @@ class DockerBuilder:
         :return: List of container names.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot list Panther containers.")
+            self.logger.error(
+                "Docker client is not available. Cannot list Panther containers."
+            )
             return []
 
         try:
@@ -411,7 +433,9 @@ class DockerBuilder:
             DockerException: If there is an error while checking the container existence.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot check if container exists.")
+            self.logger.error(
+                "Docker client is not available. Cannot check if container exists."
+            )
             return False
 
         try:
@@ -422,7 +446,9 @@ class DockerBuilder:
             self.logger.debug("Container '%s' does not exist.", container_name)
             return False
         except DockerException as e:
-            self.logger.error("Error checking container existence '%s': %s", container_name, e)
+            self.logger.error(
+                "Error checking container existence '%s': %s", container_name, e
+            )
             return False
 
     def get_container_ip(self, container_name: str) -> str | None:
@@ -437,7 +463,9 @@ class DockerBuilder:
             Error: Logs an error message if the container is not found, or if there is an issue retrieving the IP address.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot get container IP.")
+            self.logger.error(
+                "Docker client is not available. Cannot get container IP."
+            )
             return None
 
         try:
@@ -447,7 +475,9 @@ class DockerBuilder:
             self.logger.debug("Container '%s' IP address: %s", container_name, ip)
             return ip
         except (NotFound, KeyError, IndexError) as e:
-            self.logger.error("Error retrieving IP for container '%s': %s", container_name, e)
+            self.logger.error(
+                "Error retrieving IP for container '%s': %s", container_name, e
+            )
             return None
         except DockerException as e:
             self.logger.error(
@@ -546,7 +576,9 @@ class DockerBuilder:
                 name=network_name,
                 driver=driver,
                 ipam=docker.service_types.IPAMConfig(
-                    pool_configs=[docker.service_types.IPAMPool(subnet=subnet, gateway=gateway)]
+                    pool_configs=[
+                        docker.service_types.IPAMPool(subnet=subnet, gateway=gateway)
+                    ]
                 ),
             )
             self.logger.info("Network '%s' created successfully.", network_name)
@@ -555,7 +587,9 @@ class DockerBuilder:
             self.logger.error("Failed to create network '%s': %s", network_name, e)
             return False
         except Exception as e:
-            self.logger.error("Unexpected error creating network '%s': %s", network_name, e)
+            self.logger.error(
+                "Unexpected error creating network '%s': %s", network_name, e
+            )
             return False
 
     def network_exists(self, network_name: str) -> bool:
@@ -570,7 +604,9 @@ class DockerBuilder:
             Error: Logs any DockerException encountered during the check.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot check if network exists.")
+            self.logger.error(
+                "Docker client is not available. Cannot check if network exists."
+            )
             return False
 
         try:
@@ -581,7 +617,9 @@ class DockerBuilder:
             self.logger.debug("Network '%s' does not exist.", network_name)
             return False
         except DockerException as e:
-            self.logger.error("Error checking network existence '%s': %s", network_name, e)
+            self.logger.error(
+                "Error checking network existence '%s': %s", network_name, e
+            )
             return False
 
     def get_panther_containers(self) -> list[str]:
@@ -592,7 +630,9 @@ class DockerBuilder:
             List of container names.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot get Panther containers.")
+            self.logger.error(
+                "Docker client is not available. Cannot get Panther containers."
+            )
             return []
 
         try:
@@ -612,7 +652,9 @@ class DockerBuilder:
         :return: True if successful, else False.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot stop and remove container.")
+            self.logger.error(
+                "Docker client is not available. Cannot stop and remove container."
+            )
             return False
 
         try:
@@ -625,11 +667,15 @@ class DockerBuilder:
             self.logger.warning("Container '%s' not found.", container_name)
             return False
         except DockerException as e:
-            self.logger.error("Error stopping/removing container '%s': %s", container_name, e)
+            self.logger.error(
+                "Error stopping/removing container '%s': %s", container_name, e
+            )
             return False
         except Exception as e:
             self.logger.error(
-                "Unexpected error stopping/removing container '%s': %s", container_name, e
+                "Unexpected error stopping/removing container '%s': %s",
+                container_name,
+                e,
             )
             return False
 
@@ -640,7 +686,9 @@ class DockerBuilder:
         :param keep_tags: List of image tags to retain.
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot cleanup unused images.")
+            self.logger.error(
+                "Docker client is not available. Cannot cleanup unused images."
+            )
             return
 
         try:
@@ -673,7 +721,9 @@ class DockerBuilder:
             bool: True if successful, False if an error occurred
         """
         if self.client is None:
-            self.logger.error("Docker client is not available. Cannot remove dangling images.")
+            self.logger.error(
+                "Docker client is not available. Cannot remove dangling images."
+            )
             return False
 
         try:
@@ -689,7 +739,9 @@ class DockerBuilder:
                 self.logger.info("Removing dangling image %s", image.id[:12])
                 self.client.images.remove(image.id, force=False)
 
-            self.logger.info("Successfully removed %s dangling images", len(dangling_images))
+            self.logger.info(
+                "Successfully removed %s dangling images", len(dangling_images)
+            )
             return True
         except DockerException as e:
             self.logger.error("Error removing dangling images: %s", e)

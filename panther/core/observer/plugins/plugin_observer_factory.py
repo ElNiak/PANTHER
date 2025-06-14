@@ -5,11 +5,12 @@ This module provides classes and functions for automatically generating
 plugin observers based on plugin interfaces.
 """
 
-import logging
 import inspect
+import logging
 from typing import Any
 
-from panther.core.events import BaseEvent as Event
+from panther.core.events.base.event_base import BaseEvent as Event
+
 from .plugin_interface import IPluginObserver
 
 
@@ -142,7 +143,9 @@ class PluginObserverFactory:
 
         # Check specific event handler
         specific_handler = f"on_event_{event_type}"
-        if hasattr(plugin, specific_handler) and callable(getattr(plugin, specific_handler)):
+        if hasattr(plugin, specific_handler) and callable(
+            getattr(plugin, specific_handler)
+        ):
             try:
                 getattr(plugin, specific_handler)(event)
             except Exception as e:

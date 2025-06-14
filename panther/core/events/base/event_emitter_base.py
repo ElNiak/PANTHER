@@ -4,8 +4,8 @@ Base Event Emitter
 This module provides a base class for all event emitters to reduce code duplication.
 """
 
-from typing import TYPE_CHECKING, TypeVar
 from abc import ABC
+from typing import TYPE_CHECKING, Type, TypeVar
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
@@ -43,7 +43,7 @@ class EventEmitterBase(ABC):
         """
         self.event_manager.notify(event)
 
-    def _create_and_emit_event(self, event_class: type[EventType], **kwargs) -> None:
+    def _create_and_emit_event(self, event_class: Type[EventType], **kwargs) -> None:
         """
         Create and emit an event with the given parameters.
 
@@ -113,7 +113,9 @@ class EntityEventEmitterBase(EventEmitterBase):
         super().__init__(event_manager, entity_id)
         self.entity_type = entity_type
 
-    def _create_and_emit_entity_event(self, event_class: type[EventType], **kwargs) -> None:
+    def _create_and_emit_entity_event(
+        self, event_class: Type[EventType], **kwargs
+    ) -> None:
         """
         Create and emit an entity-specific event.
 

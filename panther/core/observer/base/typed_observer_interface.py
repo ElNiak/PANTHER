@@ -5,118 +5,126 @@ This module provides an enhanced observer interface that supports the new typed 
 with specific handler methods for each event type.
 """
 
-from collections.abc import Callable
 import logging
+from collections.abc import Callable
 
-from panther.core.events import (
-    BaseEvent,
-    # Experiment events
-    ExperimentInitializedEvent,
-    ExperimentPluginLoadingStartedEvent,
-    ExperimentPluginLoadingCompletedEvent,
-    ExperimentPluginLoadingFailedEvent,
-    ExperimentTestCasesInitializedEvent,
-    ExperimentExecutionStartedEvent,
-    ExperimentExecutionCompletedEvent,
-    ExperimentExecutionFailedEvent,
-    ExperimentFinishedEarlyEvent,
-    ExperimentCompletedEvent,
-    ExperimentFailedEvent,
-    # Test events
-    TestCreatedEvent,
-    TestSetupStartedEvent,
-    TestSetupCompletedEvent,
-    TestSetupFailedEvent,
-    TestEnvironmentSetupStartedEvent,
-    TestEnvironmentSetupCompletedEvent,
-    TestEnvironmentSetupFailedEvent,
-    TestDeploymentStartedEvent,
-    TestDeploymentCompletedEvent,
-    TestDeploymentFailedEvent,
-    TestExecutionStartedEvent,
-    TestStepStartedEvent,
-    TestStepCompletedEvent,
-    TestStepFailedEvent,
-    TestAssertionsStartedEvent,
-    TestAssertionCheckedEvent,
-    TestAssertionsCompletedEvent,
-    TestAssertionsFailedEvent,
-    TestExecutionCompletedEvent,
-    TestExecutionFailedEvent,
-    TestTeardownStartedEvent,
-    TestTeardownCompletedEvent,
-    TestCompletedEvent,
-    TestFailedEvent,
-    # Service events
-    ServiceCreatedEvent,
-    ServicePreparationStartedEvent,
-    ServicePreparationCompletedEvent,
-    ServicePreparationFailedEvent,
-    ServiceDeploymentStartedEvent,
-    ServiceDeploymentCompletedEvent,
-    ServiceDeploymentFailedEvent,
-    ServiceStartedEvent,
-    ServiceReadyEvent,
-    ServiceHealthCheckPassedEvent,
-    ServiceHealthCheckFailedEvent,
-    ServiceStoppedEvent,
-    ServiceErrorEvent,
-    ServiceDestroyedEvent,
-    ServiceTestResultsEvent,
-    CommandGenerationStartedEvent,
-    CommandGeneratedEvent,
-    DockerBuildStartedEvent,
-    DockerBuildCompletedEvent,
-    TesterAnalysisStartedEvent,
-    TesterAnalysisCompletedEvent,
-    # Environment events
-    EnvironmentCreatedEvent,
-    EnvironmentSetupStartedEvent,
-    EnvironmentSetupCompletedEvent,
-    EnvironmentSetupFailedEvent,
-    EnvironmentTeardownStartedEvent,
-    EnvironmentTeardownCompletedEvent,
-    EnvironmentErrorEvent,
-    NetworkSetupStartedEvent,
-    NetworkSetupCompletedEvent,
-    NetworkSetupFailedEvent,
-    NetworkTeardownStartedEvent,
-    NetworkTeardownCompletedEvent,
-    ExecutionEnvironmentSetupStartedEvent,
-    ExecutionEnvironmentSetupCompletedEvent,
-    ExecutionEnvironmentResourceMonitoringEvent,
-    ExecutionEnvironmentLimitExceededEvent,
-    # Step events
-    StepExecutionStartedEvent,
-    StepExecutionCompletedEvent,
-    StepExecutionFailedEvent,
-    StepProgressEvent,
-    StepUnsupportedEvent,
-    StepSkippedEvent,
-    # Assertion events
-    AssertionsValidationStartedEvent,
-    AssertionsValidationCompletedEvent,
+from panther.core.events.assertion.events import (
+    AssertionErrorEvent,
     AssertionProgressEvent,
     AssertionResultEvent,
-    AssertionErrorEvent,
+    AssertionsValidationCompletedEvent,
+    AssertionsValidationStartedEvent,
     AssertionUnknownEvent,
-    # Metrics events
+)
+from panther.core.events.base.event_base import BaseEvent
+from panther.core.events.environment.events import (
+    EnvironmentCreatedEvent,
+    EnvironmentErrorEvent,
+    EnvironmentSetupCompletedEvent,
+    EnvironmentSetupFailedEvent,
+    EnvironmentSetupStartedEvent,
+    EnvironmentTeardownCompletedEvent,
+    EnvironmentTeardownStartedEvent,
+    ExecutionEnvironmentLimitExceededEvent,
+    ExecutionEnvironmentResourceMonitoringEvent,
+    ExecutionEnvironmentSetupCompletedEvent,
+    ExecutionEnvironmentSetupStartedEvent,
+    NetworkSetupCompletedEvent,
+    NetworkSetupFailedEvent,
+    NetworkSetupStartedEvent,
+    NetworkTeardownCompletedEvent,
+    NetworkTeardownStartedEvent,
+    OutputCollectionCompletedEvent,
+    OutputCollectionStartedEvent,
+)
+from panther.core.events.experiment.events import (
+    ExperimentCompletedEvent,
+    ExperimentExecutionCompletedEvent,
+    ExperimentExecutionFailedEvent,
+    ExperimentExecutionStartedEvent,
+    ExperimentFailedEvent,
+    ExperimentFinishedEarlyEvent,
+    ExperimentInitializedEvent,
+    ExperimentPluginLoadingCompletedEvent,
+    ExperimentPluginLoadingFailedEvent,
+    ExperimentPluginLoadingStartedEvent,
+    ExperimentTestCasesInitializedEvent,
+)
+from panther.core.events.metrics.events import (
+    CounterMetricEvent,
     MetricCollectedEvent,
+    MetricsSummaryEvent,
     ResourceMetricEvent,
     TimingMetricEvent,
-    CounterMetricEvent,
-    MetricsSummaryEvent,
-    # Plugin events
-    PluginLoadingStartedEvent,
+)
+from panther.core.events.plugin.events import (
+    PluginErrorEvent,
+    PluginInitializedEvent,
     PluginLoadingCompletedEvent,
     PluginLoadingFailedEvent,
-    PluginInitializedEvent,
-    PluginStartedEvent,
-    PluginStoppedEvent,
-    PluginErrorEvent,
+    PluginLoadingStartedEvent,
     PluginServiceCreatedEvent,
     PluginServiceStartedEvent,
     PluginServiceStoppedEvent,
+    PluginStartedEvent,
+    PluginStoppedEvent,
+)
+from panther.core.events.service.events import (
+    CommandGeneratedEvent,
+    CommandGenerationStartedEvent,
+    DockerBuildCompletedEvent,
+    DockerBuildStartedEvent,
+    ServiceCreatedEvent,
+    ServiceDeploymentCompletedEvent,
+    ServiceDeploymentFailedEvent,
+    ServiceDeploymentStartedEvent,
+    ServiceDestroyedEvent,
+    ServiceErrorEvent,
+    ServiceHealthCheckFailedEvent,
+    ServiceHealthCheckPassedEvent,
+    ServicePreparationCompletedEvent,
+    ServicePreparationFailedEvent,
+    ServicePreparationStartedEvent,
+    ServiceReadyEvent,
+    ServiceStartedEvent,
+    ServiceStoppedEvent,
+    ServiceTestResultsEvent,
+    TesterAnalysisCompletedEvent,
+    TesterAnalysisStartedEvent,
+)
+from panther.core.events.step.events import (
+    StepExecutionCompletedEvent,
+    StepExecutionFailedEvent,
+    StepExecutionStartedEvent,
+    StepProgressEvent,
+    StepSkippedEvent,
+    StepUnsupportedEvent,
+)
+from panther.core.events.test.events import (
+    TestAssertionCheckedEvent,
+    TestAssertionsCompletedEvent,
+    TestAssertionsFailedEvent,
+    TestAssertionsStartedEvent,
+    TestCompletedEvent,
+    TestCreatedEvent,
+    TestDeploymentCompletedEvent,
+    TestDeploymentFailedEvent,
+    TestDeploymentStartedEvent,
+    TestEnvironmentSetupCompletedEvent,
+    TestEnvironmentSetupFailedEvent,
+    TestEnvironmentSetupStartedEvent,
+    TestExecutionCompletedEvent,
+    TestExecutionFailedEvent,
+    TestExecutionStartedEvent,
+    TestFailedEvent,
+    TestSetupCompletedEvent,
+    TestSetupFailedEvent,
+    TestSetupStartedEvent,
+    TestStepCompletedEvent,
+    TestStepFailedEvent,
+    TestStepStartedEvent,
+    TestTeardownCompletedEvent,
+    TestTeardownStartedEvent,
 )
 
 from .observer_interface import IObserver
@@ -268,7 +276,9 @@ class ITypedObserver(IObserver):
                 # Special handling for recursion errors - just log to stderr
                 import sys
 
-                print(f"RecursionError in {event_type.__name__} handler", file=sys.stderr)
+                print(
+                    f"RecursionError in {event_type.__name__} handler", file=sys.stderr
+                )
                 return False
             except Exception as e:
                 # Avoid logging errors that might trigger more events
@@ -280,10 +290,16 @@ class ITypedObserver(IObserver):
                     # For error events, just print to stderr to avoid cascading
                     import sys
 
-                    print(f"Error handling {event_type.__name__}: {str(e)}", file=sys.stderr)
+                    print(
+                        f"Error handling {event_type.__name__}: {str(e)}",
+                        file=sys.stderr,
+                    )
                 else:
                     self.logger.error(
-                        "Error handling %s event: %s", event_type.__name__, str(e), exc_info=True
+                        "Error handling %s event: %s",
+                        event_type.__name__,
+                        str(e),
+                        exc_info=True,
                     )
                 return False
         else:
@@ -333,15 +349,21 @@ class ITypedObserver(IObserver):
         """Handle experiment test cases initialized event."""
         return True
 
-    def on_experiment_execution_started(self, event: ExperimentExecutionStartedEvent) -> bool:
+    def on_experiment_execution_started(
+        self, event: ExperimentExecutionStartedEvent
+    ) -> bool:
         """Handle experiment execution started event."""
         return True
 
-    def on_experiment_execution_completed(self, event: ExperimentExecutionCompletedEvent) -> bool:
+    def on_experiment_execution_completed(
+        self, event: ExperimentExecutionCompletedEvent
+    ) -> bool:
         """Handle experiment execution completed event."""
         return True
 
-    def on_experiment_execution_failed(self, event: ExperimentExecutionFailedEvent) -> bool:
+    def on_experiment_execution_failed(
+        self, event: ExperimentExecutionFailedEvent
+    ) -> bool:
         """Handle experiment execution failed event."""
         return True
 
@@ -374,7 +396,9 @@ class ITypedObserver(IObserver):
         """Handle test setup failed event."""
         return True
 
-    def on_test_environment_setup_started(self, event: TestEnvironmentSetupStartedEvent) -> bool:
+    def on_test_environment_setup_started(
+        self, event: TestEnvironmentSetupStartedEvent
+    ) -> bool:
         """Handle test environment setup started event."""
         return True
 
@@ -384,7 +408,9 @@ class ITypedObserver(IObserver):
         """Handle test environment setup completed event."""
         return True
 
-    def on_test_environment_setup_failed(self, event: TestEnvironmentSetupFailedEvent) -> bool:
+    def on_test_environment_setup_failed(
+        self, event: TestEnvironmentSetupFailedEvent
+    ) -> bool:
         """Handle test environment setup failed event."""
         return True
 
@@ -461,23 +487,33 @@ class ITypedObserver(IObserver):
         """Handle service created event."""
         return True
 
-    def on_service_preparation_started(self, event: ServicePreparationStartedEvent) -> bool:
+    def on_service_preparation_started(
+        self, event: ServicePreparationStartedEvent
+    ) -> bool:
         """Handle service preparation started event."""
         return True
 
-    def on_service_preparation_completed(self, event: ServicePreparationCompletedEvent) -> bool:
+    def on_service_preparation_completed(
+        self, event: ServicePreparationCompletedEvent
+    ) -> bool:
         """Handle service preparation completed event."""
         return True
 
-    def on_service_preparation_failed(self, event: ServicePreparationFailedEvent) -> bool:
+    def on_service_preparation_failed(
+        self, event: ServicePreparationFailedEvent
+    ) -> bool:
         """Handle service preparation failed event."""
         return True
 
-    def on_service_deployment_started(self, event: ServiceDeploymentStartedEvent) -> bool:
+    def on_service_deployment_started(
+        self, event: ServiceDeploymentStartedEvent
+    ) -> bool:
         """Handle service deployment started event."""
         return True
 
-    def on_service_deployment_completed(self, event: ServiceDeploymentCompletedEvent) -> bool:
+    def on_service_deployment_completed(
+        self, event: ServiceDeploymentCompletedEvent
+    ) -> bool:
         """Handle service deployment completed event."""
         return True
 
@@ -493,11 +529,15 @@ class ITypedObserver(IObserver):
         """Handle service ready event."""
         return True
 
-    def on_service_health_check_passed(self, event: ServiceHealthCheckPassedEvent) -> bool:
+    def on_service_health_check_passed(
+        self, event: ServiceHealthCheckPassedEvent
+    ) -> bool:
         """Handle service health check passed event."""
         return True
 
-    def on_service_health_check_failed(self, event: ServiceHealthCheckFailedEvent) -> bool:
+    def on_service_health_check_failed(
+        self, event: ServiceHealthCheckFailedEvent
+    ) -> bool:
         """Handle service health check failed event."""
         return True
 
@@ -517,7 +557,9 @@ class ITypedObserver(IObserver):
         """Handle service test results event."""
         return True
 
-    def on_command_generation_started(self, event: CommandGenerationStartedEvent) -> bool:
+    def on_command_generation_started(
+        self, event: CommandGenerationStartedEvent
+    ) -> bool:
         """Handle command generation started event."""
         return True
 
@@ -550,7 +592,9 @@ class ITypedObserver(IObserver):
         """Handle environment setup started event."""
         return True
 
-    def on_environment_setup_completed(self, event: EnvironmentSetupCompletedEvent) -> bool:
+    def on_environment_setup_completed(
+        self, event: EnvironmentSetupCompletedEvent
+    ) -> bool:
         """Handle environment setup completed event."""
         return True
 
@@ -558,11 +602,15 @@ class ITypedObserver(IObserver):
         """Handle environment setup failed event."""
         return True
 
-    def on_environment_teardown_started(self, event: EnvironmentTeardownStartedEvent) -> bool:
+    def on_environment_teardown_started(
+        self, event: EnvironmentTeardownStartedEvent
+    ) -> bool:
         """Handle environment teardown started event."""
         return True
 
-    def on_environment_teardown_completed(self, event: EnvironmentTeardownCompletedEvent) -> bool:
+    def on_environment_teardown_completed(
+        self, event: EnvironmentTeardownCompletedEvent
+    ) -> bool:
         """Handle environment teardown completed event."""
         return True
 
@@ -587,7 +635,9 @@ class ITypedObserver(IObserver):
         """Handle network teardown started event."""
         return True
 
-    def on_network_teardown_completed(self, event: NetworkTeardownCompletedEvent) -> bool:
+    def on_network_teardown_completed(
+        self, event: NetworkTeardownCompletedEvent
+    ) -> bool:
         """Handle network teardown completed event."""
         return True
 
@@ -642,11 +692,15 @@ class ITypedObserver(IObserver):
         return True
 
     # Assertion event handlers
-    def on_assertions_validation_started(self, event: AssertionsValidationStartedEvent) -> bool:
+    def on_assertions_validation_started(
+        self, event: AssertionsValidationStartedEvent
+    ) -> bool:
         """Handle assertions validation started event."""
         return True
 
-    def on_assertions_validation_completed(self, event: AssertionsValidationCompletedEvent) -> bool:
+    def on_assertions_validation_completed(
+        self, event: AssertionsValidationCompletedEvent
+    ) -> bool:
         """Handle assertions validation completed event."""
         return True
 

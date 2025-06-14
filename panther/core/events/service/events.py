@@ -34,10 +34,16 @@ class ServiceEvent(BaseEvent):
     """Base class for all service events."""
 
     def __init__(
-        self, event_type: ServiceEventType, service_id: str, data: dict[str, Any] | None = None
+        self,
+        event_type: ServiceEventType,
+        service_id: str,
+        data: dict[str, Any] | None = None,
     ):
         super().__init__(
-            name=event_type.value, entity_type=EventType.SERVICE, entity_id=service_id, data=data
+            name=event_type.value,
+            entity_type=EventType.SERVICE,
+            entity_id=service_id,
+            data=data,
         )
         self.event_type = event_type
 
@@ -69,12 +75,18 @@ class ServicePreparationStartedEvent(ServiceEvent):
     """Event emitted when service preparation starts."""
 
     def __init__(
-        self, service_id: str, service_name: str, preparation_steps: list[str] | None = None
+        self,
+        service_id: str,
+        service_name: str,
+        preparation_steps: list[str] | None = None,
     ):
         super().__init__(
             event_type=ServiceEventType.PREPARATION_STARTED,
             service_id=service_id,
-            data={"service_name": service_name, "preparation_steps": preparation_steps or []},
+            data={
+                "service_name": service_name,
+                "preparation_steps": preparation_steps or [],
+            },
         )
 
 
@@ -212,12 +224,18 @@ class ServiceReadyEvent(ServiceEvent):
     """Event emitted when a service is ready to accept requests."""
 
     def __init__(
-        self, service_id: str, service_name: str, readiness_checks: dict[str, bool] | None = None
+        self,
+        service_id: str,
+        service_name: str,
+        readiness_checks: dict[str, bool] | None = None,
     ):
         super().__init__(
             event_type=ServiceEventType.READY,
             service_id=service_id,
-            data={"service_name": service_name, "readiness_checks": readiness_checks or {}},
+            data={
+                "service_name": service_name,
+                "readiness_checks": readiness_checks or {},
+            },
         )
 
 
@@ -319,12 +337,18 @@ class ServiceDestroyedEvent(ServiceEvent):
     """Event emitted when a service is destroyed/cleaned up."""
 
     def __init__(
-        self, service_id: str, service_name: str, cleanup_details: dict[str, Any] | None = None
+        self,
+        service_id: str,
+        service_name: str,
+        cleanup_details: dict[str, Any] | None = None,
     ):
         super().__init__(
             event_type=ServiceEventType.DESTROYED,
             service_id=service_id,
-            data={"service_name": service_name, "cleanup_details": cleanup_details or {}},
+            data={
+                "service_name": service_name,
+                "cleanup_details": cleanup_details or {},
+            },
         )
 
 
@@ -410,6 +434,34 @@ class CommandGeneratedEvent(ServiceEvent):
         )
 
 
+class CommandModifiedEvent(ServiceEvent):
+    """Event emitted when a command is modified by execution environments."""
+
+    def __init__(
+        self,
+        service_id: str,
+        service_name: str,
+        phase: str,
+        original_command: str,
+        modified_command: str,
+        modifier: str,  # e.g., "strace", "gperf", etc.
+        modification_details: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.PREPARATION_COMPLETED,
+            service_id=service_id,
+            data={
+                "service_name": service_name,
+                "phase": phase,
+                "original_command": original_command,
+                "modified_command": modified_command,
+                "modifier": modifier,
+                "modification_details": modification_details or {},
+                "action": "command_modified",
+            },
+        )
+
+
 class DockerBuildStartedEvent(ServiceEvent):
     """Event emitted when Docker build starts for a service."""
 
@@ -478,6 +530,30 @@ class DockerBuildFailedEvent(ServiceEvent):
                 "error_message": error_message,
                 "build_duration": build_duration,
                 "action": "docker_build_failed",
+            },
+        )
+
+
+class ConfigGeneratedEvent(ServiceEvent):
+    """Event emitted when final configuration (e.g., docker-compose.yml) is generated."""
+
+    def __init__(
+        self,
+        service_id: str,
+        config_type: str,  # e.g., "docker-compose", "kubernetes", etc.
+        config_path: str,
+        config_content: str | None = None,
+        services_included: list[str] | None = None,
+    ):
+        super().__init__(
+            event_type=ServiceEventType.DEPLOYMENT_STARTED,
+            service_id=service_id,
+            data={
+                "config_type": config_type,
+                "config_path": config_path,
+                "config_content": config_content,
+                "services_included": services_included or [],
+                "action": "config_generated",
             },
         )
 

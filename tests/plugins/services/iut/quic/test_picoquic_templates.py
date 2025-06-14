@@ -2,12 +2,13 @@
 Unit tests for Picoquic plugin template rendering with enhanced quoting.
 """
 
-import pytest
-import tempfile
 import shlex
+import tempfile
 from pathlib import Path
 
-from panther.core.utils.jinja_manager import JinjaManager
+import pytest
+
+from panther.core.template.template_renderer import TemplateRenderer
 
 
 class TestPicoquicTemplates:
@@ -32,7 +33,7 @@ class TestPicoquicTemplates:
     @pytest.fixture
     def jinja_manager(self, picoquic_template_dir):
         """Create JinjaManager with Picoquic templates."""
-        return JinjaManager(str(picoquic_template_dir))
+        return TemplateRenderer(str(picoquic_template_dir))
 
     def test_client_command_normal_case(self, jinja_manager):
         """Test client command rendering with normal parameters."""
@@ -73,7 +74,9 @@ class TestPicoquicTemplates:
             ("host;malicious.com", "443", ["'host;malicious.com'", "443"]),
         ],
     )
-    def test_client_command_edge_cases(self, jinja_manager, target, port, expected_in_output):
+    def test_client_command_edge_cases(
+        self, jinja_manager, target, port, expected_in_output
+    ):
         """Test client command with edge case values."""
         context = {
             "command_args": [

@@ -10,5 +10,5 @@ def test_function():
     logger = logging.getLogger(__name__)
     logger.debug(f"Another test with logger: {raw_version_config}")
 
-    # Test with string before f-string
-    logging.info("Some prefix", f"Inline f-string: {raw_version_config}")
+    # Test with proper f-string concatenation
+    logging.info(f"Some prefix: Inline f-string: {raw_version_config}")

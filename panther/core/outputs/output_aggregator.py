@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     pass
 
-from panther.plugins.environments.execution_environment.output_collector import IOutputCollector
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
+from panther.core.outputs.output_collector import IOutputCollector
 
 
 class OutputAggregator:
@@ -23,7 +23,9 @@ class OutputAggregator:
     Aggregates outputs from execution environments and prepares them for tester analysis.
     """
 
-    def __init__(self, experiment_dir: Path, environment_emitter: EnvironmentEventEmitter):
+    def __init__(
+        self, experiment_dir: Path, environment_emitter: EnvironmentEventEmitter
+    ):
         """
         Initialize the OutputAggregator.
 
@@ -39,7 +41,9 @@ class OutputAggregator:
         self.outputs_dir = self.experiment_dir / "outputs"
         self.outputs_dir.mkdir(parents=True, exist_ok=True)
 
-    def collect_from_environments(self, environments: list) -> dict[str, dict[str, str]]:
+    def collect_from_environments(
+        self, environments: list
+    ) -> dict[str, dict[str, str]]:
         """
         Collect outputs from all execution environments that implement IOutputCollector.
 
@@ -122,7 +126,8 @@ class OutputAggregator:
             environment_name="Output Collection",
             environment_type="aggregator",
             outputs={
-                env_type: str(len(outputs)) for env_type, outputs in collected_outputs.items()
+                env_type: str(len(outputs))
+                for env_type, outputs in collected_outputs.items()
             },
             total_outputs=total_outputs,
             collection_duration=collection_duration,

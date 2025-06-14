@@ -1,4 +1,4 @@
-FROM panther_base_service_panther:latest
+FROM panther_base_service:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 # Define build arguments for version-specific configurations

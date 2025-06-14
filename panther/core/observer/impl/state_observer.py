@@ -8,24 +8,27 @@ by the event-based state managers in EmitterRegistry.
 
 import logging
 
-from panther.core.observer.base.typed_observer_interface import ITypedObserver
-from panther.core.workflow import WorkflowStateTracker, WorkflowState
-from panther.core.events import (
-    ExperimentInitializedEvent,
-    ExperimentPluginLoadingStartedEvent,
-    ExperimentPluginLoadingFailedEvent,
-    ExperimentExecutionStartedEvent,
+from panther.core.events.environment.events import (
+    EnvironmentSetupStartedEvent,
+    OutputCollectionCompletedEvent,
+    OutputCollectionStartedEvent,
+)
+from panther.core.events.experiment.events import (
     ExperimentCompletedEvent,
+    ExperimentExecutionStartedEvent,
     ExperimentFailedEvent,
-    # Command generation and deployment
+    ExperimentInitializedEvent,
+    ExperimentPluginLoadingFailedEvent,
+    ExperimentPluginLoadingStartedEvent,
+)
+from panther.core.events.service.events import (
     CommandGenerationStartedEvent,
     DockerBuildStartedEvent,
-    EnvironmentSetupStartedEvent,
-    TestExecutionStartedEvent,
-    OutputCollectionStartedEvent,
-    OutputCollectionCompletedEvent,
     TesterAnalysisStartedEvent,
 )
+from panther.core.events.test.events import TestExecutionStartedEvent
+from panther.core.observer.base.typed_observer_interface import ITypedObserver
+from panther.core.workflow import WorkflowState, WorkflowStateTracker
 
 
 class StateEventObserver(ITypedObserver):
@@ -86,8 +89,12 @@ class StateEventObserver(ITypedObserver):
         """Handle experiment initialized - set workflow tracking."""
         try:
             self.current_experiment_id = event.entity_id
-            self.workflow_tracker.set_workflow_state(event.entity_id, WorkflowState.CREATED)
-            self.logger.debug(f"Workflow coordination: experiment {event.entity_id} initialized")
+            self.workflow_tracker.set_workflow_state(
+                event.entity_id, WorkflowState.CREATED
+            )
+            self.logger.debug(
+                f"Workflow coordination: experiment {event.entity_id} initialized"
+            )
         except Exception as e:
             self.logger.error(f"Error in workflow coordination: {e}")
         return True
@@ -105,7 +112,9 @@ class StateEventObserver(ITypedObserver):
             self.logger.error(f"Error in workflow coordination: {e}")
         return True
 
-    def on_command_generation_started(self, event: CommandGenerationStartedEvent) -> bool:
+    def on_command_generation_started(
+        self, event: CommandGenerationStartedEvent
+    ) -> bool:
         """Handle command generation phase."""
         try:
             if self.current_experiment_id:
@@ -160,7 +169,9 @@ class StateEventObserver(ITypedObserver):
             self.logger.error(f"Error in workflow coordination: {e}")
         return True
 
-    def on_output_collection_completed(self, event: OutputCollectionCompletedEvent) -> bool:
+    def on_output_collection_completed(
+        self, event: OutputCollectionCompletedEvent
+    ) -> bool:
         """Handle transition to analysis phase."""
         try:
             if self.current_experiment_id:
@@ -182,7 +193,9 @@ class StateEventObserver(ITypedObserver):
             self.logger.error(f"Error in workflow coordination: {e}")
         return True
 
-    def on_experiment_execution_started(self, event: ExperimentExecutionStartedEvent) -> bool:
+    def on_experiment_execution_started(
+        self, event: ExperimentExecutionStartedEvent
+    ) -> bool:
         """Handle experiment execution started."""
         try:
             if self.current_experiment_id:
@@ -196,8 +209,12 @@ class StateEventObserver(ITypedObserver):
     def on_experiment_completed(self, event: ExperimentCompletedEvent) -> bool:
         """Handle experiment completion."""
         try:
-            self.workflow_tracker.set_workflow_state(event.entity_id, WorkflowState.COMPLETED)
-            self.logger.debug(f"Workflow coordination: experiment {event.entity_id} completed")
+            self.workflow_tracker.set_workflow_state(
+                event.entity_id, WorkflowState.COMPLETED
+            )
+            self.logger.debug(
+                f"Workflow coordination: experiment {event.entity_id} completed"
+            )
         except Exception as e:
             self.logger.error(f"Error in workflow coordination: {e}")
         return True
@@ -205,8 +222,12 @@ class StateEventObserver(ITypedObserver):
     def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
         """Handle experiment failure."""
         try:
-            self.workflow_tracker.set_workflow_state(event.entity_id, WorkflowState.FAILED)
-            self.logger.debug(f"Workflow coordination: experiment {event.entity_id} failed")
+            self.workflow_tracker.set_workflow_state(
+                event.entity_id, WorkflowState.FAILED
+            )
+            self.logger.debug(
+                f"Workflow coordination: experiment {event.entity_id} failed"
+            )
         except Exception as e:
             self.logger.error(f"Error in workflow coordination: {e}")
         return True

@@ -1,7 +1,8 @@
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 from typing import Any
-from panther.core.events import BaseEvent
+
+from panther.core.events.base.event_base import BaseEvent
 from panther.core.utils.logging_mixin import LoggerMixin
 
 

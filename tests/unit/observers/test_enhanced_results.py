@@ -5,20 +5,18 @@ This module contains tests for the enhanced result events, result aggregation,
 and compatibility between legacy and enhanced result systems.
 """
 
-import os
-import unittest
-import tempfile
-import shutil
 import json
+import os
+import shutil
+import tempfile
+import unittest
 from datetime import datetime
 
-from panther.core.observer.results_manager import (
-    ResultsManager,
+from panther.core.events.test.events import EnhancedResultEvent, TestResultEvent
+from panther.core.observer.management.results_manager import (
     ResultAggregator,
-    TestResultEvent,
-    EnhancedResultEvent,
+    ResultsManager,
 )
-from panther.core.observer.events import Event
 
 
 class TestResultData:
@@ -186,8 +184,12 @@ class ResultAggregatorTests(unittest.TestCase):
         # Verify category statistics
         self.assertEqual(self.aggregator.category_stats["unit_test"]["success"], 1)
         self.assertEqual(self.aggregator.category_stats["unit_test"]["failure"], 1)
-        self.assertEqual(self.aggregator.category_stats["integration_test"]["success"], 1)
-        self.assertEqual(self.aggregator.category_stats["integration_test"]["failure"], 1)
+        self.assertEqual(
+            self.aggregator.category_stats["integration_test"]["success"], 1
+        )
+        self.assertEqual(
+            self.aggregator.category_stats["integration_test"]["failure"], 1
+        )
 
     def test_timestamp_normalization(self):
         """Test timestamp normalization."""
@@ -209,7 +211,8 @@ class ResultAggregatorTests(unittest.TestCase):
             except ValueError:
                 is_valid = False
             self.assertTrue(
-                is_valid, f"Result '{result}' for input '{input_ts}' is not valid ISO format"
+                is_valid,
+                f"Result '{result}' for input '{input_ts}' is not valid ISO format",
             )
 
 
@@ -294,7 +297,9 @@ class ResultsManagerTests(unittest.TestCase):
         self.assertTrue(results[0]["result"])
 
         # Verify direct category access
-        category_results = self.results_manager.get_results_by_category("performance_test")
+        category_results = self.results_manager.get_results_by_category(
+            "performance_test"
+        )
         self.assertEqual(len(category_results), 1)
 
         # Verify tag access
@@ -338,18 +343,20 @@ class ResultsManagerTests(unittest.TestCase):
 
     def test_event_conversion(self):
         """Test conversion of generic events to result events."""
-        # Create a different generic event structure that might be easier to process
-        generic_event = Event(
-            "test.result.generic",
-            {
-                "test_name": "generic_test",
-                "result": True,
-                "metadata": {  # Move tags and category into metadata for easier extraction
-                    "category": "conversion_test",
-                    "tags": ["generic", "converted"],
-                },
+        # Create a mock generic event that simulates the old Event structure
+        from unittest.mock import Mock
+
+        generic_event = Mock()
+        generic_event.get_type = Mock(return_value="test.result.generic")
+        generic_event.id = "test-event-id"
+        generic_event.data = {
+            "test_name": "generic_test",
+            "result": True,
+            "metadata": {  # Move tags and category into metadata for easier extraction
+                "category": "conversion_test",
+                "tags": ["generic", "converted"],
             },
-        )
+        }
 
         # Process the generic event
         self.results_manager.on_event(generic_event)
@@ -369,19 +376,21 @@ class ResultsManagerTests(unittest.TestCase):
         self.assertEqual(summary["successful"], 1)
         self.assertEqual(summary["failed"], 0)
 
-    def test_event_conversion(self):
+    def test_enhanced_event_conversion(self):
         """Test conversion of generic events to enhanced result events."""
-        # Create a generic event with enhanced result format
-        generic_enhanced = Event(
-            "enhanced.result.generic",
-            {
-                "test_name": "generic_enhanced",
-                "result": True,
-                "category": "enhanced_conversion",
-                "tags": ["generic", "enhanced"],
-                "result_data": {"value": 42, "message": "Success"},
-            },
-        )
+        # Create a mock generic event with enhanced result format
+        from unittest.mock import Mock
+
+        generic_enhanced = Mock()
+        generic_enhanced.get_type = Mock(return_value="enhanced.result.generic")
+        generic_enhanced.id = "test-enhanced-event-id"
+        generic_enhanced.data = {
+            "test_name": "generic_enhanced",
+            "result": True,
+            "category": "enhanced_conversion",
+            "tags": ["generic", "enhanced"],
+            "result_data": {"value": 42, "message": "Success"},
+        }
 
         # Process the generic event
         self.results_manager.on_event(generic_enhanced)
@@ -396,7 +405,9 @@ class ResultsManagerTests(unittest.TestCase):
         self.assertEqual(results[0]["result_data"]["value"], 42)
 
         # Verify category and tags were extracted
-        category_results = self.results_manager.get_results_by_category("enhanced_conversion")
+        category_results = self.results_manager.get_results_by_category(
+            "enhanced_conversion"
+        )
         self.assertEqual(len(category_results), 1)
 
         tag_results = self.results_manager.get_results_by_tag("enhanced")
@@ -436,13 +447,16 @@ class ResultsManagerTests(unittest.TestCase):
 
         # Try registering a more specific callback that matches the event type directly
         enhanced_callbacks = []
-        event_type = self.enhanced_event.get_type()  # Get the actual type for proper registration
+        event_type = (
+            self.enhanced_event.get_type()
+        )  # Get the actual type for proper registration
         event_prefix = (
             event_type.split(".")[0] + "." + event_type.split(".")[1]
         )  # Get prefix e.g. "enhanced.result"
 
         self.results_manager.register_callback(
-            event_prefix + ".*", lambda event: enhanced_callbacks.append(event.test_name)
+            event_prefix + ".*",
+            lambda event: enhanced_callbacks.append(event.test_name),
         )
 
         # Process the enhanced event

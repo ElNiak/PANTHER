@@ -7,12 +7,13 @@ reducing duplication of Jinja2 template handling across service managers.
 
 import shlex
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional, Union
+
 import jinja2
 
-from panther.core.utils.logging_mixin import LoggerMixin
-from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
 from panther.core.command_processor.command import ShellCommand
+from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
+from panther.core.utils.logging_mixin import LoggerMixin
 
 
 class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
@@ -24,9 +25,9 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
 
     def __init__(
         self,
-        template_dir: str | Path,
+        template_dir: Union[str, Path],
         enable_autoescape: bool = False,
-        custom_filters: dict[str, callable] | None = None,
+        custom_filters: Optional[Dict[str, Callable]] = None,
     ):
         """
         Initialize the template renderer.
@@ -38,7 +39,9 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
         """
         super().__init__()
         self.template_dir = Path(template_dir)
-        self.logger.debug(f"Initializing TemplateRenderer with directory: {self.template_dir}")
+        self.logger.debug(
+            f"Initializing TemplateRenderer with directory: {self.template_dir}"
+        )
 
         # Add default filters including quote_shell
         self.custom_filters = custom_filters or {}
@@ -66,7 +69,7 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
             self.jinja_env.filters[name] = filter_func
 
     def render_template(
-        self, template_name: str, context: dict[str, Any], strict: bool = False
+        self, template_name: str, context: Dict[str, Any], strict: bool = False
     ) -> str:
         """
         Render a template with the given context.
@@ -102,8 +105,8 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
     def render_to_file(
         self,
         template_name: str,
-        context: dict[str, Any],
-        output_path: str | Path,
+        context: Dict[str, Any],
+        output_path: Union[str, Path],
         create_dirs: bool = True,
     ) -> Path:
         """
@@ -135,9 +138,9 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
     def render_command_template(
         self,
         template_name: str,
-        params: dict[str, Any],
-        command_args: list[str] | None = None,
-        env_vars: dict[str, str] | None = None,
+        params: Dict[str, Any],
+        command_args: Optional[List[str]] = None,
+        env_vars: Optional[Dict[str, str]] = None,
     ) -> ShellCommand:
         """
         Render a command template to a ShellCommand.
@@ -175,7 +178,9 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
 
         return ShellCommand(command=full_command, environment=env_vars or {})
 
-    def get_template_for_role(self, role: str, template_suffix: str = "_command.jinja") -> str:
+    def get_template_for_role(
+        self, role: str, template_suffix: str = "_command.jinja"
+    ) -> str:
         """
         Get template name based on role.
 
@@ -196,7 +201,7 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
         except jinja2.TemplateNotFound:
             return False
 
-    def list_templates(self, pattern: str | None = None) -> list[str]:
+    def list_templates(self, pattern: Optional[str] = None) -> List[str]:
         """
         List available templates.
 
@@ -214,7 +219,11 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
                     templates.append(template_path.name)
         else:
             for template_path in self.template_dir.iterdir():
-                if template_path.is_file() and template_path.suffix in [".jinja", ".j2", ".jinja2"]:
+                if template_path.is_file() and template_path.suffix in [
+                    ".jinja",
+                    ".j2",
+                    ".jinja2",
+                ]:
                     templates.append(template_path.name)
 
         return sorted(templates)
@@ -227,7 +236,7 @@ class EnvironmentTemplateRenderer(TemplateRenderer):
     Provides additional functionality specific to environment command rendering.
     """
 
-    def __init__(self, template_dir: str | Path, **kwargs):
+    def __init__(self, template_dir: Union[str, Path], **kwargs):
         """
         Initialize environment template renderer.
 
@@ -256,7 +265,12 @@ class ServiceTemplateRenderer(TemplateRenderer):
     Provides additional functionality specific to service command rendering.
     """
 
-    def __init__(self, service_dir: str | Path, protocol_dir: str | Path | None = None, **kwargs):
+    def __init__(
+        self,
+        service_dir: Union[str, Path],
+        protocol_dir: Optional[Union[str, Path]] = None,
+        **kwargs,
+    ):
         """
         Initialize service template renderer.
 
@@ -279,9 +293,9 @@ class ServiceTemplateRenderer(TemplateRenderer):
     def render_structured_command(
         self,
         role: str,
-        params: dict[str, Any],
-        command_args: list[str],
-        env_vars: dict[str, str] | None = None,
+        params: Dict[str, Any],
+        command_args: List[str],
+        env_vars: Optional[Dict[str, str]] = None,
         use_structured: bool = True,
     ) -> ShellCommand:
         """
@@ -299,7 +313,9 @@ class ServiceTemplateRenderer(TemplateRenderer):
         """
         # Try structured template first if requested
         if use_structured:
-            structured_template = self.get_template_for_role(role, "_command_structured.jinja")
+            structured_template = self.get_template_for_role(
+                role, "_command_structured.jinja"
+            )
 
             if self.template_exists(structured_template):
                 try:
@@ -314,7 +330,9 @@ class ServiceTemplateRenderer(TemplateRenderer):
 
         # Fallback to regular template
         template_name = self.get_template_for_role(role)
-        return self.render_command_template(template_name, params, command_args, env_vars)
+        return self.render_command_template(
+            template_name, params, command_args, env_vars
+        )
 
     def render_config_file(
         self, config_template: str, params: dict[str, Any], output_filename: str

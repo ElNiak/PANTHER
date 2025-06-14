@@ -5,8 +5,8 @@ This module provides common utilities and mixins for environment plugins.
 """
 
 import logging
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -132,11 +132,15 @@ class EnvironmentPluginMixin(LoggerMixin):
 
     def get_results_directory(self) -> Path:
         """Get the results directory path."""
-        return self._output_directories.get("results", Path(self.output_dir) / "results")
+        return self._output_directories.get(
+            "results", Path(self.output_dir) / "results"
+        )
 
     def get_artifacts_directory(self) -> Path:
         """Get the artifacts directory path."""
-        return self._output_directories.get("artifacts", Path(self.output_dir) / "artifacts")
+        return self._output_directories.get(
+            "artifacts", Path(self.output_dir) / "artifacts"
+        )
 
     def update_environment_state(self, new_state: str) -> None:
         """
@@ -190,7 +194,9 @@ class ExecutionEnvironmentMixin(EnvironmentPluginMixin):
         self.update_environment_state("setup_in_progress")
 
         # Log setup information
-        self.logger.info(f"Setting up execution environment with {len(services_managers)} services")
+        self.logger.info(
+            f"Setting up execution environment with {len(services_managers)} services"
+        )
         self.log_operation_start(
             "execution environment setup", service_count=len(services_managers)
         )
@@ -210,7 +216,10 @@ class ExecutionEnvironmentMixin(EnvironmentPluginMixin):
             Service manager instance or None
         """
         for service_manager in self.services_managers:
-            if hasattr(service_manager, "service_name") and service_manager.service_name == name:
+            if (
+                hasattr(service_manager, "service_name")
+                and service_manager.service_name == name
+            ):
                 return service_manager
             elif (
                 hasattr(service_manager, "implementation_name")
@@ -250,7 +259,9 @@ class NetworkEnvironmentMixin(EnvironmentPluginMixin):
         """Get the network configuration."""
         return self._network_config
 
-    def add_deployment_artifact(self, artifact_path: str, artifact_type: str = "file") -> None:
+    def add_deployment_artifact(
+        self, artifact_path: str, artifact_type: str = "file"
+    ) -> None:
         """
         Add a deployment artifact for tracking.
 
@@ -285,7 +296,9 @@ class NetworkEnvironmentMixin(EnvironmentPluginMixin):
                         artifact_path.unlink()
                     cleaned_count += 1
             except Exception as e:
-                self.logger.warning(f"Failed to cleanup artifact {artifact['path']}: {e}")
+                self.logger.warning(
+                    f"Failed to cleanup artifact {artifact['path']}: {e}"
+                )
 
         self.logger.info(f"Cleaned up {cleaned_count} deployment artifacts")
         self._deployment_artifacts.clear()

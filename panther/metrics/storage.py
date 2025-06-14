@@ -3,7 +3,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 
 class JSONLinesStorage:
@@ -18,7 +18,7 @@ class JSONLinesStorage:
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
 
-    def write_record(self, record: dict[str, Any]) -> None:
+    def write_record(self, record: Dict[str, Any]) -> None:
         """Write a metrics record to storage.
 
         Args:
@@ -35,8 +35,8 @@ class JSONLinesStorage:
             f.write("\n")
 
     def read_records(
-        self, date: str | None = None, limit: int | None = None
-    ) -> list[dict[str, Any]]:
+        self, date: Optional[str] = None, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         """Read metrics records from storage.
 
         Args:
@@ -69,7 +69,7 @@ class JSONLinesStorage:
 
         return records
 
-    def _read_file(self, filepath: Path) -> list[dict[str, Any]]:
+    def _read_file(self, filepath: Path) -> List[Dict[str, Any]]:
         """Read records from a single JSONL file."""
         records = []
         try:
@@ -87,7 +87,7 @@ class JSONLinesStorage:
             pass
         return records
 
-    def get_record_by_id(self, run_id: str) -> dict[str, Any] | None:
+    def get_record_by_id(self, run_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific record by run ID.
 
         Args:
@@ -105,6 +105,6 @@ class JSONLinesStorage:
                     return record
         return None
 
-    def list_files(self) -> list[Path]:
+    def list_files(self) -> List[Path]:
         """List all metrics files."""
         return sorted(self.base_path.glob("*.jsonl"), reverse=True)

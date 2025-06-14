@@ -5,19 +5,19 @@ Core factory class for creating and managing observer instances.
 """
 
 import logging
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from panther.config.config_observer_schema import ObserverConfig
+from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.impl import (
+    ExperimentObserver,
     LoggerObserver,
     MetricsObserver,
     StorageObserver,
-    ExperimentObserver,
 )
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.events import BaseEvent as Event
 
 
 class ObserverFactory:
@@ -39,7 +39,9 @@ class ObserverFactory:
         self._configurations: dict[str, dict[str, Any]] = {}  # Observer configurations
         self._event_manager = event_manager  # Event manager for registering observers
         self._config_paths: list[Path] = []  # Paths of loaded configuration files
-        self._observer_config = observer_config or ObserverConfig()  # Global observer configuration
+        self._observer_config = (
+            observer_config or ObserverConfig()
+        )  # Global observer configuration
         self._initialize_default_observers()
 
     def _initialize_default_observers(self):
@@ -117,7 +119,8 @@ class ObserverFactory:
                 # Check if observer with this name already exists
                 if name in self._observer_instances:
                     self.logger.warning(
-                        "Observer with name '%s' already exists. Replacing with new instance.", name
+                        "Observer with name '%s' already exists. Replacing with new instance.",
+                        name,
                     )
                     # Unregister the old observer from event manager if it exists
                     old_observer = self._observer_instances[name]
@@ -136,7 +139,8 @@ class ObserverFactory:
             if auto_register and self._event_manager:
                 self._event_manager.register_observer(observer, event_types, priority)
                 self.logger.debug(
-                    "Auto-registered observer with event manager, priority: %d", priority
+                    "Auto-registered observer with event manager, priority: %d",
+                    priority,
                 )
 
             return observer
@@ -196,7 +200,9 @@ class ObserverFactory:
         """Get list of available observer types."""
         return list(self._registered_types.keys())
 
-    def configure_observer_type(self, observer_type: str, config: dict[str, Any]) -> None:
+    def configure_observer_type(
+        self, observer_type: str, config: dict[str, Any]
+    ) -> None:
         """
         Configure default parameters for an observer type.
 
@@ -208,7 +214,10 @@ class ObserverFactory:
         self.logger.debug("Configured observer type: %s", observer_type)
 
     def register_with_event_manager(
-        self, observer: IObserver, event_types: list[str | Event] | None = None, priority: int = 0
+        self,
+        observer: IObserver,
+        event_types: list[str | Event] | None = None,
+        priority: int = 0,
     ) -> None:
         """
         Register an observer with the event manager.
@@ -225,7 +234,9 @@ class ObserverFactory:
             raise RuntimeError("No event manager set. Use set_event_manager() first.")
 
         self._event_manager.register_observer(observer, event_types, priority)
-        self.logger.debug("Registered observer with event manager, priority: %d", priority)
+        self.logger.debug(
+            "Registered observer with event manager, priority: %d", priority
+        )
 
     def unregister_from_event_manager(self, observer: IObserver) -> None:
         """
@@ -274,7 +285,9 @@ class ObserverFactory:
             self._event_manager.register_observer(observer, event_types, priority)
             registered_count += 1
 
-        self.logger.debug("Batch registered %d observers with event manager", registered_count)
+        self.logger.debug(
+            "Batch registered %d observers with event manager", registered_count
+        )
 
 
 # Global factory instance

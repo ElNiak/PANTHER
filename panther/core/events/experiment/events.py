@@ -22,6 +22,7 @@ class ExperimentEventType(Enum):
     EXECUTION_COMPLETED = "execution_completed"
     EXECUTION_FAILED = "execution_failed"
     FINISHED_EARLY = "finished_early"
+    SERVICE_FAILURE = "service_failure"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -113,7 +114,9 @@ class ExperimentPluginLoadingFailedEvent(ExperimentEvent):
 class ExperimentTestCasesInitializedEvent(ExperimentEvent):
     """Event emitted when test cases are initialized."""
 
-    def __init__(self, experiment_id: str, test_count: int, test_names: list | None = None):
+    def __init__(
+        self, experiment_id: str, test_count: int, test_names: list | None = None
+    ):
         super().__init__(
             event_type=ExperimentEventType.TEST_CASES_INITIALIZED,
             experiment_id=experiment_id,
@@ -168,14 +171,20 @@ class ExperimentExecutionFailedEvent(ExperimentEvent):
         super().__init__(
             event_type=ExperimentEventType.EXECUTION_FAILED,
             experiment_id=experiment_id,
-            data={"error_message": error_message, "error_type": error_type, "phase": phase},
+            data={
+                "error_message": error_message,
+                "error_type": error_type,
+                "phase": phase,
+            },
         )
 
 
 class ExperimentFinishedEarlyEvent(ExperimentEvent):
     """Event emitted when experiment finishes early due to interruption or error."""
 
-    def __init__(self, experiment_id: str, reason: str, details: dict[str, Any] | None = None):
+    def __init__(
+        self, experiment_id: str, reason: str, details: dict[str, Any] | None = None
+    ):
         super().__init__(
             event_type=ExperimentEventType.FINISHED_EARLY,
             experiment_id=experiment_id,
@@ -213,3 +222,37 @@ class ExperimentFailedEvent(ExperimentEvent):
                 "summary": summary or {},
             },
         )
+
+
+class ExperimentServiceFailureEvent(ExperimentEvent):
+    """Event emitted when a service failure should terminate the experiment."""
+
+    def __init__(
+        self,
+        experiment_id: str,
+        failed_service: str,
+        reason: str,
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(
+            event_type=ExperimentEventType.SERVICE_FAILURE,
+            experiment_id=experiment_id,
+            data={
+                "failed_service": failed_service,
+                "reason": reason,
+                "details": details or {},
+                "termination_source": "service_monitor",
+            },
+        )
+
+    @property
+    def failed_service(self) -> str:
+        return self.data.get("failed_service", "")
+
+    @property
+    def reason(self) -> str:
+        return self.data.get("reason", "")
+
+    @property
+    def termination_source(self) -> str:
+        return self.data.get("termination_source", "service_monitor")

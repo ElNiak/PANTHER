@@ -1,68 +1,48 @@
-from abc import ABC
+"""
+Memcheck execution environment for memory error detection using Valgrind.
+
+This plugin provides comprehensive memory error detection capabilities including
+memory leak detection, invalid memory access detection, and uninitialized value usage.
+"""
+
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from panther.plugins.plugin_manager import PluginManager
-
-from omegaconf import OmegaConf
-
 from panther.core.observer.management.event_manager import EventManager
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.plugins.environments.execution_environment.base_execution_environment import (
+    BaseExecutionEnvironment,
+)
+from panther.plugins.environments.execution_environment.command_generation_utils import (
+    create_execution_environment_builder,
+)
 from panther.plugins.environments.execution_environment.memcheck.config_schema import (
     MemcheckConfig,
 )
-from panther.plugins.environments.execution_environment.execution_environment_interface import (
-    IExecutionEnvironment,
-)
-
-# PluginManager functionality now integrated into PluginManager
-from panther.plugins.services.services_interface import IServiceManager
 from panther.plugins.plugin_decorators import register_plugin
-from panther.core.utils.environment_utils import ExecutionEnvironmentMixin
-from panther.core.outputs.execution_environment_mixins import (
-    StandardOutputCollectorMixin,
-    CommandModificationMixin,
-)
+from panther.plugins.services.services_interface import IServiceManager
+
+if TYPE_CHECKING:
+    pass
 
 
 @register_plugin(
     plugin_type="environment",
     name="memcheck",
     version="1.0.0",
-    description="Memory error detection using Valgrind Memcheck",
+    description="Valgrind Memcheck memory error detection environment",
     author="PANTHER Team",
-    capabilities=["memory_error_detection", "leak_detection", "use_after_free", "buffer_overflow"],
+    capabilities=[
+        "memory_error_detection",
+        "leak_detection",
+        "invalid_access_detection",
+    ],
     external_dependencies=["valgrind>=3.15"],
 )
-class MemcheckEnvironment(
-    ExecutionEnvironmentMixin,
-    StandardOutputCollectorMixin,
-    CommandModificationMixin,
-    IExecutionEnvironment,
-    ABC,
-):
+class MemcheckEnvironment(BaseExecutionEnvironment):
     """
-    MemcheckEnvironment provides an execution environment for running services under Valgrind's Memcheck tool.
-    This class is responsible for configuring and setting up the environment to perform memory checking on services,
-    using Valgrind's Memcheck. It manages the environment configuration, service managers, test and global configurations,
-    and integrates with an event manager and plugin manager.
-    Attributes:
-        global_config (GlobalConfig): The global configuration for the environment.
-        env_config_to_test (MemcheckConfig): The specific Memcheck configuration to use for testing.
-        services_managers (list[IServiceManager]): List of service managers to be managed in this environment.
-        test_config (TestConfig): The test configuration for the current test run.
-        plugin_manager (PluginManager): Loader for plugins used in the environment.
-    Methods:
-        __init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager):
-            Initializes the MemcheckEnvironment with the provided configuration and managers.
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_manager):
-            Sets up the environment by configuring service managers, test and global configurations, and plugin manager.
-            Also prepares the services to run under Memcheck.
-        to_command(pid=None) -> str:
-            Generates the Valgrind Memcheck command string to be used for running or attaching to a process.
-        __repr__():
-            Returns a string representation of the MemcheckEnvironment instance.
+    Memory error detection execution environment using Valgrind Memcheck.
+
+    This environment uses shared command generation utilities to eliminate
+    code duplication while providing comprehensive memory error detection.
     """
 
     def __init__(
@@ -73,282 +53,364 @@ class MemcheckEnvironment(
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        """
-        Initializes the Memcheck environment with the provided configuration and parameters.
-
-        Args:
-            env_config_to_test (MemcheckConfig): The configuration object for the environment to be tested.
-            output_dir (str): The directory where output files will be stored.
-            env_type (str): The type of the environment.
-            env_sub_type (str): The subtype of the environment.
-            event_manager (EventManager): The event manager instance for handling events.
-        """
-        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
-        # Use standardized environment initialization
-        self.standardized_environment_initialization(
+        """Initialize the Memcheck environment."""
+        super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-    def setup_environment(
-        self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
-        timestamp: str,
-        plugin_manager: "PluginManager",
+    def _setup_plugin_specific_environment(
+        self, services_managers: list[IServiceManager], timestamp: str
     ):
         """
-        Sets up the execution environment for the test by configuring service managers and logging configuration details.
+        Set up Valgrind Memcheck memory error detection for services using shared utilities.
 
         Args:
-            services_managers (list[IServiceManager]): List of service manager instances to be configured.
-            test_config (TestConfig): The test-specific configuration object.
-            global_config (GlobalConfig): The global configuration object.
-            timestamp (str): Timestamp string for the current test run.
-            plugin_manager (PluginManager): Loader for managing plugins.
-
-        Side Effects:
-            - Updates each service manager's `run_cmd` dictionary by appending the command generated by `self.to_command()` to the "pre_run_cmds" list.
-            - Logs detailed configuration and command information for debugging purposes.
-            - Sets instance attributes for later use.
+            services_managers: List of service managers to potentially modify
+            timestamp: Timestamp for this execution (used for file naming)
         """
-        # Use standardized setup from mixin
-        self.setup_execution_environment(
-            services_managers, test_config, global_config, timestamp, plugin_manager
-        )
-
-        for service in self.services_managers:
-            self.logger.debug("Service cmds before memcheck modification: %s", service.run_cmd)
-            service_name = getattr(service, "service_name", service.__class__.__name__)
-
-            # Use ServiceCommandBuilder for proper command building
-            from panther.core.command_processor.command_builder import ServiceCommandBuilder
-            from panther.plugins.protocols.config_schema import RoleEnum
-
-            # Get the service role
-            service_role = getattr(service, "role", RoleEnum.server)
-
-            # Create command builder
-            command_builder = ServiceCommandBuilder(service_role)
-
-            # Generate output file path
-            output_file = f"/app/logs/{service_name}_memcheck_{timestamp}.log"
-            self.register_output_file("memcheck", output_file, service_name)
-
-            # Build memcheck command for wrapping the main command execution
-            memcheck_cmd = self.to_command(output_file=output_file)
-
-            # Add memcheck wrapper setup command using the proper add_command method
-            wrapper_setup_cmd = f"""
-if [ -z "$EXEC_ENV_WRAPPERS" ]; then
-    export EXEC_ENV_WRAPPERS="{memcheck_cmd}"
-else
-    export EXEC_ENV_WRAPPERS="{memcheck_cmd} $EXEC_ENV_WRAPPERS"
-fi
-echo "Added memcheck wrapper: {memcheck_cmd}" >> /app/logs/{service_name}_exec_env_setup.log
-""".strip()
-
-            # Use CommandBuilder to add the command with proper metadata
-            command_builder.add_command(
-                command=wrapper_setup_cmd,
-                description=f"Setup memcheck wrapper for {service_name}",
-                is_multiline=True,
-                is_critical=False,  # Don't fail if memcheck setup fails
-                environment={"MEMCHECK_OUTPUT_FILE": output_file},
+        for service in services_managers:
+            # Create command builder using shared utilities
+            command_builder = create_execution_environment_builder(
+                service=service,
+                environment_name="memcheck",
+                timestamp=timestamp,
+                register_output_callback=self.register_output_file,
+                logger=self.logger,
             )
 
-            # Process the commands through CommandProcessor
-            processed_commands = command_builder.process_commands()
+            # Register output files and get their paths
+            memcheck_output_file = command_builder.register_output_file(
+                file_type="memcheck_log",
+                extension="log",
+                description="Memcheck memory error detection log",
+            )
 
-            # The processed commands are now structured properly
-            # We need to add them to the service's pre_run_cmds
-            if processed_commands:
-                # The processed_commands is a list of command dictionaries
-                # We need to extract the actual command strings
-                memcheck_commands = []
-                for cmd_dict in processed_commands:
-                    # Extract the command from the processed structure
-                    if isinstance(cmd_dict, dict) and "command" in cmd_dict:
-                        memcheck_commands.append(cmd_dict["command"])
-                    else:
-                        # Fallback if structure is different
-                        memcheck_commands.append(str(cmd_dict))
+            memcheck_summary_file = command_builder.register_output_file(
+                file_type="memcheck_summary",
+                extension="txt",
+                description="Memcheck analysis summary",
+            )
 
-                # Debug: Check if service has run_cmd attribute and print before modification
-                self.logger.debug("Service object type: %s", type(service))
-                self.logger.debug("Service has run_cmd attribute: %s", hasattr(service, "run_cmd"))
-                if hasattr(service, "run_cmd"):
-                    self.logger.debug("Service run_cmd type: %s", type(service.run_cmd))
-                    self.logger.debug(
-                        "Pre-run commands before modification: %s",
-                        service.run_cmd.get("pre_run_cmds", "ATTRIBUTE_NOT_FOUND"),
-                    )
+            # Build the Memcheck command using Valgrind
+            memcheck_cmd = self._build_memcheck_command(memcheck_output_file)
 
-                # Use the CommandModificationMixin to properly modify the service
-                applied_modifications = self.modify_service_commands(
-                    service, "memcheck_wrapper", {"pre_run_cmds": memcheck_commands}
-                )
+            # Add the Memcheck wrapper with conditional check for Valgrind
+            command_builder.add_conditional_wrapper(
+                condition="command -v valgrind >/dev/null 2>&1",
+                wrapper_command=memcheck_cmd,
+                description=f"Setup Memcheck wrapper for {command_builder.service_name}",
+                fallback_message="Valgrind not found - Memcheck memory error detection disabled",
+                is_critical=False,
+            )
 
-                self.logger.info("Enhanced service %s with memcheck wrapper setup", service_name)
-                self.logger.debug("Applied modifications: %s", applied_modifications)
-                self.logger.debug("Service cmds after memcheck modification: %s", service.run_cmd)
-                if hasattr(service, "run_cmd"):
-                    self.logger.debug(
-                        "Pre-run commands after modification: %s",
-                        service.run_cmd.get("pre_run_cmds", "ATTRIBUTE_NOT_FOUND"),
-                    )
-            else:
-                self.logger.warning(
-                    "No memcheck commands were processed for service %s", service_name
-                )
+            # Add comprehensive post-processing for memory error analysis
+            self._add_memcheck_analysis_commands(
+                command_builder, memcheck_output_file, memcheck_summary_file
+            )
 
-        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))
-        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(self.global_config))
+            # Build and apply all commands to the service
+            results = command_builder.build_and_apply(self.modify_service_commands)
 
-    def to_command(self, pid: int | None = None, output_file: str | None = None) -> str:
+            self.logger.info(
+                "Successfully configured Memcheck for service %s",
+                command_builder.service_name,
+            )
+            self.logger.debug("Applied modifications: %s", results)
+
+    def _build_memcheck_command(self, output_file: str) -> str:
         """
-        Generate the Valgrind Memcheck command for execution.
-        :param pid: Optional process ID to attach to.
-        :param output_file: Optional output file path.
-        :return: Valgrind Memcheck command as a string.
+        Build the Memcheck command with configured options.
+
+        Args:
+            output_file: Path to write Memcheck output
+
+        Returns:
+            str: Complete Memcheck command
         """
-        # Use the existing configuration, don't create a new one
-        command = [
-            "valgrind",
-            "--tool=memcheck",
-            f"--leak-check={self.env_config_to_test.leak_check}",
-            f"--leak-resolution={self.env_config_to_test.leak_resolution}",
-            f"--show-leak-kinds={self.env_config_to_test.show_leak_kinds}",
-            f"--errors-for-leak-kinds={self.env_config_to_test.errors_for_leak_kinds}",
-            "--child-silent-after-fork=yes",
-        ]
+        command_parts = ["valgrind", "--tool=memcheck"]
 
-        # Track origins if enabled
-        if self.env_config_to_test.track_origins:
-            command.append("--track-origins=yes")
+        # Add output file
+        command_parts.extend([f"--log-file={output_file}"])
 
-        # Output format
+        # Set output format
         if self.env_config_to_test.output_format == "xml":
-            command.append("--xml=yes")
-            if output_file:
-                command.append(f"--xml-file={output_file}")
-        else:
-            if output_file:
-                command.append(f"--log-file={output_file}")
+            command_parts.append("--xml=yes")
+            command_parts.append(f"--xml-file={output_file}.xml")
+            if self.env_config_to_test.xml_user_comment:
+                command_parts.append(
+                    f"--xml-user-comment={self.env_config_to_test.xml_user_comment}"
+                )
 
-        # Suppressions
-        if self.env_config_to_test.generate_suppressions:
-            command.append("--gen-suppressions=all")
+        # Leak checking options
+        command_parts.append(f"--leak-check={self.env_config_to_test.leak_check}")
+        command_parts.append(
+            f"--leak-resolution={self.env_config_to_test.leak_resolution}"
+        )
+        command_parts.append(
+            f"--show-leak-kinds={self.env_config_to_test.show_leak_kinds}"
+        )
+        command_parts.append(
+            f"--errors-for-leak-kinds={self.env_config_to_test.errors_for_leak_kinds}"
+        )
+        command_parts.append(
+            f"--leak-check-heuristics={self.env_config_to_test.leak_check_heuristics}"
+        )
 
+        # Optional leak checking flags
+        if self.env_config_to_test.show_reachable:
+            command_parts.append(
+                f"--show-reachable={self.env_config_to_test.show_reachable}"
+            )
+        if self.env_config_to_test.show_possibly_lost:
+            command_parts.append(
+                f"--show-possibly-lost={self.env_config_to_test.show_possibly_lost}"
+            )
+
+        # XTree leak output
+        if self.env_config_to_test.xtree_leak:
+            command_parts.append("--xtree-leak=yes")
+            command_parts.append(
+                f"--xtree-leak-file={self.env_config_to_test.xtree_leak_file}"
+            )
+
+        # Error detection options
+        if not self.env_config_to_test.undef_value_errors:
+            command_parts.append("--undef-value-errors=no")
+
+        if self.env_config_to_test.track_origins:
+            command_parts.append("--track-origins=yes")
+
+        if not self.env_config_to_test.partial_loads_ok:
+            command_parts.append("--partial-loads-ok=no")
+
+        command_parts.append(
+            f"--expensive-definedness-checks={self.env_config_to_test.expensive_definedness_checks}"
+        )
+        command_parts.append(
+            f"--keep-stacktraces={self.env_config_to_test.keep_stacktraces}"
+        )
+
+        # Memory management options
+        command_parts.append(f"--freelist-vol={self.env_config_to_test.freelist_vol}")
+        command_parts.append(
+            f"--freelist-big-blocks={self.env_config_to_test.freelist_big_blocks}"
+        )
+
+        # Special handling options
+        if self.env_config_to_test.workaround_gcc296_bugs:
+            command_parts.append("--workaround-gcc296-bugs=yes")
+
+        if self.env_config_to_test.ignore_range_below_sp:
+            command_parts.append(
+                f"--ignore-range-below-sp={self.env_config_to_test.ignore_range_below_sp}"
+            )
+
+        if not self.env_config_to_test.show_mismatched_frees:
+            command_parts.append("--show-mismatched-frees=no")
+
+        if not self.env_config_to_test.show_realloc_size_zero:
+            command_parts.append("--show-realloc-size-zero=no")
+
+        if self.env_config_to_test.ignore_ranges:
+            command_parts.append(
+                f"--ignore-ranges={self.env_config_to_test.ignore_ranges}"
+            )
+
+        # Fill options
+        if self.env_config_to_test.malloc_fill:
+            command_parts.append(f"--malloc-fill={self.env_config_to_test.malloc_fill}")
+
+        if self.env_config_to_test.free_fill:
+            command_parts.append(f"--free-fill={self.env_config_to_test.free_fill}")
+
+        # Suppression file
         if self.env_config_to_test.suppression_file:
-            command.append(f"--suppressions={self.env_config_to_test.suppression_file}")
+            command_parts.append(
+                f"--suppressions={self.env_config_to_test.suppression_file}"
+            )
 
-        # XML user comment
-        if (
-            self.env_config_to_test.xml_user_comment
-            and self.env_config_to_test.output_format == "xml"
-        ):
-            command.append(f"--xml-user-comment={self.env_config_to_test.xml_user_comment}")
+        # Generate suppressions
+        if self.env_config_to_test.generate_suppressions:
+            command_parts.append("--gen-suppressions=all")
 
         # Additional parameters
         if self.env_config_to_test.additional_parameters:
-            command.extend(self.env_config_to_test.additional_parameters)
+            command_parts.extend(self.env_config_to_test.additional_parameters)
 
-        # Attach to specific PID if provided
-        if pid:
-            command.append(f"--pid={pid}")
+        return " ".join(command_parts)
 
-        return " ".join(command)
-
-    def initialize(self, test_config, output_dir, event_manager, global_config):
-        """
-        Initialize the memcheck environment with configuration settings.
-
-        Args:
-            test_config: Test configuration to use for this environment
-            output_dir: Directory to write environment files
-            event_manager: Shared event manager instance for emitting events
-            global_config: Global configuration settings
-
-        Returns:
-            bool: True if initialization succeeded, False otherwise
-        """
-        try:
-            self.test_config = test_config
-            self.output_dir = output_dir
-            self.event_manager = event_manager
-            self.global_config = global_config
-            self.is_initialized = True
-            self.logger.debug("MemcheckEnvironment initialized successfully")
-            return True
-        except Exception as e:
-            self.logger.error("Failed to initialize MemcheckEnvironment: %s", e)
-            return False
-
-    def _do_setup_environment(
-        self,
-        services_managers,
-        test_config,
-        global_config,
-        timestamp,
-        plugin_manager,
-        execution_environment=None,
+    def _add_memcheck_analysis_commands(
+        self, command_builder, memcheck_output_file: str, summary_file: str
     ):
         """
-        Implementation of environment setup for memcheck (from parent interface).
+        Add comprehensive Memcheck analysis post-processing commands.
 
         Args:
-            services_managers: List of service managers
-            test_config: Test configuration
-            global_config: Global configuration
-            timestamp: Timestamp for this execution
-            plugin_manager: Plugin manager instance
-            execution_environment: List of execution environments (unused for memcheck)
+            command_builder: The command builder to add commands to
+            memcheck_output_file: Path to the Memcheck output file
+            summary_file: Path to the summary file to generate
         """
-        # execution_environment is not needed for memcheck setup but required by interface
-        _ = execution_environment
-        # Delegate to the concrete implementation
-        self.setup_environment(
-            services_managers, test_config, global_config, timestamp, plugin_manager
+        service_name = command_builder.service_name
+
+        # Generate comprehensive Memcheck analysis
+        analysis_command = f"""
+echo "=== Memcheck Memory Error Analysis for {service_name} ===" > {summary_file}
+echo "Generated at: $(date)" >> {summary_file}
+echo "Memcheck output file: {memcheck_output_file}" >> {summary_file}
+echo "" >> {summary_file}
+
+# Check if Memcheck output exists
+if [ -f "{memcheck_output_file}" ]; then
+    echo "=== Memory Error Summary ===" >> {summary_file}
+
+    # Count different types of errors
+    echo "Invalid read/write operations:" >> {summary_file}
+    grep -c "Invalid read\\|Invalid write" {memcheck_output_file} 2>/dev/null || echo "0" >> {summary_file}
+
+    echo "Use of uninitialized values:" >> {summary_file}
+    grep -c "Conditional jump or move depends on uninitialised value\\|Use of uninitialised value" {memcheck_output_file} 2>/dev/null || echo "0" >> {summary_file}
+
+    echo "Memory leaks detected:" >> {summary_file}
+    grep -c "definitely lost\\|indirectly lost\\|possibly lost" {memcheck_output_file} 2>/dev/null || echo "0" >> {summary_file}
+
+    echo "Invalid free operations:" >> {summary_file}
+    grep -c "Invalid free\\|Mismatched free" {memcheck_output_file} 2>/dev/null || echo "0" >> {summary_file}
+
+    echo "" >> {summary_file}
+
+    # Memory leak details
+    echo "=== Memory Leak Analysis ===" >> {summary_file}
+    if grep -q "LEAK SUMMARY" {memcheck_output_file} 2>/dev/null; then
+        echo "Leak summary found:" >> {summary_file}
+        grep -A 10 "LEAK SUMMARY" {memcheck_output_file} | head -15 >> {summary_file} 2>/dev/null
+    else
+        echo "No memory leaks detected" >> {summary_file}
+    fi
+
+    echo "" >> {summary_file}
+
+    # Invalid access analysis
+    echo "=== Invalid Memory Access Analysis ===" >> {summary_file}
+    if grep -q "Invalid read\\|Invalid write" {memcheck_output_file} 2>/dev/null; then
+        echo "Invalid memory access detected - critical errors found" >> {summary_file}
+        grep -B 2 -A 3 "Invalid read\\|Invalid write" {memcheck_output_file} | head -20 >> {summary_file} 2>/dev/null
+    else
+        echo "No invalid memory access detected" >> {summary_file}
+    fi
+
+    echo "" >> {summary_file}
+
+    # Uninitialized value usage
+    echo "=== Uninitialized Value Usage ===" >> {summary_file}
+    if grep -q "uninitialised value" {memcheck_output_file} 2>/dev/null; then
+        echo "Uninitialized value usage detected" >> {summary_file}
+        uninit_count=$(grep -c "uninitialised value" {memcheck_output_file} 2>/dev/null || echo "0")
+        echo "Total uninitialized value issues: $uninit_count" >> {summary_file}
+    else
+        echo "No uninitialized value usage detected" >> {summary_file}
+    fi
+
+    echo "" >> {summary_file}
+
+    # Error severity assessment
+    echo "=== Error Severity Assessment ===" >> {summary_file}
+
+    # Count critical errors
+    critical_errors=$(grep -c "Invalid read\\|Invalid write\\|Invalid free" {memcheck_output_file} 2>/dev/null || echo "0")
+    leak_errors=$(grep -c "definitely lost\\|indirectly lost" {memcheck_output_file} 2>/dev/null || echo "0")
+    possible_leaks=$(grep -c "possibly lost" {memcheck_output_file} 2>/dev/null || echo "0")
+    uninit_errors=$(grep -c "uninitialised value" {memcheck_output_file} 2>/dev/null || echo "0")
+
+    total_errors=$((critical_errors + leak_errors + possible_leaks + uninit_errors))
+
+    if [ "$critical_errors" -gt 0 ]; then
+        echo "🚨 CRITICAL: $critical_errors memory corruption errors found" >> {summary_file}
+        echo "   These indicate serious bugs that can cause crashes or security issues" >> {summary_file}
+    elif [ "$leak_errors" -gt 0 ]; then
+        echo "⚠ HIGH: $leak_errors definite memory leaks found" >> {summary_file}
+        echo "   Memory is not being properly freed" >> {summary_file}
+    elif [ "$possible_leaks" -gt 0 ]; then
+        echo "⚠ MEDIUM: $possible_leaks possible memory leaks found" >> {summary_file}
+        echo "   Review code to ensure proper memory management" >> {summary_file}
+    elif [ "$uninit_errors" -gt 0 ]; then
+        echo "⚠ LOW: $uninit_errors uninitialized value issues found" >> {summary_file}
+        echo "   Variables may not be properly initialized" >> {summary_file}
+    else
+        echo "✓ No memory errors detected - program appears memory-safe" >> {summary_file}
+    fi
+
+    echo "" >> {summary_file}
+    echo "Total issues found: $total_errors" >> {summary_file}
+
+else
+    echo "Memcheck output file not found - analysis cannot be performed" >> {summary_file}
+    echo "This may indicate Valgrind/Memcheck was not available or failed to run" >> {summary_file}
+fi
+
+echo "" >> {summary_file}
+echo "Analysis complete. For detailed information, examine the full Memcheck log." >> {summary_file}
+"""
+
+        command_builder.add_post_processing(
+            input_file=memcheck_output_file,
+            output_file=summary_file,
+            processing_command=analysis_command.strip(),
+            description="Memcheck memory error analysis and summary generation",
+            file_type="memcheck_summary",
         )
 
-    def _do_deploy_services(self):
-        """
-        Implementation of service deployment for memcheck.
+        # Add detailed leak analysis if configured for full leak checking
+        if self.env_config_to_test.leak_check in ["yes", "full"]:
+            leak_detail_file = command_builder.register_output_file(
+                file_type="memcheck_leaks",
+                extension="detailed.txt",
+                description="Detailed Memcheck leak analysis",
+            )
 
-        For execution environments like memcheck, deployment is typically handled
-        by the network environment, so this is usually a no-op.
-        """
-        self.logger.debug("MemcheckEnvironment deployment: no specific deployment needed")
+            leak_command = f"""
+echo "=== Detailed Memory Leak Analysis for {service_name} ===" > {leak_detail_file}
+echo "" >> {leak_detail_file}
 
-    def _do_teardown_environment(self):
-        """
-        Implementation of environment teardown for memcheck.
-        """
-        self.logger.debug("MemcheckEnvironment teardown: cleaning up memcheck resources")
-        # No specific cleanup needed for memcheck
+if [ -f "{memcheck_output_file}" ]; then
+    echo "=== All Detected Memory Leaks ===" >> {leak_detail_file}
+    grep -A 20 "definitely lost\\|indirectly lost\\|possibly lost" {memcheck_output_file} >> {leak_detail_file} 2>/dev/null || echo "No memory leaks found" >> {leak_detail_file}
 
-    def handle_event(self, event):
+    echo "" >> {leak_detail_file}
+    echo "=== Leak Stack Traces ===" >> {leak_detail_file}
+    grep -A 15 "bytes in [0-9]* blocks are definitely lost" {memcheck_output_file} >> {leak_detail_file} 2>/dev/null || echo "No definite leak stack traces found" >> {leak_detail_file}
+else
+    echo "Memcheck output file not found for detailed leak analysis" >> {leak_detail_file}
+fi
+"""
+
+            command_builder.add_post_processing(
+                input_file=memcheck_output_file,
+                output_file=leak_detail_file,
+                processing_command=leak_command.strip(),
+                description="Detailed Memcheck leak analysis",
+                file_type="memcheck_leaks",
+            )
+
+    def to_command(self, pid: int | None = None, output_file: str | None = None) -> str:
         """
-        Handle events sent to this execution environment.
+        Generate the Memcheck command for execution.
 
         Args:
-            event: The event to handle
+            pid: Optional process ID to attach to
+            output_file: Optional output file path
+
+        Returns:
+            str: Command string for Memcheck wrapper
         """
-        event_type = type(event).__name__
-        self.logger.debug("MemcheckEnvironment received event: %s", event_type)
+        if output_file is None:
+            output_file = self.env_config_to_test.output_file or "/tmp/memcheck.log"
 
-        # Handle environment-specific events if needed
-        if event_type == "ServiceStartedEvent":
-            self.logger.debug("Service started, memcheck should be active")
-        elif event_type == "ServiceStoppedEvent":
-            self.logger.debug("Service stopped, memcheck collection complete")
-        else:
-            self.logger.debug("Unhandled event type: %s", event_type)
+        # Note: pid parameter is not directly supported by Memcheck (runs from start)
+        if pid:
+            self.logger.warning(
+                "PID parameter (%d) not supported - Memcheck must run from process start",
+                pid,
+            )
 
-    def __repr__(self):
-        return (
-            f"MemcheckEnvironment(env_config_to_test={self.env_config_to_test}, "
-            f"output_dir={self.output_dir}, event_manager={self.event_manager}, "
-            f"services_managers={self.services_managers}, test_config={self.test_config})"
-        )
+        # Use the same command building logic as the wrapper
+        return self._build_memcheck_command(output_file)

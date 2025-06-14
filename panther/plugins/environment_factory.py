@@ -97,7 +97,9 @@ class EnvironmentFactory(LoggerMixin):
                 # Use manifest information
                 if "network" in manifest.tags or "network" in manifest.capabilities:
                     env_type = "network_environment"
-                elif "execution" in manifest.tags or "execution" in manifest.capabilities:
+                elif (
+                    "execution" in manifest.tags or "execution" in manifest.capabilities
+                ):
                     env_type = "execution_environment"
             else:
                 # Default to network environment
@@ -112,20 +114,22 @@ class EnvironmentFactory(LoggerMixin):
             self.logger.debug("Loading environment module from %s", env_file_path)
 
             # Use PluginManagerUtils to load the plugin class
-            from panther.plugins.plugin_loader_utils import (
+            from panther.plugins.plugin_loader_utils import (  # pylint: disable=import-outside-toplevel
                 PluginManagerUtils,
-            )  # pylint: disable=import-outside-toplevel
+            )
 
             env_manager_class = PluginManagerUtils.load_plugin_class(
                 plugin_path=env_file_path,
                 class_suffix="Environment",
-                name_transform=lambda name: self.config_resolver.get_class_name(name, suffix=""),
+                name_transform=lambda name: self.config_resolver.get_class_name(
+                    name, suffix=""
+                ),
             )
 
             # Extract environment configuration
-            from panther.plugins.environments.config_schema import (
+            from panther.plugins.environments.config_schema import (  # pylint: disable=import-outside-toplevel
                 EnvironmentConfig,
-            )  # pylint: disable=import-outside-toplevel
+            )
 
             env_config = getattr(test_config, env_type, {})
             if isinstance(env_config, dict):
@@ -161,7 +165,9 @@ class EnvironmentFactory(LoggerMixin):
                     # Note: details parameter not supported, omitting for now
                 )
 
-            self.logger.info("Successfully created environment manager for %s", environment)
+            self.logger.info(
+                "Successfully created environment manager for %s", environment
+            )
             return env_manager
 
         except Exception as e:
@@ -178,10 +184,14 @@ class EnvironmentFactory(LoggerMixin):
                     },
                 )
 
-            self.logger.error("Failed to create environment manager for %s: %s", environment, e)
+            self.logger.error(
+                "Failed to create environment manager for %s: %s", environment, e
+            )
             raise
 
-    def get_network_environment_plugin(self, environment_type: str) -> INetworkEnvironment | None:
+    def get_network_environment_plugin(
+        self, environment_type: str
+    ) -> INetworkEnvironment | None:
         """
         Get a network environment plugin instance.
 
@@ -211,20 +221,24 @@ class EnvironmentFactory(LoggerMixin):
                 return None
 
             # Load and instantiate the plugin
-            from panther.plugins.plugin_loader_utils import (
+            from panther.plugins.plugin_loader_utils import (  # pylint: disable=import-outside-toplevel
                 PluginManagerUtils,
-            )  # pylint: disable=import-outside-toplevel
+            )
 
             plugin_file_path = Path(manifest.file_path) / f"{environment_type}.py"
 
             env_class = PluginManagerUtils.load_plugin_class(
                 plugin_path=plugin_file_path,
                 class_suffix="Environment",
-                name_transform=lambda name: self.config_resolver.get_class_name(name, suffix=""),
+                name_transform=lambda name: self.config_resolver.get_class_name(
+                    name, suffix=""
+                ),
             )
 
             # Create configuration
-            env_config = self.config_resolver.create_execution_environment_config(environment_type)
+            env_config = self.config_resolver.create_execution_environment_config(
+                environment_type
+            )
 
             # Create instance
             env_instance = env_class(
@@ -277,20 +291,24 @@ class EnvironmentFactory(LoggerMixin):
                 return None
 
             # Load and instantiate the plugin
-            from panther.plugins.plugin_loader_utils import (
+            from panther.plugins.plugin_loader_utils import (  # pylint: disable=import-outside-toplevel
                 PluginManagerUtils,
-            )  # pylint: disable=import-outside-toplevel
+            )
 
             plugin_file_path = Path(manifest.file_path) / f"{environment_type}.py"
 
             env_class = PluginManagerUtils.load_plugin_class(
                 plugin_path=plugin_file_path,
-                class_suffix="",
-                name_transform=lambda name: self.config_resolver.get_class_name(name, suffix=""),
+                class_suffix="Environment",
+                name_transform=lambda name: self.config_resolver.get_class_name(
+                    name, suffix=""
+                ),
             )
 
             # Create configuration
-            env_config = self.config_resolver.create_execution_environment_config(environment_type)
+            env_config = self.config_resolver.create_execution_environment_config(
+                environment_type
+            )
 
             # Create instance
             env_instance = env_class(
@@ -325,13 +343,16 @@ class EnvironmentFactory(LoggerMixin):
                 plugin_id = f"environment:{env_config.type}"
 
                 if not self.plugin_discovery.is_plugin_available(plugin_id):
-                    self.logger.warning("Environment type not available: %s", env_config.type)
+                    self.logger.warning(
+                        "Environment type not available: %s", env_config.type
+                    )
                     return False
 
                 # Validate dependencies
-                dependencies_ok, missing_deps = self.plugin_discovery.validate_plugin_dependencies(
-                    env_config.type
-                )
+                (
+                    dependencies_ok,
+                    missing_deps,
+                ) = self.plugin_discovery.validate_plugin_dependencies(env_config.type)
                 if not dependencies_ok:
                     self.logger.warning(
                         "Missing dependencies for environment %s: %s",
@@ -359,7 +380,10 @@ class EnvironmentFactory(LoggerMixin):
 
             # Look for network environment plugins
             for plugin_type, plugin_names in all_plugins.items():
-                if "network" in plugin_type.lower() and "environment" in plugin_type.lower():
+                if (
+                    "network" in plugin_type.lower()
+                    and "environment" in plugin_type.lower()
+                ):
                     environments.extend(plugin_names)
 
             self.logger.debug("Found %d network environments", len(environments))
@@ -382,7 +406,10 @@ class EnvironmentFactory(LoggerMixin):
 
             # Look for execution environment plugins
             for plugin_type, plugin_names in all_plugins.items():
-                if "execution" in plugin_type.lower() and "environment" in plugin_type.lower():
+                if (
+                    "execution" in plugin_type.lower()
+                    and "environment" in plugin_type.lower()
+                ):
                     environments.extend(plugin_names)
 
             self.logger.debug("Found %d execution environments", len(environments))
@@ -405,12 +432,14 @@ class EnvironmentFactory(LoggerMixin):
         """
         try:
             if env_type == "execution":
-                return self.config_resolver.create_execution_environment_config(env_name)
+                return self.config_resolver.create_execution_environment_config(
+                    env_name
+                )
             else:
                 # For network environments, create generic config
-                from panther.plugins.environments.config_schema import (
+                from panther.plugins.environments.config_schema import (  # pylint: disable=import-outside-toplevel
                     EnvironmentConfig,
-                )  # pylint: disable=import-outside-toplevel
+                )
 
                 return EnvironmentConfig(type=env_name)
 
@@ -439,7 +468,9 @@ class EnvironmentFactory(LoggerMixin):
             # Build environment info from manifest
             env_info = {
                 "name": manifest.name,
-                "type": (manifest.plugin_type.value if manifest.plugin_type else "unknown"),
+                "type": (
+                    manifest.plugin_type.value if manifest.plugin_type else "unknown"
+                ),
                 "version": getattr(manifest, "version", "unknown"),
                 "description": getattr(manifest, "description", ""),
                 "capabilities": getattr(manifest, "capabilities", []),
@@ -450,5 +481,7 @@ class EnvironmentFactory(LoggerMixin):
             return env_info
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Error getting environment info for %s: %s", environment_name, e)
+            self.logger.error(
+                "Error getting environment info for %s: %s", environment_name, e
+            )
             return None

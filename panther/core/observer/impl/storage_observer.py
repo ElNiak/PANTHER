@@ -7,30 +7,26 @@ for comprehensive data persistence and retrieval capabilities.
 
 import json
 from datetime import datetime
-from typing import Any
 from pathlib import Path
+from typing import Any
 
-from panther.core.observer.base.typed_observer_interface import ITypedObserver
-from panther.core.events import (
-    BaseEvent,
-    # Test events
-    TestExecutionStartedEvent,
-    TestCompletedEvent,
-    TestFailedEvent,
-    # Experiment events
-    ExperimentExecutionStartedEvent,
+from panther.core.events.base.event_base import BaseEvent
+from panther.core.events.environment.events import EnvironmentErrorEvent
+from panther.core.events.experiment.events import (
     ExperimentCompletedEvent,
+    ExperimentExecutionStartedEvent,
     ExperimentFailedEvent,
     ExperimentFinishedEarlyEvent,
-    # Service events
-    ServiceErrorEvent,
-    # Environment events
-    EnvironmentErrorEvent,
-    # Metrics events
-    MetricsSummaryEvent,
-    MetricCollectedEvent,
 )
-from panther.core.events import TestResultEvent
+from panther.core.events.metrics.events import MetricCollectedEvent, MetricsSummaryEvent
+from panther.core.events.service.events import ServiceErrorEvent
+from panther.core.events.test.events import (
+    TestCompletedEvent,
+    TestExecutionStartedEvent,
+    TestFailedEvent,
+    TestResultEvent,
+)
+from panther.core.observer.base.typed_observer_interface import ITypedObserver
 from panther.core.observer.management.results_manager import ResultsManager
 
 
@@ -118,7 +114,9 @@ class StorageObserver(ITypedObserver):
             "network_events": [],
         }
 
-        self.logger.info(f"StorageObserver initialized with storage path: {self.storage_path}")
+        self.logger.info(
+            f"StorageObserver initialized with storage path: {self.storage_path}"
+        )
 
     def on_event(self, event: BaseEvent) -> bool:
         """
@@ -154,7 +152,10 @@ class StorageObserver(ITypedObserver):
             name="test.completed",
             test_name=event.test_name,
             result="passed",
-            data={"test_id": event.test_id, "duration": getattr(event, "duration", None)},
+            data={
+                "test_id": event.test_id,
+                "duration": getattr(event, "duration", None),
+            },
             metadata={"original_event_id": str(getattr(event, "event_id", event.id))},
         )
         self.results_manager.on_event(test_result_event)
@@ -166,10 +167,14 @@ class StorageObserver(ITypedObserver):
         # Create a TestResultEvent for ResultsManager
         test_result_event = TestResultEvent(
             name="test.failed",
-            test_name=getattr(event, "test_name", getattr(event, "entity_id", "unknown")),
+            test_name=getattr(
+                event, "test_name", getattr(event, "entity_id", "unknown")
+            ),
             result="failed",
             data={
-                "test_id": getattr(event, "test_id", getattr(event, "entity_id", "unknown")),
+                "test_id": getattr(
+                    event, "test_id", getattr(event, "entity_id", "unknown")
+                ),
                 "failure_reason": getattr(event, "failure_reason", "Unknown"),
             },
             metadata={"original_event_id": str(getattr(event, "event_id", event.id))},
@@ -178,7 +183,9 @@ class StorageObserver(ITypedObserver):
         self._store_error_event(event, "test.failed")
         return True
 
-    def on_experiment_execution_started(self, event: ExperimentExecutionStartedEvent) -> bool:
+    def on_experiment_execution_started(
+        self, event: ExperimentExecutionStartedEvent
+    ) -> bool:
         """Handle experiment started event."""
         self._store_system_event(event, "experiment.started")
         return True
@@ -241,7 +248,10 @@ class StorageObserver(ITypedObserver):
         if not self.event_type_filters:
             return True
 
-        return any(event_type.startswith(filter_type) for filter_type in self.event_type_filters)
+        return any(
+            event_type.startswith(filter_type)
+            for filter_type in self.event_type_filters
+        )
 
     def _categorize_and_store_event(self, event: BaseEvent, event_type: str):
         """Categorize an event and store it in the appropriate category."""
@@ -263,7 +273,9 @@ class StorageObserver(ITypedObserver):
         elif "error" in event_type.lower() or "fail" in event_type.lower():
             self._handle_error_event(event, event_type)
 
-    def _convert_event_to_dict(self, event: BaseEvent, event_type: str) -> dict[str, Any]:
+    def _convert_event_to_dict(
+        self, event: BaseEvent, event_type: str
+    ) -> dict[str, Any]:
         """Convert an event to a dictionary for storage."""
         return {
             "id": str(getattr(event, "id", "")),
@@ -398,7 +410,9 @@ class StorageObserver(ITypedObserver):
         error_file = self.storage_path / "error_events.jsonl"
         self._append_to_file(error_file, error_data)
 
-    def _determine_error_severity(self, event_type: str, event_data: dict[str, Any]) -> str:
+    def _determine_error_severity(
+        self, event_type: str, event_data: dict[str, Any]
+    ) -> str:
         """Determine the severity level of an error event."""
         if "critical" in event_type.lower():
             return "critical"
@@ -439,7 +453,9 @@ class StorageObserver(ITypedObserver):
     def _update_storage_size(self):
         """Update storage size statistics."""
         try:
-            total_size = sum(f.stat().st_size for f in self.storage_path.rglob("*") if f.is_file())
+            total_size = sum(
+                f.stat().st_size for f in self.storage_path.rglob("*") if f.is_file()
+            )
             self.storage_stats["storage_size"] = total_size
         except Exception as e:
             self.logger.error(f"Failed to calculate storage size: {e}")
@@ -564,11 +580,15 @@ class StorageObserver(ITypedObserver):
                         event_data = json.loads(line.strip())
 
                         # Apply filters
-                        if event_type and not event_data.get("type", "").startswith(event_type):
+                        if event_type and not event_data.get("type", "").startswith(
+                            event_type
+                        ):
                             continue
 
                         if start_time or end_time:
-                            event_time = datetime.fromisoformat(event_data.get("timestamp", ""))
+                            event_time = datetime.fromisoformat(
+                                event_data.get("timestamp", "")
+                            )
                             if start_time and event_time < start_time:
                                 continue
                             if end_time and event_time > end_time:
@@ -624,7 +644,9 @@ class StorageObserver(ITypedObserver):
             self.logger.error(f"Failed to export data: {e}")
             return False
 
-    def _export_json(self, export_path: str, include_categories: list[str] | None) -> bool:
+    def _export_json(
+        self, export_path: str, include_categories: list[str] | None
+    ) -> bool:
         """Export data in JSON format."""
         export_data = {
             "metadata": {
@@ -655,7 +677,9 @@ class StorageObserver(ITypedObserver):
 
         return True
 
-    def _export_csv(self, export_path: str, include_categories: list[str] | None) -> bool:
+    def _export_csv(
+        self, export_path: str, include_categories: list[str] | None
+    ) -> bool:
         """Export data in CSV format."""
         import csv
 
@@ -686,7 +710,9 @@ class StorageObserver(ITypedObserver):
 
         return True
 
-    def _export_xml(self, export_path: str, include_categories: list[str] | None) -> bool:
+    def _export_xml(
+        self, export_path: str, include_categories: list[str] | None
+    ) -> bool:
         """Export data in XML format."""
         try:
             import xml.etree.ElementTree as ET
@@ -695,7 +721,9 @@ class StorageObserver(ITypedObserver):
 
             # Add metadata
             metadata = ET.SubElement(root, "metadata")
-            ET.SubElement(metadata, "export_timestamp").text = datetime.now().isoformat()
+            ET.SubElement(
+                metadata, "export_timestamp"
+            ).text = datetime.now().isoformat()
             ET.SubElement(metadata, "storage_path").text = str(self.storage_path)
 
             # Add events

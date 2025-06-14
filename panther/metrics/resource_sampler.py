@@ -1,8 +1,10 @@
 """Resource monitoring for CPU and memory usage."""
 
-import psutil
 import threading
 import time
+from typing import Dict, List, Optional
+
+import psutil
 
 
 class ResourceSampler:
@@ -16,9 +18,9 @@ class ResourceSampler:
         """
         self.interval = interval
         self._running = False
-        self._thread: threading.Thread | None = None
-        self._cpu_samples: list[float] = []
-        self._memory_samples: list[float] = []
+        self._thread: Optional[threading.Thread] = None
+        self._cpu_samples: List[float] = []
+        self._memory_samples: List[float] = []
         self._lock = threading.Lock()
 
         # Get current process for memory monitoring
@@ -36,7 +38,7 @@ class ResourceSampler:
         self._thread = threading.Thread(target=self._sample_loop, daemon=True)
         self._thread.start()
 
-    def stop(self) -> dict[str, float]:
+    def stop(self) -> Dict[str, float]:
         """Stop resource sampling and return metrics.
 
         Returns:
@@ -90,7 +92,7 @@ class ResourceSampler:
                 # Ignore sampling errors and continue
                 pass
 
-    def get_current_stats(self) -> dict[str, float]:
+    def get_current_stats(self) -> Dict[str, float]:
         """Get current resource usage without stopping sampling.
 
         Returns:

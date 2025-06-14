@@ -3,6 +3,7 @@
 import json
 import subprocess
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 
 def get_directory_size_mb(directory: Path) -> float:
@@ -29,7 +30,7 @@ def get_directory_size_mb(directory: Path) -> float:
     return total_size / (1024 * 1024)  # Convert to MB
 
 
-def get_docker_image_size_mb(image_name: str) -> float | None:
+def get_docker_image_size_mb(image_name: str) -> Optional[float]:
     """Get the size of a Docker image in megabytes.
 
     Args:
@@ -71,7 +72,7 @@ def get_docker_image_size_mb(image_name: str) -> float | None:
         return None
 
 
-def get_docker_image_info(image_name: str) -> dict | None:
+def get_docker_image_info(image_name: str) -> Optional[Dict]:
     """Get detailed information about a Docker image.
 
     Args:
@@ -120,7 +121,9 @@ def get_docker_image_info(image_name: str) -> dict | None:
         return None
 
 
-def find_latest_wheel(dist_dir: Path, package_name: str) -> tuple[Path, float] | None:
+def find_latest_wheel(
+    dist_dir: Path, package_name: str
+) -> Optional[Tuple[Path, float]]:
     """Find the latest wheel file and its size.
 
     Args:
@@ -170,7 +173,7 @@ def get_file_size_mb(file_path: Path) -> float:
         return 0.0
 
 
-def list_docker_images_with_pattern(pattern: str) -> list:
+def list_docker_images_with_pattern(pattern: str) -> List[str]:
     """List Docker images matching a pattern.
 
     Args:
@@ -206,7 +209,7 @@ def list_docker_images_with_pattern(pattern: str) -> list:
         return []
 
 
-def cleanup_build_artifacts(project_root: Path) -> dict:
+def cleanup_build_artifacts(project_root: Path) -> Dict[str, float]:
     """Clean up build artifacts and return size information.
 
     Args:

@@ -2,9 +2,9 @@ import logging
 import threading
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Optional, Tuple, Union
 
-from panther.core.events import BaseEvent
+from panther.core.events.base.event_base import BaseEvent
 from panther.core.observer.base.observer_interface import IObserver
 
 
@@ -58,9 +58,9 @@ class EventManager:
         self._active_contexts: dict[str, dict[str, Any]] = {}
 
         # Observer scope and duplicate tracking
-        self._observer_registry: dict[str, tuple[IObserver, str]] = (
-            {}
-        )  # observer_id -> (observer, scope)
+        self._observer_registry: dict[
+            str, tuple[IObserver, str]
+        ] = {}  # observer_id -> (observer, scope)
         self._scoped_observers: dict[str, set[str]] = defaultdict(
             set
         )  # scope -> set of observer_ids
@@ -98,7 +98,9 @@ class EventManager:
             return event.get_type()
         else:
             # This should not happen with properly constructed BaseEvent instances
-            self.logger.error(f"Event {event.__class__.__name__} missing get_type() method")
+            self.logger.error(
+                f"Event {event.__class__.__name__} missing get_type() method"
+            )
             return f"{event.__class__.__name__}.unknown"
 
     def register_observer(
@@ -126,7 +128,9 @@ class EventManager:
                     if observer not in existing_observers:
                         self.observers[event_type].append((priority, observer))
                         # Sort by priority (highest first)
-                        self.observers[event_type].sort(key=lambda x: x[0], reverse=True)
+                        self.observers[event_type].sort(
+                            key=lambda x: x[0], reverse=True
+                        )
                         self.logger.debug(
                             "Registered observer '%s' for event type '%s' with priority %d",
                             observer.__class__.__name__,
@@ -181,11 +185,21 @@ class EventManager:
                 existing_observer, existing_scope = self._observer_registry[observer_id]
                 self.logger.debug(
                     "Observer '%s' with ID '%s' already registered in scope '%s', skipping duplicate",
-                    observer.__class__.__name__,
+                    existing_observer.__class__.__name__
+                    if existing_observer
+                    else "None",
                     observer_id,
                     existing_scope,
                 )
                 return existing_observer
+
+            # Safety check for None observer
+            if observer is None:
+                self.logger.error(
+                    "Cannot register None observer with ID '%s', skipping registration",
+                    observer_id,
+                )
+                return None
 
             # Register the observer
             self.register_observer(observer, event_types, priority)
@@ -217,7 +231,9 @@ class EventManager:
             else:
                 self._unregister_from_all_types(observer)
 
-    def _unregister_from_specific_types(self, observer: IObserver, event_types: list[str]):
+    def _unregister_from_specific_types(
+        self, observer: IObserver, event_types: list[str]
+    ):
         """Helper to unregister observer from specific event types."""
         for event_type in event_types:
             self.observers[event_type] = [
@@ -231,13 +247,16 @@ class EventManager:
 
     def _unregister_from_all_types(self, observer: IObserver):
         """Helper to unregister observer from all event types."""
-        self.global_observers = [(p, o) for p, o in self.global_observers if o != observer]
+        self.global_observers = [
+            (p, o) for p, o in self.global_observers if o != observer
+        ]
         for event_type in self.observers:
             self.observers[event_type] = [
                 (p, o) for p, o in self.observers[event_type] if o != observer
             ]
         self.logger.debug(
-            "Unregistered observer '%s' from all event types", observer.__class__.__name__
+            "Unregistered observer '%s' from all event types",
+            observer.__class__.__name__,
         )
 
     def _generate_event_signature(self, event: BaseEvent) -> str:
@@ -318,7 +337,9 @@ class EventManager:
             global_removed = original_global_count - len(self.global_observers)
             if global_removed > 0:
                 cleaned_count += global_removed
-                self.logger.info("Removed %d None observers from global observers", global_removed)
+                self.logger.info(
+                    "Removed %d None observers from global observers", global_removed
+                )
 
             if cleaned_count > 0:
                 self.logger.info("Cleaned up %d None observers total", cleaned_count)
@@ -360,7 +381,9 @@ class EventManager:
             if not event.validate():
                 event_type = self._get_event_type_safely(event)
                 event_data = getattr(event, "data", {})
-                self.logger.error("Invalid event data for %s: %s", event_type, event_data)
+                self.logger.error(
+                    "Invalid event data for %s: %s", event_type, event_data
+                )
                 return False
         return True
 
@@ -373,7 +396,9 @@ class EventManager:
 
         self.metrics["processed"] += 1
         event_type = self._get_event_type_safely(event)
-        self.metrics["by_type"][event_type] = self.metrics["by_type"].get(event_type, 0) + 1
+        self.metrics["by_type"][event_type] = (
+            self.metrics["by_type"].get(event_type, 0) + 1
+        )
         self.logger.debug("Publishing event: %s", event)
 
     def _get_matching_observers(self, event_type: str) -> list[tuple[int, IObserver]]:
@@ -404,12 +429,16 @@ class EventManager:
                     )
                     continue
 
-                if observer not in observer_priorities or priority > observer_priorities[observer]:
+                if (
+                    observer not in observer_priorities
+                    or priority > observer_priorities[observer]
+                ):
                     observer_priorities[observer] = priority
 
             # Reconstruct list with highest priorities (None observers already filtered)
             matching_observers = [
-                (priority, observer) for observer, priority in observer_priorities.items()
+                (priority, observer)
+                for observer, priority in observer_priorities.items()
             ]
 
             # Sort by priority (highest first)
@@ -525,7 +554,9 @@ class EventManager:
             # Clear the scope
             del self._scoped_observers[scope]
 
-            self.logger.info("Cleaned up %d observers from scope '%s'", removed_count, scope)
+            self.logger.info(
+                "Cleaned up %d observers from scope '%s'", removed_count, scope
+            )
 
     def get_scoped_observer_count(self, scope: str = None) -> dict[str, int]:
         """
@@ -541,7 +572,37 @@ class EventManager:
             if scope:
                 return {scope: len(self._scoped_observers.get(scope, set()))}
             else:
-                return {s: len(obs_set) for s, obs_set in self._scoped_observers.items()}
+                return {
+                    s: len(obs_set) for s, obs_set in self._scoped_observers.items()
+                }
+
+    def has_observer(self, observer_id: str) -> bool:
+        """
+        Check if an observer with the given ID is already registered.
+
+        Args:
+            observer_id: Unique identifier for the observer
+
+        Returns:
+            bool: True if observer exists, False otherwise
+        """
+        with self._lock:
+            return observer_id in self._observer_registry
+
+    def get_registered_observer(
+        self, observer_id: str
+    ) -> Optional[Tuple[IObserver, str]]:
+        """
+        Get a registered observer by its ID.
+
+        Args:
+            observer_id: Unique identifier for the observer
+
+        Returns:
+            tuple: (observer, scope) if found, None otherwise
+        """
+        with self._lock:
+            return self._observer_registry.get(observer_id, None)
 
     def get_observer_by_type(self, observer_type):
         """

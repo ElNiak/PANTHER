@@ -7,18 +7,18 @@ and result handling.
 """
 
 import os
-import unittest
-import time
-import tempfile
 import shutil
+import tempfile
+import time
+import unittest
 from threading import Event as ThreadingEvent
 
-from panther.core.events.base.event_emitter import Event
+from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.events.test.events import TestEvent, TestResultEvent
+from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.management.results_manager import ResultsManager
 from panther.core.observer.plugins.plugin_interface import IPluginObserver
-from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.plugins.plugin_registry import PluginRegistry
 
 
@@ -141,7 +141,9 @@ class EventManagerTests(unittest.TestCase):
         observer_high.on_event = lambda e: add_to_order("high")
 
         # Notify the event
-        event = Event(event_id="test1", event_type="test.priority", timestamp=time.time(), data={})
+        event = Event(
+            event_id="test1", event_type="test.priority", timestamp=time.time(), data={}
+        )
         manager.publish(event)
 
         # Verify notification order (highest priority first)
@@ -160,7 +162,7 @@ class PluginRegistryTests(unittest.TestCase):
             f.write(
                 """
 from panther.core.observer.plugins.plugin_interface import IPluginObserver
-from panther.core.events.base.event_emitter import Event
+from panther.core.events.base.event_base import BaseEvent as Event
 
 
 class TestPlugin(IPluginObserver):
@@ -199,9 +201,15 @@ class AnotherPlugin(IObserverPlugin):
         self.assertEqual(len(discovered), 2)
 
         # Verify metadata was extracted
-        self.assertEqual(self.registry.get_plugin_metadata("TestPlugin")["version"], "1.0.0")
-        self.assertEqual(self.registry.get_plugin_metadata("TestPlugin")["author"], "Test Author")
-        self.assertEqual(self.registry.get_plugin_metadata("AnotherPlugin")["version"], "0.5.0")
+        self.assertEqual(
+            self.registry.get_plugin_metadata("TestPlugin")["version"], "1.0.0"
+        )
+        self.assertEqual(
+            self.registry.get_plugin_metadata("TestPlugin")["author"], "Test Author"
+        )
+        self.assertEqual(
+            self.registry.get_plugin_metadata("AnotherPlugin")["version"], "0.5.0"
+        )
 
     def test_load_plugin(self):
         """Test plugin loading."""

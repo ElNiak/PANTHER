@@ -4,11 +4,11 @@ Base Event Classes
 This module defines the base event classes used across all entity types in PANTHER.
 """
 
+import uuid
 from abc import ABC
 from datetime import datetime
 from enum import Enum
-from typing import Any
-import uuid
+from typing import Any, Dict, Optional
 
 
 class EventType(Enum):
@@ -34,7 +34,11 @@ class BaseEvent(ABC):
     """
 
     def __init__(
-        self, name: str, entity_type: EventType, entity_id: str, data: dict[str, Any] | None = None
+        self,
+        name: str,
+        entity_type: EventType,
+        entity_id: str,
+        data: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a base event.
@@ -64,7 +68,7 @@ class BaseEvent(ABC):
         """Get the event timestamp."""
         return self.timestamp
 
-    def get_data(self) -> dict[str, Any]:
+    def get_data(self) -> Dict[str, Any]:
         """Get the event data."""
         return self.data.copy()
 
@@ -78,7 +82,7 @@ class BaseEvent(ABC):
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}: {self.get_type()}({self.entity_id})>"
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert event to dictionary representation."""
         return {
             "id": self.id,

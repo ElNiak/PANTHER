@@ -9,13 +9,13 @@ monitoring, and comprehensive test case metrics.
 
 import logging
 import time
+from abc import ABC, abstractmethod
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
-from dataclasses import dataclass, field
-from collections import defaultdict, deque
 from statistics import mean, median, stdev
-from abc import ABC, abstractmethod
+from typing import Any
 
 try:
     import psutil
@@ -25,23 +25,23 @@ except ImportError:
     PSUTIL_AVAILABLE = False
     psutil = None
 
-from panther.core.observer.base.typed_observer_interface import ITypedObserver
-from panther.core.events import (
-    TestExecutionStartedEvent,
-    TestCompletedEvent,
-    TestFailedEvent,
-    StepExecutionStartedEvent,
-    StepExecutionCompletedEvent,
-    StepExecutionFailedEvent,
-    StepSkippedEvent,
-    # Metrics events
-    MetricsSummaryEvent,
-    MetricCollectedEvent,
-)
-from panther.core.metrics.enums import MetricType, Phase
-
 # Import TYPE_CHECKING to handle circular imports
 from typing import TYPE_CHECKING
+
+from panther.core.events.metrics.events import MetricCollectedEvent, MetricsSummaryEvent
+from panther.core.events.step.events import (
+    StepExecutionCompletedEvent,
+    StepExecutionFailedEvent,
+    StepExecutionStartedEvent,
+    StepSkippedEvent,
+)
+from panther.core.events.test.events import (
+    TestCompletedEvent,
+    TestExecutionStartedEvent,
+    TestFailedEvent,
+)
+from panther.core.metrics.enums import MetricType, Phase
+from panther.core.observer.base.typed_observer_interface import ITypedObserver
 
 if TYPE_CHECKING:
     from panther.core.metrics.resource_monitor import ResourceMonitor
@@ -122,10 +122,14 @@ class TestCaseMetrics:
             },
             "snapshot_count": len(self.snapshots),
             "success_rate": (
-                (self.steps_passed / self.steps_executed * 100) if self.steps_executed > 0 else 0.0
+                (self.steps_passed / self.steps_executed * 100)
+                if self.steps_executed > 0
+                else 0.0
             ),
             "error_rate": (
-                (self.errors_count / self.steps_executed * 100) if self.steps_executed > 0 else 0.0
+                (self.errors_count / self.steps_executed * 100)
+                if self.steps_executed > 0
+                else 0.0
             ),
         }
 
@@ -288,7 +292,9 @@ class MetricsAggregator:
             "min": min(values),
             "max": max(values),
             "latest": values[-1],
-            "trend": "increasing" if len(values) > 1 and values[-1] > values[0] else "decreasing",
+            "trend": "increasing"
+            if len(values) > 1 and values[-1] > values[0]
+            else "decreasing",
         }
 
 
@@ -338,7 +344,9 @@ class MetricsObserver(ITypedObserver):
         super().__init__()
         self.experiment_name = "default_experiment"
         self.output_dir = Path(output_dir) if output_dir else Path("./outputs")
-        self.metrics_collector = metrics_collector  # Use provided collector if available
+        self.metrics_collector = (
+            metrics_collector  # Use provided collector if available
+        )
 
         self.logger = self._setup_logging(
             logger_name="MetricsObserver",
@@ -368,7 +376,9 @@ class MetricsObserver(ITypedObserver):
                     resource_collection_interval,
                 )
             except Exception as err:
-                self.logger.warning("Failed to initialize ResourceMonitor: %s", str(err))
+                self.logger.warning(
+                    "Failed to initialize ResourceMonitor: %s", str(err)
+                )
 
         # Initialize aggregator
         self.aggregator = MetricsAggregator()
@@ -382,7 +392,8 @@ class MetricsObserver(ITypedObserver):
         self.last_publish_time = time.time()
 
         self.logger.info(
-            "MetricsObserver initialized with publish_interval=%d seconds", self.publish_interval
+            "MetricsObserver initialized with publish_interval=%d seconds",
+            self.publish_interval,
         )
 
         # Start real-time monitoring if enabled
@@ -394,7 +405,9 @@ class MetricsObserver(ITypedObserver):
     def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
         """Handle test started event."""
         # Start tracking a new test
-        test_name = getattr(event, "test_name", getattr(event, "test_id", event.entity_id))
+        test_name = getattr(
+            event, "test_name", getattr(event, "test_id", event.entity_id)
+        )
         self.logger.info("Starting metrics collection for test: %s", test_name)
 
         # Initialize or update the metrics collector with test information
@@ -412,7 +425,9 @@ class MetricsObserver(ITypedObserver):
                 experiment_name, output_dir, self.publish_interval
             )
 
-        self.current_test_metrics = TestCaseMetrics(test_name=test_name, start_time=datetime.now())
+        self.current_test_metrics = TestCaseMetrics(
+            test_name=test_name, start_time=datetime.now()
+        )
 
         # Check if it's time to publish summary
         self._check_publish_interval()
@@ -425,7 +440,8 @@ class MetricsObserver(ITypedObserver):
             self.current_test_metrics.end_time = datetime.now()
             if self.current_test_metrics.start_time:
                 self.current_test_metrics.duration_seconds = (
-                    self.current_test_metrics.end_time - self.current_test_metrics.start_time
+                    self.current_test_metrics.end_time
+                    - self.current_test_metrics.start_time
                 ).total_seconds()
 
             self.completed_test_metrics.append(self.current_test_metrics)
@@ -500,8 +516,12 @@ class MetricsObserver(ITypedObserver):
             cpu_values = [s.cpu_percent for s in self.current_test_metrics.snapshots]
             memory_values = [s.memory_mb for s in self.current_test_metrics.snapshots]
 
-            self.current_test_metrics.avg_cpu_percent = sum(cpu_values) / len(cpu_values)
-            self.current_test_metrics.avg_memory_mb = sum(memory_values) / len(memory_values)
+            self.current_test_metrics.avg_cpu_percent = sum(cpu_values) / len(
+                cpu_values
+            )
+            self.current_test_metrics.avg_memory_mb = sum(memory_values) / len(
+                memory_values
+            )
 
         return True
 
@@ -512,7 +532,9 @@ class MetricsObserver(ITypedObserver):
             and hasattr(event, "metric_name")
             and hasattr(event, "metric_value")
         ):
-            self.current_test_metrics.custom_metrics[event.metric_name] = event.metric_value
+            self.current_test_metrics.custom_metrics[
+                event.metric_name
+            ] = event.metric_value
             self.logger.debug(
                 "Recorded custom metric: %s = %s", event.metric_name, event.metric_value
             )
@@ -556,7 +578,9 @@ class MetricsObserver(ITypedObserver):
                     self.resource_collection_interval,
                 )
             except Exception as err:
-                self.logger.warning("Failed to initialize ResourceMonitor: %s", str(err))
+                self.logger.warning(
+                    "Failed to initialize ResourceMonitor: %s", str(err)
+                )
 
         # Start resource monitor
         if self.resource_monitor:
@@ -565,7 +589,9 @@ class MetricsObserver(ITypedObserver):
 
         # Start metrics collection thread if metrics_collector is available
         if self.metrics_collector:
-            self.metrics_collector.start_collection_thread(interval=self.publish_interval)
+            self.metrics_collector.start_collection_thread(
+                interval=self.publish_interval
+            )
         else:
             # Create a dedicated monitoring thread
             import threading
@@ -669,7 +695,9 @@ class MetricsObserver(ITypedObserver):
             # Calculate statistics
             stats = self.current_test_metrics.calculate_statistics()
 
-            self.logger.info("Metrics summary for %s:", self.current_test_metrics.test_name)
+            self.logger.info(
+                "Metrics summary for %s:", self.current_test_metrics.test_name
+            )
             self.logger.info(
                 "  CPU: %.2f%% avg, %.2f%% peak",
                 self.current_test_metrics.avg_cpu_percent,
@@ -745,7 +773,9 @@ class MetricsObserver(ITypedObserver):
         collect detailed system resource metrics at regular intervals.
         """
         if not self.metrics_collector:
-            self.logger.warning("Cannot initialize ResourceMonitor without a MetricsCollector")
+            self.logger.warning(
+                "Cannot initialize ResourceMonitor without a MetricsCollector"
+            )
             return None
 
         try:

@@ -8,7 +8,7 @@ to facilitate event delivery to plugins in the PANTHER framework.
 import logging
 from collections import defaultdict
 
-from panther.core.events import BaseEvent as Event
+from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_plugin_interface import IPluginObserver
 from panther.plugins.plugin_interface import IPlugin
 
@@ -22,9 +22,15 @@ class PluginObserver(IPluginObserver):
     ensuring that plugins only receive events they are interested in.
     """
 
-    def __init__(self):
-        """Initialize the plugin observer."""
+    def __init__(self, event_manager=None):
+        """
+        Initialize the plugin observer.
+
+        Args:
+            event_manager: Optional event manager for plugin events
+        """
         self.logger = logging.getLogger("PluginObserver")
+        self.event_manager = event_manager
         # Map plugin IDs to plugin instances
         self.plugins: dict[str, IPlugin] = {}
         # Map plugin IDs to their event interests
@@ -48,7 +54,9 @@ class PluginObserver(IPluginObserver):
             self.register_plugin_events(plugin_id, event_types)
 
         self.logger.debug(
-            "Registered plugin '%s' with %d event interests", plugin.name, len(event_types)
+            "Registered plugin '%s' with %d event interests",
+            plugin.name,
+            len(event_types),
         )
 
     def register_plugin_events(self, plugin_id: str, event_types: list[str]) -> None:
@@ -60,7 +68,9 @@ class PluginObserver(IPluginObserver):
             event_types: List of event types the plugin is interested in
         """
         if plugin_id not in self.plugins:
-            self.logger.warning("Attempted to register events for unknown plugin ID: %s", plugin_id)
+            self.logger.warning(
+                "Attempted to register events for unknown plugin ID: %s", plugin_id
+            )
             return
 
         for event_type in event_types:

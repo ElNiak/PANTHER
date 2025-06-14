@@ -4,36 +4,38 @@ This module contains the ExperimentManager class which manages the lifecycle
 of experiments including initialization, configuration, and execution.
 """
 
-from datetime import datetime
 import logging
-from pathlib import Path
 import re
-from omegaconf import OmegaConf
+import sys
+from datetime import datetime
+from pathlib import Path
+
 from colorlog import ColoredFormatter
+from omegaconf import OmegaConf
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.config.config_experiment_schema import ExperimentConfig
 from panther.config.config_global_schema import GlobalConfig
-from panther.core.test_cases.test_interface_impl import ITestCase
-from panther.plugins.plugin_manager import PluginManager
-from panther.core.test_cases.test_case_impl import TestCase
-from panther.core.observer.management.event_manager import EventManager
 from panther.core.events.emitter_registry import EmitterRegistry
-from panther.core.observer.factory import ObserverFactory, get_observer_factory
-from panther.core.observer.factory.factory_builders import (
-    create_logger,
-    create_metrics,
-    create_experiment_observer,
-)
 from panther.core.exceptions.experiment_exceptions import (
-    PantherExperimentError,
     ExperimentInitializationError,
+    PantherExperimentError,
+    PluginValidationError,
     TestCaseInitializationError,
     TestExecutionError,
-    PluginValidationError,
 )
+from panther.core.metrics.metrics_collector import MetricsCollector
+from panther.core.observer.factory import ObserverFactory, get_observer_factory
+from panther.core.observer.factory.factory_builders import (
+    create_experiment_observer,
+    create_logger,
+    create_metrics,
+)
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.test_cases.test_case_impl import TestCase
+from panther.core.test_cases.test_interface_impl import ITestCase
+from panther.plugins.plugin_manager import PluginManager
 
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
@@ -89,10 +91,14 @@ class ExperimentManager:
             if experiment_name
             else f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         )
-        self.experiment_dir = Path(global_config.paths.output_dir) / self.experiment_name
+        self.experiment_dir = (
+            Path(global_config.paths.output_dir) / self.experiment_name
+        )
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
 
-        self.log_level = getattr(logging, self.global_config.logging.level.name, logging.INFO)
+        self.log_level = getattr(
+            logging, self.global_config.logging.level.name, logging.INFO
+        )
         self.log_format = self.global_config.logging.format
 
         self.logs_dir = self.experiment_dir
@@ -107,9 +113,9 @@ class ExperimentManager:
         factory.set_event_manager(self.event_manager)
 
         # Initialize workflow state tracker for experiment coordination
-        from panther.core.workflow import (
+        from panther.core.workflow import (  # pylint: disable=import-outside-toplevel
             WorkflowStateTracker,
-        )  # pylint: disable=import-outside-toplevel
+        )
 
         self.workflow_tracker = WorkflowStateTracker()
 
@@ -135,7 +141,9 @@ class ExperimentManager:
         # Clean up any None observers that might exist
         cleaned = self.event_manager.cleanup_none_observers()
         if cleaned > 0:
-            self.logger.info("Cleaned up %d None observers during initialization", cleaned)
+            self.logger.info(
+                "Cleaned up %d None observers during initialization", cleaned
+            )
 
         self.test_cases: list[ITestCase] = []
 
@@ -208,7 +216,9 @@ class ExperimentManager:
                 },
             )
 
-            self.logger.error("Initialization failed due to import error: %s", e, exc_info=True)
+            self.logger.error(
+                "Initialization failed due to import error: %s", e, exc_info=True
+            )
             raise ExperimentInitializationError(f"Import error: {str(e)}") from e
 
         # We need to catch all exceptions to properly handle them as initialization errors
@@ -226,7 +236,9 @@ class ExperimentManager:
             )
 
             self.logger.error("Initialization failed: %s", e, exc_info=True)
-            raise ExperimentInitializationError(f"Failed to initialize experiment: {str(e)}") from e
+            raise ExperimentInitializationError(
+                f"Failed to initialize experiment: {str(e)}"
+            ) from e
 
     def _validate_plugins(self):
         """
@@ -236,7 +248,12 @@ class ExperimentManager:
         self.logger.info("Validating plugins for experiment...")
 
         # Use PluginManager's validation method
-        is_valid, errors = self.plugin_manager.validate_experiment_plugins(self.experiment_config)
+        (
+            is_valid,
+            errors,
+        ) = self.plugin_manager.plugin_discovery.validate_experiment_plugins(
+            self.experiment_config
+        )
 
         if not is_valid:
             error_message = "Plugin validation failed:\n" + "\n".join(
@@ -271,7 +288,9 @@ class ExperimentManager:
                 self.logger.info("Initializing test case: %s", test_config.name)
 
                 # Get or create a test-specific emitter for this test case
-                test_specific_emitter = self.emitter_registry.get_test_emitter(test_config.name)
+                test_specific_emitter = self.emitter_registry.get_test_emitter(
+                    test_config.name
+                )
 
                 # Emit test initialization start event with test-specific emitter
                 test_specific_emitter.emit_created(
@@ -314,7 +333,9 @@ class ExperimentManager:
             )
 
             self.logger.error("Failed to initialize test cases: %s", e, exc_info=True)
-            raise TestCaseInitializationError(f"Failed to initialize test cases: {str(e)}") from e
+            raise TestCaseInitializationError(
+                f"Failed to initialize test cases: {str(e)}"
+            ) from e
 
     def run_tests(self):
         """Runs the tests defined in the experiment configuration."""
@@ -322,30 +343,79 @@ class ExperimentManager:
             # State transitions are handled automatically by StateEventObserver
 
             # Emit execution started event to trigger proper workflow transition
-            self.experiment_emitter.emit_execution_started(test_count=len(self.test_cases))
+            self.experiment_emitter.emit_execution_started(
+                test_count=len(self.test_cases)
+            )
 
             # Experiment-level execution tracking is handled by experiment_emitter
-            self.logger.info("Starting test execution for experiment: %s", self.experiment_name)
+            self.logger.info(
+                "Starting test execution for experiment: %s", self.experiment_name
+            )
 
-            # Use tqdm.write to log messages so the progress bar is not overwritten by logs
-            with logging_redirect_tqdm(
-                # loggers=[self.logger]
-            ):
-                with tqdm(
-                    self.test_cases,
-                    total=len(self.test_cases),
-                    desc="Number of Tests",
-                    position=1,
-                    leave=True,
-                    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
-                    dynamic_ncols=False,
-                    # file=sys.stdout,
-                ) as progress_bar:
+            # Conditionally redirect main loggers through tqdm to prevent progress bar corruption
+            # Observer logs will still go to files for detailed analysis
+            if self.global_config.progress.redirect_logging:
+                main_loggers = [
+                    self.logger,
+                    logging.getLogger("EventManager"),
+                    logging.getLogger("ExperimentObserver"),
+                ]
+                redirect_context = logging_redirect_tqdm(loggers=main_loggers)
+            else:
+                # No-op context manager when logging redirection is disabled
+                from contextlib import nullcontext
+
+                redirect_context = nullcontext()
+
+            with redirect_context:
+                # Use tqdm progress bar if enabled, otherwise use a simple iterator
+                if self.global_config.progress.enable_progress_bar:
+                    progress_context = tqdm(
+                        self.test_cases,
+                        total=len(self.test_cases),
+                        desc="Number of Tests",
+                        position=1,
+                        leave=True,
+                        bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
+                        dynamic_ncols=False,
+                        file=sys.stdout,
+                    )
+                else:
+                    # Simple iterator wrapper that provides write() method for compatibility
+                    class SimpleProgressIterator:
+                        def __init__(self, iterable):
+                            self.iterable = iterable
+
+                        def __iter__(self):
+                            return iter(self.iterable)
+
+                        def __enter__(self):
+                            return self
+
+                        def __exit__(self, *args):
+                            pass
+
+                        def write(self, msg):
+                            print(msg)  # Simple print for status messages
+
+                    progress_context = SimpleProgressIterator(self.test_cases)
+
+                with progress_context as progress_bar:
                     successful_tests = 0
                     failed_tests = 0
 
                     for test_case in progress_bar:
-                        self.logger.info("Running test case: %s", test_case.test_config.name)
+                        # Show important status updates using tqdm.write (configurable)
+                        if self.global_config.progress.show_test_status:
+                            emoji = (
+                                "🧪 " if self.global_config.progress.use_emojis else ""
+                            )
+                            progress_bar.write(
+                                f"{emoji}Starting: {test_case.test_config.name}"
+                            )
+                        self.logger.info(
+                            "Running test case: %s", test_case.test_config.name
+                        )
 
                         # Get test-specific emitter for this test case
                         test_specific_emitter = self.emitter_registry.get_test_emitter(
@@ -358,9 +428,20 @@ class ExperimentManager:
                         )
 
                         try:
-                            self.logger.info("Executing test case: %s", test_case.test_config.name)
+                            self.logger.info(
+                                "Executing test case: %s", test_case.test_config.name
+                            )
                             test_case.run()
                             successful_tests += 1
+                            if self.global_config.progress.show_test_status:
+                                emoji = (
+                                    "✅ "
+                                    if self.global_config.progress.use_emojis
+                                    else ""
+                                )
+                                progress_bar.write(
+                                    f"{emoji}Completed: {test_case.test_config.name}"
+                                )
 
                             # Emit test completed successfully event
                             test_specific_emitter.emit_completed(
@@ -373,7 +454,9 @@ class ExperimentManager:
                         except (KeyboardInterrupt, SystemExit):
                             # Emit interrupted test event
                             self.logger.warning(
-                                "Test interrupted: %s", test_case.test_config.name, exc_info=True
+                                "Test interrupted: %s",
+                                test_case.test_config.name,
+                                exc_info=True,
                             )
                             test_specific_emitter.emit_failed(
                                 error_message="Test interrupted",
@@ -394,6 +477,15 @@ class ExperimentManager:
                         ) as test_error:
                             # Handle all expected error types with a single handler
                             failed_tests += 1
+                            if self.global_config.progress.show_test_status:
+                                emoji = (
+                                    "❌ "
+                                    if self.global_config.progress.use_emojis
+                                    else ""
+                                )
+                                progress_bar.write(
+                                    f"{emoji}Failed: {test_case.test_config.name} - {str(test_error)[:50]}..."
+                                )
                             # Add recursion protection for AttributeError
                             if isinstance(
                                 test_error, AttributeError
@@ -437,7 +529,9 @@ class ExperimentManager:
                                     "Cleaned up test-scoped observers for test: %s",
                                     test_case.test_config.name,
                                 )
-                            except Exception as cleanup_error:  # pylint: disable=broad-except
+                            except (
+                                Exception
+                            ) as cleanup_error:  # pylint: disable=broad-except
                                 self.logger.warning(
                                     "Failed to cleanup test observers for %s: %s",
                                     test_case.test_config.name,
@@ -463,7 +557,9 @@ class ExperimentManager:
             )
 
         except (KeyboardInterrupt, SystemExit):
-            self.logger.warning("Experiment execution interrupted by user", exc_info=True)
+            self.logger.warning(
+                "Experiment execution interrupted by user", exc_info=True
+            )
             # Just re-raise these exceptions
             raise
 
@@ -485,7 +581,9 @@ class ExperimentManager:
     def _handle_test_error(self, test_case, test_error):
         """Helper method to handle test errors consistently."""
         # Get test-specific emitter for this test case
-        test_specific_emitter = self.emitter_registry.get_test_emitter(test_case.test_config.name)
+        test_specific_emitter = self.emitter_registry.get_test_emitter(
+            test_case.test_config.name
+        )
 
         # Emit test failed event
         test_specific_emitter.emit_failed(
@@ -495,7 +593,10 @@ class ExperimentManager:
             summary={"test_name": test_case.test_config.name},
         )
         self.logger.error(
-            "Test case %s failed: %s", test_case.test_config.name, test_error, exc_info=True
+            "Test case %s failed: %s",
+            test_case.test_config.name,
+            test_error,
+            exc_info=True,
         )
 
     def _load_logging(self):
@@ -528,23 +629,31 @@ class ExperimentManager:
         console_handler.setFormatter(formatter)
 
         logging.basicConfig(
-            level=self.log_level, format=self.log_format, handlers=[file_handler, console_handler]
+            level=self.log_level,
+            format=self.log_format,
+            handlers=[file_handler, console_handler],
         )
-        self.logger.info("ExperimentManager initialized for experiment: %s", self.experiment_name)
+        self.logger.info(
+            "ExperimentManager initialized for experiment: %s", self.experiment_name
+        )
 
-    def _setup_observers(self, factory: ObserverFactory):  # pylint: disable=unused-argument
+    def _setup_observers(
+        self, factory: ObserverFactory
+    ):  # pylint: disable=unused-argument
         """Sets up the observers for the experiment manager."""
         try:
             # Register StateEventObserver to sync state with events
-            from panther.core.observer.impl import (
+            from panther.core.observer.impl import (  # pylint: disable=import-outside-toplevel
                 StateEventObserver,
-            )  # pylint: disable=import-outside-toplevel
+            )
 
             self.state_observer = StateEventObserver(
                 self.workflow_tracker, priority=50
             )  # Higher priority
             self.event_manager.register_observer(self.state_observer)
-            self.logger.info("Registered StateEventObserver for event-driven state management")
+            self.logger.info(
+                "Registered StateEventObserver for event-driven state management"
+            )
 
             # File Handler for logging
             if self.global_config.observers.logger.enabled:
@@ -570,7 +679,9 @@ class ExperimentManager:
                         include_event_id=True,
                     )
                     self.logger.info("Registered enhanced LoggerObserver")
-                except Exception as logger_error:  # pylint: disable=broad-exception-caught
+                except (
+                    Exception
+                ) as logger_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
                         "Failed to create enhanced logger observer: %s. Falling back to basic observer.",
                         logger_error,
@@ -598,7 +709,9 @@ class ExperimentManager:
                         log_level=metrics_log_level,  # Use observer-specific log level
                     )
                     self.logger.info("Registered enhanced metrics observer")
-                except Exception as metrics_error:  # pylint: disable=broad-exception-caught
+                except (
+                    Exception
+                ) as metrics_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
                         "Failed to create enhanced metrics observer: %s. Using default configuration instead.",
                         metrics_error,
@@ -620,9 +733,9 @@ class ExperimentManager:
             # Create a logger observer with debug mode if debug logging is enabled
             if self.log_level <= logging.DEBUG:
                 try:
-                    from panther.core.observer.logger.logger_observer import (
+                    from panther.core.observer.logger.logger_observer import (  # pylint: disable=import-outside-toplevel
                         LoggerObserver,
-                    )  # pylint: disable=import-outside-toplevel
+                    )
 
                     debug_observer = LoggerObserver(
                         output_file=str(self.logs_dir / "event_debug.log"),
@@ -635,13 +748,17 @@ class ExperimentManager:
                     self.logger.info(
                         "Registered LoggerObserver with debug mode for detailed event tracking"
                     )
-                except Exception as debug_error:  # pylint: disable=broad-exception-caught
+                except (
+                    Exception
+                ) as debug_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
                         "Failed to create debug observer: %s. Event debugging will be limited.",
                         debug_error,
                     )
 
-            self.logger.info("Observers set up for experiment: %s", self.experiment_name)
+            self.logger.info(
+                "Observers set up for experiment: %s", self.experiment_name
+            )
         except Exception as e:
             # Emit error event with all necessary information for metrics
             self.experiment_emitter.emit_finished_early(
@@ -671,13 +788,19 @@ class ExperimentManager:
             factory = get_observer_factory()
 
             # List of observer names we created
-            observer_names = ["experiment_logger", "experiment_metrics", "experiment_observer"]
+            observer_names = [
+                "experiment_logger",
+                "experiment_metrics",
+                "experiment_observer",
+            ]
 
             for observer_name in observer_names:
                 if factory.unregister_observer(observer_name):
                     self.logger.debug("Unregistered %s", observer_name)
                 else:
-                    self.logger.debug("%s was not registered or already removed", observer_name)
+                    self.logger.debug(
+                        "%s was not registered or already removed", observer_name
+                    )
 
             # Clear workflow tracker states for this experiment
             if hasattr(self, "workflow_tracker"):

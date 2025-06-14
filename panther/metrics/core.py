@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Any
+from typing import Any, Dict, Optional, Union
 
 from .storage import JSONLinesStorage
 
@@ -15,14 +15,14 @@ from .storage import JSONLinesStorage
 class MetricsCollector:
     """Collects and manages metrics for PANTHER experiments and test sessions."""
 
-    def __init__(self, storage_path: Path | None = None):
+    def __init__(self, storage_path: Optional[Path] = None):
         """Initialize the metrics collector.
 
         Args:
             storage_path: Path to store metrics files. Defaults to .panther-metrics/
         """
-        self._metrics: dict[str, float] = {}
-        self._tags: dict[str, dict[str, str]] = {}
+        self._metrics: Dict[str, float] = {}
+        self._tags: Dict[str, Dict[str, str]] = {}
         self._lock = Lock()
 
         if storage_path is None:
@@ -33,7 +33,9 @@ class MetricsCollector:
         self.storage = JSONLinesStorage(storage_path)
         self.run_id = str(uuid.uuid4())
 
-    def record(self, name: str, value: float, tags: dict[str, str] | None = None) -> None:
+    def record(
+        self, name: str, value: float, tags: Optional[Dict[str, str]] = None
+    ) -> None:
         """Record a metric value.
 
         Args:
@@ -46,7 +48,7 @@ class MetricsCollector:
             if tags:
                 self._tags[name] = tags.copy()
 
-    def flush(self, kind: str, extra: dict[str, Any] | None = None) -> str:
+    def flush(self, kind: str, extra: Optional[Dict[str, Any]] = None) -> str:
         """Flush collected metrics to storage.
 
         Args:
@@ -72,7 +74,7 @@ class MetricsCollector:
 
             # Add extra metadata
             if extra:
-                record.update(extra)
+                record_data.update(extra)
 
             # Store the record
             self.storage.write_record(record_data)
@@ -83,11 +85,15 @@ class MetricsCollector:
 
             return self.run_id
 
-    def _get_git_commit(self) -> str | None:
+    def _get_git_commit(self) -> Optional[str]:
         """Get the current git commit hash."""
         try:
             result = subprocess.run(
-                ["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=5, check=False
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -95,7 +101,7 @@ class MetricsCollector:
             pass
         return None
 
-    def get_config_hash(self, config_data: str | dict[str, Any]) -> str:
+    def get_config_hash(self, config_data: Union[str, Dict[str, Any]]) -> str:
         """Generate a hash for configuration data.
 
         Args:
@@ -111,7 +117,7 @@ class MetricsCollector:
 
 
 # Global collector instance
-_global_collector: MetricsCollector | None = None
+_global_collector: Optional[MetricsCollector] = None
 _collector_lock = Lock()
 
 
@@ -124,7 +130,7 @@ def get_current_collector() -> MetricsCollector:
         return _global_collector
 
 
-def record(name: str, value: float, tags: dict[str, str] | None = None) -> None:
+def record(name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
     """Record a metric using the global collector.
 
     Args:
@@ -136,7 +142,7 @@ def record(name: str, value: float, tags: dict[str, str] | None = None) -> None:
     collector.record(name, value, tags)
 
 
-def flush(kind: str, extra: dict[str, Any] | None = None) -> str:
+def flush(kind: str, extra: Optional[Dict[str, Any]] = None) -> str:
     """Flush metrics using the global collector.
 
     Args:

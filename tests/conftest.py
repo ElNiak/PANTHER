@@ -6,20 +6,29 @@ of the PANTHER framework, including mocked dependencies, temporary environments,
 and test data generation strategies.
 """
 
-import pytest
-import tempfile
+import logging
 import os
-import yaml
+import subprocess
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
-import logging
+
+import pytest
+import yaml
 
 # Suppress Docker warnings for tests
 logging.getLogger("docker").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
-# Enable the metrics plugin
-pytest_plugins = ["panther.metrics.pytest_plugin"]
+# Conditionally enable the metrics plugin (skip if running with -p no:panther_metrics)
+import sys
+if not any("no:panther_metrics" in arg for arg in sys.argv):
+    try:
+        import panther.metrics.pytest_plugin
+        pytest_plugins = ["panther.metrics.pytest_plugin"]
+    except ImportError:
+        # Plugin not available, skip loading
+        pass
 
 
 # ===== PYTEST CONFIGURATION =====
@@ -30,8 +39,12 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line("markers", "requires_docker: marks tests that require Docker daemon")
-    config.addinivalue_line("markers", "requires_network: marks tests that require network access")
+    config.addinivalue_line(
+        "markers", "requires_docker: marks tests that require Docker daemon"
+    )
+    config.addinivalue_line(
+        "markers", "requires_network: marks tests that require network access"
+    )
 
 
 # ===== CORE FIXTURES =====
@@ -66,8 +79,8 @@ def mock_logger():
 
 
 @pytest.fixture
-def sample_global_config():
-    """Provide a minimal valid global configuration."""
+def sample_global_config_dict():
+    """Provide a minimal valid global configuration as dictionary."""
     return {
         "logging": {
             "level": "DEBUG",
@@ -319,11 +332,9 @@ def mock_docker_unavailable():
 @pytest.fixture
 def mock_network_calls():
     """Mock all network-related calls."""
-    with (
-        patch("requests.get") as mock_get,
-        patch("requests.post") as mock_post,
-        patch("socket.socket") as mock_socket,
-    ):
+    with patch("requests.get") as mock_get, patch("requests.post") as mock_post, patch(
+        "socket.socket"
+    ) as mock_socket:
         # Mock successful HTTP responses
         mock_response = Mock()
         mock_response.status_code = 200
@@ -374,15 +385,15 @@ def temp_experiment_directory(temp_dir, sample_experiment_config):
 @pytest.fixture
 def mock_file_system():
     """Mock file system operations for builder tests."""
-    with (
-        patch("pathlib.Path.exists", return_value=True),
-        patch("pathlib.Path.is_dir", return_value=True),
-        patch("pathlib.Path.is_file", return_value=True),
-        patch("pathlib.Path.glob") as mock_glob,
-        patch("pathlib.Path.unlink") as mock_unlink,
-        patch("pathlib.Path.rmdir") as mock_rmdir,
-    ):
-
+    with patch("pathlib.Path.exists", return_value=True), patch(
+        "pathlib.Path.is_dir", return_value=True
+    ), patch("pathlib.Path.is_file", return_value=True), patch(
+        "pathlib.Path.glob"
+    ) as mock_glob, patch(
+        "pathlib.Path.unlink"
+    ) as mock_unlink, patch(
+        "pathlib.Path.rmdir"
+    ) as mock_rmdir:
         mock_glob.return_value = []
         yield {"glob": mock_glob, "unlink": mock_unlink, "rmdir": mock_rmdir}
 
@@ -413,7 +424,7 @@ def deterministic_random():
 
 
 def pytest_runtest_setup(item):
-    """Setup function called for each test item."""
+    """Consolidated setup function called for each test item."""
     # Skip Docker tests if Docker is not available
     if "requires_docker" in item.keywords:
         try:
@@ -431,6 +442,12 @@ def pytest_runtest_setup(item):
             socket.create_connection(("8.8.8.8", 53), timeout=3)
         except OSError:
             pytest.skip("Network not available")
+
+    # Skip slow tests unless explicitly requested
+    if "slow" in item.keywords and not item.config.getoption(
+        "--run-slow", default=False
+    ):
+        pytest.skip("slow test skipped (use --run-slow to run)")
 
 
 # ===== LEGACY COMPATIBILITY =====
@@ -514,7 +531,9 @@ def sample_experiment_config_data():
                     "version": "3.8",
                     "network_name": "test_network",
                 },
-                "execution_environments": [{"type": "localhost", "timeout": 300, "cpu_cores": 2}],
+                "execution_environments": [
+                    {"type": "localhost", "timeout": 300, "cpu_cores": 2}
+                ],
                 "iterations": 3,
                 "services": {
                     "web_server": {
@@ -749,8 +768,8 @@ jobs:
 @pytest.fixture
 def performance_timer():
     """Provide performance timing utility for tests."""
-    import time
     import contextlib
+    import time
 
     @contextlib.contextmanager
     def timer(operation_name, max_duration=None):
@@ -824,7 +843,9 @@ def test_data_generator():
     class TestDataGenerator:
         @staticmethod
         def random_string(length=10):
-            return "".join(random.choices(string.ascii_letters + string.digits, k=length))
+            return "".join(
+                random.choices(string.ascii_letters + string.digits, k=length)
+            )
 
         @staticmethod
         def random_config():
@@ -847,7 +868,9 @@ def test_data_generator():
             # Create random files
             for i in range(random.randint(1, 5)):
                 file_path = project_path / f"file_{i}.py"
-                file_path.write_text(f"# Random content {TestDataGenerator.random_string(20)}")
+                file_path.write_text(
+                    f"# Random content {TestDataGenerator.random_string(20)}"
+                )
 
             return project_path
 
@@ -891,21 +914,75 @@ def cleanup_test_artifacts(temp_dir):
 # ===== PYTEST HOOKS =====
 
 
-def pytest_runtest_setup(item):
-    """Setup for each test run."""
-    # Skip slow tests unless explicitly requested
-    if "slow" in item.keywords and not item.config.getoption("--run-slow", default=False):
-        pytest.skip("slow test skipped (use --run-slow to run)")
-
-
 def pytest_addoption(parser):
     """Add custom pytest command line options."""
-    parser.addoption("--run-slow", action="store_true", default=False, help="run slow tests")
+    parser.addoption(
+        "--run-slow", action="store_true", default=False, help="run slow tests"
+    )
     parser.addoption(
         "--run-docker",
         action="store_true",
         default=False,
         help="run tests that require Docker",
+    )
+
+
+# ===== MODERN PANTHER FIXTURES =====
+
+
+@pytest.fixture
+def mock_event_manager():
+    """Mock event manager for testing event-driven components."""
+    from unittest.mock import Mock
+
+    from panther.core.observer.management.event_manager import EventManager
+
+    return Mock(spec=EventManager)
+
+
+@pytest.fixture
+def mock_command_processor():
+    """Mock command processor for testing command generation."""
+    from unittest.mock import Mock
+
+    from panther.core.command_processor.command_processor import CommandProcessor
+
+    return Mock(spec=CommandProcessor)
+
+
+@pytest.fixture
+def sample_service_config():
+    """Sample service configuration for testing."""
+    return {
+        "implementation": {"name": "test_impl", "type": "iut"},
+        "protocol": {"name": "test_protocol", "version": "1.0", "role": "client"},
+        "timeout": 60,
+        "generate_new_certificates": True,
+    }
+
+
+@pytest.fixture
+def sample_test_config():
+    """Sample test configuration for testing."""
+    from panther.config.config_experiment_schema import TestConfig
+
+    return TestConfig(
+        name="test_case",
+        description="Test case description",
+        network_environment={"type": "docker_compose"},
+        services={},
+    )
+
+
+@pytest.fixture
+def sample_global_config():
+    """Sample global configuration for testing."""
+    from panther.config.config_global_schema import GlobalConfig
+
+    return GlobalConfig(
+        logging={"level": "INFO", "format": "%(levelname)s - %(message)s"},
+        paths={"output_dir": "outputs", "log_dir": "outputs/logs"},
+        docker={"build_docker_image": False},
     )
 
 

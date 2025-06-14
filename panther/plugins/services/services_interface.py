@@ -1,21 +1,23 @@
-from abc import abstractmethod
 import logging
 import os
 import shlex
-import yaml
+from abc import abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from typing import Any, TYPE_CHECKING
-from panther.core.observer.management.event_manager import EventManager
-from panther.core.events import ServiceEventEmitter
-from panther.plugins.protocols.config_schema import ProtocolConfig
+
 from panther.core.command_processor.command import ShellCommand
 from panther.core.command_processor.command_processor import CommandProcessor
+from panther.core.events.service.emitter import ServiceEventEmitter
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.utils import CommandEventMixin
 
 # PluginManager functionality now integrated into PluginManager
 from panther.plugins.plugin_interface import IPlugin
+from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
-from panther.core.utils import CommandEventMixin
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
@@ -78,7 +80,9 @@ def validate_cmd(func):
     def wrapper(*args, **kwargs):
         command = func(*args, **kwargs)
         logging.debug(
-            "Validating command structure: %s against schema: %s", command, RUN_CMD_SCHEMA
+            "Validating command structure: %s against schema: %s",
+            command,
+            RUN_CMD_SCHEMA,
         )
         # Validate the command structure
         validate_structure(command, RUN_CMD_SCHEMA)
@@ -102,7 +106,9 @@ def validate_structure(data, schema, path="root"):
     """
     if isinstance(schema, dict):
         if not isinstance(data, dict):
-            raise TypeError(f"Expected a dictionary at '{path}', got {type(data).__name__}.")
+            raise TypeError(
+                f"Expected a dictionary at '{path}', got {type(data).__name__}."
+            )
         for key, value_schema in schema.items():
             if key not in data:
                 raise ValueError(f"Missing key '{key}' in '{path}'.")
@@ -113,10 +119,14 @@ def validate_structure(data, schema, path="root"):
         # Optionally, add item validation here if needed
     elif isinstance(schema, tuple):
         if not isinstance(data, schema):
-            raise TypeError(f"Expected one of {schema} at '{path}', got {type(data).__name__}.")
+            raise TypeError(
+                f"Expected one of {schema} at '{path}', got {type(data).__name__}."
+            )
     else:
         if not isinstance(data, schema):
-            raise TypeError(f"Expected {schema.__name__} at '{path}', got {type(data).__name__}.")
+            raise TypeError(
+                f"Expected {schema.__name__} at '{path}', got {type(data).__name__}."
+            )
 
 
 class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
@@ -182,23 +192,27 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
 
         # Always use lowercase in paths for consistency with directory structure
         service_type_path = (
-            service_type.lower() if isinstance(service_type, str) else service_type.name.lower()
+            service_type.lower()
+            if isinstance(service_type, str)
+            else service_type.name.lower()
         )
 
         if self.service_type_normalized == "TESTERS":
-            self.templates_dir = (
-                f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/templates/"
-            )
+            self.templates_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/templates/"
             self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/version_configs/"
         else:
             self.templates_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{protocol.name}/{implementation_name}/templates/"
             self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{protocol.name}/{implementation_name}/version_configs/"
 
         if not os.path.isdir(self.templates_dir):
-            self.logger.error("Templates directory '%s' does not exist.", self.templates_dir)
+            self.logger.error(
+                "Templates directory '%s' does not exist.", self.templates_dir
+            )
         else:
             templates = os.listdir(self.templates_dir)
-            self.logger.debug("Available templates in '%s': %s", self.templates_dir, templates)
+            self.logger.debug(
+                "Available templates in '%s': %s", self.templates_dir, templates
+            )
 
         self.plugin_manager = None
 
@@ -254,7 +268,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             },
             "post_run_cmds": [],
         }
-        self._plugin_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        self._plugin_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..")
+        )
 
     def render_commands(
         self, params, template_name, command_args=None, env_vars=None, extra_fields=None
@@ -273,7 +289,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             str: The rendered command string.
         """
         self.logger.debug(
-            "Rendering command using template '%s' with parameters: %s", template_name, params
+            "Rendering command using template '%s' with parameters: %s",
+            template_name,
+            params,
         )
 
         # Register the quoting filters for shell and YAML
@@ -334,11 +352,15 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
                 return []
 
             try:
-                processed = processor.process_command_list(commands, detect_properties=True)
+                processed = processor.process_command_list(
+                    commands, detect_properties=True
+                )
                 self.logger.debug("Processed %d commands successfully", len(processed))
                 return processed
             except Exception as e:
-                self.logger.warning(f"Failed to process commands with CommandProcessor: {e}")
+                self.logger.warning(
+                    f"Failed to process commands with CommandProcessor: {e}"
+                )
                 # Fallback to manual conversion for backward compatibility
                 result = []
                 for cmd in commands:
@@ -358,15 +380,25 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
                 return result
 
         # Get commands from the respective methods and process them
-        self.logger.debug("Generating commands for service '%s' - pre-compile", self.service_name)
+        self.logger.debug(
+            "Generating commands for service '%s' - pre-compile", self.service_name
+        )
         pre_compile = process_command_list(self.generate_pre_compile_commands())
-        self.logger.debug("Generating commands for service '%s' - compile", self.service_name)
+        self.logger.debug(
+            "Generating commands for service '%s' - compile", self.service_name
+        )
         compile_cmds = process_command_list(self.generate_compile_commands())
-        self.logger.debug("Generating commands for service '%s' - post-compile", self.service_name)
+        self.logger.debug(
+            "Generating commands for service '%s' - post-compile", self.service_name
+        )
         post_compile = process_command_list(self.generate_post_compile_commands())
-        self.logger.debug("Generating commands for service '%s' - pre-run", self.service_name)
+        self.logger.debug(
+            "Generating commands for service '%s' - pre-run", self.service_name
+        )
         pre_run = process_command_list(self.generate_pre_run_commands())
-        self.logger.debug("Generating commands for service '%s' - post-run", self.service_name)
+        self.logger.debug(
+            "Generating commands for service '%s' - post-run", self.service_name
+        )
         post_run = process_command_list(self.generate_post_run_commands())
 
         # Special handling for run_cmd which is a dict, not a list
@@ -385,7 +417,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
 
         # Process the entire structure through CommandProcessor for consistency
         try:
-            self.run_cmd = processor.process_commands(command_structure, target_format="service")
+            self.run_cmd = processor.process_commands(
+                command_structure, target_format="service"
+            )
         except Exception as e:
             self.logger.warning(
                 f"Failed to process complete command structure: {e}, using fallback"
@@ -410,7 +444,11 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
 
         # Using ShellCommand objects for better structure, error handling, and debugging support
         commands = [
-            ShellCommand(command="set -x;", description="Enable command tracing", is_critical=True),
+            ShellCommand(
+                command="set -x;",
+                description="Enable command tracing",
+                is_critical=True,
+            ),
             ShellCommand(
                 command="export SHELLOPTS",
                 description="Export shell options for subshells",
@@ -435,7 +473,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # Emit command generated event
         for cmd in commands:
             self.logger.debug("Generated pre-compile command: %s", cmd)
-        self.emit_command_generated("pre_compile", f"{len(commands)} pre-compile commands")
+        self.emit_command_generated(
+            "pre_compile", f"{len(commands)} pre-compile commands"
+        )
         return commands
 
     def generate_compile_commands(self) -> list[str]:
@@ -610,7 +650,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             str: The rendered template with properly quoted values
         """
         params = params or {}
-        processed_args = self.build_command_args(command_args) if command_args is not None else None
+        processed_args = (
+            self.build_command_args(command_args) if command_args is not None else None
+        )
         processed_env = self.build_env_vars(env_vars) if env_vars is not None else None
 
         return self.render_commands(
@@ -645,7 +687,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
 
         try:
             # Get test case name from service_config_to_test if available
-            test_case = getattr(self.service_config_to_test, "test_case", "unknown_test")
+            test_case = getattr(
+                self.service_config_to_test, "test_case", "unknown_test"
+            )
 
             # Defensive check for event_emitter before emitting events
             if hasattr(self, "event_emitter") and self.event_emitter:
@@ -671,7 +715,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
                         "service_name": self.service_name,
                         "implementation": self.implementation_name,
                         "protocol": (
-                            self.service_protocol.name if self.service_protocol else "unknown"
+                            self.service_protocol.name
+                            if self.service_protocol
+                            else "unknown"
                         ),
                         "test_case": test_case,
                     }
@@ -684,7 +730,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # during service preparation to ensure proper error notification
         except Exception as e:  # pylint: disable=broad-except
             # Get test case name from service_config_to_test if available
-            test_case = getattr(self.service_config_to_test, "test_case", "unknown_test")
+            test_case = getattr(
+                self.service_config_to_test, "test_case", "unknown_test"
+            )
 
             # Defensive check for event_emitter before emitting events
             if hasattr(self, "event_emitter") and self.event_emitter:
@@ -739,7 +787,10 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             result = self._do_stop()
 
             # Notify success
-            details = {"implementation": self.implementation_name, "clean_shutdown": True}
+            details = {
+                "implementation": self.implementation_name,
+                "clean_shutdown": True,
+            }
             self.notify_service_stopped(True, details)
 
             return result
@@ -766,7 +817,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             Implementation-specific result. By default, returns True to indicate success.
         """
         # Default implementation just succeeds
-        self.logger.debug("Default _do_stop implementation called for %s", self.service_name)
+        self.logger.debug(
+            "Default _do_stop implementation called for %s", self.service_name
+        )
         return True
 
     def notify_service_event(self, event_name: str, details: dict = None):
@@ -793,7 +846,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             event: The event to handle
         """
         event_type = type(event).__name__
-        self.logger.debug("Service %s received event: %s", self.service_name, event_type)
+        self.logger.debug(
+            "Service %s received event: %s", self.service_name, event_type
+        )
 
         # Basic event handling for common service events
         # Subclasses can override this method for more specific handling

@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from panther.core.events import BaseEvent as Event
+from panther.core.events.base.event_base import BaseEvent as Event
 
 
 class EventObserverPlugin(ABC):
@@ -75,7 +75,9 @@ class EventObserverPlugin(ABC):
                 try:
                     handler(event)
                 except Exception as e:
-                    self.logger.error(f"Error in specific event handler {handler_name}: {e}")
+                    self.logger.error(
+                        f"Error in specific event handler {handler_name}: {e}"
+                    )
 
     def is_interested(self, event_type: str) -> bool:
         """
@@ -113,7 +115,9 @@ class EventObserverPlugin(ABC):
         """
         return self.plugin_id
 
-    def get_event_history(self, event_type: str = None, limit: int = None) -> list[Event]:
+    def get_event_history(
+        self, event_type: str = None, limit: int = None
+    ) -> list[Event]:
         """
         Get the event history for this plugin.
 

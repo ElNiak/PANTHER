@@ -13,16 +13,16 @@ cmd = ShellCommand.from_string(incomplete_while)
 print(f"Original command: {incomplete_while}")
 print(f"Is control structure: {cmd.is_control_structure}")
 
-# Make it safe for execution
-cmd.make_safe()
-print("\nAfter make_safe():")
-print(f"Command: {cmd.command}")
+# Get shell-safe version for execution
+safe_command = cmd.get_shell_safe_command()
+print("\nShell-safe command:")
+print(f"Command: {safe_command}")
 print(f"Is multiline: {cmd.is_multiline}")
 
 # Print the final command that would be executed
 print("\nThis would be executed in the shell:")
 print("-" * 40)
-print(cmd.command)
+print(safe_command)
 print("-" * 40)
 
 # Check if 'done' is included in the auto-completed command

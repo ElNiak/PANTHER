@@ -1,20 +1,17 @@
 from abc import abstractmethod
-
-# PluginManager functionality now integrated into PluginManager
-
-from panther.config.config_global_schema import GlobalConfig
-
-from panther.config.config_experiment_schema import TestConfig
-
-from panther.plugins.services.services_interface import IServiceManager
-
 from typing import TYPE_CHECKING
 
+from panther.config.config_global_schema import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.plugins.services.services_interface import IServiceManager
+
+# PluginManager functionality now integrated into PluginManager
+
 
 if TYPE_CHECKING:
+    from panther.config.config_experiment_schema import TestConfig
     from panther.plugins.plugin_manager import PluginManager
 
 
@@ -48,7 +45,9 @@ class IExecutionEnvironment(IEnvironmentPlugin):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
+        super().__init__(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
         self.services_managers = []
         self.test_config = None
 
@@ -62,7 +61,7 @@ class IExecutionEnvironment(IEnvironmentPlugin):
     def setup_environment(
         self,
         services_managers: list[IServiceManager],
-        test_config: TestConfig,
+        test_config: "TestConfig",
         global_config: GlobalConfig,
         timestamp: str,
         plugin_manager: "PluginManager",

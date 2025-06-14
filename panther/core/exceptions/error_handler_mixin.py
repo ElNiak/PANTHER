@@ -5,9 +5,8 @@ This module provides a mixin for standardized error handling patterns,
 reducing duplication of error handling and logging logic.
 """
 
-from typing import Any
-from collections.abc import Callable
 from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -26,7 +25,7 @@ class ErrorHandlerMixin(LoggerMixin):
         reraise: bool = True,
         emit_event: bool = True,
         log_level: str = "error",
-        additional_context: dict[str, Any] | None = None,
+        additional_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Handle an error with logging and optional event emission.
@@ -87,7 +86,7 @@ class ErrorHandlerMixin(LoggerMixin):
         operation_name: str,
         default_return: Any = None,
         error_return: Any = None,
-        allowed_exceptions: tuple[type[Exception], ...] | None = None,
+        allowed_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
         emit_event: bool = True,
         **kwargs,
     ) -> Any:
@@ -117,12 +116,12 @@ class ErrorHandlerMixin(LoggerMixin):
 
     def with_error_handling(
         self,
-        operation_name: str | None = None,
+        operation_name: Optional[str] = None,
         reraise: bool = True,
         emit_event: bool = True,
-        allowed_exceptions: tuple[type[Exception], ...] | None = None,
+        allowed_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
         error_return: Any = None,
-        transform_error: type[Exception] | None = None,
+        transform_error: Optional[Type[Exception]] = None,
     ):
         """
         Decorator for methods with standardized error handling.
@@ -164,7 +163,10 @@ class ErrorHandlerMixin(LoggerMixin):
         return decorator
 
     def log_and_reraise(
-        self, error: Exception, context: str, error_type: type[Exception] | None = None
+        self,
+        error: Exception,
+        context: str,
+        error_type: Optional[Type[Exception]] = None,
     ) -> None:
         """
         Log an error and re-raise it, optionally as a different type.
@@ -174,7 +176,9 @@ class ErrorHandlerMixin(LoggerMixin):
             context: Context for the error message
             error_type: Optional exception type to raise instead
         """
-        self.logger.error(f"{context}: {type(error).__name__}: {str(error)}", exc_info=True)
+        self.logger.error(
+            f"{context}: {type(error).__name__}: {str(error)}", exc_info=True
+        )
 
         if error_type and not isinstance(error, error_type):
             raise error_type(f"{context}: {str(error)}") from error
@@ -183,10 +187,10 @@ class ErrorHandlerMixin(LoggerMixin):
 
     def handle_multiple_errors(
         self,
-        operations: list[tuple[Callable, str, dict[str, Any]]],
+        operations: List[Tuple[Callable, str, Dict[str, Any]]],
         continue_on_error: bool = False,
         collect_errors: bool = True,
-    ) -> tuple[list[Any], list[Exception]]:
+    ) -> Tuple[List[Any], List[Exception]]:
         """
         Execute multiple operations with error handling.
 
@@ -206,7 +210,9 @@ class ErrorHandlerMixin(LoggerMixin):
                 result = operation(**kwargs)
                 results.append(result)
             except Exception as e:
-                self.handle_error(e, name, reraise=not continue_on_error, emit_event=True)
+                self.handle_error(
+                    e, name, reraise=not continue_on_error, emit_event=True
+                )
 
                 if collect_errors:
                     errors.append(e)
@@ -219,8 +225,8 @@ class ErrorHandlerMixin(LoggerMixin):
         return results, errors
 
     def create_error_context(
-        self, operation: str, phase: str | None = None, **additional_fields
-    ) -> dict[str, Any]:
+        self, operation: str, phase: Optional[str] = None, **additional_fields
+    ) -> Dict[str, Any]:
         """
         Create a standardized error context dictionary.
 

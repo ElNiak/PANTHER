@@ -5,7 +5,7 @@ This module defines the interfaces for command processors and environment comman
 """
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict, List
 
 
 class ICommandProcessor(ABC):
@@ -13,8 +13,8 @@ class ICommandProcessor(ABC):
 
     @abstractmethod
     def process_commands(
-        self, commands: dict[str, Any], target_format: str = "generic"
-    ) -> dict[str, Any]:
+        self, commands: Dict[str, Any], target_format: str = "generic"
+    ) -> Dict[str, Any]:
         """
         Process a command structure into a target format.
 
@@ -28,8 +28,8 @@ class ICommandProcessor(ABC):
 
     @abstractmethod
     def process_command_list(
-        self, commands: list[Any], detect_properties: bool = True
-    ) -> list[dict[str, Any]]:
+        self, commands: List[Any], detect_properties: bool = True
+    ) -> List[Dict[str, Any]]:
         """
         Process a list of commands into structured format.
 
@@ -42,7 +42,7 @@ class ICommandProcessor(ABC):
         """
 
     @abstractmethod
-    def detect_command_properties(self, command: str) -> dict[str, bool]:
+    def detect_command_properties(self, command: str) -> Dict[str, bool]:
         """
         Detect properties of a command string.
 
@@ -58,7 +58,7 @@ class IEnvironmentCommandAdapter(ABC):
     """Interface for environment-specific command adaptations."""
 
     @abstractmethod
-    def adapt_commands(self, commands: dict[str, Any]) -> dict[str, Any]:
+    def adapt_commands(self, commands: Dict[str, Any]) -> Dict[str, Any]:
         """
         Adapt commands for a specific environment.
 

@@ -7,10 +7,10 @@ to ensure consistent behavior across all environments.
 
 import os
 import time
-from typing import Any
 from abc import ABC
+from typing import Any
 
-from panther.plugins.environments.execution_environment.output_collector import IOutputCollector
+from panther.core.outputs.output_collector import IOutputCollector
 
 
 class StandardOutputCollectorMixin(IOutputCollector, ABC):
@@ -57,6 +57,11 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
         """
         outputs = {}
 
+        self.logger.debug(
+            "Output directory: %s", getattr(self, "output_dir", "not set")
+        )
+        self.logger.debug("Registered output files: %s", self.output_files)
+
         for key, info in self.output_files.items():
             file_path = info["path"]
             service_name = info["service"]
@@ -71,7 +76,9 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                     )
                 elif hasattr(self, "output_dir"):
                     # Fallback to general logs directory if no service name
-                    host_path = file_path.replace("/app/logs/", f"{self.output_dir}/logs/")
+                    host_path = file_path.replace(
+                        "/app/logs/", f"{self.output_dir}/logs/"
+                    )
                 else:
                     # Fallback if output_dir not set
                     host_path = file_path
@@ -113,7 +120,9 @@ class StandardOutputCollectorMixin(IOutputCollector, ABC):
                     )
                 elif hasattr(self, "output_dir"):
                     # Fallback to general logs directory if no service name
-                    host_path = file_path.replace("/app/logs/", f"{self.output_dir}/logs/")
+                    host_path = file_path.replace(
+                        "/app/logs/", f"{self.output_dir}/logs/"
+                    )
                 else:
                     # Fallback if output_dir not set
                     host_path = file_path
@@ -202,7 +211,9 @@ class CommandModificationMixin:
                 self.logger.debug(
                     f"pre_run_cmds current value: {service.run_cmd.get('pre_run_cmds', 'KEY_NOT_FOUND')}"
                 )
-                self.logger.debug(f"pre_run_cmds type: {type(service.run_cmd.get('pre_run_cmds'))}")
+                self.logger.debug(
+                    f"pre_run_cmds type: {type(service.run_cmd.get('pre_run_cmds'))}"
+                )
         # Emit start event
         if hasattr(self, "environment_emitter") and self.environment_emitter:
             self.environment_emitter.emit_environment_modification_started(
@@ -222,22 +233,34 @@ class CommandModificationMixin:
         for key, value in modifications.items():
             if key == "pre_run_cmds":
                 # Store original state
-                original_state["pre_run_cmds"] = service.run_cmd.get("pre_run_cmds", []).copy()
-                self.logger.debug(f"Original pre_run_cmds: {original_state['pre_run_cmds']}")
+                original_state["pre_run_cmds"] = service.run_cmd.get(
+                    "pre_run_cmds", []
+                ).copy()
+                self.logger.debug(
+                    f"Original pre_run_cmds: {original_state['pre_run_cmds']}"
+                )
                 self.logger.debug(f"Adding commands: {value}")
                 # Apply modification
                 current_cmds = service.run_cmd.get("pre_run_cmds", [])
                 self.logger.debug(f"Current commands before append: {current_cmds}")
                 service.run_cmd["pre_run_cmds"] = current_cmds + value
-                self.logger.debug(f"Commands after append: {service.run_cmd['pre_run_cmds']}")
+                self.logger.debug(
+                    f"Commands after append: {service.run_cmd['pre_run_cmds']}"
+                )
                 applied_modifications["pre_run_cmds"] = service.run_cmd["pre_run_cmds"]
 
             elif key == "post_run_cmds":
                 # Store original state
-                original_state["post_run_cmds"] = service.run_cmd.get("post_run_cmds", []).copy()
+                original_state["post_run_cmds"] = service.run_cmd.get(
+                    "post_run_cmds", []
+                ).copy()
                 # Apply modification
-                service.run_cmd["post_run_cmds"] = service.run_cmd.get("post_run_cmds", []) + value
-                applied_modifications["post_run_cmds"] = service.run_cmd["post_run_cmds"]
+                service.run_cmd["post_run_cmds"] = (
+                    service.run_cmd.get("post_run_cmds", []) + value
+                )
+                applied_modifications["post_run_cmds"] = service.run_cmd[
+                    "post_run_cmds"
+                ]
 
             elif key == "environment":
                 # Ensure nested structure exists
@@ -247,14 +270,20 @@ class CommandModificationMixin:
                     service.run_cmd["run_cmd"]["command_env"] = {}
 
                 # Store original state
-                original_state["environment"] = service.run_cmd["run_cmd"]["command_env"].copy()
+                original_state["environment"] = service.run_cmd["run_cmd"][
+                    "command_env"
+                ].copy()
                 # Apply modification
                 service.run_cmd["run_cmd"]["command_env"].update(value)
-                applied_modifications["environment"] = service.run_cmd["run_cmd"]["command_env"]
+                applied_modifications["environment"] = service.run_cmd["run_cmd"][
+                    "command_env"
+                ]
 
         # Log the modifications
         if hasattr(self, "logger"):
-            self.logger.debug(f"Applied {modification_type} modifications to {service_name}")
+            self.logger.debug(
+                f"Applied {modification_type} modifications to {service_name}"
+            )
             for key, value in applied_modifications.items():
                 self.logger.debug(f"  {key}: {value}")
 
@@ -276,7 +305,9 @@ class CommandModificationMixin:
 
         return applied_modifications
 
-    def wrap_command_with_tool(self, service, tool_command: str, output_file: str = None) -> str:
+    def wrap_command_with_tool(
+        self, service, tool_command: str, output_file: str = None
+    ) -> str:
         """
         Helper method to wrap a service command with a tool command.
 
@@ -295,6 +326,8 @@ class CommandModificationMixin:
             full_command = tool_command
 
         # Apply the modification
-        self.modify_service_commands(service, "command_wrapping", {"pre_run_cmds": [full_command]})
+        self.modify_service_commands(
+            service, "command_wrapping", {"pre_run_cmds": [full_command]}
+        )
 
         return full_command

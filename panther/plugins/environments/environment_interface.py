@@ -1,24 +1,26 @@
-from abc import abstractmethod
 import os
+from abc import abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.events import EnvironmentEventEmitter
 from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.environment_event_methods import (
+    EnvironmentPluginEventMixin,
+)
 from panther.plugins.plugin_interface import IPlugin
-from panther.plugins.environments.environment_event_methods import EnvironmentPluginEventMixin
 
 # PluginManager functionality now integrated into PluginManager
 
 if TYPE_CHECKING:
-    from panther.plugins.services.services_interface import IServiceManager
     from panther.config.config_experiment_schema import TestConfig
     from panther.config.config_global_schema import GlobalConfig
     from panther.plugins.environments.execution_environment.execution_environment_interface import (
         IExecutionEnvironment,
     )
     from panther.plugins.plugin_manager import PluginManager
+    from panther.plugins.services.services_interface import IServiceManager
 
 
 class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
@@ -56,7 +58,9 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
     ):
         super().__init__()
         self._plugin_dir = Path(os.path.dirname(__file__))
-        self.templates_dir: str = f"{self._plugin_dir}/{env_type}/{env_sub_type}/templates"
+        self.templates_dir: str = (
+            f"{self._plugin_dir}/{env_type}/{env_sub_type}/templates"
+        )
         self.output_dir = output_dir
         self.env_type = env_type
         self.env_sub_type = env_sub_type
@@ -225,7 +229,10 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
             # Emit environment teardown started event
             self.notify_environment_event(
                 "environment_teardown_started",
-                {"environment_type": self.env_type, "environment_name": self.env_sub_type},
+                {
+                    "environment_type": self.env_type,
+                    "environment_name": self.env_sub_type,
+                },
             )
 
             # Perform actual teardown
@@ -234,7 +241,10 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
             # Emit environment teardown completed event (success)
             self.notify_environment_teardown(
                 success=True,
-                details={"environment_type": self.env_type, "environment_name": self.env_sub_type},
+                details={
+                    "environment_type": self.env_type,
+                    "environment_name": self.env_sub_type,
+                },
             )
 
         except Exception as e:

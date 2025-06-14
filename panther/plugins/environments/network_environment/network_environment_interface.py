@@ -1,28 +1,24 @@
-from abc import abstractmethod
 import os
+from abc import abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
 
-
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from omegaconf import OmegaConf
 
-from panther.plugins.services.services_interface import IServiceManager
-
 from panther.config.config_experiment_schema import TestConfig
-
 from panther.config.config_global_schema import GlobalConfig
-
-# PluginManager functionality now integrated into PluginManager
-
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.plugins.services.services_interface import IServiceManager
+
+# PluginManager functionality now integrated into PluginManager
 
 
 class INetworkEnvironment(IEnvironmentPlugin):
@@ -80,7 +76,9 @@ class INetworkEnvironment(IEnvironmentPlugin):
         env_sub_type: str,
         event_manager: EventManager,
     ):
-        super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
+        super().__init__(
+            env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
         self.docker_name = None
         self.execution_environment = None
         self.network_name = f"{env_sub_type}_network"
@@ -95,10 +93,13 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self.services_managers = None
 
         self.logger.debug(
-            "Environment settings: %s in %s", self.env_config_to_test, self.templates_dir
+            "Environment settings: %s in %s",
+            self.env_config_to_test,
+            self.templates_dir,
         )
         self.jinja_env = Environment(
             loader=FileSystemLoader(self.templates_dir),
+            autoescape=select_autoescape(["html", "xml", "yml", "yaml"]),
             enable_async=False,
             auto_reload=False,
             cache_size=0,  # Disable caching for security
@@ -278,15 +279,26 @@ class INetworkEnvironment(IEnvironmentPlugin):
         for key, value in env_vars.items():
             if isinstance(value, str):
                 resolved_value = value
-                self.logger.debug("Resolving variable: %s - Original value: %s", key, value)
+                self.logger.debug(
+                    "Resolving variable: %s - Original value: %s", key, value
+                )
                 for (
                     var_name,
                     var_value,
                 ) in resolved_env.items():  # Use already resolved variables
-                    if f"${{{var_name}}}" in resolved_value or f"${var_name}" in resolved_value:
-                        resolved_value = resolved_value.replace(f"${{{var_name}}}", var_value)
-                        resolved_value = resolved_value.replace(f"${var_name}", var_value)
-                        self.logger.debug("Replaced $%s in %s with %s", var_name, key, var_value)
+                    if (
+                        f"${{{var_name}}}" in resolved_value
+                        or f"${var_name}" in resolved_value
+                    ):
+                        resolved_value = resolved_value.replace(
+                            f"${{{var_name}}}", var_value
+                        )
+                        resolved_value = resolved_value.replace(
+                            f"${var_name}", var_value
+                        )
+                        self.logger.debug(
+                            "Replaced $%s in %s with %s", var_name, key, var_value
+                        )
                 resolved_value = resolved_value.replace("$", "$$")
                 resolved_env[key] = resolved_value
 

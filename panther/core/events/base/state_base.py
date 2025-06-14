@@ -4,11 +4,11 @@ Base State Management
 This module provides base classes for state management across all entity types.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
-from typing import Any
-import logging
+from typing import Any, Dict, List, Optional, Set
 
 
 class BaseState(Enum):
@@ -28,9 +28,9 @@ class StateTransition:
         self,
         from_state: BaseState,
         to_state: BaseState,
-        timestamp: datetime | None = None,
-        trigger: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        timestamp: Optional[datetime] = None,
+        trigger: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         self.from_state = from_state
         self.to_state = to_state
@@ -60,15 +60,17 @@ class StateManager(ABC):
         """
         self.entity_id = entity_id
         self.current_state = initial_state
-        self.state_history: list[StateTransition] = []
-        self.allowed_transitions: dict[BaseState, set[BaseState]] = {}
+        self.state_history: List[StateTransition] = []
+        self.allowed_transitions: Dict[BaseState, Set[BaseState]] = {}
         self.logger = logging.getLogger(f"{self.__class__.__name__}({entity_id})")
 
         # Record initial state
-        self.state_history.append(StateTransition(None, initial_state, trigger="initialization"))
+        self.state_history.append(
+            StateTransition(None, initial_state, trigger="initialization")
+        )
 
     @abstractmethod
-    def _define_allowed_transitions(self) -> dict[BaseState, set[BaseState]]:
+    def _define_allowed_transitions(self) -> Dict[BaseState, Set[BaseState]]:
         """
         Define allowed state transitions for this entity type.
 
@@ -85,7 +87,7 @@ class StateManager(ABC):
         """Get the current state."""
         return self.current_state
 
-    def get_state_history(self) -> list[StateTransition]:
+    def get_state_history(self) -> List[StateTransition]:
         """Get the complete state transition history."""
         return self.state_history.copy()
 
@@ -105,8 +107,8 @@ class StateManager(ABC):
     def transition_to(
         self,
         target_state: BaseState,
-        trigger: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        trigger: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Transition to a new state.
@@ -127,7 +129,10 @@ class StateManager(ABC):
 
         # Record the transition
         transition = StateTransition(
-            from_state=self.current_state, to_state=target_state, trigger=trigger, metadata=metadata
+            from_state=self.current_state,
+            to_state=target_state,
+            trigger=trigger,
+            metadata=metadata,
         )
 
         self.state_history.append(transition)
@@ -140,11 +145,11 @@ class StateManager(ABC):
         """Check if currently in specified state."""
         return self.current_state == state
 
-    def is_in_any_state(self, states: set[BaseState]) -> bool:
+    def is_in_any_state(self, states: Set[BaseState]) -> bool:
         """Check if currently in any of the specified states."""
         return self.current_state in states
 
-    def get_time_in_current_state(self) -> float | None:
+    def get_time_in_current_state(self) -> Optional[float]:
         """
         Get time spent in current state in seconds.
 
@@ -157,7 +162,7 @@ class StateManager(ABC):
         last_transition = self.state_history[-1]
         return (datetime.now() - last_transition.timestamp).total_seconds()
 
-    def get_last_transition(self) -> StateTransition | None:
+    def get_last_transition(self) -> Optional[StateTransition]:
         """Get the most recent state transition."""
         return self.state_history[-1] if self.state_history else None
 

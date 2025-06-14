@@ -4,34 +4,33 @@ Environment Event Emitter
 This module provides typed event emission for environment lifecycle events.
 """
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.environment.events import (
+    EnvironmentConfigurationEvent,
     EnvironmentCreatedEvent,
-    EnvironmentInitializationStartedEvent,
-    EnvironmentInitializationCompletedEvent,
-    EnvironmentInitializationFailedEvent,
-    EnvironmentSetupStartedEvent,
-    EnvironmentSetupCompletedEvent,
-    EnvironmentSetupFailedEvent,
-    EnvironmentReadyEvent,
-    EnvironmentTeardownStartedEvent,
-    EnvironmentTeardownCompletedEvent,
-    EnvironmentTeardownFailedEvent,
     EnvironmentDestroyedEvent,
     EnvironmentErrorEvent,
-    EnvironmentResourceEvent,
-    EnvironmentConfigurationEvent,
+    EnvironmentInitializationCompletedEvent,
+    EnvironmentInitializationFailedEvent,
+    EnvironmentInitializationStartedEvent,
     EnvironmentMonitoringEvent,
-    OutputCollectionStartedEvent,
+    EnvironmentReadyEvent,
+    EnvironmentResourceEvent,
+    EnvironmentSetupCompletedEvent,
+    EnvironmentSetupFailedEvent,
+    EnvironmentSetupStartedEvent,
+    EnvironmentTeardownCompletedEvent,
+    EnvironmentTeardownFailedEvent,
+    EnvironmentTeardownStartedEvent,
     OutputCollectedEvent,
     OutputCollectionCompletedEvent,
+    OutputCollectionStartedEvent,
 )
-
-from panther.core.events import ExperimentFinishedEarlyEvent
+from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 
 
 class EnvironmentEventEmitter:
@@ -96,7 +95,9 @@ class EnvironmentEventEmitter:
             environment_name=environment_name,
             environment_type=environment_type,
             initialization_type=(
-                initialization_config.get("type", "default") if initialization_config else "default"
+                initialization_config.get("type", "default")
+                if initialization_config
+                else "default"
             ),
         )
         self.event_manager.notify(event)

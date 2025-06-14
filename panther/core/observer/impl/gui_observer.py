@@ -1,7 +1,8 @@
 import logging
 from abc import ABC
 from typing import Any
-from panther.core.events import BaseEvent as Event
+
+from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_interface import IObserver
 
 
@@ -75,7 +76,9 @@ class GUIObserver(IObserver, ABC):
         # For now, we'll just log this. Concrete implementations can override
         # this method to handle legacy subject updates if needed.
 
-    def get_event_history(self, event_type: str = None, limit: int = None) -> list[Event]:
+    def get_event_history(
+        self, event_type: str = None, limit: int = None
+    ) -> list[Event]:
         """
         Get the event history, optionally filtered by event type.
 

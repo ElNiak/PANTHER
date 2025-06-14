@@ -7,14 +7,20 @@ and plugins in the PANTHER framework.
 import importlib
 import logging
 import os
-from pathlib import Path
 import shutil
 from contextlib import nullcontext
 from dataclasses import asdict
-from omegaconf import DictConfig, OmegaConf, ValidationError, ListConfig
+from pathlib import Path
+
 import yaml
-from panther.core.utils.logging_mixin import LoggerMixin
-from panther.core.exceptions.experiment_exceptions import PluginValidationError
+from importlib_resources import files
+from omegaconf import DictConfig, ListConfig, OmegaConf, ValidationError
+
+from panther.config.config_experiment_schema import (
+    ExperimentConfig,
+    ServiceConfig,
+    TestConfig,
+)
 from panther.config.config_global_schema import (
     AdditionalPathsConfig,
     DockerConfig,
@@ -24,19 +30,17 @@ from panther.config.config_global_schema import (
     LoggingLevel,
     PathsConfig,
 )
-from panther.config.config_experiment_schema import (
-    ExperimentConfig,
-    ServiceConfig,
-    TestConfig,
-)
 from panther.config.config_observer_schema import (
-    ObserverConfig,
+    ExperimentObserverConfig,
     LoggerObserverConfig,
     MetricsObserverConfig,
+    ObserverConfig,
     StorageObserverConfig,
-    ExperimentObserverConfig,
 )
-from importlib_resources import files
+from panther.core.exceptions.experiment_exceptions import PluginValidationError
+from panther.core.utils.logging_mixin import LoggerMixin
+from panther.plugins.plugin_config_resolver import PluginConfigResolver
+from panther.plugins.plugin_loader_utils import PluginManagerUtils
 
 
 class ConfigLoader(LoggerMixin):
@@ -44,11 +48,8 @@ class ConfigLoader(LoggerMixin):
 
     @staticmethod
     def _get_class_name(plugin_name: str, suffix: str = "Config") -> str:
-        """Convert plugin name to class name format."""
-        class_name_parts = plugin_name.split("_")
-        class_name_parts = [part.capitalize() for part in class_name_parts]
-        class_name = "".join(class_name_parts) + suffix
-        return class_name
+        """Convert plugin name to class name format. Uses PluginConfigResolver."""
+        return PluginConfigResolver.get_class_name(plugin_name, suffix)
 
     def __init__(
         self,
@@ -87,13 +88,17 @@ class ConfigLoader(LoggerMixin):
         """
         # Construct logging configuration with defaults from dataclass
         default_logging = LoggingConfig()  # Get dataclass defaults
-        level_str = loaded_config.get("logging", {}).get("level", default_logging.level.name)
+        level_str = loaded_config.get("logging", {}).get(
+            "level", default_logging.level.name
+        )
         # Convert string to LoggingLevel enum
         if isinstance(level_str, str):
             try:
                 level = LoggingLevel[level_str.upper()]
             except KeyError:
-                self.logger.warning("Invalid logging level '%s', using DEBUG", level_str)
+                self.logger.warning(
+                    "Invalid logging level '%s', using DEBUG", level_str
+                )
                 level = LoggingLevel.DEBUG
         else:
             level = (
@@ -104,7 +109,9 @@ class ConfigLoader(LoggerMixin):
 
         logging_config = LoggingConfig(
             level=level,
-            format=loaded_config.get("logging", {}).get("format", default_logging.format),
+            format=loaded_config.get("logging", {}).get(
+                "format", default_logging.format
+            ),
         )
         OmegaConf.merge(LoggingConfig, logging_config)
 
@@ -112,17 +119,27 @@ class ConfigLoader(LoggerMixin):
         default_paths = PathsConfig()  # Get dataclass defaults
         paths_config = PathsConfig(
             output_dir=(
-                loaded_config.get("paths", {}).get("output_dir", default_paths.output_dir)
+                loaded_config.get("paths", {}).get(
+                    "output_dir", default_paths.output_dir
+                )
                 if not self.output_dir
                 else self.output_dir
             ),
-            log_dir=loaded_config.get("paths", {}).get("log_dir", default_paths.log_dir),
-            config_dir=loaded_config.get("paths", {}).get("config_dir", default_paths.config_dir),
-            plugin_dir=loaded_config.get("paths", {}).get("plugin_dir", default_paths.plugin_dir),
+            log_dir=loaded_config.get("paths", {}).get(
+                "log_dir", default_paths.log_dir
+            ),
+            config_dir=loaded_config.get("paths", {}).get(
+                "config_dir", default_paths.config_dir
+            ),
+            plugin_dir=loaded_config.get("paths", {}).get(
+                "plugin_dir", default_paths.plugin_dir
+            ),
             services_dir=loaded_config.get("paths", {}).get(
                 "services_dir", default_paths.services_dir
             ),
-            iut_dir=loaded_config.get("paths", {}).get("iut_dir", default_paths.iut_dir),
+            iut_dir=loaded_config.get("paths", {}).get(
+                "iut_dir", default_paths.iut_dir
+            ),
             testers_dir=loaded_config.get("paths", {}).get(
                 "testers_dir", default_paths.testers_dir
             ),
@@ -256,7 +273,9 @@ class ConfigLoader(LoggerMixin):
         """
         # Check if source directory exists before attempting to copy
         if not os.path.exists(source_dir):
-            self.logger.warning("Source directory %s does not exist, skipping copy", source_dir)
+            self.logger.warning(
+                "Source directory %s does not exist, skipping copy", source_dir
+            )
             return
 
         if not os.path.exists(target_dir):
@@ -430,7 +449,9 @@ class ConfigLoader(LoggerMixin):
         self.remove_plugin_iut_service()
         self.remove_plugin_tester_service()
 
-    def validate_plugin_config(self, plugin_type: str, plugin_name: str, plugin_config: DictConfig):
+    def validate_plugin_config(
+        self, plugin_type: str, plugin_name: str, plugin_config: DictConfig
+    ):
         """
         Validate plugin-specific configuration against its schema.
 
@@ -455,7 +476,9 @@ class ConfigLoader(LoggerMixin):
         if hasattr(plugin_schema_class, "__dataclass_fields__"):
             valid_params = set(plugin_schema_class.__dataclass_fields__.keys())
             provided_params = (
-                set(plugin_config.keys()) if isinstance(plugin_config, DictConfig) else set()
+                set(plugin_config.keys())
+                if isinstance(plugin_config, DictConfig)
+                else set()
             )
 
             # Always include 'type' as a valid parameter
@@ -472,7 +495,10 @@ class ConfigLoader(LoggerMixin):
 
                 # Provide helpful information about valid parameters
                 self.logger.info(
-                    "Valid parameters for %s/%s: %s", plugin_type, plugin_name, sorted(valid_params)
+                    "Valid parameters for %s/%s: %s",
+                    plugin_type,
+                    plugin_name,
+                    sorted(valid_params),
                 )
                 self.logger.info(
                     "Use --list-plugin-params %s to see parameter details", plugin_name
@@ -482,15 +508,15 @@ class ConfigLoader(LoggerMixin):
             return OmegaConf.merge(structured_schema, plugin_config)
         except ValidationError as e:
             # Enhanced error message with helpful information
-            error_msg = (
-                f"Plugin configuration validation failed for {plugin_type}/{plugin_name}: {e}"
-            )
+            error_msg = f"Plugin configuration validation failed for {plugin_type}/{plugin_name}: {e}"
             error_msg += f"\n\nTo see valid parameters, run: python -m panther --list-plugin-params {plugin_name}"
             if plugin_type in ["iut", "tester"]:
                 error_msg += f" --plugin-type {plugin_type}"
             raise ValidationError(error_msg) from e
 
-    def construct_experiment_config(self, loaded_config: DictConfig) -> ExperimentConfig:
+    def construct_experiment_config(
+        self, loaded_config: DictConfig
+    ) -> ExperimentConfig:
         """
         Manually construct an ExperimentConfig object from a loaded configuration.
 
@@ -510,7 +536,9 @@ class ConfigLoader(LoggerMixin):
             validated_network_env = self.validate_plugin_config(
                 "network_environment", network_env["type"], network_env
             )
-            self.logger.debug("Network environment after validation: %s", validated_network_env)
+            self.logger.debug(
+                "Network environment after validation: %s", validated_network_env
+            )
 
             exec_envs = test_data.get("execution_environment", [])
             self.logger.debug("Execution environment: %s", exec_envs)
@@ -518,7 +546,9 @@ class ConfigLoader(LoggerMixin):
                 validated_network_env = self.validate_plugin_config(
                     "execution_environment", exec_env["type"], exec_env
                 )
-            self.logger.debug("Network environment after validation: %s", validated_network_env)
+            self.logger.debug(
+                "Network environment after validation: %s", validated_network_env
+            )
 
             # Construct services for this test
             services: dict[str, ServiceConfig] = {}
@@ -527,7 +557,9 @@ class ConfigLoader(LoggerMixin):
                     service_data
                 )  # Resolve protocol subclass
                 self.logger.debug("Protocol: %s", protocol)
-                implementation = self.load_and_validate_implementation_config(service_data)
+                implementation = self.load_and_validate_implementation_config(
+                    service_data
+                )
                 self.logger.debug("Implementation: %s", implementation)
                 service = ServiceConfig(
                     name=service_data["name"],
@@ -535,7 +567,9 @@ class ConfigLoader(LoggerMixin):
                     implementation=implementation,
                     protocol=protocol,
                     ports=service_data.get("ports", []),
-                    generate_new_certificates=service_data.get("generate_new_certificates", False),
+                    generate_new_certificates=service_data.get(
+                        "generate_new_certificates", False
+                    ),
                 )
                 OmegaConf.merge(ServiceConfig, service)
                 services[service_name] = service
@@ -589,12 +623,12 @@ class ConfigLoader(LoggerMixin):
         :param experiment_config: The experiment configuration to validate
         :return: Tuple of (is_valid, error_messages)
         """
-        from panther.plugins.plugin_manager import (
+        from panther.plugins.plugin_manager import (  # pylint: disable=import-outside-toplevel
             PluginManager,
-        )  # pylint: disable=import-outside-toplevel
-        from panther.plugins.plugin_manifest import (
+        )
+        from panther.plugins.plugin_manifest import (  # pylint: disable=import-outside-toplevel
             PluginType,
-        )  # pylint: disable=import-outside-toplevel
+        )
 
         errors = []
         required_plugins = set()
@@ -624,7 +658,9 @@ class ConfigLoader(LoggerMixin):
                 for exec_env in test.execution_environment:
                     if hasattr(exec_env, "type") and exec_env.type:
                         plugin_id = f"{PluginType.ENVIRONMENT.value}:{exec_env.type}"
-                        required_plugins.add((plugin_id, exec_env.type, "execution environment"))
+                        required_plugins.add(
+                            (plugin_id, exec_env.type, "execution environment")
+                        )
 
             # Check services
             if hasattr(test, "services") and test.services:
@@ -635,24 +671,32 @@ class ConfigLoader(LoggerMixin):
                         impl_type = impl.type if hasattr(impl, "type") else "iut"
 
                         # Handle string or enum type
-                        impl_type_str = impl_type if isinstance(impl_type, str) else impl_type.value
+                        impl_type_str = (
+                            impl_type if isinstance(impl_type, str) else impl_type.value
+                        )
                         if impl_type_str.lower() == "testers":
                             plugin_id = f"{PluginType.TESTER.value}:{impl_name}"
                             required_plugins.add((plugin_id, impl_name, "tester"))
                         else:
                             plugin_id = f"{PluginType.IUT.value}:{impl_name}"
-                            required_plugins.add((plugin_id, impl_name, "IUT implementation"))
+                            required_plugins.add(
+                                (plugin_id, impl_name, "IUT implementation")
+                            )
 
         # Validate each required plugin
         for plugin_id, plugin_name, plugin_desc in required_plugins:
             if plugin_id not in plugin_manager.plugin_catalog.catalog:
-                errors.append(f"Required {plugin_desc} plugin '{plugin_name}' not found")
+                errors.append(
+                    f"Required {plugin_desc} plugin '{plugin_name}' not found"
+                )
 
         # Resolve dependencies if no errors yet
         if not errors:
             pass  # TODO: Not implemented yet, but could be useful in the future
             plugin_ids = [p[0] for p in required_plugins]
-            _, missing_deps = plugin_manager.plugin_catalog.resolve_dependencies(plugin_ids)
+            _, missing_deps = plugin_manager.plugin_catalog.resolve_dependencies(
+                plugin_ids
+            )
             if missing_deps:
                 for dep in missing_deps:
                     errors.append(f"Missing dependency: {dep}")
@@ -670,7 +714,6 @@ class ConfigLoader(LoggerMixin):
             if self.metrics_collector
             else nullcontext()
         ):
-
             try:
                 experiment_config_path = self.experiment_file
                 if not os.path.exists(experiment_config_path):
@@ -680,25 +723,35 @@ class ConfigLoader(LoggerMixin):
 
                 # Load the YAML configuration
                 if self.metrics_collector:
-                    with self.metrics_collector.time_operation("experiment_yaml_parsing"):
+                    with self.metrics_collector.time_operation(
+                        "experiment_yaml_parsing"
+                    ):
                         loaded_config = OmegaConf.load(experiment_config_path)
                 else:
                     loaded_config = OmegaConf.load(experiment_config_path)
 
                 self.logger.debug("Loaded experiment config: %s", loaded_config)
-                self.logger.debug(OmegaConf.to_yaml(OmegaConf.structured(ExperimentConfig)))
+                self.logger.debug(
+                    OmegaConf.to_yaml(OmegaConf.structured(ExperimentConfig))
+                )
 
                 # Construct experiment config with timing
                 if self.metrics_collector:
-                    with self.metrics_collector.time_operation("experiment_config_construction"):
-                        experiment_config = self.construct_experiment_config(loaded_config)
+                    with self.metrics_collector.time_operation(
+                        "experiment_config_construction"
+                    ):
+                        experiment_config = self.construct_experiment_config(
+                            loaded_config
+                        )
                 else:
                     experiment_config = self.construct_experiment_config(loaded_config)
 
                 self.logger.debug("Experiment config type: %s", type(experiment_config))
 
                 # Only try to serialize if we have a valid dataclass
-                if experiment_config and hasattr(experiment_config, "__dataclass_fields__"):
+                if experiment_config and hasattr(
+                    experiment_config, "__dataclass_fields__"
+                ):
                     try:
                         self.logger.debug(
                             "Constructed experiment config: %s",
@@ -710,17 +763,22 @@ class ConfigLoader(LoggerMixin):
                         )
                 else:
                     self.logger.warning(
-                        "Experiment config is not a valid dataclass: %s", experiment_config
+                        "Experiment config is not a valid dataclass: %s",
+                        experiment_config,
                     )
 
                 # Validate plugin availability
                 if self.metrics_collector:
-                    with self.metrics_collector.time_operation("plugin_availability_validation"):
+                    with self.metrics_collector.time_operation(
+                        "plugin_availability_validation"
+                    ):
                         is_valid, plugin_errors = self.validate_plugins_availability(
                             experiment_config
                         )
                 else:
-                    is_valid, plugin_errors = self.validate_plugins_availability(experiment_config)
+                    is_valid, plugin_errors = self.validate_plugins_availability(
+                        experiment_config
+                    )
 
                 if not is_valid:
                     error_msg = "Plugin validation failed:\n" + "\n".join(
@@ -750,7 +808,9 @@ class ConfigLoader(LoggerMixin):
                         for test in experiment_config.tests:
                             if hasattr(test, "services") and test.services:
                                 total_services += len(test.services)
-                        self.metrics_collector.set_gauge("config_services_count", total_services)
+                        self.metrics_collector.set_gauge(
+                            "config_services_count", total_services
+                        )
 
                 return experiment_config
 
@@ -784,7 +844,9 @@ class ConfigLoader(LoggerMixin):
                         error_message=str(e),
                         metadata={"config_file": experiment_config_path},
                     )
-                self.logger.error("Unexpected error during configuration loading: %s", e)
+                self.logger.error(
+                    "Unexpected error during configuration loading: %s", e
+                )
                 raise
 
     def load_and_validate_global_config(self) -> GlobalConfig:
@@ -796,7 +858,9 @@ class ConfigLoader(LoggerMixin):
         """
         if self.metrics_collector:
             self.metrics_collector.increment_counter("config_loads_total")
-            config_timer = self.metrics_collector.start_timing("global_config_loading_time")
+            config_timer = self.metrics_collector.start_timing(
+                "global_config_loading_time"
+            )
 
         try:
             # Check if experiment config file exists (contains global config)
@@ -809,7 +873,8 @@ class ConfigLoader(LoggerMixin):
             # Load the YAML configuration
             if self.metrics_collector:
                 logging.debug(
-                    "Loading global configuration with metrics from %s", experiment_config_path
+                    "Loading global configuration with metrics from %s",
+                    experiment_config_path,
                 )
                 with self.metrics_collector.time_operation("yaml_parsing"):
                     loaded_config = OmegaConf.load(experiment_config_path)
@@ -821,7 +886,9 @@ class ConfigLoader(LoggerMixin):
 
             # Construct global config with timing
             if self.metrics_collector:
-                with self.metrics_collector.time_operation("global_config_construction"):
+                with self.metrics_collector.time_operation(
+                    "global_config_construction"
+                ):
                     global_config = self.construct_global_config(loaded_config)
             else:
                 global_config = self.construct_global_config(loaded_config)
@@ -897,7 +964,9 @@ class ConfigLoader(LoggerMixin):
             config_class = getattr(plugin_module, class_name)
             return config_class  # Assume PluginConfig is the schema class
         except ImportError as exc:
-            raise ImportError(f"Plugin schema '{plugin_module_path}' not found.") from exc
+            raise ImportError(
+                f"Plugin schema '{plugin_module_path}' not found."
+            ) from exc
         except AttributeError as exc:
             raise ImportError(
                 f"Plugin schema '{plugin_module_path}' does not define a 'PluginConfig' class."
@@ -919,18 +988,25 @@ class ConfigLoader(LoggerMixin):
         else:
             protocol_type = "client_server"  # TODO: Default to client-server for now
             # Assuming schema files are in plugins
-        module_path = f"panther.plugins.protocols.{protocol_type}.{protocol}.config_schema"
+        module_path = (
+            f"panther.plugins.protocols.{protocol_type}.{protocol}.config_schema"
+        )
         try:
             # Import the module and dynamically get the class
             schema_module = importlib.import_module(module_path)
             config_class = getattr(schema_module, f"{protocol.capitalize()}Config")
             self.logger.debug(
-                "Protocol: %s - %s - %s", protocol, implementation["protocol"], config_class
+                "Protocol: %s - %s - %s",
+                protocol,
+                implementation["protocol"],
+                config_class,
             )
             protocol_instance = config_class(**implementation.protocol)
             return OmegaConf.merge(config_class, protocol_instance)
         except (ImportError, AttributeError) as e:
-            raise ValueError(f"Failed to load protocol config for '{protocol}': {e}") from e
+            raise ValueError(
+                f"Failed to load protocol config for '{protocol}': {e}"
+            ) from e
 
     def load_and_validate_implementation_config(
         self, implementation: dict
@@ -946,9 +1022,13 @@ class ConfigLoader(LoggerMixin):
         protocol_version = implementation["protocol"]["version"]
         if implem_type == "IUT" or implem_type.lower() == "iut":
             # Assuming schema files are in plugins
-            module_path = f"panther.plugins.services.iut.{protocol}.{name}.config_schema"
+            module_path = (
+                f"panther.plugins.services.iut.{protocol}.{name}.config_schema"
+            )
         else:
-            module_path = f"panther.plugins.services.{implem_type.lower()}.{name}.config_schema"
+            module_path = (
+                f"panther.plugins.services.{implem_type.lower()}.{name}.config_schema"
+            )
 
         self.logger.debug("Module path: %s", module_path)
         try:
@@ -957,7 +1037,10 @@ class ConfigLoader(LoggerMixin):
             class_name = self._get_class_name(name)
             config_class = getattr(schema_module, class_name)
             self.logger.debug(
-                "Implementation: %s - %s - %s", name, implementation["implementation"], config_class
+                "Implementation: %s - %s - %s",
+                name,
+                implementation["implementation"],
+                config_class,
             )
 
             # Load the version configuration
@@ -968,7 +1051,9 @@ class ConfigLoader(LoggerMixin):
                 version_configs_dir = (
                     str(self._panther_dir).replace("/panther", "")
                     + "/"
-                    + module_path.replace(".", "/").replace("/config_schema", "/version_configs/")
+                    + module_path.replace(".", "/").replace(
+                        "/config_schema", "/version_configs/"
+                    )
                 )
             else:
                 version_configs_dir = (
@@ -981,11 +1066,17 @@ class ConfigLoader(LoggerMixin):
 
             version_path = os.path.join(version_configs_dir, f"{protocol_version}.yaml")
             if not os.path.exists(version_path):
-                raise ValueError(f"Version configuration file {version_path} not found.")
+                raise ValueError(
+                    f"Version configuration file {version_path} not found."
+                )
             raw_version_config = OmegaConf.load(version_path)
-            self.logger.debug("Version config: %s - %s", raw_version_config, version_config_class)
+            self.logger.debug(
+                "Version config: %s - %s", raw_version_config, version_config_class
+            )
             protocol_version = OmegaConf.to_object(
-                OmegaConf.merge(OmegaConf.structured(version_config_class), raw_version_config)
+                OmegaConf.merge(
+                    OmegaConf.structured(version_config_class), raw_version_config
+                )
             )
 
             # Convert type to uppercase for enum compatibility
@@ -998,7 +1089,9 @@ class ConfigLoader(LoggerMixin):
 
             return OmegaConf.merge(config_class, implementation_instance)
         except (ImportError, AttributeError) as e:
-            raise ValueError(f"Failed to load implementation config for '{name}': {e}") from e
+            raise ValueError(
+                f"Failed to load implementation config for '{name}': {e}"
+            ) from e
 
     def get_all_exec_env_classes(self):
         """
@@ -1006,7 +1099,6 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of execution environment classes.
         """
-
         exec_env_classes = []
         exec_env_dir = (
             self._panther_dir
@@ -1014,28 +1106,27 @@ class ConfigLoader(LoggerMixin):
             / "environments"
             / "execution_environment"
         )
-        self.logger.debug("Searching for execution environment classes in %s", exec_env_dir)
-
-        # Check if directory exists
-        if not exec_env_dir.exists():
-            self.logger.debug("Execution environment directory %s does not exist", exec_env_dir)
-            return exec_env_classes
+        self.logger.debug(
+            "Searching for execution environment classes in %s", exec_env_dir
+        )
 
         try:
-            for plugin_dir in exec_env_dir.iterdir():
-                if plugin_dir.is_dir():
-                    plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                    if plugin_file.exists():
-                        self.logger.debug("Found execution environment class: %s", plugin_dir.name)
-                        exec_env_classes.append(self._get_class_name(plugin_dir.name, "Config"))
-                    else:
-                        self.logger.debug("No execution environment class found in %s", plugin_dir)
-        except (FileNotFoundError, OSError) as e:
+            # Use PluginManagerUtils.discover_plugins utility for robust plugin discovery
+            plugin_files = PluginManagerUtils.discover_plugins(exec_env_dir)
+            for plugin_file in plugin_files:
+                plugin_name = plugin_file.stem
+                self.logger.debug("Found execution environment class: %s", plugin_name)
+                exec_env_classes.append(self._get_class_name(plugin_name, "Config"))
+        except Exception as e:
             self.logger.debug(
-                "Error accessing execution environment directory %s: %s", exec_env_dir, e
+                "Error discovering execution environment plugins in %s: %s",
+                exec_env_dir,
+                e,
             )
 
-        self.logger.debug("Total execution environment classes found: %s", len(exec_env_classes))
+        self.logger.debug(
+            "Total execution environment classes found: %s", len(exec_env_classes)
+        )
         return exec_env_classes
 
     def get_all_net_env_classes(self):
@@ -1044,37 +1135,35 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of network environment classes.
         """
-
-        exec_env_classes = []
-        exec_env_dir = (
+        net_env_classes = []
+        net_env_dir = (
             self._panther_dir
             / Path(self.global_config.paths.plugin_dir)
             / "environments"
             / "network_environment"
         )
-        self.logger.debug("Searching for network environment classes in %s", exec_env_dir)
-
-        # Check if directory exists
-        if not exec_env_dir.exists():
-            self.logger.debug("Network environment directory %s does not exist", exec_env_dir)
-            return exec_env_classes
+        self.logger.debug(
+            "Searching for network environment classes in %s", net_env_dir
+        )
 
         try:
-            for plugin_dir in exec_env_dir.iterdir():
-                if plugin_dir.is_dir():
-                    plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                    if plugin_file.exists():
-                        self.logger.debug("Found network environment class: %s", plugin_dir.name)
-                        exec_env_classes.append(self._get_class_name(plugin_dir.name, "Config"))
-                    else:
-                        self.logger.debug("No network environment class found in %s", plugin_dir)
-        except (FileNotFoundError, OSError) as e:
+            # Use PluginManagerUtils.discover_plugins utility for robust plugin discovery
+            plugin_files = PluginManagerUtils.discover_plugins(net_env_dir)
+            for plugin_file in plugin_files:
+                plugin_name = plugin_file.stem
+                self.logger.debug("Found network environment class: %s", plugin_name)
+                net_env_classes.append(self._get_class_name(plugin_name, "Config"))
+        except Exception as e:
             self.logger.debug(
-                "Error accessing network environment directory %s: %s", exec_env_dir, e
+                "Error discovering network environment plugins in %s: %s",
+                net_env_dir,
+                e,
             )
 
-        self.logger.debug("Total network environment classes found: %s", len(exec_env_classes))
-        return exec_env_classes
+        self.logger.debug(
+            "Total network environment classes found: %s", len(net_env_classes)
+        )
+        return net_env_classes
 
     def get_all_protocol_classes(self):
         """
@@ -1082,31 +1171,42 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of protocol classes.
         """
-
         protocol_classes = []
-        protocol_dir = self._panther_dir / Path(self.global_config.paths.plugin_dir) / "protocols"
+        protocol_dir = (
+            self._panther_dir / Path(self.global_config.paths.plugin_dir) / "protocols"
+        )
         self.logger.debug("Searching for protocol classes in %s", protocol_dir)
 
-        # Check if directory exists
-        if not protocol_dir.exists():
-            self.logger.debug("Protocol directory %s does not exist", protocol_dir)
-            return protocol_classes
-
         try:
+            # Check if directory exists
+            if not protocol_dir.exists():
+                self.logger.debug("Protocol directory %s does not exist", protocol_dir)
+                return protocol_classes
+
+            # Navigate through nested protocol structure (protocol_type/protocol)
             for protocol_type_dir in protocol_dir.iterdir():
                 if protocol_type_dir.is_dir():
-                    for protocol_dir in protocol_type_dir.iterdir():
-                        if protocol_dir.is_dir():
-                            protocol_file = protocol_dir / f"{protocol_dir.name}.py"
-                            if protocol_file.exists():
-                                self.logger.debug("Found protocol class: %s", protocol_dir.name)
-                                protocol_classes.append(
-                                    self._get_class_name(protocol_dir.name, "Config")
-                                )
-                            else:
-                                self.logger.debug("No protocol class found in %s", protocol_dir)
-        except (FileNotFoundError, OSError) as e:
-            self.logger.debug("Error accessing protocol directory %s: %s", protocol_dir, e)
+                    try:
+                        # Use PluginManagerUtils.discover_plugins for each protocol type directory
+                        protocol_files = PluginManagerUtils.discover_plugins(
+                            protocol_type_dir
+                        )
+                        for protocol_file in protocol_files:
+                            protocol_name = protocol_file.stem
+                            self.logger.debug("Found protocol class: %s", protocol_name)
+                            protocol_classes.append(
+                                self._get_class_name(protocol_name, "Config")
+                            )
+                    except Exception as e:
+                        self.logger.debug(
+                            "Error discovering protocols in %s: %s",
+                            protocol_type_dir,
+                            e,
+                        )
+        except Exception as e:
+            self.logger.debug(
+                "Error accessing protocol directory %s: %s", protocol_dir, e
+            )
 
         self.logger.debug("Total protocol classes found: %s", len(protocol_classes))
         return protocol_classes
@@ -1117,24 +1217,44 @@ class ConfigLoader(LoggerMixin):
 
         :return: A dictionary with protocols as keys and list of IUT classes as values.
         """
-
         iut_classes = {}
-        iut_dir = self._panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "iut"
+        iut_dir = (
+            self._panther_dir
+            / Path(self.global_config.paths.plugin_dir)
+            / "services"
+            / "iut"
+        )
         self.logger.debug("Searching for IUT classes in %s", iut_dir)
-        for protocol_dir in iut_dir.iterdir():
-            if protocol_dir.is_dir():
-                protocol_name = protocol_dir.name
-                iut_classes[protocol_name] = []
-                for plugin_dir in protocol_dir.iterdir():
-                    if plugin_dir.is_dir() and not plugin_dir.name.startswith("__"):
-                        plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                        if plugin_file.exists():
-                            self.logger.debug("Found IUT class: %s", plugin_dir.name)
+
+        try:
+            # Check if directory exists
+            if not iut_dir.exists():
+                self.logger.debug("IUT directory %s does not exist", iut_dir)
+                return iut_classes
+
+            for protocol_dir in iut_dir.iterdir():
+                if protocol_dir.is_dir() and not protocol_dir.name.startswith("__"):
+                    protocol_name = protocol_dir.name
+                    iut_classes[protocol_name] = []
+
+                    try:
+                        # Use PluginManagerUtils.discover_plugins for each protocol directory
+                        impl_files = PluginManagerUtils.discover_plugins(protocol_dir)
+                        for impl_file in impl_files:
+                            impl_name = impl_file.stem
+                            self.logger.debug("Found IUT class: %s", impl_name)
                             iut_classes[protocol_name].append(
-                                self._get_class_name(plugin_dir.name, "Config")
+                                self._get_class_name(impl_name, "Config")
                             )
-                        else:
-                            self.logger.debug("No IUT class found in %s", plugin_dir)
+                    except Exception as e:
+                        self.logger.debug(
+                            "Error discovering IUT implementations in %s: %s",
+                            protocol_dir,
+                            e,
+                        )
+        except Exception as e:
+            self.logger.debug("Error accessing IUT directory %s: %s", iut_dir, e)
+
         self.logger.debug("Total IUT classes found: %s", iut_classes)
         return iut_classes
 
@@ -1144,27 +1264,34 @@ class ConfigLoader(LoggerMixin):
 
         :return: A list of tester classes.
         """
-
         tester_classes = []
-        # tester_dir =  self.panther_dir / Path(self.global_config.paths.plugin_dir) / "services" / "testers"
-        tester_dir = files(
-            f"{self.global_config.paths.plugin_dir}.services.testers"
-        )  # .joinpath('resource1.txt')
+        tester_dir = (
+            self._panther_dir
+            / Path(self.global_config.paths.plugin_dir)
+            / "services"
+            / "testers"
+        )
         self.logger.debug("Searching for tester classes in %s", tester_dir)
-        for plugin_dir in tester_dir.iterdir():
-            if plugin_dir.is_dir():
-                plugin_file = plugin_dir / f"{plugin_dir.name}.py"
-                if plugin_file.exists():  # type: ignore
-                    self.logger.debug("Found tester class: %s", plugin_dir.name)
-                    tester_classes.append(self._get_class_name(plugin_dir.name, "Config"))
-                else:
-                    self.logger.debug("No tester class found in %s", plugin_dir)
+
+        try:
+            # Use PluginManagerUtils.discover_plugins utility for robust plugin discovery
+            plugin_files = PluginManagerUtils.discover_plugins(tester_dir)
+            for plugin_file in plugin_files:
+                plugin_name = plugin_file.stem
+                self.logger.debug("Found tester class: %s", plugin_name)
+                tester_classes.append(self._get_class_name(plugin_name, "Config"))
+        except Exception as e:
+            self.logger.debug(
+                "Error discovering tester plugins in %s: %s", tester_dir, e
+            )
+
         self.logger.debug("Total tester classes found: %s", len(tester_classes))
         return tester_classes
 
     def load_all_plugins(self) -> dict[str, list[str]]:
         """
         Load all plugins and return them in an ordered dictionary.
+        Uses plugin_loader_utils for robust plugin discovery and loading.
 
         :return: An ordered dictionary with plugin types as keys and list of plugin names as values.
         """
@@ -1178,127 +1305,230 @@ class ConfigLoader(LoggerMixin):
         all_plugins = {}
 
         for plugin_type, plugin_path in plugin_types.items():
-            plugin_dir = self._panther_dir / Path(self.global_config.paths.plugin_dir) / plugin_path
+            plugin_dir = (
+                self._panther_dir
+                / Path(self.global_config.paths.plugin_dir)
+                / plugin_path
+            )
             self.logger.debug("Searching for plugins in %s", plugin_dir)
             plugins = []
 
-            # Check if plugin directory exists
-            if not plugin_dir.exists():
-                self.logger.debug("Plugin directory %s does not exist", plugin_dir)
-                all_plugins[plugin_type] = []
-                continue
-
             try:
                 if plugin_type == "iut":
-                    for protocol_dir in plugin_dir.iterdir():
-                        if protocol_dir.is_dir() and not protocol_dir.name.startswith("__"):
-                            for sub_dir in protocol_dir.iterdir():
-                                if sub_dir.is_dir() and not sub_dir.name.startswith("__"):
-                                    plugin_file = sub_dir / f"{sub_dir.name}.py"
-                                    if plugin_file.exists():
-                                        self.logger.debug("Found plugin: %s", sub_dir.name)
-                                        plugins.append(f"{protocol_dir.name}/{sub_dir.name}")
-                                        try:
-                                            importlib.import_module(
-                                                f"panther.plugins.{plugin_path.replace('/', '.')}.{protocol_dir.name}.{sub_dir.name}"
-                                            )
-                                        except ImportError as e:
-                                            self.logger.error(
-                                                "Failed to load plugin %s: %s", sub_dir.name, e
-                                            )
-                else:
-                    for sub_dir in plugin_dir.iterdir():
-                        if sub_dir.is_dir() and not sub_dir.name.startswith("__"):
-                            plugin_file = sub_dir / f"{sub_dir.name}.py"
-                            if plugin_file.exists():
-                                self.logger.debug("Found plugin: %s", sub_dir.name)
-                                plugins.append(sub_dir.name)
+                    # Handle nested IUT structure (protocol/implementation)
+                    if plugin_dir.exists():
+                        for protocol_dir in plugin_dir.iterdir():
+                            if (
+                                protocol_dir.is_dir()
+                                and not protocol_dir.name.startswith("__")
+                            ):
                                 try:
-                                    importlib.import_module(
-                                        f"panther.plugins.{plugin_path.replace('/', '.')}.{sub_dir.name}"
+                                    impl_files = PluginManagerUtils.discover_plugins(
+                                        protocol_dir
                                     )
-                                except ImportError as e:
-                                    self.logger.error(
-                                        "Failed to load plugin %s: %s", sub_dir.name, e
+                                    for impl_file in impl_files:
+                                        impl_name = impl_file.stem
+                                        plugin_name = f"{protocol_dir.name}/{impl_name}"
+                                        plugins.append(plugin_name)
+                                        self.logger.debug(
+                                            "Found IUT plugin: %s", plugin_name
+                                        )
+
+                                        # Attempt to load plugin for validation
+                                        try:
+                                            PluginManagerUtils.load_plugin_class(
+                                                protocol_dir / impl_name, "Manager"
+                                            )
+                                        except Exception as e:
+                                            self.logger.warning(
+                                                "Failed to load IUT plugin %s: %s",
+                                                plugin_name,
+                                                e,
+                                            )
+                                except Exception as e:
+                                    self.logger.debug(
+                                        "Error discovering IUT implementations in %s: %s",
+                                        protocol_dir,
+                                        e,
                                     )
-            except (FileNotFoundError, OSError) as e:
-                self.logger.debug("Error accessing plugin directory %s: %s", plugin_dir, e)
+                elif plugin_type == "protocols":
+                    # Handle nested protocol structure (protocol_type/protocol)
+                    if plugin_dir.exists():
+                        for protocol_type_dir in plugin_dir.iterdir():
+                            if (
+                                protocol_type_dir.is_dir()
+                                and not protocol_type_dir.name.startswith("__")
+                            ):
+                                try:
+                                    protocol_files = (
+                                        PluginManagerUtils.discover_plugins(
+                                            protocol_type_dir
+                                        )
+                                    )
+                                    for protocol_file in protocol_files:
+                                        protocol_name = protocol_file.stem
+                                        plugin_name = (
+                                            f"{protocol_type_dir.name}/{protocol_name}"
+                                        )
+                                        plugins.append(plugin_name)
+                                        self.logger.debug(
+                                            "Found protocol plugin: %s", plugin_name
+                                        )
+
+                                        # Attempt to load plugin for validation
+                                        try:
+                                            PluginManagerUtils.load_plugin_class(
+                                                protocol_type_dir / protocol_name,
+                                                "Config",
+                                            )
+                                        except Exception as e:
+                                            self.logger.warning(
+                                                "Failed to load protocol plugin %s: %s",
+                                                plugin_name,
+                                                e,
+                                            )
+                                except Exception as e:
+                                    self.logger.debug(
+                                        "Error discovering protocols in %s: %s",
+                                        protocol_type_dir,
+                                        e,
+                                    )
+                else:
+                    # Handle flat plugin structure
+                    try:
+                        plugin_files = PluginManagerUtils.discover_plugins(plugin_dir)
+                        for plugin_file in plugin_files:
+                            plugin_name = plugin_file.stem
+                            plugins.append(plugin_name)
+                            self.logger.debug(
+                                "Found %s plugin: %s", plugin_type, plugin_name
+                            )
+
+                            # Attempt to load plugin for validation
+                            try:
+                                expected_class = "Manager"
+                                if plugin_type.endswith("_environment"):
+                                    expected_class = "Config"
+
+                                PluginManagerUtils.load_plugin_class(
+                                    plugin_dir / plugin_name, expected_class
+                                )
+                            except Exception as e:
+                                self.logger.warning(
+                                    "Failed to load %s plugin %s: %s",
+                                    plugin_type,
+                                    plugin_name,
+                                    e,
+                                )
+                    except Exception as e:
+                        self.logger.debug(
+                            "Error discovering %s plugins in %s: %s",
+                            plugin_type,
+                            plugin_dir,
+                            e,
+                        )
+
+            except Exception as e:
+                self.logger.debug(
+                    "Error accessing plugin directory %s: %s", plugin_dir, e
+                )
                 plugins = []
 
             all_plugins[plugin_type] = sorted(plugins)
 
         return all_plugins
 
-    def list_plugin_parameters(self, plugin_type: str, plugin_name: str, protocol: str = None):
+    def list_plugin_parameters(
+        self, plugin_type: str, plugin_name: str, protocol: str = None
+    ):
         """
         List all configurable parameters for a specified plugin.
+        Uses plugin_loader_utils for robust plugin loading.
 
         :param plugin_type: The plugin type (e.g., "network_environment", "execution_environment", "iut", "tester").
         :param plugin_name: The plugin name (e.g., "shadow_ns", "picoquic").
         :param protocol: Optional protocol name for IUT/tester plugins (e.g., "quic", "http").
         :return: Dictionary of parameters with their types, defaults, and descriptions.
         """
-
         try:
-            # Determine the correct module path based on plugin type
+            # Determine plugin directory path
             if plugin_type in ["iut", "tester"]:
-                # For IUT and tester plugins, they're in the services directory
-                # For IUT plugins, they might be nested under a protocol directory
-                # Try first the direct path (for simpler plugins)
-                try:
-                    module_path = (
-                        f"panther.plugins.services.{plugin_type}.{plugin_name}.config_schema"
-                    )
-                    plugin_module = importlib.import_module(module_path)
-                except ImportError:
-                    # If not found, it might be under a protocol subdirectory
-                    # Look for it in different protocol directories
-                    found = False
+                base_dir = (
+                    self._panther_dir
+                    / Path(self.global_config.paths.plugin_dir)
+                    / "services"
+                    / plugin_type
+                )
 
-                    # If protocol is provided, try that first
-                    if protocol:
-                        try:
-                            module_path = f"panther.plugins.services.{plugin_type}.{protocol}.{plugin_name}.config_schema"
-                            plugin_module = importlib.import_module(module_path)
-                            found = True
-                        except ImportError:
-                            pass
+                # For IUT/tester plugins, try to find the correct path
+                plugin_dir = None
+                if protocol:
+                    # Try with specified protocol first
+                    potential_dir = base_dir / protocol / plugin_name
+                    if potential_dir.exists():
+                        plugin_dir = potential_dir
 
-                    # If not found with provided protocol or no protocol provided, search through known protocols
-                    if not found:
-                        last_exc = None
-                        for protocol_dir in ["quic", "http", "minip"]:
-                            try:
-                                module_path = f"panther.plugins.services.{plugin_type}.{protocol_dir}.{plugin_name}.config_schema"
-                                plugin_module = importlib.import_module(module_path)
-                                found = True
-                                break
-                            except ImportError as exc:
-                                last_exc = exc
-                                continue
+                if not plugin_dir:
+                    # Search through all protocol directories
+                    if base_dir.exists():
+                        for protocol_dir in base_dir.iterdir():
+                            if (
+                                protocol_dir.is_dir()
+                                and not protocol_dir.name.startswith("__")
+                            ):
+                                potential_dir = protocol_dir / plugin_name
+                                if potential_dir.exists():
+                                    plugin_dir = potential_dir
+                                    break
 
-                    if not found:
-                        error_msg = f"Could not find plugin schema for {plugin_name}"
-                        if protocol:
-                            error_msg += f" (protocol: {protocol})"
-                        raise ImportError(error_msg) from last_exc
+                    # Try direct path (for plugins not nested under protocol)
+                    if not plugin_dir:
+                        potential_dir = base_dir / plugin_name
+                        if potential_dir.exists():
+                            plugin_dir = potential_dir
+
             else:
                 # For environment plugins
-                module_path = (
-                    f"panther.plugins.environments.{plugin_type}.{plugin_name}.config_schema"
+                plugin_dir = (
+                    self._panther_dir
+                    / Path(self.global_config.paths.plugin_dir)
+                    / "environments"
+                    / plugin_type
+                    / plugin_name
                 )
-                plugin_module = importlib.import_module(module_path)
 
-            self.logger.debug("Found plugin schema at %s", module_path)
+            if not plugin_dir or not plugin_dir.exists():
+                error_msg = f"Plugin directory not found for {plugin_name}"
+                if protocol:
+                    error_msg += f" (protocol: {protocol})"
+                raise FileNotFoundError(error_msg)
 
-            # Get the class name using the plugin loader helper
-            class_name = ConfigLoader._get_class_name(plugin_name)
-            config_class = getattr(plugin_module, class_name)
+            # Load the config schema module
+            schema_file = plugin_dir / "config_schema.py"
+            if not schema_file.exists():
+                raise FileNotFoundError(f"Config schema file not found: {schema_file}")
 
-            # Format and return the parameters
+            try:
+                # Use plugin_loader_utils to load the module
+                schema_module = load_module_from_file(
+                    schema_file, f"{plugin_name}_config_schema"
+                )
+
+                # Get the config class using the naming convention
+                class_name = self._get_class_name(plugin_name, "Config")
+                config_class = get_class_from_module(schema_module, class_name)
+
+                self.logger.debug("Found plugin config class: %s", class_name)
+
+            except Exception as e:
+                self.logger.error(
+                    "Failed to load plugin schema for %s: %s", plugin_name, e
+                )
+                raise
+
+            # Extract parameters using dataclasses introspection
             parameters = {}
 
-            # Use dataclasses introspection to get fields
             import dataclasses  # pylint: disable=import-outside-toplevel
             import inspect  # pylint: disable=import-outside-toplevel
             from typing import get_type_hints  # pylint: disable=import-outside-toplevel
@@ -1311,36 +1541,42 @@ class ConfigLoader(LoggerMixin):
                     param_info = {
                         "type": str(type_hints.get(field.name, "unknown")),
                         "default": (
-                            field.default if field.default is not dataclasses.MISSING else None
+                            field.default
+                            if field.default is not dataclasses.MISSING
+                            else None
                         ),
                         "required": field.default is dataclasses.MISSING,
-                        "description": inspect.getdoc(field) or "No description available",
+                        "description": inspect.getdoc(field)
+                        or "No description available",
                     }
                     parameters[field.name] = param_info
+            else:
+                self.logger.warning("Config class %s is not a dataclass", class_name)
 
             return parameters
 
-        except ImportError as e:
+        except (FileNotFoundError, ImportError) as e:
             print(
                 f"Plugin schema for '{plugin_name}' not found. Check if the plugin name is correct."
             )
             print(f"Error details: {e}")
 
-            # Let's provide more helpful guidance for IUT/tester plugins
+            # Provide helpful guidance for IUT/tester plugins
             if plugin_type in ["iut", "tester"]:
-                print("\nFor IUT/tester plugins, try specifying the protocol if applicable.")
+                print(
+                    "\nFor IUT/tester plugins, try specifying the protocol if applicable."
+                )
                 print("Example: quiche is under the 'quic' protocol, so use:")
                 print(
                     f"panther --list-plugin-params {plugin_name} --plugin-type {plugin_type} --protocol quic"
                 )
 
             return {}
-        except AttributeError as e:
-            logging.error("Error retrieving parameters for plugin '%s': %s", plugin_name, e)
-            return {}
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logging.error(
-                "Unexpected error while listing parameters for plugin '%s': %s", plugin_name, e
+            self.logger.error(
+                "Unexpected error while listing parameters for plugin '%s': %s",
+                plugin_name,
+                e,
             )
             return {}
 
@@ -1368,13 +1604,23 @@ class ConfigLoader(LoggerMixin):
                     priority=observers_dict["logger"].get("priority", 0),
                     log_level=observers_dict["logger"].get("log_level", "INFO"),
                     include_data=observers_dict["logger"].get("include_data", True),
-                    include_event_id=observers_dict["logger"].get("include_event_id", True),
-                    include_timestamp=observers_dict["logger"].get("include_timestamp", True),
+                    include_event_id=observers_dict["logger"].get(
+                        "include_event_id", True
+                    ),
+                    include_timestamp=observers_dict["logger"].get(
+                        "include_timestamp", True
+                    ),
                     enable_colors=observers_dict["logger"].get("enable_colors", True),
                     output_file=observers_dict["logger"].get("output_file"),
-                    correlation_tracking=observers_dict["logger"].get("correlation_tracking", True),
-                    structured_output=observers_dict["logger"].get("structured_output", False),
-                    max_data_length=observers_dict["logger"].get("max_data_length", 500),
+                    correlation_tracking=observers_dict["logger"].get(
+                        "correlation_tracking", True
+                    ),
+                    structured_output=observers_dict["logger"].get(
+                        "structured_output", False
+                    ),
+                    max_data_length=observers_dict["logger"].get(
+                        "max_data_length", 500
+                    ),
                 )
                 observer_config.logger = logger_config
 
@@ -1385,11 +1631,15 @@ class ConfigLoader(LoggerMixin):
                     auto_register=observers_dict["metrics"].get("auto_register", True),
                     priority=observers_dict["metrics"].get("priority", 10),
                     log_level=observers_dict["metrics"].get("log_level", "INFO"),
-                    publish_metrics=observers_dict["metrics"].get("publish_metrics", True),
+                    publish_metrics=observers_dict["metrics"].get(
+                        "publish_metrics", True
+                    ),
                     collect_system_metrics=observers_dict["metrics"].get(
                         "collect_system_metrics", True
                     ),
-                    publish_interval=observers_dict["metrics"].get("publish_interval", 30),
+                    publish_interval=observers_dict["metrics"].get(
+                        "publish_interval", 30
+                    ),
                     enable_real_time_monitoring=observers_dict["metrics"].get(
                         "enable_real_time_monitoring", False
                     ),
@@ -1410,10 +1660,16 @@ class ConfigLoader(LoggerMixin):
                     priority=observers_dict["storage"].get("priority", 20),
                     log_level=observers_dict["storage"].get("log_level", "INFO"),
                     storage_path=observers_dict["storage"].get("storage_path"),
-                    enable_compression=observers_dict["storage"].get("enable_compression", True),
-                    max_storage_size=observers_dict["storage"].get("max_storage_size", 0),
+                    enable_compression=observers_dict["storage"].get(
+                        "enable_compression", True
+                    ),
+                    max_storage_size=observers_dict["storage"].get(
+                        "max_storage_size", 0
+                    ),
                     auto_backup=observers_dict["storage"].get("auto_backup", True),
-                    backup_interval=observers_dict["storage"].get("backup_interval", 3600),
+                    backup_interval=observers_dict["storage"].get(
+                        "backup_interval", 3600
+                    ),
                     retention_days=observers_dict["storage"].get("retention_days", 30),
                     batch_size=observers_dict["storage"].get("batch_size", 100),
                     async_storage=observers_dict["storage"].get("async_storage", False),
@@ -1424,7 +1680,9 @@ class ConfigLoader(LoggerMixin):
             if "experiment" in observers_dict:
                 experiment_config = ExperimentObserverConfig(
                     enabled=observers_dict["experiment"].get("enabled", True),
-                    auto_register=observers_dict["experiment"].get("auto_register", True),
+                    auto_register=observers_dict["experiment"].get(
+                        "auto_register", True
+                    ),
                     priority=observers_dict["experiment"].get("priority", 5),
                     log_level=observers_dict["experiment"].get("log_level", "INFO"),
                     output_dir=observers_dict["experiment"].get("output_dir"),

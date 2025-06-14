@@ -6,23 +6,35 @@ for intelligent logging with color coding, filtering, and adaptive formatting.
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
-from collections.abc import Callable
 
+try:
+    from tqdm import tqdm
 
-from panther.core.observer.base.typed_observer_interface import ITypedObserver
-from panther.core.events import (
-    BaseEvent,
-    # Experiment events
+    TQDM_AVAILABLE = True
+except ImportError:
+    TQDM_AVAILABLE = False
+
+from panther.core.events.base.event_base import BaseEvent
+from panther.core.events.environment.events import EnvironmentErrorEvent
+from panther.core.events.experiment.events import (
     ExperimentFailedEvent,
     ExperimentFinishedEarlyEvent,
-    # Test events
-    TestFailedEvent,
-    ServiceErrorEvent,
-    EnvironmentErrorEvent,
 )
-from panther.core.observer.utils.event_colors import get_severity_indicator, is_terminal_capable
+from panther.core.events.service.events import (
+    DockerBuildCompletedEvent,
+    DockerBuildFailedEvent,
+    DockerBuildStartedEvent,
+    ServiceErrorEvent,
+)
+from panther.core.events.test.events import TestFailedEvent
+from panther.core.observer.base.typed_observer_interface import ITypedObserver
+from panther.core.observer.utils.event_colors import (
+    get_severity_indicator,
+    is_terminal_capable,
+)
 
 # Map event types to colorlog colors for consistent coloring
 EVENT_LOG_COLORS = {
@@ -93,7 +105,9 @@ class LoggerObserver(ITypedObserver):
         self.config = global_config
 
         # Auto-detect color capability if not specified
-        self.enable_colors = enable_colors if enable_colors is not None else is_terminal_capable()
+        self.enable_colors = (
+            enable_colors if enable_colors is not None else is_terminal_capable()
+        )
 
         # Set up logging using the interface method
         # Use DEBUG level if debug mode is enabled
@@ -179,7 +193,9 @@ class LoggerObserver(ITypedObserver):
 
     def _should_exclude_event(self, event_type: str) -> bool:
         """Check if an event should be excluded from logging."""
-        return any(event_type.startswith(excluded) for excluded in self.excluded_event_types)
+        return any(
+            event_type.startswith(excluded) for excluded in self.excluded_event_types
+        )
 
     def _apply_custom_filters(self, event_type: str, event: BaseEvent) -> bool:
         """Apply custom filters for the event type."""
@@ -222,11 +238,59 @@ class LoggerObserver(ITypedObserver):
                 self.event_correlations[corr_id] = []
             self.event_correlations[corr_id].append(event_id)
 
+    def _is_tqdm_active(self) -> bool:
+        """Check if a tqdm progress bar is currently active."""
+        if not TQDM_AVAILABLE:
+            return False
+
+        try:
+            # Try multiple methods to detect active tqdm instances
+            # Method 1: Check _instances set
+            if hasattr(tqdm, "_instances") and getattr(tqdm, "_instances"):
+                instances = getattr(tqdm, "_instances")
+                if isinstance(instances, set) and len(instances) > 0:
+                    return True
+                elif hasattr(instances, "__len__") and len(instances) > 0:
+                    return True
+
+            # Method 2: Check tqdm.std._instances (more recent tqdm versions)
+            if hasattr(tqdm, "std") and hasattr(tqdm.std, "_instances"):
+                std_instances = getattr(tqdm.std, "_instances")
+                if std_instances and len(std_instances) > 0:
+                    return True
+
+            # Method 3: Check for active monitors
+            if hasattr(tqdm, "auto") and hasattr(tqdm.auto, "_instances"):
+                auto_instances = getattr(tqdm.auto, "_instances")
+                if auto_instances and len(auto_instances) > 0:
+                    return True
+
+            return False
+        except (AttributeError, TypeError, ImportError):
+            return False
+
+    def _should_use_tqdm_write(self, event: BaseEvent) -> bool:
+        """Determine if we should use tqdm.write() for this event."""
+        if not self._is_tqdm_active():
+            return False
+
+        # Use tqdm.write for Docker build events to avoid interfering with progress bar
+        return isinstance(
+            event,
+            (
+                DockerBuildStartedEvent,
+                DockerBuildCompletedEvent,
+                DockerBuildFailedEvent,
+            ),
+        )
+
     def _log_event(self, event: BaseEvent):
         """Format and log the event with enhanced formatting."""
         event_type = self._get_event_type_safely(event)
         event_id = str(getattr(event, "id", "")) if self.include_event_id else None
-        timestamp = getattr(event, "timestamp", datetime.now()).strftime("%H:%M:%S.%f")[:-3]
+        timestamp = getattr(event, "timestamp", datetime.now()).strftime("%H:%M:%S.%f")[
+            :-3
+        ]
 
         # Determine priority and log level
         priority = self._get_event_priority(event_type, event)
@@ -248,8 +312,13 @@ class LoggerObserver(ITypedObserver):
                     data_str = f"{data_str[:self.max_data_length-3]}..."
                 msg += f" - Data: {data_str}"
 
-            # Send to logger - the ColoredFormatter will handle the colors
-            self.logger.log(log_level, msg)
+            # Check if we should use tqdm.write() for Docker build events
+            if self._should_use_tqdm_write(event):
+                # Use tqdm.write() to display Docker build progress without interfering with progress bar
+                self._log_docker_build_event_with_tqdm(event, msg, log_level)
+            else:
+                # Send to logger - the ColoredFormatter will handle the colors
+                self.logger.log(log_level, msg)
 
     def _get_event_priority(self, event_type: str, event: BaseEvent) -> str:
         """Determine the priority of an event."""
@@ -261,7 +330,9 @@ class LoggerObserver(ITypedObserver):
         # Check priority boost configuration
         for boost_type, boost_level in self.priority_boost.items():
             if event_type.startswith(boost_type):
-                return ["debug", "info", "low", "medium", "high", "critical"][min(boost_level, 5)]
+                return ["debug", "info", "low", "medium", "high", "critical"][
+                    min(boost_level, 5)
+                ]
 
         # Default priority based on event type
         if "error" in event_type.lower() or "fail" in event_type.lower():
@@ -301,6 +372,60 @@ class LoggerObserver(ITypedObserver):
 
         self.logger.info(json.dumps(structured_data, default=str))
 
+    def _log_docker_build_event_with_tqdm(
+        self, event: BaseEvent, msg: str, log_level: int
+    ):
+        """Log Docker build events using tqdm.write() to avoid progress bar interference."""
+        if not TQDM_AVAILABLE:
+            # Fallback to regular logging if tqdm is not available
+            self.logger.log(log_level, msg)
+            return
+
+        # Create user-friendly messages for Docker build events
+        event_data = getattr(event, "data", {})
+
+        if isinstance(event, DockerBuildStartedEvent):
+            service_name = event_data.get("service_name", "Unknown")
+            image_name = event_data.get("image_name", "Unknown")
+            dockerfile_path = event_data.get("dockerfile_path", "Unknown")
+
+            # Show a concise, informative message
+            tqdm_msg = f"🐳 Building Docker image: {service_name} ({image_name})"
+            if self.debug_mode:
+                tqdm_msg += f" from {dockerfile_path}"
+
+            tqdm.write(tqdm_msg)
+
+        elif isinstance(event, DockerBuildCompletedEvent):
+            service_name = event_data.get("service_name", "Unknown")
+            image_name = event_data.get("image_name", "Unknown")
+            success = event_data.get("success", False)
+            build_duration = event_data.get("build_duration", 0)
+
+            if success:
+                tqdm_msg = f"✅ Docker build completed: {service_name} ({image_name})"
+                if build_duration and build_duration > 0:
+                    tqdm_msg += f" in {build_duration:.1f}s"
+            else:
+                error_message = event_data.get("error_message", "Unknown error")
+                tqdm_msg = f"❌ Docker build failed: {service_name} ({image_name}) - {error_message}"
+
+            tqdm.write(tqdm_msg)
+
+        elif isinstance(event, DockerBuildFailedEvent):
+            service_name = event_data.get("service_name", "Unknown")
+            error_message = event_data.get("error_message", "Unknown error")
+            build_duration = event_data.get("build_duration", 0)
+
+            tqdm_msg = f"❌ Docker build failed: {service_name} - {error_message}"
+            if build_duration and build_duration > 0:
+                tqdm_msg += f" after {build_duration:.1f}s"
+
+            tqdm.write(tqdm_msg)
+
+        # Still log to the regular logger for file output and detailed analysis
+        self.logger.log(log_level, msg)
+
     def _get_event_type_safely(self, event: BaseEvent) -> str:
         """Safely get the event type from an event object."""
         if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
@@ -333,7 +458,9 @@ class LoggerObserver(ITypedObserver):
         self.event_correlations.clear()
         self.event_context.clear()
 
-    def add_event_filter(self, event_type: str, filter_func: Callable[[BaseEvent], bool]):
+    def add_event_filter(
+        self, event_type: str, filter_func: Callable[[BaseEvent], bool]
+    ):
         """Add a custom filter for a specific event type."""
         self.event_filters[event_type] = filter_func
 
@@ -381,6 +508,24 @@ class LoggerObserver(ITypedObserver):
             event.entity_id,
             event.data.get("error_message", "Unknown error"),
         )
+        return True
+
+    def on_docker_build_started(self, event: DockerBuildStartedEvent) -> bool:
+        """Handle Docker build started event with special tqdm support."""
+        # Process the event normally - tqdm.write will be used automatically if tqdm is active
+        self._log_event(event)
+        return True
+
+    def on_docker_build_completed(self, event: DockerBuildCompletedEvent) -> bool:
+        """Handle Docker build completed event with special tqdm support."""
+        # Process the event normally - tqdm.write will be used automatically if tqdm is active
+        self._log_event(event)
+        return True
+
+    def on_docker_build_failed(self, event: DockerBuildFailedEvent) -> bool:
+        """Handle Docker build failed event with special tqdm support."""
+        # Process the event normally - tqdm.write will be used automatically if tqdm is active
+        self._log_event(event)
         return True
 
     def _track_event_in_history(self, event: BaseEvent, event_type: str):
