@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Plugin Registry Module
 
@@ -9,20 +11,20 @@ import importlib
 import inspect
 import os
 import sys
-from typing import Any
 
 from panther.core.observer.plugins.plugin_interface import IPluginObserver
 
 
 class PluginRegistry:
     """
+
     Registry for observer plugins.
 
     This class provides functionality for discovering, loading,
     and managing observer plugins from specified directories.
     """
 
-    def __init__(self, plugin_paths: list[str] = None):
+    def __init__(self, plugin_paths: List[str] = None):
         """
         Initialize a new PluginRegistry.
 
@@ -30,10 +32,10 @@ class PluginRegistry:
             plugin_paths: List of directories to search for plugins
         """
         self.plugin_paths = plugin_paths or []
-        self.plugins: dict[str, type[IPluginObserver]] = {}
-        self.plugin_metadata: dict[str, dict[str, Any]] = {}
+        self.plugins: Dict[str, type[IPluginObserver]] = {}
+        self.plugin_metadata: Dict[str, Dict[str, Any]] = {}
 
-    def discover_plugins(self) -> dict[str, type[IPluginObserver]]:
+    def discover_plugins(self) -> Dict[str, type[IPluginObserver]]:
         """
         Discover available plugins in plugin directories.
 
@@ -81,7 +83,7 @@ class PluginRegistry:
 
         return self.plugins
 
-    def get_plugin_class(self, name: str) -> type[IPluginObserver] | None:
+    def get_plugin_class(self, name: str) -> Optional[type[IPluginObserver]]:
         """
         Get a plugin class by name.
 
@@ -93,7 +95,7 @@ class PluginRegistry:
         """
         return self.plugins.get(name)
 
-    def get_plugin_metadata(self, name: str) -> dict[str, Any]:
+    def get_plugin_metadata(self, name: str) -> Dict[str, Any]:
         """
         Get metadata for a plugin.
 
@@ -105,7 +107,9 @@ class PluginRegistry:
         """
         return self.plugin_metadata.get(name, {})
 
-    def instantiate_plugin(self, name: str, *args, **kwargs) -> IPluginObserver | None:
+    def instantiate_plugin(
+        self, name: str, *args, **kwargs
+    ) -> Optional[IPluginObserver]:
         """
         Instantiate a plugin by name.
 

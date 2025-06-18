@@ -1,3 +1,10 @@
+from pathlib import Path
+from typing import TYPE_CHECKING, Dict, List, Tuple
+
+from panther.core.command_processor.command_modification_mixin import (
+    CommandModificationMixin,
+)
+
 """
 Base execution environment class that eliminates code duplication across execution environment plugins.
 
@@ -6,16 +13,12 @@ implements boilerplate methods, and defines the template for execution environme
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
 
 from omegaconf import OmegaConf
 
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.outputs.execution_environment_mixins import (
-    CommandModificationMixin,
-    StandardOutputCollectorMixin,
-)
+from panther.core.outputs.output_environment_mixins import StandardOutputCollectorMixin
 from panther.plugins.environments.environment_utils import ExecutionEnvironmentMixin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
@@ -23,7 +26,7 @@ from panther.plugins.environments.execution_environment.execution_environment_in
 from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
-    from panther.config.config_experiment_schema import TestConfig
+    from panther.config.core.models.experiment import TestConfig
     from panther.plugins.plugin_manager import PluginManager
 
 
@@ -35,6 +38,7 @@ class BaseExecutionEnvironment(
     ABC,
 ):
     """
+
     Base class for all execution environment plugins.
 
     This class eliminates code duplication by providing common implementations
@@ -79,7 +83,13 @@ class BaseExecutionEnvironment(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
-    def initialize(self, test_config, output_dir, event_manager, global_config):
+    def initialize(
+        self,
+        test_config: "TestConfig",
+        output_dir: str,
+        event_manager: EventManager,
+        global_config: GlobalConfig,
+    ):
         """
         Initialize the execution environment with configuration settings.
 
@@ -92,25 +102,17 @@ class BaseExecutionEnvironment(
         Returns:
             bool: True if initialization succeeded, False otherwise
         """
-        try:
-            self.test_config = test_config
-            self.output_dir = output_dir
-            self.event_manager = event_manager
-            self.global_config = global_config
-            self.is_initialized = True
-            self.logger.debug(f"{self.__class__.__name__} initialized successfully")
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to initialize {self.__class__.__name__}: %s", e)
-            return False
+        raise NotImplementedError(
+            "Each plugin must implement its own initialization logic"
+        )
 
     def _do_setup_environment(
         self,
-        services_managers,
-        test_config,
-        global_config,
-        timestamp,
-        plugin_manager,
+        services_managers: List[IServiceManager],
+        test_config: "TestConfig",
+        global_config: GlobalConfig,
+        timestamp: str,
+        plugin_manager: "PluginManager",
         execution_environment=None,
     ):
         """
@@ -147,12 +149,6 @@ class BaseExecutionEnvironment(
         Implementation of environment teardown.
         """
         self.logger.debug(f"{self.__class__.__name__} teardown: cleaning up resources")
-        # Collect any remaining output files
-        outputs = self.collect_outputs()
-        if outputs:
-            self.logger.info(
-                f"Collected {self.__class__.__name__} outputs: %s", list(outputs.keys())
-            )
 
     def handle_event(self, event):
         """
@@ -176,7 +172,7 @@ class BaseExecutionEnvironment(
 
     def setup_environment(
         self,
-        services_managers: list[IServiceManager],
+        services_managers: List[IServiceManager],
         test_config: "TestConfig",
         global_config: GlobalConfig,
         timestamp: str,
@@ -200,15 +196,45 @@ class BaseExecutionEnvironment(
         )
 
         # Log configuration for debugging
-        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))
-        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(self.global_config))
+        # Convert Pydantic models to dict before using OmegaConf.to_yaml
+        test_config_dict = self.test_config.dict() if hasattr(self.test_config, 'dict') else self.test_config
+        global_config_dict = self.global_config.dict() if hasattr(self.global_config, 'dict') else self.global_config
+        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(test_config_dict))
+        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(global_config_dict))
 
         # Call plugin-specific setup
         self._setup_plugin_specific_environment(services_managers, timestamp)
 
+    def get_output_patterns(self) -> List[Tuple[str, str]]:
+        """
+        Get output patterns specific to this execution environment.
+
+        Override this method in subclasses to provide custom patterns.
+
+        Returns:
+            List of (output_type, filename_pattern) tuples
+        """
+        # Default patterns for execution environments
+        return [
+            ("profile", f"{self.env_sub_type}_{{service_name}}.log"),
+            ("summary", f"{self.env_sub_type}_summary_{{service_name}}.txt"),
+            ("raw", f"{self.env_sub_type}_raw_{{service_name}}.dat"),
+        ]
+
+    def get_additional_output_discovery_patterns(self) -> Dict[str, List[str]]:
+        """
+        Get additional patterns for discovering outputs.
+
+        Override this in subclasses to provide custom discovery patterns.
+
+        Returns:
+            Dict mapping output types to lists of glob patterns
+        """
+        return {}
+
     @abstractmethod
     def _setup_plugin_specific_environment(
-        self, services_managers: list[IServiceManager], timestamp: str
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
         """
         Plugin-specific environment setup logic.

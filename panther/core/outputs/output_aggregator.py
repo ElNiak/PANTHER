@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
 """
 Output Aggregator
 
@@ -9,7 +11,6 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
@@ -20,6 +21,7 @@ from panther.core.outputs.output_collector import IOutputCollector
 
 class OutputAggregator:
     """
+
     Aggregates outputs from execution environments and prepares them for tester analysis.
     """
 
@@ -43,7 +45,7 @@ class OutputAggregator:
 
     def collect_from_environments(
         self, environments: list
-    ) -> dict[str, dict[str, str]]:
+    ) -> Dict[str, Dict[str, str]]:
         """
         Collect outputs from all execution environments that implement IOutputCollector.
 
@@ -51,7 +53,7 @@ class OutputAggregator:
             environments: List of environment plugins
 
         Returns:
-            dict[str, dict[str, str]]: Dictionary mapping environment type to its outputs
+            Dict[str, Dict[str, str]]: Dictionary mapping environment type to its outputs
                                      Example: {
                                          "strace": {"trace": "/path/to/trace.out"},
                                          "gperf_cpu": {"profile": "/path/to/profile.data"}
@@ -73,7 +75,7 @@ class OutputAggregator:
         total_outputs = 0
 
         for env in environments:
-            if isinstance(env, IOutputCollector):
+            if isinstance(env, IOutputCollector) and hasattr(env, "collect_outputs"):
                 env_type = env.__class__.__name__
                 self.logger.debug(f"Collecting outputs from {env_type}")
 
@@ -143,8 +145,8 @@ class OutputAggregator:
         return collected_outputs
 
     def prepare_for_testers(
-        self, collected_outputs: dict[str, dict[str, str]] | None = None
-    ) -> dict[str, dict[str, str]]:
+        self, collected_outputs: Optional[Dict[str, Dict[str, str]]]= None
+    ) -> Dict[str, Dict[str, str]]:
         """
         Prepare collected outputs for tester analysis.
 
@@ -155,7 +157,7 @@ class OutputAggregator:
             collected_outputs: Optional pre-collected outputs. If None, will collect from environments.
 
         Returns:
-            dict[str, dict[str, str]]: Dictionary organized by output type
+            Dict[str, Dict[str, str]]: Dictionary organized by output type
                                      Example: {
                                          "trace": {"strace": "/path/to/trace.out"},
                                          "profile": {"gperf_cpu": "/path/to/profile.data"}

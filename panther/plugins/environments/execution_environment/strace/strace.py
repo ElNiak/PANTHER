@@ -1,11 +1,11 @@
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+
 """
 Refactored strace execution environment using shared command generation utilities.
 
 This demonstrates how the shared utilities work with different command patterns
 while maintaining the specific functionality of strace.
 """
-
-from typing import TYPE_CHECKING
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.base_execution_environment import (
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 )
 class StraceEnvironment(BaseExecutionEnvironment):
     """
+
     System call tracing execution environment using strace.
 
     This environment uses shared command generation utilities while maintaining
@@ -54,8 +55,35 @@ class StraceEnvironment(BaseExecutionEnvironment):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
 
+    def get_output_patterns(self) -> List[Tuple[str, str]]:
+        """
+        Get strace-specific output patterns.
+
+        Returns:
+            List of (output_type, filename_pattern) tuples
+        """
+        return [
+            ("strace_log", "strace_{service_name}.log"),
+            ("strace_summary", "strace_summary_{service_name}.txt"),
+            ("syscall_stats", "strace_stats_{service_name}.log"),
+            ("timing", "strace_timing_{service_name}.log"),
+        ]
+
+    def get_additional_output_discovery_patterns(self) -> Dict[str, List[str]]:
+        """
+        Get additional strace discovery patterns.
+
+        Returns:
+            Dict mapping output types to lists of glob patterns
+        """
+        return {
+            "strace_child": ["strace_*_child_*.log"],
+            "strace_error": ["*strace*.err", "*strace*error*"],
+            "strace_filtered": ["strace_filtered_*.log"],
+        }
+
     def _setup_plugin_specific_environment(
-        self, services_managers: list[IServiceManager], timestamp: str
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
         """
         Set up strace tracing for all services using shared utilities.
@@ -206,7 +234,7 @@ echo "" >> {summary_file}
 # System call counts
 echo "=== Top 20 System Calls ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
-    grep -oE '^[a-zA-Z_]+\\(' {strace_output_file} | sed 's/($//' | sort | uniq -c | sort -nr | head -20 >> {summary_file} 2>/dev/null || echo "No system calls found" >> {summary_file}
+    grep -oE '^[a-zA-Z_]+\\(' {strace_output_file} | sed 's/($//' | Union[sort, uniq]-c | sort -nr | head -20 >> {summary_file} 2>/dev/null || echo "No system calls found" >> {summary_file}
 else
     echo "Strace output file not found" >> {summary_file}
 fi
@@ -217,10 +245,10 @@ echo "" >> {summary_file}
 echo "=== Network Activity Summary ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
     echo "Network system calls:" >> {summary_file}
-    grep -E '(socket|connect|bind|listen|accept|send|recv)\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
+    grep -E '(Union[socket, connect, bind, listen, accept, send, recv])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
 
     echo "File I/O operations:" >> {summary_file}
-    grep -E '(read|write|open|close)\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
+    grep -E '(Union[read, write, open, close])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
 else
     echo "No network activity data available" >> {summary_file}
 fi
@@ -231,7 +259,7 @@ echo "" >> {summary_file}
 echo "=== Error Analysis ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
     echo "Common errors found:" >> {summary_file}
-    grep -E 'EACCES|ENOENT|EPERM|ECONNREFUSED|ETIMEDOUT|EADDRINUSE' {strace_output_file} | cut -d' ' -f1 | sort | uniq -c | sort -nr >> {summary_file} 2>/dev/null || echo "No errors found" >> {summary_file}
+    grep -E 'EACCES|ENOENT|EPERM|ECONNREFUSED|ETIMEDOUT|EADDRINUSE' {strace_output_file} | cut -d' ' -f1 | Union[sort, uniq]-c | sort -nr >> {summary_file} 2>/dev/null || echo "No errors found" >> {summary_file}
 else
     echo "No error data available" >> {summary_file}
 fi
@@ -242,10 +270,10 @@ echo "" >> {summary_file}
 echo "=== Performance Insights ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
     echo "Process lifecycle:" >> {summary_file}
-    grep -E '(execve|fork|clone|exit_group)\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0 lifecycle events" >> {summary_file}
+    grep -E '(Union[execve, fork, clone, exit_group])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0 lifecycle events" >> {summary_file}
 
     echo "Signal handling:" >> {summary_file}
-    grep -E '(signal|kill|sigaction)\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0 signal events" >> {summary_file}
+    grep -E '(Union[signal, kill, sigaction])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0 signal events" >> {summary_file}
 else
     echo "No performance data available" >> {summary_file}
 fi
@@ -282,11 +310,11 @@ if [ -f "{strace_output_file}" ]; then
 
     echo "" >> {detailed_file}
     echo "=== File Operations ===" >> {detailed_file}
-    grep -E '(open|openat|creat)\\(' {strace_output_file} | head -50 >> {detailed_file} 2>/dev/null || echo "No file operations found" >> {detailed_file}
+    grep -E '(Union[open, openat, creat])\\(' {strace_output_file} | head -50 >> {detailed_file} 2>/dev/null || echo "No file operations found" >> {detailed_file}
 
     echo "" >> {detailed_file}
     echo "=== Network Operations ===" >> {detailed_file}
-    grep -E '(socket|connect|bind|listen)\\(' {strace_output_file} | head -50 >> {detailed_file} 2>/dev/null || echo "No network operations found" >> {detailed_file}
+    grep -E '(Union[socket, connect, bind, listen])\\(' {strace_output_file} | head -50 >> {detailed_file} 2>/dev/null || echo "No network operations found" >> {detailed_file}
 else
     echo "Strace output file not found for detailed analysis" >> {detailed_file}
 fi
@@ -300,7 +328,9 @@ fi
                 file_type="strace_detailed",
             )
 
-    def to_command(self, pid: int | None = None, output_file: str | None = None) -> str:
+    def to_command(
+        self, pid: Optional[int] = None, output_file: Optional[str] = None
+    ) -> str:
         """
         Generate the strace command for execution.
 
@@ -316,3 +346,30 @@ fi
 
         # Use the same command building logic as the wrapper
         return self._build_strace_command(output_file)
+
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for strace execution.
+
+        This method is called to update the environment configuration
+        for strace-specific requirements.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        # Add any strace-specific environment updates here
+        # For now, this is a no-op as strace doesn't require
+        # special environment modifications
+        self.logger.debug("Updated environment for strace execution")
+        pass

@@ -42,6 +42,12 @@ except ImportError:
             return processed
 
         def _process_run_cmd(self, run_cmd: Dict[str, Any]) -> Dict[str, Any]:
+            # Handle None or invalid input gracefully
+            if run_cmd is None:
+                run_cmd = {}
+            elif not isinstance(run_cmd, dict):
+                run_cmd = {}
+            
             return {
                 "command": run_cmd.get("command", ""),
                 "working_dir": run_cmd.get("working_dir", "."),
@@ -50,7 +56,12 @@ except ImportError:
             }
 
         def process_command_list(self, commands: List[str]) -> List[str]:
-            return [self.sanitize_command(cmd) for cmd in commands] if commands else []
+            # Handle invalid input gracefully
+            if not commands:
+                return []
+            if not isinstance(commands, list):
+                return []  # Return empty list for invalid input
+            return [self.sanitize_command(cmd) for cmd in commands]
 
         def sanitize_command(self, command: str) -> str:
             return command.strip() if command else ""
@@ -127,9 +138,20 @@ except ImportError:
             return commands[0]
 
         combined_cmd = f" {connector} ".join(cmd.command for cmd in commands)
+        
+        # Extract working directory from cd commands
+        working_dir = "."
+        for cmd in commands:
+            if cmd.command.strip().startswith("cd "):
+                # Extract directory from cd command
+                cd_parts = cmd.command.strip().split(maxsplit=1)
+                if len(cd_parts) > 1:
+                    working_dir = cd_parts[1].strip().strip('"').strip("'")
+                break
+        
         return ShellCommand(
             command=combined_cmd,
-            working_dir=commands[0].working_dir,
+            working_dir=working_dir,
             timeout=max(cmd.timeout for cmd in commands),
         )
 
@@ -161,9 +183,7 @@ except ImportError:
     class ICommandProcessor:
         pass
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.command_generation]
-
 
 class TestCommandProcessorInitialization:
     """Test CommandProcessor initialization and basic setup."""
@@ -183,7 +203,6 @@ class TestCommandProcessorInitialization:
         # Verify it has required methods
         assert hasattr(processor, "process_commands")
         assert callable(processor.process_commands)
-
 
 class TestCommandProcessing:
     """Test command processing functionality."""
@@ -269,7 +288,6 @@ class TestCommandProcessing:
         # Verify environment variables are preserved
         assert result["run_cmd"]["environment"]["DEBUG"] == "1"
 
-
 class TestShellCommand:
     """Test ShellCommand functionality."""
 
@@ -348,7 +366,6 @@ class TestShellCommand:
         assert "ShellCommand" in str_repr
         assert "ShellCommand" in repr_repr
 
-
 class TestCombineShellConstructs:
     """Test shell command combination functionality."""
 
@@ -403,7 +420,6 @@ class TestCombineShellConstructs:
         result = combine_shell_constructs(commands)
 
         assert result.timeout == 120  # Should use maximum timeout
-
 
 class TestCommandBuilder:
     """Test CommandBuilder functionality."""
@@ -472,7 +488,6 @@ class TestCommandBuilder:
         assert len(commands) == 3
         assert all(isinstance(cmd, ShellCommand) for cmd in commands)
 
-
 class TestCommandValidation:
     """Test command validation utilities."""
 
@@ -519,7 +534,6 @@ class TestCommandValidation:
 
         # Test with all invalid args
         assert sanitize_command_args(["", "  ", None]) == []
-
 
 class TestCommandProcessorIntegration:
     """Test integrated command processor workflows."""
@@ -599,7 +613,6 @@ class TestCommandProcessorIntegration:
         # Should still return a dictionary
         assert isinstance(result, dict)
 
-
 class TestCommandProcessorPerformance:
     """Test command processor performance characteristics."""
 
@@ -637,7 +650,6 @@ class TestCommandProcessorPerformance:
             # Verify processing works for each iteration
             assert result["run_cmd"]["command"] == f"test_command_{i}"
             assert len(result["pre_run_cmds"]) == 20
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

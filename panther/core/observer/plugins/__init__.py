@@ -5,8 +5,8 @@ This module contains observer implementations for handling plugin-based observer
 automatic generation of plugin observers.
 """
 
-from .plugin_interface import IPluginObserver
 from .event_observer_plugin import EventObserverPlugin
+from .plugin_interface import IPluginObserver
 from .plugin_observer_factory import (
     PluginObserverFactory,
     create_plugin_observer,

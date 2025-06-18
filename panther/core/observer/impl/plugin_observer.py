@@ -7,6 +7,7 @@ to facilitate event delivery to plugins in the PANTHER framework.
 
 import logging
 from collections import defaultdict
+from typing import Dict, List, Optional, Set
 
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_plugin_interface import IPluginObserver
@@ -32,11 +33,11 @@ class PluginObserver(IPluginObserver):
         self.logger = logging.getLogger("PluginObserver")
         self.event_manager = event_manager
         # Map plugin IDs to plugin instances
-        self.plugins: dict[str, IPlugin] = {}
+        self.plugins: Dict[str, IPlugin] = {}
         # Map plugin IDs to their event interests
-        self.plugin_interests: dict[str, set[str]] = defaultdict(set)
+        self.plugin_interests: Dict[str, Set[str]] = defaultdict(set)
         # Map event types to interested plugin IDs
-        self.event_subscribers: dict[str, set[str]] = defaultdict(set)
+        self.event_subscribers: Dict[str, Set[str]] = defaultdict(set)
 
     def register_plugin(self, plugin: IPlugin) -> None:
         """
@@ -59,7 +60,7 @@ class PluginObserver(IPluginObserver):
             len(event_types),
         )
 
-    def register_plugin_events(self, plugin_id: str, event_types: list[str]) -> None:
+    def register_plugin_events(self, plugin_id: str, event_types: List[str]) -> None:
         """
         Register event types that a plugin is interested in.
 
@@ -111,7 +112,7 @@ class PluginObserver(IPluginObserver):
 
         self.logger.debug("Unregistered plugin '%s'", plugin_id)
 
-    def get_plugin_events(self, plugin_id: str) -> list[str]:
+    def get_plugin_events(self, plugin_id: str) -> List[str]:
         """
         Get the event types a plugin is interested in.
 
@@ -123,7 +124,7 @@ class PluginObserver(IPluginObserver):
         """
         return list(self.plugin_interests.get(plugin_id, []))
 
-    def get_plugins_for_event(self, event_type: str) -> list[str]:
+    def get_plugins_for_event(self, event_type: str) -> List[str]:
         """
         Get plugins interested in a specific event type.
 

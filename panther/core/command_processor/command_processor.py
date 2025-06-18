@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Union
+
 """
 Base implementation of command processor for PANTHER framework.
 
@@ -12,6 +14,7 @@ from panther.core.command_processor.command import (
     ShellCommand,
     combine_shell_constructs,
 )
+from panther.core.utils.feature_logger_mixin import get_feature_logger
 
 from .interfaces import ICommandProcessor
 
@@ -20,7 +23,7 @@ class CommandProcessor(ICommandProcessor):
     """Base implementation of command processor."""
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_feature_logger(__name__, "command_generation")
 
     def process_commands(
         self, commands: Dict[str, Any], target_format: str = "generic"

@@ -1,25 +1,27 @@
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 """
 Metrics Event Emitter
 
 This module provides a type-safe event emitter for metrics-related events.
 """
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
+
 from panther.core.events.metrics.events import (
+    CounterMetricEvent,
     MetricCollectedEvent,
+    MetricsSummaryEvent,
     ResourceMetricEvent,
     TimingMetricEvent,
-    CounterMetricEvent,
-    MetricsSummaryEvent,
 )
 
 
 class MetricsEventEmitter:
-    """
-    Type-safe event emitter for metrics-related events.
+    """Type-safe event emitter for metrics-related events.
 
     This class provides methods for emitting all metrics events
     with proper typing and validation.
@@ -39,11 +41,11 @@ class MetricsEventEmitter:
         metric_name: str,
         metric_type: str,
         value: Any,
-        phase: str | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        phase: Optional[str] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a metric collected event.
@@ -74,9 +76,9 @@ class MetricsEventEmitter:
         self,
         resource_type: str,
         usage_value: float,
-        component: str | None = None,
-        test_case: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        component: Optional[str] = None,
+        test_case: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a resource usage metric event.
@@ -101,10 +103,10 @@ class MetricsEventEmitter:
         self,
         operation_name: str,
         duration: float,
-        phase: str | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        phase: Optional[str] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a timing metric event.
@@ -132,9 +134,9 @@ class MetricsEventEmitter:
         counter_name: str,
         value: int,
         increment: bool = True,
-        test_case: str | None = None,
-        component: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a counter metric event.
@@ -159,10 +161,10 @@ class MetricsEventEmitter:
 
     def emit_metrics_summary(
         self,
-        metrics: dict[str, Any],
-        test_case: str | None = None,
-        period: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        metrics: Dict[str, Any],
+        test_case: Optional[str] = None,
+        period: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a metrics summary event.

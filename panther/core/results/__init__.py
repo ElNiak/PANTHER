@@ -4,8 +4,7 @@ This package handles collecting and processing test results in the PANTHER frame
 """
 
 # Import key modules for easier access
-from . import result_collector
-from . import result_handler
+from . import result_collector, result_handler
 from .result_handlers import *
 
 # Define the public API

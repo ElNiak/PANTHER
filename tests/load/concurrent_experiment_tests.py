@@ -21,14 +21,12 @@ from typing import Any, Dict, List, Tuple
 import psutil
 import yaml
 
-
 class ExperimentLoadGenerator:
     """Generate load by running multiple PANTHER experiments concurrently."""
 
     def __init__(
         self,
-        base_config_path: str = "experiment-config/experiment_config_example_minimal.yaml",
-    ):
+        base_config_path: str = "experiment-config/experiment_config_example_minimal.yaml"):
         self.base_config_path = Path(base_config_path)
         self.temp_dir = Path(tempfile.mkdtemp(prefix="panther_load_test_"))
         self.results = []
@@ -238,7 +236,6 @@ class ExperimentLoadGenerator:
         if self.temp_dir.exists():
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-
 class LoadTestScenarios:
     """Different load testing scenarios for PANTHER."""
 
@@ -402,7 +399,6 @@ class LoadTestScenarios:
 
         return {"scenario": "endurance_test", "results": all_results}
 
-
 def generate_load_test_report(results: List[Dict[str, Any]], output_file: Path = None):
     """Generate comprehensive load test report."""
     output_file = output_file or Path("tests/load/load_test_report.json")
@@ -444,7 +440,6 @@ def generate_load_test_report(results: List[Dict[str, Any]], output_file: Path =
                     f"{result['success_rate']:.1f}% success, "
                     f"{result['mean_duration']:.2f}s avg duration"
                 )
-
 
 if __name__ == "__main__":
     import argparse

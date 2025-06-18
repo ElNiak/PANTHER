@@ -1,3 +1,4 @@
+from typing import List
 #!/usr/bin/env python3
 # filepath: /Users/elniak/Documents/Project/PANTHER/dev/docs-gen/verify_docs.py
 
@@ -17,7 +18,6 @@ import argparse
 SRC_REFERENCE_PATTERN = re.compile(r"<!-- src:\s*([^>]+)\s*-->")
 TODO_VERIFY_PATTERN = re.compile(r"<!-- TODO:VERIFY -->")
 
-
 def check_file_exists(filepath):
     """Check if a referenced file exists in the repository."""
     # Handle line number references (file.py:10-15)
@@ -25,7 +25,6 @@ def check_file_exists(filepath):
     repo_root = Path(__file__).parent.parent
     full_path = repo_root / file_path.lstrip("/")
     return full_path.exists()
-
 
 def verify_docs(root_dir, report_mode=False, ignore_dirs=None):
     """
@@ -88,7 +87,6 @@ def verify_docs(root_dir, report_mode=False, ignore_dirs=None):
 
     return is_valid, issues
 
-
 def main():
     parser = argparse.ArgumentParser(
         description="Verify documentation source references and markers."
@@ -99,8 +97,7 @@ def main():
     parser.add_argument(
         "--report",
         action="store_true",
-        help="Report mode: only report issues without failing",
-    )
+        help="Report mode: only report issues without failing")
     parser.add_argument(
         "--ignore",
         nargs="*",
@@ -114,7 +111,6 @@ def main():
 
     if not is_valid and not args.report:
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

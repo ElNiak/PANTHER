@@ -6,7 +6,7 @@ This module defines events specific to metrics collection and monitoring.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Optional
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -25,10 +25,16 @@ class MetricsEvent(BaseEvent):
     """Base class for all metrics events."""
 
     def __init__(
-        self, event_type: MetricsEventType, metric_id: str, data: dict[str, Any] | None = None
+        self,
+        event_type: MetricsEventType,
+        metric_id: str,
+        data: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
-            name=event_type.value, entity_type=EventType.METRICS, entity_id=metric_id, data=data
+            name=event_type.value,
+            entity_type=EventType.METRICS,
+            entity_id=metric_id,
+            data=data,
         )
         self.event_type = event_type
 
@@ -41,11 +47,11 @@ class MetricCollectedEvent(MetricsEvent):
         metric_name: str,
         metric_type: str,
         value: Any,
-        phase: str | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        phase: Optional[str] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a metric collected event.
@@ -98,23 +104,23 @@ class MetricCollectedEvent(MetricsEvent):
         return self.data.get("value")
 
     @property
-    def phase(self) -> str | None:
+    def phase(self) -> Optional[str]:
         return self.data.get("phase")
 
     @property
-    def test_case(self) -> str | None:
+    def test_case(self) -> Optional[str]:
         return self.data.get("test_case")
 
     @property
-    def component(self) -> str | None:
+    def component(self) -> Optional[str]:
         return self.data.get("component")
 
     @property
-    def labels(self) -> dict[str, str] | None:
+    def labels(self) -> Optional[Dict[str, str]]:
         return self.data.get("labels")
 
     @property
-    def metadata(self) -> dict[str, Any] | None:
+    def metadata(self) -> Optional[Dict[str, Any]]:
         return self.data.get("metadata")
 
     def validate(self) -> bool:
@@ -134,9 +140,9 @@ class ResourceMetricEvent(MetricsEvent):
         self,
         resource_type: str,
         usage_value: float,
-        component: str | None = None,
-        test_case: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        component: Optional[str] = None,
+        test_case: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a resource metric event.
@@ -176,20 +182,24 @@ class ResourceMetricEvent(MetricsEvent):
         return self.data.get("value", 0.0)
 
     @property
-    def component(self) -> str | None:
+    def component(self) -> Optional[str]:
         return self.data.get("component")
 
     @property
-    def test_case(self) -> str | None:
+    def test_case(self) -> Optional[str]:
         return self.data.get("test_case")
 
     @property
-    def metadata(self) -> dict[str, Any] | None:
+    def metadata(self) -> Optional[Dict[str, Any]]:
         return self.data.get("metadata")
 
     def validate(self) -> bool:
         """Validate that required fields are present."""
-        return "resource_type" in self.data and "value" in self.data and "timestamp" in self.data
+        return (
+            "resource_type" in self.data
+            and "value" in self.data
+            and "timestamp" in self.data
+        )
 
 
 class TimingMetricEvent(MetricsEvent):
@@ -199,10 +209,10 @@ class TimingMetricEvent(MetricsEvent):
         self,
         operation_name: str,
         duration: float,
-        phase: str | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        phase: Optional[str] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a timing metric event.
@@ -245,24 +255,28 @@ class TimingMetricEvent(MetricsEvent):
         return self.data.get("duration", 0.0)
 
     @property
-    def phase(self) -> str | None:
+    def phase(self) -> Optional[str]:
         return self.data.get("phase")
 
     @property
-    def test_case(self) -> str | None:
+    def test_case(self) -> Optional[str]:
         return self.data.get("test_case")
 
     @property
-    def component(self) -> str | None:
+    def component(self) -> Optional[str]:
         return self.data.get("component")
 
     @property
-    def metadata(self) -> dict[str, Any] | None:
+    def metadata(self) -> Optional[Dict[str, Any]]:
         return self.data.get("metadata")
 
     def validate(self) -> bool:
         """Validate that required fields are present."""
-        return "operation" in self.data and "duration" in self.data and "timestamp" in self.data
+        return (
+            "operation" in self.data
+            and "duration" in self.data
+            and "timestamp" in self.data
+        )
 
 
 class CounterMetricEvent(MetricsEvent):
@@ -273,9 +287,9 @@ class CounterMetricEvent(MetricsEvent):
         counter_name: str,
         value: int,
         increment: bool = True,
-        test_case: str | None = None,
-        component: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a counter metric event.
@@ -321,15 +335,15 @@ class CounterMetricEvent(MetricsEvent):
         return self.data.get("increment", True)
 
     @property
-    def test_case(self) -> str | None:
+    def test_case(self) -> Optional[str]:
         return self.data.get("test_case")
 
     @property
-    def component(self) -> str | None:
+    def component(self) -> Optional[str]:
         return self.data.get("component")
 
     @property
-    def metadata(self) -> dict[str, Any] | None:
+    def metadata(self) -> Optional[Dict[str, Any]]:
         return self.data.get("metadata")
 
     def validate(self) -> bool:
@@ -347,10 +361,10 @@ class MetricsSummaryEvent(MetricsEvent):
 
     def __init__(
         self,
-        metrics: dict[str, Any],
-        test_case: str | None = None,
-        period: str | None = None,
-        metadata: dict[str, Any] | None = None,
+        metrics: Dict[str, Any],
+        test_case: Optional[str] = None,
+        period: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a metrics summary event.
@@ -380,19 +394,19 @@ class MetricsSummaryEvent(MetricsEvent):
         )
 
     @property
-    def metrics(self) -> dict[str, Any]:
+    def metrics(self) -> Dict[str, Any]:
         return self.data.get("metrics", {})
 
     @property
-    def test_case(self) -> str | None:
+    def test_case(self) -> Optional[str]:
         return self.data.get("test_case")
 
     @property
-    def period(self) -> str | None:
+    def period(self) -> Optional[str]:
         return self.data.get("period")
 
     @property
-    def metadata(self) -> dict[str, Any] | None:
+    def metadata(self) -> Optional[Dict[str, Any]]:
         return self.data.get("metadata")
 
     def validate(self) -> bool:

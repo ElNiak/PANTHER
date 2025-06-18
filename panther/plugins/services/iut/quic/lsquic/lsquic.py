@@ -1,7 +1,7 @@
 """Refactored LSQUIC service manager using base classes."""
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from panther.plugins.plugin_decorators import register_plugin
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager

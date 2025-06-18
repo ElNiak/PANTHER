@@ -4,6 +4,8 @@ Test State Management
 This module defines state management for test case lifecycle.
 """
 
+from typing import Dict, Set
+
 from panther.core.events.base.state_base import BaseState, StateManager
 
 
@@ -44,14 +46,20 @@ class TestStateManager(StateManager):
         super().__init__(test_id, TestState.CREATED)
         self.setup_transitions()
 
-    def _define_allowed_transitions(self) -> dict[BaseState, set[BaseState]]:
+    def _define_allowed_transitions(self):
         """Define allowed state transitions for test cases."""
         return {
             TestState.CREATED: {TestState.SETTING_UP, TestState.FAILED},
             TestState.SETTING_UP: {TestState.SETTING_UP_SERVICES, TestState.FAILED},
             TestState.SETTING_UP_SERVICES: {TestState.SERVICES_SETUP, TestState.FAILED},
-            TestState.SERVICES_SETUP: {TestState.SETTING_UP_ENVIRONMENT, TestState.FAILED},
-            TestState.SETTING_UP_ENVIRONMENT: {TestState.ENVIRONMENT_SETUP, TestState.FAILED},
+            TestState.SERVICES_SETUP: {
+                TestState.SETTING_UP_ENVIRONMENT,
+                TestState.FAILED,
+            },
+            TestState.SETTING_UP_ENVIRONMENT: {
+                TestState.ENVIRONMENT_SETUP,
+                TestState.FAILED,
+            },
             TestState.ENVIRONMENT_SETUP: {TestState.DEPLOYING, TestState.FAILED},
             TestState.DEPLOYING: {TestState.DEPLOYED, TestState.FAILED},
             TestState.DEPLOYED: {TestState.EXECUTING, TestState.FAILED},
@@ -71,13 +79,21 @@ class TestStateManager(StateManager):
     def is_setting_up(self) -> bool:
         """Check if test is in any setup phase."""
         return self.is_in_any_state(
-            {TestState.SETTING_UP, TestState.SETTING_UP_SERVICES, TestState.SETTING_UP_ENVIRONMENT}
+            {
+                TestState.SETTING_UP,
+                TestState.SETTING_UP_SERVICES,
+                TestState.SETTING_UP_ENVIRONMENT,
+            }
         )
 
     def is_executing(self) -> bool:
         """Check if test is currently executing."""
         return self.is_in_any_state(
-            {TestState.EXECUTING, TestState.EXECUTING_STEPS, TestState.VALIDATING_ASSERTIONS}
+            {
+                TestState.EXECUTING,
+                TestState.EXECUTING_STEPS,
+                TestState.VALIDATING_ASSERTIONS,
+            }
         )
 
     def is_finished(self) -> bool:
@@ -102,4 +118,6 @@ class TestStateManager(StateManager):
 
     def can_teardown(self) -> bool:
         """Check if test can start teardown."""
-        return self.is_in_any_state({TestState.EXECUTING_STEPS, TestState.VALIDATING_ASSERTIONS})
+        return self.is_in_any_state(
+            {TestState.EXECUTING_STEPS, TestState.VALIDATING_ASSERTIONS}
+        )

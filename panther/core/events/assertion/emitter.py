@@ -1,25 +1,28 @@
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 """
 Assertion Event Emitter
 
 This module provides a type-safe event emitter for assertion-related events.
 """
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
+
 from panther.core.events.assertion.events import (
-    AssertionsValidationStartedEvent,
-    AssertionsValidationCompletedEvent,
+    AssertionErrorEvent,
     AssertionProgressEvent,
     AssertionResultEvent,
-    AssertionErrorEvent,
+    AssertionsValidationCompletedEvent,
+    AssertionsValidationStartedEvent,
     AssertionUnknownEvent,
 )
 
 
 class AssertionEventEmitter:
-    """
+    """, TYPE_CHECKING
     Type-safe event emitter for assertion-related events.
 
     This class provides methods for emitting all assertion validation events
@@ -39,10 +42,10 @@ class AssertionEventEmitter:
         self,
         assertion_id: str,
         assertion_name: str,
-        test_case_id: str | None = None,
-        step_id: str | None = None,
-        total_assertions: int | None = None,
-        validation_config: dict[str, Any] | None = None,
+        test_case_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        total_assertions: Optional[int] = None,
+        validation_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an assertions validation started event.
@@ -69,13 +72,13 @@ class AssertionEventEmitter:
         self,
         assertion_id: str,
         assertion_name: str,
-        test_case_id: str | None = None,
-        step_id: str | None = None,
-        duration: float | None = None,
+        test_case_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        duration: Optional[float] = None,
         passed_count: int = 0,
         failed_count: int = 0,
         total_count: int = 0,
-        summary: dict[str, Any] | None = None,
+        summary: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an assertions validation completed event.
@@ -108,10 +111,10 @@ class AssertionEventEmitter:
         self,
         assertion_id: str,
         assertion_name: str,
-        test_case_id: str | None = None,
-        step_id: str | None = None,
-        current_assertion: int | None = None,
-        total_assertions: int | None = None,
+        test_case_id: Optional[str] = None,
+        step_id: Optional[str] = None,
+        current_assertion: Optional[int] = None,
+        total_assertions: Optional[int] = None,
         progress_message: str = "",
     ) -> None:
         """
@@ -141,13 +144,13 @@ class AssertionEventEmitter:
         self,
         assertion_id: str,
         assertion_name: str,
-        test_case_id: str | None = None,
-        step_id: str | None = None,
+        test_case_id: Optional[str] = None,
+        step_id: Optional[str] = None,
         assertion_passed: bool = False,
-        expected_value: Any | None = None,
-        actual_value: Any | None = None,
+        expected_value: Optional[Any] = None,
+        actual_value: Optional[Any] = None,
         assertion_message: str = "",
-        assertion_details: dict[str, Any] | None = None,
+        assertion_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an assertion result event.
@@ -180,11 +183,11 @@ class AssertionEventEmitter:
         self,
         assertion_id: str,
         assertion_name: str,
-        test_case_id: str | None = None,
-        step_id: str | None = None,
+        test_case_id: Optional[str] = None,
+        step_id: Optional[str] = None,
         error_message: str = "",
         error_type: str = "unknown",
-        error_details: dict[str, Any] | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
         recoverable: bool = False,
     ) -> None:
         """
@@ -216,10 +219,10 @@ class AssertionEventEmitter:
         self,
         assertion_id: str,
         assertion_name: str,
-        test_case_id: str | None = None,
-        step_id: str | None = None,
+        test_case_id: Optional[str] = None,
+        step_id: Optional[str] = None,
         reason: str = "",
-        context: dict[str, Any] | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an assertion unknown event.

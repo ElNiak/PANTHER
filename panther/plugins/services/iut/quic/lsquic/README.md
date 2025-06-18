@@ -21,7 +21,70 @@ The lsquic implementation plugin is designed for:
 - Load testing and throughput benchmarking
 - Commercial deployment scenario simulation
 
+## Inheritance Architecture
+
+!!! info "Inheritance-Based Implementation"
+    The lsquic plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining LiteSpeed-specific optimizations.
+
+### Inheritance Architecture
+
+The lsquic implementation follows the template method pattern:
+
+```python
+# panther/plugins/services/iut/quic/lsquic/lsquic.py
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+
+class LsquicServiceManager(BaseQUICServiceManager):
+    """LiteSpeed QUIC implementation with inheritance-based architecture."""
+    
+    def _get_implementation_name(self) -> str:
+        return "lsquic"
+    
+    def _get_binary_name(self) -> str:
+        return "http_server"  # or http_client
+    
+    # Customize only what's unique to lsquic
+    def _get_server_specific_args(self, **kwargs) -> List[str]:
+        port = kwargs.get("port", 4443)
+        return ["-s", f"0.0.0.0:{port}"]
+    
+    def _get_client_specific_args(self, **kwargs) -> List[str]:
+        host = kwargs.get("host", "localhost")
+        port = kwargs.get("port", 4443)
+        return ["-H", f"{host}:{port}"]
+    
+    # All common QUIC functionality inherited from BaseQUICServiceManager!
+```
+
+### Benefits of Inheritance Architecture
+
+- **Code Reduction**: From extensive manual implementation to focused LiteSpeed-specific patterns
+- **Consistent Behavior**: Common QUIC functionality shared with all implementations
+- **Automatic Updates**: New features in base class automatically available
+- **Event Integration**: Built-in event emission for monitoring and debugging
+- **Command Processing**: Structured command generation through Command Processor
+- **Error Handling**: Comprehensive error handling and recovery mechanisms
+
+### What's Provided by Base Class
+
+- **Common Parameter Extraction**: Port, host, certificate handling
+- **Standard Command Building**: Template method pattern for command generation
+- **Event Emission**: Service lifecycle and status events
+- **Error Handling**: Timeout management and failure recovery
+- **Docker Integration**: Standardized container build patterns
+- **Logging Integration**: Structured logging with correlation tracking
+
+### What's Customized for lsquic
+
+- **Binary Name**: Uses LiteSpeed's `http_server` and `http_client` executables
+- **Command Arguments**: lsquic-specific argument formatting (`-s`, `-H`)
+- **Build Process**: C-based compilation with LiteSpeed optimizations
+- **Performance Focus**: Production-optimized configuration options
+
 ## Requirements and Dependencies
+
+!!! info "Base Class Dependencies"
+    The lsquic implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 The plugin requires:
 

@@ -25,6 +25,16 @@ This network environment plugin is particularly useful for:
 
 The Localhost Single Container environment allows services to communicate directly via localhost networking within a single container, while still maintaining isolation from the host system.
 
+### Docker Build Workflow
+
+This environment follows a multi-stage Docker build process:
+
+1. **Base Image Building**: Builds from `panther/plugins/services/Dockerfile` with environment-specific tagging
+2. **Service Image Staging**: Stages individual service images in a multi-stage Dockerfile
+3. **Final Container Creation**: Combines all services into a single container with proper configuration
+
+The environment uses the `EnvironmentManagerDockerMixin` for consistent Docker operations across all network environments.
+
 ## Requirements and Dependencies
 
 The plugin requires:
@@ -38,6 +48,8 @@ The plugin also integrates with:
 
 - PANTHER event management system
 - Service plugins that can operate in a containerized environment
+- EnvironmentManagerDockerMixin for Docker operations
+- BaseNetworkEnvironment for common network environment functionality
 
 ## Configuration Options
 
@@ -150,6 +162,30 @@ def add_network_monitoring(self):
     """Add network monitoring tools to the container."""
     # Implementation using tcpdump, iftop, or other monitoring tools
     self.additional_packages.extend(["tcpdump", "iftop", "net-tools"])
+
+### Docker Build Customization
+
+Customize the Docker build process by overriding mixin methods:
+
+```python
+def generate_environment_services(self, paths, timestamp):
+    """Override to customize Docker image generation."""
+    # Build base image with custom tag
+    base_image_tag = self.build_base_service_image(self.plugin_manager)
+    
+    # Add custom service image verification
+    service_images = self.ensure_service_images_available(self.services_managers)
+    
+    # Generate Dockerfile with additional parameters
+    self.generate_from_template(
+        template_name="Dockerfile.experience.jinja",
+        additional_param={
+            "base_image": base_image_tag,
+            "service_images": service_images,
+            "custom_config": self.custom_config
+        }
+    )
+```
 ```
 
 ## Testing and Verification
@@ -204,6 +240,16 @@ services:
 ```bash
 docker run --memory=4g --cpus=2 [container_name]
 ```
+
+#### Empty FROM Instructions in Dockerfile
+
+**Problem**: Generated Dockerfile has empty FROM instructions
+**Solution**: This issue has been fixed in the latest version. The environment now properly:
+- Builds and tags the base service image
+- Passes the base_image parameter to templates
+- Verifies Dockerfile validity before building
+
+If you encounter this issue, ensure you're using the latest version with EnvironmentManagerDockerMixin integration.
 
 ### Debugging Tips
 

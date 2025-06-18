@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Union
+
 """
 Observer Factory Configuration Module
 
@@ -5,9 +7,8 @@ This module handles configuration loading, validation, and helper functions
 for the observer factory system.
 """
 
-import logging
 import importlib
-from typing import Any
+import logging
 from pathlib import Path
 
 try:
@@ -16,11 +17,13 @@ except ImportError:
     yaml = None
 
 from panther.core.observer.base.observer_interface import IObserver
+
 from .observer_factory import get_observer_factory
 
 
-def load_observer_config(path: str | Path) -> bool:
+def load_observer_config(path: Union[str, Path]) -> bool:
     """
+
     Convenience function to load observer configuration.
 
     Args:
@@ -38,7 +41,7 @@ def load_observer_config(path: str | Path) -> bool:
         return load_config_file(path)
 
 
-def load_config_file(config_path: str | Path) -> bool:
+def load_config_file(config_path: Union[str, Path]) -> bool:
     """
     Load observer configurations from a YAML file.
 
@@ -73,7 +76,7 @@ def load_config_file(config_path: str | Path) -> bool:
         return False
 
 
-def load_config_directory(directory: str | Path) -> int:
+def load_config_directory(directory: Union[str, Path]) -> int:
     """
     Load observer configurations from all YAML files in directory.
 
@@ -99,7 +102,7 @@ def load_config_directory(directory: str | Path) -> int:
     return load_count
 
 
-def _load_config_dict(config_data: dict[str, Any]) -> bool:
+def _load_config_dict(config_data: Dict[str, Any]) -> bool:
     """
     Load observer configurations from a dictionary.
 
@@ -147,7 +150,9 @@ def _load_config_dict(config_data: dict[str, Any]) -> bool:
             params = observer_data.get("params", {})
 
             # Create the observer
-            observer = create_observer_by_class_path(class_path, name=observer_id, **params)
+            observer = create_observer_by_class_path(
+                class_path, name=observer_id, **params
+            )
 
             # Register with event manager if needed
             if factory._event_manager:
@@ -164,7 +169,9 @@ def _load_config_dict(config_data: dict[str, Any]) -> bool:
     return load_count > 0
 
 
-def create_observer_by_class_path(class_path: str, name: str | None = None, **kwargs) -> IObserver:
+def create_observer_by_class_path(
+    class_path: str, name: Optional[str] = None, **kwargs
+) -> IObserver:
     """
     Create an observer by class path.
 
@@ -235,7 +242,9 @@ def create_observer_by_class_path(class_path: str, name: str | None = None, **kw
         raise
 
 
-def create_and_register_observer_set(observer_configs: list[dict[str, Any]]) -> list[IObserver]:
+def create_and_register_observer_set(
+    observer_configs: List[Dict[str, Any]]
+) -> List[IObserver]:
     """
     Create and register multiple observers based on configuration dictionaries.
 
@@ -323,7 +332,7 @@ def create_observer_from_registry_type(observer_type_enum: Any, **kwargs) -> IOb
     return factory.create_observer(observer_type, **kwargs)
 
 
-def convert_config_to_factory_params(observer_config: Any) -> dict[str, Any]:
+def convert_config_to_factory_params(observer_config: Any) -> Dict[str, Any]:
     """
     Convert observer_config.ObserverConfig to factory parameters.
 

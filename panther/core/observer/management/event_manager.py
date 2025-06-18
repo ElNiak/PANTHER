@@ -2,7 +2,7 @@ import logging
 import threading
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.observer.base.observer_interface import IObserver
@@ -33,17 +33,16 @@ class EventManager:
 
     def __init__(self):
         """Initialize a new EventManager."""
-        # Prevent re-initialization of the singleton
-        if self._initialized:
+        if EventManager._instance._initialized:
             return
-
+        # Prevent re-initialization of the singleton
         self.logger = logging.getLogger("EventManager")
         # Map of event types to prioritized observers
-        self.observers: dict[str, list[tuple[int, IObserver]]] = defaultdict(list)
+        self.observers: Dict[str, List[Tuple[int, IObserver]]] = defaultdict(list)
         # Global observers receive all events
-        self.global_observers: list[tuple[int, IObserver]] = []
+        self.global_observers: List[Tuple[int, IObserver]] = []
         # Track recent events for debugging
-        self.event_history: list[tuple[datetime, BaseEvent]] = []
+        self.event_history: List[Tuple[datetime, BaseEvent]] = []
         self.max_history_size = 1000
         # Performance metrics
         self.metrics = {"processed": 0, "errors": 0, "by_type": {}}
@@ -51,17 +50,17 @@ class EventManager:
         self._lock = threading.RLock()
 
         # Event deduplication
-        self._recent_events: dict[str, datetime] = {}
+        self._recent_events: Dict[str, datetime] = {}
         self._dedup_window_ms = 1000  # 1000ms (1 second) deduplication window
 
         # Event correlation tracking
-        self._active_contexts: dict[str, dict[str, Any]] = {}
+        self._active_contexts: Dict[str, Dict[str, Any]] = {}
 
         # Observer scope and duplicate tracking
-        self._observer_registry: dict[
-            str, tuple[IObserver, str]
-        ] = {}  # observer_id -> (observer, scope)
-        self._scoped_observers: dict[str, set[str]] = defaultdict(
+        self._observer_registry: Dict[str, Tuple[IObserver, str]] = (
+            {}
+        )  # observer_id -> (observer, scope)
+        self._scoped_observers: Dict[str, Set[str]] = defaultdict(
             set
         )  # scope -> set of observer_ids
 
@@ -104,7 +103,7 @@ class EventManager:
             return f"{event.__class__.__name__}.unknown"
 
     def register_observer(
-        self, observer: IObserver, event_types: list[str] = None, priority: int = 0
+        self, observer: IObserver, event_types: List[str] = None, priority: int = 0
     ):
         """
         Register an observer for specific event types with priority.
@@ -166,7 +165,7 @@ class EventManager:
         observer: IObserver,
         observer_id: str,
         scope: str = "global",
-        event_types: list[str] = None,
+        event_types: List[str] = None,
         priority: int = 0,
     ):
         """
@@ -185,9 +184,11 @@ class EventManager:
                 existing_observer, existing_scope = self._observer_registry[observer_id]
                 self.logger.debug(
                     "Observer '%s' with ID '%s' already registered in scope '%s', skipping duplicate",
-                    existing_observer.__class__.__name__
-                    if existing_observer
-                    else "None",
+                    (
+                        existing_observer.__class__.__name__
+                        if existing_observer
+                        else "None"
+                    ),
                     observer_id,
                     existing_scope,
                 )
@@ -217,7 +218,7 @@ class EventManager:
 
             return observer
 
-    def unregister_observer(self, observer: IObserver, event_types: list[str] = None):
+    def unregister_observer(self, observer: IObserver, event_types: List[str] = None):
         """
         Unregister an observer from specific or all event types.
 
@@ -232,7 +233,7 @@ class EventManager:
                 self._unregister_from_all_types(observer)
 
     def _unregister_from_specific_types(
-        self, observer: IObserver, event_types: list[str]
+        self, observer: IObserver, event_types: List[str]
     ):
         """Helper to unregister observer from specific event types."""
         for event_type in event_types:
@@ -290,7 +291,7 @@ class EventManager:
 
         return False
 
-    def set_event_context(self, context_id: str, context_data: dict[str, Any]):
+    def set_event_context(self, context_id: str, context_data: Dict[str, Any]):
         """Set context data for event correlation."""
         with self._lock:
             self._active_contexts[context_id] = context_data
@@ -300,7 +301,7 @@ class EventManager:
         with self._lock:
             self._active_contexts.pop(context_id, None)
 
-    def get_event_context(self, context_id: str) -> dict[str, Any]:
+    def get_event_context(self, context_id: str) -> Dict[str, Any]:
         """Get context data for event correlation."""
         with self._lock:
             return self._active_contexts.get(context_id, {})
@@ -401,7 +402,7 @@ class EventManager:
         )
         self.logger.debug("Publishing event: %s", event)
 
-    def _get_matching_observers(self, event_type: str) -> list[tuple[int, IObserver]]:
+    def _get_matching_observers(self, event_type: str) -> List[Tuple[int, IObserver]]:
         """Get all observers that should be notified for this event type."""
         with self._lock:
             matching_observers = []
@@ -447,7 +448,7 @@ class EventManager:
             return matching_observers
 
     def _notify_observers(
-        self, observers: list[tuple[int, IObserver]], event: BaseEvent, event_type: str
+        self, observers: List[Tuple[int, IObserver]], event: BaseEvent, event_type: str
     ):
         """Notify all matching observers about the event."""
         for priority, observer in observers:
@@ -487,7 +488,7 @@ class EventManager:
 
     def get_event_history(
         self, event_type: str = None, limit: int = None
-    ) -> list[tuple[datetime, BaseEvent]]:
+    ) -> List[Tuple[datetime, BaseEvent]]:
         """
         Get recent events, optionally filtered by type.
 
@@ -509,7 +510,7 @@ class EventManager:
                 return filtered[-limit:]
             return self.event_history[-limit:]
 
-    def get_metrics(self) -> dict[str, Any]:
+    def get_metrics(self) -> Dict[str, Any]:
         """
         Get event processing metrics.
 
@@ -558,7 +559,7 @@ class EventManager:
                 "Cleaned up %d observers from scope '%s'", removed_count, scope
             )
 
-    def get_scoped_observer_count(self, scope: str = None) -> dict[str, int]:
+    def get_scoped_observer_count(self, scope: str = None) -> Dict[str, int]:
         """
         Get count of observers by scope.
 

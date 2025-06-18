@@ -158,9 +158,7 @@ def test_command_duplication():
             print("Test passed! No command duplication detected.")
         else:
             print(f"Error: Generated file {test_output_path} not found")
-            return False
-
-    return True
+            assert False, f"Generated file {test_output_path} not found"
 
 
 if __name__ == "__main__":

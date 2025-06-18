@@ -1,11 +1,11 @@
-from dataclasses import dataclass, field
-from panther.plugins.environments.execution_environment.config_schema import (
-    ExecutionEnvironmentConfig,
-)
+from typing import List, Optional
+
+from pydantic import Field
+
+from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
 
 
-@dataclass
-class GperfHeapConfig(ExecutionEnvironmentConfig):
+class GperfHeapConfig(ExecutionEnvironmentPluginConfig):
     """
     Configuration for Google Performance Tools heap profiling.
 
@@ -13,36 +13,86 @@ class GperfHeapConfig(ExecutionEnvironmentConfig):
     gperftools (libtcmalloc), not the gperf perfect hash function generator.
     """
 
+    # Plugin type
+    type: str = Field(
+        default="gperf_heap",
+        description="Execution environment type"
+    )
+    
     # Profiler library configuration
-    tcmalloc_library: str | None = None  # Path to libtcmalloc.so (defaults to system location)
+    tcmalloc_library: Optional[str] = Field(
+        default=None,
+        description="Path to libtcmalloc.so (defaults to system location)"
+    )
 
     # Heap profiling options
-    heap_profile_allocation_interval: int | None = (
-        None  # Bytes between heap samples (default: 512*1024)
+    heap_profile_allocation_interval: Optional[int] = Field(
+        default=None,
+        description="Bytes between heap samples (default: 512*1024)"
     )
-    heap_profile_inuse_interval: int | None = None  # Bytes of in-use memory between samples
-    heap_profile_time_interval: int | None = None  # Seconds between heap samples
-    heap_check_type: str | None = None  # Type of heap checking: normal, strict, draconian
+    heap_profile_inuse_interval: Optional[int] = Field(
+        default=None,
+        description="Bytes of in-use memory between samples"
+    )
+    heap_profile_time_interval: Optional[int] = Field(
+        default=None,
+        description="Seconds between heap samples"
+    )
+    heap_check_type: Optional[str] = Field(
+        default=None,
+        description="Type of heap checking: normal, strict, draconian"
+    )
 
     # Output configuration
-    output_format: str = "heap"  # Output format: heap (default), text, pdf
-    generate_pdf: bool = True  # Generate PDF visualization after profiling
-    generate_text_report: bool = False  # Generate text report from heap profile
+    output_format: str = Field(
+        default="heap",
+        description="Output format: heap (default), text, pdf"
+    )
+    generate_pdf: bool = Field(
+        default=True,
+        description="Generate PDF visualization after profiling"
+    )
+    generate_text_report: bool = Field(
+        default=False,
+        description="Generate text report from heap profile"
+    )
 
     # Memory leak detection
-    enable_leak_check: bool = False  # Enable memory leak checking
-    leak_check_at_exit: bool = True  # Check for leaks at program exit
+    enable_leak_check: bool = Field(
+        default=False,
+        description="Enable memory leak checking"
+    )
+    leak_check_at_exit: bool = Field(
+        default=True,
+        description="Check for leaks at program exit"
+    )
 
     # Performance options
-    profile_mmap: bool = False  # Profile mmap operations
-    only_mmap_profile: bool = False  # Only profile mmap (no malloc)
-    deep_heap_profile: int = 0  # Deep heap profiling level (0=disabled, 1-9=enabled)
+    profile_mmap: bool = Field(
+        default=False,
+        description="Profile mmap operations"
+    )
+    only_mmap_profile: bool = Field(
+        default=False,
+        description="Only profile mmap (no malloc)"
+    )
+    deep_heap_profile: int = Field(
+        default=0,
+        description="Deep heap profiling level (0=disabled, 1-9=enabled)"
+    )
 
     # Filtering options
-    exclude_functions: list[str] = field(
-        default_factory=list
-    )  # Functions to exclude from profiling
-    include_only_functions: list[str] = field(default_factory=list)  # Include only these functions
+    exclude_functions: List[str] = Field(
+        default_factory=list,
+        description="Functions to exclude from profiling"
+    )
+    include_only_functions: List[str] = Field(
+        default_factory=list,
+        description="Include only these functions"
+    )
 
     # Additional pprof options for post-processing
-    pprof_options: list[str] = field(default_factory=list)  # Additional options for pprof tool
+    pprof_options: List[str] = Field(
+        default_factory=list,
+        description="Additional options for pprof tool"
+    )

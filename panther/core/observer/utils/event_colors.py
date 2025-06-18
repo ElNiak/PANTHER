@@ -5,8 +5,8 @@ This module provides color codes for different event types to improve
 readability and user experience in console and log outputs.
 """
 
-import sys
 import os
+import sys
 
 # Map PANTHER event types to colorlog colors
 EVENT_LOG_COLORS = {

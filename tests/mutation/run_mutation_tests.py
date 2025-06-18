@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-
 class SimpleMutator:
     """Simple mutation generator for Python code."""
 
@@ -114,7 +113,6 @@ class SimpleMutator:
                 node.value = new_value
         return ast.unparse(tree_copy)
 
-
 class MutationTester:
     """Run tests against mutated code to validate test quality."""
 
@@ -210,7 +208,6 @@ class MutationTester:
             return 0.0
         return (self.results["killed"] / self.results["total"]) * 100
 
-
 def run_mutation_testing_suite():
     """Run mutation testing on key PANTHER modules."""
     print("🧬 PANTHER Mutation Testing Suite")
@@ -280,7 +277,6 @@ def run_mutation_testing_suite():
         print("❌ Test quality needs improvement")
 
     return all_results
-
 
 if __name__ == "__main__":
     # Ensure we're in the project root

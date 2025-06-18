@@ -6,7 +6,7 @@ import json
 import yaml
 from collections import defaultdict
 from pathlib import Path
-
+from typing import Union
 
 def add_val(indices, value, data):
     if not len(indices):
@@ -15,7 +15,6 @@ def add_val(indices, value, data):
     for index in indices[:-1]:
         element = element[index]
     element[indices[-1]] = value
-
 
 def automate_mkdocs_from_docstring(
     mkdocs_dir: str | Path, mkgendocs_f: str, repo_dir: Path, match_string: str
@@ -126,7 +125,6 @@ def automate_mkdocs_from_docstring(
         mkgen_config.writelines(contents)
 
     return structure
-
 
 def include_markdown_files(
     mkdocs_dir: str | Path, mkgendocs_f: str, repo_dir: Path, match_string: str
@@ -274,14 +272,12 @@ def include_markdown_files(
 
     return structure
 
-
 def automate_nav_structure(
     mkdocs_dir: str | Path,
     mkdocs_f: str,
     repo_dir: Path,
     match_string: str,
-    structure: dict,
-) -> None:
+    structure: dict) -> None:
     """Automates the navigation structure in the mkdocs.yml configuration file.
     Args:
         mkdocs_dir (typing.Union[str, pathlib.Path]): textual directory for the hierarchical directory & navigation in Mkdocs
@@ -331,7 +327,6 @@ def automate_nav_structure(
     with open(f"{repo_dir}/{mkdocs_f}", "w") as mkgen_config:
         mkgen_config.writelines(contents)
 
-
 def fix(f):
     """Allows creation of arbitrary length dict item
 
@@ -344,7 +339,6 @@ def fix(f):
     """
     return lambda *args, **kwargs: f(fix(f), *args, **kwargs)
 
-
 def indent(string: str) -> int:
     """Count the indentation in whitespace characters.
     Args:
@@ -354,7 +348,6 @@ def indent(string: str) -> int:
 
     """
     return sum(4 if char == "\t" else 1 for char in string[: -len(string.lstrip())])
-
 
 def merge_structures(structure1: dict, structure2: dict) -> dict:
     """Merge two navigation structures.
@@ -398,7 +391,6 @@ def merge_structures(structure1: dict, structure2: dict) -> dict:
 
     return result
 
-
 def main():
     """Execute when running this script."""
     python_tips_dir = Path.cwd().joinpath(".")
@@ -409,8 +401,7 @@ def main():
         mkdocs_dir="panther",
         mkgendocs_f="mkgendocs.yml",
         repo_dir=python_tips_dir,
-        match_string="pages:\n",
-    )
+        match_string="pages:\n")
 
     print("Structure from Python files: ", structure_py)
 
@@ -430,7 +421,6 @@ def main():
     #     match_string="- Code Reference: panther/\n",
     #     structure=structure_md,
     # )
-
 
 if __name__ == "__main__":
     main()

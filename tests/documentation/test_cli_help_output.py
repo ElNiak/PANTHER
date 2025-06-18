@@ -25,28 +25,35 @@ class TestCLIHelpOutput:
 
         help_output = result.stdout
 
-        # Check for expected sections
+        # Check for expected sections in new CLI structure
         expected_sections = [
             "usage:",
-            "optional arguments:",
-            "--experiment-config",
+            "positional arguments:",
+            "command",
+            "run",
+            "config", 
+            "plugins",
+            "create",
+            "tutorial",
+            "admin",
             "--debug",
-            "--validate-config",
-            "--list-plugin-params",
+            "--version",
         ]
 
         for section in expected_sections:
             assert section in help_output.lower(), f"Missing section: {section}"
+        return
 
     def test_plugin_params_help(self):
         """Test that plugin parameter listing works."""
-        # Test listing parameters for a known plugin
+        # Test listing parameters for a known plugin using new CLI structure
         result = subprocess.run(
             [
                 "python",
                 "-m",
                 "panther",
-                "--list-plugin-params",
+                "plugins",
+                "params",
                 "picoquic",
                 "--plugin-type",
                 "iut",
@@ -60,37 +67,41 @@ class TestCLIHelpOutput:
 
         # May succeed or fail depending on plugin availability
         # We're testing that the command format is recognized
-        assert "--list-plugin-params" in " ".join(result.args)
+        assert "plugins" in " ".join(result.args)
+        assert "params" in " ".join(result.args)
+        return
 
     def test_config_validation_help(self):
         """Test that config validation help is accessible."""
         result = subprocess.run(
-            ["python", "-m", "panther", "--help"],
+            ["python", "-m", "panther", "config", "--help"],
             capture_output=True,
             text=True,
             timeout=30,
         )
 
         help_output = result.stdout
-        assert "--validate-config" in help_output
+        assert "validate" in help_output.lower()
+        assert "configuration" in help_output.lower()
+        return
 
     @pytest.mark.slow
     def test_create_plugin_help(self):
         """Test that plugin creation help is available."""
         result = subprocess.run(
-            ["python", "-m", "panther", "--create-plugin", "--help"],
+            ["python", "-m", "panther", "create", "--help"],
             capture_output=True,
             text=True,
             timeout=30,
         )
 
-        # This might fail if the command structure has changed
+        # This should succeed with the new CLI structure
         # We're testing that help system is accessible
-        assert result.returncode in [
-            0,
-            1,
-            2,
-        ]  # Various exit codes are acceptable for help
+        assert result.returncode == 0, f"Create command help failed: {result.stderr}"
+        help_output = result.stdout
+        assert "create" in help_output.lower()
+        assert "plugin" in help_output.lower()
+        return
 
 
 class TestExampleConfigurations:
@@ -115,7 +126,8 @@ class TestExampleConfigurations:
                 assert (
                     "tests:" in content or "logging:" in content
                 ), f"Config file {config_file} missing expected content"
-
+        return
+    
     def test_minimal_config_validation(self):
         """Test that minimal configuration is valid."""
         minimal_config = Path(

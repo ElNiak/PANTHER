@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Metrics Collector Module
 
@@ -6,15 +8,15 @@ performance, resource usage, and success/failure metrics throughout the
 PANTHER experiment workflow.
 """
 
-import time
-import threading
-import os
 import logging
-from pathlib import Path
-from typing import Any
+import os
+import threading
+import time
 from dataclasses import dataclass, field
-from panther.core.utils.logging_mixin import LoggerMixin
+from pathlib import Path
+
 from panther.core.metrics.enums import MetricType, Phase
+from panther.core.utils.logging_mixin import LoggerMixin
 
 try:
     import psutil
@@ -24,17 +26,20 @@ except ImportError:
 
 @dataclass
 class Metric:
-    """Individual metric data structure."""
+    """
+
+    from typing import Any, Dict, List, Optional, OptionalIndividual metric data structure.
+    """
 
     name: str
     metric_type: MetricType
     value: Any
     timestamp: float
-    phase: Phase | None
-    test_case: str | None
-    component: str | None
-    labels: dict[str, str]
-    metadata: dict[str, Any]
+    phase: Optional[Phase]
+    test_case: Optional[str]
+    component: Optional[str]
+    labels: Dict[str, str]
+    metadata: Dict[str, Any]
 
     def __init__(
         self,
@@ -42,11 +47,11 @@ class Metric:
         metric_type: MetricType,
         value: Any,
         timestamp: float,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         self.name = name
         self.metric_type = metric_type
@@ -64,11 +69,11 @@ class TimingContext:
     """Context manager for timing operations."""
 
     name: str
-    phase: Phase | None = None
-    test_case: str | None = None
-    component: str | None = None
-    labels: dict[str, str] = field(default_factory=dict)
-    start_time: float | None = None
+    phase: Optional[Phase] = None
+    test_case: Optional[str] = None
+    component: Optional[str] = None
+    labels: Dict[str, str] = field(default_factory=dict)
+    start_time: Optional[float] = None
 
 
 class MetricsCollector(LoggerMixin):
@@ -80,7 +85,9 @@ class MetricsCollector(LoggerMixin):
     experiment lifecycle.
     """
 
-    def __init__(self, experiment_name: str, output_dir: Path, collection_interval: float = 5.0):
+    def __init__(
+        self, experiment_name: str, output_dir: Path, collection_interval: float = 5.0
+    ):
         """
         Initialize the metrics collector.
 
@@ -91,8 +98,8 @@ class MetricsCollector(LoggerMixin):
         super().__init__()
         self.experiment_name = experiment_name
         self.output_dir = output_dir
-        self.metrics: list[Metric] = []
-        self.active_timers: dict[str, TimingContext] = {}
+        self.metrics: List[Metric] = []
+        self.active_timers: Dict[str, TimingContext] = {}
         # Use separate locks to reduce contention
         self.metrics_lock = threading.Lock()
         self.timers_lock = threading.Lock()
@@ -118,7 +125,9 @@ class MetricsCollector(LoggerMixin):
             metadata={"experiment_name": experiment_name},
         )
 
-        self.logger.info("Metrics collector initialized for experiment: %s", experiment_name)
+        self.logger.info(
+            "Metrics collector initialized for experiment: %s", experiment_name
+        )
 
     def start_collection_thread(self, interval: float = 1.0):
         """
@@ -137,7 +146,9 @@ class MetricsCollector(LoggerMixin):
             target=self._collection_loop, daemon=True, name="MetricsCollector"
         )
         self.collection_thread.start()
-        self.logger.info("Metrics collection thread started with interval %ss", interval)
+        self.logger.info(
+            "Metrics collection thread started with interval %ss", interval
+        )
 
     def stop_collection_thread(self):
         """Stop the metrics collection thread."""
@@ -218,11 +229,11 @@ class MetricsCollector(LoggerMixin):
         name: str,
         metric_type: MetricType,
         value: Any,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
-        metadata: dict[str, Any] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Record a metric with thread-safe storage.
@@ -259,10 +270,10 @@ class MetricsCollector(LoggerMixin):
     def start_timer(
         self,
         name: str,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Start a timing operation.
@@ -289,15 +300,20 @@ class MetricsCollector(LoggerMixin):
 
         with self.timers_lock:
             if timer_key in self.active_timers:
-                self.logger.warning("Timer %s already active, replacing with new timer", timer_key)
+                self.logger.warning(
+                    "Timer %s already active, replacing with new timer", timer_key
+                )
 
             self.active_timers[timer_key] = timer_context
 
         self.logger.debug("Started timer: %s", timer_key)
 
     def stop_timer(
-        self, name: str, test_case: str | None = None, component: str | None = None
-    ) -> float | None:
+        self,
+        name: str,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+    ) -> Optional[float]:
         """
         Stop a timing operation and record the duration.
 
@@ -335,16 +351,18 @@ class MetricsCollector(LoggerMixin):
             metadata={"timer_name": name},
         )
 
-        self.logger.debug("Stopped timer: %s, duration: %ss", timer_key, f"{duration:.3f}")
+        self.logger.debug(
+            "Stopped timer: %s, duration: %ss", timer_key, f"{duration:.3f}"
+        )
         return duration
 
     def timing_context(
         self,
         name: str,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ):
         """
         Context manager for timing operations.
@@ -359,10 +377,10 @@ class MetricsCollector(LoggerMixin):
     def time_operation(
         self,
         name: str,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ):
         """
         Context manager for timing operations.
@@ -378,10 +396,10 @@ class MetricsCollector(LoggerMixin):
         self,
         name: str,
         value: int = 1,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Increment a counter metric.
@@ -408,10 +426,10 @@ class MetricsCollector(LoggerMixin):
         self,
         name: str,
         value: float,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Record a gauge metric (point-in-time value).
@@ -438,10 +456,10 @@ class MetricsCollector(LoggerMixin):
         self,
         name: str,
         value: float,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ) -> None:
         """
         Record a gauge metric (point-in-time value).
@@ -468,13 +486,13 @@ class MetricsCollector(LoggerMixin):
         self,
         error_type: str,
         error_message: str = None,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        exception: Exception | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        exception: Optional[Exception] = None,
         message: str = None,
-        details: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
+        details: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Record an error occurrence.
@@ -492,7 +510,9 @@ class MetricsCollector(LoggerMixin):
         """
         try:
             # Normalize inputs with safe defaults
-            safe_error_type = str(error_type) if error_type is not None else "UnknownError"
+            safe_error_type = (
+                str(error_type) if error_type is not None else "UnknownError"
+            )
 
             # Handle both parameter forms (message and error_message) safely
             final_message = None
@@ -540,7 +560,10 @@ class MetricsCollector(LoggerMixin):
                     for key, value in details.items():
                         try:
                             # Convert any non-serializable values to strings
-                            if isinstance(value, (str, int, float, bool)) or value is None:
+                            if (
+                                isinstance(value, (str, int, float, bool))
+                                or value is None
+                            ):
                                 meta_dict[key] = value
                             else:
                                 meta_dict[key] = str(value)
@@ -556,7 +579,10 @@ class MetricsCollector(LoggerMixin):
                     for key, value in metadata.items():
                         try:
                             # Convert any non-serializable values to strings
-                            if isinstance(value, (str, int, float, bool)) or value is None:
+                            if (
+                                isinstance(value, (str, int, float, bool))
+                                or value is None
+                            ):
                                 meta_dict[key] = value
                             else:
                                 meta_dict[key] = str(value)
@@ -578,7 +604,9 @@ class MetricsCollector(LoggerMixin):
                     metadata=meta_dict,
                 )
 
-                self.logger.warning("Recorded error: %s - %s", safe_error_type, final_message)
+                self.logger.warning(
+                    "Recorded error: %s - %s", safe_error_type, final_message
+                )
             except Exception as e:  # pylint: disable=broad-exception-caught
                 # Last resort fallback if recording fails
                 self.logger.error("Failed to record metric for error: %s", e)
@@ -595,9 +623,9 @@ class MetricsCollector(LoggerMixin):
         self,
         artifact_type: str,
         artifact_path: Path,
-        size_bytes: int | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
+        size_bytes: Optional[int] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
     ) -> None:
         """
         Record information about generated artifacts.
@@ -627,11 +655,11 @@ class MetricsCollector(LoggerMixin):
 
     def get_metrics(
         self,
-        metric_type: MetricType | None = None,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-    ) -> list[Metric]:
+        metric_type: Optional[MetricType] = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+    ) -> List[Metric]:
         """
         Retrieve metrics with optional filtering.
 
@@ -650,7 +678,9 @@ class MetricsCollector(LoggerMixin):
 
         # Filtering can be done outside the lock
         if metric_type:
-            filtered_metrics = [m for m in filtered_metrics if m.metric_type == metric_type]
+            filtered_metrics = [
+                m for m in filtered_metrics if m.metric_type == metric_type
+            ]
         if phase:
             filtered_metrics = [m for m in filtered_metrics if m.phase == phase]
         if test_case:
@@ -660,7 +690,7 @@ class MetricsCollector(LoggerMixin):
 
         return filtered_metrics
 
-    def get_summary_stats(self) -> dict[str, Any]:
+    def get_summary_stats(self) -> Dict[str, Any]:
         """
         Get summary statistics of collected metrics.
 
@@ -745,11 +775,14 @@ class MetricsCollector(LoggerMixin):
         with self.metrics_lock:
             total = 0
             for metric in self.metrics:
-                if metric.metric_type == MetricType.COUNTER and metric.name == counter_name:
+                if (
+                    metric.metric_type == MetricType.COUNTER
+                    and metric.name == counter_name
+                ):
                     total += metric.value
             return total
 
-    def get_gauge(self, gauge_name: str) -> float | None:
+    def get_gauge(self, gauge_name: str) -> Optional[float]:
         """
         Get the latest value of a gauge metric.
 
@@ -772,7 +805,7 @@ class MetricsCollector(LoggerMixin):
                     latest_timestamp = metric.timestamp
             return latest_value
 
-    def get_timing_metric(self, timing_name: str) -> float | None:
+    def get_timing_metric(self, timing_name: str) -> Optional[float]:
         """
         Get the latest timing metric value.
 
@@ -796,7 +829,7 @@ class MetricsCollector(LoggerMixin):
             return latest_value
 
     @property
-    def timing_metrics(self) -> dict[str, float]:
+    def timing_metrics(self) -> Dict[str, float]:
         """
         Get all timing metrics as a dictionary.
 
@@ -809,15 +842,16 @@ class MetricsCollector(LoggerMixin):
             for metric in self.metrics:
                 if metric.metric_type == MetricType.TIMING:
                     # For each timing metric, keep the latest value
-                    if metric.name not in timings or metric.timestamp > metric_timestamps.get(
-                        metric.name, 0
+                    if (
+                        metric.name not in timings
+                        or metric.timestamp > metric_timestamps.get(metric.name, 0)
                     ):
                         timings[metric.name] = metric.value
                         metric_timestamps[metric.name] = metric.timestamp
             return timings
 
     @property
-    def errors(self) -> list[Metric]:
+    def errors(self) -> List[Metric]:
         """
         Get all error metrics.
 
@@ -825,10 +859,14 @@ class MetricsCollector(LoggerMixin):
             List of error metrics
         """
         with self.metrics_lock:
-            return [metric for metric in self.metrics if metric.metric_type == MetricType.ERROR]
+            return [
+                metric
+                for metric in self.metrics
+                if metric.metric_type == MetricType.ERROR
+            ]
 
     @property
-    def resource_metrics(self) -> list[dict[str, Any]]:
+    def resource_metrics(self) -> List[Dict[str, Any]]:
         """
         Get all resource metrics as a list of dictionaries.
 
@@ -847,7 +885,7 @@ class MetricsCollector(LoggerMixin):
             return sorted(resources, key=lambda x: x["timestamp"])
 
     @property
-    def counters(self) -> dict[str, int]:
+    def counters(self) -> Dict[str, int]:
         """
         Get all counter metrics as a dictionary.
 
@@ -858,11 +896,13 @@ class MetricsCollector(LoggerMixin):
             counter_totals = {}
             for metric in self.metrics:
                 if metric.metric_type == MetricType.COUNTER:
-                    counter_totals[metric.name] = counter_totals.get(metric.name, 0) + metric.value
+                    counter_totals[metric.name] = (
+                        counter_totals.get(metric.name, 0) + metric.value
+                    )
             return counter_totals
 
     @property
-    def gauges(self) -> dict[str, float]:
+    def gauges(self) -> Dict[str, float]:
         """
         Get all gauge metrics as a dictionary with their latest values.
 
@@ -875,15 +915,16 @@ class MetricsCollector(LoggerMixin):
             for metric in self.metrics:
                 if metric.metric_type == MetricType.GAUGE:
                     # Keep only the latest value for each gauge
-                    if metric.name not in gauge_values or metric.timestamp > gauge_timestamps.get(
-                        metric.name, 0
+                    if (
+                        metric.name not in gauge_values
+                        or metric.timestamp > gauge_timestamps.get(metric.name, 0)
                     ):
                         gauge_values[metric.name] = metric.value
                         gauge_timestamps[metric.name] = metric.timestamp
             return gauge_values
 
     @property
-    def histograms(self) -> dict[str, list[float]]:
+    def histograms(self) -> Dict[str, List[float]]:
         """
         Get all histogram metrics as a dictionary.
 
@@ -920,7 +961,9 @@ class MetricsCollector(LoggerMixin):
         for i, timer_key in enumerate(active_timer_keys):
             timer_context = active_timer_contexts[i]
             self.logger.warning("Force stopping active timer: %s", timer_key)
-            self.stop_timer(timer_context.name, timer_context.test_case, timer_context.component)
+            self.stop_timer(
+                timer_context.name, timer_context.test_case, timer_context.component
+            )
 
         # Record experiment completion
         self.record_metric(
@@ -934,15 +977,17 @@ class MetricsCollector(LoggerMixin):
             },
         )
 
-        self.logger.info("Metrics collection finalized for experiment: %s", self.experiment_name)
+        self.logger.info(
+            "Metrics collection finalized for experiment: %s", self.experiment_name
+        )
 
     def start_timing(
         self,
         name: str,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ):
         """
         Start a timing operation. Alias for start_timer for backward compatibility.
@@ -971,10 +1016,10 @@ class TimingContextManager:
         self,
         collector: MetricsCollector,
         name: str,
-        phase: Phase | None = None,
-        test_case: str | None = None,
-        component: str | None = None,
-        labels: dict[str, str] | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
+        component: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ):
         self.collector = collector
         self.name = name
@@ -1000,7 +1045,9 @@ class TimingContextManager:
             except Exception as e:  # pylint: disable=broad-exception-caught
                 # Log but don't re-raise
                 if hasattr(self.collector, "logger"):
-                    self.collector.logger.error("Error stopping timer '%s': %s", self.name, e)
+                    self.collector.logger.error(
+                        "Error stopping timer '%s': %s", self.name, e
+                    )
         else:
             if hasattr(self.collector, "logger") and self.timer_started:
                 self.collector.logger.warning(
@@ -1025,7 +1072,11 @@ class TimingContextManager:
             self.stop()
 
             # Record if an exception occurred
-            if exc_type is not None and hasattr(self, "collector") and self.collector is not None:
+            if (
+                exc_type is not None
+                and hasattr(self, "collector")
+                and self.collector is not None
+            ):
                 # Don't let error recording cause additional issues
                 try:
                     if hasattr(self.collector, "record_error"):
@@ -1041,7 +1092,9 @@ class TimingContextManager:
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     # Log but don't re-raise
                     if hasattr(self.collector, "logger"):
-                        self.collector.logger.error("Failed to record timing context error: %s", e)
+                        self.collector.logger.error(
+                            "Failed to record timing context error: %s", e
+                        )
         except Exception as e:  # pylint: disable=broad-exception-caught
             # Never let __exit__ raise exceptions
             if (

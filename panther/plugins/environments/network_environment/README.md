@@ -11,6 +11,131 @@
 
 Network environment plugins define the network topology, conditions, and characteristics for PANTHER experiments. They allow for creating realistic or controlled network scenarios for protocol testing.
 
+## Modern Docker Orchestration & Event Integration (2024)
+
+!!! success "Enhanced Service Coordination"
+    Network environments now provide sophisticated Docker Compose orchestration, service coordination through events, and real-time monitoring with comprehensive event tracking for improved reliability and debugging.
+
+### Docker Compose Service Coordination
+
+Modern network environments coordinate service deployment through events:
+
+```mermaid
+graph TB
+    subgraph "Service Coordination Events"
+        SDE[Service Deployment Event]
+        SCE[Service Configuration Event]
+        SRE[Service Ready Event]
+        SFE[Service Failure Event]
+    end
+    
+    subgraph "Docker Orchestration"
+        DC[Docker Compose]
+        SC[Service Coordination]
+        HC[Health Checks]
+    end
+    
+    subgraph "Event Monitoring"
+        EM[Event Manager]
+        MO[Metrics Observer]
+        LO[Logger Observer]
+    end
+    
+    SDE --> DC
+    DC --> SCE
+    SCE --> SC
+    SC --> HC
+    HC --> SRE
+    SRE --> EM
+    EM --> MO
+    EM --> LO
+    SFE --> LO
+```
+
+### Event-Driven Network Environment
+
+```python
+# Modern network environment with event integration
+from panther.core.events.environment.events import NetworkSetupEvent, ServiceDeploymentEvent
+from panther.core.command_processor.command import ShellCommand
+
+class ModernDockerComposeEnvironment(INetworkEnvironment):
+    def deploy_services(self, service_configs):
+        # Emit network setup start event
+        self.emit_event(NetworkSetupEvent(
+            environment_name="docker_compose",
+            network_type="container_orchestration",
+            service_count=len(service_configs)
+        ))
+        
+        # Generate docker-compose commands through Command Processor
+        compose_commands = [
+            ShellCommand(
+                command="docker-compose",
+                args=["-f", self.compose_file, "up", "-d", "--build"],
+                working_dir=self.project_dir,
+                timeout=600
+            )
+        ]
+        
+        # Execute with validation and event emission
+        for cmd in compose_commands:
+            # Emit service deployment event
+            self.emit_event(ServiceDeploymentEvent(
+                environment_name="docker_compose",
+                deployment_type="container",
+                command=cmd.to_string()
+            ))
+            
+            result = self.command_processor.execute(cmd)
+            
+            if result.exit_code == 0:
+                # Emit success event
+                self.emit_event(ServiceReadyEvent(
+                    environment_name="docker_compose",
+                    services_deployed=len(service_configs)
+                ))
+            else:
+                # Emit failure event
+                self.emit_event(ServiceFailureEvent(
+                    environment_name="docker_compose",
+                    error_message=result.stderr
+                ))
+    
+    def wait_for_service_ready(self, service_name, timeout=60):
+        # Monitor service readiness with events
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            health_cmd = ShellCommand(
+                command="docker",
+                args=["exec", service_name, "curl", "-f", "http://localhost:4443/health"],
+                timeout=5,
+                capture_output=True,
+                ignore_exit_code=True
+            )
+            
+            result = self.command_processor.execute(health_cmd)
+            
+            if result.exit_code == 0:
+                self.emit_event(ServiceHealthCheckEvent(
+                    service_name=service_name,
+                    status="healthy",
+                    environment_name="docker_compose"
+                ))
+                return True
+            
+            time.sleep(1)
+        
+        # Emit timeout event
+        self.emit_event(ServiceHealthCheckEvent(
+            service_name=service_name,
+            status="timeout",
+            environment_name="docker_compose"
+        ))
+        return False
+```
+
 <!-- src: /panther/plugins/environments/network_environment/ -->
 
 ## Available Plugins
@@ -19,7 +144,7 @@ Network environment plugins define the network topology, conditions, and charact
 |--------|-------------|---------------|
 | docker_compose | Multi-container Docker environments | [Documentation](panther/plugins/environments/network_environment/docker_compose/README.md) |
 | shadow_ns | Network namespace-based simulation | [Documentation](panther/plugins/environments/network_environment/shadow_ns/README.md) |
-| localhost_single_container | Single container environment | [Documentation](panther/plugins/environments/network_environment/localhost_single_container/README.md) |
+| localhost_single_container | Single container localhost deployment | [Documentation](panther/plugins/environments/network_environment/localhost_single_container/README.md) |
 
 ## Common Configuration
 
@@ -36,12 +161,117 @@ environments:
         network_name: "test_net"
 ```
 
+### Enhanced Monitoring Integration
+
+Network environments now provide comprehensive monitoring through the metrics system:
+
+```python
+# Enhanced monitoring for network environments
+class MonitoredNetworkEnvironment(INetworkEnvironment):
+    def setup_monitoring(self):
+        # Start comprehensive network monitoring
+        self.metrics_collector.start_collection()
+        
+        # Monitor container health
+        self.setup_container_health_monitoring()
+        
+        # Monitor network traffic
+        self.setup_network_traffic_monitoring()
+        
+        # Emit monitoring setup event
+        self.emit_event(NetworkMonitoringEvent(
+            environment_name=self.get_name(),
+            monitoring_types=[
+                "container_health", "network_traffic", 
+                "resource_usage", "service_coordination"
+            ]
+        ))
+    
+    def collect_network_metrics(self):
+        # Collect comprehensive network metrics
+        metrics = {
+            "container_stats": self.get_container_stats(),
+            "network_traffic": self.get_network_traffic_stats(),
+            "service_health": self.get_service_health_status(),
+            "resource_usage": self.get_resource_usage()
+        }
+        
+        # Emit metrics collection event
+        self.emit_event(NetworkMetricsEvent(
+            environment_name=self.get_name(),
+            metrics_data=metrics,
+            collection_timestamp=datetime.now()
+        ))
+        
+        return metrics
+    
+    def teardown_with_monitoring(self):
+        # Collect final metrics before teardown
+        final_metrics = self.collect_network_metrics()
+        
+        # Emit teardown start event
+        self.emit_event(NetworkTeardownEvent(
+            environment_name=self.get_name(),
+            teardown_type="graceful_shutdown",
+            final_metrics=final_metrics
+        ))
+        
+        # Execute teardown commands
+        teardown_cmd = ShellCommand(
+            command="docker-compose",
+            args=["-f", self.compose_file, "down", "--volumes"],
+            timeout=120
+        )
+        
+        result = self.command_processor.execute(teardown_cmd)
+        
+        # Emit teardown complete event
+        self.emit_event(NetworkTeardownCompleteEvent(
+            environment_name=self.get_name(),
+            success=result.exit_code == 0
+        ))
+```
+
 ## Integration Points
 
-Network environment plugins integrate primarily with:
+Network environment plugins integrate comprehensively with:
 
-1. **Service plugins**: They provide the network context for services to operate in
-2. **Protocol plugins**: They enable testing protocol behavior under different network conditions
+1. **Service plugins**: Provide network context with event-driven service coordination
+2. **Protocol plugins**: Enable testing protocol behavior under various network conditions
+3. **Event System**: Real-time monitoring and status tracking through typed events
+4. **Metrics System**: Comprehensive performance and health monitoring
+5. **Command Processor**: Structured command generation and validation
+6. **Observer Pattern**: Event-driven communication with all framework components
+7. **Docker Builder**: Unified Docker operations through EnvironmentManagerDockerMixin
+
+### Docker Build Architecture
+
+Network environments use a unified Docker mixin pattern for consistent Docker operations:
+
+- **Base Image Building**: All environments build from `panther/plugins/services/Dockerfile`
+- **Service Image Verification**: Ensures required service images are available
+- **Multi-stage Builds**: Supports complex Dockerfile generation with service staging
+- **Environment-specific Operations**: Separate from service-specific Docker operations
+
+```python
+# Example of modern Docker integration
+class NetworkEnvironment(BaseNetworkEnvironment, EnvironmentManagerDockerMixin):
+    def generate_environment_services(self, paths, timestamp):
+        # Build base image once per experiment
+        base_image_tag = self.build_base_service_image(self.plugin_manager)
+        
+        # Verify service images
+        service_images = self.ensure_service_images_available(self.services_managers)
+        
+        # Generate Dockerfile with proper parameters
+        self.generate_from_template(
+            template_name="Dockerfile.jinja",
+            additional_param={
+                "base_image": base_image_tag,
+                "service_images": service_images
+            }
+        )
+```
 
 ## Development
 

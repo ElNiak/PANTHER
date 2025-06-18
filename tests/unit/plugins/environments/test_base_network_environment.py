@@ -20,6 +20,43 @@ from panther.plugins.environments.network_environment.mixins import (
 )
 
 
+class ConcreteNetworkEnvironment(BaseNetworkEnvironment):
+    """Concrete implementation for testing."""
+    
+    def _do_setup_environment(self):
+        pass
+    
+    def _do_teardown_environment(self):
+        pass
+    
+    def _do_deploy_services(self, services):
+        pass
+    
+    def _get_service_log_directory(self, service):
+        return "/tmp/logs"
+    
+    def _teardown_environment(self):
+        pass
+    
+    def deploy_services(self, services):
+        pass
+    
+    def generate_environment_services(self):
+        return []
+    
+    def handle_event(self, event):
+        pass
+    
+    def initialize(self):
+        pass
+    
+    def launch_environment_services(self):
+        pass
+    
+    def prepare_environment(self):
+        pass
+
+
 class TestBaseNetworkEnvironment:
     """Test BaseNetworkEnvironment functionality."""
 
@@ -29,8 +66,8 @@ class TestBaseNetworkEnvironment:
         env_config = Mock()
         event_manager = Mock()
 
-        # Create instance
-        env = BaseNetworkEnvironment(
+        # Create instance using concrete implementation
+        env = ConcreteNetworkEnvironment(
             env_config_to_test=env_config,
             output_dir=str(tmp_path),
             env_type="test_env",
@@ -54,6 +91,7 @@ class TestBaseNetworkEnvironment:
         # Setup
         env_config = Mock()
         event_manager = Mock()
+        event_manager.emit = Mock()
 
         class TestEnv(BaseNetworkEnvironment):
             def prepare_environment(self):
@@ -71,6 +109,24 @@ class TestBaseNetworkEnvironment:
 
             def _teardown_environment(self):
                 pass
+            
+            def _do_setup_environment(self):
+                pass
+            
+            def _do_deploy_services(self):
+                pass
+            
+            def _do_teardown_environment(self):
+                pass
+            
+            def _get_service_log_directory(self, service_name: str) -> str:
+                return str(self.output_dir / "logs" / service_name)
+            
+            def handle_event(self, event):
+                pass
+            
+            def initialize(self):
+                pass
 
         env = TestEnv(
             env_config_to_test=env_config,
@@ -79,17 +135,28 @@ class TestBaseNetworkEnvironment:
             env_sub_type="test",
             event_manager=event_manager,
         )
+        
+        # Set up event emitter for event emission
+        env.event_emitter = Mock()
+        env.event_emitter.emit_environment_setup_completed = Mock()
+        env.event_emitter.emit_environment_created = Mock()
+        env.event_emitter.emit_environment_setup_failed = Mock()
 
-        # Mock required attributes
-        env.test_config = Mock(name="test_config")
+        # Mock required attributes using dict-like objects that OmegaConf can handle
+        from omegaconf import DictConfig
+        
+        env.test_config = DictConfig({"name": "test_config", "steps": {"wait": 60}})
         env.services_managers = []
         env.log_dirs = str(tmp_path / "logs")
 
         # Run setup
+        test_config = DictConfig({"name": "test", "steps": {"wait": 60}})
+        global_config = DictConfig({"logging": {"level": "INFO"}})
+        
         result = env.setup_environment(
             services_managers=[],
-            test_config=Mock(name="test"),
-            global_config=Mock(),
+            test_config=test_config,
+            global_config=global_config,
             timestamp="20240101_120000",
             plugin_manager=None,
             execution_environment=[],
@@ -102,7 +169,7 @@ class TestBaseNetworkEnvironment:
         assert env.setup_end_time is not None
 
         # Verify events were emitted
-        assert env.event_manager.emit.called
+        assert env.event_emitter.emit_environment_setup_completed.called
 
     def test_teardown_environment(self, tmp_path):
         """Test environment teardown."""
@@ -124,6 +191,24 @@ class TestBaseNetworkEnvironment:
                 pass
 
             def deploy_services(self):
+                pass
+            
+            def _do_setup_environment(self):
+                pass
+            
+            def _do_deploy_services(self):
+                pass
+            
+            def _do_teardown_environment(self):
+                pass
+            
+            def _get_service_log_directory(self, service_name: str) -> str:
+                return str(self.output_dir / "logs" / service_name)
+            
+            def handle_event(self, event):
+                pass
+            
+            def initialize(self):
                 pass
 
         env = TestEnv(
@@ -452,7 +537,10 @@ class TestStatusMonitorMixin:
         monitor = TestMonitor()
 
         with patch("time.sleep"):  # Skip sleep in tests
-            with patch("time.time", side_effect=[0, 0.1, 0.2, 100]):  # Force timeout
+            # Use itertools.cycle to provide infinite values
+            import itertools
+            time_values = itertools.cycle([0, 0.1, 0.2, 0.3, 0.4, 0.5, 100])
+            with patch("time.time", side_effect=lambda: next(time_values)):
                 result = monitor.monitor_service_status(
                     "test_service",
                     check_interval=0,

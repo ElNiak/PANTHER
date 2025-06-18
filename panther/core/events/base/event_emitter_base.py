@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Optional, Type, TypeVar
+
 """
 Base Event Emitter
 
@@ -5,7 +7,6 @@ This module provides a base class for all event emitters to reduce code duplicat
 """
 
 from abc import ABC
-from typing import TYPE_CHECKING, Type, TypeVar
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
@@ -17,6 +18,7 @@ EventType = TypeVar("EventType", bound=BaseEvent)
 
 class EventEmitterBase(ABC):
     """
+
     Base class for all event emitters.
 
     This class provides common functionality for event emission,

@@ -1,6 +1,6 @@
-from abc import ABC
-import os
 import logging
+import os
+from abc import ABC
 
 
 class ResultHandler(ABC):

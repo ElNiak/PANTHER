@@ -3,7 +3,7 @@ import logging
 import sqlite3
 import threading
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from panther.core.events.base.event_base import BaseEvent as Event
 
@@ -141,7 +141,7 @@ class EventStore:
         start_time: datetime = None,
         end_time: datetime = None,
         limit: int = 100,
-    ) -> list[dict[str, Any]]:
+    ) -> List[Dict[str, Any]]:
         """
         Query events with filters.
         # TODO use transaction for better consistency and performance
@@ -192,7 +192,7 @@ class EventStore:
             self.logger.error(f"Failed to query events: {e}")
             return []
 
-    def get_event_types(self) -> list[str]:
+    def get_event_types(self) -> List[str]:
         """
         Get all unique event types in the store.
 
@@ -207,7 +207,7 @@ class EventStore:
             self.logger.error(f"Failed to get event types: {e}")
             return []
 
-    def get_event_counts_by_type(self) -> dict[str, int]:
+    def get_event_counts_by_type(self) -> Dict[str, int]:
         """
         Get count of events by type.
 

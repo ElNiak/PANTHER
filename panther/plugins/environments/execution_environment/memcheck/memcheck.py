@@ -1,11 +1,11 @@
+from typing import TYPE_CHECKING, List, Optional
+
 """
 Memcheck execution environment for memory error detection using Valgrind.
 
 This plugin provides comprehensive memory error detection capabilities including
 memory leak detection, invalid memory access detection, and uninitialized value usage.
 """
-
-from typing import TYPE_CHECKING
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.base_execution_environment import (
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 )
 class MemcheckEnvironment(BaseExecutionEnvironment):
     """
+
     Memory error detection execution environment using Valgrind Memcheck.
 
     This environment uses shared command generation utilities to eliminate
@@ -59,7 +60,7 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
         )
 
     def _setup_plugin_specific_environment(
-        self, services_managers: list[IServiceManager], timestamp: str
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
         """
         Set up Valgrind Memcheck memory error detection for services using shared utilities.
@@ -391,7 +392,9 @@ fi
                 file_type="memcheck_leaks",
             )
 
-    def to_command(self, pid: int | None = None, output_file: str | None = None) -> str:
+    def to_command(
+        self, pid: Optional[int] = None, output_file: Optional[str] = None
+    ) -> str:
         """
         Generate the Memcheck command for execution.
 
@@ -414,3 +417,25 @@ fi
 
         # Use the same command building logic as the wrapper
         return self._build_memcheck_command(output_file)
+
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for memcheck execution.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        # Add any memcheck-specific environment updates here
+        self.logger.debug("Updated environment for memcheck execution")
+        pass

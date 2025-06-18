@@ -1,9 +1,9 @@
 # PANTHER-SCP/panther/core/test_case_interface.py
 
-from abc import ABC, abstractmethod
 import logging
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from abc import ABC, abstractmethod
+
+from panther.config.core.models import GlobalConfig, TestConfig
 
 
 class ITestCase(ABC):

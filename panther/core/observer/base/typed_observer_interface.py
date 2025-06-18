@@ -7,6 +7,7 @@ with specific handler methods for each event type.
 
 import logging
 from collections.abc import Callable
+from typing import Dict
 
 from panther.core.events.assertion.events import (
     AssertionErrorEvent,
@@ -144,7 +145,7 @@ class ITypedObserver(IObserver):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Event type to handler mapping for automatic routing
-        self._event_handlers: dict[type[BaseEvent], Callable] = {
+        self._event_handlers: Dict[type[BaseEvent], Callable] = {
             # Experiment events
             ExperimentInitializedEvent: self.on_experiment_initialized,
             ExperimentPluginLoadingStartedEvent: self.on_experiment_plugin_loading_started,

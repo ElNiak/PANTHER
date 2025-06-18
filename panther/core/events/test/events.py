@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Test Events
 
@@ -5,13 +7,14 @@ This module defines events specific to test case lifecycle management.
 """
 
 from enum import Enum
-from typing import Any
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
 
 class TestEventType(Enum):
-    """Test-specific event types."""
+    """
+
+    from typing import Any, Dict, List, Optional, OptionalTest-specific event types."""
 
     CREATED = "created"
     SETUP_STARTED = "setup_started"
@@ -42,9 +45,17 @@ class TestEventType(Enum):
 class TestEvent(BaseEvent):
     """Base class for all test events."""
 
-    def __init__(self, event_type: TestEventType, test_id: str, data: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        event_type: TestEventType,
+        test_id: str,
+        data: Optional[Dict[str, Any]] = None,
+    ):
         super().__init__(
-            name=event_type.value, entity_type=EventType.TEST, entity_id=test_id, data=data
+            name=event_type.value,
+            entity_type=EventType.TEST,
+            entity_id=test_id,
+            data=data,
         )
         self.event_type = event_type
 
@@ -56,13 +67,17 @@ class TestCreatedEvent(TestEvent):
         self,
         test_id: str,
         test_name: str,
-        description: str | None = None,
-        config: dict[str, Any] | None = None,
+        description: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.CREATED,
             test_id=test_id,
-            data={"test_name": test_name, "description": description, "config": config or {}},
+            data={
+                "test_name": test_name,
+                "description": description,
+                "config": config or {},
+            },
         )
 
 
@@ -70,7 +85,10 @@ class TestSetupStartedEvent(TestEvent):
     """Event emitted when test setup starts."""
 
     def __init__(
-        self, test_id: str, service_count: int | None = None, service_names: list[str] | None = None
+        self,
+        test_id: str,
+        service_count: Optional[int] = None,
+        service_names: Optional[List[str]] = None,
     ):
         super().__init__(
             event_type=TestEventType.SETUP_STARTED,
@@ -83,7 +101,10 @@ class TestSetupCompletedEvent(TestEvent):
     """Event emitted when test setup completes."""
 
     def __init__(
-        self, test_id: str, services: list[str] | None = None, duration_seconds: float | None = None
+        self,
+        test_id: str,
+        services: Optional[List[str]] = None,
+        duration_seconds: Optional[float] = None,
     ):
         super().__init__(
             event_type=TestEventType.SETUP_COMPLETED,
@@ -99,8 +120,8 @@ class TestSetupFailedEvent(TestEvent):
         self,
         test_id: str,
         error_message: str,
-        error_type: str | None = None,
-        failed_component: str | None = None,
+        error_type: Optional[str] = None,
+        failed_component: Optional[str] = None,
     ):
         super().__init__(
             event_type=TestEventType.SETUP_FAILED,
@@ -117,7 +138,10 @@ class TestEnvironmentSetupStartedEvent(TestEvent):
     """Event emitted when test environment setup starts."""
 
     def __init__(
-        self, test_id: str, environment_type: str, environment_config: dict[str, Any] | None = None
+        self,
+        test_id: str,
+        environment_type: str,
+        environment_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.ENVIRONMENT_SETUP_STARTED,
@@ -133,7 +157,10 @@ class TestEnvironmentSetupCompletedEvent(TestEvent):
     """Event emitted when test environment setup completes."""
 
     def __init__(
-        self, test_id: str, environment_type: str, environment_details: dict[str, Any] | None = None
+        self,
+        test_id: str,
+        environment_type: str,
+        environment_details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.ENVIRONMENT_SETUP_COMPLETED,
@@ -149,7 +176,11 @@ class TestEnvironmentSetupFailedEvent(TestEvent):
     """Event emitted when test environment setup fails."""
 
     def __init__(
-        self, test_id: str, environment_type: str, error_message: str, error_type: str | None = None
+        self,
+        test_id: str,
+        environment_type: str,
+        error_message: str,
+        error_type: Optional[str] = None,
     ):
         super().__init__(
             event_type=TestEventType.ENVIRONMENT_SETUP_FAILED,
@@ -165,7 +196,7 @@ class TestEnvironmentSetupFailedEvent(TestEvent):
 class TestDeploymentStartedEvent(TestEvent):
     """Event emitted when test service deployment starts."""
 
-    def __init__(self, test_id: str, services_to_deploy: list[str] | None = None):
+    def __init__(self, test_id: str, services_to_deploy: Optional[List[str]] = None):
         super().__init__(
             event_type=TestEventType.DEPLOYMENT_STARTED,
             test_id=test_id,
@@ -179,8 +210,8 @@ class TestDeploymentCompletedEvent(TestEvent):
     def __init__(
         self,
         test_id: str,
-        deployed_services: list[str] | None = None,
-        deployment_details: dict[str, Any] | None = None,
+        deployed_services: Optional[List[str]] = None,
+        deployment_details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.DEPLOYMENT_COMPLETED,
@@ -199,8 +230,8 @@ class TestDeploymentFailedEvent(TestEvent):
         self,
         test_id: str,
         error_message: str,
-        failed_services: list[str] | None = None,
-        error_type: str | None = None,
+        failed_services: Optional[List[str]] = None,
+        error_type: Optional[str] = None,
     ):
         super().__init__(
             event_type=TestEventType.DEPLOYMENT_FAILED,
@@ -217,7 +248,10 @@ class TestExecutionStartedEvent(TestEvent):
     """Event emitted when test execution starts."""
 
     def __init__(
-        self, test_id: str, steps: list[str] | None = None, expected_duration: float | None = None
+        self,
+        test_id: str,
+        steps: Optional[List[str]] = None,
+        expected_duration: Optional[float] = None,
     ):
         super().__init__(
             event_type=TestEventType.EXECUTION_STARTED,
@@ -233,13 +267,17 @@ class TestStepStartedEvent(TestEvent):
         self,
         test_id: str,
         step_name: str,
-        step_type: str | None = None,
-        step_config: dict[str, Any] | None = None,
+        step_type: Optional[str] = None,
+        step_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.STEP_STARTED,
             test_id=test_id,
-            data={"step_name": step_name, "step_type": step_type, "step_config": step_config or {}},
+            data={
+                "step_name": step_name,
+                "step_type": step_type,
+                "step_config": step_config or {},
+            },
         )
 
 
@@ -250,8 +288,8 @@ class TestStepCompletedEvent(TestEvent):
         self,
         test_id: str,
         step_name: str,
-        duration_seconds: float | None = None,
-        result: dict[str, Any] | None = None,
+        duration_seconds: Optional[float] = None,
+        result: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.STEP_COMPLETED,
@@ -268,19 +306,27 @@ class TestStepFailedEvent(TestEvent):
     """Event emitted when a test step fails."""
 
     def __init__(
-        self, test_id: str, step_name: str, error_message: str, error_type: str | None = None
+        self,
+        test_id: str,
+        step_name: str,
+        error_message: str,
+        error_type: Optional[str] = None,
     ):
         super().__init__(
             event_type=TestEventType.STEP_FAILED,
             test_id=test_id,
-            data={"step_name": step_name, "error_message": error_message, "error_type": error_type},
+            data={
+                "step_name": step_name,
+                "error_message": error_message,
+                "error_type": error_type,
+            },
         )
 
 
 class TestAssertionsStartedEvent(TestEvent):
     """Event emitted when test assertions validation starts."""
 
-    def __init__(self, test_id: str, assertions: list[dict[str, Any]] | None = None):
+    def __init__(self, test_id: str, assertions: Optional[List[Dict[str, Any]]] = None):
         super().__init__(
             event_type=TestEventType.ASSERTIONS_STARTED,
             test_id=test_id,
@@ -295,9 +341,9 @@ class TestAssertionCheckedEvent(TestEvent):
         self,
         test_id: str,
         assertion_type: str,
-        assertion_config: dict[str, Any],
+        assertion_config: Dict[str, Any],
         passed: bool,
-        result: dict[str, Any] | None = None,
+        result: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.ASSERTION_CHECKED,
@@ -337,7 +383,9 @@ class TestAssertionsCompletedEvent(TestEvent):
 class TestAssertionsFailedEvent(TestEvent):
     """Event emitted when assertions validation fails with an error."""
 
-    def __init__(self, test_id: str, error_message: str, error_type: str | None = None):
+    def __init__(
+        self, test_id: str, error_message: str, error_type: Optional[str] = None
+    ):
         super().__init__(
             event_type=TestEventType.ASSERTIONS_FAILED,
             test_id=test_id,
@@ -351,9 +399,9 @@ class TestExecutionCompletedEvent(TestEvent):
     def __init__(
         self,
         test_id: str,
-        duration_seconds: float | None = None,
-        steps_completed: int | None = None,
-        assertions_passed: bool | None = None,
+        duration_seconds: Optional[float] = None,
+        steps_completed: Optional[int] = None,
+        assertions_passed: Optional[bool] = None,
     ):
         super().__init__(
             event_type=TestEventType.EXECUTION_COMPLETED,
@@ -373,13 +421,17 @@ class TestExecutionFailedEvent(TestEvent):
         self,
         test_id: str,
         error_message: str,
-        error_type: str | None = None,
-        phase: str | None = None,
+        error_type: Optional[str] = None,
+        phase: Optional[str] = None,
     ):
         super().__init__(
             event_type=TestEventType.EXECUTION_FAILED,
             test_id=test_id,
-            data={"error_message": error_message, "error_type": error_type, "phase": phase},
+            data={
+                "error_message": error_message,
+                "error_type": error_type,
+                "phase": phase,
+            },
         )
 
 
@@ -393,7 +445,7 @@ class TestTeardownStartedEvent(TestEvent):
 class TestTeardownCompletedEvent(TestEvent):
     """Event emitted when test teardown completes."""
 
-    def __init__(self, test_id: str, duration_seconds: float | None = None):
+    def __init__(self, test_id: str, duration_seconds: Optional[float] = None):
         super().__init__(
             event_type=TestEventType.TEARDOWN_COMPLETED,
             test_id=test_id,
@@ -407,9 +459,9 @@ class TestCompletedEvent(TestEvent):
     def __init__(
         self,
         test_id: str,
-        test_name: str | None = None,
-        total_duration_seconds: float | None = None,
-        summary: dict[str, Any] | None = None,
+        test_name: Optional[str] = None,
+        total_duration_seconds: Optional[float] = None,
+        summary: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.COMPLETED,
@@ -430,11 +482,11 @@ class TestFailedEvent(TestEvent):
     def __init__(
         self,
         test_id: str,
-        test_name: str | None = None,
+        test_name: Optional[str] = None,
         error_message: str = "",
-        error_type: str | None = None,
-        phase: str | None = None,
-        summary: dict[str, Any] | None = None,
+        error_type: Optional[str] = None,
+        phase: Optional[str] = None,
+        summary: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.FAILED,
@@ -459,8 +511,8 @@ class TestResultEvent(TestEvent):
         name: str,
         test_name: str,
         result: bool,
-        data: dict[str, Any] | None = None,
-        metadata: dict[str, Any] | None = None,
+        data: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=TestEventType.COMPLETED if result else TestEventType.FAILED,
@@ -481,8 +533,8 @@ class EnhancedResultEvent(TestEvent):
         test_name: str,
         result: bool,
         result_data: Any = None,
-        metadata: dict[str, Any] | None = None,
-        tags: list[str] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
         category: str = "default",
     ):
         data = {
@@ -505,3 +557,10 @@ class EnhancedResultEvent(TestEvent):
     def get_result_data(self) -> Any:
         """Get the result data."""
         return self.data.get("result_data")
+
+    def add_tag(self, tag: str) -> None:
+        """Add a tag to the event if it doesn't already exist."""
+        if tag not in self.tags:
+            self.tags.append(tag)
+            # Also update the data dict
+            self.data["tags"] = self.tags

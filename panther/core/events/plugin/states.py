@@ -1,17 +1,20 @@
+from typing import Any, Dict, List, Optional, Set
+
 """
 Plugin State Management
 
 This module provides state management for plugin events.
 """
 
-from enum import Enum
 from dataclasses import dataclass, field
-from typing import Any
 from datetime import datetime
+from enum import Enum
 
 
 class PluginState(Enum):
-    """Plugin lifecycle states."""
+    """
+
+    from typing import Any, Dict, List, Optional, Set, SetPlugin lifecycle states."""
 
     UNKNOWN = "unknown"
     LOADING = "loading"
@@ -47,11 +50,11 @@ class PluginServiceInfo:
     service_name: str
     service_type: str
     state: ServiceState = ServiceState.UNKNOWN
-    config: dict[str, Any] = field(default_factory=dict)
-    startup_duration: float | None = None
+    config: Dict[str, Any] = field(default_factory=dict)
+    startup_duration: Optional[float] = None
     created_at: datetime = field(default_factory=datetime.now)
-    started_at: datetime | None = None
-    stopped_at: datetime | None = None
+    started_at: Optional[datetime] = None
+    stopped_at: Optional[datetime] = None
     stop_reason: str = ""
 
 
@@ -63,52 +66,54 @@ class PluginInfo:
     plugin_name: str
     plugin_type: str
     state: PluginState = PluginState.UNKNOWN
-    plugin_path: str | None = None
-    version: str | None = None
-    capabilities: list[str] = field(default_factory=list)
-    dependencies: list[str] = field(default_factory=list)
-    services: dict[str, PluginServiceInfo] = field(default_factory=dict)
+    plugin_path: Optional[str] = None
+    version: Optional[str] = None
+    capabilities: List[str] = field(default_factory=list)
+    dependencies: List[str] = field(default_factory=list)
+    services: Dict[str, PluginServiceInfo] = field(default_factory=dict)
 
     # Timing information
-    loading_started_at: datetime | None = None
-    loading_completed_at: datetime | None = None
-    loading_duration: float | None = None
-    startup_duration: float | None = None
+    loading_started_at: Optional[datetime] = None
+    loading_completed_at: Optional[datetime] = None
+    loading_duration: Optional[float] = None
+    startup_duration: Optional[float] = None
 
     # Error information
-    last_error: str | None = None
+    last_error: Optional[str] = None
     error_count: int = 0
 
     # Configuration
-    loading_config: dict[str, Any] = field(default_factory=dict)
-    initialization_config: dict[str, Any] = field(default_factory=dict)
-    startup_details: dict[str, Any] = field(default_factory=dict)
-    cleanup_details: dict[str, Any] = field(default_factory=dict)
+    loading_config: Dict[str, Any] = field(default_factory=dict)
+    initialization_config: Dict[str, Any] = field(default_factory=dict)
+    startup_details: Dict[str, Any] = field(default_factory=dict)
+    cleanup_details: Dict[str, Any] = field(default_factory=dict)
 
 
 class PluginStateManager:
     """Manages state for plugin events."""
 
     def __init__(self):
-        self.plugins: dict[str, PluginInfo] = {}
-        self.plugins_by_type: dict[str, set[str]] = {}
-        self.plugins_by_state: dict[PluginState, set[str]] = {state: set() for state in PluginState}
+        self.plugins: Dict[str, PluginInfo] = {}
+        self.plugins_by_type: Dict[str, Set[str]] = {}
+        self.plugins_by_state: Dict[PluginState, Set[str]] = {
+            state: set() for state in PluginState
+        }
 
-    def get_plugin_info(self, plugin_id: str) -> PluginInfo | None:
+    def get_plugin_info(self, plugin_id: str) -> Optional[PluginInfo]:
         """Get plugin information by ID."""
         return self.plugins.get(plugin_id)
 
-    def get_plugins_by_type(self, plugin_type: str) -> list[PluginInfo]:
+    def get_plugins_by_type(self, plugin_type: str) -> List[PluginInfo]:
         """Get all plugins of a specific type."""
         plugin_ids = self.plugins_by_type.get(plugin_type, set())
         return [self.plugins[pid] for pid in plugin_ids if pid in self.plugins]
 
-    def get_plugins_by_state(self, state: PluginState) -> list[PluginInfo]:
+    def get_plugins_by_state(self, state: PluginState) -> List[PluginInfo]:
         """Get all plugins in a specific state."""
         plugin_ids = self.plugins_by_state.get(state, set())
         return [self.plugins[pid] for pid in plugin_ids if pid in self.plugins]
 
-    def get_all_plugins(self) -> list[PluginInfo]:
+    def get_all_plugins(self) -> List[PluginInfo]:
         """Get all plugins."""
         return list(self.plugins.values())
 
@@ -132,8 +137,8 @@ class PluginStateManager:
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        plugin_path: str | None = None,
-        loading_config: dict[str, Any] | None = None,
+        plugin_path: Optional[str] = None,
+        loading_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Handle plugin loading started event."""
         if plugin_id not in self.plugins:
@@ -158,9 +163,9 @@ class PluginStateManager:
     def handle_loading_completed(
         self,
         plugin_id: str,
-        duration: float | None = None,
-        capabilities: list[str] | None = None,
-        version: str | None = None,
+        duration: Optional[float] = None,
+        capabilities: Optional[List[str]] = None,
+        version: Optional[str] = None,
     ) -> None:
         """Handle plugin loading completed event."""
         if plugin_id in self.plugins:
@@ -172,7 +177,7 @@ class PluginStateManager:
             self.update_plugin_state(plugin_id, PluginState.LOADED)
 
     def handle_loading_failed(
-        self, plugin_id: str, error_message: str = "", duration: float | None = None
+        self, plugin_id: str, error_message: str = "", duration: Optional[float] = None
     ) -> None:
         """Handle plugin loading failed event."""
         if plugin_id in self.plugins:
@@ -185,8 +190,8 @@ class PluginStateManager:
     def handle_initialized(
         self,
         plugin_id: str,
-        initialization_config: dict[str, Any] | None = None,
-        dependencies: list[str] | None = None,
+        initialization_config: Optional[Dict[str, Any]] = None,
+        dependencies: Optional[List[str]] = None,
     ) -> None:
         """Handle plugin initialized event."""
         if plugin_id in self.plugins:
@@ -198,8 +203,8 @@ class PluginStateManager:
     def handle_started(
         self,
         plugin_id: str,
-        startup_duration: float | None = None,
-        startup_details: dict[str, Any] | None = None,
+        startup_duration: Optional[float] = None,
+        startup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Handle plugin started event."""
         if plugin_id in self.plugins:
@@ -212,8 +217,8 @@ class PluginStateManager:
         self,
         plugin_id: str,
         stop_reason: str = "normal_shutdown",
-        cleanup_duration: float | None = None,
-        cleanup_details: dict[str, Any] | None = None,
+        cleanup_duration: Optional[float] = None,
+        cleanup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Handle plugin stopped event."""
         if plugin_id in self.plugins:
@@ -241,7 +246,7 @@ class PluginStateManager:
         service_id: str,
         service_name: str,
         service_type: str,
-        service_config: dict[str, Any] | None = None,
+        service_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Handle plugin service created event."""
         if plugin_id in self.plugins:
@@ -255,7 +260,7 @@ class PluginStateManager:
             self.plugins[plugin_id].services[service_id] = service_info
 
     def handle_service_started(
-        self, plugin_id: str, service_id: str, startup_duration: float | None = None
+        self, plugin_id: str, service_id: str, startup_duration: Optional[float] = None
     ) -> None:
         """Handle plugin service started event."""
         if plugin_id in self.plugins and service_id in self.plugins[plugin_id].services:
@@ -274,7 +279,7 @@ class PluginStateManager:
             service_info.stop_reason = stop_reason
             service_info.stopped_at = datetime.now()
 
-    def get_plugin_summary(self) -> dict[str, Any]:
+    def get_plugin_summary(self) -> Dict[str, Any]:
         """Get summary of all plugin states."""
         summary = {
             "total_plugins": len(self.plugins),
@@ -285,7 +290,11 @@ class PluginStateManager:
                 plugin_type: len(plugin_ids)
                 for plugin_type, plugin_ids in self.plugins_by_type.items()
             },
-            "total_services": sum(len(plugin.services) for plugin in self.plugins.values()),
-            "plugins_with_errors": len([p for p in self.plugins.values() if p.error_count > 0]),
+            "total_services": sum(
+                len(plugin.services) for plugin in self.plugins.values()
+            ),
+            "plugins_with_errors": len(
+                [p for p in self.plugins.values() if p.error_count > 0]
+            ),
         }
         return summary

@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Storage Observer Module
 
@@ -6,9 +8,10 @@ for comprehensive data persistence and retrieval capabilities.
 """
 
 import json
+import shutil
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.environment.events import EnvironmentErrorEvent
@@ -26,12 +29,14 @@ from panther.core.events.test.events import (
     TestFailedEvent,
     TestResultEvent,
 )
+from panther.core.exceptions.fast_fail import ResourceExhaustionException
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
 from panther.core.observer.management.results_manager import ResultsManager
 
 
 class StorageObserver(ITypedObserver):
     """
+
     Storage observer that provides comprehensive data persistence using ResultsManager.
 
     This observer handles:
@@ -44,13 +49,13 @@ class StorageObserver(ITypedObserver):
 
     def __init__(
         self,
-        storage_path: str | None = None,
+        storage_path: Optional[str] = None,
         enable_compression: bool = True,
-        max_storage_size: int | None = None,
+        max_storage_size: Optional[int] = None,
         auto_backup: bool = True,
         backup_interval: int = 3600,  # 1 hour
         retention_days: int = 30,
-        event_type_filters: list[str] | None = None,
+        event_type_filters: Optional[List[str]] = None,
         batch_size: int = 100,
         log_level: str = "INFO",
     ):
@@ -95,7 +100,7 @@ class StorageObserver(ITypedObserver):
         self.batch_size = batch_size
 
         # Storage tracking
-        self.pending_events: list[dict[str, Any]] = []
+        self.pending_events: List[Dict[str, Any]] = []
         self.storage_stats = {
             "events_stored": 0,
             "events_filtered": 0,
@@ -103,6 +108,13 @@ class StorageObserver(ITypedObserver):
             "last_backup": None,
             "last_cleanup": None,
         }
+
+        # Resource monitoring
+        self.disk_check_interval = 30  # seconds
+        self.last_disk_check = time.time()
+        self.disk_warning_threshold = 1.0  # GB
+        self.disk_critical_threshold = 0.5  # GB
+        self.resource_monitoring_enabled = True
 
         # Event categorization
         self.event_categories = {
@@ -125,6 +137,13 @@ class StorageObserver(ITypedObserver):
         This method handles special cases like the experiment finished early check,
         then delegates to the parent class for typed event routing.
         """
+        # Check disk space periodically when handling events
+        try:
+            self._check_disk_space()
+        except ResourceExhaustionException:
+            # Let the exception propagate - fast-fail will handle it
+            raise
+
         # Special handling for experiment finished early check action
         if isinstance(event, ExperimentFinishedEarlyEvent):
             event_data = getattr(event, "data", {})
@@ -275,7 +294,7 @@ class StorageObserver(ITypedObserver):
 
     def _convert_event_to_dict(
         self, event: BaseEvent, event_type: str
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Convert an event to a dictionary for storage."""
         return {
             "id": str(getattr(event, "id", "")),
@@ -411,7 +430,7 @@ class StorageObserver(ITypedObserver):
         self._append_to_file(error_file, error_data)
 
     def _determine_error_severity(
-        self, event_type: str, event_data: dict[str, Any]
+        self, event_type: str, event_data: Dict[str, Any]
     ) -> str:
         """Determine the severity level of an error event."""
         if "critical" in event_type.lower():
@@ -442,7 +461,7 @@ class StorageObserver(ITypedObserver):
         # Update storage size
         self._update_storage_size()
 
-    def _append_to_file(self, file_path: Path, data: dict[str, Any]):
+    def _append_to_file(self, file_path: Path, data: Dict[str, Any]):
         """Append data to a JSONL file."""
         try:
             with open(file_path, "a") as f:
@@ -496,7 +515,7 @@ class StorageObserver(ITypedObserver):
 
         self.logger.info("All storage data flushed")
 
-    def get_storage_statistics(self) -> dict[str, Any]:
+    def get_storage_statistics(self) -> Dict[str, Any]:
         """Get storage statistics and information."""
         self._update_storage_size()
 
@@ -523,7 +542,7 @@ class StorageObserver(ITypedObserver):
         except Exception as e:
             self.logger.error(f"Failed to cleanup old data: {e}")
 
-    def backup_data(self, backup_path: str | None = None) -> bool:
+    def backup_data(self, backup_path: Optional[str] = None) -> bool:
         """Create a backup of all stored data."""
         try:
             if backup_path is None:
@@ -550,11 +569,11 @@ class StorageObserver(ITypedObserver):
 
     def query_events(
         self,
-        event_type: str | None = None,
-        start_time: datetime | None = None,
-        end_time: datetime | None = None,
-        limit: int | None = None,
-    ) -> list[dict[str, Any]]:
+        event_type: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Query stored events with filters.
 
@@ -614,7 +633,7 @@ class StorageObserver(ITypedObserver):
         self,
         export_path: str,
         export_format: str = "json",
-        include_categories: list[str] | None = None,
+        include_categories: Optional[List[str]] = None,
     ) -> bool:
         """
         Export stored data in various formats.
@@ -645,7 +664,7 @@ class StorageObserver(ITypedObserver):
             return False
 
     def _export_json(
-        self, export_path: str, include_categories: list[str] | None
+        self, export_path: str, include_categories: Optional[List[str]]
     ) -> bool:
         """Export data in JSON format."""
         export_data = {
@@ -678,7 +697,7 @@ class StorageObserver(ITypedObserver):
         return True
 
     def _export_csv(
-        self, export_path: str, include_categories: list[str] | None
+        self, export_path: str, include_categories: Optional[List[str]]
     ) -> bool:
         """Export data in CSV format."""
         import csv
@@ -711,7 +730,7 @@ class StorageObserver(ITypedObserver):
         return True
 
     def _export_xml(
-        self, export_path: str, include_categories: list[str] | None
+        self, export_path: str, include_categories: Optional[List[str]]
     ) -> bool:
         """Export data in XML format."""
         try:
@@ -721,9 +740,9 @@ class StorageObserver(ITypedObserver):
 
             # Add metadata
             metadata = ET.SubElement(root, "metadata")
-            ET.SubElement(
-                metadata, "export_timestamp"
-            ).text = datetime.now().isoformat()
+            ET.SubElement(metadata, "export_timestamp").text = (
+                datetime.now().isoformat()
+            )
             ET.SubElement(metadata, "storage_path").text = str(self.storage_path)
 
             # Add events
@@ -761,3 +780,31 @@ class StorageObserver(ITypedObserver):
         except Exception as e:
             self.logger.error(f"XML export failed: {e}")
             return False
+
+    def _check_disk_space(self):
+        """Periodic disk space check with fast-fail on critical thresholds."""
+        if not self.resource_monitoring_enabled:
+            return
+
+        current_time = time.time()
+        if current_time - self.last_disk_check < self.disk_check_interval:
+            return
+
+        stat = shutil.disk_usage(str(self.storage_path))
+        available_gb = stat.free / (1024**3)
+
+        self.logger.debug(f"Disk space check: {available_gb:.2f}GB available")
+
+        if available_gb < self.disk_critical_threshold:
+            raise ResourceExhaustionException(
+                f"Critical: Only {available_gb:.2f}GB disk space remaining",
+                "disk_space",
+                available_gb,
+                self.disk_critical_threshold,
+            )
+        elif available_gb < self.disk_warning_threshold:
+            self.logger.warning(
+                f"Low disk space warning: {available_gb:.2f}GB remaining"
+            )
+
+        self.last_disk_check = current_time

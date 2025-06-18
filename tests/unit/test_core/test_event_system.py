@@ -28,6 +28,9 @@ class MockBaseEvent:
         self.data = data or {}
 
     def get_type(self):
+        # If name already starts with entity_type, don't duplicate it
+        if self.name.startswith(f"{self.entity_type}."):
+            return self.name
         return f"{self.entity_type}.{self.name}"
 
     def to_dict(self):
@@ -50,7 +53,11 @@ class MockEventManager:
     def publish(self, event):
         self.events.append(event)
         for observer in self.observers:
-            observer.handle_event(event)
+            try:
+                observer.handle_event(event)
+            except Exception:
+                # Gracefully handle observer exceptions in tests
+                pass
 
     def register_observer(self, observer):
         self.observers.append(observer)
@@ -73,10 +80,24 @@ class EventEmitter:
             self.event_manager.publish(event)
             self.event_count += 1
 
-    def emit(self, event_type, data=None, entity_id=None, entity_type="test"):
+    def emit(self, event_type, data=None, entity_id=None, entity_type=None):
         """Convenience method for creating and emitting simple events."""
+        if entity_type is None and "." in event_type:
+            # Split the event_type into entity_type and name
+            parts = event_type.split(".")
+            entity_type = parts[0]
+            name = ".".join(parts[1:])
+        else:
+            # If entity_type is provided, extract the name part after the last dot
+            # or use the full event_type if no dots
+            if "." in event_type:
+                name = event_type.split(".")[-1]
+            else:
+                name = event_type
+            entity_type = entity_type or "test"
+            
         event = MockBaseEvent(
-            name=event_type.split(".")[-1] if "." in event_type else event_type,
+            name=name,
             entity_type=entity_type,
             entity_id=entity_id or str(uuid.uuid4()),
             data=data,

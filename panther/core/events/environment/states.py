@@ -4,6 +4,8 @@ Environment State Management
 This module defines state management for environment lifecycle.
 """
 
+from typing import Dict, Set
+
 from panther.core.events.base.state_base import BaseState, StateManager
 
 
@@ -41,7 +43,7 @@ class EnvironmentStateManager(StateManager):
         super().__init__(environment_id, EnvironmentState.CREATED)
         self.setup_transitions()
 
-    def _define_allowed_transitions(self) -> dict[BaseState, set[BaseState]]:
+    def _define_allowed_transitions(self) -> Dict[BaseState, Set[BaseState]]:
         """Define allowed state transitions for environments."""
         return {
             EnvironmentState.CREATED: {
@@ -69,14 +71,23 @@ class EnvironmentStateManager(StateManager):
                 EnvironmentState.ERROR,
                 EnvironmentState.TEARING_DOWN,
             },
-            EnvironmentState.READY: {EnvironmentState.TEARING_DOWN, EnvironmentState.ERROR},
+            EnvironmentState.READY: {
+                EnvironmentState.TEARING_DOWN,
+                EnvironmentState.ERROR,
+            },
             EnvironmentState.TEARING_DOWN: {
                 EnvironmentState.TORN_DOWN,
                 EnvironmentState.ERROR,
                 EnvironmentState.DESTROYING,
             },
-            EnvironmentState.TORN_DOWN: {EnvironmentState.DESTROYING, EnvironmentState.ERROR},
-            EnvironmentState.DESTROYING: {EnvironmentState.DESTROYED, EnvironmentState.ERROR},
+            EnvironmentState.TORN_DOWN: {
+                EnvironmentState.DESTROYING,
+                EnvironmentState.ERROR,
+            },
+            EnvironmentState.DESTROYING: {
+                EnvironmentState.DESTROYED,
+                EnvironmentState.ERROR,
+            },
             EnvironmentState.ERROR: {
                 EnvironmentState.TEARING_DOWN,
                 EnvironmentState.DESTROYING,
@@ -143,9 +154,11 @@ class EnvironmentStateManager(StateManager):
             EnvironmentState.DESTROYED: "Environment has been completely destroyed",
             EnvironmentState.ERROR: "Environment is in an error state",
         }
-        return descriptions.get(self.current_state, f"Unknown state: {self.current_state}")
+        return descriptions.get(
+            self.current_state, f"Unknown state: {self.current_state}"
+        )
 
-    def get_allowed_actions(self) -> set[str]:
+    def get_allowed_actions(self) -> Set[str]:
         """Get the set of allowed actions for the current state."""
         actions = {
             EnvironmentState.CREATED: {"initialize", "destroy"},
@@ -162,7 +175,7 @@ class EnvironmentStateManager(StateManager):
         }
         return actions.get(self.current_state, set())
 
-    def get_next_expected_states(self) -> set[BaseState]:
+    def get_next_expected_states(self) -> Set[BaseState]:
         """Get the expected next states for the current state."""
         if self.current_state == EnvironmentState.CREATED:
             return {EnvironmentState.INITIALIZING}

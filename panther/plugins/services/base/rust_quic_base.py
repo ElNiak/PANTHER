@@ -1,15 +1,15 @@
+from typing import Any, Dict
+
 """Base class for Rust QUIC implementations (quiche, quinn)."""
 
 from abc import abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Protocol
 
 from .quic_service_base import BaseQUICServiceManager
 
 
 class RustQUICServiceManager(BaseQUICServiceManager):
-    """Base class for Rust-based QUIC implementations.
-
-    Provides common functionality for Rust implementations like quiche and quinn
+    """Provides common functionality for Rust implementations like quiche and quinn.
     that share similar command patterns and capabilities.
     """
 

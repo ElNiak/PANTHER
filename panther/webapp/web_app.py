@@ -4,19 +4,15 @@ This module provides a Flask-based web interface for managing and running
 PANTHER experiments through a user-friendly web interface.
 """
 
-import os
 import logging
-from flask import (
-    Flask,
-    redirect,
-    request,
-    jsonify,
-)
+import os
+
+from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
 from omegaconf import OmegaConf
 
-from panther.config.config_global_schema import GlobalConfig
-from panther.config.config_manager import ConfigLoader
+from panther.config.core.models import GlobalConfig
+from panther.config.config_manager_enhanced import ConfigLoader
 from panther.core.experiment_manager import ExperimentManager
 
 
@@ -44,7 +40,9 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     app.config["experiment_manager"] = experiment_manager
 
     experiment_config = config_loader.load_and_validate_experiment_config()
-    print(f"Experiment Config: {OmegaConf.to_yaml(experiment_config)}")
+    # Convert Pydantic model to dict before using OmegaConf.to_yaml
+    experiment_config_dict = experiment_config.dict() if hasattr(experiment_config, 'dict') else experiment_config
+    print(f"Experiment Config: {OmegaConf.to_yaml(experiment_config_dict)}")
     app.config["experiment_config"] = experiment_config
     # Once we have the experiments configurations, we can initialize the experiment
     experiment_manager.initialize_experiments(experiment_config)
@@ -55,9 +53,9 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     app.logger.info("Flask app template - %s", app.template_folder)
 
     # Add Jinja helper functions
-    from panther.core.utils.jinja_manager import (
+    from panther.core.utils.jinja_manager import (  # pylint: disable=import-outside-toplevel
         JinjaManager,
-    )  # pylint: disable=import-outside-toplevel
+    )
 
     jinja_manager = JinjaManager(app.template_folder)
     app.jinja_env.globals["has_attr"] = jinja_manager.has_attr
@@ -92,11 +90,15 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
                     if test.name == test_name:
                         result = experiment_manager.run_test(test)
                         return jsonify({"status": "success", "result": result})
-                return jsonify({"status": "error", "message": f"Test {test_name} not found"})
+                return jsonify(
+                    {"status": "error", "message": f"Test {test_name} not found"}
+                )
             else:
                 # Run all tests
                 experiment_manager.run_tests()
-                return jsonify({"status": "success", "message": "Experiments completed"})
+                return jsonify(
+                    {"status": "success", "message": "Experiments completed"}
+                )
         except Exception as e:  # pylint: disable=broad-exception-caught
             logging.error("Error running experiment: %s", e)
             return jsonify({"status": "error", "message": str(e)})
@@ -112,7 +114,9 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
         """Return all available network and execution environments"""
         net_envs = config_loader.get_all_net_env_classes()
         exec_envs = config_loader.get_all_exec_env_classes()
-        return jsonify({"network_environments": net_envs, "execution_environments": exec_envs})
+        return jsonify(
+            {"network_environments": net_envs, "execution_environments": exec_envs}
+        )
 
     @app.route("/api/implementations", methods=["GET"])
     def get_implementations():
@@ -154,10 +158,14 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
 def run(config_loader: ConfigLoader, global_config: GlobalConfig, args):
     print("Running webapp")
-    app = create_app(config_loader=config_loader, global_config=global_config, args=args)
+    app = create_app(
+        config_loader=config_loader, global_config=global_config, args=args
+    )
 
     # Get configuration from environment variables for security
-    host = os.environ.get("PANTHER_WEBAPP_HOST", "127.0.0.1")  # Default to localhost only
+    host = os.environ.get(
+        "PANTHER_WEBAPP_HOST", "127.0.0.1"
+    )  # Default to localhost only
     port = int(os.environ.get("PANTHER_WEBAPP_PORT", "8080"))
     debug = os.environ.get("PANTHER_WEBAPP_DEBUG", "false").lower() == "true"
 

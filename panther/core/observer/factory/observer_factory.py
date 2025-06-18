@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 """
 Observer Factory Module
 
@@ -6,9 +8,8 @@ Core factory class for creating and managing observer instances.
 
 import logging
 from pathlib import Path
-from typing import Any
 
-from panther.config.config_observer_schema import ObserverConfig
+from panther.config.core.models import BaseObserverConfig
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.impl import (
@@ -22,6 +23,7 @@ from panther.core.observer.management.event_manager import EventManager
 
 class ObserverFactory:
     """
+
     Factory class for creating observer instances with enhanced capabilities.
 
     This factory provides a centralized way to create observers with proper
@@ -30,17 +32,17 @@ class ObserverFactory:
 
     def __init__(
         self,
-        event_manager: EventManager | None = None,
-        observer_config: ObserverConfig | None = None,
+        event_manager: Optional[EventManager] = None,
+        observer_config: Optional[BaseObserverConfig] = None,
     ):
         self.logger = logging.getLogger(__name__)
-        self._registered_types: dict[str, type[IObserver]] = {}  # Observer class types
-        self._observer_instances: dict[str, IObserver] = {}  # Named observer instances
-        self._configurations: dict[str, dict[str, Any]] = {}  # Observer configurations
+        self._registered_types: Dict[str, type[IObserver]] = {}  # Observer class types
+        self._observer_instances: Dict[str, IObserver] = {}  # Named observer instances
+        self._configurations: Dict[str, Dict[str, Any]] = {}  # Observer configurations
         self._event_manager = event_manager  # Event manager for registering observers
-        self._config_paths: list[Path] = []  # Paths of loaded configuration files
+        self._config_paths: List[Path] = []  # Paths of loaded configuration files
         self._observer_config = (
-            observer_config or ObserverConfig()
+            observer_config or BaseObserverConfig()
         )  # Global observer configuration
         self._initialize_default_observers()
 
@@ -74,9 +76,9 @@ class ObserverFactory:
     def create_observer(
         self,
         observer_type: str,
-        name: str | None = None,
+        name: Optional[str] = None,
         auto_register: bool = False,
-        event_types: list[str | Event] | None = None,
+        event_types: Optional[List[Union[str, Event]]] = None,
         priority: int = 0,
         **kwargs,
     ) -> IObserver:
@@ -175,7 +177,7 @@ class ObserverFactory:
             return True
         return False
 
-    def get_observer(self, name: str) -> IObserver | None:
+    def get_observer(self, name: str) -> Optional[IObserver]:
         """
         Get a registered observer by name.
 
@@ -187,7 +189,7 @@ class ObserverFactory:
         """
         return self._observer_instances.get(name, None)
 
-    def get_all_observers(self) -> dict[str, IObserver]:
+    def get_all_observers(self) -> Dict[str, IObserver]:
         """
         Get all registered observers.
 
@@ -196,12 +198,12 @@ class ObserverFactory:
         """
         return self._observer_instances.copy()
 
-    def get_available_types(self) -> list[str]:
+    def get_available_types(self) -> List[str]:
         """Get list of available observer types."""
         return list(self._registered_types.keys())
 
     def configure_observer_type(
-        self, observer_type: str, config: dict[str, Any]
+        self, observer_type: str, config: Dict[str, Any]
     ) -> None:
         """
         Configure default parameters for an observer type.
@@ -216,7 +218,7 @@ class ObserverFactory:
     def register_with_event_manager(
         self,
         observer: IObserver,
-        event_types: list[str | Event] | None = None,
+        event_types: Optional[List[Union[str, Event]]] = None,
         priority: int = 0,
     ) -> None:
         """
@@ -254,7 +256,7 @@ class ObserverFactory:
         self._event_manager.unregister_observer(observer)
         self.logger.debug("Unregistered observer from event manager")
 
-    def set_observer_config(self, observer_config: ObserverConfig) -> None:
+    def set_observer_config(self, observer_config: BaseObserverConfig) -> None:
         """
         Set the observer configuration for this factory.
 
@@ -322,7 +324,7 @@ def create_observer(observer_type: str, **kwargs) -> IObserver:
     return factory.create_observer(observer_type, **kwargs)
 
 
-def create_default_observers(config: dict[str, Any]) -> list[IObserver]:
+def create_default_observers(config: Dict[str, Any]) -> List[IObserver]:
     """Convenience function to create default observers."""
     from .factory_builders import create_default_observer_set
 

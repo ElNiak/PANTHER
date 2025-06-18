@@ -5,7 +5,7 @@ This module defines events specific to step execution and management.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Optional
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -29,14 +29,17 @@ class StepEvent(BaseEvent):
         event_type: StepEventType,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
-        data: dict[str, Any] | None = None,
+        test_case_id: Optional[str] = None,
+        data: Optional[Dict[str, Any]] = None,
     ):
         merged_data = data or {}
         merged_data.update({"step_name": step_name, "test_case_id": test_case_id})
 
         super().__init__(
-            name=event_type.value, entity_type=EventType.STEP, entity_id=step_id, data=merged_data
+            name=event_type.value,
+            entity_type=EventType.STEP,
+            entity_id=step_id,
+            data=merged_data,
         )
         self.event_type = event_type
         self.step_name = step_name
@@ -47,7 +50,7 @@ class StepEvent(BaseEvent):
         return self.data.get("step_name", "")
 
     @property
-    def test_case_id_property(self) -> str | None:
+    def test_case_id_property(self) -> Optional[str]:
         return self.data.get("test_case_id")
 
 
@@ -58,9 +61,9 @@ class StepExecutionStartedEvent(StepEvent):
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
-        step_config: dict[str, Any] | None = None,
-        prerequisites: list | None = None,
+        test_case_id: Optional[str] = None,
+        step_config: Optional[Dict[str, Any]] = None,
+        prerequisites: Optional[list] = None,
     ):
         super().__init__(
             event_type=StepEventType.EXECUTION_STARTED,
@@ -75,7 +78,7 @@ class StepExecutionStartedEvent(StepEvent):
         )
 
     @property
-    def step_config(self) -> dict[str, Any]:
+    def step_config(self) -> Dict[str, Any]:
         return self.data.get("step_config", {})
 
     @property
@@ -90,10 +93,10 @@ class StepExecutionCompletedEvent(StepEvent):
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
-        duration: float | None = None,
-        result: dict[str, Any] | None = None,
-        output: str | None = None,
+        test_case_id: Optional[str] = None,
+        duration: Optional[float] = None,
+        result: Optional[Dict[str, Any]] = None,
+        output: Optional[str] = None,
     ):
         super().__init__(
             event_type=StepEventType.EXECUTION_COMPLETED,
@@ -109,15 +112,15 @@ class StepExecutionCompletedEvent(StepEvent):
         )
 
     @property
-    def duration(self) -> float | None:
+    def duration(self) -> Optional[float]:
         return self.data.get("duration")
 
     @property
-    def result(self) -> dict[str, Any]:
+    def result(self) -> Dict[str, Any]:
         return self.data.get("result", {})
 
     @property
-    def output(self) -> str | None:
+    def output(self) -> Optional[str]:
         return self.data.get("output")
 
 
@@ -128,10 +131,10 @@ class StepExecutionFailedEvent(StepEvent):
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
+        test_case_id: Optional[str] = None,
         error_message: str = "",
-        error_details: dict[str, Any] | None = None,
-        duration: float | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
+        duration: Optional[float] = None,
         retry_count: int = 0,
     ):
         super().__init__(
@@ -153,11 +156,11 @@ class StepExecutionFailedEvent(StepEvent):
         return self.data.get("error_message", "")
 
     @property
-    def error_details(self) -> dict[str, Any]:
+    def error_details(self) -> Dict[str, Any]:
         return self.data.get("error_details", {})
 
     @property
-    def duration(self) -> float | None:
+    def duration(self) -> Optional[float]:
         return self.data.get("duration")
 
     @property
@@ -172,10 +175,10 @@ class StepProgressEvent(StepEvent):
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
-        progress_percentage: float | None = None,
+        test_case_id: Optional[str] = None,
+        progress_percentage: Optional[float] = None,
         progress_message: str = "",
-        current_operation: str | None = None,
+        current_operation: Optional[str] = None,
     ):
         super().__init__(
             event_type=StepEventType.PROGRESS,
@@ -191,7 +194,7 @@ class StepProgressEvent(StepEvent):
         )
 
     @property
-    def progress_percentage(self) -> float | None:
+    def progress_percentage(self) -> Optional[float]:
         return self.data.get("progress_percentage")
 
     @property
@@ -199,7 +202,7 @@ class StepProgressEvent(StepEvent):
         return self.data.get("progress_message", "")
 
     @property
-    def current_operation(self) -> str | None:
+    def current_operation(self) -> Optional[str]:
         return self.data.get("current_operation")
 
 
@@ -210,9 +213,9 @@ class StepUnsupportedEvent(StepEvent):
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
+        test_case_id: Optional[str] = None,
         reason: str = "",
-        alternative_steps: list | None = None,
+        alternative_steps: Optional[list] = None,
     ):
         super().__init__(
             event_type=StepEventType.UNSUPPORTED,
@@ -242,9 +245,9 @@ class StepSkippedEvent(StepEvent):
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
+        test_case_id: Optional[str] = None,
         skip_reason: str = "",
-        skip_condition: str | None = None,
+        skip_condition: Optional[str] = None,
     ):
         super().__init__(
             event_type=StepEventType.SKIPPED,
@@ -263,5 +266,5 @@ class StepSkippedEvent(StepEvent):
         return self.data.get("skip_reason", "")
 
     @property
-    def skip_condition(self) -> str | None:
+    def skip_condition(self) -> Optional[str]:
         return self.data.get("skip_condition")

@@ -1,21 +1,25 @@
-from dataclasses import dataclass, field
 import logging
 import os
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Dict, List, Optional
 
 from omegaconf import OmegaConf
 
-from panther.plugins.services.iut.config_schema import ImplementationConfig, VersionBase
-from panther.plugins.services.iut.config_schema import ImplementationType
+from panther.config.core.models import (
+    ImplementationConfig,
+    ImplementationType,
+    VersionBase,
+)
 
 
 @dataclass
 class PicoquicShadowVersion(VersionBase):
     version: str = ""
     commit: str = ""
-    dependencies: list[dict[str, str]] = field(default_factory=list)
-    client: dict | None = field(default_factory=dict)
-    server: dict | None = field(default_factory=dict)
+    dependencies: List[Dict[str, str]] = field(default_factory=list)
+    client: Optional[dict] = field(default_factory=dict)
+    server: Optional[dict] = field(default_factory=dict)
 
 
 @dataclass
@@ -50,7 +54,9 @@ class PicoquicShadowConfig(ImplementationConfig):
             if version_file.endswith(".yaml"):
                 version_path = os.path.join(version_configs_dir, version_file)
                 raw_version_config = OmegaConf.load(version_path)
-                logging.debug(f"Loaded raw PicoquicShadow version config: {raw_version_config}")
+                logging.debug(
+                    f"Loaded raw PicoquicShadow version config: {raw_version_config}"
+                )
                 version_config = OmegaConf.to_object(
                     OmegaConf.merge(PicoquicShadowVersion, raw_version_config)
                 )

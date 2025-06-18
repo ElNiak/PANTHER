@@ -1,10 +1,10 @@
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 """
 Environment Event Emitter
 
 This module provides typed event emission for environment lifecycle events.
 """
-
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
@@ -35,6 +35,7 @@ from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 
 class EnvironmentEventEmitter:
     """
+
     Type-safe event emitter for environment-related events.
 
     This class provides methods for emitting all environment lifecycle events
@@ -55,7 +56,7 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        environment_config: dict[str, Any] | None = None,
+        environment_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment created event.
@@ -79,7 +80,7 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        initialization_config: dict[str, Any] | None = None,
+        initialization_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment initialization started event.
@@ -107,8 +108,8 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        duration_seconds: float | None = None,
-        initialization_details: dict[str, Any] | None = None,
+        duration_seconds: Optional[float] = None,
+        initialization_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment initialization completed event.
@@ -135,8 +136,8 @@ class EnvironmentEventEmitter:
         environment_name: str,
         environment_type: str,
         error_message: str,
-        error_type: str | None = None,
-        error_details: dict[str, Any] | None = None,
+        error_type: Optional[str] = None,
+        error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment initialization failed event.
@@ -163,7 +164,7 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        setup_config: dict[str, Any] | None = None,
+        setup_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment setup started event.
@@ -187,8 +188,8 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        duration_seconds: float | None = None,
-        setup_details: dict[str, Any] | None = None,
+        duration_seconds: Optional[float] = None,
+        setup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment setup completed event.
@@ -215,8 +216,8 @@ class EnvironmentEventEmitter:
         environment_name: str,
         environment_type: str,
         error_message: str,
-        error_type: str | None = None,
-        failed_component: str | None = None,
+        error_type: Optional[str] = None,
+        failed_component: Optional[str] = None,
     ) -> None:
         """
         Emit an environment setup failed event.
@@ -242,8 +243,8 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        readiness_checks: dict[str, bool] | None = None,
-        resources: dict[str, Any] | None = None,
+        readiness_checks: Optional[Dict[str, bool]] = None,
+        resources: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment ready event.
@@ -268,7 +269,7 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        reason: str | None = None,
+        reason: Optional[str] = None,
     ) -> None:
         """
         Emit an environment teardown started event.
@@ -291,8 +292,8 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        duration_seconds: float | None = None,
-        cleanup_details: dict[str, Any] | None = None,
+        duration_seconds: Optional[float] = None,
+        cleanup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment teardown completed event.
@@ -319,8 +320,8 @@ class EnvironmentEventEmitter:
         environment_name: str,
         environment_type: str,
         error_message: str,
-        error_type: str | None = None,
-        partial_cleanup: bool | None = None,
+        error_type: Optional[str] = None,
+        partial_cleanup: Optional[bool] = None,
     ) -> None:
         """
         Emit an environment teardown failed event.
@@ -346,7 +347,7 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        cleanup_summary: dict[str, Any] | None = None,
+        cleanup_summary: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment destroyed event.
@@ -371,8 +372,8 @@ class EnvironmentEventEmitter:
         environment_name: str,
         environment_type: str,
         error_message: str,
-        error_type: str | None = None,
-        error_details: dict[str, Any] | None = None,
+        error_type: Optional[str] = None,
+        error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment error event.
@@ -417,7 +418,7 @@ class EnvironmentEventEmitter:
         environment_type: str,
         resource_type: str,
         resource_action: str,
-        resource_details: dict[str, Any] | None = None,
+        resource_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit an environment resource event.
@@ -446,8 +447,8 @@ class EnvironmentEventEmitter:
         environment_name: str,
         environment_type: str,
         configuration_action: str,
-        configuration: dict[str, Any],
-        validation_result: bool | None = None,
+        configuration: Dict[str, Any],
+        validation_result: Optional[bool] = None,
     ) -> None:
         """
         Emit an environment configuration event.
@@ -474,8 +475,8 @@ class EnvironmentEventEmitter:
         environment_name: str,
         environment_type: str,
         monitoring_type: str,
-        metrics: dict[str, Any],
-        timestamp: str | None = None,
+        metrics: Dict[str, Any],
+        timestamp: Optional[str] = None,
     ) -> None:
         """
         Emit an environment monitoring event.
@@ -501,8 +502,8 @@ class EnvironmentEventEmitter:
         self,
         environment_type: str,
         environment_name: str,
-        config: dict[str, Any] | None = None,
-        duration_seconds: float | None = None,
+        config: Optional[Dict[str, Any]] = None,
+        duration_seconds: Optional[float] = None,
     ) -> None:
         """
         Emit environment initialized event (compatibility wrapper).
@@ -528,10 +529,7 @@ class EnvironmentEventEmitter:
         )
 
     def emit_environment_teardown(
-        self,
-        environment_type: str,
-        environment_name: str,
-        reason: str | None = None,
+        self, environment_type: str, environment_name: str, reason: Optional[str] = None
     ) -> None:
         """
         Emit environment teardown event (compatibility wrapper).
@@ -559,8 +557,8 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        services: list[str],
-        deployment_config: dict[str, Any] | None = None,
+        services: List[str],
+        deployment_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit environment deployment started event.
@@ -589,9 +587,9 @@ class EnvironmentEventEmitter:
         environment_name: str,
         environment_type: str,
         success: bool,
-        deployed_services: dict[str, str],
+        deployed_services: Dict[str, str],
         duration: float,
-        deployment_details: dict[str, Any] | None = None,
+        deployment_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit environment deployment completed event.
@@ -625,8 +623,8 @@ class EnvironmentEventEmitter:
         environment_type: str,
         error_message: str,
         error_type: str = "deployment_error",
-        failed_services: list[str] | None = None,
-        error_details: dict[str, Any] | None = None,
+        failed_services: Optional[List[str]] = None,
+        error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit environment deployment failed event.
@@ -658,8 +656,8 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        collection_targets: list[str] | None = None,
-        collection_config: dict[str, Any] | None = None,
+        collection_targets: Optional[List[str]] = None,
+        collection_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit output collection started event.
@@ -687,8 +685,8 @@ class EnvironmentEventEmitter:
         environment_type: str,
         output_type: str,
         output_path: str,
-        output_size: int | None = None,
-        metadata: dict[str, Any] | None = None,
+        output_size: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit output collected event.
@@ -718,10 +716,10 @@ class EnvironmentEventEmitter:
         environment_id: str,
         environment_name: str,
         environment_type: str,
-        outputs: dict[str, str],
+        outputs: Dict[str, str],
         total_outputs: int,
         collection_duration: float,
-        collection_summary: dict[str, Any] | None = None,
+        collection_summary: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit output collection completed event.
@@ -753,7 +751,7 @@ class EnvironmentEventEmitter:
         environment_type: str,
         error_message: str,
         error_type: str = "collection_error",
-        error_details: dict[str, Any] | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit output collection failed event.

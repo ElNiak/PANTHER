@@ -1,3 +1,4 @@
+from typing import Dict, List
 #!/usr/bin/env python3
 """
 Documentation Structure Validation Script
@@ -12,15 +13,14 @@ Validates the new PANTHER documentation structure for:
 import re
 from pathlib import Path
 
-
 class DocumentationValidator:
     def __init__(self, panther_root: Path):
         self.panther_root = panther_root
         self.plugins_root = panther_root / "plugins"
-        self.errors: list[str] = []
-        self.warnings: list[str] = []
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
 
-    def validate_all(self) -> dict[str, bool]:
+    def validate_all(self) -> Dict[str, bool]:
         """Run all validation checks."""
         results = {
             "file_structure": self.validate_file_structure(),
@@ -140,7 +140,7 @@ class DocumentationValidator:
 
         return success
 
-    def report_results(self, results: dict[str, bool]) -> None:
+    def report_results(self, results: Dict[str, bool]) -> None:
         """Print validation results."""
         print("🔍 PANTHER Documentation Validation Results")
         print("=" * 50)
@@ -165,7 +165,6 @@ class DocumentationValidator:
         overall_success = all(results.values()) and not self.errors
         return overall_success
 
-
 def main():
     """Main validation entry point."""
     panther_root = Path(__file__).parent / "panther"
@@ -179,7 +178,6 @@ def main():
     success = validator.report_results(results)
 
     return success
-
 
 if __name__ == "__main__":
     success = main()

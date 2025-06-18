@@ -1,18 +1,22 @@
+from typing import Any, Dict, List, Optional, Union
+
 """Service-specific command building utilities."""
 
 import logging
+import os
 import shlex
+import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from panther.core.command_processor.command import ShellCommand
 from panther.core.command_processor.command_utils import CommandUtils
+from panther.core.exceptions.fast_fail import CertificateException
 
 
 class ServiceCommandBuilder:
-    """Centralized command building utilities for service plugins.
-
-    This class provides high-level methods specifically for building service
+    """This class provides high-level methods specifically for building service.
     commands, reducing duplication across service implementations.
     """
 
@@ -149,17 +153,17 @@ class ServiceCommandBuilder:
 
         # Add compilation commands
         if pre_compile_cmds:
-            command_dict[
-                "pre_compile_cmds"
-            ] = CommandUtils.create_shell_commands_from_list(pre_compile_cmds)
+            command_dict["pre_compile_cmds"] = (
+                CommandUtils.create_shell_commands_from_list(pre_compile_cmds)
+            )
 
         if compile_cmd:
             command_dict["compile_cmds"] = [ShellCommand.from_string(compile_cmd)]
 
         if post_compile_cmds:
-            command_dict[
-                "post_compile_cmds"
-            ] = CommandUtils.create_shell_commands_from_list(post_compile_cmds)
+            command_dict["post_compile_cmds"] = (
+                CommandUtils.create_shell_commands_from_list(post_compile_cmds)
+            )
 
         # Add pre-run commands
         if pre_run_cmds:
@@ -178,9 +182,9 @@ class ServiceCommandBuilder:
 
         # Add post-run commands
         if post_run_cmds:
-            command_dict[
-                "post_run_cmds"
-            ] = CommandUtils.create_shell_commands_from_list(post_run_cmds)
+            command_dict["post_run_cmds"] = (
+                CommandUtils.create_shell_commands_from_list(post_run_cmds)
+            )
 
         # Validate the structure
         CommandUtils.validate_command_structure(command_dict)
@@ -251,9 +255,7 @@ class ServiceCommandBuilder:
 
     @staticmethod
     def create_network_namespace_command(
-        command: str,
-        namespace: str,
-        use_sudo: bool = True,
+        command: str, namespace: str, use_sudo: bool = True
     ) -> str:
         """Wrap a command to run in a network namespace.
 
@@ -300,3 +302,252 @@ class ServiceCommandBuilder:
 
         parts.append(command)
         return " ".join(parts)
+
+    @staticmethod
+    def validate_certificate(cert_path: str, key_path: Optional[str] = None) -> bool:
+        """Validate certificate files exist and are valid.
+
+        Args:
+            cert_path: Path to certificate file
+            key_path: Optional path to key file
+
+        Returns:
+            True if valid
+
+        Raises:
+            CertificateException: If certificate validation fails
+        """
+        # Check certificate file exists
+        if not os.path.exists(cert_path):
+            raise CertificateException(
+                f"Certificate file not found: {cert_path}",
+                cert_path,
+                "Certificate file does not exist",
+            )
+
+        # Check certificate file is readable
+        if not os.access(cert_path, os.R_OK):
+            raise CertificateException(
+                f"Certificate file not readable: {cert_path}",
+                cert_path,
+                "Insufficient permissions to read certificate",
+            )
+
+        # Validate certificate format and expiration using OpenSSL
+        try:
+            # Check certificate validity
+            result = subprocess.run(
+                ["openssl", "x509", "-in", cert_path, "-noout", "-checkend", "0"],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode != 0:
+                # Certificate is expired or invalid
+                # Get expiration date for better error message
+                date_result = subprocess.run(
+                    ["openssl", "x509", "-in", cert_path, "-noout", "-enddate"],
+                    capture_output=True,
+                    text=True,
+                )
+                expiry_info = (
+                    date_result.stdout.strip()
+                    if date_result.returncode == 0
+                    else "unknown"
+                )
+
+                raise CertificateException(
+                    f"Certificate is expired or invalid: {cert_path}",
+                    cert_path,
+                    f"Certificate validation failed. {expiry_info}",
+                )
+
+            # Verify certificate format
+            format_result = subprocess.run(
+                ["openssl", "x509", "-in", cert_path, "-noout", "-text"],
+                capture_output=True,
+                text=True,
+            )
+
+            if format_result.returncode != 0:
+                raise CertificateException(
+                    f"Invalid certificate format: {cert_path}",
+                    cert_path,
+                    f"OpenSSL cannot parse certificate: {format_result.stderr}",
+                )
+
+        except subprocess.SubprocessError as e:
+            raise CertificateException(
+                f"Failed to validate certificate: {cert_path}",
+                cert_path,
+                f"OpenSSL command failed: {str(e)}",
+            )
+        except FileNotFoundError:
+            raise CertificateException(
+                "OpenSSL not found - cannot validate certificates",
+                cert_path,
+                "OpenSSL binary not found in PATH",
+            )
+
+        # Validate key file if provided
+        if key_path:
+            if not os.path.exists(key_path):
+                raise CertificateException(
+                    f"Key file not found: {key_path}",
+                    key_path,
+                    "Private key file does not exist",
+                )
+
+            if not os.access(key_path, os.R_OK):
+                raise CertificateException(
+                    f"Key file not readable: {key_path}",
+                    key_path,
+                    "Insufficient permissions to read private key",
+                )
+
+            # Validate key format
+            try:
+                key_result = subprocess.run(
+                    ["openssl", "rsa", "-in", key_path, "-check", "-noout"],
+                    capture_output=True,
+                    text=True,
+                )
+
+                if key_result.returncode != 0:
+                    raise CertificateException(
+                        f"Invalid private key: {key_path}",
+                        key_path,
+                        f"Key validation failed: {key_result.stderr}",
+                    )
+
+                # Verify certificate and key match
+                cert_modulus = subprocess.run(
+                    ["openssl", "x509", "-in", cert_path, "-modulus", "-noout"],
+                    capture_output=True,
+                    text=True,
+                )
+
+                key_modulus = subprocess.run(
+                    ["openssl", "rsa", "-in", key_path, "-modulus", "-noout"],
+                    capture_output=True,
+                    text=True,
+                )
+
+                if cert_modulus.stdout != key_modulus.stdout:
+                    raise CertificateException(
+                        "Certificate and key do not match",
+                        cert_path,
+                        f"Certificate/key pair mismatch for {cert_path} and {key_path}",
+                    )
+
+            except subprocess.SubprocessError as e:
+                raise CertificateException(
+                    f"Failed to validate key: {key_path}",
+                    key_path,
+                    f"OpenSSL command failed: {str(e)}",
+                )
+
+        return True
+
+    @staticmethod
+    def build_quic_command_with_validation(
+        binary: str,
+        role: str,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        certs: Optional[Dict[str, str]] = None,
+        version: Optional[str] = None,
+        extra_args: Optional[List[str]] = None,
+        validate_certs: bool = True,
+        **kwargs,
+    ) -> str:
+        """Build a QUIC command with certificate validation.
+
+        This is a wrapper around build_quic_command that adds certificate
+        validation before building the command.
+
+        Args:
+            binary: Binary name/path
+            role: 'client' or 'server'
+            host: Target host (for client)
+            port: Port number
+            certs: Certificate paths dict with 'cert_file', 'key_file', 'cert_dir'
+            version: QUIC version
+            extra_args: Additional arguments
+            validate_certs: Whether to validate certificates
+            **kwargs: Other implementation-specific arguments
+
+        Returns:
+            Complete command string
+
+        Raises:
+            CertificateException: If certificate validation fails
+        """
+        # Validate certificates if enabled and role is server
+        if validate_certs and role == "server" and certs:
+            cert_file = certs.get("cert_file")
+            key_file = certs.get("key_file")
+
+            if cert_file:
+                ServiceCommandBuilder.validate_certificate(cert_file, key_file)
+
+        # Build the command normally
+        return ServiceCommandBuilder.build_quic_command(
+            binary=binary,
+            role=role,
+            host=host,
+            port=port,
+            certs=certs,
+            version=version,
+            extra_args=extra_args,
+            **kwargs,
+        )
+
+    @staticmethod
+    def create_certificate_generation_command_with_validation(
+        cert_dir: str,
+        cert_name: str = "cert",
+        key_name: str = "key",
+        common_name: str = "localhost",
+        days: int = 365,
+        validate_dir: bool = True,
+    ) -> str:
+        """Create certificate generation command with directory validation.
+
+        Args:
+            cert_dir: Directory to store certificates
+            cert_name: Certificate file name (without extension)
+            key_name: Key file name (without extension)
+            common_name: Common name for the certificate
+            days: Certificate validity in days
+            validate_dir: Whether to validate the directory exists
+
+        Returns:
+            OpenSSL command string
+
+        Raises:
+            CertificateException: If directory validation fails
+        """
+        if validate_dir:
+            cert_path = Path(cert_dir)
+            if not cert_path.exists():
+                raise CertificateException(
+                    f"Certificate directory does not exist: {cert_dir}",
+                    cert_dir,
+                    "Directory must exist before generating certificates",
+                )
+
+            if not os.access(cert_dir, os.W_OK):
+                raise CertificateException(
+                    f"Certificate directory not writable: {cert_dir}",
+                    cert_dir,
+                    "Insufficient permissions to write certificates",
+                )
+
+        return ServiceCommandBuilder.create_certificate_generation_command(
+            cert_dir=cert_dir,
+            cert_name=cert_name,
+            key_name=key_name,
+            common_name=common_name,
+            days=days,
+        )

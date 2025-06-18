@@ -1,3 +1,5 @@
+from typing import Any, List
+
 """
 Plugin Observer Factory Module
 
@@ -7,7 +9,6 @@ plugin observers based on plugin interfaces.
 
 import inspect
 import logging
-from typing import Any
 
 from panther.core.events.base.event_base import BaseEvent as Event
 
@@ -16,6 +17,7 @@ from .plugin_interface import IPluginObserver
 
 class PluginObserverFactory:
     """
+
     Factory for creating plugin observers.
 
     This factory automatically generates observers based on plugin interfaces
@@ -95,7 +97,7 @@ class PluginObserverFactory:
             if plugin:
                 self._handle_plugin_event(plugin, event)
 
-    def _extract_event_interests(self, plugin: Any) -> list[str]:
+    def _extract_event_interests(self, plugin: Any) -> List[str]:
         """
         Extract event interests from a plugin.
 
@@ -179,7 +181,7 @@ class _PluginObserver(IPluginObserver):
         """
         self.factory.route_event(event)
 
-    def register_plugin_events(self, plugin_id: str, event_types: list[str]) -> None:
+    def register_plugin_events(self, plugin_id: str, event_types: List[str]) -> None:
         """Register event types for a plugin."""
         for event_type in event_types:
             if event_type not in self.factory._event_plugins:
@@ -195,11 +197,11 @@ class _PluginObserver(IPluginObserver):
         """Unregister a plugin."""
         self.factory.unregister_plugin(plugin_id)
 
-    def get_plugin_events(self, plugin_id: str) -> list[str]:
+    def get_plugin_events(self, plugin_id: str) -> List[str]:
         """Get events a plugin is interested in."""
         return self.factory._plugin_events.get(plugin_id, [])
 
-    def get_plugins_for_event(self, event_type: str) -> list[str]:
+    def get_plugins_for_event(self, event_type: str) -> List[str]:
         """Get plugins interested in an event type."""
         return self.factory._event_plugins.get(event_type, [])
 

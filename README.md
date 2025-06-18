@@ -98,27 +98,33 @@ For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 5. [Core](panther/core/README.md)
 6. [Web Application Workflows](panther/webapp/README.md)
 
+### System Features
+
+7. [Fast-Fail System](FAST_FAIL_SYSTEM.md) - Intelligent experiment termination and error handling
+8. [Experiment Reporting](EXPERIMENT_REPORTING.md) - Automatic generation of experiment reports and status summaries
+9. [Configuration Management](panther/config/README.md) - Advanced configuration validation, auto-fixing, and protocol-aware port management
+
 ### Plugins
 
-7. [Overview](panther/plugins/README.md)
-8. [Inventory](panther/plugins/plugins_inventory.md)
-9. **Environment Plugins**
+10. [Overview](panther/plugins/README.md)
+11. [Inventory](panther/plugins/plugins_inventory.md)
+12. **Environment Plugins**
    * [Overview](panther/plugins/environments/README.md)
    * [Network Environment](panther/plugins/environments/network_environment/README.md)
    * [Execution Environment](panther/plugins/environments/execution_environment/README.md)
-10. **Protocol Plugins**
+13. **Protocol Plugins**
     * [Overview](panther/plugins/protocols/README.md)
     * [Client-Server Protocols](panther/plugins/protocols/client_server/README.md)
     * [Peer-to-Peer Protocols](panther/plugins/protocols/peer_to_peer/README.md)
-11. **Service Plugins**
+14. **Service Plugins**
     * [Overview](panther/plugins/services/README.md)
     * [Implementation Under Tests (IUTs)](panther/plugins/services/iut/README.md)
     * [Testing Services](panther/plugins/services/testers/README.md)
 
 ### Developer Guide
 
-12. [Contributing](CONTRIBUTING.md)
-13. **Plugin Development**
+15. [Contributing](CONTRIBUTING.md)
+16. **Plugin Development**
     * [Overview](panther/plugins/development.md)
     * **Environment Plugins**
       * [Overview](panther/plugins/environments/development.md)
@@ -132,9 +138,9 @@ For detailed workflow documentation, see [WORKFLOW.md](WORKFLOW.md).
 
 ### Project Information
 
-14. [Changelog](CHANGELOG.md)
-15. [License](LICENSE.md)
-16. [Code Reference](https://elniak.github.io/PANTHER/panther/)
+17. [Changelog](CHANGELOG.md)
+18. [License](LICENSE.md)
+19. [Code Reference](https://elniak.github.io/PANTHER/panther/)
 
 
 ## Documentation

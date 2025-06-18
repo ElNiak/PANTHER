@@ -5,7 +5,7 @@ This module defines states for metrics collection and monitoring.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Optional
 
 from panther.core.events.base.state_base import BaseState
 
@@ -30,7 +30,7 @@ class MetricsCollectionState(BaseState):
         self,
         entity_id: str,
         state: MetricsState = MetricsState.COLLECTING,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize metrics collection state.

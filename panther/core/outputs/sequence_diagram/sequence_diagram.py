@@ -1,3 +1,6 @@
+import sys
+
+
 class SequenceOn:
     autonumber = True
     init_done = False

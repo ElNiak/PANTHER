@@ -1,3 +1,5 @@
+from typing import Any, Callable, Optional, TypeVar, Union, cast
+
 """
 Debug utility tools for PANTHER framework.
 """
@@ -5,20 +7,20 @@ Debug utility tools for PANTHER framework.
 import functools
 import logging
 import time
-from pathlib import Path
-from typing import Any, TypeVar, cast
 from collections.abc import Callable
+from pathlib import Path
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 
 class DebugTools:
     """
+
     Debug tools for tracing and monitoring event flow and plugin integration.
     """
 
     @staticmethod
-    def trace_method_calls(logger: logging.Logger | None = None) -> Callable[[F], F]:
+    def trace_method_calls(logger: logging.Optional[Logger] = None) -> Callable[[F], F]:
         """
         Decorator to trace method calls with args, kwargs, and return values.
 
@@ -115,7 +117,9 @@ class DebugTools:
 
         # Create plugin log handler
         plugin_handler = logging.FileHandler(log_dir / "plugins.log")
-        plugin_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        plugin_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         plugin_handler.setFormatter(plugin_formatter)
         plugin_handler.setLevel(logging.DEBUG)
 

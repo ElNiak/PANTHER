@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.absolute()))
 
 from panther.plugins.services.testers.panther_ivy.panther_ivy import PantherIvyServiceManager
-from panther.plugins.protocols.config_schema import RoleEnum
+from panther.config.core.models import ProtocolRole
 from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
 
 
@@ -20,21 +20,11 @@ class MockConfig:
 
 
 # Create mock objects
-protocol_config = MockConfig(name="quic", role=RoleEnum.client)
+protocol_config = MockConfig(name="quic", role=ProtocolRole.CLIENT)
 
 service_config = PantherIvyConfig(
-    implementation=MockConfig(
-        test="test_command",
-        use_system_models=True,
-        environment={},
-        parameters=MockConfig(
-            log_level="INFO",
-            internal_iterations_per_test=MockConfig(value=10),
-            tests_build_dir=MockConfig(value="build"),
-        ),
-        version=MockConfig(name="test", env={}, parameters={"tests_dir": {"value": "tests"}}),
-    ),
-    timeout=100,
+    test="test_command",
+    use_system_models=True,
 )
 
 

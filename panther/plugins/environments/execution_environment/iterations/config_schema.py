@@ -1,29 +1,42 @@
-from dataclasses import dataclass, field
+from typing import List
 
-from panther.plugins.environments.execution_environment.config_schema import (
-    ExecutionEnvironmentConfig,
-)
+from pydantic import Field
+
+from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
 
 
-@dataclass
-class IterationsConfig(ExecutionEnvironmentConfig):
+class IterationsConfig(ExecutionEnvironmentPluginConfig):
     """
     IterationsConfig is a configuration class for setting up and running multiple test iterations.
-
-    Attributes:
-        iterations (int): Number of times to repeat the test. Default is 1.
-        parallel (bool): Whether to run iterations in parallel. Default is False.
-        vary_parameters (bool): Whether to vary parameters between iterations. Default is False.
-        parameter_sets (list): Sets of parameters to use for different iterations. Default is empty list.
-        aggregate_results (bool): Whether to aggregate results across iterations. Default is True.
-        delay_between_iterations (int): Delay in seconds between iterations. Default is 0.
     """
 
-    iterations: int = 1  # Number of times to repeat the test
-    parallel: bool = False  # Whether to run iterations in parallel
-    vary_parameters: bool = False  # Whether to vary parameters between iterations
-    parameter_sets: list[dict] = field(
-        default_factory=list
-    )  # Sets of parameters for different iterations
-    aggregate_results: bool = True  # Whether to aggregate results across iterations
-    delay_between_iterations: int = 0  # Delay in seconds between iterations
+    # Plugin type
+    type: str = Field(
+        default="iterations",
+        description="Execution environment type"
+    )
+    
+    iterations: int = Field(
+        default=1,
+        description="Number of times to repeat the test"
+    )
+    parallel: bool = Field(
+        default=False,
+        description="Whether to run iterations in parallel"
+    )
+    vary_parameters: bool = Field(
+        default=False,
+        description="Whether to vary parameters between iterations"
+    )
+    parameter_sets: List[dict] = Field(
+        default_factory=list,
+        description="Sets of parameters to use for different iterations"
+    )
+    aggregate_results: bool = Field(
+        default=True,
+        description="Whether to aggregate results across iterations"
+    )
+    delay_between_iterations: int = Field(
+        default=0,
+        description="Delay in seconds between iterations"
+    )

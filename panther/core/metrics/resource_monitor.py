@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Resource Monitor Module
 
@@ -5,11 +7,14 @@ This module provides system resource monitoring capabilities during
 experiment execution, tracking CPU, memory, disk I/O, and network usage.
 """
 
-import time
-import psutil
-import threading
 import logging
+import threading
+import time
 from dataclasses import dataclass
+from typing import List, Optional, Union
+
+import psutil
+
 from .metrics_collector import MetricsCollector, MetricType, Phase
 
 
@@ -27,7 +32,7 @@ class ResourceSnapshot:
     network_sent_mb: float
     network_recv_mb: float
     process_count: int
-    load_average: list[float]
+    load_average: List[float]
 
 
 class ResourceMonitor:
@@ -58,9 +63,9 @@ class ResourceMonitor:
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.monitoring = False
-        self.monitor_thread: threading.Thread | None = None
-        self.initial_disk_io: dict | None = None
-        self.initial_network_io: dict | None = None
+        self.monitor_thread: threading.Optional[Thread] = None
+        self.initial_disk_io: Optional[dict] = None
+        self.initial_network_io: Optional[dict] = None
 
         # Store baseline measurements
         self._record_baseline_metrics()
@@ -101,13 +106,15 @@ class ResourceMonitor:
             )
 
             self.logger.debug(
-                "Baseline metrics recorded: %s CPUs, %sMB RAM", cpu_count, f"{memory_total:.0f}"
+                "Baseline metrics recorded: %s CPUs, %sMB RAM",
+                cpu_count,
+                f"{memory_total:.0f}",
             )
 
         except Exception as e:
             self.logger.error("Failed to record baseline metrics: %s", e)
 
-    def start(self, phase: Phase | None = None) -> None:
+    def start(self, phase: Optional[Phase] = None) -> None:
         """
         Start resource monitoring.
 
@@ -143,7 +150,7 @@ class ResourceMonitor:
     # The start_monitoring and stop_monitoring methods have been merged with start() and stop()
     # to avoid duplication and prevent runtime errors
 
-    def _monitor_loop(self, phase: Phase | None) -> None:
+    def _monitor_loop(self, phase: Optional[Phase]) -> None:
         """Main monitoring loop running in separate thread."""
         self.logger.debug("Resource monitoring loop started")
 
@@ -182,12 +189,12 @@ class ResourceMonitor:
         disk_read_mb = 0
         disk_write_mb = 0
         if disk_io and self.initial_disk_io:
-            disk_read_mb = (disk_io.read_bytes - self.initial_disk_io.get("read_bytes", 0)) / (
-                1024 * 1024
-            )
-            disk_write_mb = (disk_io.write_bytes - self.initial_disk_io.get("write_bytes", 0)) / (
-                1024 * 1024
-            )
+            disk_read_mb = (
+                disk_io.read_bytes - self.initial_disk_io.get("read_bytes", 0)
+            ) / (1024 * 1024)
+            disk_write_mb = (
+                disk_io.write_bytes - self.initial_disk_io.get("write_bytes", 0)
+            ) / (1024 * 1024)
 
         # Network I/O
         network_io = psutil.net_io_counters()
@@ -226,7 +233,9 @@ class ResourceMonitor:
             load_average=load_average,
         )
 
-    def _record_snapshot_metrics(self, snapshot: ResourceSnapshot, phase: Phase | None) -> None:
+    def _record_snapshot_metrics(
+        self, snapshot: ResourceSnapshot, phase: Optional[Phase]
+    ) -> None:
         """Record snapshot metrics to the collector."""
         timestamp = snapshot.timestamp
 
@@ -317,7 +326,7 @@ class ResourceMonitor:
                 component="resource_monitor",
             )
 
-    def _record_process_metrics(self, phase: Phase | None) -> None:
+    def _record_process_metrics(self, phase: Optional[Phase]) -> None:
         """Record detailed per-process metrics for high-resource processes."""
         try:
             # Get top CPU and memory consuming processes
@@ -339,7 +348,9 @@ class ResourceMonitor:
                     continue
 
             # Sort by CPU usage and take top 10
-            top_cpu_processes = sorted(processes, key=lambda x: x["cpu_percent"], reverse=True)[:10]
+            top_cpu_processes = sorted(
+                processes, key=lambda x: x["cpu_percent"], reverse=True
+            )[:10]
 
             for i, proc in enumerate(top_cpu_processes):
                 self.metrics_collector.record_metric(
@@ -355,7 +366,11 @@ class ResourceMonitor:
                     },
                 )
 
-                memory_mb = proc["memory_info"].rss / (1024 * 1024) if proc["memory_info"] else 0
+                memory_mb = (
+                    proc["memory_info"].rss / (1024 * 1024)
+                    if proc["memory_info"]
+                    else 0
+                )
                 self.metrics_collector.record_metric(
                     name="top_process_memory_mb",
                     metric_type=MetricType.GAUGE,
@@ -381,8 +396,8 @@ class ResourceMonitor:
         name: str,
         value: float,
         unit: str = "",
-        phase: Phase | None = None,
-        test_case: str | None = None,
+        phase: Optional[Phase] = None,
+        test_case: Optional[str] = None,
     ) -> None:
         """
         Record a custom resource-related metric.

@@ -18,6 +18,17 @@ This network environment plugin is essential for:
 - Enabling automated testing across multiple containers
 - Supporting complex service configurations with defined networking
 
+### Docker Build Workflow
+
+The Docker Compose environment implements a streamlined Docker build process:
+
+1. **Service Image Building**: Builds individual service images from their respective Dockerfiles
+2. **Docker Compose Orchestration**: Generates docker-compose.yml with proper service definitions
+3. **Network Configuration**: Sets up isolated networks for service communication
+4. **Volume Management**: Handles shared volumes for logs, certificates, and synchronization
+
+The environment leverages the service-specific Docker operations through service managers while maintaining its own orchestration logic.
+
 ## Requirements and Dependencies
 
 The plugin requires:

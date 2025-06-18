@@ -7,16 +7,18 @@ MiniP protocol functionality within the PANTHER framework.
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
-from panther.plugins.services.iut.implementation_interface import IImplementationManager
-from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
-from panther.plugins.plugin_decorators import register_plugin
-from panther.plugins.services.service_manager_utils import IUTServiceManagerMixin
-from panther.core.utils import (
-    ServiceManagerDockerMixin,
-    ErrorHandlerMixin,
-)
 from panther.core.command_processor.command_builder import ServiceCommandBuilder
+from panther.core.docker_builder.service_manager_docker_mixin import (
+    ServiceManagerDockerMixin,
+)
+from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
+from panther.plugins.plugin_decorators import register_plugin
+from panther.config.core.models import ProtocolConfig, ProtocolRole
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
+from panther.plugins.services.iut.iut_service_manager_mixin import (
+    IUTServiceManagerMixin,
+)
+from panther.plugins.services.iut.minip.ping_pong.config_schema import PingPongConfig
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -34,9 +36,14 @@ if TYPE_CHECKING:
     external_dependencies=["docker"],
 )
 class PingPongServiceManager(
-    IUTServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, IImplementationManager
+    IUTServiceManagerMixin,
+    ServiceManagerDockerMixin,
+    ErrorHandlerMixin,
+    IImplementationManager,
 ):
-    """Service manager for Ping-Pong protocol implementation."""
+    """
+    Service manager for Ping-Pong protocol implementation.
+    """
 
     def __init__(
         self,
@@ -47,7 +54,11 @@ class PingPongServiceManager(
         event_manager=None,
     ):
         super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name, event_manager
+            service_config_to_test,
+            service_type,
+            protocol,
+            implementation_name,
+            event_manager,
         )
         # Use the new template method for standard initialization
         self.standard_iut_initialization(
@@ -123,15 +134,21 @@ class PingPongServiceManager(
             "run_command_generated",
             {
                 "service_name": self.service_name,
-                "role": self.role.name if hasattr(self.role, "name") else str(self.role),
+                "role": (
+                    self.role.name if hasattr(self.role, "name") else str(self.role)
+                ),
             },
         )
 
         # Determine binary based on role
-        if self.role == RoleEnum.server:
-            command_binary = self.service_config_to_test.implementation.version.server.binary.name
+        if self.role == ProtocolRole.SERVER:
+            command_binary = (
+                self.service_config_to_test.implementation.version.server.binary.name
+            )
         else:
-            command_binary = self.service_config_to_test.implementation.version.client.binary.name
+            command_binary = (
+                self.service_config_to_test.implementation.version.client.binary.name
+            )
 
         run_command = {
             "working_dir": self.working_dir,
@@ -151,10 +168,12 @@ class PingPongServiceManager(
         Generates post-run commands.
         """
         commands = super().generate_post_run_commands()
-        commands.append("cp /opt/ping-pong/miniP_* /app/logs/miniP_* 2>/dev/null || true")
+        commands.append(
+            "cp /opt/ping-pong/miniP_* /app/logs/miniP_* 2>/dev/null || true"
+        )
         return commands
 
-    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
+    def _do_prepare(self, plugin_manager: "Optional[PluginManager]" = None):
         """
         Simplified prepare method - just delegate to the enhanced mixin.
 
@@ -187,7 +206,7 @@ class PingPongServiceManager(
         )
 
         # Build parameters based on role
-        if self.role == RoleEnum.server:
+        if self.role == ProtocolRole.SERVER:
             params = self.service_config_to_test.implementation.version.server
         else:
             params = self.service_config_to_test.implementation.version.client
@@ -209,7 +228,7 @@ class PingPongServiceManager(
             builder.add_positional(f"server_addr={params['server_addr']}")
 
         # Add role-specific parameters
-        if self.role == RoleEnum.server:
+        if self.role == ProtocolRole.SERVER:
             if "client_port" in params:
                 builder.add_positional(f"client_port={params['client_port']}")
             if "client_addr" in params:
@@ -218,7 +237,8 @@ class PingPongServiceManager(
         # Add logging parameters
         if "logging" in params:
             builder.set_output_redirection(
-                stdout=params["logging"]["log_path"], stderr=params["logging"]["err_path"]
+                stdout=params["logging"]["log_path"],
+                stderr=params["logging"]["err_path"],
             )
 
         # Build command arguments and environment
@@ -241,9 +261,7 @@ class PingPongServiceManager(
                 e,
             )
             # Fallback to original template
-            template_name = (
-                f"{self.role.name if hasattr(self.role, 'name') else self.role}_command.jinja"
-            )
+            template_name = f"{self.role.name if hasattr(self.role, 'name') else self.role}_command.jinja"
             return self.render_commands(params, template_name)
 
     def __str__(self) -> str:

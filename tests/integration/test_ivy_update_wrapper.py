@@ -24,10 +24,9 @@ from panther.plugins.services.testers.panther_ivy.panther_ivy import (
     PantherIvyServiceManager,
 )
 from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
-from panther.plugins.protocols.config_schema import (
+from panther.config.core.models import (
     ProtocolConfig,
-    RoleEnum,
-    ProtocolType,
+    ProtocolRole,
 )
 from panther.plugins.services.iut.config_schema import ImplementationType
 from panther.plugins.services.config_schema import ServiceConfig
@@ -54,9 +53,8 @@ class TestIvyUpdateWrapperIntegration(unittest.TestCase):
         self.protocol_config = ProtocolConfig(
             name="quic",
             version="rfc9000",
-            role=RoleEnum.server,
+            role=ProtocolRole.SERVER,
             target=None,
-            protocol_type=ProtocolType.client_server,
         )
 
         # Create a mock service config

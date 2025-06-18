@@ -12,7 +12,7 @@ License: MIT
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 
 class EnvironmentPluginTutorial:
@@ -190,17 +190,16 @@ for PANTHER testing scenarios.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
 import subprocess
 import json
 
 from panther.plugins.environments.network_environment.network_environment_interface import INetworkEnvironment
 from panther.plugins.environments.network_environment.base_network_environment import BaseNetworkEnvironment
-from panther.plugins.environments.config_schema import EnvironmentConfig
-
+from panther.config.core.models.environment import EnvironmentConfig
 
 class {name.title().replace("_", "")}NetworkEnvironment(INetworkEnvironment):
     """
+
     {description}
 
     Features:
@@ -360,14 +359,14 @@ Configuration schema for {name} network environment plugin.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
 
-from panther.plugins.environments.config_schema import EnvironmentConfig
-
+from panther.config.core.models.environment import EnvironmentConfig
 
 @dataclass
 class {name.title().replace("_", "")}Config(EnvironmentConfig):
-    """Configuration for {name} network environment."""
+    """
+
+from typing import OptionalConfiguration for {name} network environment."""
 
     # Network settings
     network_driver: str = "bridge"
@@ -608,16 +607,15 @@ import subprocess
 import shutil
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, List
 import json
 import time
 
 from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
-from panther.plugins.environments.config_schema import EnvironmentConfig
-
+from panther.config.core.models.environment import EnvironmentConfig
 
 class {name.title().replace("_", "")}ExecutionEnvironment(IExecutionEnvironment):
     """
+
     {description}
 
     Tool: {tool_command}
@@ -815,14 +813,14 @@ Configuration schema for {name} execution environment plugin.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
 
-from panther.plugins.environments.config_schema import EnvironmentConfig
-
+from panther.config.core.models.environment import EnvironmentConfig
 
 @dataclass
 class {name.title().replace("_", "")}Config(EnvironmentConfig):
-    """Configuration for {name} execution environment."""
+    """
+
+from typing import OptionalConfiguration for {name} execution environment."""
 
     # Tool configuration
     tool_command: str = "{tool_command}"
@@ -953,7 +951,7 @@ pyyaml>=6.0
         name: str,
         description: str,
         env_type: str,
-        features: dict[str, Any],
+        features: Dict[str, Any],
     ):
         """Create a comprehensive README for the environment plugin."""
 
@@ -1122,7 +1120,7 @@ custom_options:
 
 ```python
 from panther.plugins.environments.{env_type}_environment.{name} import {name.title().replace("_", "")}{"Network" if env_type == "network" else "Execution"}Environment
-from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.config.core.models.environment import EnvironmentConfig
 
 # Create configuration
 config = EnvironmentConfig(
@@ -1300,7 +1298,7 @@ The plugin provides comprehensive execution results:
 3. **Container Deployment Issues**:
    ```bash
    # Check image availability
-   docker images | grep <image_name>
+   Union[docker images, grep]<image_name>
 
    # Verify container logs
    docker logs <container_id>
@@ -1542,13 +1540,14 @@ experiment:
 
 # Python integration code
 from panther.core.experiment_manager import ExperimentManager
-from panther.config.config_loader import ConfigLoader
+from panther.config.config_manager_enhanced import ConfigLoader
 
 def run_multi_environment_test():
     """Run a test with multiple environments."""
 
     # Load configuration
-    config = ConfigLoader.load_experiment_config("experiment_config.yaml")
+    config_loader = ConfigLoader(experiment_file="experiment_config.yaml")
+    config = config_loader.load_and_validate_experiment_config()
 
     # Create experiment manager
     experiment = ExperimentManager(config)
@@ -1590,13 +1589,13 @@ Plugin Communication Pattern Example
 
 Demonstrates how environment plugins can communicate and share data.
 """
-
-from typing import Dict, Any
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 
 class CommunicatingEnvironment(IEnvironmentPlugin):
-    """Example environment plugin that communicates with other plugins."""
+    """
+
+from typing import AnyExample environment plugin that communicates with other plugins."""
 
     def __init__(self, config, output_dir, event_manager: EventManager = None):
         super().__init__(config, output_dir)

@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from panther.plugins.services.services_interface import quote_shell, quote_yaml
-from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.config.core.models import ProtocolConfig, ProtocolRole
 
 # Import the service implementations to test
 from panther.plugins.services.iut.quic.aioquic.aioquic import AioquicServiceManager
@@ -17,7 +17,7 @@ def mock_protocol_config():
     protocol_config = MagicMock(spec=ProtocolConfig)
     protocol_config.name = "quic"
     protocol_config.version = "draft-29"
-    protocol_config.role = RoleEnum.server
+    protocol_config.role = ProtocolRole.SERVER
     protocol_config.target = "127.0.0.1"
     return protocol_config
 

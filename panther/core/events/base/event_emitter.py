@@ -1,5 +1,7 @@
 """Base event emitter for unified event emission."""
 
+from typing import Optional
+
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.observer.management.event_manager import EventManager
 
@@ -7,7 +9,7 @@ from panther.core.observer.management.event_manager import EventManager
 class EventEmitter:
     """Base class for emitting typed events in a unified way."""
 
-    def __init__(self, event_manager: EventManager | None = None):
+    def __init__(self, event_manager: Optional[EventManager] = None):
         """Initialize the event emitter.
 
         Args:

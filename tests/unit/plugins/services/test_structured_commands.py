@@ -2,7 +2,7 @@ import pytest
 import os
 from unittest.mock import patch, MagicMock
 from panther.plugins.services.iut.quic.quiche.quiche import QuicheServiceManager
-from panther.plugins.protocols.config_schema import RoleEnum
+from panther.config.core.models import ProtocolRole
 
 
 @pytest.fixture
@@ -11,7 +11,7 @@ def mock_service_config():
     config.name = "test_quiche_service"
     config.protocol.name = "quic"
     config.protocol.version = "version_1"
-    config.protocol.role = RoleEnum.client
+    config.protocol.role = ProtocolRole.CLIENT
     config.protocol.target = "test_server"
     config.implementation.version.client.binary.name = "quiche-client"
     config.implementation.version.client.binary.dir = "/opt/quiche"
@@ -40,7 +40,7 @@ def mock_protocol_config():
     protocol = MagicMock()
     protocol.name = "quic"
     protocol.version = "version_1"
-    protocol.role = RoleEnum.client
+    protocol.role = ProtocolRole.CLIENT
     protocol.target = "test_server"
     return protocol
 

@@ -1,6 +1,6 @@
 import logging
 from abc import ABC
-from typing import Any
+from typing import Any, Dict, List
 
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_interface import IObserver
@@ -17,9 +17,9 @@ class GUIObserver(IObserver, ABC):
     def __init__(self):
         """Initialize the GUI observer with logging and state tracking."""
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
-        self.event_history: list[Event] = []
+        self.event_history: List[Event] = []
         self.max_history = 1000
-        self.gui_state: dict[str, Any] = {}
+        self.gui_state: Dict[str, Any] = {}
 
     def on_event(self, event: Event):
         """
@@ -78,7 +78,7 @@ class GUIObserver(IObserver, ABC):
 
     def get_event_history(
         self, event_type: str = None, limit: int = None
-    ) -> list[Event]:
+    ) -> List[Event]:
         """
         Get the event history, optionally filtered by event type.
 
@@ -95,7 +95,7 @@ class GUIObserver(IObserver, ABC):
 
         return events
 
-    def get_gui_state(self) -> dict[str, Any]:
+    def get_gui_state(self) -> Dict[str, Any]:
         """
         Get the current GUI state.
 

@@ -7,7 +7,9 @@ from typing import Any
 
 
 class IPluginObserver(ABC):
-    """Interface for observer plugins."""
+    """
+
+    from typing import Any, AnyInterface for observer plugins."""
 
     @abstractmethod
     def on_event(self, event: Any) -> bool:

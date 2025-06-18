@@ -21,11 +21,11 @@ MiniP, HTTP/3, a custom protocol plugin, or any future protocol you add**.
 ```bash
 python -m venv .venv              # optional but recommended
 source .venv/bin/activate
-pip install panther_net
+pip install panther-net
 ```
 
-`panther_net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
-Upgrade later with `pip install -U panther_net`.
+`panther-net` is the official PyPI package that bundles the core engine, all built-in plugins, and CLI entry-points.
+Upgrade later with `pip install -U panther-net`.
 
 ## 2 — Write a Minimal Experiment (YAML)
 
@@ -37,43 +37,44 @@ Upgrade later with `pip install -U panther_net`.
 
 
 ```yaml
+# Basic logging configuration
 logging:
-  level: INFO
+  level: INFO  # Controls how much detail you see (DEBUG for troubleshooting)
 
+# Where to save experiment results
 paths:
-  output_dir: outputs
+  output_dir: outputs  # All results saved in 'outputs' folder
 
+# Docker container settings
 docker:
-  build_docker_image: true 
-  # true -> Rebuild the image if already present 
-  # but even at false, if the image build is done
-  # if the image does not exist
+  build_docker_image: true  # Build fresh containers (set false for faster reruns)
 
+# Tests define what protocols and implementations to run
 tests:
   - name: "QUIC Connection (PicoQUIC)"
-    description: "My first experiement"
+    description: "My first experiment - basic QUIC client-server test"
     network_environment:
-      type: docker_compose
+      type: docker_compose  # Run in separate Docker containers
     services:
       server:
         implementation:
-          name: picoquic
-          type: iut
+          name: picoquic      # Use PicoQUIC implementation
+          type: iut           # IUT = Implementation Under Test
         protocol:
-          name: quic
-          version: rfc9000
-          role: server
+          name: quic          # Test QUIC protocol
+          version: rfc9000    # Use official QUIC standard
+          role: server        # This service acts as server
       client:
         implementation:
-          name: picoquic
+          name: picoquic      # Same implementation for client
           type: iut
         protocol:
           name: quic
           version: rfc9000
-          role: client
-          target: server
+          role: client        # This service acts as client
+          target: server      # Connect to the 'server' service above
     steps:
-      wait: 15
+      wait: 15              # Run test for 15 seconds
   - name: "QUIC Connection Tested (PicoQUIC)"
     description: "My second experiement"
     network_environment:

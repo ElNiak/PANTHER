@@ -2,6 +2,8 @@ from omegaconf import OmegaConf
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.config.config_experiment_schema import TestConfig
+from typing import List
+
 from panther.config.config_global_schema import GlobalConfig
 from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
     GperfCpuConfig,
@@ -11,7 +13,6 @@ from panther.plugins.environments.execution_environment.execution_environment_in
 )
 from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
-
 
 class GperfCommandBuilder:
     """Helper class to build gperf commands and reduce duplication."""
@@ -66,7 +67,6 @@ class GperfCommandBuilder:
             f"pprof --pdf /app/logs/{service.service_name}_cpu.prof > /app/logs/{service.service_name}_cpu.pdf"
         ]
 
-
 class GperfCpuEnvironment(IExecutionEnvironment):
     def __init__(
         self,
@@ -74,19 +74,17 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         output_dir: str,
         env_type: str,
         env_sub_type: str,
-        event_manager: EventManager,
-    ):
+        event_manager: EventManager):
         super().__init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
         self.env_config_to_test = env_config_to_test
 
     def setup_environment(
         self,
-        services_managers: list[IServiceManager],
+        services_managers: List[IServiceManager],
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
-    ):
+        plugin_loader: PluginLoader):
         """
         Sets up the Docker Compose environment by generating the docker-compose.yml file with deployment commands.
 
@@ -95,7 +93,7 @@ class GperfCpuEnvironment(IExecutionEnvironment):
         :param paths: Dictionary containing various path configurations.
         :param timestamp: The timestamp string to include in log paths.
         """
-        self.services_managers: list[IServiceManager] = services_managers
+        self.services_managers: List[IServiceManager] = services_managers
         self.test_config = test_config
         self.plugin_loader = plugin_loader
         self.global_config = global_config
@@ -110,8 +108,11 @@ class GperfCpuEnvironment(IExecutionEnvironment):
             else:
                 self.logger.debug(f"Service {service} is not gperf compatible")
 
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+        # Convert Pydantic models to dict before using OmegaConf.to_yaml
+        test_config_dict = self.test_config.dict() if hasattr(self.test_config, 'dict') else self.test_config
+        global_config_dict = self.global_config.dict() if hasattr(self.global_config, 'dict') else self.global_config
+        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(test_config_dict)}")
+        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(global_config_dict)}")
 
     def to_command(self, service_name: str) -> str:
         """Generate the gperf command based on the configuration."""

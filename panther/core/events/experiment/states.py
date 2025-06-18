@@ -4,6 +4,8 @@ Experiment State Management
 This module defines state management for experiment lifecycle.
 """
 
+from typing import Dict, Set
+
 from panther.core.events.base.state_base import BaseState, StateManager
 
 
@@ -41,10 +43,13 @@ class ExperimentStateManager(StateManager):
         super().__init__(experiment_id, ExperimentState.CREATED)
         self.setup_transitions()
 
-    def _define_allowed_transitions(self) -> dict[BaseState, set[BaseState]]:
+    def _define_allowed_transitions(self) -> Dict[BaseState, Set[BaseState]]:
         """Define allowed state transitions for experiments."""
         return {
-            ExperimentState.CREATED: {ExperimentState.INITIALIZING, ExperimentState.FAILED},
+            ExperimentState.CREATED: {
+                ExperimentState.INITIALIZING,
+                ExperimentState.FAILED,
+            },
             ExperimentState.INITIALIZING: {
                 ExperimentState.LOADING_PLUGINS,
                 ExperimentState.FAILED,
@@ -75,7 +80,10 @@ class ExperimentStateManager(StateManager):
                 ExperimentState.FAILED,
                 ExperimentState.FINISHED_EARLY,
             },
-            ExperimentState.COLLECTING_RESULTS: {ExperimentState.COMPLETED, ExperimentState.FAILED},
+            ExperimentState.COLLECTING_RESULTS: {
+                ExperimentState.COMPLETED,
+                ExperimentState.FAILED,
+            },
             # Terminal states (no transitions out)
             ExperimentState.COMPLETED: set(),
             ExperimentState.FAILED: set(),
@@ -89,7 +97,11 @@ class ExperimentStateManager(StateManager):
     def is_finished(self) -> bool:
         """Check if experiment has finished (completed, failed, or early)."""
         return self.is_in_any_state(
-            {ExperimentState.COMPLETED, ExperimentState.FAILED, ExperimentState.FINISHED_EARLY}
+            {
+                ExperimentState.COMPLETED,
+                ExperimentState.FAILED,
+                ExperimentState.FINISHED_EARLY,
+            }
         )
 
     def is_successful(self) -> bool:

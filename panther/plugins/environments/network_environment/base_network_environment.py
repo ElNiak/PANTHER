@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from omegaconf import OmegaConf
 
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
-from panther.plugins.environments.environment_event_methods import (
-    EnvironmentPluginEventMixin,
-)
+from panther.config.core.models.experiment import TestConfig
+from panther.config.core.models.global_config import GlobalConfig
+from panther.core.outputs.output_collector import IOutputCollector
+
+# EnvironmentPluginEventMixin is already inherited through INetworkEnvironment
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
 
 
-class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
+class BaseNetworkEnvironment(INetworkEnvironment):
     """
     Base implementation of INetworkEnvironment with common functionality.
 
@@ -52,15 +52,8 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
-
-        # Process output directory
-        self._process_output_directory(output_dir)
-
         # Initialize common attributes
         self._initialize_common_attributes()
-
-        # Setup base configuration
-        self._validate_base_config()
 
     def _process_output_directory(self, output_dir: Any) -> None:
         """Process and validate output directory."""
@@ -97,6 +90,39 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
         self._early_termination_reason = None
         self._early_termination_details = None
 
+    def _get_user_mapping_config(self) -> Optional[str]:
+        """
+        Get user mapping configuration for containers.
+
+        Returns:
+            Optional[str]: User mapping string in format 'uid:gid' or None for root
+        """
+        if not hasattr(self, "global_config") or not self.global_config:
+            return None
+
+        docker_config = self.global_config.docker
+        user_config = docker_config.user_mapping
+
+        if user_config.run_as_host_user:
+            try:
+                import os
+
+                uid = user_config.custom_uid or os.getuid()
+                gid = user_config.custom_gid or os.getgid()
+                return f"{uid}:{gid}"
+            except (AttributeError, OSError):
+                if user_config.fallback_to_root:
+                    self.logger.warning("Cannot get host user ID, falling back to root")
+                    return None
+                else:
+                    raise RuntimeError(
+                        "Cannot determine host user ID and fallback disabled"
+                    )
+        elif user_config.custom_uid and user_config.custom_gid:
+            return f"{user_config.custom_uid}:{user_config.custom_gid}"
+
+        return None
+
     def _validate_base_config(self) -> None:
         """Validate base configuration requirements."""
         if not self.env_config_to_test:
@@ -120,6 +146,16 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
         This method provides the standard setup sequence while allowing
         subclasses to customize specific steps.
         """
+        self.notify_environment_setup_started(
+            details={
+                "output_dir": str(self.output_dir),
+                "log_dirs": str(self.log_dirs),
+                "template_dir": str(self.templates_dir),
+                "timestamp": timestamp,
+            }
+        )
+        self.setup_start_time = time.time()
+        self.logger.info(f"Setting up {self.env_sub_type} environment")
         self.update_environment(
             execution_environment,
             global_config,
@@ -128,41 +164,34 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
             test_config,
         )
 
+        # Process output directory
+        self._process_output_directory(self.output_dir)
+
+        # Setup base configuration
+        self._validate_base_config()
+
         try:
-            # Record setup start time
-            self.setup_start_time = time.time()
-
-            # Notify setup started
-            self.notify_environment_setup_started()
-
-            # Perform base setup
-            if not self._setup_environment():
-                raise RuntimeError("Base environment setup failed")
-
             # Prepare environment
             self.prepare_environment()
 
             # Generate services
             self.generate_environment_services(
                 paths={
-                    "service_dir": str(self.output_dir),
+                    "output_dir": str(self.output_dir),
                     "log_dir": str(self.log_dirs),
                     "template_dir": str(self.templates_dir),
                 },
                 timestamp=timestamp,
             )
 
-            # Verify generated files
+            # Verify generated files (From Implementation)
             self._verify_generated_files()
 
             # Setup execution plugins if needed
             if self.execution_environment:
                 self.setup_execution_plugins(timestamp)
 
-            # Mark setup complete
-            self.setup_complete = True
             self.setup_end_time = time.time()
-
             # Notify success
             self.notify_environment_setup_completed(
                 success=True,
@@ -184,28 +213,13 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
 
             raise
 
-    def _setup_environment(self) -> bool:
-        """
-        Perform base environment setup.
-
-        Override this method in subclasses for specific setup requirements.
-        """
-        self.logger.info(f"Setting up {self.env_sub_type} environment")
-        return True
-
     def _verify_generated_files(self) -> None:
         """
         Verify that required files were generated.
 
         Override this method in subclasses to check specific files.
         """
-        # Base implementation checks common files
-        if hasattr(self, "rendered_services_network_config_file_path"):
-            if not os.path.exists(self.rendered_services_network_config_file_path):
-                raise RuntimeError(
-                    f"Generated config file not found: "
-                    f"{self.rendered_services_network_config_file_path}"
-                )
+        pass
 
     def teardown_environment(self) -> None:
         """
@@ -226,6 +240,28 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
 
             # Perform environment-specific teardown
             self._teardown_environment()
+
+            # Register outputs after services have stopped but before cleanup
+            try:
+                self.logger.info("Collecting outputs from all services")
+                # Collect outputs using the mixin if available
+                if hasattr(self, "collect_outputs"):
+                    final_outputs = self.collect_outputs()
+                    if final_outputs:
+                        self.logger.info(
+                            f"Successfully collected {len(final_outputs)} output files"
+                        )
+                    else:
+                        self.logger.warning(
+                            "No outputs collected despite registration attempts"
+                        )
+                else:
+                    self.logger.warning(
+                        "collect_outputs method not available - outputs registered but not collected"
+                    )
+
+            except Exception as e:
+                self.logger.error(f"Failed to collect outputs during teardown: {e}")
 
             # Clean up processes
             self._cleanup_processes()
@@ -250,6 +286,19 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
         Perform environment-specific teardown.
 
         Subclasses must implement this method for their specific teardown logic.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_service_log_directory(self, service_name: str) -> Path:
+        """
+        Get the log directory for a specific service.
+
+        Args:
+            service_name: Name of the service
+
+        Returns:
+            Path to the service's log directory
         """
         raise NotImplementedError()
 
@@ -327,11 +376,130 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
             for service in self.services_managers:
                 self.create_log_dir(service)
 
+            # Add packet capture commands to services
+            self._add_packet_capture_commands()
+            self.__add_wait_for_services()
+            self.__add_volumes_to_services()
+            self.logger.info("Environment prepared successfully")
+
             return True
 
         except Exception as e:
             self.logger.error(f"Failed to prepare environment: {e}")
             return False
+
+    def __add_volumes_to_services(self) -> None:
+        """
+        Add shared volumes to all services.
+
+        This method injects shared volumes into each service's configuration
+        to ensure they can access common resources.
+        """
+        if not hasattr(self, "services_managers") or not self.services_managers:
+            self.logger.debug("No services managers available for volume injection")
+            return
+        self.logger.info("Adding shared volumes to services")
+        for service in self.services_managers:
+            if not service.is_tester:
+                # Add shared volumes for logs and other resources
+                # # TODO
+                self.logger.debug(f"Added shared volumes to {service.service_name}")
+            else:
+                self.logger.debug(
+                    f"Skipping volume injection for tester service: {service.service_name}"
+                )
+
+    def __add_wait_for_services(self) -> None:
+        """
+        Add wait commands for all services to ensure they are ready before running tests.
+
+        This method injects wait commands into each service's pre_run_cmds
+        to ensure they are ready before proceeding with the experiment.
+        """
+        if not hasattr(self, "services_managers") or not self.services_managers:
+            self.logger.debug(
+                "No services managers available for wait command injection"
+            )
+            return
+        self.logger.info("Adding wait commands to services")
+        for service in self.services_managers:
+            if not service.is_tester:
+                service.volumes.append("shared_logs:/app/sync_logs")
+                service.run_cmd["post_compile_cmds"] = service.run_cmd[
+                    "post_compile_cmds"
+                ] + [
+                    "while [ ! -f /app/sync_logs/ivy_ready.log ]; do",
+                    '\techo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;',
+                    "\tsleep 2;",
+                    "done;",
+                    'echo "Testers is ready, starting '
+                    + service.service_name
+                    + '..." >> /app/logs/tester_ready.log;',
+                ]
+
+    def _add_packet_capture_commands(self) -> None:
+        """
+        Add packet capture commands to all services.
+
+        This method injects tshark commands into each service's pre_run_cmds
+        to enable packet capture for network analysis.
+        """
+        if not hasattr(self, "services_managers") or not self.services_managers:
+            self.logger.debug(
+                "No services managers available for packet capture injection"
+            )
+            return
+
+        self.logger.info("Adding packet capture commands to services")
+
+        for service in self.services_managers:
+            try:
+                service_name = getattr(
+                    service, "service_name", service.__class__.__name__
+                )
+
+                # Get service timeout or use default
+                timeout = getattr(
+                    service, "timeout", getattr(service, "service_timeout", 60)
+                )
+                if hasattr(service, "service_config_to_test") and hasattr(
+                    service.service_config_to_test, "timeout"
+                ):
+                    timeout = service.service_config_to_test.timeout
+
+                # Create packet capture command
+                pcap_file = f"/app/logs/{service_name}.pcap"
+                tshark_cmd = f"(touch {pcap_file}; tshark -a duration:{timeout} -i any -w {pcap_file};) &"
+
+                # Add to pre_run_cmds using the mixin method if available
+                if hasattr(self, "modify_service_commands"):
+                    self.modify_service_commands(
+                        service, "packet_capture", {"pre_run_cmds": [tshark_cmd]}
+                    )
+                    self.logger.debug(
+                        f"Added packet capture via mixin for {service_name}"
+                    )
+                else:
+                    # Fallback: directly modify service commands
+                    if hasattr(service, "run_cmd") and isinstance(
+                        service.run_cmd, dict
+                    ):
+                        if "pre_run_cmds" not in service.run_cmd:
+                            service.run_cmd["pre_run_cmds"] = []
+                        service.run_cmd["pre_run_cmds"].append(tshark_cmd)
+                        self.logger.debug(
+                            f"Added packet capture directly for {service_name}"
+                        )
+                    else:
+                        self.logger.warning(
+                            f"Cannot add packet capture for {service_name}: no run_cmd structure"
+                        )
+
+            except Exception as e:
+                service_name = getattr(service, "service_name", "unknown")
+                self.logger.error(
+                    f"Failed to add packet capture for service {service_name}: {e}"
+                )
 
     def should_terminate_early(self) -> bool:
         """Check if experiment should terminate early due to environment issues."""
@@ -347,4 +515,122 @@ class BaseNetworkEnvironment(INetworkEnvironment, EnvironmentPluginEventMixin):
         # Also emit the event through the proper channel
         if hasattr(self, "notify_experiment_early_finish"):
             self.notify_experiment_early_finish(reason, details)
-            raise
+
+    @abstractmethod
+    def _get_service_log_directory(self, service_name: str) -> Path:
+        """
+        Get the log directory for a specific service.
+
+        This method must be implemented by each environment to provide
+        the correct path mapping for service log directories.
+
+        Args:
+            service_name: Name of the service
+
+        Returns:
+            Path to the service's log directory
+        """
+        raise NotImplementedError(
+            "Subclasses must implement service log directory resolution"
+        )
+
+    def register_all_service_outputs(self):
+        """Register outputs from all services with flexible patterns."""
+        if not hasattr(self, "register_service_outputs"):
+            self.logger.warning("Output collector mixin not available")
+            return
+
+        # Use the mixin's flexible registration
+        self.register_service_outputs(
+            self.services_managers,
+            lambda service_name: self._get_service_log_directory(service_name),
+        )
+        """
+        Discover additional output files using pattern matching.
+        
+        Args:
+            log_dir: Directory to search for additional outputs
+            service_name: Name of the service for registration
+            
+        Returns:
+            Dictionary of discovered outputs
+        """
+        discovered = {}
+
+        if not log_dir.exists():
+            return discovered
+
+        try:
+            # SSL keylog patterns (enhanced from docker_compose)
+            ssl_patterns = [
+                "*ssl*key*",
+                "*keylog*",
+                "*tls*key*",
+                "*key*log*",
+                "*.keys",
+                "*sslkey*",
+            ]
+            for pattern in ssl_patterns:
+                for ssl_file in log_dir.glob(pattern):
+                    if ssl_file.is_file() and ssl_file.name != "sslkeylogfile.txt":
+                        if hasattr(self, "register_output_file"):
+                            output_key = f"{ssl_file.stem}_sslkey"
+                            self.register_output_file(
+                                output_key, str(ssl_file), service_name
+                            )
+                            discovered[output_key] = str(ssl_file)
+                            self.logger.debug(f"🔍 Discovered SSL keylog: {ssl_file}")
+
+            # Packet capture patterns (enhanced from docker_compose)
+            pcap_patterns = ["*.pcap", "*.pcapng", "*capture*", "*.cap", "*packet*"]
+            for pattern in pcap_patterns:
+                for pcap_file in log_dir.glob(pattern):
+                    if pcap_file.is_file() and pcap_file.name != f"{service_name}.pcap":
+                        if hasattr(self, "register_output_file"):
+                            output_key = f"{pcap_file.stem}_pcap"
+                            self.register_output_file(
+                                output_key, str(pcap_file), service_name
+                            )
+                            discovered[output_key] = str(pcap_file)
+                            self.logger.debug(
+                                f"🔍 Discovered packet capture: {pcap_file}"
+                            )
+
+        except Exception as e:
+            self.logger.error(
+                f"Error during additional output discovery for {service_name}: {e}"
+            )
+
+        return discovered
+
+    def _do_setup_environment(
+        self,
+        services_managers,
+        test_config,
+        global_config,
+        timestamp,
+        plugin_manager,
+        execution_environment,
+    ):
+        raise NotImplementedError
+
+    def _do_deploy_services(self):
+        raise NotImplementedError
+
+    def _do_teardown_environment(self):
+        raise NotImplementedError
+
+    def initialize(self, test_config, output_dir, event_manager, global_config):
+        raise NotImplementedError
+
+    def generate_environment_services(self, paths, timestamp):
+        raise NotImplementedError
+
+    def prepare_environment(self):
+        raise NotImplementedError
+
+    def launch_environment_services(self):
+        raise NotImplementedError
+
+    def deploy_services(self):
+        raise NotImplementedError

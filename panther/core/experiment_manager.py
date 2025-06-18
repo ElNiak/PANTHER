@@ -6,24 +6,38 @@ of experiments including initialization, configuration, and execution.
 
 import logging
 import re
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 from colorlog import ColoredFormatter
 from omegaconf import OmegaConf
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from panther.config.config_experiment_schema import ExperimentConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models import ExperimentConfig, GlobalConfig
 from panther.core.events.emitter_registry import EmitterRegistry
+from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
 from panther.core.exceptions.experiment_exceptions import (
     ExperimentInitializationError,
     PantherExperimentError,
     PluginValidationError,
     TestCaseInitializationError,
     TestExecutionError,
+)
+from panther.core.exceptions.fast_fail import (
+    CertificateException,
+    ConfigurationException,
+    DockerComposeException,
+    ErrorCategory,
+    ErrorSeverity,
+    FastFailHandler,
+    IvyCompilationException,
+    PortConflictException,
+    ResourceExhaustionException,
+    TimeoutCascadeException,
 )
 from panther.core.metrics.metrics_collector import MetricsCollector
 from panther.core.observer.factory import ObserverFactory, get_observer_factory
@@ -35,11 +49,14 @@ from panther.core.observer.factory.factory_builders import (
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.test_cases.test_case_impl import TestCase
 from panther.core.test_cases.test_interface_impl import ITestCase
+from panther.core.workflow import (  # pylint: disable=import-outside-toplevel
+    WorkflowStateTracker,
+)
 from panther.plugins.plugin_manager import PluginManager
 
 
 # TODO implement errors management strategy (e.g., retry, fail, etc.)
-class ExperimentManager:
+class ExperimentManager(ErrorHandlerMixin):
     """
     Manages the lifecycle of an experiment, including initialization, configuration,
     and execution of test cases.
@@ -53,7 +70,7 @@ class ExperimentManager:
         experiment_dir (Path): Directory where experiment outputs are stored.
         logs_dir (Path): Directory where logs are stored.
         plugin_manager (PluginManager): Manager for experiment plugins.
-        test_cases (list[ITestCase]): List of test cases to be executed.
+        test_cases (List[ITestCase]): List of test cases to be executed.
 
     Methods:
         initialize_experiments(experiment_config: ExperimentConfig):
@@ -77,8 +94,12 @@ class ExperimentManager:
         experiment_name: str = None,
         plugin_dir: str = "panther/plugins/",
         logger: logging.Logger = None,
-        metrics_collector: MetricsCollector | None = None,
+        metrics_collector: Optional[MetricsCollector] = None,
+        fast_fail_enabled: bool = True,
     ):
+        # Initialize parent class
+        super().__init__()
+
         self.experiment_config = None
         self.global_config = global_config
         self.metrics_collector = metrics_collector
@@ -96,15 +117,67 @@ class ExperimentManager:
         )
         self.experiment_dir.mkdir(parents=True, exist_ok=True)
 
-        self.log_level = getattr(
-            logging, self.global_config.logging.level.name, logging.INFO
+        # Handle logging level - could be string or enum
+        level_name = (
+            self.global_config.logging.level.name
+            if hasattr(self.global_config.logging.level, "name")
+            else str(self.global_config.logging.level)
         )
+        self.log_level = getattr(logging, level_name, logging.INFO)
         self.log_format = self.global_config.logging.format
+
+        # Initialize LoggerFactory early with global config to ensure consistent colors for all plugins
+        from panther.core.utils.logger_factory import LoggerFactory
+
+        logging_config = {
+            "level": (
+                self.global_config.logging.level.name
+                if hasattr(self.global_config.logging.level, "name")
+                else str(self.global_config.logging.level)
+            ),
+            "format": self.global_config.logging.format,
+            "enable_colors": getattr(self.global_config.logging, "enable_colors", True),
+            "feature_levels": getattr(
+                self.global_config.logging, "feature_levels", None
+            ),
+        }
+        LoggerFactory.initialize(logging_config)
+        
+        # Update any existing loggers with the new feature levels
+        # This handles loggers created during config loading before LoggerFactory was initialized
+        if hasattr(self.global_config.logging, "feature_levels") and self.global_config.logging.feature_levels:
+            feature_levels_dict = {}
+            # Convert feature_levels dataclass to dictionary
+            if hasattr(self.global_config.logging.feature_levels, "__dict__"):
+                print(f"DEBUG: feature_levels in global_config: {[(k, v) for k, v in list(self.global_config.logging.feature_levels.__dict__.items())[:3]]}")
+                for attr_name, attr_value in self.global_config.logging.feature_levels.__dict__.items():
+                    # Skip None values and omega_config
+                    if attr_value is None or attr_name == "_omega_config":
+                        continue
+                    if hasattr(attr_value, 'name'):  # It's an enum
+                        feature_levels_dict[attr_name] = attr_value.name
+                    else:
+                        feature_levels_dict[attr_name] = str(attr_value)
+            # Only update if we have actual feature levels to set
+            if feature_levels_dict:
+                LoggerFactory.update_all_feature_levels(feature_levels_dict)
+
+        # Initialize log statistics if enabled
+        self.log_statistics_display = None
+        self._setup_log_statistics()
 
         self.logs_dir = self.experiment_dir
         self.plugin_dir = plugin_dir
-        self.logger = logger or logging.getLogger("ExperimentManager")
+        # Don't assign to self.logger directly as it's a property from LoggerMixin
+        if logger:
+            self._logger = logger
         self._load_logging()
+
+        # Configure fast fail handler based on global config
+        fast_fail_config = global_config.fast_fail
+        self.fast_fail_handler = FastFailHandler(
+            enabled=fast_fail_enabled and fast_fail_config.enabled, logger=self.logger
+        )
         self.plugin_dir = Path(plugin_dir)
 
         # Initialize event manager for experiment-level events
@@ -113,10 +186,6 @@ class ExperimentManager:
         factory.set_event_manager(self.event_manager)
 
         # Initialize workflow state tracker for experiment coordination
-        from panther.core.workflow import (  # pylint: disable=import-outside-toplevel
-            WorkflowStateTracker,
-        )
-
         self.workflow_tracker = WorkflowStateTracker()
 
         # Initialize centralized emitter registry
@@ -129,14 +198,15 @@ class ExperimentManager:
         self.metrics_emitter = self.emitter_registry.metrics_emitter
         self.plugin_emitter = self.emitter_registry.plugin_emitter
 
-        # Setup plugin manager with event manager
+        # Setup plugin manager with event manager and fast fail handler
         self.plugin_manager = PluginManager(
             plugin_directories=[str(self.plugin_dir)],
             event_manager=self.event_manager,
             global_config=self.global_config,
+            fast_fail_handler=self.fast_fail_handler,
         )
 
-        self._setup_observers(factory)
+        self._setup_observers()
 
         # Clean up any None observers that might exist
         cleaned = self.event_manager.cleanup_none_observers()
@@ -145,9 +215,9 @@ class ExperimentManager:
                 "Cleaned up %d None observers during initialization", cleaned
             )
 
-        self.test_cases: list[ITestCase] = []
+        self.test_cases: List[ITestCase] = []
 
-    def initialize_experiments(self, experiment_config: ExperimentConfig):
+    def initialize_experiments(self, experiment_config: ExperimentConfig) -> None:
         """Initializes plugins, environment, and validates configuration."""
         try:
             # State tracking now happens automatically through events
@@ -170,9 +240,6 @@ class ExperimentManager:
 
             # Validate plugins before loading
             self._validate_plugins()
-
-            # Load plugins and initialize test cases
-            # Plugin loading is handled by PluginManager during initialization
 
             # Emit plugin loading completed event
             self.experiment_emitter.emit_plugin_loading_completed()
@@ -275,8 +342,14 @@ class ExperimentManager:
         """Save the experiment configuration file in the experiment folder."""
         config_file_path = self.experiment_dir / "experiment_config.yaml"
         with open(config_file_path, "w", encoding="utf-8") as config_file:
-            config_file.write(OmegaConf.to_yaml(self.global_config))
-            config_file.write(OmegaConf.to_yaml(self.experiment_config))
+            # Convert Pydantic models to dicts for OmegaConf compatibility
+            global_config_dict = self.global_config.dict() if hasattr(self.global_config, 'dict') else self.global_config
+            experiment_config_dict = self.experiment_config.dict() if hasattr(self.experiment_config, 'dict') else self.experiment_config
+            
+            config_file.write("# Global Configuration\n")
+            config_file.write(OmegaConf.to_yaml(global_config_dict))
+            config_file.write("\n# Experiment Configuration\n")
+            config_file.write(OmegaConf.to_yaml(experiment_config_dict))
 
     def _initialize_test_cases(self):
         """Initializes the test cases from the experiment configuration."""
@@ -337,7 +410,7 @@ class ExperimentManager:
                 f"Failed to initialize test cases: {str(e)}"
             ) from e
 
-    def run_tests(self):
+    def run_tests(self) -> None:
         """Runs the tests defined in the experiment configuration."""
         try:
             # State transitions are handled automatically by StateEventObserver
@@ -355,12 +428,7 @@ class ExperimentManager:
             # Conditionally redirect main loggers through tqdm to prevent progress bar corruption
             # Observer logs will still go to files for detailed analysis
             if self.global_config.progress.redirect_logging:
-                main_loggers = [
-                    self.logger,
-                    logging.getLogger("EventManager"),
-                    logging.getLogger("ExperimentObserver"),
-                ]
-                redirect_context = logging_redirect_tqdm(loggers=main_loggers)
+                redirect_context = logging_redirect_tqdm()
             else:
                 # No-op context manager when logging redirection is disabled
                 from contextlib import nullcontext
@@ -410,7 +478,7 @@ class ExperimentManager:
                             emoji = (
                                 "🧪 " if self.global_config.progress.use_emojis else ""
                             )
-                            progress_bar.write(
+                            self.logger.info(
                                 f"{emoji}Starting: {test_case.test_config.name}"
                             )
                         self.logger.info(
@@ -431,7 +499,32 @@ class ExperimentManager:
                             self.logger.info(
                                 "Executing test case: %s", test_case.test_config.name
                             )
-                            test_case.run()
+                            test_result = test_case.run()
+                            
+                            # Check if test actually passed (returns None or True for success, False for failure)
+                            if test_result is False:
+                                failed_tests += 1
+                                if self.global_config.progress.show_test_status:
+                                    emoji = (
+                                        "❌ "
+                                        if self.global_config.progress.use_emojis
+                                        else ""
+                                    )
+                                    self.logger.info(
+                                        f"{emoji}Failed: {test_case.test_config.name} - Test analysis failed"
+                                    )
+                                # Emit test failed event
+                                test_specific_emitter.emit_failed(
+                                    error_message="Test analysis failed",
+                                    error_type="TestAnalysisFailure",
+                                    phase="analysis",
+                                    summary={
+                                        "test_name": test_case.test_config.name,
+                                        "reason": "Tester analysis determined test failure"
+                                    }
+                                )
+                                continue
+                                
                             successful_tests += 1
                             if self.global_config.progress.show_test_status:
                                 emoji = (
@@ -439,7 +532,7 @@ class ExperimentManager:
                                     if self.global_config.progress.use_emojis
                                     else ""
                                 )
-                                progress_bar.write(
+                                self.logger.info(
                                     f"{emoji}Completed: {test_case.test_config.name}"
                                 )
 
@@ -474,6 +567,14 @@ class ExperimentManager:
                             RuntimeError,
                             OSError,
                             PantherExperimentError,
+                            subprocess.CalledProcessError,
+                            DockerComposeException,
+                            PortConflictException,
+                            IvyCompilationException,
+                            ResourceExhaustionException,
+                            CertificateException,
+                            ConfigurationException,
+                            TimeoutCascadeException,
                         ) as test_error:
                             # Handle all expected error types with a single handler
                             failed_tests += 1
@@ -483,9 +584,43 @@ class ExperimentManager:
                                     if self.global_config.progress.use_emojis
                                     else ""
                                 )
-                                progress_bar.write(
+                                self.logger.info(
                                     f"{emoji}Failed: {test_case.test_config.name} - {str(test_error)[:50]}..."
                                 )
+
+                            # Check for critical errors that should terminate experiment
+                            if isinstance(
+                                test_error,
+                                (
+                                    DockerComposeException,
+                                    PortConflictException,
+                                    IvyCompilationException,
+                                    ResourceExhaustionException,
+                                    CertificateException,
+                                ),
+                            ):
+                                # Use fast-fail handler to determine if we should continue
+                                should_continue = self.fast_fail_handler.handle_error(
+                                    test_error, raise_on_critical=False
+                                )
+                                if not should_continue:
+                                    self.logger.critical(
+                                        "Critical %s error in test %s, terminating experiment",
+                                        test_error.category.value,
+                                        test_case.test_config.name,
+                                    )
+                                    # Emit experiment failure and re-raise to stop execution
+                                    self.experiment_emitter.emit_finished_early(
+                                        reason=f"Critical {test_error.category.value} Failure",
+                                        details={
+                                            "test_name": test_case.test_config.name,
+                                            "error_type": type(test_error).__name__,
+                                            "error_category": test_error.category.value,
+                                            "error_context": test_error.context,
+                                        },
+                                    )
+                                    raise test_error  # This will break out of the test loop
+
                             # Add recursion protection for AttributeError
                             if isinstance(
                                 test_error, AttributeError
@@ -506,7 +641,7 @@ class ExperimentManager:
                                     pass  # Ignore any secondary errors
                             else:
                                 self._handle_test_error(test_case, test_error)
-                            # Continue with other tests
+                            # Continue with other tests unless critical error occurred
 
                         # We have to catch Exception to ensure the test loop continues
                         # for all test cases even if one fails unexpectedly
@@ -555,6 +690,8 @@ class ExperimentManager:
                 successful_tests,
                 failed_tests,
             )
+            
+            return successful_tests > 0
 
         except (KeyboardInterrupt, SystemExit):
             self.logger.warning(
@@ -603,18 +740,23 @@ class ExperimentManager:
         """Load and configure logging for the experiment manager."""
         # Set up the logger
 
-        # Create a formatter with colors if available
-        formatter = ColoredFormatter(
-            "%(log_color)s" + self.log_format,
-            datefmt="%Y-%m-%d %H:%M:%S",
-            log_colors={
-                "DEBUG": "cyan",
-                "INFO": "green",
-                "WARNING": "yellow",
-                "ERROR": "red",
-                "CRITICAL": "bold_red",
-            },
-        )
+        # Configure formatter based on color preference
+        if getattr(self.global_config.logging, "enable_colors", True):
+            formatter = ColoredFormatter(
+                "%(log_color)s" + self.log_format,
+                datefmt="%Y-%m-%d %H:%M:%S",
+                reset=True,
+                log_colors={
+                    "DEBUG": "cyan",
+                    "INFO": "green",
+                    "WARNING": "yellow",
+                    "ERROR": "red",
+                    "CRITICAL": "bold_red",
+                },
+                style="%",
+            )
+        else:
+            formatter = logging.Formatter(self.log_format, datefmt="%Y-%m-%d %H:%M:%S")
 
         # Create a directory for logs if it doesn't exist
         self.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -628,18 +770,210 @@ class ExperimentManager:
         console_handler.setLevel(self.log_level)
         console_handler.setFormatter(formatter)
 
-        logging.basicConfig(
-            level=self.log_level,
-            format=self.log_format,
-            handlers=[file_handler, console_handler],
-        )
+        # Configure logger directly instead of using basicConfig to avoid conflicts
+        if not self.logger.hasHandlers():
+            self.logger.propagate = False
+        else:
+            # Clear existing handlers to avoid duplicates
+            self.logger.handlers.clear()
+
+        # Add both handlers to the logger
+        self.logger.addHandler(file_handler)
+        self.logger.addHandler(console_handler)
         self.logger.info(
             "ExperimentManager initialized for experiment: %s", self.experiment_name
         )
 
-    def _setup_observers(
-        self, factory: ObserverFactory
-    ):  # pylint: disable=unused-argument
+    def _setup_log_statistics(self):
+        """Setup log statistics collection if enabled in configuration."""
+        try:
+            stats_config = getattr(self.global_config.logging, "statistics", None)
+            if not stats_config or not stats_config.enabled:
+                return
+
+            from panther.core.utils.log_statistics_display import create_display
+            from panther.core.utils.logger_factory import LoggerFactory
+
+            # Enable statistics in LoggerFactory
+            stats_dict = {
+                "enabled": stats_config.enabled,
+                "buffer_size": stats_config.buffer_size,
+                "track_performance": stats_config.track_performance,
+                "handler_type": stats_config.handler_type,
+                "handler_buffer_size": stats_config.handler_buffer_size,
+                "flush_interval": stats_config.flush_interval,
+            }
+            LoggerFactory.enable_statistics(stats_dict)
+
+            # Setup real-time display if enabled
+            if stats_config.real_time_display and hasattr(
+                LoggerFactory, "_statistics_collector"
+            ):
+                self.log_statistics_display = create_display(
+                    collector=LoggerFactory._statistics_collector,
+                    display_mode="detailed",  # Could be configurable
+                    interval=stats_config.collection_interval,
+                    auto_clear=True,
+                )
+
+                # Start display in background
+                if self.log_statistics_display.start_display():
+                    self.logger.info("Started real-time log statistics display")
+                else:
+                    self.logger.warning("Failed to start log statistics display")
+
+            self.logger.debug("Log statistics collection enabled")
+
+        except Exception as e:
+            self.logger.warning("Failed to setup log statistics: %s", e)
+
+    def _generate_final_log_report(self):
+        """Generate final logging statistics report."""
+        try:
+            stats_config = getattr(self.global_config.logging, "statistics", None)
+            if (
+                not stats_config
+                or not stats_config.enabled
+                or not stats_config.generate_reports
+            ):
+                return
+
+            from panther.core.utils.log_statistics_reporter import LogStatisticsReporter
+            from panther.core.utils.logger_factory import LoggerFactory
+
+            if not hasattr(LoggerFactory, "_statistics_collector"):
+                return
+
+            collector = LoggerFactory._statistics_collector
+            reporter = LogStatisticsReporter(collector)
+
+            # Generate reports in requested formats
+            report_dir = self.experiment_dir / "log_statistics"
+            report_dir.mkdir(exist_ok=True)
+
+            base_filename = f"log_statistics_{self.experiment_name}"
+
+            for format_type in stats_config.export_formats:
+                try:
+                    if format_type.lower() == "json":
+                        filepath = report_dir / f"{base_filename}.json"
+                        if reporter.export_to_file(filepath, "json", pretty=True):
+                            self.logger.info(
+                                "Generated JSON log statistics report: %s", filepath
+                            )
+
+                    elif format_type.lower() == "text":
+                        filepath = report_dir / f"{base_filename}.txt"
+                        if reporter.export_to_file(filepath, "text"):
+                            self.logger.info(
+                                "Generated text log statistics report: %s", filepath
+                            )
+
+                    elif format_type.lower() == "csv":
+                        filepath = report_dir / f"{base_filename}.csv"
+                        if reporter.export_to_file(filepath, "csv"):
+                            self.logger.info(
+                                "Generated CSV log statistics report: %s", filepath
+                            )
+
+                except Exception as e:
+                    self.logger.warning(
+                        "Failed to generate %s log statistics report: %s",
+                        format_type,
+                        e,
+                    )
+
+            # Also save a real-time snapshot for comparison purposes
+            try:
+                snapshot_path = report_dir / f"{base_filename}_final_snapshot.json"
+                if reporter.save_real_time_snapshot(snapshot_path):
+                    self.logger.debug(
+                        "Saved final log statistics snapshot: %s", snapshot_path
+                    )
+            except Exception as e:
+                self.logger.debug("Failed to save final snapshot: %s", e)
+
+            # Log summary statistics to console
+            try:
+                stats = collector.get_real_time_stats()
+                session = stats["session_info"]
+                errors = stats["error_statistics"]
+
+                self.logger.info("📊 Final Logging Statistics Summary:")
+                self.logger.info("   Total Messages: %d", session["total_messages"])
+                self.logger.info(
+                    "   Duration: %.1f seconds", session["duration_seconds"]
+                )
+                self.logger.info(
+                    "   Average Rate: %.2f messages/second",
+                    session["messages_per_second"],
+                )
+                self.logger.info(
+                    "   Total Errors: %d (%.2f%%)",
+                    errors["total_errors"],
+                    errors["error_rate_percent"],
+                )
+
+                # Show top features if available
+                top_features = stats["message_distribution"]["by_feature"]
+                if top_features:
+                    top_3 = list(top_features.items())[:3]
+                    self.logger.info(
+                        "   Top Features: %s",
+                        ", ".join([f"{name}({count})" for name, count in top_3]),
+                    )
+
+            except Exception as e:
+                self.logger.debug("Failed to log statistics summary: %s", e)
+
+        except Exception as e:
+            self.logger.warning("Failed to generate final log statistics report: %s", e)
+
+    def _generate_experiment_report(self):
+        """Generate comprehensive experiment status report."""
+        try:
+            from panther.core.reporting.experiment_reporter import ExperimentReporter
+
+            reporter = ExperimentReporter(self.experiment_dir, self.experiment_name)
+
+            # Generate quick summary for logging
+            quick_summary = reporter.generate_quick_summary()
+            if quick_summary:
+                self.logger.info("Experiment Summary: %s", quick_summary)
+
+            # Generate all report formats
+            results = reporter.generate_reports()
+
+            # Log success/failure for each format
+            if results.get("json"):
+                self.logger.info(
+                    "Generated machine-readable experiment summary: experiment_summary.json"
+                )
+
+            if results.get("markdown"):
+                self.logger.info(
+                    "Generated human-readable experiment report: EXPERIMENT_REPORT.md"
+                )
+
+            if results.get("text"):
+                self.logger.info(
+                    "Generated text experiment summary: experiment_summary.txt"
+                )
+
+            # Log if any reports failed
+            failed_reports = [fmt for fmt, success in results.items() if not success]
+            if failed_reports:
+                self.logger.warning(
+                    "Failed to generate reports: %s", ", ".join(failed_reports)
+                )
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to generate experiment report: %s", e, exc_info=True
+            )
+            # Don't raise - this is best-effort during cleanup
+
+    def _setup_observers(self):  # pylint: disable=unused-argument
         """Sets up the observers for the experiment manager."""
         try:
             # Register StateEventObserver to sync state with events
@@ -657,18 +991,32 @@ class ExperimentManager:
 
             # File Handler for logging
             if self.global_config.observers.logger.enabled:
-                # Create enhanced logger observer
+                # Create  logger observer
                 try:
-                    self.logger.debug("Creating enhanced logger observer")
                     # Get log level from observer config if available, otherwise fallback to global log level
-                    log_level = (
+                    observer_log_level = (
                         self.global_config.observers.logger.log_level
                         if hasattr(self.global_config, "observers")
                         and hasattr(self.global_config.observers, "logger")
                         else logging.getLevelName(self.log_level)
                     )
+                    global_log_level = logging.getLevelName(self.log_level)
+                    
+                    # Use the more restrictive log level (higher numeric value = more restrictive)
+                    observer_level_numeric = getattr(logging, observer_log_level.upper(), logging.INFO)
+                    global_level_numeric = getattr(logging, global_log_level.upper(), logging.INFO)
+                    log_level = (
+                        global_log_level 
+                        if global_level_numeric >= observer_level_numeric 
+                        else observer_log_level
+                    )
+                    
+                    if global_level_numeric > observer_level_numeric:
+                        self.logger.debug(
+                            f"Using global log level '{global_log_level}' instead of observer level '{observer_log_level}' (more restrictive)"
+                        )
 
-                    # Use the standalone function to create an enhanced logger
+                    # Use the standalone function to create an  logger
                     create_logger(
                         name="experiment_logger",
                         global_config=self.global_config,
@@ -678,28 +1026,44 @@ class ExperimentManager:
                         enable_colors=True,
                         include_event_id=True,
                     )
-                    self.logger.info("Registered enhanced LoggerObserver")
+                    self.logger.info("Registered  LoggerObserver")
                 except (
                     Exception
                 ) as logger_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
-                        "Failed to create enhanced logger observer: %s. Falling back to basic observer.",
+                        "Failed to create  logger observer: %s. Falling back to basic observer.",
                         logger_error,
                     )
 
             # Register metrics observer if metrics collector is available
             if self.global_config.observers.metrics.enabled:
                 try:
-                    self.logger.info("Creating enhanced metrics observer")
+                    self.logger.info("Creating  metrics observer")
                     # Get metrics observer log level if available
-                    metrics_log_level = (
+                    # Respect global log level if it's more restrictive (higher level) than observer-specific level
+                    observer_metrics_log_level = (
                         self.global_config.observers.metrics.log_level
                         if hasattr(self.global_config, "observers")
                         and hasattr(self.global_config.observers, "metrics")
                         else "INFO"
                     )
+                    global_log_level = logging.getLevelName(self.log_level)
+                    
+                    # Use the more restrictive log level (higher numeric value = more restrictive)
+                    observer_level_numeric = getattr(logging, observer_metrics_log_level.upper(), logging.INFO)
+                    global_level_numeric = getattr(logging, global_log_level.upper(), logging.INFO)
+                    metrics_log_level = (
+                        global_log_level 
+                        if global_level_numeric >= observer_level_numeric 
+                        else observer_metrics_log_level
+                    )
+                    
+                    if global_level_numeric > observer_level_numeric:
+                        self.logger.debug(
+                            f"Using global log level '{global_log_level}' instead of metrics observer level '{observer_metrics_log_level}' (more restrictive)"
+                        )
 
-                    # Use the standalone function to create an enhanced metrics observer
+                    # Use the standalone function to create an  metrics observer
                     create_metrics(
                         name="experiment_metrics",
                         global_config=self.global_config,
@@ -708,12 +1072,12 @@ class ExperimentManager:
                         metrics_collector=self.metrics_collector,
                         log_level=metrics_log_level,  # Use observer-specific log level
                     )
-                    self.logger.info("Registered enhanced metrics observer")
+                    self.logger.info("Registered  metrics observer")
                 except (
                     Exception
                 ) as metrics_error:  # pylint: disable=broad-exception-caught
                     self.logger.warning(
-                        "Failed to create enhanced metrics observer: %s. Using default configuration instead.",
+                        "Failed to create  metrics observer: %s. Using default configuration instead.",
                         metrics_error,
                     )
 
@@ -722,7 +1086,7 @@ class ExperimentManager:
                 name="experiment_observer",
                 global_config=self.global_config,
                 auto_register=True,
-                priority=10,  # Higher priority to ensure it gets events first
+                priority=101,  # Higher priority to ensure it gets events first
                 output_dir=str(self.logs_dir),
                 test_name=self.experiment_name,
                 track_timing=True,
@@ -733,7 +1097,7 @@ class ExperimentManager:
             # Create a logger observer with debug mode if debug logging is enabled
             if self.log_level <= logging.DEBUG:
                 try:
-                    from panther.core.observer.logger.logger_observer import (  # pylint: disable=import-outside-toplevel
+                    from panther.core.observer import (  # pylint: disable=import-outside-toplevel
                         LoggerObserver,
                     )
 
@@ -779,6 +1143,14 @@ class ExperimentManager:
         self.logger.info("Starting experiment cleanup")
 
         try:
+            # Generate final log statistics report if enabled
+            self._generate_final_log_report()
+
+            # Stop log statistics display if running
+            if self.log_statistics_display and self.log_statistics_display.running:
+                self.log_statistics_display.stop_display()
+                self.logger.info("Stopped log statistics display")
+
             # Clean up state observer
             if hasattr(self, "state_observer"):
                 self.event_manager.unregister_observer(self.state_observer)
@@ -806,6 +1178,9 @@ class ExperimentManager:
             if hasattr(self, "workflow_tracker"):
                 self.workflow_tracker.clear_workflow_state(self.experiment_name)
                 self.logger.debug("Cleared workflow state for experiment")
+
+            # Generate experiment report
+            self._generate_experiment_report()
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.error("Error during cleanup: %s", e, exc_info=True)

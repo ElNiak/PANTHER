@@ -13,6 +13,13 @@ from unittest.mock import Mock, patch
 from panther_builder import BuildManager
 
 
+@pytest.fixture(autouse=True)
+def mock_python_version():
+    """Mock Python version to bypass version check."""
+    with patch("sys.version_info", (3, 10, 0)):
+        yield
+
+
 class TestBuildManagerEdgeCases:
     """Test edge cases and boundary conditions."""
 

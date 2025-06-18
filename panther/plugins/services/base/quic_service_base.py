@@ -1,16 +1,15 @@
-"""Base class for QUIC service implementations."""
+"""Base class for all QUIC service implementations."""
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol
 
 from panther.core.command_processor.command_utils import CommandUtils
 from panther.plugins.services.services_interface import IServiceManager
 
 
 class BaseQUICServiceManager(IServiceManager, ABC):
-    """Base class for all QUIC service implementations.
-
+    """
     This class provides common functionality for QUIC protocol implementations,
     reducing code duplication across different service managers.
     """
@@ -37,7 +36,7 @@ class BaseQUICServiceManager(IServiceManager, ABC):
             **kwargs: Additional configuration
         """
         # Convert string service_type to ImplementationType enum if needed
-        from panther.plugins.services.iut.config_schema import ImplementationType
+        from panther.config.core.models.service import ImplementationType
 
         if isinstance(service_type, str):
             # Map string to enum
@@ -81,6 +80,26 @@ class BaseQUICServiceManager(IServiceManager, ABC):
         """Return the binary name for this implementation."""
         pass
 
+    def _get_binary_path(self) -> str:
+        """Return the full path to the binary.
+
+        This method can be overridden by implementations that need custom paths.
+        By default, it combines the working directory with the binary name.
+
+        Returns:
+            Full path to the binary executable
+        """
+        binary_name = self._get_binary_name()
+
+        # Check if the implementation has a working_dir attribute
+        if hasattr(self, "working_dir") and self.working_dir:
+            import os
+
+            return os.path.join(self.working_dir, binary_name)
+
+        # Fallback to just the binary name if no working directory
+        return binary_name
+
     @abstractmethod
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         """Get implementation-specific server arguments.
@@ -95,7 +114,8 @@ class BaseQUICServiceManager(IServiceManager, ABC):
 
     @abstractmethod
     def _get_client_specific_args(self, **kwargs) -> List[str]:
-        """Get implementation-specific client arguments.
+        """
+        Get implementation-specific client arguments.
 
         Args:
             **kwargs: Configuration parameters
@@ -128,8 +148,8 @@ class BaseQUICServiceManager(IServiceManager, ABC):
         # Extract common parameters
         params = self._extract_common_params(**kwargs)
 
-        # Build base command
-        cmd_parts = [self._get_binary_name()]
+        # Build base command with full binary path
+        cmd_parts = [self._get_binary_path()]
 
         # Add common arguments based on role
         if role == "server":
@@ -141,6 +161,14 @@ class BaseQUICServiceManager(IServiceManager, ABC):
 
         # Build final command with proper escaping
         import shlex
+
+        # Special handling for multi-part binary commands (e.g., "python script.py")
+        binary_path = cmd_parts[0]
+        if " " in binary_path and not binary_path.startswith('"'):
+            # Split the binary path into components
+            binary_components = binary_path.split()
+            # Replace the first element with the split components
+            cmd_parts = binary_components + cmd_parts[1:]
 
         command = " ".join(shlex.quote(str(part)) for part in cmd_parts)
 
@@ -159,9 +187,9 @@ class BaseQUICServiceManager(IServiceManager, ABC):
         return {
             "host": kwargs.get("host", "localhost"),
             "port": kwargs.get("port", 4443),
-            "cert_dir": kwargs.get("cert_dir", "/certs"),
-            "key_file": kwargs.get("key_file", "/certs/key.pem"),
-            "cert_file": kwargs.get("cert_file", "/certs/cert.pem"),
+            "cert_dir": kwargs.get("cert_dir", "/opt/certs"),
+            "key_file": kwargs.get("key_file", "/opt/certs/key.pem"),
+            "cert_file": kwargs.get("cert_file", "/opt/certs/cert.pem"),
             "version": kwargs.get("version", "rfc9000"),
             "log_level": kwargs.get("log_level", "info"),
             "log_file": kwargs.get("log_file"),
@@ -228,13 +256,27 @@ class BaseQUICServiceManager(IServiceManager, ABC):
         Returns:
             Implementation-specific version string or None
         """
+        # Handle enum values
+        version_str = str(version)
+
+        # Extract enum value if it's in the format "VersionEnum.rfc9000"
+        if "VersionEnum." in version_str and "<" not in version_str:
+            version_str = version_str.split(".")[-1]
+
+        # Also handle numeric enum values (e.g., <VersionEnum.rfc9000: 1>)
+        elif "<VersionEnum." in version_str and ":" in version_str:
+            # Extract the part between . and :
+            dot_pos = version_str.find(".") + 1
+            colon_pos = version_str.find(":")
+            version_str = version_str[dot_pos:colon_pos].strip()
+
         # Default version mapping - implementations can override
         version_map = {
             "rfc9000": "1",
             "draft29": "ff00001d",
             "draft27": "ff00001b",
         }
-        return version_map.get(version, version)
+        return version_map.get(version_str, "1")  # Default to "1" for rfc9000
 
     def generate_compile_command(self, **kwargs) -> str:
         """Generate compile command for C/C++ implementations.

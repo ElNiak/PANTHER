@@ -1,3 +1,5 @@
+from typing import List
+
 """
 Script to install plugin templates during package installation.
 
@@ -10,8 +12,8 @@ and can process Jinja2 templates for dynamic content generation.
 """
 
 import shutil
-from pathlib import Path
 import site
+from pathlib import Path
 
 try:
     import jinja2
@@ -47,7 +49,9 @@ def install_templates():
         src_template = src_dir / "template"
 
         # Target directory in site-packages
-        target_dir = Path(site_packages) / "panther" / "plugins" / plugin_type / "tutorials"
+        target_dir = (
+            Path(site_packages) / "panther" / "plugins" / plugin_type / "tutorials"
+        )
         target_dir.mkdir(parents=True, exist_ok=True)
         target_template = target_dir / "template"
 
@@ -65,7 +69,9 @@ def install_templates():
             if item.is_dir():
                 # Skip subplugin folders as they'll be handled separately
                 if item.name not in PLUGIN_HIERARCHY.get(plugin_type, []):
-                    shutil.copytree(item, target_template / item.name, dirs_exist_ok=True)
+                    shutil.copytree(
+                        item, target_template / item.name, dirs_exist_ok=True
+                    )
             else:
                 shutil.copy2(item, target_template / item.name)
 
@@ -82,7 +88,9 @@ def install_templates():
 
                 for item in subplugin_src.glob("*"):
                     if item.is_dir():
-                        shutil.copytree(item, subplugin_target / item.name, dirs_exist_ok=True)
+                        shutil.copytree(
+                            item, subplugin_target / item.name, dirs_exist_ok=True
+                        )
                     else:
                         shutil.copy2(item, subplugin_target / item.name)
 
@@ -115,7 +123,7 @@ def process_jinja_templates(target_dir, plugin_types):
 
         # Create Jinja environment for the plugin type
         template_loader = jinja2.FileSystemLoader(str(plugin_dir))
-        template_env = jinja2.Environment(loader=template_loader)
+        template_env = jinja2.Environment(loader=template_loader, autoescape=True)
 
         # Find all .j2 files in the template directory and its subdirectories
         for j2_file in plugin_dir.rglob("*.j2"):

@@ -1,17 +1,12 @@
 from abc import abstractmethod
-from typing import Any
-from pathlib import Path
+from typing import Any, Dict, Optional
 
-from panther.config.config_experiment_schema import ServiceConfig
-from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.config.core.models.service import ServiceConfig
 from panther.core.observer.management.event_manager import EventManager
+from panther.config.core.models import ProtocolConfig
 from panther.plugins.services.services_interface import IServiceManager
-from panther.plugins.services.testers.tester_event_methods import TesterManagerEventMixin
-from panther.plugins.services.service_manager_utils import TesterServiceManagerMixin
-from panther.core.utils import (
-    ServiceTemplateRenderer,
-    ServiceManagerDockerMixin,
-    ErrorHandlerMixin,
+from panther.plugins.services.testers.tester_event_methods import (
+    TesterManagerEventMixin,
 )
 
 
@@ -29,10 +24,14 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
         service_type: str,
         protocol: ProtocolConfig,
         implementation_name: str,
-        event_manager: EventManager | None = None,
+        event_manager: Optional[EventManager] = None,
     ):
         super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name, event_manager
+            service_config_to_test,
+            service_type,
+            protocol,
+            implementation_name,
+            event_manager,
         )
         self._status = {
             "state": "created",
@@ -87,7 +86,8 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
         """
         pass
 
-    def set_collected_outputs(self, outputs: dict[str, dict[str, str]]) -> None:
+    @abstractmethod
+    def set_collected_outputs(self, outputs: Dict[str, Dict[str, str]]) -> None:
         """
         Set the outputs collected from execution environments for analysis.
 
@@ -98,13 +98,10 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
                         "cpu_profile": {"gperf_cpu": "/path/to/profile.data"}
                     }
         """
-        self.collected_outputs = outputs
-        self.logger.info(
-            f"Received {len(outputs)} output types for analysis: {list(outputs.keys())}"
-        )
+        pass
 
     @abstractmethod
-    def analyze_outputs(self) -> dict[str, Any]:
+    def analyze_outputs(self) -> Dict[str, Any]:
         """
         Analyze the collected outputs from execution environments.
 
@@ -112,17 +109,17 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
         and perform tester-specific analysis to determine test outcomes.
 
         Returns:
-            dict[str, Any]: Analysis results including:
+            Dict[str, Any]: Analysis results including:
                 - passed: bool - Whether analysis passed
-                - failed_checks: list[str] - List of failed checks
-                - warnings: list[str] - List of warnings
+                - failed_checks: List[str] - List of failed checks
+                - warnings: List[str] - List of warnings
                 - detailed_results: dict - Detailed analysis results
                 - analysis_summary: str - Human-readable summary
         """
         pass
 
     @abstractmethod
-    def get_test_results(self) -> dict[str, Any]:
+    def get_test_results(self) -> Dict[str, Any]:
         """
         Get the final test results after analysis.
 
@@ -130,66 +127,10 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
         and the analysis of collected outputs.
 
         Returns:
-            dict[str, Any]: Complete test results including:
+            Dict[str, Any]: Complete test results including:
                 - passed: bool - Overall test success
                 - execution_results: dict - Results from test execution
                 - analysis_results: dict - Results from output analysis
                 - summary: str - Overall summary
         """
         pass
-
-
-class StandardTesterManager(
-    TesterServiceManagerMixin, ServiceManagerDockerMixin, ErrorHandlerMixin, ITesterManager
-):
-    """
-    Standard implementation manager for Tester services that provides common initialization.
-
-    This class encapsulates the common patterns found in all tester service implementations:
-    - Standardized initialization sequence
-    - Template renderer setup with protocol support
-    - Docker configuration setup
-    - Tester-specific attribute setup
-
-    Concrete tester implementations should inherit from this class and only override specific methods
-    or add implementation-specific attributes.
-    """
-
-    def __init__(
-        self,
-        service_config_to_test: ServiceConfig,
-        service_type: str,
-        protocol: ProtocolConfig,
-        implementation_name: str,
-        event_manager: EventManager | None = None,
-        docker_image_name: str = None,
-        plugin_dir: Path = None,
-        include_protocol_in_template: bool = True,
-    ):
-        super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name, event_manager
-        )
-
-        # Use standardized initialization from mixin
-        self.standardized_initialization(
-            service_config_to_test, service_type, protocol, implementation_name, event_manager
-        )
-
-        # Set up tester-specific attributes
-        self.setup_tester_specific_attributes(service_config_to_test)
-
-        # Initialize template renderer
-        if plugin_dir is None:
-            plugin_dir = Path(__file__).parent
-
-        if include_protocol_in_template:
-            self.template_renderer = ServiceTemplateRenderer(plugin_dir, protocol.name)
-        else:
-            self.template_renderer = ServiceTemplateRenderer(plugin_dir)
-
-        # Set Docker attributes for ServiceManagerDockerMixin
-        if docker_image_name is None:
-            docker_image_name = f"{implementation_name}:latest"
-
-        self.docker_image_name = docker_image_name
-        self.docker_file_path = plugin_dir / "Dockerfile"

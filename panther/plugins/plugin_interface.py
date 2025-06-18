@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.utils.logging_mixin import LoggerMixin
@@ -35,7 +35,7 @@ class IPlugin(LoggerMixin, ABC):
         self.event_emitter = event_emitter
         self.logger.debug("BaseEvent emitter set on plugin %s", self.name)
 
-    def get_supported_events(self) -> list[str]:
+    def get_supported_events(self) -> List[str]:
         """
         Get the event types this plugin is interested in.
 
@@ -56,7 +56,7 @@ class IPlugin(LoggerMixin, ABC):
         """
         pass
 
-    def initialize(self, config: dict[str, Any] | None = None) -> bool:
+    def initialize(self, config: Optional[Dict[str, Any]] = None) -> bool:
         """
         Initialize the plugin with configuration.
 

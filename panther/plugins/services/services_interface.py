@@ -3,7 +3,7 @@ import os
 import shlex
 from abc import abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -16,7 +16,7 @@ from panther.core.utils import CommandEventMixin
 
 # PluginManager functionality now integrated into PluginManager
 from panther.plugins.plugin_interface import IPlugin
-from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.config.core.models import ProtocolConfig
 from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
 
 # Use TYPE_CHECKING to avoid circular imports
@@ -168,6 +168,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         is_tester() -> bool: Returns True if the service type is "testers".
         prepare(plugin_manager: Optional[Any] = None): Abstract method to build the Docker image for the implementation.
         generate_deployment_commands() -> str: Abstract method to generate deployment commands based on service parameters.
+        get_output_patterns() -> List[Tuple[str, str]]: Returns service-specific output patterns.
     """
 
     def __init__(
@@ -176,13 +177,17 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         service_type: str,
         protocol: ProtocolConfig,
         implementation_name: str,
-        event_manager: EventManager | None = None,
+        event_manager: Optional[EventManager] = None,
     ):
         super().__init__()
         CommandEventMixin.__init__(self)  # Initialize the CommandEventMixin
 
         self.available_types = ["TESTERS", "IUT", "testers", "iut"]
-        self.service_type = str(service_type.name)
+        # Handle both string and enum types
+        if hasattr(service_type, 'name'):
+            self.service_type = str(service_type.name)
+        else:
+            self.service_type = str(service_type)
         self.service_type_normalized = self.service_type.upper()
         assert self.service_type_normalized in [
             "TESTERS",
@@ -253,7 +258,17 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         self.role = self.service_config_to_test.protocol.role
         self.environments = {}
 
-        # Note eventually create a dataclass
+        volumes = [
+            "shared_logs:/app/sync_logs",
+        ]
+
+        if hasattr(self, "volumes"):
+            self.volumes.extend(volumes)
+        else:
+            self.volumes = volumes
+
+        # Default output patterns for this service
+        self._output_patterns = self._get_default_output_patterns()
         self.run_cmd = {
             "pre_compile_cmds": [],
             "compile_cmds": [],
@@ -446,27 +461,22 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         commands = [
             ShellCommand(
                 command="set -x;",
-                description="Enable command tracing",
                 is_critical=True,
             ),
             ShellCommand(
                 command="export SHELLOPTS",
-                description="Export shell options for subshells",
                 is_critical=True,
             ),
             ShellCommand(
                 command="export PATH=$PATH:$ADDITIONAL_PATH;",
-                description="Set PATH environment variable",
                 is_critical=False,  # Non-critical as ADDITIONAL_PATH might be empty
             ),
             ShellCommand(
                 command="export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
-                description="Set PYTHONPATH environment variable",
                 is_critical=False,  # Non-critical as ADDITIONAL_PYTHONPATH might be empty
             ),
             ShellCommand(
                 command="env >> /app/logs/env.log;",
-                description="Log environment variables for debugging",
                 is_critical=False,
             ),
         ]
@@ -478,7 +488,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         )
         return commands
 
-    def generate_compile_commands(self) -> list[str]:
+    def generate_compile_commands(self) -> List[str]:
         """
         This method generates and returns a list of compile commands.
         Generates compile commands.
@@ -489,11 +499,12 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # Emit command generation started event
         self.emit_command_generation_started("compile")
         commands = []
-        # Emit command generated event
-        self.emit_command_generated("compile", "No compile commands")
+        # Only emit if there are actual commands
+        if commands:
+            self.emit_command_generated("compile", f"{len(commands)} compile commands")
         return commands
 
-    def generate_post_compile_commands(self) -> list[str]:
+    def generate_post_compile_commands(self) -> List[str]:
         """
         Generate a list of post-compile commands.
         This method returns an empty list of strings representing commands
@@ -504,11 +515,14 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # Emit command generation started event
         self.emit_command_generation_started("post_compile")
         commands = []
-        # Emit command generated event
-        self.emit_command_generated("post_compile", "No post-compile commands")
+        # Only emit if there are actual commands
+        if commands:
+            self.emit_command_generated(
+                "post_compile", f"{len(commands)} post-compile commands"
+            )
         return commands
 
-    def generate_pre_run_commands(self) -> list[str]:
+    def generate_pre_run_commands(self) -> List[str]:
         """
         Generates a list of pre-run commands.
         This method returns an empty list of strings, which can be overridden by subclasses
@@ -519,8 +533,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # Emit command generation started event
         self.emit_command_generation_started("pre_run")
         commands = []
-        # Emit command generated event
-        self.emit_command_generated("pre_run", "No pre-run commands")
+        # Only emit if there are actual commands
+        if commands:
+            self.emit_command_generated("pre_run", f"{len(commands)} pre-run commands")
         return commands
 
     def generate_run_command(self) -> dict:
@@ -545,9 +560,11 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             "environment": {},
         }
 
-        # Emit command generated event with a summary
-        cmd_summary = f"Run command: {run_cmd.get('command_binary', 'No binary')}"
-        self.emit_command_generated("run", cmd_summary)
+        # Only emit if there's an actual command binary
+        command_binary = run_cmd.get("command_binary", "")
+        if command_binary:
+            cmd_summary = f"Run command: {command_binary}"
+            self.emit_command_generated("run", cmd_summary)
 
         return run_cmd
 
@@ -558,8 +575,11 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         # Emit command generation started event
         self.emit_command_generation_started("post_run")
         commands = []
-        # Emit command generated event
-        self.emit_command_generated("post_run", "No post-run commands")
+        # Only emit if there are actual commands
+        if commands:
+            self.emit_command_generated(
+                "post_run", f"{len(commands)} post-run commands"
+            )
         return commands
 
     def get_implementation_name(self) -> str:
@@ -669,7 +689,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         self.event_manager = event_manager
         self.event_emitter = ServiceEventEmitter(event_manager)
 
-    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
+    def _do_prepare(self, plugin_manager: "Optional[PluginManager]" = None):
         """
         Prepare the service with proper event notifications.
 
@@ -753,7 +773,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             raise
 
     @abstractmethod
-    def _do_prepare(self, plugin_manager: "PluginManager | None" = None):
+    def _do_prepare(self, plugin_manager: "Optional[PluginManager]" = None):
         """
         Perform the actual preparation work.
 
@@ -863,3 +883,172 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             self.logger.debug(
                 "Unhandled event type %s for service %s", event_type, self.service_name
             )
+
+    def _get_default_output_patterns(self) -> List[Tuple[str, str]]:
+        """
+        Get default output patterns based on service type and protocol.
+
+        Returns:
+            List of (output_type, filename_pattern) tuples
+        """
+        # Base patterns common to all services
+        base_patterns = [
+            ("stdout", "stdout.log"),
+            ("stderr", "stderr.log"),
+            ("logs", "{service_name}.log"),
+        ]
+
+        # Add protocol-specific patterns if available
+        if hasattr(self, "service_protocol") and self.service_protocol:
+            protocol_name = getattr(self.service_protocol, "name", None)
+            if protocol_name:
+                base_patterns.extend(
+                    self._get_protocol_specific_patterns(protocol_name)
+                )
+
+        # Add service type specific patterns
+        if self.service_type_normalized == "TESTERS":
+            base_patterns.extend(
+                [
+                    ("test_results", "test_results.json"),
+                    ("test_log", "test_{service_name}.log"),
+                    ("analysis", "analysis_{service_name}.json"),
+                ]
+            )
+
+        return base_patterns
+
+    def _get_protocol_specific_patterns(self, protocol: str) -> List[Tuple[str, str]]:
+        """
+        Get protocol-specific output patterns.
+
+        Args:
+            protocol: Protocol name (e.g., 'quic', 'tcp', 'http')
+
+        Returns:
+            List of (output_type, filename_pattern) tuples
+        """
+        protocol_patterns = {
+            "quic": [
+                ("qlog", "*.qlog"),
+                ("keys", "*keys.log"),
+                ("sslkeylog", "sslkeylogfile.txt"),
+                ("pcap", "{service_name}.pcap"),
+                ("congestion", "*congestion*.log"),
+            ],
+            "tcp": [
+                ("pcap", "{service_name}.pcap"),
+                ("tcpdump", "*.pcap"),
+                ("netstat", "*netstat*.log"),
+            ],
+            "http": [
+                ("access_log", "access.log"),
+                ("error_log", "error.log"),
+                ("har", "*.har"),
+                ("sslkeylog", "sslkeylogfile.txt"),
+            ],
+            "http3": [  # HTTP/3 over QUIC
+                ("qlog", "*.qlog"),
+                ("keys", "*keys.log"),
+                ("har", "*.har"),
+                ("h3_log", "*h3*.log"),
+            ],
+        }
+
+        return protocol_patterns.get(protocol.lower(), [])
+
+    def get_output_patterns(self) -> List[Tuple[str, str]]:
+        """
+        Get output patterns for this service.
+
+        This method can be overridden by subclasses to provide custom patterns.
+
+        Returns:
+            List of (output_type, filename_pattern) tuples where:
+            - output_type: Category of output (e.g., 'stdout', 'pcap', 'qlog')
+            - filename_pattern: Pattern to match files (supports {service_name} placeholder and glob patterns)
+        """
+        return self._output_patterns
+
+    def add_output_pattern(self, output_type: str, filename_pattern: str):
+        """
+        Add a custom output pattern for this service.
+
+        Args:
+            output_type: Type/category of the output
+            filename_pattern: File pattern (can include {service_name} placeholder)
+        """
+        self._output_patterns.append((output_type, filename_pattern))
+        self.logger.debug(f"Added output pattern: {output_type} -> {filename_pattern}")
+
+    def configure_environment_outputs(self, env_type: str) -> None:
+        """
+        Configure output patterns based on the environment type.
+
+        This method allows services to customize their output patterns based on
+        which execution environment they're running in.
+
+        Args:
+            env_type: Type of execution environment (e.g., 'strace', 'memcheck', 'gperf')
+        """
+        # Override in subclasses to add environment-specific outputs
+        pass
+
+    def get_additional_output_discovery_patterns(self) -> Dict[str, List[str]]:
+        """
+        Get additional patterns for discovering outputs not covered by standard patterns.
+
+        Override this in subclasses to provide custom discovery patterns.
+
+        Returns:
+            Dict mapping output types to lists of glob patterns
+        """
+        return {}
+
+    def get_output_file_paths(self, log_base_path: str = "/app/logs") -> Dict[str, str]:
+        """
+        Get the actual output file paths that will be used by this service.
+
+        This method converts output patterns into concrete file paths that can be
+        used in entrypoint scripts for redirecting output.
+
+        Args:
+            log_base_path: Base path where logs will be stored (default: /app/logs)
+
+        Returns:
+            Dict mapping output types to concrete file paths
+        """
+        output_paths = {}
+        service_name = self.service_name
+
+        for output_type, pattern in self.get_output_patterns():
+            # Skip glob patterns for command generation
+            if "*" in pattern:
+                continue
+
+            # Replace {service_name} placeholder
+            filename = pattern.format(service_name=service_name)
+
+            # Create full path
+            full_path = f"{log_base_path}/{filename}"
+            output_paths[output_type] = full_path
+
+        return output_paths
+
+    def get_standard_redirections(self) -> Dict[str, str]:
+        """
+        Get standard I/O redirections for command execution.
+
+        Returns:
+            Dict with 'stdout' and 'stderr' paths, or empty dict if using defaults
+        """
+        paths = self.get_output_file_paths()
+        redirections = {}
+
+        # Check for stdout/stderr in output patterns
+        if "stdout" in paths:
+            redirections["stdout"] = paths["stdout"]
+        if "stderr" in paths:
+            redirections["stderr"] = paths["stderr"]
+
+        return redirections

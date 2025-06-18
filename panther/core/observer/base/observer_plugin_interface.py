@@ -7,6 +7,7 @@ This module defines interfaces for plugin-based observers in the PANTHER framewo
 import logging
 from abc import abstractmethod
 from collections import defaultdict
+from typing import Dict, List, Set
 
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.observer.base.observer_interface import IObserver
@@ -24,12 +25,12 @@ class IPluginObserver(IObserver):
         """Initialize the plugin observer with logging and plugin tracking."""
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
         # Map plugin IDs to their interested event types
-        self.plugin_events: dict[str, set[str]] = defaultdict(set)
+        self.plugin_events: Dict[str, Set[str]] = defaultdict(set)
         # Map event types to interested plugin IDs
-        self.event_plugins: dict[str, set[str]] = defaultdict(set)
+        self.event_plugins: Dict[str, Set[str]] = defaultdict(set)
 
     @abstractmethod
-    def register_plugin_events(self, plugin_id: str, event_types: list[str]) -> None:
+    def register_plugin_events(self, plugin_id: str, event_types: List[str]) -> None:
         """
         Register event types that a plugin is interested in.
 
@@ -50,7 +51,7 @@ class IPluginObserver(IObserver):
         pass
 
     @abstractmethod
-    def get_plugin_events(self, plugin_id: str) -> list[str]:
+    def get_plugin_events(self, plugin_id: str) -> List[str]:
         """
         Get the event types a plugin is interested in.
 
@@ -63,7 +64,7 @@ class IPluginObserver(IObserver):
         pass
 
     @abstractmethod
-    def get_plugins_for_event(self, event_type: str) -> list[str]:
+    def get_plugins_for_event(self, event_type: str) -> List[str]:
         """
         Get plugins interested in a specific event type.
 
@@ -88,7 +89,7 @@ class PluginObserver(IPluginObserver):
         """Initialize the plugin observer."""
         super().__init__()
 
-    def register_plugin_events(self, plugin_id: str, event_types: list[str]) -> None:
+    def register_plugin_events(self, plugin_id: str, event_types: List[str]) -> None:
         """
         Register event types that a plugin is interested in.
 
@@ -128,7 +129,7 @@ class PluginObserver(IPluginObserver):
         if plugin_id in self.plugin_events:
             del self.plugin_events[plugin_id]
 
-    def get_plugin_events(self, plugin_id: str) -> list[str]:
+    def get_plugin_events(self, plugin_id: str) -> List[str]:
         """
         Get the event types a plugin is interested in.
 
@@ -140,7 +141,7 @@ class PluginObserver(IPluginObserver):
         """
         return list(self.plugin_events.get(plugin_id, set()))
 
-    def get_plugins_for_event(self, event_type: str) -> list[str]:
+    def get_plugins_for_event(self, event_type: str) -> List[str]:
         """
         Get plugins interested in a specific event type.
 
@@ -170,7 +171,7 @@ class PluginObserver(IPluginObserver):
             # The specific implementation depends on your plugin system
             self._notify_plugins(event, interested_plugins)
 
-    def _notify_plugins(self, event: Event, plugin_ids: list[str]) -> None:
+    def _notify_plugins(self, event: Event, plugin_ids: List[str]) -> None:
         """
         Notify specific plugins about an event.
 
@@ -187,7 +188,7 @@ class PluginObserver(IPluginObserver):
                 f"Notifying plugin '{plugin_id}' about event '{event.get_type()}'"
             )
 
-    def get_registered_plugins(self) -> list[str]:
+    def get_registered_plugins(self) -> List[str]:
         """
         Get a list of all registered plugin IDs.
 
@@ -196,7 +197,7 @@ class PluginObserver(IPluginObserver):
         """
         return list(self.plugin_events.keys())
 
-    def get_event_types(self) -> list[str]:
+    def get_event_types(self) -> List[str]:
         """
         Get a list of all event types that have interested plugins.
 

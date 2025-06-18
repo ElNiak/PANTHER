@@ -9,7 +9,7 @@ tracking event propagation between components.
 import logging
 import sys
 import time
-from typing import Any
+from typing import Any, Dict, List
 
 # Setup logging
 logging.basicConfig(
@@ -17,12 +17,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("EventArchitectureTest")
 
-
 # Define basic classes needed for the test
 class Event:
     """Simplified Event class for testing."""
 
-    def __init__(self, name: str, data: dict[str, Any] = None):
+    def __init__(self, name: str, data: Dict[str, Any] = None):
         self.name = name
         self.data = data or {}
 
@@ -31,7 +30,6 @@ class Event:
 
     def __str__(self):
         return f"Event(name={self.name}, data={self.data})"
-
 
 class EventManager:
     """Simplified EventManager for testing."""
@@ -50,7 +48,6 @@ class EventManager:
             else:
                 observer.on_event(event)
 
-
 class EventEmitter:
     """Simplified EventEmitter for testing."""
 
@@ -60,9 +57,8 @@ class EventEmitter:
     def emit_event(self, event: Event):
         self.event_manager.notify(event)
 
-    def emit_service_event(self, name: str, data: dict[str, Any] = None):
+    def emit_service_event(self, name: str, data: Dict[str, Any] = None):
         self.emit_event(Event(name=name, data=data or {}))
-
 
 class IPantherPlugin:
     """Simplified Plugin interface for testing."""
@@ -76,18 +72,17 @@ class IPantherPlugin:
     def set_event_emitter(self, event_emitter):
         self.event_emitter = event_emitter
 
-    def get_supported_events(self) -> list[str]:
+    def get_supported_events(self) -> List[str]:
         return []
 
     def handle_event(self, event: Event):
         pass
 
-    def initialize(self, config: dict[str, Any] = None) -> bool:
+    def initialize(self, config: Dict[str, Any] = None) -> bool:
         return True
 
     def shutdown(self) -> bool:
         return True
-
 
 class PluginObserver:
     """Simplified PluginObserver for testing."""
@@ -157,7 +152,6 @@ class PluginObserver:
                 except Exception as e:
                     self.logger.error(f"Error in plugin '{plugin.name}': {e}")
 
-
 class EventMonitorPlugin(IPantherPlugin):
     """
     Sample plugin that monitors events and logs them.
@@ -193,7 +187,6 @@ class EventMonitorPlugin(IPantherPlugin):
     def get_event_count(self):
         """Return the number of events received."""
         return len(self.received_events)
-
 
 class ServiceInteractorPlugin(IPantherPlugin):
     """
@@ -250,7 +243,6 @@ class ServiceInteractorPlugin(IPantherPlugin):
     def get_active_service_count(self):
         """Return the number of active services."""
         return len(self.active_services)
-
 
 def test_event_architecture():
     """
@@ -339,7 +331,6 @@ def test_event_architecture():
     except Exception as e:
         logger.error(f"Test failed: {str(e)}", exc_info=True)
         return False
-
 
 if __name__ == "__main__":
     success = test_event_architecture()

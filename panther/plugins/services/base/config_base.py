@@ -1,14 +1,12 @@
-"""Base configuration schemas for service plugins."""
-
 from typing import Any, Dict
+
+"""Base configuration schemas for service plugins."""
 
 from marshmallow import Schema, fields, post_load, validate
 
 
 class BaseQUICConfigSchema(Schema):
-    """Base configuration schema for QUIC service implementations.
-
-    This schema defines common configuration fields shared across all QUIC
+    """This schema defines common configuration fields shared across all QUIC.
     implementations, reducing duplication in config schemas.
     """
 
@@ -37,9 +35,11 @@ class BaseQUICConfigSchema(Schema):
     )
 
     # Certificate configuration
-    cert_dir = fields.Str(default="/certs", description="Certificate directory")
-    cert_file = fields.Str(default="/certs/cert.pem", description="Certificate file")
-    key_file = fields.Str(default="/certs/key.pem", description="Private key file")
+    cert_dir = fields.Str(default="/opt/certs", description="Certificate directory")
+    cert_file = fields.Str(
+        default="/opt/certs/cert.pem", description="Certificate file"
+    )
+    key_file = fields.Str(default="/opt/certs/key.pem", description="Private key file")
     generate_new_certificates = fields.Bool(
         default=False, description="Generate new certificates"
     )

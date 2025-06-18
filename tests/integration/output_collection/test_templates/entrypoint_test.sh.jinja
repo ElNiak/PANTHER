@@ -1,0 +1,91 @@
+#!/bin/bash -x
+# Test service entrypoint template for output collection testing
+# Based on PANTHER's main entrypoint template structure
+
+# Define helper functions (simplified for test services)
+log() {
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /app/logs/{{additional_param.service_name}}_entrypoint.log
+}
+
+# Export log function so it's available in subshells
+export -f log
+
+# Service environment setup
+set_environment() {
+  # Set environment variables for the test service
+  export SERVICE_NAME="{{ additional_param.service_name | default('test_service') }}"
+  export SERVICE_ROLE="{{ additional_param.service_role | default('server') }}"
+  export MOCK_RUNTIME="{{ additional_param.mock_runtime | default('5') }}"
+  export CREATE_ADDITIONAL_FILES="{{ additional_param.create_additional_files | default('false') }}"
+}
+
+# Initialize environment variables
+log "Setting up environment variables for test service..."
+set_environment
+
+# Service discovery: Write our IP to a shared file (following PANTHER pattern)
+SERVICE_NAME="{{additional_param.service_name}}"
+SERVICE_IP=$(hostname -i | grep -v '^127' | head -n 1)
+if [ -n "$SERVICE_IP" ]; then
+  echo "$SERVICE_IP" > /app/sync_logs/${SERVICE_NAME}_ip.txt
+  log "Registered service IP: $SERVICE_IP"
+fi
+
+# Ensure SSL keylog file exists for collection (following PANTHER pattern)
+if [ -n "$SSLKEYLOGFILE" ]; then
+  touch "$SSLKEYLOGFILE"
+  log "Created SSL keylog file: $SSLKEYLOGFILE"
+else
+  export SSLKEYLOGFILE="/app/logs/sslkeylogfile.txt"
+  touch "$SSLKEYLOGFILE"
+  log "Created default SSL keylog file: $SSLKEYLOGFILE"
+fi
+
+# Ensure stdout/stderr log files exist for collection (following PANTHER pattern)
+touch "/app/logs/stdout.log"
+touch "/app/logs/stderr.log"
+log "Created stdout/stderr log files"
+
+# Start tshark for packet capture if requested (following PANTHER pattern)
+if [ "${ENABLE_PCAP:-true}" = "true" ]; then
+    log "Starting tshark for packet capture..."
+    tshark -i any -w "/app/logs/${SERVICE_NAME}.pcap" -q &
+    TSHARK_PID=$!
+    log "Started tshark with PID: $TSHARK_PID"
+fi
+
+# Wait for dependencies if this is a client service (following PANTHER pattern)
+{% if additional_param.service_targets %}
+log "This test service depends on: {{ additional_param.service_targets }}"
+# For test services, we do a simple connectivity check
+ping -c 3 "{{ additional_param.service_targets }}" > /app/logs/{{additional_param.service_name}}_connectivity.log 2>&1
+if [ $? -ne 0 ]; then
+  log "WARNING: Could not ping dependency {{ additional_param.service_targets }}, but continuing for test"
+fi
+{% endif %}
+
+# Execute the main test service command (following PANTHER pattern)
+log "Executing main test service command..."
+pwd > /app/logs/{{additional_param.service_name}}_current_dir_during_exec.log
+
+# Run the test service and redirect outputs (following PANTHER pattern)
+log "Starting test service: $SERVICE_NAME"
+python /app/universal_test_service.py >> /app/logs/stdout.log 2>> /app/logs/stderr.log
+RUN_STATUS=$?
+
+# Clean up tshark if it was started (following PANTHER pattern)
+if [ "${ENABLE_PCAP:-true}" = "true" ] && [ -n "$TSHARK_PID" ]; then
+    log "Stopping tshark..."
+    kill $TSHARK_PID 2>/dev/null || true
+    wait $TSHARK_PID 2>/dev/null || true
+    log "Stopped tshark"
+fi
+
+if [ $RUN_STATUS -ne 0 ]; then
+  log "ERROR: Test service failed with exit status $RUN_STATUS"
+else
+  log "Test service completed successfully"
+fi
+
+log "All commands executed successfully. Test service '{{additional_param.service_name}}' entrypoint complete."
+exit $RUN_STATUS

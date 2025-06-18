@@ -21,7 +21,70 @@ The Quant implementation plugin enables:
 - Experimental feature development and testing
 - Protocol extension and modification research
 
+## Inheritance Architecture
+
+!!! info "Inheritance-Based Implementation"
+    The Quant plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Quant's research-focused patterns and extensibility.
+
+### Inheritance Architecture
+
+The Quant implementation follows the template method pattern:
+
+```python
+# panther/plugins/services/iut/quic/quant/quant.py
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+
+class QuantServiceManager(BaseQUICServiceManager):
+    """Quant QUIC implementation with inheritance-based architecture."""
+    
+    def _get_implementation_name(self) -> str:
+        return "quant"
+    
+    def _get_binary_name(self) -> str:
+        return "client"  # or server
+    
+    # Customize only what's unique to Quant
+    def _get_server_specific_args(self, **kwargs) -> List[str]:
+        port = kwargs.get("port", 4433)
+        return ["-p", str(port)]
+    
+    def _get_client_specific_args(self, **kwargs) -> List[str]:
+        host = kwargs.get("host", "localhost")
+        port = kwargs.get("port", 4433)
+        return ["-h", host, "-p", str(port)]
+    
+    # All common QUIC functionality inherited from BaseQUICServiceManager!
+```
+
+### Benefits of Inheritance Architecture
+
+- **Code Reduction**: From extensive manual implementation to focused research-specific patterns
+- **Consistent Behavior**: Common QUIC functionality shared with all implementations
+- **Automatic Updates**: New features in base class automatically available
+- **Event Integration**: Built-in event emission for monitoring and debugging
+- **Command Processing**: Structured command generation through Command Processor
+- **Research Focus**: Allows focus on protocol innovation rather than infrastructure
+
+### What's Provided by Base Class
+
+- **Common Parameter Extraction**: Port, host, certificate handling
+- **Standard Command Building**: Template method pattern for command generation
+- **Event Emission**: Service lifecycle and status events
+- **Error Handling**: Timeout management and failure recovery
+- **Docker Integration**: Standardized container build patterns
+- **Logging Integration**: Structured logging with correlation tracking
+
+### What's Customized for Quant
+
+- **Binary Name**: Uses Quant's research-focused `client` and `server` executables
+- **Command Arguments**: Quant-specific argument formatting (`-p`, `-h`)
+- **Build Process**: Academic C compilation with research extensions
+- **Research Features**: Extensible architecture for protocol experimentation
+
 ## Requirements and Dependencies
+
+!!! info "Base Class Dependencies"
+    The Quant implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 The plugin requires:
 

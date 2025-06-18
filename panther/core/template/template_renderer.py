@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Union
+
 """
 Template Renderer Utilities
 
@@ -7,17 +9,17 @@ reducing duplication of Jinja2 template handling across service managers.
 
 import shlex
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
 
 import jinja2
 
 from panther.core.command_processor.command import ShellCommand
-from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
+from panther.core.command_processor.command_summarizer import CommandSummarizer
 from panther.core.utils.logging_mixin import LoggerMixin
 
 
-class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
+class TemplateRenderer(LoggerMixin):
     """
+
     Utility class for rendering Jinja2 templates with common patterns.
 
     Reduces duplication of template rendering logic across service managers.
@@ -62,7 +64,7 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
                 loader=loader, autoescape=jinja2.select_autoescape(["html", "xml"])
             )
         else:
-            self.jinja_env = jinja2.Environment(loader=loader)
+            self.jinja_env = jinja2.Environment(loader=loader, autoescape=True)
 
         # Add custom filters
         for name, filter_func in self.custom_filters.items():
@@ -91,6 +93,20 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
                 self.jinja_env.undefined = jinja2.StrictUndefined
             else:
                 self.jinja_env.undefined = jinja2.Undefined
+
+            # Log template rendering with smart context summarization
+            context_summary = CommandSummarizer.summarize_template_context(context)
+            self.logger.debug(
+                "Rendering template '%s' with context: %s",
+                template_name,
+                context_summary,
+            )
+
+            # Full context available at TRACE level
+            if self.logger.isEnabledFor(5):  # TRACE level
+                self.logger.trace(
+                    "Full template context for '%s': %s", template_name, context
+                )
 
             template = self.jinja_env.get_template(template_name)
             return template.render(**context)
@@ -131,7 +147,16 @@ class TemplateRenderer(ErrorHandlerMixin, LoggerMixin):
         with open(output_path, "w") as f:
             f.write(rendered)
 
-        self.logger.debug(f"Rendered {template_name} to {output_path}")
+        # Log template rendering result with context summary
+        context_summary = CommandSummarizer.summarize_template_context(
+            context, max_keys=3
+        )
+        self.logger.debug(
+            "Rendered template '%s' to '%s' | %s",
+            template_name,
+            output_path.name,
+            context_summary,
+        )
 
         return output_path
 
@@ -249,7 +274,9 @@ class EnvironmentTemplateRenderer(TemplateRenderer):
             f"Initialized EnvironmentTemplateRenderer with directory: {self.template_dir}"
         )
         # TODO
-        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.template_dir))
+        self.env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(self.template_dir), autoescape=True
+        )
         self.env.globals.update(
             {
                 "get_env_var": self.get_env_var,
@@ -335,7 +362,7 @@ class ServiceTemplateRenderer(TemplateRenderer):
         )
 
     def render_config_file(
-        self, config_template: str, params: dict[str, Any], output_filename: str
+        self, config_template: str, params: Dict[str, Any], output_filename: str
     ) -> Path:
         """
         Render a configuration file template.
@@ -353,6 +380,6 @@ class ServiceTemplateRenderer(TemplateRenderer):
 
         return self.render_to_file(config_template, params, output_path)
 
-    def get_role_templates(self, role: str) -> list[str]:
+    def get_role_templates(self, role: str) -> List[str]:
         """Get all templates for a specific role."""
         return [t for t in self.list_templates() if t.startswith(f"{role.lower()}_")]

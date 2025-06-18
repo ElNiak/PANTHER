@@ -46,7 +46,79 @@ The Shadow integration allows for deterministic, repeatable experiments with pre
 - **Debugging support**: Enhanced logging and state inspection for simulation environments
 - **Batch experimentation**: Support for large-scale parameter sweeps and experiments
 
+## Inheritance Architecture
+
+!!! info "Inheritance-Based Implementation"
+    The Picoquic Shadow plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior while maintaining Shadow NS-specific integration patterns for deterministic network simulation.
+
+### Inheritance Architecture
+
+The Picoquic Shadow implementation follows the template method pattern:
+
+```python
+# panther/plugins/services/iut/quic/picoquic_shadow/picoquic_shadow.py
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+
+class PicoquicShadowServiceManager(BaseQUICServiceManager):
+    """Picoquic Shadow QUIC implementation with inheritance-based architecture."""
+    
+    def _get_implementation_name(self) -> str:
+        return "picoquic_shadow"
+    
+    def _get_binary_name(self) -> str:
+        return "picoquicdemo"  # Same as regular Picoquic
+    
+    # Customize for Shadow NS integration
+    def _get_server_specific_args(self, **kwargs) -> List[str]:
+        port = kwargs.get("port", 4443)
+        # Shadow-specific socket binding
+        return ["-p", str(port), "-L", "-l", "/tmp/server.log"]
+    
+    def _get_client_specific_args(self, **kwargs) -> List[str]:
+        host = kwargs.get("host", "localhost")
+        port = kwargs.get("port", 4443)
+        # Shadow-specific connection patterns
+        return [f"{host}", str(port), "-l", "/tmp/client.log"]
+    
+    # Shadow integration and deterministic testing handled by base class
+```
+
+### Benefits of Inheritance Architecture
+
+- **Code Reduction**: From extensive manual implementation to focused Shadow-specific patterns
+- **Consistent Behavior**: Common QUIC functionality shared with all implementations
+- **Automatic Updates**: New features in base class automatically available
+- **Event Integration**: Built-in event emission for monitoring and debugging
+- **Shadow Compatibility**: Maintains deterministic simulation requirements
+- **Research Focus**: Allows focus on network simulation rather than infrastructure
+
+### What's Provided by Base Class
+
+- **Common Parameter Extraction**: Port, host, certificate handling
+- **Standard Command Building**: Template method pattern for command generation
+- **Event Emission**: Service lifecycle and status events
+- **Error Handling**: Timeout management and failure recovery
+- **Docker Integration**: Standardized container build patterns
+- **Logging Integration**: Structured logging with correlation tracking
+
+### What's Customized for Picoquic Shadow
+
+- **Binary Name**: Uses standard `picoquicdemo` with Shadow adaptations
+- **Command Arguments**: Shadow-specific logging and binding patterns
+- **Simulation Integration**: Deterministic network simulation support
+- **Shadow Coordination**: Integration with Shadow NS topology and timing
+
+### Deterministic Testing Benefits
+
+- **Reproducible Results**: Identical network conditions across experiment runs
+- **Controlled Environment**: Precise control over latency, bandwidth, and loss
+- **Scalable Simulation**: Thousands of nodes without hardware limitations
+- **Event Coordination**: Deterministic event ordering for protocol analysis
+
 ## Requirements and Dependencies
+
+!!! info "Base Class Dependencies"
+    The Picoquic Shadow implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 ### System Requirements
 

@@ -4,8 +4,9 @@ Observer Interface Module
 This module defines the core interface for all observer implementations in the PANTHER framework.
 """
 
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
+from typing import List, Optional
 
 from panther.core.events.base.event_base import BaseEvent
 
@@ -23,7 +24,7 @@ class IObserver(ABC):
     """
 
     def __init__(self):
-        self.processed_events_uuids: list[str] = []
+        self.processed_events_uuids: List[str] = []
 
     @abstractmethod
     def on_event(self, event: BaseEvent):
@@ -63,7 +64,7 @@ class IObserver(ABC):
         logger_name: str,
         log_level: int,
         enable_colors: bool = True,
-        output_file: str | None = None,
+        output_file: Optional[str] = None,
         structured_output: bool = False,
     ):
         """
@@ -79,50 +80,20 @@ class IObserver(ABC):
         Returns:
             logging.Logger: Configured logger instance
         """
-        logger = logging.getLogger(logger_name)
-        logger.setLevel(log_level)
+        # Use LoggerFactory for consistent logging
+        from panther.core.utils.logger_factory import LoggerFactory
 
-        # Clear any existing handlers to avoid duplicates
-        logger.handlers.clear()
+        logger = LoggerFactory.get_logger(logger_name)
 
-        # Configure logger to not propagate to parent handlers to avoid duplicate logs
-        logger.propagate = False
+        # If a specific log level is requested, update it
+        if log_level != logger.level:
+            logger.setLevel(log_level)
 
-        # Console handler
-        console_handler = logging.StreamHandler()
-
-        if structured_output:
-            console_formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-        elif enable_colors and ColoredFormatter:
-            # Use ColoredFormatter for colored output if available
-            console_formatter = ColoredFormatter(
-                fmt="%(log_color)s%(asctime)s %(levelname)s %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-                log_colors={
-                    "DEBUG": "white",
-                    "INFO": "green",
-                    "WARNING": "yellow",
-                    "ERROR": "bold_red",
-                    "CRITICAL": "bold_red,bg_white",
-                },
-                reset=True,
-            )
-        else:
-            # Standard formatter for non-colored output
-            console_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-
-        console_handler.setFormatter(console_formatter)
-        logger.addHandler(console_handler)
-
-        # File handler if specified
+        # LoggerFactory already handles handlers and formatting, so we don't need to add more
+        # If output_file is specified, add a file handler
         if output_file:
-            file_handler = logging.FileHandler(output_file)
-            file_formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-            file_handler.setFormatter(file_formatter)
-            logger.addHandler(file_handler)
+            from pathlib import Path
+
+            LoggerFactory.add_file_handler(Path(output_file), level=None)
 
         return logger

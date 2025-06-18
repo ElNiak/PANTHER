@@ -5,7 +5,9 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
+
+from panther.core.exceptions.fast_fail import DockerComposeException
 
 
 @dataclass
@@ -113,10 +115,20 @@ class SubprocessExecutorMixin:
                 if result.stderr:
                     self.logger.error(f"Error output: {result.stderr}")
 
-                # Raise CalledProcessError to match subprocess behavior
-                raise subprocess.CalledProcessError(
-                    result.returncode, command, result.stdout, result.stderr
-                )
+                # Check if this is a docker-compose command that should trigger fast-fail
+                if "docker-compose" in command[0] or "docker" in command[0]:
+                    raise DockerComposeException(
+                        f"Docker command failed with return code {result.returncode}",
+                        " ".join(command),
+                        result.returncode,
+                        result.stdout,
+                        result.stderr,
+                    )
+                else:
+                    # Raise CalledProcessError for non-docker commands
+                    raise subprocess.CalledProcessError(
+                        result.returncode, command, result.stdout, result.stderr
+                    )
 
             self.logger.debug(
                 f"Command completed in {duration:.2f}s with return code {result.returncode}"
@@ -191,6 +203,7 @@ class SubprocessExecutorMixin:
             CommandResult from docker command execution
         """
         command = ["docker"] + docker_args
+        self.logger.debug(f"Executing Docker command: {' '.join(command)}")
         return self.execute_command(
             command,
             timeout=timeout,
@@ -249,9 +262,19 @@ class SubprocessExecutorMixin:
 
         # Check return code if requested
         if check and result.returncode != 0:
-            raise subprocess.CalledProcessError(
-                result.returncode, command, result.stdout, result.stderr
-            )
+            # Check if this is a docker-compose command that should trigger fast-fail
+            if "docker-compose" in command[0] or "docker" in command[0]:
+                raise DockerComposeException(
+                    f"Docker command failed with return code {result.returncode}",
+                    " ".join(command),
+                    result.returncode,
+                    result.stdout,
+                    result.stderr,
+                )
+            else:
+                raise subprocess.CalledProcessError(
+                    result.returncode, command, result.stdout, result.stderr
+                )
 
         return result
 

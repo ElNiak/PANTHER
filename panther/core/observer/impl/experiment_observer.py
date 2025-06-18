@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.events.environment.events import (
@@ -58,8 +58,8 @@ class ExperimentObserver(IObserver):
     def __init__(
         self,
         name: str = "experiment",
-        output_dir: str | None = None,
-        test_name: str | None = None,
+        output_dir: Optional[str] = None,
+        test_name: Optional[str] = None,
         track_timing: bool = True,
         track_steps: bool = True,
         global_config: Any = None,
@@ -77,8 +77,8 @@ class ExperimentObserver(IObserver):
             global_config: Global configuration object with logging settings
         """
         # Track what we've observed for logging purposes only
-        self.observed_environments: set[str] = set()  # Just track what we've seen
-        self.observed_services: set[str] = set()  # Just track what we've seen
+        self.observed_environments: Set[str] = set()  # Just track what we've seen
+        self.observed_services: Set[str] = set()  # Just track what we've seen
 
         # Remove all state dictionaries - state is managed centrally by StateManager
         # These were causing orchestration behavior
@@ -477,6 +477,9 @@ class ExperimentObserver(IObserver):
             reason,
         )
 
+        self._should_terminate_early = True
+        self.experiment_finished_early = True
+
         # Just log that the service stopped
         self.logger.debug(f"Observed service '{service_name}' stop")
 
@@ -574,7 +577,7 @@ class ExperimentObserver(IObserver):
         self.logger.info(
             "Service preparation completed for '%s' in test '%s'%s",
             service_name,
-            test_case,
+            self.name if self.test_name else test_case,
             f" (duration: {duration:.2f}s)" if duration else "",
         )
 
@@ -743,7 +746,7 @@ class ExperimentObserver(IObserver):
             "Checkpoint '%s' reached after %.2f seconds", checkpoint_name, duration
         )
 
-    def get_experiment_status(self) -> dict[str, Any]:
+    def get_experiment_status(self) -> Dict[str, Any]:
         """
         Get a summary of the current experiment status.
 

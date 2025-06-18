@@ -8,6 +8,9 @@
 
 Service plugins in PANTHER represent concrete implementations of network protocols and testing tools. They provide the actual services that participate in protocol testing, including implementations being evaluated (IUT) and tools that perform testing and validation.
 
+!!! info "Inheritance Architecture"
+    Service plugins use an inheritance-based architecture with specialized base classes, reducing code duplication across implementations.
+
 <!-- src: /panther/plugins/services/services_interface.py -->
 
 ## Service Categories
@@ -17,12 +20,32 @@ Service plugins in PANTHER represent concrete implementations of network protoco
 
 ### Implementation Under Test (IUT)
 
-IUT plugins represent protocol implementations that are being evaluated for conformance, performance, or security characteristics.
+IUT plugins represent protocol implementations that are being evaluated for conformance, performance, or security characteristics. All implementations inherit from protocol-specific base classes using the template method pattern.
 
-| Protocol | Implementation | Description | Documentation |
-|----------|----------------|-------------|---------------|
-| **QUIC** | picoquic | C implementation by Christian Huitema | [Documentation](panther/plugins/services/iut/quic/picoquic/README.md) |
-| **Custom** | ping_pong | Simple test service for basic validation | [Documentation](panther/plugins/services/iut/minip/README.md) |
+#### QUIC Implementations
+
+All QUIC implementations inherit from `BaseQUICServiceManager` or specialized subclasses:
+
+| Implementation | Language | Base Class | Description | Documentation |
+|---------------|----------|------------|-------------|---------------|
+| **[PicoQUIC](iut/quic/picoquic/README.md)** | C | BaseQUICServiceManager | Mature, RFC-compliant | [Documentation](iut/quic/picoquic/README.md) |
+| **[AioQUIC](iut/quic/aioquic/README.md)** | Python | PythonQUICServiceManager | Async/await, HTTP/3 | [Documentation](iut/quic/aioquic/README.md) |
+| **[Quiche](iut/quic/quiche/README.md)** | Rust | RustQUICServiceManager | Memory safety, performance | [Documentation](iut/quic/quiche/README.md) |
+| **[Quinn](iut/quic/quinn/README.md)** | Rust | RustQUICServiceManager | Modern async | [Documentation](iut/quic/quinn/README.md) |
+| **[LsQUIC](iut/quic/lsquic/README.md)** | C | BaseQUICServiceManager | LiteSpeed optimized | [Documentation](iut/quic/lsquic/README.md) |
+| **[QUIC-Go](iut/quic/quic_go/README.md)** | Go | BaseQUICServiceManager | Goroutine-based | [Documentation](iut/quic/quic_go/README.md) |
+| **[mvfst](iut/quic/mvfst/README.md)** | C++ | BaseQUICServiceManager | Facebook's impl | [Documentation](iut/quic/mvfst/README.md) |
+| **[Quant](iut/quic/quant/README.md)** | C | BaseQUICServiceManager | Research-focused | [Documentation](iut/quic/quant/README.md) |
+| **[PicoQUIC Shadow](iut/quic/picoquic_shadow/README.md)** | C | BaseQUICServiceManager | Shadow NS integration | [Documentation](iut/quic/picoquic_shadow/README.md) |
+
+See the [QUIC implementations overview](iut/quic/README.md) for detailed comparison and usage examples.
+
+#### Other Protocol Implementations
+
+| Protocol | Implementation | Base Class | Description | Documentation |
+|----------|----------------|------------|-------------|---------------|
+| **MINIP** | ping_pong | BaseMinipServiceManager | Simple ping-pong service | [Documentation](iut/minip/ping_pong/README.md) |
+| **HTTP** | *Available for development* | BaseHTTPServiceManager | HTTP implementation base | [Base class documentation](base/README.md) |
 
 ### Testers
 

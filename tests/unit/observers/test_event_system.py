@@ -13,8 +13,8 @@ import time
 import unittest
 from threading import Event as ThreadingEvent
 
-from panther.core.events.base.event_base import BaseEvent as Event
-from panther.core.events.test.events import TestEvent, TestResultEvent
+from panther.core.events.base.event_base import BaseEvent as Event, EventType
+from panther.core.events.test.events import TestEvent, TestEventType, TestResultEvent
 from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.management.results_manager import ResultsManager
@@ -100,8 +100,8 @@ class EventManagerTests(unittest.TestCase):
     def test_basic_notification(self):
         """Test basic event notification."""
         # Create and notify an event
-        event = TestEvent("basic", {"value": 42})
-        self.manager.publish(event)
+        event = TestEvent(TestEventType.CREATED, "basic", {"value": 42})
+        self.manager.notify(event)
 
         # Verify observers received the event
         self.assertEqual(len(self.observer1.events), 1)
@@ -123,10 +123,10 @@ class EventManagerTests(unittest.TestCase):
         observer_mid = TestObserver()
         observer_mid.priority = 5
 
-        # Register in reverse priority order
-        manager.register_observer(observer_low)
-        manager.register_observer(observer_mid)
-        manager.register_observer(observer_high)
+        # Register with their priority values
+        manager.register_observer(observer_low, priority=observer_low.priority)
+        manager.register_observer(observer_mid, priority=observer_mid.priority)
+        manager.register_observer(observer_high, priority=observer_high.priority)
 
         # Create test event with a shared list to track notification order
         notification_order = []
@@ -142,9 +142,9 @@ class EventManagerTests(unittest.TestCase):
 
         # Notify the event
         event = Event(
-            event_id="test1", event_type="test.priority", timestamp=time.time(), data={}
+            name="priority", entity_type=EventType.TEST, entity_id="test1", data={}
         )
-        manager.publish(event)
+        manager.notify(event)
 
         # Verify notification order (highest priority first)
         self.assertEqual(notification_order, ["high", "mid", "low"])
@@ -172,13 +172,25 @@ class TestPlugin(IPluginObserver):
 
     def on_event(self, event: Event):
         return True
+    
+    def get_priority(self) -> int:
+        return 0
+    
+    def is_interested(self, event_type: str) -> bool:
+        return event_type in self.EVENTS
 
 
-class AnotherPlugin(IObserverPlugin):
+class AnotherPlugin(IPluginObserver):
     VERSION = "0.5.0"
     AUTHOR = "Another Author"
 
     def on_event(self, event: Event):
+        return True
+    
+    def get_priority(self) -> int:
+        return 0
+    
+    def is_interested(self, event_type: str) -> bool:
         return True
 """
             )
@@ -217,35 +229,38 @@ class AnotherPlugin(IObserverPlugin):
         self.registry.discover_plugins()
 
         # Load a plugin
-        plugin = self.registry.load_plugin("TestPlugin")
+        plugin = self.registry.instantiate_plugin("TestPlugin")
 
         # Verify plugin was loaded
         self.assertIsNotNone(plugin)
         self.assertEqual(plugin.__class__.__name__, "TestPlugin")
 
-        # Verify plugin is in instances
-        self.assertIn("TestPlugin", self.registry.instances)
+        # Verify plugin class is available
+        plugin_class = self.registry.get_plugin_class("TestPlugin")
+        self.assertIsNotNone(plugin_class)
+        self.assertEqual(plugin_class.__name__, "TestPlugin")
 
-        # Verify we can get the instance
-        self.assertEqual(self.registry.get_plugin_instance("TestPlugin"), plugin)
-
-    def test_load_plugins_by_event_type(self):
-        """Test loading plugins by event type."""
+    def test_filter_plugins_by_event_type(self):
+        """Test filtering plugins by event type interest."""
         # Discover plugins first
-        self.registry.discover_plugins()
+        discovered = self.registry.discover_plugins()
 
-        # Load plugins interested in a specific event type
-        plugins = self.registry.load_plugins_by_event_type("test.plugin")
+        # Instantiate plugins and filter by event type interest
+        test_plugin = self.registry.instantiate_plugin("TestPlugin")
+        another_plugin = self.registry.instantiate_plugin("AnotherPlugin")
+        
+        self.assertIsNotNone(test_plugin)
+        self.assertIsNotNone(another_plugin)
 
-        # Should find TestPlugin but not AnotherPlugin
-        self.assertEqual(len(plugins), 1)
-        self.assertEqual(plugins[0].__class__.__name__, "TestPlugin")
-
-        # Load plugins for a different event type (should include AnotherPlugin
-        # since it doesn't specify any specific event types)
-        plugins = self.registry.load_plugins_by_event_type("other.event")
-        self.assertEqual(len(plugins), 1)
-        self.assertEqual(plugins[0].__class__.__name__, "AnotherPlugin")
+        # TestPlugin should be interested in "test.plugin" event
+        self.assertTrue(test_plugin.is_interested("test.plugin"))
+        # AnotherPlugin should be interested in any event (returns True for all)
+        self.assertTrue(another_plugin.is_interested("test.plugin"))
+        
+        # TestPlugin should NOT be interested in "other.event"
+        self.assertFalse(test_plugin.is_interested("other.event"))
+        # AnotherPlugin should be interested in "other.event" (returns True for all)
+        self.assertTrue(another_plugin.is_interested("other.event"))
 
 
 class ResultsManagerTests(unittest.TestCase):
@@ -260,9 +275,9 @@ class ResultsManagerTests(unittest.TestCase):
 
         # Create some test result events
         self.result_events = [
-            TestResultEvent("test_case_1", "passed", {"score": 100}),
-            TestResultEvent("test_case_2", "failed", {"error": "Failed assertion"}),
-            TestResultEvent("test_case_3", "passed", {"performance": "good"}),
+            TestResultEvent("result_1", "test_case_1", True, {"score": 100}),
+            TestResultEvent("result_2", "test_case_2", False, {"error": "Failed assertion"}),
+            TestResultEvent("result_3", "test_case_3", True, {"performance": "good"}),
         ]
 
     def tearDown(self):
@@ -322,8 +337,9 @@ class ResultsManagerTests(unittest.TestCase):
         def test_callback(event):
             callback_results.append(event.test_name)
 
-        # Register the callback
-        self.results_manager.register_callback("test.result", test_callback)
+        # Register the callback for both completed and failed test events
+        self.results_manager.register_callback("test.completed", test_callback)
+        self.results_manager.register_callback("test.failed", test_callback)
 
         # Process events
         for event in self.result_events:

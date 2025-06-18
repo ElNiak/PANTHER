@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Command Audit Observer
 
@@ -10,7 +12,6 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from panther.core.events.service.events import (
     CommandGeneratedEvent,
@@ -23,6 +24,7 @@ from panther.core.observer.base.typed_observer_interface import ITypedObserver
 
 class CommandAuditObserver(ITypedObserver):
     """
+
     Observer that tracks all command generation and modification events.
 
     This observer maintains a complete audit trail of:
@@ -56,7 +58,7 @@ class CommandAuditObserver(ITypedObserver):
         # Ensure output directory exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_supported_event_types(self) -> list[type]:
+    def get_supported_event_types(self) -> List[type]:
         """Return the list of event types this observer handles."""
         return [
             CommandGenerationStartedEvent,
@@ -112,9 +114,11 @@ class CommandAuditObserver(ITypedObserver):
             "Command generated for %s in phase %s: %s",
             event.data.get("service_name"),
             event.data.get("phase"),
-            event.data.get("command")[:100] + "..."
-            if len(event.data.get("command", "")) > 100
-            else event.data.get("command"),
+            (
+                event.data.get("command")[:100] + "..."
+                if len(event.data.get("command", "")) > 100
+                else event.data.get("command")
+            ),
         )
 
         # Save audit trail
@@ -143,12 +147,16 @@ class CommandAuditObserver(ITypedObserver):
                 "Command modified for %s by %s: %s -> %s",
                 event.data.get("service_name"),
                 event.data.get("modifier"),
-                event.data.get("original_command")[:50] + "..."
-                if len(event.data.get("original_command", "")) > 50
-                else event.data.get("original_command"),
-                event.data.get("modified_command")[:50] + "..."
-                if len(event.data.get("modified_command", "")) > 50
-                else event.data.get("modified_command"),
+                (
+                    event.data.get("original_command")[:50] + "..."
+                    if len(event.data.get("original_command", "")) > 50
+                    else event.data.get("original_command")
+                ),
+                (
+                    event.data.get("modified_command")[:50] + "..."
+                    if len(event.data.get("modified_command", "")) > 50
+                    else event.data.get("modified_command")
+                ),
             )
 
             # Save audit trail
@@ -165,9 +173,11 @@ class CommandAuditObserver(ITypedObserver):
             "config_type": event.data.get("config_type"),
             "config_path": event.data.get("config_path"),
             "services_included": event.data.get("services_included", []),
-            "config_preview": event.data.get("config_content", "")[:500]
-            if event.data.get("config_content")
-            else None,
+            "config_preview": (
+                event.data.get("config_content", "")[:500]
+                if event.data.get("config_content")
+                else None
+            ),
         }
 
         # Store config generation separately

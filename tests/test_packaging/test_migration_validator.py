@@ -14,7 +14,6 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
-
 class PackagingMigrationValidator:
     """Validate packaging migration to ensure no regressions."""
 
@@ -314,10 +313,8 @@ exclude = [
 
         return report["validation_passed"]
 
-
 import shutil
 from datetime import datetime
-
 
 def main():
     """Command-line interface for migration validation."""
@@ -365,7 +362,6 @@ def main():
         )
 
         sys.exit(0 if success else 1)
-
 
 if __name__ == "__main__":
     main()

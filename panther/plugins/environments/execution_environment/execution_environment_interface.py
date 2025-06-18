@@ -1,17 +1,16 @@
 from abc import abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.services.services_interface import IServiceManager
 
 # PluginManager functionality now integrated into PluginManager
 
-
 if TYPE_CHECKING:
-    from panther.config.config_experiment_schema import TestConfig
+    from panther.config.core.models.experiment import TestConfig
     from panther.plugins.plugin_manager import PluginManager
 
 
@@ -60,7 +59,7 @@ class IExecutionEnvironment(IEnvironmentPlugin):
     @abstractmethod
     def setup_environment(
         self,
-        services_managers: list[IServiceManager],
+        services_managers: List[IServiceManager],
         test_config: "TestConfig",
         global_config: GlobalConfig,
         timestamp: str,

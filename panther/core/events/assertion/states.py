@@ -5,13 +5,13 @@ This module defines states for assertion validation management.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Optional
 
 from panther.core.events.base.state_base import BaseState
 
 
 class AssertionState(Enum):
-    """Enumeration of assertion validation states."""
+    """Assertion validation states."""
 
     CREATED = "created"
     PENDING = "pending"
@@ -34,7 +34,7 @@ class AssertionValidationState(BaseState):
         self,
         entity_id: str,
         state: AssertionState = AssertionState.CREATED,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize assertion validation state.

@@ -8,7 +8,10 @@ from typing import Any, Callable, Dict, Optional
 
 
 class ServiceStatus(Enum):
-    """Service status enumeration."""
+    """
+
+    from typing import Any, Callable, Dict, Optional, OptionalService status enumeration.
+    """
 
     UNKNOWN = "unknown"
     STARTING = "starting"
@@ -151,11 +154,7 @@ class StatusMonitorMixin:
             )
 
     def wait_for_port(
-        self,
-        host: str,
-        port: int,
-        timeout: int = 60,
-        check_interval: int = 1,
+        self, host: str, port: int, timeout: int = 60, check_interval: int = 1
     ) -> bool:
         """
         Wait for a network port to become available.
@@ -199,10 +198,7 @@ class StatusMonitorMixin:
         return False
 
     def log_deployment_progress(
-        self,
-        stage: str,
-        details: Dict[str, Any],
-        level: str = "info",
+        self, stage: str, details: Dict[str, Any], level: str = "info"
     ) -> None:
         """
         Log deployment progress with consistent formatting.
@@ -222,9 +218,7 @@ class StatusMonitorMixin:
         log_method(f"[{stage}] {detail_str}")
 
     def monitor_resource_usage(
-        self,
-        service_name: str,
-        container_name: Optional[str] = None,
+        self, service_name: str, container_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Monitor resource usage for a service.
@@ -268,9 +262,7 @@ class StatusMonitorMixin:
         return usage
 
     def create_status_report(
-        self,
-        services: Dict[str, ServiceStatus],
-        include_resources: bool = False,
+        self, services: Dict[str, ServiceStatus], include_resources: bool = False
     ) -> str:
         """
         Create a formatted status report for all services.

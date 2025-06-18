@@ -8,9 +8,9 @@ success/failure rates throughout the experiment execution process.
 
 from .enums import MetricType, Phase
 from .metrics_collector import MetricsCollector, TimingContextManager
-from .resource_monitor import ResourceMonitor
-from .metrics_reporter import MetricsReporter
 from .metrics_exporter import MetricsExporter
+from .metrics_reporter import MetricsReporter
+from .resource_monitor import ResourceMonitor
 
 __all__ = [
     "MetricsCollector",

@@ -4,7 +4,7 @@
     This plugin is currently in development phase.
 
 !!! info "Go-based QUIC Implementation"
-    QUIC-Go is a high-performance, pure Go implementation of the QUIC protocol, ideal for cloud-native applications and microservices requiring modern transport capabilities.
+    QUIC-Go is a high-performance, pure Go implementation of the QUIC protocol, ideal for cloud-native applications and microservices requiring QUIC transport capabilities.
 
 > **Plugin Type**: Service (Implementation Under Test)
 
@@ -24,7 +24,70 @@ The QUIC-Go implementation plugin enables:
 - HTTP/3 server and client evaluation
 - Cross-platform QUIC implementation validation
 
+## Inheritance Architecture
+
+!!! info "Inheritance-Based Implementation"
+    The QUIC-Go plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Go's goroutine-based concurrency patterns.
+
+### Inheritance Architecture
+
+The QUIC-Go implementation follows the template method pattern:
+
+```python
+# panther/plugins/services/iut/quic/quic_go/quic_go.py
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+
+class QuicGoServiceManager(BaseQUICServiceManager):
+    """QUIC-Go implementation with inheritance-based architecture."""
+    
+    def _get_implementation_name(self) -> str:
+        return "quic_go"
+    
+    def _get_binary_name(self) -> str:
+        return "go"  # Go runtime
+    
+    # Customize only what's unique to QUIC-Go
+    def _get_server_specific_args(self, **kwargs) -> List[str]:
+        port = kwargs.get("port", 4443)
+        return ["run", "server.go", "-addr", f":{port}"]
+    
+    def _get_client_specific_args(self, **kwargs) -> List[str]:
+        host = kwargs.get("host", "localhost")
+        port = kwargs.get("port", 4443)
+        return ["run", "client.go", "-addr", f"{host}:{port}"]
+    
+    # All common QUIC functionality inherited from BaseQUICServiceManager!
+```
+
+### Benefits of Inheritance Architecture
+
+- **Code Reduction**: From extensive manual implementation to focused Go-specific patterns
+- **Consistent Behavior**: Common QUIC functionality shared with all implementations
+- **Automatic Updates**: New features in base class automatically available
+- **Event Integration**: Built-in event emission for monitoring and debugging
+- **Command Processing**: Structured command generation through Command Processor
+- **Goroutine Efficiency**: Focus on Go concurrency patterns rather than infrastructure
+
+### What's Provided by Base Class
+
+- **Common Parameter Extraction**: Port, host, certificate handling
+- **Standard Command Building**: Template method pattern for command generation
+- **Event Emission**: Service lifecycle and status events
+- **Error Handling**: Timeout management and failure recovery
+- **Docker Integration**: Standardized container build patterns
+- **Logging Integration**: Structured logging with correlation tracking
+
+### What's Customized for QUIC-Go
+
+- **Binary Name**: Uses Go runtime with module execution
+- **Command Arguments**: Go-specific execution patterns (`run`, `-addr`)
+- **Build Process**: Go module compilation and dependency management
+- **Goroutine Patterns**: Efficient concurrent connection handling
+
 ## Requirements and Dependencies
+
+!!! info "Base Class Dependencies"
+    The QUIC-Go implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 !!! warning "Go Runtime Requirements"
     QUIC-Go requires Go 1.19+ and active internet access for module downloads during build. Ensure your build environment has proper Go toolchain setup and module proxy access.

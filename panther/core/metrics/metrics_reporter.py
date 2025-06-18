@@ -1,3 +1,5 @@
+from typing import Any, Dict, List
+
 """
 Metrics Reporter Module
 
@@ -6,14 +8,15 @@ generating human-readable reports and summaries of experiment performance.
 """
 
 import logging
-from pathlib import Path
-from typing import Any
 from datetime import datetime
+from pathlib import Path
+
 from .metrics_collector import MetricsCollector, MetricType
 
 
 class MetricsReporter:
     """
+
     Generates reports and summaries from collected metrics.
 
     Provides various reporting formats including text summaries,
@@ -63,7 +66,9 @@ class MetricsReporter:
         """Generate a detailed section for timing metrics"""
         try:
             timing_metrics = [
-                m for m in self.metrics_collector.metrics if m.metric_type == MetricType.TIMING
+                m
+                for m in self.metrics_collector.metrics
+                if m.metric_type == MetricType.TIMING
             ]
 
             if not timing_metrics:
@@ -89,7 +94,9 @@ class MetricsReporter:
 
                     by_component[component].append(metric)
                 except Exception as e:
-                    self.logger.warning("Skipping metric in detailed timing section due to: %s", e)
+                    self.logger.warning(
+                        "Skipping metric in detailed timing section due to: %s", e
+                    )
 
             for component, metrics in by_component.items():
                 lines.append(f"\nComponent: {component}")
@@ -132,7 +139,9 @@ class MetricsReporter:
                         # Handle value safely
                         value = getattr(metric, "value", 0)
                         if isinstance(value, (int, float)):
-                            lines.append(f"{metric_name}{test_case}{phase}: {value:.4f}s")
+                            lines.append(
+                                f"{metric_name}{test_case}{phase}: {value:.4f}s"
+                            )
                         else:
                             lines.append(f"{metric_name}{test_case}{phase}: {value}s")
 
@@ -227,7 +236,9 @@ class MetricsReporter:
                         lines.append(f"{display_name}: {value}")
                 except Exception as e:
                     self.logger.debug("Error formatting resource metric: %s", e)
-                    lines.append(f"{resource_types.get(name, name)}: Error formatting value")
+                    lines.append(
+                        f"{resource_types.get(name, name)}: Error formatting value"
+                    )
 
             return "\n".join(lines)
 
@@ -272,9 +283,13 @@ class MetricsReporter:
                     # Get error message safely
                     error_msg = "No details available"
                     if isinstance(metadata, dict):
-                        error_msg = metadata.get("error_message", "No details available")
+                        error_msg = metadata.get(
+                            "error_message", "No details available"
+                        )
                     elif hasattr(metadata, "get"):
-                        error_msg = metadata.get("error_message", "No details available")
+                        error_msg = metadata.get(
+                            "error_message", "No details available"
+                        )
 
                     # Safe access to component with fallback
                     component = "unknown"
@@ -330,7 +345,9 @@ class MetricsReporter:
 
             # Safe access to stats values with default fallbacks
             try:
-                report_lines.append(f"Experiment: {stats.get('experiment_name', 'Unnamed')}")
+                report_lines.append(
+                    f"Experiment: {stats.get('experiment_name', 'Unnamed')}"
+                )
             except Exception:
                 report_lines.append("Experiment: (name unavailable)")
 
@@ -386,9 +403,15 @@ class MetricsReporter:
                     report_lines.extend(["", "TEST CASES:", "-" * 20])
                     for test_case in stats.get("test_cases", []):
                         try:
-                            test_metrics = self.metrics_collector.get_metrics(test_case=test_case)
+                            test_metrics = self.metrics_collector.get_metrics(
+                                test_case=test_case
+                            )
                             errors = len(
-                                [m for m in test_metrics if m.metric_type == MetricType.ERROR]
+                                [
+                                    m
+                                    for m in test_metrics
+                                    if m.metric_type == MetricType.ERROR
+                                ]
                             )
                             status = "FAILED" if errors > 0 else "PASSED"
                             report_lines.append(
@@ -404,8 +427,12 @@ class MetricsReporter:
                     report_lines.extend(["", "COMPONENTS:", "-" * 20])
                     for component in stats.get("components", []):
                         try:
-                            comp_metrics = self.metrics_collector.get_metrics(component=component)
-                            report_lines.append(f"  {component}: {len(comp_metrics)} metrics")
+                            comp_metrics = self.metrics_collector.get_metrics(
+                                component=component
+                            )
+                            report_lines.append(
+                                f"  {component}: {len(comp_metrics)} metrics"
+                            )
                         except Exception:
                             report_lines.append(f"  {component}: (metrics unavailable)")
                 except Exception:
@@ -514,9 +541,11 @@ class MetricsReporter:
 
         return "\n".join(report_lines)
 
-    def _analyze_timing_metrics(self) -> list[str]:
+    def _analyze_timing_metrics(self) -> List[str]:
         """Analyze timing metrics and generate insights."""
-        timing_metrics = self.metrics_collector.get_metrics(metric_type=MetricType.TIMING)
+        timing_metrics = self.metrics_collector.get_metrics(
+            metric_type=MetricType.TIMING
+        )
 
         if not timing_metrics:
             return ["No timing metrics available."]
@@ -551,8 +580,12 @@ class MetricsReporter:
         # Top slowest operations
         if timing_by_operation:
             lines.append("Slowest Operations:")
-            operation_totals = {op: sum(times) for op, times in timing_by_operation.items()}
-            sorted_ops = sorted(operation_totals.items(), key=lambda x: x[1], reverse=True)[:10]
+            operation_totals = {
+                op: sum(times) for op, times in timing_by_operation.items()
+            }
+            sorted_ops = sorted(
+                operation_totals.items(), key=lambda x: x[1], reverse=True
+            )[:10]
 
             for op, total_time in sorted_ops:
                 times = timing_by_operation[op]
@@ -565,8 +598,12 @@ class MetricsReporter:
         if timing_by_phase:
             lines.append("")
             lines.append("Phase Timing:")
-            phase_totals = {phase: sum(times) for phase, times in timing_by_phase.items()}
-            sorted_phases = sorted(phase_totals.items(), key=lambda x: x[1], reverse=True)
+            phase_totals = {
+                phase: sum(times) for phase, times in timing_by_phase.items()
+            }
+            sorted_phases = sorted(
+                phase_totals.items(), key=lambda x: x[1], reverse=True
+            )
 
             for phase, total_time in sorted_phases:
                 lines.append(f"  {phase}: {total_time:.3f}s")
@@ -575,7 +612,9 @@ class MetricsReporter:
         if timing_by_test_case:
             lines.append("")
             lines.append("Test Case Timing:")
-            test_totals = {test: sum(times) for test, times in timing_by_test_case.items()}
+            test_totals = {
+                test: sum(times) for test, times in timing_by_test_case.items()
+            }
             sorted_tests = sorted(test_totals.items(), key=lambda x: x[1], reverse=True)
 
             for test, total_time in sorted_tests:
@@ -583,7 +622,7 @@ class MetricsReporter:
 
         return lines
 
-    def _analyze_error_metrics(self) -> list[str]:
+    def _analyze_error_metrics(self) -> List[str]:
         """Analyze error metrics and generate insights."""
         error_metrics = self.metrics_collector.get_metrics(metric_type=MetricType.ERROR)
 
@@ -635,7 +674,9 @@ class MetricsReporter:
         if errors_by_phase:
             lines.append("")
             lines.append("Errors by Phase:")
-            for phase, count in sorted(errors_by_phase.items(), key=lambda x: x[1], reverse=True):
+            for phase, count in sorted(
+                errors_by_phase.items(), key=lambda x: x[1], reverse=True
+            ):
                 lines.append(f"  {phase}: {count} errors")
 
         # Errors by test case
@@ -649,9 +690,11 @@ class MetricsReporter:
 
         return lines
 
-    def _analyze_resource_metrics(self) -> list[str]:
+    def _analyze_resource_metrics(self) -> List[str]:
         """Analyze resource usage metrics."""
-        resource_metrics = self.metrics_collector.get_metrics(component="resource_monitor")
+        resource_metrics = self.metrics_collector.get_metrics(
+            component="resource_monitor"
+        )
 
         if not resource_metrics:
             return ["No resource monitoring data available."]
@@ -660,8 +703,12 @@ class MetricsReporter:
 
         # Calculate resource statistics
         cpu_values = [m.value for m in resource_metrics if m.name == "cpu_percent"]
-        memory_values = [m.value for m in resource_metrics if m.name == "memory_percent"]
-        memory_used_values = [m.value for m in resource_metrics if m.name == "memory_used_mb"]
+        memory_values = [
+            m.value for m in resource_metrics if m.name == "memory_percent"
+        ]
+        memory_used_values = [
+            m.value for m in resource_metrics if m.name == "memory_used_mb"
+        ]
 
         if cpu_values:
             lines.append("CPU Usage:")
@@ -677,7 +724,9 @@ class MetricsReporter:
 
         if memory_used_values:
             lines.append("Memory Used:")
-            lines.append(f"  Average: {sum(memory_used_values) / len(memory_used_values):.0f} MB")
+            lines.append(
+                f"  Average: {sum(memory_used_values) / len(memory_used_values):.0f} MB"
+            )
             lines.append(f"  Peak: {max(memory_used_values):.0f} MB")
 
         # Check for resource alerts
@@ -695,7 +744,7 @@ class MetricsReporter:
 
         return lines
 
-    def _analyze_phase_metrics(self) -> list[str]:
+    def _analyze_phase_metrics(self) -> List[str]:
         """Analyze metrics by experiment phase."""
         all_metrics = self.metrics_collector.get_metrics()
 
@@ -720,8 +769,12 @@ class MetricsReporter:
         for phase_name in sorted(metrics_by_phase.keys()):
             phase_metrics = metrics_by_phase[phase_name]
 
-            timing_metrics = [m for m in phase_metrics if m.metric_type == MetricType.TIMING]
-            error_metrics = [m for m in phase_metrics if m.metric_type == MetricType.ERROR]
+            timing_metrics = [
+                m for m in phase_metrics if m.metric_type == MetricType.TIMING
+            ]
+            error_metrics = [
+                m for m in phase_metrics if m.metric_type == MetricType.ERROR
+            ]
 
             lines.append(f"{phase_name}:")
             lines.append(f"  Total metrics: {len(phase_metrics)}")
@@ -777,7 +830,7 @@ class MetricsReporter:
         except Exception as e:
             self.logger.error("Failed to save detailed report: %s", e)
 
-    def get_performance_insights(self) -> dict[str, Any]:
+    def get_performance_insights(self) -> Dict[str, Any]:
         """
         Generate performance insights and recommendations.
 
@@ -792,7 +845,9 @@ class MetricsReporter:
         }
 
         # Analyze timing patterns
-        timing_metrics = self.metrics_collector.get_metrics(metric_type=MetricType.TIMING)
+        timing_metrics = self.metrics_collector.get_metrics(
+            metric_type=MetricType.TIMING
+        )
         if timing_metrics:
             operation_times = {}
             for metric in timing_metrics:
@@ -815,10 +870,14 @@ class MetricsReporter:
                     )
 
         # Analyze resource usage
-        resource_metrics = self.metrics_collector.get_metrics(component="resource_monitor")
+        resource_metrics = self.metrics_collector.get_metrics(
+            component="resource_monitor"
+        )
         if resource_metrics:
             cpu_values = [m.value for m in resource_metrics if m.name == "cpu_percent"]
-            memory_values = [m.value for m in resource_metrics if m.name == "memory_percent"]
+            memory_values = [
+                m.value for m in resource_metrics if m.name == "memory_percent"
+            ]
 
             if cpu_values:
                 avg_cpu = sum(cpu_values) / len(cpu_values)
@@ -826,7 +885,9 @@ class MetricsReporter:
 
                 if peak_cpu > 95:
                     insights["alerts"].append("Critical: CPU usage reached 95%+")
-                    insights["recommendations"].append("Consider reducing CPU-intensive operations")
+                    insights["recommendations"].append(
+                        "Consider reducing CPU-intensive operations"
+                    )
                 elif avg_cpu > 80:
                     insights["alerts"].append("Warning: High average CPU usage")
 
@@ -836,12 +897,16 @@ class MetricsReporter:
 
                 if peak_memory > 95:
                     insights["alerts"].append("Critical: Memory usage reached 95%+")
-                    insights["recommendations"].append("Consider optimizing memory usage")
+                    insights["recommendations"].append(
+                        "Consider optimizing memory usage"
+                    )
                 elif avg_memory > 80:
                     insights["alerts"].append("Warning: High average memory usage")
 
         # Calculate overall performance score
-        error_count = len(self.metrics_collector.get_metrics(metric_type=MetricType.ERROR))
+        error_count = len(
+            self.metrics_collector.get_metrics(metric_type=MetricType.ERROR)
+        )
         stats = self.metrics_collector.get_summary_stats()
 
         if error_count == 0:

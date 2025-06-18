@@ -1,15 +1,15 @@
+from typing import Any, Dict
+
 """Base class for Python QUIC implementations (aioquic)."""
 
 from abc import abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Protocol
 
 from .quic_service_base import BaseQUICServiceManager
 
 
 class PythonQUICServiceManager(BaseQUICServiceManager):
-    """Base class for Python-based QUIC implementations.
-
-    Provides common functionality for Python implementations like aioquic
+    """Provides common functionality for Python implementations like aioquic.
     that use Python modules and async patterns.
     """
 

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
 """
 Command Builder Base Class
 
@@ -5,11 +7,9 @@ This module provides a base class for building commands in a standardized way,
 reducing duplication across service implementations.
 """
 
-from typing import Any, TYPE_CHECKING
-
-from panther.core.utils.logging_mixin import LoggerMixin
 from panther.core.command_processor.command import ShellCommand
-from panther.plugins.protocols.config_schema import RoleEnum
+from panther.core.utils.logging_mixin import LoggerMixin
+from panther.config.core.models import ProtocolRole
 
 if TYPE_CHECKING:
     from panther.core.command_processor.command_processor import CommandProcessor
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 class CommandBuilder(LoggerMixin):
     """
+
     Base class for building commands with common patterns.
 
     Reduces duplication in command argument construction across service managers.
@@ -24,8 +25,8 @@ class CommandBuilder(LoggerMixin):
 
     def __init__(self):
         super().__init__()
-        self._command_args: list[str] = []
-        self._env_vars: dict[str, str] = {}
+        self._command_args: List[str] = []
+        self._env_vars: Dict[str, str] = {}
 
     def reset(self) -> "CommandBuilder":
         """Reset the builder to start fresh."""
@@ -49,40 +50,46 @@ class CommandBuilder(LoggerMixin):
             self._command_args.append(flag)
         return self
 
-    def add_option(self, option: str, value: Any, condition: bool = True) -> "CommandBuilder":
+    def add_option(
+        self, option: str, value: Any, condition: bool = True
+    ) -> "CommandBuilder":
         """Add an option with value if condition is True."""
         if condition and value is not None:
             self._command_args.extend([option, str(value)])
         return self
 
-    def add_environment(self, key: str, value: str, condition: bool = True) -> "CommandBuilder":
+    def add_environment(
+        self, key: str, value: str, condition: bool = True
+    ) -> "CommandBuilder":
         """Add an environment variable."""
         if condition:
             self._env_vars[key] = value
         return self
 
     def add_environments(
-        self, env_vars: dict[str, str], condition: bool = True
+        self, env_vars: Dict[str, str], condition: bool = True
     ) -> "CommandBuilder":
         """Add multiple environment variables."""
         if condition:
             self._env_vars.update(env_vars)
         return self
 
-    def build_args(self) -> list[str]:
+    def build_args(self) -> List[str]:
         """Build and return the command arguments."""
         return self._command_args.copy()
 
-    def build_env(self) -> dict[str, str]:
+    def build_env(self) -> Dict[str, str]:
         """Build and return the environment variables."""
         return self._env_vars.copy()
 
     def build_structured_command(
-        self, command: str, working_dir: str | None = None
+        self, command: str, working_dir: Optional[str] = None
     ) -> ShellCommand:
         """Build a ShellCommand object."""
         # Build full command with args
-        full_command = f"{command} {' '.join(self.build_args())}" if self.build_args() else command
+        full_command = (
+            f"{command} {' '.join(self.build_args())}" if self.build_args() else command
+        )
 
         return ShellCommand(
             command=full_command, environment=self.build_env(), working_dir=working_dir
@@ -97,13 +104,16 @@ class ServiceCommandBuilder(CommandBuilder):
     (for setup, preparation, etc.).
     """
 
-    def __init__(self, role: RoleEnum):
+    def __init__(self, role: ProtocolRole):
         super().__init__()
         self.role = role
-        self._shell_commands: list[ShellCommand] = []
+        self._shell_commands: List[ShellCommand] = []
 
     def add_certificates(
-        self, params: dict[str, Any], cert_param_key: str = "param", cert_file_key: str = "file"
+        self,
+        params: Dict[str, Any],
+        cert_param_key: str = "param",
+        cert_file_key: str = "file",
     ) -> "ServiceCommandBuilder":
         """Add certificate parameters if present."""
         if "certificates" in params:
@@ -112,25 +122,28 @@ class ServiceCommandBuilder(CommandBuilder):
             # Add certificate file
             if "cert" in certs:
                 self.add_option(
-                    certs["cert"].get(cert_param_key, "-c"), certs["cert"].get(cert_file_key)
+                    certs["cert"].get(cert_param_key, "-c"),
+                    certs["cert"].get(cert_file_key),
                 )
 
             # Add key file
             if "key" in certs:
                 self.add_option(
-                    certs["key"].get(cert_param_key, "-k"), certs["key"].get(cert_file_key)
+                    certs["key"].get(cert_param_key, "-k"),
+                    certs["key"].get(cert_file_key),
                 )
 
             # Add CA certificate if present
             if "ca" in certs:
                 self.add_option(
-                    certs["ca"].get(cert_param_key, "--ca"), certs["ca"].get(cert_file_key)
+                    certs["ca"].get(cert_param_key, "--ca"),
+                    certs["ca"].get(cert_file_key),
                 )
 
         return self
 
     def add_protocol_params(
-        self, params: dict[str, Any], alpn_param: str = "--alpn"
+        self, params: Dict[str, Any], alpn_param: str = "--alpn"
     ) -> "ServiceCommandBuilder":
         """Add protocol-specific parameters."""
         if "protocol" in params:
@@ -139,19 +152,21 @@ class ServiceCommandBuilder(CommandBuilder):
             # Add ALPN if present
             if "alpn" in protocol:
                 self.add_option(
-                    protocol["alpn"].get("param", alpn_param), protocol["alpn"].get("value")
+                    protocol["alpn"].get("param", alpn_param),
+                    protocol["alpn"].get("value"),
                 )
 
             # Add version if present
             if "version" in protocol:
                 self.add_option(
-                    protocol["version"].get("param", "--version"), protocol["version"].get("value")
+                    protocol["version"].get("param", "--version"),
+                    protocol["version"].get("value"),
                 )
 
         return self
 
     def add_network_params(
-        self, params: dict[str, Any], port_param: str = "-p"
+        self, params: Dict[str, Any], port_param: str = "-p"
     ) -> "ServiceCommandBuilder":
         """Add network-related parameters."""
         if "network" in params:
@@ -168,10 +183,13 @@ class ServiceCommandBuilder(CommandBuilder):
         return self
 
     def add_role_specific_params(
-        self, params: dict[str, Any], server_port_param: str = "-p", client_target_param: str = None
+        self,
+        params: Dict[str, Any],
+        server_port_param: str = "-p",
+        client_target_param: str = None,
     ) -> "ServiceCommandBuilder":
         """Add role-specific parameters (server vs client)."""
-        if self.role == RoleEnum.server:
+        if self.role == ProtocolRole.SERVER:
             # Server-specific parameters
             if "network" in params and "port" in params["network"]:
                 self.add_option(server_port_param, params["network"]["port"])
@@ -181,7 +199,7 @@ class ServiceCommandBuilder(CommandBuilder):
                 for flag in params["server_flags"]:
                     self.add_flag(flag)
 
-        elif self.role == RoleEnum.client:
+        elif self.role == ProtocolRole.CLIENT:
             # Client-specific parameters
             if "target" in params:
                 if client_target_param:
@@ -201,7 +219,7 @@ class ServiceCommandBuilder(CommandBuilder):
 
     def add_logging_params(
         self,
-        params: dict[str, Any],
+        params: Dict[str, Any],
         log_level_param: str = "--log-level",
         log_file_param: str = "--log-file",
     ) -> "ServiceCommandBuilder":
@@ -220,7 +238,7 @@ class ServiceCommandBuilder(CommandBuilder):
         return self
 
     def add_conditional_params(
-        self, params: dict[str, Any], param_mapping: dict[str, str]
+        self, params: Dict[str, Any], param_mapping: Dict[str, str]
     ) -> "ServiceCommandBuilder":
         """Add parameters based on a mapping of param keys to command options."""
         for param_key, command_option in param_mapping.items():
@@ -234,7 +252,10 @@ class ServiceCommandBuilder(CommandBuilder):
         return self
 
     def build_standard_command(
-        self, params: dict[str, Any], base_command: str, working_dir: str | None = None
+        self,
+        params: Dict[str, Any],
+        base_command: str,
+        working_dir: Optional[str] = None,
     ) -> ShellCommand:
         """
         Build a standard command with common parameter patterns.
@@ -264,15 +285,15 @@ class ServiceCommandBuilder(CommandBuilder):
     def add_command(
         self,
         command: str,
-        description: str | None = None,
+        description: Optional[str] = None,
         is_function_definition: bool = False,
         is_multiline: bool = False,
         is_critical: bool = True,
         is_variable_assignment: bool = False,
         is_function_call: bool = False,
-        working_dir: str | None = None,
-        environment: dict[str, str] | None = None,
-        timeout: int | None = None,
+        working_dir: Optional[str] = None,
+        environment: Optional[Dict[str, str]] = None,
+        timeout: Optional[int] = None,
     ) -> "ServiceCommandBuilder":
         """
         Add a shell command to the command list.
@@ -308,7 +329,9 @@ class ServiceCommandBuilder(CommandBuilder):
         self._shell_commands.append(shell_cmd)
         return self
 
-    def add_shell_commands(self, commands: list[str | ShellCommand]) -> "ServiceCommandBuilder":
+    def add_shell_commands(
+        self, commands: List[Union[str, ShellCommand]]
+    ) -> "ServiceCommandBuilder":
         """
         Add multiple shell commands.
 
@@ -325,7 +348,7 @@ class ServiceCommandBuilder(CommandBuilder):
                 self.add_command(str(cmd))
         return self
 
-    def build_commands(self) -> list[ShellCommand]:
+    def build_commands(self) -> List[ShellCommand]:
         """
         Build and return the shell commands.
 
@@ -376,7 +399,7 @@ class ServiceCommandBuilder(CommandBuilder):
 
         return processor
 
-    def process_commands(self, target_format: str = "generic") -> list[dict[str, Any]]:
+    def process_commands(self, target_format: str = "generic") -> List[Dict[str, Any]]:
         """
         Process the built commands and return processed command list.
         Convenience method for: builder.process().process_command_list(builder.build_commands())

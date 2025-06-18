@@ -1,3 +1,4 @@
+from typing import Dict, List, Union
 #!/usr/bin/env python3
 """
 PANTHER Documentation Link Validator
@@ -48,7 +49,6 @@ HEADING_PATTERN = r"^(#{1,6})\s+(.+?)(?:\s+\{#([a-z0-9_-]+)\})?\s*$"
 # Image pattern - matches ![alt](image) format
 IMAGE_PATTERN = r"!\[([^\]]*)\]\(([^)]+)\)"
 
-
 class LinkType(Enum):
     """Enumeration of link types."""
 
@@ -56,7 +56,6 @@ class LinkType(Enum):
     ANCHOR = "anchor"  # Fragment/anchor links within a file
     EXTERNAL = "external"  # Links to external resources
     IMAGE = "image"  # Image references
-
 
 class LinkStatus(Enum):
     """Enumeration of link validation status."""
@@ -69,7 +68,6 @@ class LinkStatus(Enum):
     FIXED = "FIXED"  # Issue was automatically fixed
     UNVALIDATED = "UNVALIDATED"  # Link has not been validated (e.g., external links when --check-external not used)
 
-
 @dataclass
 class LinkInfo:
     """Information about a link found in a Markdown file."""
@@ -79,12 +77,11 @@ class LinkInfo:
     raw_link: str
     link_type: LinkType
     status: LinkStatus = LinkStatus.UNVALIDATED
-    target_file: Path | None = None
-    anchor: str | None = None
-    fixed_link: str | None = None
-    message: str | None = None
-    line_number: int | None = None
-
+    target_file: Optional[Path] = None
+    anchor: Optional[str] = None
+    fixed_link: Optional[str] = None
+    message: Optional[str] = None
+    line_number: Optional[int] = None
 
 class LinkValidator:
     """Validates and fixes links in Markdown files."""
@@ -95,19 +92,18 @@ class LinkValidator:
         docs_dir: str = DOCS_DIR,
         autofix: bool = False,
         check_external: bool = False,
-        ignore_readme_refs: bool = False,
-    ):
+        ignore_readme_refs: bool = False):
         self.root_dir = root_dir
         self.docs_dir = docs_dir
         self.autofix = autofix
         self.check_external = check_external
         self.ignore_readme_refs = ignore_readme_refs
         self.mkdocs_config = None
-        self.external_cache: dict[str, LinkStatus] = (
+        self.external_cache: Dict[str, LinkStatus] = (
             {}
         )  # Cache external URL validation results
-        self.markdown_files: list[Path] = []
-        self.link_issues: list[LinkInfo] = []
+        self.markdown_files: List[Path] = []
+        self.link_issues: List[LinkInfo] = []
         self.fixed_count = 0
         self.unfixable_count = 0
         self.total_links = 0
@@ -138,7 +134,7 @@ class LinkValidator:
             print(f"Warning: Failed to load MkDocs config from {config_path}: {e}")
             return {}
 
-    def find_markdown_files(self) -> list[Path]:
+    def find_markdown_files(self) -> List[Path]:
         """Find all Markdown files in the project."""
         # Exclude node_modules, venv, and other directories that should be ignored
         ignore_patterns = [
@@ -189,7 +185,7 @@ class LinkValidator:
         slug = slug.strip("-")
         return slug
 
-    def extract_headings(self, file_content: str) -> dict[str, str]:
+    def extract_headings(self, file_content: str) -> Dict[str, str]:
         """Extract heading anchors from a Markdown file."""
         headings = {}
         for line in file_content.splitlines():
@@ -207,7 +203,7 @@ class LinkValidator:
 
     def normalize_path(
         self, base_path: Path, link_path: str
-    ) -> tuple[Path, str | None]:
+    ) -> tuple[Path, Optional[str]]:
         """Normalize a relative link path to an absolute project path."""
         # Safety check for None or empty path
         if not link_path:
@@ -326,7 +322,7 @@ class LinkValidator:
             self.external_cache[link_info.raw_link] = LinkStatus.BROKEN
             return LinkStatus.BROKEN
 
-    def extract_links(self, file_path: Path) -> list[LinkInfo]:
+    def extract_links(self, file_path: Path) -> List[LinkInfo]:
         """Extract all links from a Markdown file."""
         links = []
         try:
@@ -716,21 +712,18 @@ class LinkValidator:
                 )
                 print(f"    → {link.message}")
 
-
-def suggest_cross_links(mkdocs_config: dict) -> dict[Path, list[str]]:
+def suggest_cross_links(mkdocs_config: dict) -> Dict[Path, List[str]]:
     """Suggest cross-links between related documentation files."""
     # This would analyze the project structure and generate suggestions for
     # links that should be added between related documents
     # For simplicity, this is just a placeholder function
     return {}
 
-
 def update_mkdocs_nav(root_dir: Path, mkdocs_config: dict) -> dict:
     """Update MkDocs navigation with all Markdown files in the project."""
     # This would scan all Markdown files and build a proper navigation structure
     # For simplicity, this is just a placeholder function
     return mkdocs_config
-
 
 def main():
     """Main entry point of the script."""
@@ -784,7 +777,6 @@ def main():
         else:
             print("\n✅ No issues found or all issues were fixed.")
         sys.exit(0)
-
 
 if __name__ == "__main__":
     main()

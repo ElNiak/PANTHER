@@ -1,3 +1,4 @@
+from typing import List
 #!/usr/bin/env python3
 """
 Test script to diagnose issues with the _combine_shell_constructs method.
@@ -18,7 +19,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("test_combine_constructs")
 
-
 # Create a minimal environment instance to access the _combine_shell_constructs method
 def create_test_env():
     config = DockerComposeConfig()
@@ -35,7 +35,6 @@ def create_test_env():
         event_manager=event_manager,
     )
     return env
-
 
 # Test cases for the _combine_shell_constructs method
 def run_test_cases():
@@ -101,7 +100,6 @@ def run_test_cases():
         result = env._combine_shell_constructs(test_case)
         logger.info(f"Result: {result}")
         logger.info("-" * 50)
-
 
 if __name__ == "__main__":
     run_test_cases()

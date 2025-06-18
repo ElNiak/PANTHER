@@ -4,26 +4,24 @@ This module provides a Docker Compose-based network environment implementation
 that uses the base class and mixins to eliminate code duplication.
 """
 
-import asyncio
 import os
+import socket
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models import TestConfig, GlobalConfig
+from panther.core.exceptions.fast_fail import (
+    PortConflictException,
+    ResourceExhaustionException,
+)
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.outputs.execution_environment_mixins import (
-    StandardOutputCollectorMixin,
-)
+from panther.core.outputs.output_environment_mixins import StandardOutputCollectorMixin
 from panther.core.utils import TemplateRenderer
-from panther.plugins.environments.config_schema import EnvironmentConfig
-from panther.plugins.environments.environment_event_methods import (
-    EnvironmentPluginEventMixin,
-)
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
@@ -45,6 +43,11 @@ from panther.plugins.services.services_interface import IServiceManager
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
 
+# Import after TYPE_CHECKING to avoid circular imports
+from panther.plugins.environments.network_environment.docker_compose.background_service_monitor import (
+    BackgroundServiceMonitor,
+)
+
 
 class DockerComposeState(Enum):
     """State management for Docker Compose deployment phases"""
@@ -55,172 +58,6 @@ class DockerComposeState(Enum):
     MONITORING_SERVICES = "monitoring_services"
     SERVICES_READY = "services_ready"
     FAILED = "failed"
-
-
-class ServiceHealthState(Enum):
-    """State management for individual service health monitoring"""
-
-    STARTING = "starting"
-    READY = "ready"
-    FAILING = "failing"
-    FAILED = "failed"
-    STOPPED = "stopped"
-
-
-class BackgroundServiceMonitor:
-    """
-    Background service health monitor for non-blocking Docker Compose deployments.
-
-    Continuously monitors service health in a background daemon thread and triggers
-    early experiment termination when services fail beyond configured thresholds.
-    """
-
-    def __init__(self, docker_compose_env, services, config):
-        self.docker_compose_env = docker_compose_env
-        self.services = services  # list of service names
-        self.config = config
-        self.logger = docker_compose_env.logger
-
-        # Service state tracking
-        self.service_states = {
-            service: ServiceHealthState.STARTING for service in services
-        }
-        self.failure_counts = {service: 0 for service in services}
-
-        # Thread management
-        self.monitoring_active = False
-        self.monitor_thread = None
-        self.lock = threading.Lock()
-
-    def start_monitoring(self):
-        """Start background monitoring in a daemon thread"""
-        if self.monitoring_active:
-            return
-
-        self.monitoring_active = True
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            name=f"ServiceMonitor-{self.docker_compose_env.env_name}",
-            daemon=True,
-        )
-        self.monitor_thread.start()
-        self.logger.info(
-            f"Started background service monitoring thread: {self.monitor_thread.name}"
-        )
-
-    def stop_monitoring(self):
-        """Stop background monitoring"""
-        if not self.monitoring_active:
-            return
-
-        self.monitoring_active = False
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            self.logger.info("Stopping background service monitoring...")
-            self.monitor_thread.join(timeout=5)
-            if self.monitor_thread.is_alive():
-                self.logger.warning("Background monitoring thread did not stop cleanly")
-        self.monitor_thread = None
-
-    def _monitor_loop(self):
-        """Main monitoring loop running in background thread"""
-        self.logger.debug(
-            f"Background monitoring loop started for services: {self.services}"
-        )
-
-        while self.monitoring_active:
-            try:
-                self._check_all_services()
-                time.sleep(self.config.monitoring_interval_seconds)
-            except Exception as e:
-                self.logger.error(f"Error in background monitoring: {e}")
-                time.sleep(self.config.monitoring_interval_seconds)
-
-        self.logger.debug("Background monitoring loop ended")
-
-    def _check_all_services(self):
-        """Check health of all services and handle failures"""
-        with self.lock:
-            for service_name in self.services:
-                current_state = self.service_states[service_name]
-                is_healthy = self.docker_compose_env._is_service_ready(service_name)
-
-                if is_healthy:
-                    if current_state != ServiceHealthState.READY:
-                        self.service_states[service_name] = ServiceHealthState.READY
-                        self.failure_counts[service_name] = 0  # Reset failure count
-                        self.logger.info(f"✓ Service {service_name} is now ready")
-                else:
-                    self._handle_service_failure(service_name, current_state)
-
-    def _handle_service_failure(self, service_name, current_state):
-        """Handle service failure and potentially trigger early termination"""
-        self.failure_counts[service_name] += 1
-        failure_count = self.failure_counts[service_name]
-
-        if failure_count >= self.config.failure_threshold_count:
-            # Service has failed beyond threshold
-            self.service_states[service_name] = ServiceHealthState.FAILED
-            self.logger.error(
-                f"✗ Service {service_name} failed (failures: {failure_count})"
-            )
-
-            # Check if this should trigger early termination
-            if self._should_terminate_experiment(service_name):
-                self._trigger_early_termination(service_name, failure_count)
-        else:
-            # Service is failing but hasn't exceeded threshold yet
-            self.service_states[service_name] = ServiceHealthState.FAILING
-            self.logger.warning(
-                f"⚠ Service {service_name} failing (failures: {failure_count}/{self.config.failure_threshold_count})"
-            )
-
-    def _should_terminate_experiment(self, failed_service):
-        """Determine if experiment should terminate early"""
-        if not self.config.allow_partial_deployment:
-            return True  # Any service failure should terminate
-
-        if failed_service in self.config.critical_services:
-            return True  # Critical service failure should terminate
-
-        # Check if too many services have failed
-        failed_services = [
-            s
-            for s, state in self.service_states.items()
-            if state == ServiceHealthState.FAILED
-        ]
-        return len(failed_services) > len(self.services) // 2  # More than half failed
-
-    def _trigger_early_termination(self, failed_service, failure_count):
-        """Trigger early experiment termination"""
-        reason = f"Service '{failed_service}' failed {failure_count} times (threshold: {self.config.failure_threshold_count})"
-
-        failed_services = [
-            s
-            for s, state in self.service_states.items()
-            if state == ServiceHealthState.FAILED
-        ]
-
-        details = {
-            "failed_service": failed_service,
-            "failure_count": failure_count,
-            "all_failed_services": failed_services,
-            "service_states": {
-                s: state.value for s, state in self.service_states.items()
-            },
-            "monitoring_config": {
-                "failure_threshold": self.config.failure_threshold_count,
-                "critical_services": self.config.critical_services,
-                "allow_partial_deployment": self.config.allow_partial_deployment,
-            },
-        }
-
-        self.logger.error(f"Triggering early experiment termination: {reason}")
-
-        # Set termination flag on environment
-        self.docker_compose_env.request_early_termination(reason, details)
-
-        # Stop monitoring since experiment is terminating
-        self.monitoring_active = False
 
 
 @register_plugin(
@@ -235,17 +72,14 @@ class BackgroundServiceMonitor:
 class DockerComposeEnvironment(
     BaseNetworkEnvironment,
     SubprocessExecutorMixin,
-    ErrorHandlerMixin,
     ConfigurationProcessorMixin,
     StatusMonitorMixin,
+    ErrorHandlerMixin,
     StandardOutputCollectorMixin,
-    EnvironmentPluginEventMixin,
 ):
     """
     Docker Compose environment using base class and mixins.
-
-    This implementation reduces code duplication from 257 lines to ~80 lines
-    by leveraging shared functionality from the base class and mixins.
+    For this plugins, the docker images are build directly from the services
     """
 
     def __init__(
@@ -256,40 +90,138 @@ class DockerComposeEnvironment(
         env_sub_type: str,
         event_manager: EventManager,
     ):
+        # First initialize all parent classes including StandardOutputCollectorMixin
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
+
+        # Explicitly ensure StandardOutputCollectorMixin is initialized
+        # This ensures output_files dictionary is created
+        if not hasattr(self, "output_files"):
+            self.output_files = {}
+
+        self.logger.debug(
+            f"Initializing Docker Compose environment: {env_type}/{env_sub_type} with output dir {output_dir}"
+        )
+        self.logger.debug(
+            f"StandardOutputCollectorMixin initialized, output_files exists: {hasattr(self, 'output_files')}"
         )
 
         # Docker Compose specific configuration
         self.name = f"docker_compose_{env_sub_type}"
         self.env_name = self.name
 
-        # Define Docker Compose specific paths
-        self.services_network_config_file_path = Path(
-            self._plugin_dir, env_type, env_sub_type, f"{env_sub_type}.generated.yml"
-        )
-        self.rendered_services_network_config_file_path = (
-            self.output_dir / f"{env_sub_type}.yml"
-        )
+        self.env_sub_type = env_sub_type
+        self.env_type = env_type
 
         # Initialize template renderer
         self.template_renderer = TemplateRenderer(
             Path(self._plugin_dir) / env_type / env_sub_type / "templates"
         )
 
-    def prepare_environment(self) -> bool:
-        """Prepare Docker Compose environment."""
-        # Use base implementation which handles common preparation
-        result = super().prepare()
+        self.output_registered = False
 
-        # Mark plugin as successfully set up if preparation succeeded
-        if result:
-            self.plugin_setup = True
-            self.logger.debug(
-                "Docker Compose environment preparation completed successfully"
+    def prepare_environment(self) -> bool:
+        """Prepare Docker Compose environment with enhanced checks."""
+        try:
+            # Check disk space before any operations
+            self._check_disk_space()
+
+            # Check port availability before starting
+            self._check_port_availability()
+
+            # Use base implementation which handles common preparation
+            result = super().prepare()
+
+            if result:
+                # Create certificate directories and generate certificates if needed
+                self._setup_certificates()
+
+                # Mark plugin as successfully set up if preparation succeeded
+                self.plugin_setup = True
+                self.logger.debug(
+                    "Docker Compose environment preparation completed successfully"
+                )
+
+            return result
+
+        except (PortConflictException, ResourceExhaustionException) as e:
+            self.logger.error(f"Pre-deployment check failed: {e}")
+            raise  # Re-raise for fast-fail handling
+
+    def _setup_certificates(self) -> None:
+        """Setup certificates for services that require them."""
+        # Check if any service needs certificate generation
+        needs_certificates = any(
+            hasattr(service, "service_config_to_test")
+            and service.service_config_to_test.generate_new_certificates
+            for service in self.services_managers
+        )
+
+        if not needs_certificates:
+            self.logger.debug("No services require certificate generation")
+            return
+
+        # Create certificate directory in output directory
+        cert_dir = self.output_dir / "certs"
+        cert_dir.mkdir(exist_ok=True)
+
+        cert_file = cert_dir / "cert.pem"
+        key_file = cert_dir / "key.pem"
+
+        # Generate certificates if they don't exist
+        if not cert_file.exists() or not key_file.exists():
+            self.logger.info("Generating self-signed certificates for services")
+
+            # Use the certificate generation utility
+            from panther.plugins.services.base.service_command_builder import (
+                ServiceCommandBuilder,
             )
 
-        return result
+            cert_gen_cmd = ServiceCommandBuilder.create_certificate_generation_command(
+                cert_dir=str(cert_dir),
+                cert_name="cert",
+                key_name="key",
+                common_name="panther.local",
+                days=365,
+            )
+
+            try:
+                # Execute certificate generation command with safer approach
+                import shlex
+                import subprocess
+
+                # Use shlex.split to safely parse the command and avoid shell=True
+                cmd_parts = shlex.split(cert_gen_cmd)
+                result = subprocess.run(
+                    cmd_parts,
+                    shell=False,  # Explicitly set shell=False for security
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=False,  # Handle errors explicitly
+                )
+
+                if result.returncode == 0:
+                    self.logger.info(f"Generated certificates in {cert_dir}")
+                    self.logger.debug(f"Certificate: {cert_file}")
+                    self.logger.debug(f"Private key: {key_file}")
+                else:
+                    self.logger.error(
+                        f"Failed to generate certificates: {result.stderr}"
+                    )
+                    raise RuntimeError(
+                        f"Certificate generation failed: {result.stderr}"
+                    )
+
+            except subprocess.TimeoutExpired:
+                self.logger.error("Certificate generation timed out")
+                raise RuntimeError("Certificate generation timed out")
+            except Exception as e:
+                self.logger.error(f"Error generating certificates: {e}")
+                raise RuntimeError(f"Certificate generation error: {e}")
+        else:
+            self.logger.info(f"Using existing certificates in {cert_dir}")
 
     def generate_environment_services(
         self, paths: Dict[str, str], timestamp: str
@@ -300,16 +232,40 @@ class DockerComposeEnvironment(
         # Prepare service data with corrected container names for template
         services_with_container_names = []
         for service in self.services_managers:
-            service_data = {
-                "service_name": service.service_name,
-                "container_name": self._get_container_name_for_service(
-                    service.service_name
-                ),
-                # Add other service attributes as needed by template
-            }
-            services_with_container_names.append(service_data)
+            # For docker-compose template, pass the full service manager object
+            # The template expects attributes like service.role, service.service_targets, etc.
+            services_with_container_names.append(service)
+            entrypoint_script_path = Path(
+                str(self.rendered_services_network_script_file_path).replace(
+                    ".sh", f"_{service.service_name}.sh"
+                )
+            )
+
+            template_script_path = Path(
+                str(self.rendered_services_network_script_file_path).replace(
+                    ".sh", f"_{service.service_name}.sh"
+                )
+            )
+
+            self.logger.info(
+                "Generating entrypoint script for service %s at %s",
+                service.service_name,
+                entrypoint_script_path,
+            )
+
+            # Generate entrypoint script
+            self.generate_entrypoint_with_structured_args(
+                service, paths, timestamp, entrypoint_script_path, template_script_path
+            )
+
+            # Verify entrypoint script was created
+            if not os.path.exists(entrypoint_script_path):
+                raise RuntimeError(
+                    f"Failed to generate entrypoint script for service {service.service_name}"
+                )
 
         # Generate docker-compose.yml from template
+        user_mapping = self._get_user_mapping_config()
         self.generate_from_template(
             template_name="docker-compose.yml.jinja",
             paths=paths,
@@ -319,7 +275,13 @@ class DockerComposeEnvironment(
             additional_param={
                 "network_name": self.network_name,
                 "docker_network": f"{self.network_name}_network",
-                "services_with_container_names": services_with_container_names,
+                "services": services_with_container_names,  # Template expects 'services' not 'services_with_container_names'
+                "docker_user_mapping": user_mapping,
+                "docker_config": (
+                    self.global_config.docker
+                    if hasattr(self, "global_config") and self.global_config
+                    else None
+                ),
             },
         )
 
@@ -327,9 +289,162 @@ class DockerComposeEnvironment(
             f"Generated Docker Compose file: {self.rendered_services_network_config_file_path}"
         )
 
+    def generate_entrypoint_with_structured_args(
+        self,
+        service: IServiceManager,
+        paths: dict[str, str],
+        timestamp: str,
+        output_path: Path,
+        template_path: Path,
+    ):
+        """
+        Generates an entrypoint script with properly structured and quoted command arguments.
+
+        This method uses a command processor to handle command arguments and environment variables,
+        ensuring proper escaping of special characters in shell commands.
+
+        Args:
+            service: The service manager instance
+            paths: Dictionary of path configurations
+            timestamp: Timestamp string
+            output_path: Path where the generated entrypoint script will be written
+            template_path: Path to the template file (not used directly)
+        """
+        self.logger.debug(
+            "Generating entrypoint script for %s with structured arguments",
+            service.service_name,
+        )
+
+        # Use the command processor to process the commands
+        from panther.core.command_processor import CommandProcessor
+        from panther.plugins.environments.network_environment.docker_compose.command_adapter import (
+            DockerComposeCommandAdapter,
+        )
+
+        # Create instances of the command processor and adapter
+        command_processor = CommandProcessor()
+        adapter = DockerComposeCommandAdapter()
+
+        # Finalize commands to ensure latest implementation is used
+        self.logger.debug(
+            "Service %s run_cmd before finalization: %s",
+            service.service_name,
+            service.run_cmd,
+        )
+        finalized_commands = (
+            service.finalize_commands()
+            if hasattr(service, "finalize_commands")
+            else service.run_cmd
+        )
+        self.logger.debug(
+            "Service %s run_cmd after finalization: %s",
+            service.service_name,
+            finalized_commands,
+        )
+
+        # Process commands using the command processor
+        processed_commands = command_processor.process_commands(finalized_commands)
+
+        # Apply Docker Compose specific adaptations
+        processed_commands = adapter.adapt_commands(processed_commands)
+
+        # Get service-specific output file paths
+        output_file_paths = {}
+        output_redirections = {}
+        if hasattr(service, "get_output_file_paths"):
+            output_file_paths = service.get_output_file_paths()
+            self.logger.debug(
+                f"Service {service.service_name} output paths: {output_file_paths}"
+            )
+
+            # Get standard redirections
+            if hasattr(service, "get_standard_redirections"):
+                output_redirections = service.get_standard_redirections()
+                self.logger.debug(
+                    f"Service {service.service_name} redirections: {output_redirections}"
+                )
+
+        # Render entrypoint template with structured arguments
+        self.logger.debug(
+            "Rendering entrypoint template for service '%s' with structured commands",
+            service,
+        )
+        self.generate_from_template(
+            "entrypoint.sh.jinja",
+            paths,
+            timestamp,
+            output_path,
+            template_path,
+            additional_param=service,
+            structured_commands=processed_commands,
+            output_file_paths=output_file_paths,
+            output_redirections=output_redirections,
+        )
+
+    def _extract_service_environment_variables(self) -> dict:
+        """Extract and resolve environment variables from all service managers."""
+        import os
+        import re
+
+        # Start with system defaults
+        service_env_vars = {
+            "UID": str(os.getuid() if hasattr(os, "getuid") else 1000),
+            "GID": str(os.getgid() if hasattr(os, "getgid") else 1000),
+        }
+
+        # Collect environment variables from all service managers
+        for service in self.services_managers:
+            if hasattr(service, "environments") and service.environments:
+                self.logger.debug(
+                    "Found environment variables in service %s: %s",
+                    service.service_name,
+                    service.environments,
+                )
+                service_env_vars.update(service.environments)
+
+        # Resolve variable references (like $SOURCE_DIR in other variables)
+        # Multiple passes to handle nested references
+        for _ in range(3):  # Maximum 3 passes to resolve nested variables
+            resolved_vars = {}
+            for key, value in service_env_vars.items():
+                if isinstance(value, str):
+                    # Replace $VAR and ${VAR} references
+                    resolved_value = value
+                    for var_name, var_value in service_env_vars.items():
+                        if isinstance(var_value, str):
+                            resolved_value = re.sub(
+                                rf"\$\{{{var_name}\}}|\${var_name}(?![a-zA-Z0-9_])",
+                                var_value,
+                                resolved_value,
+                            )
+                    resolved_vars[key] = resolved_value
+                else:
+                    resolved_vars[key] = str(value) if value is not None else ""
+
+            service_env_vars = resolved_vars
+
+        self.logger.debug(
+            "Resolved service environment variables: %s", service_env_vars
+        )
+        return service_env_vars
+
     def launch_environment_services(self) -> None:
         """Launch Docker Compose services."""
         self.logger.info("Launching Docker Compose environment")
+
+        # Set required environment variables for Docker Compose
+        docker_env = os.environ.copy()
+
+        # Extract environment variables from service configurations
+        service_env_vars = self._extract_service_environment_variables()
+
+        # Update with service-specific environment variables
+        docker_env.update(service_env_vars)
+
+        self.logger.debug(
+            "Set Docker environment variables from services: %s",
+            {k: v for k, v in service_env_vars.items()},
+        )
 
         # Start Docker Compose
         compose_up_cmd = [
@@ -344,7 +459,8 @@ class DockerComposeEnvironment(
             command=compose_up_cmd,
             stdout_file=str(self.output_dir / "logs" / "docker_compose_up.log"),
             stderr_file=str(self.output_dir / "logs" / "docker_compose_up.err.log"),
-            timeout=300,
+            timeout=self.timeout,
+            env=docker_env,
         )
 
         self.logger.info("Docker Compose services launched")
@@ -435,8 +551,17 @@ class DockerComposeEnvironment(
             f"All {len(successful_services)} services are ready: {successful_services}"
         )
 
-        # Register service outputs for collection after successful deployment
-        self._register_all_service_outputs()
+        # Register service outputs now that services are ready
+        if hasattr(self, "register_service_outputs") and not self.output_registered:
+            self.logger.info("Registering service outputs...")
+            self.register_service_outputs(
+                self.services_managers,
+                lambda service_name: self._get_service_log_directory(service_name),
+            )
+            self.output_registered = True
+            self.logger.info(
+                f"Registered outputs for {len(self.services_managers)} services"
+            )
 
         self.logger.info("All Docker Compose services are ready and outputs registered")
         return True
@@ -476,14 +601,6 @@ class DockerComposeEnvironment(
                 pending_services.append(service_name)
                 self.logger.info(f"⏳ Service {service_name} is starting...")
 
-        # If all services are ready, register outputs and return immediately
-        if not pending_services:
-            self._register_all_service_outputs()
-            self.logger.info(
-                f"All {len(ready_services)} services are ready immediately"
-            )
-            return True
-
         # Start background monitoring for all services (including ready ones for continued health checks)
         self.background_monitor = BackgroundServiceMonitor(self, service_names, config)
         self.background_monitor.start_monitoring()
@@ -494,8 +611,17 @@ class DockerComposeEnvironment(
         self.logger.info(f"Ready services: {ready_services}")
         self.logger.info(f"Pending services: {pending_services}")
 
-        # Register outputs for all services (ready and pending)
-        self._register_all_service_outputs()
+        # Register service outputs (even if services are still starting)
+        if hasattr(self, "register_service_outputs") and not self.output_registered:
+            self.logger.info("Registering service outputs...")
+            self.register_service_outputs(
+                self.services_managers,
+                lambda service_name: self._get_service_log_directory(service_name),
+            )
+            self.output_registered = True
+            self.logger.info(
+                f"Registered outputs for {len(self.services_managers)} services"
+            )
 
         # Return True to allow experiment to proceed immediately
         return True
@@ -562,7 +688,11 @@ class DockerComposeEnvironment(
         self.logger.info("Starting Docker Compose service deployment")
 
         # Step 1: Launch the Docker Compose services (containers)
-        self.launch_environment_services()
+        try:
+            self.launch_environment_services()
+        except Exception as e:
+            self.logger.error(f"Error launching Docker Compose services: {e}")
+            self.teardown_environment()
 
         # Step 2: Give containers a moment to start up
         startup_delay = 3  # seconds
@@ -582,6 +712,24 @@ class DockerComposeEnvironment(
     def initialize(self, test_config, output_dir, event_manager, global_config):
         """Initialize the Docker Compose environment."""
         # Already initialized in __init__, but ensure key attributes are set
+        self.output_dir = Path(output_dir)
+        self.log_dirs = Path(output_dir) / "logs"
+        self.event_manager = event_manager
+        self.rendered_services_network_script_file_path = (
+            Path(self.output_dir) / "entrypoint.sh"
+        )
+
+        self.services_network_config_file_path = (
+            Path(self.output_dir) / f"{self.env_sub_type}.generated.yml"
+        )
+        self.rendered_services_network_config_file_path = (
+            Path(self.output_dir) / f"{self.env_sub_type}.yml"
+        )
+
+        self.logger.debug(
+            f"Initialized Docker Compose environment with config file: {self.services_network_config_file_path}"
+        )
+
         if not hasattr(self, "test_config"):
             self.test_config = test_config
         if not hasattr(self, "global_config"):
@@ -592,13 +740,199 @@ class DockerComposeEnvironment(
         # Docker Compose doesn't need special event handling beyond base class
         pass
 
-    def is_network_environment(self):
-        """Returns True since this is a network environment plugin."""
-        return True
+    def _perform_final_output_registration(self) -> None:
+        """
+        Perform final output registration while containers are still running.
+
+        This method ensures that all outputs generated during service execution
+        are properly registered for collection before containers are stopped.
+        """
+        if not hasattr(self, "register_service_outputs") or not hasattr(
+            self, "services_managers"
+        ):
+            self.logger.debug(
+                "Cannot perform final output registration: missing required attributes"
+            )
+            return
+
+        self.logger.info(
+            "Performing final output registration before container teardown..."
+        )
+        self.logger.debug(
+            f"Current output_files before final registration: {self.output_files}"
+        )
+
+        try:
+            # Wait a moment for any final writes to complete
+            import time
+
+            time.sleep(2)
+
+            # First, try to copy any additional files from running containers
+            self._copy_container_outputs_to_host()
+
+            # Clear existing registrations to start fresh
+            self.output_files.clear()
+
+            # Re-register all service outputs with the improved discovery
+            self.register_service_outputs(
+                self.services_managers,
+                lambda service_name: self._get_service_log_directory(service_name),
+            )
+
+            self.logger.info(
+                f"Final registration completed for {len(self.services_managers)} services"
+            )
+            self.logger.debug(
+                f"Output_files after final registration: {self.output_files}"
+            )
+
+            # Log actual files found in directories for debugging
+            self._log_actual_output_files()
+
+        except Exception as e:
+            self.logger.error(
+                f"Failed to perform final output registration: {e}", exc_info=True
+            )
+
+    def _copy_container_outputs_to_host(self) -> None:
+        """
+        Copy any additional outputs from running containers to host volumes.
+
+        This ensures that files written outside the mounted volumes are captured.
+        """
+        self.logger.debug("Checking for additional container outputs to copy...")
+
+        for service in self.services_managers:
+            service_name = service.service_name
+
+            try:
+                # Check if container exists (running or stopped)
+                container_exists_result = self.execute_docker_command(
+                    docker_args=["ps", "-a", "-q", "-f", f"name=^{service_name}$"],
+                    check=False,
+                )
+
+                if not container_exists_result.stdout.strip():
+                    self.logger.debug(f"Container {service_name} does not exist")
+                    continue
+
+                # Check if container is still running
+                running_result = self.execute_docker_command(
+                    docker_args=["ps", "-q", "-f", f"name=^{service_name}$"],
+                    check=False,
+                )
+                
+                is_running = bool(running_result.stdout.strip())
+                self.logger.debug(f"Container {service_name} running: {is_running}")
+
+                # For running containers, use exec to list files
+                if is_running:
+                    ls_result = self.execute_docker_command(
+                        docker_args=[
+                            "exec",
+                            service_name,
+                            "find",
+                            "/app/logs",
+                            "-type",
+                            "f",
+                            "-name",
+                            "*",
+                        ],
+                        check=False,
+                    )
+                    
+                    if ls_result.stdout.strip():
+                        container_files = ls_result.stdout.strip().split("\n")
+                        self.logger.debug(
+                            f"Running container {service_name} contains files: {container_files}"
+                        )
+                else:
+                    # For stopped containers, try to copy critical output files directly
+                    self.logger.info(f"Container {service_name} is stopped, attempting to copy outputs...")
+                    
+                    # Try to copy essential log files that might contain compilation errors
+                    essential_files = [
+                        "/app/logs/stderr.log",
+                        "/app/logs/stdout.log", 
+                        "/app/logs/ivy_ivy_server.log",
+                        "/app/logs/test_results.json"
+                    ]
+                    
+                    host_logs_dir = Path(self.output_dir) / "logs" / service_name
+                    host_logs_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    for container_file in essential_files:
+                        host_file = host_logs_dir / Path(container_file).name
+                        try:
+                            copy_result = self.execute_docker_command(
+                                docker_args=[
+                                    "cp",
+                                    f"{service_name}:{container_file}",
+                                    str(host_file)
+                                ],
+                                check=False,
+                            )
+                            if copy_result.returncode == 0:
+                                self.logger.debug(f"Successfully copied {container_file} from stopped container {service_name}")
+                            else:
+                                self.logger.debug(f"File {container_file} not found in stopped container {service_name}")
+                        except Exception as copy_error:
+                            self.logger.debug(f"Could not copy {container_file} from {service_name}: {copy_error}")
+                    
+                    # Also try to copy any compilation output files
+                    try:
+                        # First get container info to see if we can access it
+                        inspect_result = self.execute_docker_command(
+                            docker_args=["inspect", service_name],
+                            check=False,
+                        )
+                        if inspect_result.returncode == 0:
+                            self.logger.debug(f"Stopped container {service_name} is accessible for file copying")
+                    except Exception:
+                        self.logger.debug(f"Cannot inspect stopped container {service_name}")
+
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to copy outputs from container {service_name}: {e}"
+                )
+
+    def _log_actual_output_files(self) -> None:
+        """Log actual files found in output directories for debugging."""
+        if not hasattr(self, "output_dir"):
+            return
+
+        logs_dir = Path(self.output_dir) / "logs"
+        if not logs_dir.exists():
+            self.logger.warning(f"Logs directory does not exist: {logs_dir}")
+            return
+
+        self.logger.info("=== Actual Output Files Found ===")
+        try:
+            for service_dir in logs_dir.iterdir():
+                if service_dir.is_dir():
+                    service_name = service_dir.name
+                    files = list(service_dir.glob("*"))
+                    file_names = [f.name for f in files if f.is_file()]
+                    file_sizes = {
+                        f.name: f.stat().st_size for f in files if f.is_file()
+                    }
+
+                    self.logger.info(f"Service {service_name}: {len(file_names)} files")
+                    for file_name in file_names:
+                        size = file_sizes.get(file_name, 0)
+                        self.logger.info(f"  - {file_name} ({size} bytes)")
+
+        except Exception as e:
+            self.logger.error(f"Failed to log actual output files: {e}")
+        self.logger.info("=== End Actual Output Files ===")
 
     def _teardown_environment(self) -> None:
         """Perform Docker Compose specific teardown with background monitor cleanup."""
         self.logger.info("Tearing down Docker Compose environment")
+
+        # Perform final output registration while containers are still running
+        self._perform_final_output_registration()
 
         # Stop background monitoring if active
         if hasattr(self, "background_monitor") and self.background_monitor:
@@ -606,19 +940,16 @@ class DockerComposeEnvironment(
             self.background_monitor.stop_monitoring()
             self.background_monitor = None
 
-        # Register all service outputs before teardown
-        self._register_all_service_outputs()
-
-        # Collect outputs after registration
-        outputs = self.collect_outputs()
-        if outputs:
-            self.logger.info(
-                f"Collected {len(outputs)} outputs from Docker Compose environment"
-            )
-            for output_type, path in outputs.items():
-                self.logger.debug(f"  {output_type}: {path}")
-
         if os.path.exists(self.rendered_services_network_config_file_path):
+            # Set required environment variables for Docker Compose teardown
+            docker_env = os.environ.copy()
+
+            # Extract environment variables from service configurations
+            service_env_vars = self._extract_service_environment_variables()
+
+            # Update with service-specific environment variables
+            docker_env.update(service_env_vars)
+
             # Stop and remove containers
             compose_down_cmd = [
                 "docker-compose",
@@ -634,7 +965,10 @@ class DockerComposeEnvironment(
                     command=compose_down_cmd,
                     timeout=60,
                     check=False,  # Don't fail on error during cleanup
+                    env=docker_env,
                 )
+                # Wait for containers to fully stop and ports to be released
+                self._wait_for_containers_cleanup()
             except Exception as e:
                 self.logger.error(f"Error during Docker Compose teardown: {e}")
 
@@ -645,24 +979,106 @@ class DockerComposeEnvironment(
             remove_networks=True,
         )
 
-    def _build_docker_images(self) -> None:
-        """Build Docker images for services."""
-        self.logger.info("Building Docker images")
+    def _wait_for_containers_cleanup(self, timeout: int = 30) -> None:
+        """
+        Wait for all containers to be fully stopped and ports released.
 
-        build_cmd = [
-            "docker-compose",
-            "-f",
-            str(self.rendered_services_network_config_file_path),
-            "build",
-            "--parallel",
+        This prevents race conditions between sequential tests where containers
+        from previous tests might still be holding ports.
+        """
+        self.logger.info("Waiting for containers to fully cleanup...")
+        import time
+
+        # Get list of expected container names
+        expected_containers = [
+            service.service_name for service in self.services_managers
         ]
 
-        self.execute_with_retry(
-            command=build_cmd,
-            max_retries=2,
-            log_prefix="docker_compose_build",
-            timeout=600,
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            # Check if any of our containers are still running
+            running_containers = []
+            for container_name in expected_containers:
+                result = self.execute_docker_command(
+                    docker_args=["ps", "-q", "-f", f"name=^{container_name}$"],
+                    check=False,
+                )
+                if result.stdout.strip():
+                    running_containers.append(container_name)
+
+            if not running_containers:
+                # Also check legacy naming convention
+                legacy_running = []
+                for container_name in expected_containers:
+                    legacy_name = f"{self.network_name}_{container_name}_1"
+                    result = self.execute_docker_command(
+                        docker_args=["ps", "-q", "-f", f"name={legacy_name}"],
+                        check=False,
+                    )
+                    if result.stdout.strip():
+                        legacy_running.append(legacy_name)
+
+                if not legacy_running:
+                    # Verify ports are actually released
+                    if self._verify_ports_released():
+                        self.logger.info(
+                            "All containers and ports have been fully cleaned up"
+                        )
+                        return
+                    else:
+                        self.logger.debug(
+                            "Containers stopped but some ports still in use"
+                        )
+                else:
+                    self.logger.debug(
+                        f"Legacy containers still running: {legacy_running}"
+                    )
+            else:
+                self.logger.debug(f"Containers still running: {running_containers}")
+
+            # Wait a bit before checking again
+            time.sleep(1)
+
+        self.logger.warning(
+            f"Timeout waiting for container cleanup after {timeout} seconds"
         )
+
+    def _verify_ports_released(self) -> bool:
+        """
+        Verify that all ports used by services are no longer in use.
+
+        Returns:
+            bool: True if all ports are released, False otherwise
+        """
+        import socket
+
+        # Collect all ports used by services
+        used_ports = set()
+        for service in self.services_managers:
+            if (
+                hasattr(service, "service_config_to_test")
+                and service.service_config_to_test.ports
+            ):
+                for port_mapping in service.service_config_to_test.ports:
+                    # Port mappings are in format "host_port:container_port"
+                    if ":" in port_mapping:
+                        host_port = port_mapping.split(":")[0]
+                        try:
+                            used_ports.add(int(host_port))
+                        except ValueError:
+                            continue
+
+        # Check if any ports are still in use using the improved method
+        ports_in_use = []
+        for port in used_ports:
+            if not self._is_port_available(port, max_retries=1):
+                ports_in_use.append(port)
+
+        if ports_in_use:
+            self.logger.debug(f"Ports still in use: {ports_in_use}")
+            return False
+
+        return True
 
     def _is_service_ready(self, service_name: str) -> bool:
         """Check if a specific service is ready."""
@@ -673,6 +1089,10 @@ class DockerComposeEnvironment(
         result = self.execute_docker_command(
             docker_args=["ps", "-q", "-f", f"name=^{service_name}$"],
             check=False,
+        )
+
+        self.logger.debug(
+            f"Checking if service '{service_name}' is ready: {result.stdout.strip()}"
         )
 
         if result.stdout.strip():
@@ -687,106 +1107,394 @@ class DockerComposeEnvironment(
 
         return bool(result.stdout.strip())
 
-    def _get_container_name_for_service(self, service_name: str) -> str:
-        """Get the actual container name that should be used for a service.
+    def _get_service_log_directory(self, service_name: str) -> Path:
+        """Docker Compose uses service-specific log directories."""
+        return Path(self.output_dir) / "logs" / service_name
 
-        This handles the mismatch between YAML config service names and
-        the actual container names used in Docker Compose.
-        """
-        # Map service names to their actual container names
-        # This is needed because some services have different names in config vs containers
-        service_to_container_mapping = {
-            "ivy_server": "ivy_client",  # ivy_server config -> ivy_client container
-            "picoquic_client": "picoquic_server",  # picoquic_client config -> picoquic_server container
-        }
+    def _check_port_availability(self) -> None:
+        """Check if required ports are available before starting containers."""
+        self.logger.info("Checking port availability for all services...")
 
-        container_name = service_to_container_mapping.get(service_name, service_name)
-        self.logger.debug(
-            f"Mapped service '{service_name}' to container '{container_name}'"
-        )
-        return container_name
+        # First, clean up any stale containers that might be holding ports
+        self._cleanup_stale_containers()
 
-    def _register_service_outputs(self, service_manager: IServiceManager) -> None:
-        """Register service outputs for collection."""
-        service_name = service_manager.service_name
-        container_name = self._get_container_name_for_service(service_name)
+        conflicts = []
+        for service in self.services_managers:
+            if (
+                hasattr(service, "service_config_to_test")
+                and service.service_config_to_test.ports
+            ):
+                service_name = service.service_name
+                for port_mapping in service.service_config_to_test.ports:
+                    if ":" in port_mapping:
+                        host_port = int(port_mapping.split(":")[0])
 
-        # Use the log_dirs attribute that gets passed to the template
-        # The template uses: {{ log_dir | realpath }}/{{ service.service_name }}:/app/logs/
-        # So we need to match that path structure
-        if hasattr(self, "log_dirs") and self.log_dirs:
-            base_log_dir = Path(self.log_dirs).resolve()  # Same as | realpath filter
-        else:
-            # Fallback to a default log directory if not set
-            base_log_dir = Path(self.output_dir) / "logs"
+                        # Check if port is available using bind() for more accurate detection
+                        if not self._is_port_available(host_port):
+                            conflicts.append((host_port, service_name))
+                            self.logger.error(
+                                f"Port {host_port} is already in use (needed by {service_name})"
+                            )
+                        else:
+                            self.logger.debug(
+                                f"Port {host_port} is available for {service_name}"
+                            )
 
-        # The volume mapping in template uses service_name, but we want to read from container_name directory
-        log_dir = base_log_dir / container_name
+        if conflicts:
+            # Try to resolve conflicts with retry and cleanup
+            resolved_conflicts = self._attempt_port_conflict_resolution(conflicts)
 
-        self.logger.info(
-            f"Registering outputs for service '{service_name}' (container: '{container_name}') from: {log_dir}"
-        )
-
-        # Check if log directory exists and create if needed
-        if not log_dir.exists():
-            self.logger.warning(f"Log directory does not exist: {log_dir}")
-            try:
-                log_dir.mkdir(parents=True, exist_ok=True)
-                self.logger.info(f"Created log directory: {log_dir}")
-            except Exception as e:
-                self.logger.error(f"Failed to create log directory {log_dir}: {e}")
-                return
-
-        # Register expected outputs
-        outputs_to_register = [
-            ("stdout", "stdout.log"),
-            ("stderr", "stderr.log"),
-            ("sslkeylog", "sslkeylogfile.txt"),
-            ("pcap", f"{container_name}.pcap"),
-        ]
-
-        for output_type, filename in outputs_to_register:
-            file_path = log_dir / filename
-            self.register_output_file(output_type, str(file_path), service_name)
-            self.logger.debug(
-                f"Registered {output_type} output for {service_name}: {file_path}"
-            )
-
-        # Register any additional logs that exist in the directory
-        if log_dir.exists():
-            self.logger.debug(f"Scanning for additional logs in: {log_dir}")
-            for log_file in log_dir.glob("*.log"):
-                if log_file.name not in ["stdout.log", "stderr.log"]:
-                    output_type = f"{log_file.stem}_additional"
-                    self.register_output_file(output_type, str(log_file), service_name)
-                    self.logger.debug(
-                        f"Registered additional {output_type} log for {service_name}: {log_file}"
+            if resolved_conflicts:
+                # Try dynamic port allocation as last resort
+                if self._attempt_dynamic_port_allocation(resolved_conflicts):
+                    self.logger.info(
+                        "All port conflicts resolved using dynamic allocation"
                     )
+                else:
+                    # Some conflicts remain unresolved
+                    port, service = resolved_conflicts[0]
+                    # Provide more detailed error information
+                    self._log_port_usage_details(port)
+                    raise PortConflictException(
+                        f"Cannot start Docker Compose: port {port} is already in use",
+                        port,
+                        service,
+                    )
+            else:
+                self.logger.info("All port conflicts resolved successfully")
 
-            # Check for any pcap files
-            for pcap_file in log_dir.glob("*.pcap"):
-                output_type = f"{pcap_file.stem}_pcap"
-                self.register_output_file(output_type, str(pcap_file), service_name)
-                self.logger.debug(
-                    f"Registered pcap file for {service_name}: {pcap_file}"
+    def _is_port_available(self, port: int, max_retries: int = 3) -> bool:
+        """
+        Check if a port is available using bind() method with retry logic.
+
+        Args:
+            port: Port number to check
+            max_retries: Maximum number of retry attempts
+
+        Returns:
+            bool: True if port is available, False otherwise
+        """
+        import time
+
+        for attempt in range(max_retries):
+            try:
+                # Use bind() which is more accurate than connect_ex()
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.settimeout(1)
+                sock.bind(("localhost", port))
+                sock.close()
+                return True
+            except OSError as e:
+                if attempt < max_retries - 1:
+                    # Port might be in TIME_WAIT state, wait briefly and retry
+                    self.logger.debug(
+                        f"Port {port} check attempt {attempt + 1} failed: {e}, retrying..."
+                    )
+                    time.sleep(0.5)
+                else:
+                    self.logger.debug(f"Port {port} is not available: {e}")
+                    return False
+            except Exception as e:
+                self.logger.debug(f"Unexpected error checking port {port}: {e}")
+                return False
+
+        return False
+
+    def _cleanup_stale_containers(self) -> None:
+        """Remove any stale PANTHER containers that might be holding ports."""
+        try:
+            # Find containers with PANTHER-related names
+            cmd = [
+                "docker",
+                "ps",
+                "-a",
+                "--format",
+                "{{.Names}}",
+                "--filter",
+                "name=panther",
+            ]
+            result = self.execute_command(cmd, timeout=10, check=False)
+
+            if result.returncode == 0 and result.stdout.strip():
+                stale_containers = result.stdout.strip().split("\n")
+                self.logger.info(
+                    f"Found {len(stale_containers)} stale PANTHER containers"
                 )
 
-        # Debug: List what's actually in the directory
-        if log_dir.exists():
-            files = list(log_dir.iterdir())
-            self.logger.info(
-                f"Contents of {log_dir}: {[f.name for f in files] if files else 'empty'}"
+                for container in stale_containers:
+                    if container.strip():
+                        self.logger.debug(f"Removing stale container: {container}")
+                        self.execute_command(
+                            ["docker", "rm", "-f", container.strip()],
+                            timeout=30,
+                            check=False,
+                        )
+
+            # Also check for containers using specific service patterns
+            service_patterns = [
+                "picoquic",
+                "ivy",
+                "aioquic",
+                "lsquic",
+                "mvfst",
+                "quiche",
+                "quinn",
+                "quic_go",
+            ]
+            for pattern in service_patterns:
+                cmd = [
+                    "docker",
+                    "ps",
+                    "-a",
+                    "--format",
+                    "{{.Names}}",
+                    "--filter",
+                    f"name={pattern}",
+                ]
+                result = self.execute_command(cmd, timeout=10, check=False)
+
+                if result.returncode == 0 and result.stdout.strip():
+                    containers = result.stdout.strip().split("\n")
+                    for container in containers:
+                        if container.strip():
+                            self.logger.debug(
+                                f"Removing stale service container: {container}"
+                            )
+                            self.execute_command(
+                                ["docker", "rm", "-f", container.strip()],
+                                timeout=30,
+                                check=False,
+                            )
+
+        except Exception as e:
+            self.logger.debug(f"Error during stale container cleanup: {e}")
+
+    def _attempt_port_conflict_resolution(self, conflicts: List[tuple]) -> List[tuple]:
+        """
+        Attempt to resolve port conflicts through cleanup and waiting.
+
+        Args:
+            conflicts: List of (port, service_name) tuples
+
+        Returns:
+            List of remaining unresolved conflicts
+        """
+        self.logger.info(f"Attempting to resolve {len(conflicts)} port conflicts...")
+
+        # Wait a moment for any TIME_WAIT states to clear
+        import time
+
+        time.sleep(2)
+
+        # Force Docker network cleanup
+        try:
+            self.execute_command(
+                ["docker", "network", "prune", "-f"], timeout=30, check=False
             )
+        except Exception as e:
+            self.logger.debug(f"Docker network cleanup failed: {e}")
+
+        # Re-check each conflicted port
+        remaining_conflicts = []
+        for port, service_name in conflicts:
+            if not self._is_port_available(port, max_retries=2):
+                remaining_conflicts.append((port, service_name))
+            else:
+                self.logger.info(f"Port {port} conflict resolved for {service_name}")
+
+        return remaining_conflicts
+
+    def _log_port_usage_details(self, port: int) -> None:
+        """Log detailed information about what is using a port."""
+        try:
+            # Try to find what's using the port
+            import subprocess
+
+            # On macOS/Linux, use lsof if available
+            try:
+                result = subprocess.run(
+                    ["lsof", "-i", f":{port}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0 and result.stdout:
+                    self.logger.error(f"Port {port} is being used by:")
+                    for line in result.stdout.split("\n")[1:]:  # Skip header
+                        if line.strip():
+                            self.logger.error(f"  {line}")
+                else:
+                    self.logger.debug(f"No lsof output for port {port}")
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                # lsof not available or timed out
+                self.logger.debug(f"Could not determine what is using port {port}")
+
+            # Also check Docker containers
+            try:
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "ps",
+                        "--format",
+                        "{{.Names}} {{.Ports}}",
+                        "--filter",
+                        f"publish={port}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    self.logger.error(f"Docker containers using port {port}:")
+                    for line in result.stdout.split("\n"):
+                        if line.strip():
+                            self.logger.error(f"  {line}")
+            except subprocess.TimeoutExpired:
+                pass
+
+        except Exception as e:
+            self.logger.debug(f"Error logging port usage details: {e}")
+
+    def _attempt_dynamic_port_allocation(self, conflicts: List[tuple]) -> bool:
+        """
+        Attempt to resolve port conflicts by dynamically allocating alternative ports.
+
+        Args:
+            conflicts: List of (port, service_name) tuples with unresolved conflicts
+
+        Returns:
+            bool: True if all conflicts were resolved, False otherwise
+        """
+        self.logger.info(
+            "Attempting dynamic port allocation for remaining conflicts..."
+        )
+
+        port_mappings = {}
+        for original_port, service_name in conflicts:
+            # Find an available alternative port
+            alternative_port = self._find_available_port(original_port)
+            if alternative_port:
+                port_mappings[service_name] = (original_port, alternative_port)
+                self.logger.info(
+                    f"Assigned alternative port {alternative_port} to {service_name} (original: {original_port})"
+                )
+            else:
+                self.logger.error(
+                    f"Could not find alternative port for {service_name} (original: {original_port})"
+                )
+                return False
+
+        # Apply the new port mappings to the service configurations
+        if self._apply_dynamic_port_mappings(port_mappings):
+            self.logger.info("Successfully applied dynamic port mappings")
+            return True
         else:
-            self.logger.warning(f"Directory does not exist: {log_dir}")
+            self.logger.error("Failed to apply dynamic port mappings")
+            return False
 
-    def _register_all_service_outputs(self) -> None:
-        """Register outputs from all services before teardown."""
-        if not hasattr(self, "services_managers") or not self.services_managers:
-            self.logger.warning("No service managers available for output registration")
-            return
+    def _find_available_port(
+        self, original_port: int, port_range: int = 1000
+    ) -> Optional[int]:
+        """
+        Find an available port starting from original_port + 1000.
 
-        self.logger.info("Registering outputs from all Docker Compose services")
+        Args:
+            original_port: The original conflicted port
+            port_range: Range of ports to search
 
-        for service_manager in self.services_managers:
-            self._register_service_outputs(service_manager)
+        Returns:
+            int: Available port number, or None if none found
+        """
+        # Start searching from original_port + 1000 to avoid common port ranges
+        start_port = original_port + 1000
+        end_port = start_port + port_range
+
+        for port in range(start_port, end_port):
+            if self._is_port_available(port, max_retries=1):
+                return port
+
+        # If no port found in that range, try a different range
+        start_port = 50000  # Use high port numbers that are typically available
+        end_port = 60000
+
+        for port in range(start_port, end_port):
+            if self._is_port_available(port, max_retries=1):
+                return port
+
+        return None
+
+    def _apply_dynamic_port_mappings(self, port_mappings: Dict[str, tuple]) -> bool:
+        """
+        Apply dynamic port mappings to service configurations.
+
+        Args:
+            port_mappings: Dict mapping service_name to (original_port, new_port) tuples
+
+        Returns:
+            bool: True if successfully applied, False otherwise
+        """
+        try:
+            for service in self.services_managers:
+                service_name = service.service_name
+                if service_name in port_mappings:
+                    original_port, new_port = port_mappings[service_name]
+
+                    # Update service configuration ports
+                    if (
+                        hasattr(service, "service_config_to_test")
+                        and service.service_config_to_test.ports
+                    ):
+                        updated_ports = []
+                        for port_mapping in service.service_config_to_test.ports:
+                            if ":" in port_mapping:
+                                host_port, container_port = port_mapping.split(":", 1)
+                                if int(host_port) == original_port:
+                                    updated_ports.append(f"{new_port}:{container_port}")
+                                    self.logger.debug(
+                                        f"Updated port mapping for {service_name}: {port_mapping} -> {new_port}:{container_port}"
+                                    )
+                                else:
+                                    updated_ports.append(port_mapping)
+                            else:
+                                updated_ports.append(port_mapping)
+
+                        service.service_config_to_test.ports = updated_ports
+
+                    # Also update any direct port attributes
+                    if hasattr(service, "ports"):
+                        updated_ports = []
+                        for port_mapping in service.ports:
+                            if ":" in port_mapping:
+                                host_port, container_port = port_mapping.split(":", 1)
+                                if int(host_port) == original_port:
+                                    updated_ports.append(f"{new_port}:{container_port}")
+                                else:
+                                    updated_ports.append(port_mapping)
+                            else:
+                                updated_ports.append(port_mapping)
+
+                        service.ports = updated_ports
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error applying dynamic port mappings: {e}")
+            return False
+
+    def _check_disk_space(self, required_gb: float = 2.0) -> None:
+        """Check available disk space before building images."""
+        import shutil
+
+        stat = shutil.disk_usage("/")
+        available_gb = stat.free / (1024**3)
+
+        self.logger.info(f"Available disk space: {available_gb:.2f}GB")
+
+        if available_gb < required_gb:
+            raise ResourceExhaustionException(
+                f"Insufficient disk space for Docker operations",
+                "disk_space",
+                available_gb,
+                required_gb,
+            )

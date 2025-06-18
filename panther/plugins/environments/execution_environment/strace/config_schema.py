@@ -1,12 +1,11 @@
-from dataclasses import dataclass, field
+from typing import List, Optional
 
-from panther.plugins.environments.execution_environment.config_schema import (
-    ExecutionEnvironmentConfig,
-)
+from pydantic import Field
+
+from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
 
 
-@dataclass
-class StraceConfig(ExecutionEnvironmentConfig):
+class StraceConfig(ExecutionEnvironmentPluginConfig):
     """
     StraceConfig is a configuration class for setting up and running strace in a specific execution environment.
 
@@ -22,8 +21,11 @@ class StraceConfig(ExecutionEnvironmentConfig):
         network_focus (bool): Indicates if strace should emphasize network protocol syscalls. Default is True.
     """
 
-    strace_binary: str = "/usr/bin/strace"  # Path to the strace binary
-    excluded_syscalls: list[str] = field(
+    strace_binary: str = Field(
+        default="/usr/bin/strace",
+        description="Path to the strace binary"
+    )
+    excluded_syscalls: List[str] = Field(
         default_factory=lambda: [
             "nanosleep",
             "getitimer",
@@ -36,70 +38,105 @@ class StraceConfig(ExecutionEnvironmentConfig):
             "adjtimex",
             "settimeofday",
             "time",
-        ]
-    )  # List of syscalls to exclude
-    include_kernel_stack: bool = False  # Include kernel stack in the trace output
-    trace_network_syscalls: bool = (
-        True  # Focus on network-related syscalls (connect, send, recv, etc.)
+        ],
+        description="List of syscalls to exclude from tracing"
     )
-    timeout: int | None = 60  # Timeout for strace execution in seconds
-    output_file: str = "/app/logs/strace.log"  # Path to the strace log output
-    additional_parameters: list[str] = field(
-        default_factory=list
-    )  # Additional parameters for strace
-    monitored_process: str | None = None  # Process name to monitor (if not PID-based)
-    network_focus: bool = True  # Indicate if strace should emphasize network protocol syscalls
+    include_kernel_stack: bool = Field(
+        default=False,
+        description="Include kernel stack in the trace output"
+    )
+    trace_network_syscalls: bool = Field(
+        default=True,
+        description="Focus on network-related syscalls (connect, send, recv, etc.)"
+    )
+    timeout: Optional[int] = Field(
+        default=60,
+        description="Timeout for strace execution in seconds"
+    )
+    output_file: str = Field(
+        default="/app/logs/strace.log",
+        description="Path to the strace log output file"
+    )
+    additional_parameters: List[str] = Field(
+        default_factory=list,
+        description="Additional parameters to pass to strace"
+    )
+    monitored_process: Optional[str] = Field(
+        default=None,
+        description="Process name to monitor (if not PID-based)"
+    )
+    network_focus: bool = Field(
+        default=True,
+        description="Indicate if strace should emphasize network protocol syscalls"
+    )
 
     # Output format and detail options
-    output_format: str = field(
+    output_format: str = Field(
         default="normal",
-        metadata={
-            "description": "Output format. Options: normal, raw, verbose. Default is normal."
-        },
+        description="Output format. Options: normal, raw, verbose. Default is normal."
     )
-    decode_fds: bool = field(
+    decode_fds: bool = Field(
         default=True,
-        metadata={"description": "Decode file descriptors to show file names when possible."},
+        description="Decode file descriptors to show file names when possible."
     )
-    timestamps: bool = field(
+    timestamps: bool = Field(
         default=True,
-        metadata={"description": "Include timestamps in output. Useful for performance analysis."},
+        description="Include timestamps in output. Useful for performance analysis."
     )
-    timestamp_format: str = field(
+    timestamp_format: str = Field(
         default="relative",
-        metadata={
-            "description": "Timestamp format. Options: none, time, relative, unix, us. Default is relative."
-        },
+        description="Timestamp format. Options: none, time, relative, unix, us. Default is relative."
     )
 
     # Performance and filtering options
-    buffer_size: int = field(
+    buffer_size: int = Field(
         default=4096,
-        metadata={
-            "description": "Internal buffer size for syscall capture. Larger values may improve performance."
-        },
+        description="Internal buffer size for syscall capture. Larger values may improve performance."
     )
-    trace_children: bool = field(
+    trace_children: bool = Field(
         default=True,
-        metadata={"description": "Follow forks and trace child processes."},
+        description="Follow forks and trace child processes."
     )
-    trace_file_syscalls: bool = field(
+    trace_file_syscalls: bool = Field(
         default=True,
-        metadata={"description": "Include file-related syscalls in trace."},
+        description="Include file-related syscalls in trace."
     )
 
     # Advanced options
-    string_limit: int | None = field(
+    string_limit: Optional[int] = Field(
         default=32,
-        metadata={"description": "Limit for string output length. None for unlimited."},
+        description="Limit for string output length. None for unlimited."
     )
-    stack_traces: bool = field(
+    stack_traces: bool = Field(
         default=False,
-        metadata={"description": "Print stack trace after each syscall."},
+        description="Print stack trace after each syscall."
     )
-    inject_errors: str | None = field(
+    inject_errors: Optional[str] = Field(
         default=None,
-        metadata={
-            "description": "Inject errors for testing. Format: 'syscall:error=errno:when=when_spec'"
-        },
+        description="Inject errors for testing. Format: 'syscall:error=errno:when=when_spec'"
+    )
+
+    # Environment-specific fields from parent
+    type: str = Field(default="strace", description="Execution environment type")
+
+    # Background monitoring configuration (from EnvironmentConfig)
+    enable_background_monitoring: bool = Field(
+        default=True,
+        description="Enable background monitoring for non-blocking service health checks"
+    )
+    monitoring_interval_seconds: int = Field(
+        default=5,
+        description="Monitoring interval in seconds"
+    )
+    failure_threshold_count: int = Field(
+        default=3,
+        description="Number of failures before considering service unhealthy"
+    )
+    allow_partial_deployment: bool = Field(
+        default=False,
+        description="Allow deployment even if some services fail"
+    )
+    critical_services: List[str] = Field(
+        default_factory=list,
+        description="List of critical services that must be running"
     )

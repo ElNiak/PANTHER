@@ -10,12 +10,11 @@ import sys
 from pathlib import Path
 import yaml
 import re
-from typing import Any
+from typing import Any, Dict
 
 # Repository root is two directories up from this script
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 MKDOCS_CONFIG = REPO_ROOT / "mkdocs.yml"
-
 
 # Create custom tag handlers for YAML
 def python_name_constructor(loader, node):
@@ -23,25 +22,21 @@ def python_name_constructor(loader, node):
     # Just return the module name or import path as a string
     return f"__python_name__{node.value}"
 
-
 def python_name_with_args_constructor(loader, node):
     """Handle !!python/name tags with arguments."""
     # Extract module name and return it as a string
     module_name = node.tag.split(":", 1)[1] if ":" in node.tag else str(node.value)
     return f"__python_name__{module_name}"
 
-
 def python_object_apply_constructor(loader, node):
     """Handle !!python/object/apply tags by returning a placeholder."""
     # For object/apply tags, return a placeholder that won't break YAML parsing
     return "__python_object_apply__"
 
-
 def python_module_constructor(loader, node):
     """Handle Python module references."""
     # For module imports, return a placeholder
     return "__python_module__"
-
 
 def setup_yaml_handlers():
     """Set up custom YAML tag handlers for MkDocs configuration."""
@@ -92,8 +87,7 @@ def setup_yaml_handlers():
         "tag:yaml.org,2002:python/", python_module_constructor, Loader=yaml.SafeLoader
     )
 
-
-def load_mkdocs_config() -> dict[str, Any]:
+def load_mkdocs_config() -> Dict[str, Any]:
     """Load the current mkdocs.yml configuration."""
     try:
         # First try to load with custom tag handlers
@@ -129,8 +123,7 @@ def load_mkdocs_config() -> dict[str, Any]:
         )
         return {}
 
-
-def save_mkdocs_config(config: dict[str, Any]) -> bool:
+def save_mkdocs_config(config: Dict[str, Any]) -> bool:
     """Save the updated mkdocs.yml configuration."""
     try:
         with open(MKDOCS_CONFIG, "w", encoding="utf-8") as file:
@@ -140,8 +133,7 @@ def save_mkdocs_config(config: dict[str, Any]) -> bool:
         print(f"Error saving {MKDOCS_CONFIG}: {e}")
         return False
 
-
-def ensure_plugins_config(config: dict[str, Any]) -> dict[str, Any]:
+def ensure_plugins_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Ensure the MkDocs configuration has the necessary plugins for link checking.
     """
@@ -212,7 +204,6 @@ def ensure_plugins_config(config: dict[str, Any]) -> dict[str, Any]:
 
     return config
 
-
 def main():
     """Main entry point of the script."""
     print("🔄 MkDocs Config Enhancer")
@@ -234,7 +225,6 @@ def main():
     else:
         print("❌ Failed to update MkDocs configuration")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

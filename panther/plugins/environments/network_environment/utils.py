@@ -11,7 +11,10 @@ import yaml
 
 
 class NetworkEnvironmentUtils:
-    """Shared utilities for all network environments."""
+    """
+
+    from typing import Any, Dict, List, Optional, Union, UnionShared utilities for all network environments.
+    """
 
     @staticmethod
     def generate_compose_file(
@@ -144,8 +147,7 @@ class NetworkEnvironmentUtils:
 
     @staticmethod
     def parse_service_output(
-        output: str,
-        format: str = "text",
+        output: str, format: str = "text"
     ) -> Union[str, Dict[str, Any], List[Any]]:
         """
         Parse service output based on expected format.
@@ -174,8 +176,7 @@ class NetworkEnvironmentUtils:
 
     @staticmethod
     def create_network_namespace(
-        namespace_name: str,
-        ip_range: str = "10.0.0.0/24",
+        namespace_name: str, ip_range: str = "10.0.0.0/24"
     ) -> bool:
         """
         Create a network namespace for isolation.
@@ -202,10 +203,7 @@ class NetworkEnvironmentUtils:
             return False
 
     @staticmethod
-    def generate_unique_identifier(
-        prefix: str,
-        include_timestamp: bool = True,
-    ) -> str:
+    def generate_unique_identifier(prefix: str, include_timestamp: bool = True) -> str:
         """
         Generate a unique identifier for resources.
 

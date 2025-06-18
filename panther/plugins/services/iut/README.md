@@ -12,10 +12,29 @@ Implementation Under Test (IUT) plugins represent the actual protocol implementa
 
 ## Available Plugins
 
-| Plugin | Description | Documentation |
-|--------|-------------|---------------|
-| picoquic | QUIC protocol implementation in C | [Documentation](panther/plugins/services/iut/quic/picoquic/README.md) |
-| ping_pong | Simple ping-pong service for basic testing | [Documentation](panther/plugins/services/iut/minip/ping_pong/README.md) |
+### QUIC Protocol Implementations
+
+All QUIC implementations inherit from `BaseQUICServiceManager` or specialized subclasses:
+
+| Implementation | Language | Base Class | Description | Documentation |
+|---------------|----------|------------|-------------|---------------|
+| **picoquic** | C | BaseQUICServiceManager | Mature, RFC-compliant implementation | [Documentation](quic/picoquic/README.md) |
+| **aioquic** | Python | PythonQUICServiceManager | Async/await, HTTP/3 support | [Documentation](quic/aioquic/README.md) |
+| **quiche** | Rust | RustQUICServiceManager | Memory safety, performance | [Documentation](quic/quiche/README.md) |
+| **quinn** | Rust | RustQUICServiceManager | Modern async implementation | [Documentation](quic/quinn/README.md) |
+| **lsquic** | C | BaseQUICServiceManager | LiteSpeed optimized | [Documentation](quic/lsquic/README.md) |
+| **quic_go** | Go | BaseQUICServiceManager | Goroutine-based | [Documentation](quic/quic_go/README.md) |
+| **mvfst** | C++ | BaseQUICServiceManager | Facebook's implementation | [Documentation](quic/mvfst/README.md) |
+| **quant** | C | BaseQUICServiceManager | Research-focused | [Documentation](quic/quant/README.md) |
+| **picoquic_shadow** | C | BaseQUICServiceManager | Shadow NS integration | [Documentation](quic/picoquic_shadow/README.md) |
+
+See the [QUIC implementations overview](quic/README.md) for detailed comparison.
+
+### Other Protocol Implementations
+
+| Plugin | Protocol | Base Class | Description | Documentation |
+|--------|----------|------------|-------------|---------------|
+| **ping_pong** | MINIP | BaseMinipServiceManager | Simple ping-pong service for basic testing | [Documentation](minip/ping_pong/README.md) |
 
 ## Common Configuration
 

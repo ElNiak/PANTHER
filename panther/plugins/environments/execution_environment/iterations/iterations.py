@@ -1,11 +1,11 @@
+from typing import TYPE_CHECKING, List, Optional
+
 """
 Iterations execution environment for running tests multiple times.
 
 This plugin creates a wrapper script that executes the original command multiple times,
 useful for statistical analysis, stress testing, and measuring performance variance.
 """
-
-from typing import TYPE_CHECKING
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.base_execution_environment import (
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 )
 class IterationsEnvironment(BaseExecutionEnvironment):
     """
+
     Iterations execution environment for running multiple test iterations.
 
     This environment creates a wrapper script that executes the original command
@@ -56,7 +57,7 @@ class IterationsEnvironment(BaseExecutionEnvironment):
         )
 
     def _setup_plugin_specific_environment(
-        self, services_managers: list[IServiceManager], timestamp: str
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
         """
         Set up iterative testing environment using shared utilities.

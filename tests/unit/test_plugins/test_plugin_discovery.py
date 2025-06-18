@@ -17,12 +17,10 @@ import yaml
 
 # Test imports with fallback to mocks
 try:
-    from panther.plugins.environment_factory import EnvironmentFactory
     from panther.plugins.plugin_catalog import PluginCatalog
     from panther.plugins.plugin_discovery import PluginDiscovery
     from panther.plugins.plugin_loader_utils import PluginManagerUtils
     from panther.plugins.plugin_manifest import PluginManifest
-    from panther.plugins.service_factory import ServiceFactory
 
     REAL_PLUGIN_SYSTEM_AVAILABLE = True
 except ImportError:
@@ -460,9 +458,7 @@ except ImportError:
 
             return {}
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.plugin_system]
-
 
 class TestPluginDiscovery:
     """Test PluginDiscovery functionality."""
@@ -746,7 +742,6 @@ class TestPluginDiscovery:
 
         assert plugins == {}
 
-
 class TestPluginManifest:
     """Test PluginManifest functionality."""
 
@@ -878,7 +873,6 @@ class TestPluginManifest:
         # Verify it's a copy
         dict_result["test"] = "value"
         assert "test" not in manifest.manifest_data
-
 
 class TestPluginCatalog:
     """Test PluginCatalog functionality."""
@@ -1106,7 +1100,6 @@ class TestPluginCatalog:
         results = catalog.search_plugins("nonexistent_query")
         assert results == {}
 
-
 class TestServiceFactory:
     """Test ServiceFactory functionality."""
 
@@ -1241,7 +1234,6 @@ class TestServiceFactory:
         assert is_valid is False
         assert "Implementation not found" in message
 
-
 class TestEnvironmentFactory:
     """Test EnvironmentFactory functionality."""
 
@@ -1347,7 +1339,6 @@ class TestEnvironmentFactory:
         assert len(exec_envs) == 1
         assert "strace" in exec_envs
 
-
 class TestPluginManagerUtils:
     """Test PluginManagerUtils functionality."""
 
@@ -1435,7 +1426,6 @@ class TestPluginManagerUtils:
             assert metadata == {}
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
-
 
 class TestPluginSystemIntegration:
     """Test integration between plugin system components."""
@@ -1659,7 +1649,6 @@ class TestPluginSystemIntegration:
         assert network_env.setup_environment() is True
         assert tracer.setup_environment() is True
         assert profiler.setup_environment() is True
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -1,11 +1,11 @@
+from typing import TYPE_CHECKING, List, Optional
+
 """
 Refactored gperf CPU execution environment using shared command generation utilities.
 
 This demonstrates how the shared utilities eliminate duplication and simplify
 plugin implementation while maintaining all functionality.
 """
-
-from typing import TYPE_CHECKING
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.base_execution_environment import (
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 )
 class GperfCpuEnvironment(BaseExecutionEnvironment):
     """
+
     CPU profiling execution environment using gperftools.
 
     This environment uses shared command generation utilities to eliminate
@@ -55,7 +56,7 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
         )
 
     def _setup_plugin_specific_environment(
-        self, services_managers: list[IServiceManager], timestamp: str
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
         """
         Set up gperf CPU profiling for compatible services using shared utilities.
@@ -170,7 +171,9 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
             )
             self.logger.debug("Applied modifications: %s", results)
 
-    def to_command(self, pid: int | None = None, output_file: str | None = None) -> str:
+    def to_command(
+        self, pid: Optional[int] = None, output_file: Optional[str] = None
+    ) -> str:
         """
         Generate the gperf CPU profiling command for execution.
 
@@ -210,3 +213,25 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
         # Build the complete command
         env_string = " ".join(env_vars)
         return f"env LD_PRELOAD={profiler_lib} {env_string}"
+
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for gperf CPU profiling execution.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        # Add any gperf CPU-specific environment updates here
+        self.logger.debug("Updated environment for gperf CPU profiling execution")
+        pass

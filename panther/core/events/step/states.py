@@ -5,13 +5,13 @@ This module defines states for step execution management.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Optional
 
 from panther.core.events.base.state_base import BaseState
 
 
 class StepState(Enum):
-    """Enumeration of step execution states."""
+    """Step execution states."""
 
     CREATED = "created"
     PENDING = "pending"
@@ -34,7 +34,7 @@ class StepExecutionState(BaseState):
         self,
         entity_id: str,
         state: StepState = StepState.CREATED,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize step execution state.

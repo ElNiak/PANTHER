@@ -15,7 +15,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-
 class CLIOutputCapture:
     """Capture and normalize CLI output for comparison."""
 
@@ -139,7 +138,6 @@ class CLIOutputCapture:
     def _calculate_checksum(self, content: str) -> str:
         """Calculate checksum of content."""
         return hashlib.sha256(content.encode()).hexdigest()
-
 
 class VisualRegressionTestSuite:
     """Suite of visual regression tests for PANTHER CLI."""
@@ -367,7 +365,6 @@ class VisualRegressionTestSuite:
         output_file.parent.mkdir(parents=True, exist_ok=True)
         output_file.write_text(html_content)
         print(f"\n📄 Report generated: {output_file}")
-
 
 if __name__ == "__main__":
     import argparse

@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Observer Factory Builder Methods
 
@@ -6,33 +8,34 @@ with their configurations.
 """
 
 import logging
-from typing import Any
 
-from panther.config.config_observer_schema import (
+from panther.config.core.models.observer import (
+    ExperimentObserverConfig,
     LoggerObserverConfig,
     MetricsObserverConfig,
     StorageObserverConfig,
-    ExperimentObserverConfig,
 )
 from panther.core.observer.base.observer_interface import IObserver
 from panther.core.observer.impl import (
+    ExperimentObserver,
     LoggerObserver,
     MetricsObserver,
     StorageObserver,
-    ExperimentObserver,
 )
+
 from .observer_factory import get_observer_factory
 
 
 def create_logger(
-    name: str | None = None,
+    name: Optional[str] = None,
     global_config=None,
     auto_register: bool = False,
-    event_types: list | None = None,
+    event_types: Optional[list] = None,
     priority: int = 0,
     **kwargs,
 ) -> LoggerObserver:
     """
+
     Create an enhanced event-aware logger observer.
 
     Args:
@@ -91,12 +94,12 @@ def create_logger(
 
 
 def create_metrics(
-    name: str | None = None,
+    name: Optional[str] = None,
     global_config=None,
     auto_register: bool = False,
-    event_types: list | None = None,
+    event_types: Optional[list] = None,
     priority: int = 0,
-    output_dir: str | None = None,
+    output_dir: Optional[str] = None,
     metrics_collector=None,
     **kwargs,
 ) -> MetricsObserver:
@@ -159,11 +162,11 @@ def create_metrics(
 
 
 def create_storage(
-    name: str | None = None,
+    name: Optional[str] = None,
     global_config=None,
-    output_dir: str | None = None,
+    output_dir: Optional[str] = None,
     auto_register: bool = False,
-    event_types: list | None = None,
+    event_types: Optional[list] = None,
     priority: int = 0,
     **kwargs,
 ) -> StorageObserver:
@@ -224,12 +227,12 @@ def create_storage(
 
 
 def create_experiment_observer(
-    name: str | None = None,
-    test_name: str | None = None,
-    output_dir: str | None = None,
+    name: Optional[str] = None,
+    test_name: Optional[str] = None,
+    output_dir: Optional[str] = None,
     global_config: Any = None,
     auto_register: bool = False,
-    event_types: list | None = None,
+    event_types: Optional[list] = None,
     priority: int = 0,
     **kwargs,
 ) -> ExperimentObserver:
@@ -289,7 +292,7 @@ def create_experiment_observer(
     )
 
 
-def create_default_observer_set(config: dict[str, Any]) -> list[IObserver]:
+def create_default_observer_set(config: Dict[str, Any]) -> List[IObserver]:
     """
     Create a default set of observers based on configuration.
 

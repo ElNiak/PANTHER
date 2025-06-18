@@ -5,7 +5,7 @@ This plugin provides comprehensive thread error detection capabilities including
 data race detection, lock order validation, and POSIX threads API misuse detection.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.base_execution_environment import (
@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 )
 class HelgrindEnvironment(BaseExecutionEnvironment):
     """
+
     Thread error detection execution environment using Valgrind Helgrind.
 
     This environment uses shared command generation utilities to eliminate
@@ -59,7 +60,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
         )
 
     def _setup_plugin_specific_environment(
-        self, services_managers: list[IServiceManager], timestamp: str
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
         """
         Set up Helgrind thread error detection for services using shared utilities.
@@ -257,7 +258,7 @@ if [ -f "{helgrind_output_file}" ]; then
         grep -o "Thread #[0-9]*:" {helgrind_output_file} | sort -u | wc -l >> {summary_file} 2>/dev/null
 
         echo "Synchronization primitives used:" >> {summary_file}
-        grep -o "pthread_[a-z_]*" {helgrind_output_file} | sort | uniq -c | head -10 >> {summary_file} 2>/dev/null || echo "None detected" >> {summary_file}
+        grep -o "pthread_[a-z_]*" {helgrind_output_file} | Union[sort, uniq]-c | head -10 >> {summary_file} 2>/dev/null || echo "None detected" >> {summary_file}
     else
         echo "No detailed thread information available" >> {summary_file}
     fi
@@ -332,7 +333,9 @@ fi
                 file_type="helgrind_detailed",
             )
 
-    def to_command(self, pid: int | None = None, output_file: str | None = None) -> str:
+    def to_command(
+        self, pid: Optional[int] = None, output_file: Optional[str] = None
+    ) -> str:
         """
         Generate the Helgrind command for execution.
 
@@ -355,3 +358,25 @@ fi
 
         # Use the same command building logic as the wrapper
         return self._build_helgrind_command(output_file)
+
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for helgrind execution.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        # Add any helgrind-specific environment updates here
+        self.logger.debug("Updated environment for helgrind execution")
+        pass

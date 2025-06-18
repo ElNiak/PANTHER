@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from statistics import mean, median, stdev
-from typing import Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 try:
     import psutil
@@ -25,10 +25,13 @@ except ImportError:
     PSUTIL_AVAILABLE = False
     psutil = None
 
-# Import TYPE_CHECKING to handle circular imports
-from typing import TYPE_CHECKING
-
-from panther.core.events.metrics.events import MetricCollectedEvent, MetricsSummaryEvent
+from panther.core.events.metrics.events import (
+    CounterMetricEvent,
+    MetricCollectedEvent,
+    MetricsSummaryEvent,
+    ResourceMetricEvent,
+    TimingMetricEvent,
+)
 from panther.core.events.step.events import (
     StepExecutionCompletedEvent,
     StepExecutionFailedEvent,
@@ -49,7 +52,10 @@ if TYPE_CHECKING:
 
 @dataclass
 class MetricsSnapshot:
-    """Snapshot of metrics at a specific point in time."""
+    """
+
+    from typing import Any, Dict, ListSnapshot of metrics at a specific point in time.
+    """
 
     timestamp: datetime
     cpu_percent: float
@@ -58,7 +64,7 @@ class MetricsSnapshot:
     disk_io_write: int
     network_sent: int
     network_recv: int
-    custom_metrics: dict[str, Any] = field(default_factory=dict)
+    custom_metrics: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -67,8 +73,8 @@ class TestCaseMetrics:
 
     test_name: str
     start_time: datetime
-    end_time: datetime | None = None
-    duration_seconds: float | None = None
+    end_time: Optional[datetime] = None
+    duration_seconds: Optional[float] = None
 
     # Resource metrics
     peak_cpu_percent: float = 0.0
@@ -92,12 +98,12 @@ class TestCaseMetrics:
     critical_errors: int = 0
 
     # Custom metrics
-    custom_metrics: dict[str, Any] = field(default_factory=dict)
+    custom_metrics: Dict[str, Any] = field(default_factory=dict)
 
     # Detailed snapshots
-    snapshots: list[MetricsSnapshot] = field(default_factory=list)
+    snapshots: List[MetricsSnapshot] = field(default_factory=list)
 
-    def calculate_statistics(self) -> dict[str, Any]:
+    def calculate_statistics(self) -> Dict[str, Any]:
         """Calculate statistical metrics from snapshots."""
         if not self.snapshots:
             return {}
@@ -140,7 +146,7 @@ class IMetricsCollector(ABC):
     """Interface for metrics collectors."""
 
     @abstractmethod
-    def collect(self) -> dict[str, Any]:
+    def collect(self) -> Dict[str, Any]:
         """Collect metrics."""
         pass
 
@@ -163,7 +169,7 @@ class SystemMetricsCollector(IMetricsCollector):
         else:
             self.process = None
 
-    def collect(self) -> dict[str, Any]:
+    def collect(self) -> Dict[str, Any]:
         """Collect system metrics."""
         if not PSUTIL_AVAILABLE or not self.process:
             return {}
@@ -222,7 +228,7 @@ class TestMetricsCollector(IMetricsCollector):
         self.test_counts = defaultdict(int)
         self.test_durations = defaultdict(list)
 
-    def collect(self) -> dict[str, Any]:
+    def collect(self) -> Dict[str, Any]:
         """Collect test metrics."""
         total_tests = sum(self.test_counts.values())
         avg_durations = {}
@@ -265,12 +271,12 @@ class MetricsAggregator:
         self.metrics_history = deque(maxlen=window_size)
         self.event_types = ["test", "environment", "service"]
 
-    def add_metrics(self, metrics: dict[str, Any]):
+    def add_metrics(self, metrics: Dict[str, Any]):
         """Add metrics to the aggregator."""
         timestamped_metrics = {"timestamp": datetime.now(), "data": metrics}
         self.metrics_history.append(timestamped_metrics)
 
-    def get_trend_analysis(self, metric_name: str) -> dict[str, Any]:
+    def get_trend_analysis(self, metric_name: str) -> Dict[str, Any]:
         """Analyze trends for a specific metric."""
         values = []
         timestamps = []
@@ -292,9 +298,11 @@ class MetricsAggregator:
             "min": min(values),
             "max": max(values),
             "latest": values[-1],
-            "trend": "increasing"
-            if len(values) > 1 and values[-1] > values[0]
-            else "decreasing",
+            "trend": (
+                "increasing"
+                if len(values) > 1 and values[-1] > values[0]
+                else "decreasing"
+            ),
         }
 
 
@@ -357,7 +365,7 @@ class MetricsObserver(ITypedObserver):
         )
 
         # Initialize specialized collectors
-        self.collectors: list[IMetricsCollector] = []
+        self.collectors: List[IMetricsCollector] = []
         if collect_system_metrics and PSUTIL_AVAILABLE:
             self.collectors.append(SystemMetricsCollector())
         self.collectors.append(TestMetricsCollector())
@@ -384,8 +392,8 @@ class MetricsObserver(ITypedObserver):
         self.aggregator = MetricsAggregator()
 
         # Test metrics tracking
-        self.current_test_metrics: TestCaseMetrics | None = None
-        self.completed_test_metrics: list[TestCaseMetrics] = []
+        self.current_test_metrics: Optional[TestCaseMetrics] = None
+        self.completed_test_metrics: List[TestCaseMetrics] = []
 
         # Real-time monitoring
         self.monitoring_active = False
@@ -532,11 +540,72 @@ class MetricsObserver(ITypedObserver):
             and hasattr(event, "metric_name")
             and hasattr(event, "metric_value")
         ):
-            self.current_test_metrics.custom_metrics[
-                event.metric_name
-            ] = event.metric_value
+            self.current_test_metrics.custom_metrics[event.metric_name] = (
+                event.metric_value
+            )
             self.logger.debug(
                 "Recorded custom metric: %s = %s", event.metric_name, event.metric_value
+            )
+        return True
+
+    def is_interested(self, event_type: str) -> bool:
+        """Check if this observer is interested in metrics events."""
+        # We're interested in all metrics events
+        return event_type.startswith("metrics.")
+
+    def on_counter_metric(self, event: CounterMetricEvent) -> bool:
+        """Handle counter metric event."""
+        if self.metrics_collector:
+            # Record the counter metric in the metrics collector
+            self.metrics_collector.record_metric(
+                name=event.counter_name,
+                metric_type=MetricType.COUNTER,
+                value=event.value,
+                component=event.component,
+                labels=None,
+                metadata={"increment": event.increment},
+            )
+            self.logger.debug(
+                "Recorded counter metric: %s = %s (increment: %s)",
+                event.counter_name,
+                event.value,
+                event.increment,
+            )
+        return True
+
+    def on_resource_metric(self, event: ResourceMetricEvent) -> bool:
+        """Handle resource metric event."""
+        if self.metrics_collector:
+            # Record the resource metric in the metrics collector
+            self.metrics_collector.record_metric(
+                name=f"resource.{event.resource_type}",
+                metric_type=MetricType.GAUGE,
+                value=event.usage_value,
+                component=event.component,
+                metadata=event.metadata or {},
+            )
+            self.logger.debug(
+                "Recorded resource metric: %s = %s",
+                f"resource.{event.resource_type}",
+                event.usage_value,
+            )
+        return True
+
+    def on_timing_metric(self, event: TimingMetricEvent) -> bool:
+        """Handle timing metric event."""
+        if self.metrics_collector:
+            # Record the timing metric in the metrics collector
+            self.metrics_collector.record_metric(
+                name=f"timing.{event.operation_name}",
+                metric_type=MetricType.TIMING,
+                value=event.duration,
+                component=event.component,
+                metadata=event.metadata or {},
+            )
+            self.logger.debug(
+                "Recorded timing metric: %s = %s",
+                f"timing.{event.operation_name}",
+                event.duration,
             )
         return True
 

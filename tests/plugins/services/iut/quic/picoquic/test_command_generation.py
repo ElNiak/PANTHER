@@ -9,7 +9,7 @@ import shutil
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../../")))
 
 from panther.plugins.services.iut.quic.picoquic.picoquic import PicoquicServiceManager
-from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from panther.config.core.models import ProtocolConfig, ProtocolRole
 
 
 class TestPicoquicTemplateRendering:
@@ -101,7 +101,7 @@ class TestPicoquicTemplateRendering:
         # Setup
         mock_protocol = MagicMock(spec=ProtocolConfig)
         mock_protocol.name = "quic"
-        mock_protocol.role = RoleEnum.server
+        mock_protocol.role = ProtocolRole.SERVER
 
         # Create service manager with mock templates directory
         service_manager = PicoquicServiceManager(mock_config, "iut", mock_protocol, "picoquic")
@@ -127,7 +127,7 @@ class TestPicoquicTemplateRendering:
         # Setup
         mock_protocol = MagicMock(spec=ProtocolConfig)
         mock_protocol.name = "quic"
-        mock_protocol.role = RoleEnum.client
+        mock_protocol.role = ProtocolRole.CLIENT
 
         # Create service manager with mock templates directory
         service_manager = PicoquicServiceManager(mock_config, "iut", mock_protocol, "picoquic")
@@ -156,7 +156,7 @@ class TestPicoquicTemplateRendering:
         # Setup
         mock_protocol = MagicMock(spec=ProtocolConfig)
         mock_protocol.name = "quic"
-        mock_protocol.role = RoleEnum.client
+        mock_protocol.role = ProtocolRole.CLIENT
 
         # Add special characters to test escaping
         mock_config.implementation.version.client.protocol.additional_parameters = (

@@ -43,7 +43,7 @@ structured_commands = {
 # Try both templates
 template = env.get_template("entrypoint.sh.jinja")
 result = template.render(
-    structured_commands=structured_commands, additional_param={"service_name": "test_service"}
+    structured_commands=structured_commands, additional_param={"service_name": "test_service", "environments": {}}
 )
 
 with open("/tmp/test_entrypoint.sh", "w") as f:

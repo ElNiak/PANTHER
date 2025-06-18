@@ -1,11 +1,11 @@
 import os
 from abc import abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.plugins.environments.environment_event_methods import (
     EnvironmentPluginEventMixin,
 )
@@ -14,8 +14,8 @@ from panther.plugins.plugin_interface import IPlugin
 # PluginManager functionality now integrated into PluginManager
 
 if TYPE_CHECKING:
-    from panther.config.config_experiment_schema import TestConfig
-    from panther.config.config_global_schema import GlobalConfig
+    from panther.config.core.models.experiment import TestConfig
+    from panther.config.core.models.global_config import GlobalConfig
     from panther.plugins.environments.execution_environment.execution_environment_interface import (
         IExecutionEnvironment,
     )
@@ -87,7 +87,7 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
 
     def set_event_manager(self, event_manager: EventManager):
         """
-        Set the event manager for this plugin.
+        Set the event manager for this plugin. (For Mixin)
 
         Args:
             event_manager: The event manager to set
@@ -97,12 +97,12 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
 
     def setup_environment(
         self,
-        services_managers: list["IServiceManager"],
+        services_managers: List["IServiceManager"],
         test_config: "TestConfig",
         global_config: "GlobalConfig",
         timestamp: str,
-        plugin_manager: "PluginManager | None",
-        execution_environment: list["IExecutionEnvironment"],
+        plugin_manager: "Optional[PluginManager]",
+        execution_environment: List["IExecutionEnvironment"],
     ) -> None:
         """
         Sets up the environment with proper event notifications.
@@ -160,59 +160,17 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
     @abstractmethod
     def _do_setup_environment(
         self,
-        services_managers: list["IServiceManager"],
+        services_managers: List["IServiceManager"],
         test_config: "TestConfig",
         global_config: "GlobalConfig",
         timestamp: str,
-        plugin_manager: "PluginManager | None",
-        execution_environment: list["IExecutionEnvironment"],
+        plugin_manager: "Optional[PluginManager]",
+        execution_environment: List["IExecutionEnvironment"],
     ) -> None:
         """
         Implementation of environment setup, to be overridden by subclasses.
         """
         pass
-
-    def deploy_services(self) -> None:
-        """
-        Deploy services with proper event notifications.
-        """
-        try:
-            # Emit services deployment started event
-            self.notify_environment_event(
-                "services_deployment_started",
-                {
-                    "environment_type": self.env_type,
-                    "environment_name": self.env_sub_type,
-                    "service_count": len(self.services_managers),
-                },
-            )
-
-            # Perform actual deployment
-            self._do_deploy_services()
-
-            # Emit services deployment completed event (success)
-            self.notify_environment_event(
-                "services_deployment_completed",
-                {
-                    "environment_type": self.env_type,
-                    "environment_name": self.env_sub_type,
-                    "success": True,
-                },
-            )
-
-        except Exception as e:
-            # Emit services deployment completed event (failure)
-            self.notify_environment_event(
-                "services_deployment_completed",
-                {
-                    "environment_type": self.env_type,
-                    "environment_name": self.env_sub_type,
-                    "success": False,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                },
-            )
-            raise
 
     @abstractmethod
     def _do_deploy_services(self) -> None:
@@ -221,45 +179,12 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         """
         pass
 
+    @abstractmethod
     def teardown_environment(self) -> None:
         """
         Teardown the environment with proper event notifications.
         """
-        try:
-            # Emit environment teardown started event
-            self.notify_environment_event(
-                "environment_teardown_started",
-                {
-                    "environment_type": self.env_type,
-                    "environment_name": self.env_sub_type,
-                },
-            )
-
-            # Perform actual teardown
-            self._do_teardown_environment()
-
-            # Emit environment teardown completed event (success)
-            self.notify_environment_teardown(
-                success=True,
-                details={
-                    "environment_type": self.env_type,
-                    "environment_name": self.env_sub_type,
-                },
-            )
-
-        except Exception as e:
-            # Emit environment teardown completed event (failure)
-            self.notify_environment_teardown(
-                success=False,
-                details={
-                    "environment_type": self.env_type,
-                    "environment_name": self.env_sub_type,
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                },
-            )
-            # Don't re-raise; allow other cleanup to continue
-            self.logger.error(f"Error during environment teardown: {e}", exc_info=True)
+        pass
 
     @abstractmethod
     def _do_teardown_environment(self) -> None:
@@ -268,24 +193,28 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         """
         pass
 
+    @abstractmethod
     def update_environment(
         self,
         execution_environment,
-        global_config,
-        plugin_manager,
-        services_managers,
-        test_config,
+        global_config: "GlobalConfig",
+        plugin_manager: "Optional[PluginManager]",
+        services_managers: "List[IServiceManager]",
+        test_config: "TestConfig",
     ) -> None:
         """
         Update environment configuration.
         """
-        self.services_managers = services_managers
-        self.test_config = test_config
-        self.global_config = global_config
-        self.plugin_manager = plugin_manager
+        pass
 
     @abstractmethod
-    def initialize(self, test_config, output_dir, event_manager, global_config):
+    def initialize(
+        self,
+        test_config: "TestConfig",
+        output_dir: str,
+        event_manager: "EventManager",
+        global_config: "GlobalConfig",
+    ) -> bool:
         """
         Initialize the environment with configuration settings.
 

@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional
+
 """
 Plugin Manifest and Metadata Definitions
 
@@ -7,7 +9,7 @@ versioning, and dependency management in PANTHER.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+
 from packaging import version
 
 
@@ -28,7 +30,7 @@ class PluginDependency:
 
     name: str
     version_spec: str = "*"  # e.g., ">=1.0.0", "<2.0.0", "==1.2.3"
-    plugin_type: PluginType | None = None
+    plugin_type: Optional[PluginType] = None
 
     def is_satisfied_by(self, version_str: str) -> bool:
         """Check if a given version satisfies this dependency."""
@@ -64,33 +66,35 @@ class PluginManifest:
 
     # Compatibility
     min_panther_version: str = "1.0.0"
-    max_panther_version: str | None = None
+    max_panther_version: Optional[str] = None
 
     # Dependencies
-    dependencies: list[PluginDependency] = field(default_factory=list)
+    dependencies: List[PluginDependency] = field(default_factory=list)
 
     # Configuration
-    config_schema: dict[str, Any] = field(default_factory=dict)
-    default_config: dict[str, Any] = field(default_factory=dict)
+    config_schema: Dict[str, Any] = field(default_factory=dict)
+    default_config: Dict[str, Any] = field(default_factory=dict)
 
     # Runtime information
-    entry_point: str | None = None  # Module path to main class
-    file_path: str | None = None  # Physical file location
+    entry_point: Optional[str] = None  # Module path to main class
+    file_path: Optional[str] = None  # Physical file location
 
     # Feature declarations
-    supported_protocols: list[str] = field(default_factory=list)
-    supported_events: list[str] = field(default_factory=list)
-    capabilities: list[str] = field(default_factory=list)
+    supported_protocols: List[str] = field(default_factory=list)
+    supported_events: List[str] = field(default_factory=list)
+    capabilities: List[str] = field(default_factory=list)
 
     # Tags for categorization
-    tags: list[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
 
     # New fields for enhanced plugin architecture
     is_category: bool = False  # Distinguishes category plugins
-    implementations: list[str] = field(default_factory=list)  # For category plugins
-    external_dependencies: list[str] = field(default_factory=list)  # Non-plugin dependencies
+    implementations: List[str] = field(default_factory=list)  # For category plugins
+    external_dependencies: List[str] = field(
+        default_factory=list
+    )  # Non-plugin dependencies
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert manifest to dictionary representation."""
         return {
             "name": self.name,
@@ -124,7 +128,7 @@ class PluginManifest:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PluginManifest":
+    def from_dict(cls, data: Dict[str, Any]) -> "PluginManifest":
         """Create manifest from dictionary representation."""
         # Convert type string to enum
         plugin_type = PluginType(data.get("type", "service"))
@@ -192,13 +196,15 @@ class PluginRegistration:
     """Runtime registration information for a loaded plugin."""
 
     manifest: PluginManifest
-    instance: Any | None = None
+    instance: Optional[Any] = None
     loaded: bool = False
     active: bool = False
     load_order: int = -1
-    error_message: str | None = None
+    error_message: Optional[str] = None
 
     @property
     def plugin_id(self) -> str:
         """Generate unique plugin identifier."""
-        return f"{self.manifest.type.value}:{self.manifest.name}:{self.manifest.version}"
+        return (
+            f"{self.manifest.type.value}:{self.manifest.name}:{self.manifest.version}"
+        )

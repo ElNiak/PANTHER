@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from typing import Any, Dict, Optional, Protocol
+
 """
 PANTHER Plugin Creation Utilities
 
@@ -7,15 +9,14 @@ and production environments. It supports both top-level plugins and subplugins
 using Jinja2 templates for dynamic code generation.
 """
 
-import sys
-import shutil
-import subprocess
 import importlib
 import importlib.resources
 import importlib.util
-from pathlib import Path
+import shutil
 import site
-from typing import Any
+import subprocess
+import sys
+from pathlib import Path
 
 # Try to import Jinja2 for template rendering
 try:
@@ -70,7 +71,9 @@ def is_development_mode() -> bool:
     return True
 
 
-def get_plugin_directory(plugin_type: str, in_development_mode: bool | None = None) -> Path:
+def get_plugin_directory(
+    plugin_type: str, in_development_mode: Optional[bool] = None
+) -> Path:
     """
     Get the appropriate directory for plugin creation based on mode.
 
@@ -153,7 +156,9 @@ def get_template_directory(plugin_type: str) -> Path:
 
             spec = util.find_spec(f"panther.plugins.{plugin_dir}.tutorials")
             if spec is None:
-                raise ImportError(f"Could not find template directory for {plugin_type} plugin")
+                raise ImportError(
+                    f"Could not find template directory for {plugin_type} plugin"
+                )
 
             if spec.origin is None:
                 raise ImportError(
@@ -169,7 +174,9 @@ def get_template_directory(plugin_type: str) -> Path:
     return template_dir
 
 
-def render_jinja_template(template_path: Path, output_path: Path, context: dict[str, Any]) -> bool:
+def render_jinja_template(
+    template_path: Path, output_path: Path, context: Dict[str, Any]
+) -> bool:
     """
     Render a Jinja2 template to the output path.
 
@@ -209,7 +216,7 @@ def create_subplugin(
     plugin_type: str,
     plugin_name: str,
     subplugin_type: str,
-    in_development_mode: bool | None = None,
+    in_development_mode: Optional[bool] = None,
 ) -> bool:
     """
     Create a new subplugin within an existing plugin.
@@ -273,7 +280,9 @@ def create_subplugin(
 
         # Check if subplugin template exists
         if not subplugin_template_dir.exists():
-            print(f"⚠️  No specific template found for {subplugin_type}. Using generic template.")
+            print(
+                f"⚠️  No specific template found for {subplugin_type}. Using generic template."
+            )
             # Use generic template instead
             subplugin_template_dir = template_dir
     except (FileNotFoundError, ImportError) as e:
@@ -328,7 +337,7 @@ def create_subplugin(
 def create_plugin(
     plugin_type: str,
     plugin_name: str,
-    in_development_mode: bool | None = None,
+    in_development_mode: Optional[bool] = None,
     create_subplugins: bool = False,
 ) -> bool:
     """
@@ -414,7 +423,9 @@ def create_plugin(
         if create_subplugins:
             for subplugin_type in PLUGIN_HIERARCHY.get(dir_name, []):
                 print(f"Creating {subplugin_type} subplugin...")
-                create_subplugin(plugin_type, plugin_name, subplugin_type, in_development_mode)
+                create_subplugin(
+                    plugin_type, plugin_name, subplugin_type, in_development_mode
+                )
 
         return True
     except Exception as e:
@@ -454,7 +465,9 @@ def run_tutorial(plugin_type: str) -> int:
 
     if in_development_mode:
         # In development mode, use the repository structure
-        tutorial_script = Path(__file__).parent / plugin_dir / "tutorials" / "tutorial.py"
+        tutorial_script = (
+            Path(__file__).parent / plugin_dir / "tutorials" / "tutorial.py"
+        )
         if not tutorial_script.exists():
             print(f"❌ Tutorial script not found: {tutorial_script}")
             return 1

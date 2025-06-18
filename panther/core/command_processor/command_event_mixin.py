@@ -5,7 +5,7 @@ This module provides a mixin class for emitting command generation and Docker bu
 from service managers.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     pass
@@ -44,7 +44,9 @@ class CommandEventMixin:
                     else "unknown"
                 ),
             )
-            self.logger.debug(f"Emitted command generation started event for phase: {phase}")
+            self.logger.debug(
+                f"Emitted command generation started event for phase: {phase}"
+            )
 
     def emit_command_generated(self, phase: str, command: str) -> None:
         """
@@ -76,7 +78,9 @@ class CommandEventMixin:
                 f"Emitted command generated event for phase {phase}: {command_preview}"
             )
 
-    def emit_docker_build_started(self, dockerfile_path: str, image_name: str = None) -> None:
+    def emit_docker_build_started(
+        self, dockerfile_path: str, image_name: str = None
+    ) -> None:
         """
         Emit an event when Docker image build starts.
 
@@ -97,7 +101,9 @@ class CommandEventMixin:
                 implementation=getattr(self, "implementation_name", "unknown"),
                 image_name=image_name,
             )
-            self.logger.info(f"Emitted Docker build started event for: {dockerfile_path}")
+            self.logger.info(
+                f"Emitted Docker build started event for: {dockerfile_path}"
+            )
 
     def emit_docker_build_completed(
         self, image_name: str, success: bool, error_message: str = None
@@ -121,16 +127,21 @@ class CommandEventMixin:
                     success=True,
                     build_duration=0,  # Duration would need to be tracked separately
                 )
-                self.logger.info(f"Emitted Docker build completed event for image: {image_name}")
+                self.logger.info(
+                    f"Emitted Docker build completed event for image: {image_name}"
+                )
             else:
-                self.service_emitter.emit_docker_build_failed(
+                self.service_emitter.emit_docker_build_completed(
                     service_id=service_name,
                     service_name=service_name,
-                    error_message=error_message or "Docker build failed",
-                    dockerfile_path="",
                     image_name=image_name,
+                    success=False,
+                    build_duration=0,
+                    error_message=error_message or "Docker build failed",
                 )
-                self.logger.error(f"Emitted Docker build failed event for image: {image_name}")
+                self.logger.error(
+                    f"Emitted Docker build failed event for image: {image_name}"
+                )
 
     def emit_command_execution_started(self, phase: str, command: str) -> None:
         """

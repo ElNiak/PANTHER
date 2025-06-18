@@ -10,18 +10,20 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 try:
     import yaml
 except ImportError:
     yaml = None
 
-from panther.plugins.plugin_manifest import PluginManifest, PluginType, PluginDependency
+from panther.plugins.plugin_manifest import PluginDependency, PluginManifest, PluginType
 
 # Optional imports for enhanced features
 try:
-    from panther.tools.plugins.external_dependency_resolver import ExternalDependencyResolver
+    from panther.tools.plugins.external_dependency_resolver import (
+        ExternalDependencyResolver,
+    )
 
     HAS_EXTERNAL_RESOLVER = True
 except ImportError:
@@ -46,13 +48,16 @@ class PluginAnalyzer:
             "environments",
             PluginType.ENVIRONMENT,
         ),
-        "panther.plugins.services.testers.tester_interface": ("testers", PluginType.TESTER),
+        "panther.plugins.services.testers.tester_interface": (
+            "testers",
+            PluginType.TESTER,
+        ),
     }
 
     # External runtime dependencies patterns
     EXTERNAL_TOOLS = {
         "docker": r"docker|container|dockerfile",
-        "docker-compose": r"docker-compose|compose\.(yml|yaml)",
+        "docker-compose": r"docker-compose|compose\.(Union[yml, yaml])",
         "valgrind": r"valgrind|memcheck|helgrind",
         "strace": r"strace|syscall|trace",
         "gperf": r"gperftools|profiling|tcmalloc",
@@ -64,7 +69,7 @@ class PluginAnalyzer:
     def __init__(self):
         self.logger = logging.getLogger("PluginAnalyzer")
 
-    def analyze_plugin_directory(self, plugin_path: Path) -> dict[str, Any]:
+    def analyze_plugin_directory(self, plugin_path: Path) -> Dict[str, Any]:
         """
         Analyze a plugin directory to extract comprehensive metadata.
 
@@ -125,7 +130,7 @@ class PluginAnalyzer:
 
         return analysis
 
-    def _extract_decorator_info(self, py_file: Path) -> dict[str, Any]:
+    def _extract_decorator_info(self, py_file: Path) -> Dict[str, Any]:
         """Extract information from @register_plugin decorator using AST."""
         try:
             with open(py_file, encoding="utf-8") as f:
@@ -156,7 +161,7 @@ class PluginAnalyzer:
 
         return {}
 
-    def _analyze_dependencies(self, content: str) -> dict[str, list[str]]:
+    def _analyze_dependencies(self, content: str) -> Dict[str, List[str]]:
         """Analyze content for plugin and external dependencies."""
         deps = {"plugin": [], "external": []}
 
@@ -180,7 +185,11 @@ class PluginAnalyzer:
     def _is_category_plugin(self, plugin_path: Path) -> bool:
         """Determine if this is a category plugin by examining structure."""
         # Check for implementation subdirectories
-        subdirs = [d for d in plugin_path.iterdir() if d.is_dir() and not d.name.startswith("_")]
+        subdirs = [
+            d
+            for d in plugin_path.iterdir()
+            if d.is_dir() and not d.name.startswith("_")
+        ]
 
         # If has subdirectories with Python files, likely a category
         for subdir in subdirs:
@@ -193,7 +202,7 @@ class PluginAnalyzer:
 
         return not py_files and subdirs
 
-    def _find_implementations(self, category_path: Path) -> list[str]:
+    def _find_implementations(self, category_path: Path) -> List[str]:
         """Find implementation plugins within a category."""
         implementations = []
         for subdir in category_path.iterdir():
@@ -205,7 +214,7 @@ class PluginAnalyzer:
                 implementations.append(subdir.name)
         return implementations
 
-    def _extract_metadata(self, plugin_path: Path) -> dict[str, Any]:
+    def _extract_metadata(self, plugin_path: Path) -> Dict[str, Any]:
         """Extract metadata from README and path analysis."""
         metadata = {}
 
@@ -250,7 +259,7 @@ class PluginAnalyzer:
 
         return metadata
 
-    def _analyze_dockerfile(self, dockerfile: Path) -> list[str]:
+    def _analyze_dockerfile(self, dockerfile: Path) -> List[str]:
         """Analyze Dockerfile for external dependencies."""
         deps = []
         try:
@@ -284,7 +293,9 @@ class PluginMigrationTool:
             except Exception:
                 pass
 
-    def scan_plugins(self, base_path: Path, include_manifested: bool = False) -> dict[str, Any]:
+    def scan_plugins(
+        self, base_path: Path, include_manifested: bool = False
+    ) -> Dict[str, Any]:
         """
         Scan for plugins and return comprehensive analysis.
 
@@ -316,7 +327,9 @@ class PluginMigrationTool:
                     "path": str(plugin_dir),
                     "name": plugin_dir.name,
                     "has_manifest": has_manifest,
-                    "manifest_path": str(existing_manifest) if existing_manifest else None,
+                    "manifest_path": (
+                        str(existing_manifest) if existing_manifest else None
+                    ),
                     "plugin_type": self._infer_plugin_type(plugin_dir),
                 }
 
@@ -338,12 +351,14 @@ class PluginMigrationTool:
                     results["unmanifested"].append(plugin_info)
 
             except Exception as e:
-                results["analysis_errors"].append({"path": str(plugin_dir), "error": str(e)})
+                results["analysis_errors"].append(
+                    {"path": str(plugin_dir), "error": str(e)}
+                )
 
         return results
 
     def generate_manifest(
-        self, plugin_path: Path, plugin_type: PluginType | None = None
+        self, plugin_path: Path, plugin_type: Optional[PluginType] = None
     ) -> PluginManifest:
         """
         Generate a comprehensive manifest for a plugin.
@@ -360,7 +375,9 @@ class PluginMigrationTool:
 
         # Use decorator info if available, otherwise infer
         if analysis["has_decorator"] and analysis["decorator_info"]:
-            return self._manifest_from_decorator(plugin_path, analysis["decorator_info"])
+            return self._manifest_from_decorator(
+                plugin_path, analysis["decorator_info"]
+            )
 
         # Generate from analysis
         plugin_type = plugin_type or self._infer_plugin_type(plugin_path)
@@ -374,7 +391,9 @@ class PluginMigrationTool:
                 name, type_str = dep_str.split(":", 1)
                 try:
                     dep_type = PluginType[type_str.upper()]
-                    plugin_deps.append(PluginDependency(name=name, plugin_type=dep_type))
+                    plugin_deps.append(
+                        PluginDependency(name=name, plugin_type=dep_type)
+                    )
                 except (KeyError, ValueError):
                     pass
 
@@ -384,7 +403,9 @@ class PluginMigrationTool:
             version="1.0.0",
             type=plugin_type,
             author="PANTHER Team",
-            description=analysis["metadata"].get("description", f"Plugin: {plugin_path.name}"),
+            description=analysis["metadata"].get(
+                "description", f"Plugin: {plugin_path.name}"
+            ),
             file_path=str(plugin_path),
             dependencies=plugin_deps,
             external_dependencies=analysis["external_dependencies"],
@@ -403,7 +424,7 @@ class PluginMigrationTool:
         dry_run: bool = True,
         force: bool = False,
         update_existing: bool = True,
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         Migrate plugins by generating or updating manifests.
 
@@ -417,9 +438,17 @@ class PluginMigrationTool:
             Migration results
         """
         if yaml is None:
-            raise RuntimeError("PyYAML is required for migration. Install with: pip install pyyaml")
+            raise RuntimeError(
+                "PyYAML is required for migration. Install with: pip install pyyaml"
+            )
 
-        results = {"success": True, "created": [], "updated": [], "skipped": [], "errors": []}
+        results = {
+            "success": True,
+            "created": [],
+            "updated": [],
+            "skipped": [],
+            "errors": [],
+        }
 
         scan_results = self.scan_plugins(base_path, include_manifested=True)
 
@@ -433,12 +462,16 @@ class PluginMigrationTool:
                     continue
 
                 # Generate new manifest
-                new_manifest = self.generate_manifest(plugin_path, plugin_info["plugin_type"])
+                new_manifest = self.generate_manifest(
+                    plugin_path, plugin_info["plugin_type"]
+                )
 
                 if has_manifest and update_existing and not force:
                     # Update existing manifest
                     existing_path = Path(plugin_info["manifest_path"])
-                    enhanced_manifest = self._enhance_existing_manifest(existing_path, new_manifest)
+                    enhanced_manifest = self._enhance_existing_manifest(
+                        existing_path, new_manifest
+                    )
 
                     if not dry_run:
                         self._write_manifest(enhanced_manifest, existing_path)
@@ -461,29 +494,44 @@ class PluginMigrationTool:
 
                     action = "overwritten" if has_manifest else "created"
                     results["created"].append(
-                        {"name": new_manifest.name, "path": str(plugin_path), "action": action}
+                        {
+                            "name": new_manifest.name,
+                            "path": str(plugin_path),
+                            "action": action,
+                        }
                     )
 
             except Exception as e:
                 results["errors"].append(
-                    {"name": plugin_info["name"], "path": plugin_info["path"], "error": str(e)}
+                    {
+                        "name": plugin_info["name"],
+                        "path": plugin_info["path"],
+                        "error": str(e),
+                    }
                 )
                 results["success"] = False
 
         return results
 
-    def validate_external_dependencies(self, manifest: PluginManifest) -> dict[str, Any]:
+    def validate_external_dependencies(
+        self, manifest: PluginManifest
+    ) -> Dict[str, Any]:
         """Validate external dependencies if resolver is available."""
         if not self.external_resolver:
             return {
                 "satisfied": [],
                 "missing": [],
                 "errors": [
-                    {"dependency": "all", "error": "External dependency resolver not available"}
+                    {
+                        "dependency": "all",
+                        "error": "External dependency resolver not available",
+                    }
                 ],
             }
 
-        return self.external_resolver.validate_dependencies(manifest.external_dependencies)
+        return self.external_resolver.validate_dependencies(
+            manifest.external_dependencies
+        )
 
     def migrate_plugin_manager(self, old_manager, event_manager=None):
         """Migrate from old PluginManager to PluginManager."""
@@ -516,7 +564,7 @@ class PluginMigrationTool:
         return unified_manager
 
     def _manifest_from_decorator(
-        self, plugin_path: Path, decorator_info: dict[str, Any]
+        self, plugin_path: Path, decorator_info: Dict[str, Any]
     ) -> PluginManifest:
         """Create manifest from decorator information."""
         plugin_type = PluginType[decorator_info.get("plugin_type", "SERVICE").upper()]
@@ -527,8 +575,12 @@ class PluginMigrationTool:
             if isinstance(dep, str) and ":" in dep:
                 name, type_str = dep.split(":", 1)
                 try:
-                    dep_type = PluginType[type_str.split(">=")[0].split("==")[0].upper()]
-                    plugin_deps.append(PluginDependency(name=name, plugin_type=dep_type))
+                    dep_type = PluginType[
+                        type_str.split(">=")[0].split("==")[0].upper()
+                    ]
+                    plugin_deps.append(
+                        PluginDependency(name=name, plugin_type=dep_type)
+                    )
                 except (KeyError, ValueError):
                     pass
 
@@ -546,7 +598,7 @@ class PluginMigrationTool:
             tags=decorator_info.get("tags", []),
         )
 
-    def _find_plugin_directories(self, base_path: Path) -> list[Path]:
+    def _find_plugin_directories(self, base_path: Path) -> List[Path]:
         """Find all directories that contain plugins."""
         plugin_dirs = []
 
@@ -602,7 +654,7 @@ class PluginMigrationTool:
 
         return plugin_dirs
 
-    def _find_existing_manifest(self, plugin_dir: Path) -> Path | None:
+    def _find_existing_manifest(self, plugin_dir: Path) -> Optional[Path]:
         """Find existing manifest file."""
         manifest_files = ["plugin.yaml", "plugin.yml", "manifest.yaml", "manifest.yml"]
         for manifest_file in manifest_files:
@@ -611,7 +663,7 @@ class PluginMigrationTool:
                 return manifest_path
         return None
 
-    def _infer_plugin_type(self, path: Path) -> PluginType | None:
+    def _infer_plugin_type(self, path: Path) -> Optional[PluginType]:
         """Infer plugin type from path structure."""
         path_str = str(path).lower()
 
@@ -645,7 +697,9 @@ class PluginMigrationTool:
         enhancements = {
             "external_dependencies": new_manifest.external_dependencies,
             "is_category": new_manifest.is_category,
-            "implementations": new_manifest.implementations if new_manifest.is_category else [],
+            "implementations": (
+                new_manifest.implementations if new_manifest.is_category else []
+            ),
         }
 
         # Only enhance empty fields
@@ -734,14 +788,22 @@ class PluginMigrationTool:
                 manifest_dict[field] = value
 
         # Clean up empty values
-        manifest_dict = {k: v for k, v in manifest_dict.items() if v not in [None, [], "", {}]}
+        manifest_dict = {
+            k: v for k, v in manifest_dict.items() if v not in [None, [], "", {}]
+        }
 
         with open(path, "w", encoding="utf-8") as f:
             yaml.dump(
-                manifest_dict, f, default_flow_style=False, sort_keys=False, allow_unicode=True
+                manifest_dict,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
             )
 
-        self.logger.info(f"{'Updated' if path.exists() else 'Created'} manifest at: {path}")
+        self.logger.info(
+            f"{'Updated' if path.exists() else 'Created'} manifest at: {path}"
+        )
 
 
 def create_cli():
@@ -771,7 +833,9 @@ Examples:
     )
 
     parser.add_argument(
-        "action", choices=["scan", "migrate", "validate", "check-deps"], help="Action to perform"
+        "action",
+        choices=["scan", "migrate", "validate", "check-deps"],
+        help="Action to perform",
     )
 
     parser.add_argument(
@@ -781,10 +845,14 @@ Examples:
         help="Base path to scan (default: current directory)",
     )
 
-    parser.add_argument("--plugin", type=str, help="Specific plugin path relative to base path")
+    parser.add_argument(
+        "--plugin", type=str, help="Specific plugin path relative to base path"
+    )
 
     parser.add_argument(
-        "--dry-run", action="store_true", help="Show what would be done without making changes"
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making changes",
     )
 
     parser.add_argument(

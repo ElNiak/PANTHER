@@ -10,6 +10,12 @@ __all__ = [
     "plugin_loader_utils",
 ]
 
+# Import protocol plugins to ensure they're registered
+try:
+    from .protocols.client_server.quic.quic_protocol import QUICProtocol
+except ImportError:
+    pass  # Protocol plugins are optional
+
 
 def __getattr__(name):  # pylint: disable=invalid-name
     """Lazy import implementation to avoid circular imports."""
@@ -22,7 +28,9 @@ def __getattr__(name):  # pylint: disable=invalid-name
 
         return plugin_manager
     elif name == "plugin_creator":
-        from ..tools.plugins import plugin_creator  # pylint: disable=import-outside-toplevel
+        from ..tools.plugins import (  # pylint: disable=import-outside-toplevel
+            plugin_creator,
+        )
 
         return plugin_creator
     else:

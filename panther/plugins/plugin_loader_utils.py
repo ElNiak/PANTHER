@@ -8,9 +8,9 @@ across plugin loading operations in PANTHER.
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
-from typing import Any, TypeVar
 from collections.abc import Callable
+from pathlib import Path
+from typing import Any, List, Optional, TypeVar
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -19,13 +19,16 @@ T = TypeVar("T")
 
 class PluginManagerUtils(LoggerMixin):
     """
+
     Utility class for common plugin loading operations.
 
     Reduces duplication in dynamic module loading and class instantiation.
     """
 
     @classmethod
-    def load_module_from_file(cls, file_path: Path, module_name: str | None = None) -> Any:
+    def load_module_from_file(
+        cls, file_path: Path, module_name: Optional[str] = None
+    ) -> Any:
         """
         Load a Python module from a file path.
 
@@ -56,7 +59,7 @@ class PluginManagerUtils(LoggerMixin):
 
     @classmethod
     def get_class_from_module(
-        cls, module: Any, class_name: str, base_class: type[T] | None = None
+        cls, module: Any, class_name: str, base_class: Optional[type[T]] = None
     ) -> type[T]:
         """
         Get a class from a module with optional type checking.
@@ -75,10 +78,14 @@ class PluginManagerUtils(LoggerMixin):
         """
         manager_class = getattr(module, class_name, None)
         if manager_class is None:
-            raise AttributeError(f"Could not find class {class_name} in module {module.__name__}")
+            raise AttributeError(
+                f"Could not find class {class_name} in module {module.__name__}"
+            )
 
         if base_class and not issubclass(manager_class, base_class):
-            raise TypeError(f"Class {class_name} must inherit from {base_class.__name__}")
+            raise TypeError(
+                f"Class {class_name} must inherit from {base_class.__name__}"
+            )
 
         return manager_class
 
@@ -87,8 +94,8 @@ class PluginManagerUtils(LoggerMixin):
         cls,
         plugin_path: Path,
         class_suffix: str,
-        base_class: type[T] | None = None,
-        name_transform: Callable | None = None,
+        base_class: Optional[type[T]] = None,
+        name_transform: Optional[Callable] = None,
     ) -> type[T]:
         """
         Load a plugin class using standard naming conventions.
@@ -143,12 +150,14 @@ class PluginManagerUtils(LoggerMixin):
         try:
             return plugin_class(*args, **kwargs)
         except Exception as e:
-            raise Exception(f"Failed to instantiate {plugin_class.__name__}: {str(e)}") from e
+            raise Exception(
+                f"Failed to instantiate {plugin_class.__name__}: {str(e)}"
+            ) from e
 
     @classmethod
     def discover_plugins(
-        cls, base_path: Path, pattern: str = "*.py", exclude: list[str] | None = None
-    ) -> list[Path]:
+        cls, base_path: Path, pattern: str = "*.py", exclude: Optional[List[str]] = None
+    ) -> List[Path]:
         """
         Discover plugin files in a directory.
 

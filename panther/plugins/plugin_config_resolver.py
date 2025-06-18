@@ -1,196 +1,279 @@
 """
-Plugin Configuration Resolution Module
+Dynamic plugin configuration resolver for PANTHER.
 
-This module handles dynamic configuration class loading and resolution
-for different plugin types in the PANTHER framework.
+This module provides dynamic discovery and resolution of plugin configuration classes,
+enabling true separation of concerns where plugins can be added without modifying core code.
 """
 
 import importlib
-from typing import Any
+import logging
+from pathlib import Path
+from typing import Dict, Optional, Type, Any, List
+from functools import lru_cache
 
-from panther.core.utils.logging_mixin import LoggerMixin
+from pydantic import BaseModel
+
+from panther.config.core.models.plugin import (
+    BasePluginConfig,
+    ExecutionEnvironmentPluginConfig,
+    NetworkEnvironmentPluginConfig,
+    ServicePluginConfig,
+    ProtocolPluginConfig
+)
+from panther.config.core.models.environment import (
+    EnvironmentConfig,
+    NetworkEnvironmentConfig,
+    ExecutionEnvironmentConfig
+)
+
+logger = logging.getLogger(__name__)
 
 
-class PluginConfigResolver(LoggerMixin):
+class PluginConfigResolver:
     """
-    Handles dynamic configuration class loading and type resolution.
-
-    This class provides utilities for dynamically discovering and instantiating
-    configuration classes based on plugin names and types.
+    Dynamically resolves plugin configuration classes based on plugin type and name.
+    
+    This class eliminates the need for hardcoded plugin configurations in core code
+    by discovering and loading config classes from plugin directories at runtime.
     """
-
-    @staticmethod
-    def get_class_name(plugin_name: str, suffix: str = "Config") -> str:
+    
+    def __init__(self, plugin_base_dir: Optional[Path] = None):
         """
-        Convert plugin name to class name format.
-
+        Initialize the plugin config resolver.
+        
         Args:
-            plugin_name: The plugin name (e.g., 'gperf_cpu')
-            suffix: Class name suffix (default: 'Config')
-
-        Returns:
-            Formatted class name (e.g., 'GperfCpuConfig')
+            plugin_base_dir: Base directory for plugins. Defaults to panther/plugins
         """
-        class_name_parts = plugin_name.split("_")
-        class_name_parts = [part.capitalize() for part in class_name_parts]
-        class_name = "".join(class_name_parts) + suffix
-        return class_name
-
-    def create_execution_environment_config(self, environment_type: str) -> Any:
+        if plugin_base_dir is None:
+            plugin_base_dir = Path(__file__).parent
+        self.plugin_base_dir = plugin_base_dir
+        self._config_cache: Dict[str, Type[BaseModel]] = {}
+        
+    @lru_cache(maxsize=128)
+    def _find_config_class_in_module(self, module_path: str, base_class: Type) -> Optional[Type[BaseModel]]:
         """
-        Create the appropriate configuration object for execution environment type.
-
-        This method dynamically discovers and instantiates the config class for the
-        given environment type by following the standard naming convention and
-        module structure.
-
+        Find a configuration class in a module that inherits from the specified base class.
+        
         Args:
-            environment_type: Type of execution environment (e.g., 'strace',
-                'gperf_cpu')
-
+            module_path: Python module path
+            base_class: Base class to look for
+            
         Returns:
-            Appropriate configuration object for the environment type
+            Config class if found, None otherwise
         """
         try:
-            # Dynamically construct the module path and config class name
-            module_path = (
-                f"panther.plugins.environments.execution_environment."
-                f"{environment_type}.config_schema"
-            )
-            config_class_name = self.get_class_name(environment_type, suffix="Config")
-
-            # Try to import the specific config module and class
-            try:
-                config_module = importlib.import_module(module_path)
-                config_class = getattr(config_module, config_class_name)
-
-                self.logger.debug(
-                    "Successfully loaded config class '%s' for environment type '%s'",
-                    config_class_name,
-                    environment_type,
-                )
-
-                # Instantiate the config with the environment type
-                return config_class(type=environment_type)
-
-            except (ImportError, AttributeError) as e:
-                self.logger.debug(
-                    "Failed to load specific config for environment type '%s': %s. "
-                    "Using fallback.",
-                    environment_type,
-                    e,
-                )
-                # Fall through to generic config fallback
-
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.warning(
-                "Unexpected error creating config for environment type '%s': %s",
-                environment_type,
-                e,
-            )
-
-        # Fallback to generic config for any failure case
-        from panther.plugins.environments.config_schema import (
-            EnvironmentConfig,
-        )  # pylint: disable=import-outside-toplevel
-
-        self.logger.debug(
-            "Using generic EnvironmentConfig for environment type '%s'",
-            environment_type,
-        )
-        return EnvironmentConfig(type=environment_type)
-
-    def resolve_config_class(self, module_path: str, class_name: str) -> type | None:
+            module = importlib.import_module(module_path)
+            
+            # Look for classes that inherit from the base class
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (isinstance(attr, type) and 
+                    issubclass(attr, base_class) and 
+                    attr is not base_class and
+                    attr.__name__.endswith('Config')):
+                    return attr
+                    
+        except ImportError as e:
+            logger.debug(f"Could not import module {module_path}: {e}")
+        except Exception as e:
+            logger.warning(f"Error inspecting module {module_path}: {e}")
+            
+        return None
+        
+    def resolve_environment_config_class(self, env_type: str, env_category: str) -> Optional[Type[BaseModel]]:
         """
-        Resolve and return a configuration class from module path and class name.
-
+        Resolve environment configuration class based on type and category.
+        
         Args:
-            module_path: Full module path (e.g.,
-                'panther.plugins.services.iut.quic.config_schema')
-            class_name: Class name to load
-
+            env_type: Environment type (e.g., 'docker_compose', 'strace')
+            env_category: Category ('network_environment' or 'execution_environment')
+            
         Returns:
-            The resolved class or None if not found
+            Configuration class or None if not found
         """
-        try:
-            config_module = importlib.import_module(module_path)
-            config_class = getattr(config_module, class_name)
-
-            self.logger.debug(
-                "Successfully resolved config class '%s' from module '%s'",
-                class_name,
-                module_path,
-            )
-            return config_class
-
-        except (ImportError, AttributeError) as e:
-            self.logger.debug(
-                "Failed to resolve config class '%s' from module '%s': %s",
-                class_name,
-                module_path,
-                e,
-            )
+        cache_key = f"{env_category}:{env_type}"
+        
+        # Check cache first
+        if cache_key in self._config_cache:
+            return self._config_cache[cache_key]
+            
+        # Determine base class based on category
+        if env_category == 'network_environment':
+            plugin_base_class = NetworkEnvironmentPluginConfig
+            runtime_base_class = NetworkEnvironmentConfig
+        elif env_category == 'execution_environment':
+            plugin_base_class = ExecutionEnvironmentPluginConfig
+            runtime_base_class = ExecutionEnvironmentConfig
+        else:
+            logger.warning(f"Unknown environment category: {env_category}")
             return None
-
-    def create_service_config(self, service_type: str, service_name: str) -> Any:
-        """
-        Create configuration object for a service.
-
-        Args:
-            service_type: Type of service ('iut', 'tester', etc.)
-            service_name: Name of the specific service
-
-        Returns:
-            Service configuration object or None if not found
-        """
-        try:
-            # Construct module path based on service type and name
-            module_path = f"panther.plugins.services.{service_type}.{service_name}.config_schema"
-            config_class_name = self.get_class_name(service_name, suffix="Config")
-
-            config_class = self.resolve_config_class(module_path, config_class_name)
-
+            
+        # Try to find config in plugin directory
+        config_paths = [
+            # Standard location: plugins/environments/{category}/{env_type}/config_schema.py
+            f"panther.plugins.environments.{env_category}.{env_type}.config_schema",
+            # Alternative location: plugins/environments/{category}/config_schema.py
+            f"panther.plugins.environments.{env_category}.config_schema",
+        ]
+        
+        for module_path in config_paths:
+            # First try plugin config base class
+            config_class = self._find_config_class_in_module(module_path, plugin_base_class)
             if config_class:
-                return config_class()
-            else:
-                self.logger.warning(
-                    "Could not create config for service type '%s', service '%s'",
-                    service_type,
-                    service_name,
-                )
-                return None
-
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error(
-                "Error creating service config for '%s/%s': %s",
-                service_type,
-                service_name,
-                e,
-            )
-            return None
-
-    def validate_config_class(self, config_class: type, expected_attributes: list[str]) -> bool:
+                self._config_cache[cache_key] = config_class
+                logger.debug(f"Found plugin config {config_class.__name__} for {env_type}")
+                return config_class
+                
+            # Then try runtime config base class (for backward compatibility)
+            config_class = self._find_config_class_in_module(module_path, runtime_base_class)
+            if config_class:
+                self._config_cache[cache_key] = config_class
+                logger.debug(f"Found runtime config {config_class.__name__} for {env_type}")
+                return config_class
+                
+        logger.debug(f"No config class found for {env_type} in {env_category}")
+        return None
+        
+    def resolve_service_config_class(self, service_type: str, protocol: str, name: str) -> Optional[Type[BaseModel]]:
         """
-        Validate that a configuration class has expected attributes.
-
+        Resolve service configuration class.
+        
         Args:
-            config_class: The configuration class to validate
-            expected_attributes: List of expected attribute names
-
+            service_type: Service type ('iut' or 'testers')
+            protocol: Protocol name (e.g., 'quic', 'http')
+            name: Service implementation name
+            
         Returns:
-            True if all expected attributes exist, False otherwise
+            Configuration class or None if not found
         """
-        try:
-            for attr in expected_attributes:
-                if not hasattr(config_class, attr):
-                    self.logger.warning(
-                        "Configuration class '%s' missing expected attribute '%s'",
-                        config_class.__name__,
-                        attr,
-                    )
-                    return False
-            return True
+        cache_key = f"service:{service_type}:{protocol}:{name}"
+        
+        if cache_key in self._config_cache:
+            return self._config_cache[cache_key]
+            
+        # Build module path
+        if service_type == 'testers':
+            module_path = f"panther.plugins.services.{service_type}.{name}.config_schema"
+        else:
+            module_path = f"panther.plugins.services.{service_type}.{protocol}.{name}.config_schema"
+            
+        config_class = self._find_config_class_in_module(module_path, ServicePluginConfig)
+        if config_class:
+            self._config_cache[cache_key] = config_class
+            logger.debug(f"Found service config {config_class.__name__} for {name}")
+            
+        return config_class
+        
+    def resolve_protocol_config_class(self, protocol_name: str) -> Optional[Type[BaseModel]]:
+        """
+        Resolve protocol configuration class.
+        
+        Args:
+            protocol_name: Protocol name
+            
+        Returns:
+            Configuration class or None if not found
+        """
+        cache_key = f"protocol:{protocol_name}"
+        
+        if cache_key in self._config_cache:
+            return self._config_cache[cache_key]
+            
+        module_paths = [
+            f"panther.plugins.protocols.client_server.{protocol_name}.config_schema",
+            f"panther.plugins.protocols.peer_to_peer.{protocol_name}.config_schema",
+        ]
+        
+        for module_path in module_paths:
+            config_class = self._find_config_class_in_module(module_path, ProtocolPluginConfig)
+            if config_class:
+                self._config_cache[cache_key] = config_class
+                logger.debug(f"Found protocol config {config_class.__name__} for {protocol_name}")
+                return config_class
+                
+        return None
+        
+    def create_environment_config_dynamic(self, config_data: Dict[str, Any], env_category: str) -> BaseModel:
+        """
+        Dynamically create an environment configuration instance.
+        
+        Args:
+            config_data: Configuration data dictionary
+            env_category: Environment category
+            
+        Returns:
+            Configuration instance
+            
+        Raises:
+            ValueError: If config class cannot be resolved
+        """
+        env_type = config_data.get('type')
+        if not env_type:
+            raise ValueError("Configuration must include 'type' field")
+            
+        config_class = self.resolve_environment_config_class(env_type, env_category)
+        
+        if not config_class:
+            # Fall back to base class
+            if env_category == 'network_environment':
+                config_class = NetworkEnvironmentConfig
+            elif env_category == 'execution_environment':
+                config_class = ExecutionEnvironmentConfig
+            else:
+                config_class = EnvironmentConfig
+                
+            logger.warning(
+                f"No specific config class found for {env_type}, using base class {config_class.__name__}"
+            )
+            
+        return config_class(**config_data)
+        
+    def list_available_plugins(self) -> Dict[str, List[str]]:
+        """
+        List all available plugins by category.
+        
+        Returns:
+            Dictionary mapping categories to list of plugin names
+        """
+        available = {
+            'network_environments': [],
+            'execution_environments': [],
+            'services': [],
+            'protocols': []
+        }
+        
+        # Scan plugin directories
+        env_base = self.plugin_base_dir / 'environments'
+        
+        # Network environments
+        net_env_dir = env_base / 'network_environment'
+        if net_env_dir.exists():
+            for path in net_env_dir.iterdir():
+                if path.is_dir() and (path / 'config_schema.py').exists():
+                    available['network_environments'].append(path.name)
+                    
+        # Execution environments
+        exec_env_dir = env_base / 'execution_environment'
+        if exec_env_dir.exists():
+            for path in exec_env_dir.iterdir():
+                if path.is_dir() and (path / 'config_schema.py').exists():
+                    available['execution_environments'].append(path.name)
+                    
+        return available
+        
+    def clear_cache(self):
+        """Clear the configuration cache."""
+        self._config_cache.clear()
+        self._find_config_class_in_module.cache_clear()
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Error validating config class: %s", e)
-            return False
+
+# Global instance for convenience
+_resolver = None
+
+
+def get_plugin_config_resolver() -> PluginConfigResolver:
+    """Get the global plugin config resolver instance."""
+    global _resolver
+    if _resolver is None:
+        _resolver = PluginConfigResolver()
+    return _resolver

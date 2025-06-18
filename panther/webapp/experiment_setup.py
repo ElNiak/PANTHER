@@ -1,24 +1,24 @@
-from dataclasses import fields
-from flask import Blueprint, redirect, render_template, request, current_app
+import logging
+import typing
+from dataclasses import MISSING, fields, is_dataclass
+from enum import Enum
+
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request
 from flask_wtf import FlaskForm
+from omegaconf import OmegaConf
 from wtforms import (
+    BooleanField,
     FieldList,
     FormField,
-    StringField,
     IntegerField,
-    BooleanField,
     SelectField,
+    StringField,
     SubmitField,
 )
 from wtforms.validators import DataRequired, NumberRange, Optional
-from dataclasses import MISSING, is_dataclass
-from enum import Enum
-from panther.config.config_global_schema import GlobalConfig
-import typing
+
+from panther.config.core.models import GlobalConfig
 from panther.core.utils.jinja_manager import JinjaManager  # Import JinjaManager
-from flask import jsonify
-import logging
-from omegaconf import OmegaConf
 
 
 # Utility: Convert Enum to SelectField choices
@@ -32,7 +32,11 @@ def type_to_field(field_type, metadata):
         return BooleanField()
     elif field_type is int:
         return IntegerField(
-            validators=[NumberRange(min=metadata.get("min", None), max=metadata.get("max", None))]
+            validators=[
+                NumberRange(
+                    min=metadata.get("min", None), max=metadata.get("max", None)
+                )
+            ]
         )
     elif field_type is str:
         return StringField(validators=[DataRequired()])
@@ -68,7 +72,9 @@ def generate_form(dataclass):
         field_type = field.type
         default_value = field.default if field.default != MISSING else None
 
-        print(f"Processing field: {field.name}, Type: {field_type}, Default: {default_value}")
+        print(
+            f"Processing field: {field.name}, Type: {field_type}, Default: {default_value}"
+        )
 
         if is_dataclass(field_type):
             print(f"Field {field.name} is a nested dataclass. Generating nested form.")
@@ -156,7 +162,9 @@ def generate_form(dataclass):
             setattr(DynamicForm, f"add_{field.name}_to_list", add_to_list)
         elif hasattr(field_type, "__origin__") and field_type.__origin__ is dict:
             # Handle Dict of dataclasses or primitives
-            print(f"Field {field.name} is a Dict. Generating FieldList for keys and values.")
+            print(
+                f"Field {field.name} is a Dict. Generating FieldList for keys and values."
+            )
             key_type, value_type = field_type.__args__
             if is_dataclass(value_type):
                 nested_form = generate_form(value_type)
@@ -171,7 +179,10 @@ def generate_form(dataclass):
                     field.name.capitalize(),
                     FieldList(StringField(field.name), min_entries=1),
                 )
-        elif hasattr(field_type, "__origin__") and field_type.__origin__ is typing.Optional:
+        elif (
+            hasattr(field_type, "__origin__")
+            and field_type.__origin__ is typing.Optional
+        ):
             # Handle Optional types
             print(f"Field {field.name} is an Optional. Generating Optional Field.")
             inner_type = field_type.__args__[0]
@@ -192,7 +203,9 @@ def generate_form(dataclass):
                         FieldList(StringField(field.name), min_entries=0),
                     )
             elif is_dataclass(inner_type):
-                print(f"Field {field.name} is an Optional dataclass. Generating FormField.")
+                print(
+                    f"Field {field.name} is an Optional dataclass. Generating FormField."
+                )
                 nested_form = generate_form(inner_type)
                 setattr(DynamicForm, field.name.capitalize(), FormField(nested_form))
             elif inner_type is str:
@@ -254,7 +267,9 @@ def create_experiment():
     exp_form_class = generate_form(current_app.config["experiment_config"])
     exp_form = exp_form_class()
     if request.method == "POST" and form.validate():
-        updated_data = {field.name: form.data[field.name] for field in fields(GlobalConfig)}
+        updated_data = {
+            field.name: form.data[field.name] for field in fields(GlobalConfig)
+        }
         updated_instance = GlobalConfig(**updated_data)
         print("Updated Dataclass Instance:", updated_instance)
         return redirect("/index")
@@ -296,7 +311,9 @@ def index():
             for service_name, service in test.services.items():
                 if hasattr(service, "protocol") and hasattr(service.protocol, "name"):
                     protocols.add(service.protocol.name)
-                if hasattr(service, "implementation") and hasattr(service.implementation, "name"):
+                if hasattr(service, "implementation") and hasattr(
+                    service.implementation, "name"
+                ):
                     implementations.add(service.implementation.name)
 
     return render_template(
@@ -445,12 +462,18 @@ def run_experiment():
             for test in experiment_manager.test_cases:
                 if test.name == test_name:
                     experiment_manager.run_test(test)
-                    return jsonify({"status": "success", "result": "Test executed successfully"})
+                    return jsonify(
+                        {"status": "success", "result": "Test executed successfully"}
+                    )
 
-            return jsonify({"status": "error", "message": f"Test {test_name} not found"})
+            return jsonify(
+                {"status": "error", "message": f"Test {test_name} not found"}
+            )
         else:
             experiment_manager.run_tests()
-            return jsonify({"status": "success", "results": "All tests executed successfully"})
+            return jsonify(
+                {"status": "success", "results": "All tests executed successfully"}
+            )
     except Exception as e:
         logging.error("Error running experiment: %s", e)
         return jsonify({"status": "error", "message": str(e)})

@@ -5,7 +5,7 @@ This module defines events specific to plugin lifecycle management.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -37,7 +37,7 @@ class PluginEvent(BaseEvent):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        data: dict[str, Any] | None = None,
+        data: Optional[Dict[str, Any]] = None,
     ):
         merged_data = data or {}
         merged_data.update({"plugin_name": plugin_name, "plugin_type": plugin_type})
@@ -69,8 +69,8 @@ class PluginLoadingStartedEvent(PluginEvent):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        plugin_path: str | None = None,
-        loading_config: dict[str, Any] | None = None,
+        plugin_path: Optional[str] = None,
+        loading_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=PluginEventType.LOADING_STARTED,
@@ -85,11 +85,11 @@ class PluginLoadingStartedEvent(PluginEvent):
         )
 
     @property
-    def plugin_path(self) -> str | None:
+    def plugin_path(self) -> Optional[str]:
         return self.data.get("plugin_path")
 
     @property
-    def loading_config(self) -> dict[str, Any]:
+    def loading_config(self) -> Dict[str, Any]:
         return self.data.get("loading_config", {})
 
 
@@ -101,9 +101,9 @@ class PluginLoadingCompletedEvent(PluginEvent):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        duration: float | None = None,
-        capabilities: list | None = None,
-        version: str | None = None,
+        duration: Optional[float] = None,
+        capabilities: Optional[list] = None,
+        version: Optional[str] = None,
     ):
         super().__init__(
             event_type=PluginEventType.LOADING_COMPLETED,
@@ -119,7 +119,7 @@ class PluginLoadingCompletedEvent(PluginEvent):
         )
 
     @property
-    def duration(self) -> float | None:
+    def duration(self) -> Optional[float]:
         return self.data.get("duration")
 
     @property
@@ -127,7 +127,7 @@ class PluginLoadingCompletedEvent(PluginEvent):
         return self.data.get("capabilities", [])
 
     @property
-    def version(self) -> str | None:
+    def version(self) -> Optional[str]:
         return self.data.get("version")
 
 
@@ -140,8 +140,8 @@ class PluginLoadingFailedEvent(PluginEvent):
         plugin_name: str,
         plugin_type: str,
         error_message: str = "",
-        error_details: dict[str, Any] | None = None,
-        duration: float | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
+        duration: Optional[float] = None,
     ):
         super().__init__(
             event_type=PluginEventType.LOADING_FAILED,
@@ -161,11 +161,11 @@ class PluginLoadingFailedEvent(PluginEvent):
         return self.data.get("error_message", "")
 
     @property
-    def error_details(self) -> dict[str, Any]:
+    def error_details(self) -> Dict[str, Any]:
         return self.data.get("error_details", {})
 
     @property
-    def duration(self) -> float | None:
+    def duration(self) -> Optional[float]:
         return self.data.get("duration")
 
 
@@ -177,8 +177,8 @@ class PluginInitializedEvent(PluginEvent):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        initialization_config: dict[str, Any] | None = None,
-        dependencies: list | None = None,
+        initialization_config: Optional[Dict[str, Any]] = None,
+        dependencies: Optional[list] = None,
     ):
         super().__init__(
             event_type=PluginEventType.INITIALIZED,
@@ -193,7 +193,7 @@ class PluginInitializedEvent(PluginEvent):
         )
 
     @property
-    def initialization_config(self) -> dict[str, Any]:
+    def initialization_config(self) -> Dict[str, Any]:
         return self.data.get("initialization_config", {})
 
     @property
@@ -209,8 +209,8 @@ class PluginStartedEvent(PluginEvent):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        startup_duration: float | None = None,
-        startup_details: dict[str, Any] | None = None,
+        startup_duration: Optional[float] = None,
+        startup_details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=PluginEventType.STARTED,
@@ -225,11 +225,11 @@ class PluginStartedEvent(PluginEvent):
         )
 
     @property
-    def startup_duration(self) -> float | None:
+    def startup_duration(self) -> Optional[float]:
         return self.data.get("startup_duration")
 
     @property
-    def startup_details(self) -> dict[str, Any]:
+    def startup_details(self) -> Dict[str, Any]:
         return self.data.get("startup_details", {})
 
 
@@ -242,8 +242,8 @@ class PluginStoppedEvent(PluginEvent):
         plugin_name: str,
         plugin_type: str,
         stop_reason: str = "normal_shutdown",
-        cleanup_duration: float | None = None,
-        cleanup_details: dict[str, Any] | None = None,
+        cleanup_duration: Optional[float] = None,
+        cleanup_details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=PluginEventType.STOPPED,
@@ -263,11 +263,11 @@ class PluginStoppedEvent(PluginEvent):
         return self.data.get("stop_reason", "normal_shutdown")
 
     @property
-    def cleanup_duration(self) -> float | None:
+    def cleanup_duration(self) -> Optional[float]:
         return self.data.get("cleanup_duration")
 
     @property
-    def cleanup_details(self) -> dict[str, Any]:
+    def cleanup_details(self) -> Dict[str, Any]:
         return self.data.get("cleanup_details", {})
 
 
@@ -281,7 +281,7 @@ class PluginErrorEvent(PluginEvent):
         plugin_type: str,
         error_message: str = "",
         error_type: str = "unknown",
-        error_details: dict[str, Any] | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
         recoverable: bool = False,
     ):
         super().__init__(
@@ -307,7 +307,7 @@ class PluginErrorEvent(PluginEvent):
         return self.data.get("error_type", "unknown")
 
     @property
-    def error_details(self) -> dict[str, Any]:
+    def error_details(self) -> Dict[str, Any]:
         return self.data.get("error_details", {})
 
     @property
@@ -326,7 +326,7 @@ class PluginServiceCreatedEvent(PluginEvent):
         service_id: str,
         service_name: str,
         service_type: str,
-        service_config: dict[str, Any] | None = None,
+        service_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=PluginEventType.SERVICE_CREATED,
@@ -355,7 +355,7 @@ class PluginServiceCreatedEvent(PluginEvent):
         return self.data.get("service_type", "")
 
     @property
-    def service_config(self) -> dict[str, Any]:
+    def service_config(self) -> Dict[str, Any]:
         return self.data.get("service_config", {})
 
 
@@ -369,7 +369,7 @@ class PluginServiceStartedEvent(PluginEvent):
         plugin_type: str,
         service_id: str,
         service_name: str,
-        startup_duration: float | None = None,
+        startup_duration: Optional[float] = None,
     ):
         super().__init__(
             event_type=PluginEventType.SERVICE_STARTED,
@@ -393,7 +393,7 @@ class PluginServiceStartedEvent(PluginEvent):
         return self.data.get("service_name", "")
 
     @property
-    def startup_duration(self) -> float | None:
+    def startup_duration(self) -> Optional[float]:
         return self.data.get("startup_duration")
 
 
@@ -444,7 +444,7 @@ class PluginLoadedEvent(PluginEvent):
         plugin_name: str,
         plugin_type: str,
         plugin_path: str,
-        metadata: dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=PluginEventType.LOADING_COMPLETED,
@@ -463,7 +463,7 @@ class PluginLoadedEvent(PluginEvent):
         return self.data.get("plugin_path", "")
 
     @property
-    def metadata(self) -> dict[str, Any]:
+    def metadata(self) -> Dict[str, Any]:
         return self.data.get("metadata", {})
 
 
@@ -478,7 +478,7 @@ class ServiceManagerCreatedEvent(PluginEvent):
         service_name: str,
         implementation: str,
         protocol: str,
-        service_config: dict[str, Any] | None = None,
+        service_config: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=PluginEventType.SERVICE_CREATED,

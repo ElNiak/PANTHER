@@ -1,3 +1,4 @@
+from typing import Dict, List
 #!/usr/bin/env python3
 """
 MkDocs Navigation Updater
@@ -15,17 +16,14 @@ import yaml
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 MKDOCS_CONFIG = REPO_ROOT / "mkdocs.yml"
 
-
 # Create custom tag handlers for YAML
 def python_name_constructor(loader, node):
     """Handle !!python/name tags by returning the name as string."""
     return str(node.value)
 
-
 def python_object_apply_constructor(loader, node):
     """Handle !!python/object/apply tags by returning a placeholder."""
     return f"PYTHON_OBJECT_{node.tag}"
-
 
 def setup_yaml_handlers():
     """Set up custom YAML tag handlers for MkDocs configuration."""
@@ -43,7 +41,6 @@ def setup_yaml_handlers():
     yaml.add_constructor(
         "!!python/object/apply", python_object_apply_constructor, Loader=yaml.SafeLoader
     )
-
 
 # Default sections for organizing documentation
 DEFAULT_SECTIONS = {
@@ -73,7 +70,6 @@ PLUGIN_CATEGORIES = {
     "protocols": "Protocol Plugins",
     "environments": "Environment Plugins",
 }
-
 
 def load_mkdocs_config() -> dict:
     """Load the current mkdocs.yml configuration."""
@@ -117,7 +113,6 @@ def load_mkdocs_config() -> dict:
     )
     return {}
 
-
 def save_mkdocs_config(config: dict) -> bool:
     """Save the updated mkdocs.yml configuration."""
     try:
@@ -128,8 +123,7 @@ def save_mkdocs_config(config: dict) -> bool:
         print(f"Error saving {MKDOCS_CONFIG}: {e}")
         return False
 
-
-def find_markdown_files() -> list[Path]:
+def find_markdown_files() -> List[Path]:
     """Find all Markdown files in the project."""
     # Exclude node_modules, venv, and other directories that should be ignored
     ignore_patterns = [
@@ -165,7 +159,6 @@ def find_markdown_files() -> list[Path]:
     print(f"Found {len(markdown_files)} Markdown files")
     return markdown_files
 
-
 def get_current_nav_entries(config: dict) -> set[str]:
     """Get all entries currently in the navigation."""
     entries = set()
@@ -187,8 +180,7 @@ def get_current_nav_entries(config: dict) -> set[str]:
 
     return entries
 
-
-def group_files_by_directory(files: list[Path]) -> dict[str, list[Path]]:
+def group_files_by_directory(files: List[Path]) -> Dict[str, List[Path]]:
     """Group Markdown files by directory."""
     grouped = {}
 
@@ -203,7 +195,6 @@ def group_files_by_directory(files: list[Path]) -> dict[str, list[Path]]:
         grouped[directory].append(file)
 
     return grouped
-
 
 def get_title_from_markdown(file_path: Path) -> str:
     """Extract title from the first heading in a Markdown file."""
@@ -221,8 +212,7 @@ def get_title_from_markdown(file_path: Path) -> str:
         # Default to filename if file can't be read
         return file_path.stem.replace("_", " ").title()
 
-
-def build_plugin_nav(markdown_files: list[Path]) -> dict:
+def build_plugin_nav(markdown_files: List[Path]) -> dict:
     """Build the navigation structure for plugins."""
     plugins_nav = {}
 
@@ -280,8 +270,7 @@ def build_plugin_nav(markdown_files: list[Path]) -> dict:
 
     return plugins_nav
 
-
-def build_updated_nav(markdown_files: list[Path], current_config: dict) -> list:
+def build_updated_nav(markdown_files: List[Path], current_config: dict) -> list:
     """Build updated navigation structure based on available files."""
     # Get currently included files
     get_current_nav_entries(current_config)
@@ -361,7 +350,6 @@ def build_updated_nav(markdown_files: list[Path], current_config: dict) -> list:
 
     return nav
 
-
 def deduplicate_nav(nav: list) -> list:
     """Remove duplicate entries from navigation."""
     seen = set()
@@ -397,7 +385,6 @@ def deduplicate_nav(nav: list) -> list:
             result.append(processed)
 
     return result
-
 
 def main():
     """Main entry point of the script."""
@@ -439,7 +426,6 @@ def main():
         sys.exit(1)
 
     print("\nRun 'mkdocs build --strict' to verify the updated configuration.")
-
 
 if __name__ == "__main__":
     main()

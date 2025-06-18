@@ -21,7 +21,92 @@ The Quinn implementation plugin enables:
 - Performance benchmarking with zero-cost abstractions
 - Security-focused QUIC implementation validation
 
+## Rust Inheritance Architecture
+
+!!! info "Rust-Specific Inheritance"
+    The Quinn plugin uses PANTHER's inheritance architecture, inheriting from `RustQUICServiceManager` which extends `BaseQUICServiceManager`. This provides Rust-specific functionality including Cargo build integration, async Tokio patterns, and memory safety validation while maintaining consistent behavior across all QUIC implementations.
+
+### Rust Inheritance Chain
+
+The Quinn implementation follows a specialized inheritance pattern for async Rust implementations:
+
+```python
+# panther/plugins/services/iut/quic/quinn/quinn.py
+from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
+
+class QuinnServiceManager(RustQUICServiceManager):
+    """Quinn QUIC implementation with async Rust-specific inheritance."""
+    
+    def _get_implementation_name(self) -> str:
+        return "quinn"
+    
+    def _get_binary_name(self) -> str:
+        return "quinn-server"  # or quinn-client
+    
+    def _get_cargo_features(self) -> List[str]:
+        return ["runtime-tokio", "tls-rustls"]  # Quinn-specific Cargo features
+    
+    # Customize async Rust-specific aspects
+    def _get_server_specific_args(self, **kwargs) -> List[str]:
+        port = kwargs.get("port", 4443)
+        return ["--listen", f"0.0.0.0:{port}"]
+    
+    def _get_client_specific_args(self, **kwargs) -> List[str]:
+        host = kwargs.get("host", "localhost")
+        port = kwargs.get("port", 4443)
+        return ["--connect", f"{host}:{port}"]
+    
+    # Async Tokio integration and memory safety handled by RustQUICServiceManager
+```
+
+### Benefits of Rust-Specific Architecture
+
+- **Code Reduction**: From extensive manual implementation to focused async patterns
+- **Tokio Integration**: Built-in async runtime management and task scheduling
+- **Memory Safety**: Rust ownership system with zero-copy async operations
+- **Cargo Integration**: Automatic Cargo build system and async feature management
+- **Performance Optimization**: Rust-specific async performance monitoring
+- **Cross-compilation**: Support for multiple async runtime targets
+
+### Rust Base Class Features
+
+Inherited from `RustQUICServiceManager`:
+
+- **Async Cargo Build**: Automatic `cargo build` with async features and runtime selection
+- **Tokio Runtime**: Integrated async runtime management and task coordination
+- **Memory Profiling**: Integration with async-aware Rust memory profilers
+- **Performance Monitoring**: Built-in async benchmarking and performance analysis
+- **Async Cross-compilation**: Support for different async target architectures
+- **Dependency Validation**: Cargo.lock validation with async crate compatibility
+
+### What's Provided by Base Classes
+
+**From BaseQUICServiceManager:**
+- Common QUIC parameter extraction and validation
+- Standardized command generation patterns
+- Event emission and lifecycle management
+- Error handling and timeout management
+
+**From RustQUICServiceManager:**
+- Async Cargo build system integration
+- Tokio runtime configuration and management
+- Rust-specific memory safety validation
+- Async performance benchmarking and profiling
+- Cross-compilation support for async targets
+- Async-aware dependency security scanning
+
+### What's Customized for Quinn
+
+- **Async Tokio Runtime**: Native async/await patterns with Tokio integration
+- **Cargo Features**: Quinn-specific async features (`runtime-tokio`, `tls-rustls`)
+- **Binary Names**: Uses `quinn-server` and `quinn-client` executables
+- **Memory Safety**: Leverages Rust's ownership system for zero-copy async operations
+- **Performance**: Optimized for high-concurrency async workloads
+
 ## Requirements and Dependencies
+
+!!! info "Rust Base Class Dependencies"
+    The Quinn implementation automatically inherits all Rust-specific base class dependencies, including async Cargo build system integration, Tokio runtime management, and async memory profiling tools. No additional setup is required for these core async Rust features.
 
 The plugin requires:
 

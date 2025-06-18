@@ -1,0 +1,72 @@
+# Test configuration to verify our progress bar and output_dir fixes
+logging:
+  level: INFO
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+
+# Test our new progress configuration
+progress:
+  enable_progress_bar: true
+  show_test_status: true
+  show_docker_events: true
+  use_emojis: true
+  redirect_logging: true
+
+observers:
+  logger:
+    enabled: true
+    log_level: "INFO"
+    enable_colors: true
+  metrics:
+    enabled: false  # Disable for simpler testing
+  storage:
+    enabled: false  # Disable for simpler testing
+  experiment:
+    enabled: true
+
+paths:
+  output_dir: "outputs"
+  log_dir: "outputs/logs"
+  plugin_dir: "panther/plugins"
+
+docker:
+  build_docker_image: false  # Skip Docker builds for quick testing
+
+tests:
+  - name: "Simple_Progress_Test"
+    description: "Test to verify output_dir fix and progress display"
+    network_environment:
+      type: docker_compose
+    iterations: 1
+    execution_environment:
+      - type: strace
+    services:
+      ivy_server:
+        name: "ivy_server"
+        timeout: 30
+        implementation:
+          name: panther_ivy
+          type: testers
+          test: quic_client_test_max
+        protocol:
+          name: quic
+          version: rfc9000
+          role: server
+        ports:
+          - "4443:4443"
+          - "4987:4987"
+        generate_new_certificates: true
+      
+      picoquic_client:
+        name: "picoquic_client"
+        timeout: 25
+        implementation:
+          name: picoquic
+          type: iut
+        protocol:
+          name: quic
+          version: rfc9000
+          role: client
+          target: ivy_server
+        generate_new_certificates: true
+    steps:
+      wait: 20

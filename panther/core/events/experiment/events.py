@@ -5,7 +5,7 @@ This module defines events specific to experiment lifecycle management.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Dict, Optional
 
 from panther.core.events.base.event_base import BaseEvent, EventType
 
@@ -34,7 +34,7 @@ class ExperimentEvent(BaseEvent):
         self,
         event_type: ExperimentEventType,
         experiment_id: str,
-        data: dict[str, Any] | None = None,
+        data: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             name=event_type.value,
@@ -48,7 +48,7 @@ class ExperimentEvent(BaseEvent):
 class ExperimentInitializedEvent(ExperimentEvent):
     """Event emitted when an experiment is initialized."""
 
-    def __init__(self, experiment_id: str, config: dict[str, Any] | None = None):
+    def __init__(self, experiment_id: str, config: Optional[Dict[str, Any]] = None):
         super().__init__(
             event_type=ExperimentEventType.INITIALIZED,
             experiment_id=experiment_id,
@@ -56,14 +56,14 @@ class ExperimentInitializedEvent(ExperimentEvent):
         )
 
     @property
-    def config(self) -> dict[str, Any]:
+    def config(self) -> Dict[str, Any]:
         return self.data.get("config", {})
 
 
 class ExperimentPluginLoadingStartedEvent(ExperimentEvent):
     """Event emitted when plugin loading starts."""
 
-    def __init__(self, experiment_id: str, plugin_count: int | None = None):
+    def __init__(self, experiment_id: str, plugin_count: Optional[int] = None):
         super().__init__(
             event_type=ExperimentEventType.PLUGIN_LOADING_STARTED,
             experiment_id=experiment_id,
@@ -77,8 +77,8 @@ class ExperimentPluginLoadingCompletedEvent(ExperimentEvent):
     def __init__(
         self,
         experiment_id: str,
-        loaded_plugins: list | None = None,
-        plugin_count: int | None = None,
+        loaded_plugins: Optional[list] = None,
+        plugin_count: Optional[int] = None,
     ):
         super().__init__(
             event_type=ExperimentEventType.PLUGIN_LOADING_COMPLETED,
@@ -97,8 +97,8 @@ class ExperimentPluginLoadingFailedEvent(ExperimentEvent):
         self,
         experiment_id: str,
         error_message: str,
-        error_type: str | None = None,
-        failed_plugins: list | None = None,
+        error_type: Optional[str] = None,
+        failed_plugins: Optional[list] = None,
     ):
         super().__init__(
             event_type=ExperimentEventType.PLUGIN_LOADING_FAILED,
@@ -115,7 +115,7 @@ class ExperimentTestCasesInitializedEvent(ExperimentEvent):
     """Event emitted when test cases are initialized."""
 
     def __init__(
-        self, experiment_id: str, test_count: int, test_names: list | None = None
+        self, experiment_id: str, test_count: int, test_names: Optional[list] = None
     ):
         super().__init__(
             event_type=ExperimentEventType.TEST_CASES_INITIALIZED,
@@ -127,7 +127,7 @@ class ExperimentTestCasesInitializedEvent(ExperimentEvent):
 class ExperimentExecutionStartedEvent(ExperimentEvent):
     """Event emitted when experiment execution starts."""
 
-    def __init__(self, experiment_id: str, test_count: int | None = None):
+    def __init__(self, experiment_id: str, test_count: Optional[int] = None):
         super().__init__(
             event_type=ExperimentEventType.EXECUTION_STARTED,
             experiment_id=experiment_id,
@@ -144,7 +144,7 @@ class ExperimentExecutionCompletedEvent(ExperimentEvent):
         success_count: int,
         failure_count: int,
         total_count: int,
-        duration_seconds: float | None = None,
+        duration_seconds: Optional[float] = None,
     ):
         super().__init__(
             event_type=ExperimentEventType.EXECUTION_COMPLETED,
@@ -165,8 +165,8 @@ class ExperimentExecutionFailedEvent(ExperimentEvent):
         self,
         experiment_id: str,
         error_message: str,
-        error_type: str | None = None,
-        phase: str | None = None,
+        error_type: Optional[str] = None,
+        phase: Optional[str] = None,
     ):
         super().__init__(
             event_type=ExperimentEventType.EXECUTION_FAILED,
@@ -183,7 +183,7 @@ class ExperimentFinishedEarlyEvent(ExperimentEvent):
     """Event emitted when experiment finishes early due to interruption or error."""
 
     def __init__(
-        self, experiment_id: str, reason: str, details: dict[str, Any] | None = None
+        self, experiment_id: str, reason: str, details: Optional[Dict[str, Any]] = None
     ):
         super().__init__(
             event_type=ExperimentEventType.FINISHED_EARLY,
@@ -195,7 +195,7 @@ class ExperimentFinishedEarlyEvent(ExperimentEvent):
 class ExperimentCompletedEvent(ExperimentEvent):
     """Event emitted when experiment completes successfully."""
 
-    def __init__(self, experiment_id: str, summary: dict[str, Any] | None = None):
+    def __init__(self, experiment_id: str, summary: Optional[Dict[str, Any]] = None):
         super().__init__(
             event_type=ExperimentEventType.COMPLETED,
             experiment_id=experiment_id,
@@ -210,8 +210,8 @@ class ExperimentFailedEvent(ExperimentEvent):
         self,
         experiment_id: str,
         error_message: str,
-        error_type: str | None = None,
-        summary: dict[str, Any] | None = None,
+        error_type: Optional[str] = None,
+        summary: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=ExperimentEventType.FAILED,
@@ -232,7 +232,7 @@ class ExperimentServiceFailureEvent(ExperimentEvent):
         experiment_id: str,
         failed_service: str,
         reason: str,
-        details: dict[str, Any] | None = None,
+        details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             event_type=ExperimentEventType.SERVICE_FAILURE,

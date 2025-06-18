@@ -8,34 +8,32 @@ Enhanced with comprehensive observer registry, metrics collection, and storage m
 from .base.observer_interface import IObserver
 from .base.typed_observer_interface import ITypedObserver
 
+# Factory system
+from .factory import (  # Builder methods; Config loading
+    ObserverFactory,
+    create_default_observer_set,
+    create_default_observers,
+    create_experiment_observer,
+    create_logger,
+    create_metrics,
+    create_observer,
+    create_storage,
+    get_observer_factory,
+    load_observer_config,
+)
+
 # Observer implementations
 from .impl import (
     ExperimentObserver,
+    GUIObserver,
     LoggerObserver,
     MetricsObserver,
-    StorageObserver,
-    GUIObserver,
     PluginObserver,
+    StorageObserver,
 )
 
 # Event and results management
 from .management import EventManager, ResultsManager
-
-# Factory system
-from .factory import (
-    ObserverFactory,
-    get_observer_factory,
-    create_observer,
-    create_default_observers,
-    # Builder methods
-    create_logger,
-    create_metrics,
-    create_storage,
-    create_experiment_observer,
-    create_default_observer_set,
-    # Config loading
-    load_observer_config,
-)
 
 # Plugin observer infrastructure
 from .plugins.plugin_interface import IPluginObserver

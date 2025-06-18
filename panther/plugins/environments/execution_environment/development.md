@@ -34,7 +34,7 @@ Create a configuration schema in `config_schema.py` that defines the parameters 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from panther.plugins.environments.execution_environment.config_schema import ExecutionEnvironmentConfig
+from panther.config.core.models import ExecutionEnvironmentConfig
 
 
 @dataclass
@@ -53,8 +53,7 @@ Create your main plugin implementation in `your_plugin_name.py`:
 from abc import ABC
 
 from panther.core.observer.event_manager import EventManager
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models import TestConfig, GlobalConfig
 from panther.plugins.environments.execution_environment.your_plugin_name.config_schema import YourPluginConfig
 from panther.plugins.environments.execution_environment.execution_environment_interface import IExecutionEnvironment
 from panther.plugins.plugin_loader import PluginLoader

@@ -7,6 +7,8 @@ ensuring valid state transitions and workflow tracking.
 
 from enum import Enum
 from threading import RLock
+from typing import Dict, List, Optional, Set
+
 from panther.core.utils.logging_mixin import LoggerMixin
 
 # TODO link the workflow state to the event state ?
@@ -57,28 +59,47 @@ class StateManager(LoggerMixin):
     """
 
     # Valid state transitions for workflow states
-    WORKFLOW_TRANSITIONS: dict[WorkflowState, set[WorkflowState]] = {
+    WORKFLOW_TRANSITIONS: Dict[WorkflowState, Set[WorkflowState]] = {
         WorkflowState.CREATED: {WorkflowState.LOADING_PLUGINS, WorkflowState.FAILED},
-        WorkflowState.LOADING_PLUGINS: {WorkflowState.GENERATING_COMMANDS, WorkflowState.FAILED},
-        WorkflowState.GENERATING_COMMANDS: {WorkflowState.BUILDING_DOCKER, WorkflowState.FAILED},
+        WorkflowState.LOADING_PLUGINS: {
+            WorkflowState.GENERATING_COMMANDS,
+            WorkflowState.FAILED,
+        },
+        WorkflowState.GENERATING_COMMANDS: {
+            WorkflowState.BUILDING_DOCKER,
+            WorkflowState.FAILED,
+        },
         WorkflowState.BUILDING_DOCKER: {WorkflowState.DEPLOYING, WorkflowState.FAILED},
         WorkflowState.DEPLOYING: {WorkflowState.RUNNING, WorkflowState.FAILED},
         WorkflowState.RUNNING: {WorkflowState.COLLECTING_OUTPUTS, WorkflowState.FAILED},
-        WorkflowState.COLLECTING_OUTPUTS: {WorkflowState.ANALYZING_RESULTS, WorkflowState.FAILED},
-        WorkflowState.ANALYZING_RESULTS: {WorkflowState.REPORTING_RESULTS, WorkflowState.FAILED},
-        WorkflowState.REPORTING_RESULTS: {WorkflowState.COMPLETED, WorkflowState.FAILED},
+        WorkflowState.COLLECTING_OUTPUTS: {
+            WorkflowState.ANALYZING_RESULTS,
+            WorkflowState.FAILED,
+        },
+        WorkflowState.ANALYZING_RESULTS: {
+            WorkflowState.REPORTING_RESULTS,
+            WorkflowState.FAILED,
+        },
+        WorkflowState.REPORTING_RESULTS: {
+            WorkflowState.COMPLETED,
+            WorkflowState.FAILED,
+        },
         WorkflowState.COMPLETED: set(),  # Terminal state
         WorkflowState.FAILED: set(),  # Terminal state
     }
 
     # Valid state transitions for entity states
-    ENTITY_TRANSITIONS: dict[EntityState, set[EntityState]] = {
+    ENTITY_TRANSITIONS: Dict[EntityState, Set[EntityState]] = {
         EntityState.CREATED: {EntityState.INITIALIZED, EntityState.FAILED},
         EntityState.INITIALIZED: {EntityState.PREPARING, EntityState.FAILED},
         EntityState.PREPARING: {EntityState.PREPARED, EntityState.FAILED},
         EntityState.PREPARED: {EntityState.STARTING, EntityState.FAILED},
         EntityState.STARTING: {EntityState.RUNNING, EntityState.FAILED},
-        EntityState.RUNNING: {EntityState.STOPPING, EntityState.COMPLETED, EntityState.FAILED},
+        EntityState.RUNNING: {
+            EntityState.STOPPING,
+            EntityState.COMPLETED,
+            EntityState.FAILED,
+        },
         EntityState.STOPPING: {EntityState.STOPPED, EntityState.FAILED},
         EntityState.STOPPED: {EntityState.COMPLETED, EntityState.FAILED},
         EntityState.COMPLETED: set(),  # Terminal state
@@ -90,8 +111,8 @@ class StateManager(LoggerMixin):
         """Initialize the state manager."""
         super().__init__()
         self._lock = RLock()
-        self._workflow_states: dict[str, WorkflowState] = {}
-        self._entity_states: dict[str, dict[str, EntityState]] = {}
+        self._workflow_states: Dict[str, WorkflowState] = {}
+        self._entity_states: Dict[str, Dict[str, EntityState]] = {}
 
     def set_workflow_state(self, name: str, state: WorkflowState) -> bool:
         """
@@ -117,7 +138,9 @@ class StateManager(LoggerMixin):
             if current_state is None:
                 if state == WorkflowState.CREATED:
                     self._workflow_states[name] = state
-                    self.logger.info(f"Workflow '{name}' created with state: {state.value}")
+                    self.logger.info(
+                        f"Workflow '{name}' created with state: {state.value}"
+                    )
                     return True
                 else:
                     self.logger.error(
@@ -141,7 +164,7 @@ class StateManager(LoggerMixin):
                 )
                 return False
 
-    def get_workflow_state(self, name: str) -> WorkflowState | None:
+    def get_workflow_state(self, name: str) -> Optional[WorkflowState]:
         """
         Get the current workflow state.
 
@@ -154,7 +177,9 @@ class StateManager(LoggerMixin):
         with self._lock:
             return self._workflow_states.get(name)
 
-    def set_entity_state(self, entity_type: str, entity_id: str, state: EntityState) -> bool:
+    def set_entity_state(
+        self, entity_type: str, entity_id: str, state: EntityState
+    ) -> bool:
         """
         Set the state for a specific entity.
 
@@ -208,7 +233,9 @@ class StateManager(LoggerMixin):
                 )
                 return False
 
-    def get_entity_state(self, entity_type: str, entity_id: str) -> EntityState | None:
+    def get_entity_state(
+        self, entity_type: str, entity_id: str
+    ) -> Optional[EntityState]:
         """
         Get the current state for a specific entity.
 
@@ -264,7 +291,9 @@ class StateManager(LoggerMixin):
         allowed_transitions = self.ENTITY_TRANSITIONS.get(current_state, set())
         return new_state in allowed_transitions
 
-    def validate_transition(self, entity_type: str, current_state: str, new_state: str) -> bool:
+    def validate_transition(
+        self, entity_type: str, current_state: str, new_state: str
+    ) -> bool:
         """
         Generic transition validation method.
 
@@ -282,7 +311,9 @@ class StateManager(LoggerMixin):
                 new = WorkflowState(new_state)
                 return self.validate_workflow_transition(current, new)
             except ValueError:
-                self.logger.error(f"Invalid workflow states: {current_state} or {new_state}")
+                self.logger.error(
+                    f"Invalid workflow states: {current_state} or {new_state}"
+                )
                 return False
         else:
             try:
@@ -290,10 +321,12 @@ class StateManager(LoggerMixin):
                 new = EntityState(new_state)
                 return self.validate_entity_transition(current, new)
             except ValueError:
-                self.logger.error(f"Invalid entity states: {current_state} or {new_state}")
+                self.logger.error(
+                    f"Invalid entity states: {current_state} or {new_state}"
+                )
                 return False
 
-    def get_all_workflow_states(self) -> dict[str, str]:
+    def get_all_workflow_states(self) -> Dict[str, str]:
         """
         Get all current workflow states.
 
@@ -303,7 +336,9 @@ class StateManager(LoggerMixin):
         with self._lock:
             return {name: state.value for name, state in self._workflow_states.items()}
 
-    def get_all_entity_states(self, entity_type: str | None = None) -> dict[str, dict[str, str]]:
+    def get_all_entity_states(
+        self, entity_type: Optional[str] = None
+    ) -> Dict[str, Dict[str, str]]:
         """
         Get all current entity states, optionally filtered by type.
 
@@ -346,9 +381,14 @@ class StateManager(LoggerMixin):
             entity_id: Unique identifier for the entity
         """
         with self._lock:
-            if entity_type in self._entity_states and entity_id in self._entity_states[entity_type]:
+            if (
+                entity_type in self._entity_states
+                and entity_id in self._entity_states[entity_type]
+            ):
                 del self._entity_states[entity_type][entity_id]
-                self.logger.info(f"Cleared entity state for '{entity_type}:{entity_id}'")
+                self.logger.info(
+                    f"Cleared entity state for '{entity_type}:{entity_id}'"
+                )
 
     def clear_all_states(self) -> None:
         """Clear all tracked states."""
@@ -388,9 +428,15 @@ class StateManager(LoggerMixin):
             state = self.get_entity_state(entity_type, entity_id)
             if state is None:
                 return False
-            return state in {EntityState.COMPLETED, EntityState.FAILED, EntityState.CANCELLED}
+            return state in {
+                EntityState.COMPLETED,
+                EntityState.FAILED,
+                EntityState.CANCELLED,
+            }
 
-    def get_allowed_transitions(self, entity_type: str, current_state_str: str) -> list[str]:
+    def get_allowed_transitions(
+        self, entity_type: str, current_state_str: str
+    ) -> List[str]:
         """
         Get list of allowed state transitions from current state.
 
@@ -399,7 +445,7 @@ class StateManager(LoggerMixin):
             current_state_str: Current state as string
 
         Returns:
-            list[str]: List of allowed state names
+            List[str]: List of allowed state names
         """
         if entity_type == "workflow":
             try:

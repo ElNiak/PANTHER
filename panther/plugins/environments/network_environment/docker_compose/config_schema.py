@@ -1,26 +1,52 @@
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
-from panther.config.config_experiment_schema import NetworkEnvironmentConfig
+from pydantic import Field
+
+from panther.config.core.models.plugin import NetworkEnvironmentPluginConfig
 
 
-@dataclass
-class DockerComposeConfig(NetworkEnvironmentConfig):
-    type: str = "docker_compose"
-    version: str = "3.8"
-    network_name: str = "default_network"
-    service_prefix: str | None = None  # Optional prefix for service names
-    volumes: list[str] = field(default_factory=list)  # List of volume mounts
-    environment: dict[str, str] = field(default_factory=dict)  # Environment variables
-
-    # Non-blocking monitoring configuration
-    enable_background_monitoring: bool = (
-        True  # Feature flag for non-blocking monitoring
+class DockerComposeConfig(NetworkEnvironmentPluginConfig):
+    """Configuration for Docker Compose network environment."""
+    
+    type: str = Field(
+        default="docker_compose",
+        description="Network environment type"
     )
-    monitoring_interval_seconds: int = 10  # How often to check service health
-    failure_threshold_count: int = 3  # Consecutive failures before early termination
-    critical_services: list[str] = field(
-        default_factory=list
-    )  # Services that must stay healthy
-    allow_partial_deployment: bool = (
-        False  # Continue experiment even if some services fail
+    version: str = Field(
+        default="3.8",
+        description="Docker Compose file version"
+    )
+    service_prefix: Optional[str] = Field(
+        default=None,
+        description="Optional prefix for service names"
+    )
+    volumes: List[str] = Field(
+        default_factory=list,
+        description="List of volume mounts"
+    )
+    environment: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Environment variables"
+    )
+    
+    # Non-blocking monitoring configuration
+    enable_background_monitoring: bool = Field(
+        default=True,
+        description="Feature flag for non-blocking monitoring"
+    )
+    monitoring_interval_seconds: int = Field(
+        default=10,
+        description="How often to check service health"
+    )
+    failure_threshold_count: int = Field(
+        default=3,
+        description="Consecutive failures before early termination"
+    )
+    critical_services: List[str] = Field(
+        default_factory=list,
+        description="Services that must stay healthy"
+    )
+    allow_partial_deployment: bool = Field(
+        default=False,
+        description="Continue experiment even if some services fail"
     )

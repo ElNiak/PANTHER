@@ -1,14 +1,16 @@
+from typing import Any, Dict, List, Optional, Union
+
 """Mixin for common configuration parsing and validation."""
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
 
 from omegaconf import DictConfig, OmegaConf
 
 
 class ConfigurationProcessorMixin:
     """
+
     Mixin providing common configuration processing and validation functionality.
 
     This mixin eliminates duplicated configuration handling patterns across network environments.
@@ -139,9 +141,7 @@ class ConfigurationProcessorMixin:
         return processed
 
     def validate_network_config(
-        self,
-        config: Dict[str, Any],
-        required_fields: Optional[List[str]] = None,
+        self, config: Dict[str, Any], required_fields: Optional[List[str]] = None
     ) -> bool:
         """
         Validate network environment configuration.
@@ -175,9 +175,7 @@ class ConfigurationProcessorMixin:
         return True
 
     def merge_configurations(
-        self,
-        *configs: Dict[str, Any],
-        deep: bool = True,
+        self, *configs: Dict[str, Any], deep: bool = True
     ) -> Dict[str, Any]:
         """
         Merge multiple configuration dictionaries.
@@ -202,9 +200,7 @@ class ConfigurationProcessorMixin:
         return OmegaConf.to_container(merged)
 
     def expand_paths(
-        self,
-        config: Dict[str, Any],
-        base_path: Optional[Path] = None,
+        self, config: Dict[str, Any], base_path: Optional[Path] = None
     ) -> Dict[str, Any]:
         """
         Expand relative paths in configuration to absolute paths.

@@ -1,6 +1,7 @@
 import os
 from abc import abstractmethod
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
@@ -8,10 +9,10 @@ if TYPE_CHECKING:
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from omegaconf import OmegaConf
 
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models.experiment import TestConfig
+from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
@@ -141,10 +142,10 @@ class INetworkEnvironment(IEnvironmentPlugin):
     def update_environment(
         self,
         execution_environment,
-        global_config,
-        plugin_manager,
-        services_managers,
-        test_config,
+        global_config: "GlobalConfig",
+        plugin_manager: "PluginManager",
+        services_managers: List[IServiceManager],
+        test_config: "TestConfig",
     ):
         """
         Updates the network environment with the provided configuration and services.
@@ -159,16 +160,22 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Returns:
             None
         """
-        self.services_managers: list[IServiceManager] = services_managers
+        self.services_managers: List[IServiceManager] = services_managers
         self.test_config = test_config
         self.execution_environment = execution_environment
         self.plugin_manager = plugin_manager
         self.global_config = global_config
+        self.logger.debug(
+            "Output directory: %s, Log directory: %s", self.output_dir, self.log_dirs
+        )
         self.logger.debug("Setup environment with:")
         for service in self.services_managers:
             self.logger.debug("Service: %s", service)
-        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(self.test_config))
-        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(self.global_config))
+        # Convert Pydantic models to dict before using OmegaConf.to_yaml
+        test_config_dict = self.test_config.dict() if hasattr(self.test_config, 'dict') else self.test_config
+        global_config_dict = self.global_config.dict() if hasattr(self.global_config, 'dict') else self.global_config
+        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(test_config_dict))
+        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(global_config_dict))
 
     def create_log_dir(self, service: IServiceManager):
         """
@@ -194,6 +201,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         out_file,
         additional_param=None,
         structured_commands=None,
+        **kwargs,
     ):
         """
         Generates a configuration file from a Jinja2 template.
@@ -237,76 +245,13 @@ class INetworkEnvironment(IEnvironmentPlugin):
             log_dir=self.log_dirs,
             output_dir=self.output_dir,
             experiment_name=str(self.output_dir).split("/")[-1],
+            **kwargs,  # Pass any additional parameters to the template
         )
         # Write the rendered content to <env>.generated.yml
         with open(out_file, "w") as f:
             f.write(rendered)
         with open(rendered_out_file, "w") as f:
             f.write(rendered)
-
-    def get_docker_name(self):
-        """
-        Retrieves and sets the Docker container name by building a Docker image from a specified path.
-
-        This method uses the `plugin_manager` to build a Docker image from the provided Dockerfile path,
-        Docker name, and Docker version. It then extracts and sets the Docker container name by splitting
-        the resulting Docker image name at the colon (':') character.
-
-        Returns:
-            str: The name of the Docker container.
-        """
-        self.docker_name = self.plugin_manager.build_docker_image_from_path(
-            self.services_network_docker_file_path,  # defined in inheritance chain
-            self.docker_name,
-            self.docker_version,
-        )
-        self.docker_name = self.docker_name.split(":")[0]
-
-    def resolve_environment_variables(self, env_vars):
-        """
-        Resolves environment variables incrementally, ensuring no duplication
-        and preserving unresolved tokens. Processes variables in dependency order.
-
-        :param env_vars: dict, environment variables with potential references.
-        :return: dict, resolved environment variables.
-        """
-        resolved_env = {}
-
-        self.logger.debug("Initial environment variables:")
-        for k, v in env_vars.items():
-            self.logger.debug("%s: %s", k, v)
-
-        for key, value in env_vars.items():
-            if isinstance(value, str):
-                resolved_value = value
-                self.logger.debug(
-                    "Resolving variable: %s - Original value: %s", key, value
-                )
-                for (
-                    var_name,
-                    var_value,
-                ) in resolved_env.items():  # Use already resolved variables
-                    if (
-                        f"${{{var_name}}}" in resolved_value
-                        or f"${var_name}" in resolved_value
-                    ):
-                        resolved_value = resolved_value.replace(
-                            f"${{{var_name}}}", var_value
-                        )
-                        resolved_value = resolved_value.replace(
-                            f"${var_name}", var_value
-                        )
-                        self.logger.debug(
-                            "Replaced $%s in %s with %s", var_name, key, var_value
-                        )
-                resolved_value = resolved_value.replace("$", "$$")
-                resolved_env[key] = resolved_value
-
-        self.logger.debug("Final resolved environment variables without duplication:")
-        for k, v in resolved_env.items():
-            self.logger.debug("%s: %s", k, v)
-
-        return resolved_env
 
     def is_network_environment(self):
         """
@@ -315,7 +260,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         return True
 
     @abstractmethod
-    def generate_environment_services(self, paths: dict[str, str], timestamp: str):
+    def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
         """
         Generates the services required for the network environment.
 
@@ -339,6 +284,14 @@ class INetworkEnvironment(IEnvironmentPlugin):
         raise NotImplementedError()
 
     @abstractmethod
+    def run(self):
+        """
+        Runs the services in the network environment.
+        This method should be implemented to handle the execution of services.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def deploy_services(self):
         """
         Deploys the specified services in the network environment.
@@ -348,12 +301,12 @@ class INetworkEnvironment(IEnvironmentPlugin):
     @abstractmethod
     def setup_environment(
         self,
-        services_managers: list[IServiceManager],
+        services_managers: List[IServiceManager],
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_manager: "PluginManager | None",
-        execution_environment: list[IExecutionEnvironment],
+        plugin_manager: "Optional[PluginManager]",
+        execution_environment: List[IExecutionEnvironment],
     ):
         """
         Sets up the required environment before running experiments.

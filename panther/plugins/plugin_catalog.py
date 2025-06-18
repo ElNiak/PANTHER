@@ -8,31 +8,31 @@ for the PANTHER plugin ecosystem.
 import json
 import logging
 import os
-from pathlib import Path
-from typing import Any
-import yaml
 from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+import yaml
 
 from panther.plugins.plugin_manifest import (
-    PluginManifest,
-    PluginType,
     PluginDependency,
+    PluginManifest,
     PluginRegistration,
+    PluginType,
 )
 
 
 class PluginCatalog:
     """
     Central catalog for plugin discovery, validation, and dependency management.
-
     This class maintains a registry of all available plugins, handles discovery
     from various sources, and provides dependency resolution capabilities.
     """
 
     MANIFEST_FILENAMES = ["plugin.yaml", "plugin.yml", "manifest.yaml", "manifest.yml"]
-    CACHE_FILENAME = ".plugin_catalog_cache.json"
+    CACHE_FILENAME = ".plugin_catalog_cache.json"  # TODO: Ensure this file is in the same directory as this module
 
-    def __init__(self, discovery_paths: list[str] | None = None):
+    def __init__(self, discovery_paths: Optional[List[str]] = None):
         """
         Initialize the plugin catalog.
 
@@ -41,9 +41,9 @@ class PluginCatalog:
         """
         self.logger = logging.getLogger("PluginCatalog")
         self.discovery_paths = discovery_paths or []
-        self.catalog: dict[str, PluginManifest] = {}
-        self.registrations: dict[str, PluginRegistration] = {}
-        self._dependency_graph: dict[str, set[str]] = defaultdict(set)
+        self.catalog: Dict[str, PluginManifest] = {}
+        self.registrations: Dict[str, PluginRegistration] = {}
+        self._dependency_graph: Dict[str, Set[str]] = defaultdict(set)
 
     def add_discovery_path(self, path: str) -> None:
         """Add a new path for plugin discovery."""
@@ -51,7 +51,7 @@ class PluginCatalog:
             self.discovery_paths.append(path)
             self.logger.debug("Added discovery path: %s", path)
 
-    def scan_plugins(self, use_cache: bool = True) -> dict[str, PluginManifest]:
+    def scan_plugins(self, use_cache: bool = True) -> Dict[str, PluginManifest]:
         """
         Scan all discovery paths for plugins.
 
@@ -131,7 +131,7 @@ class PluginCatalog:
         except PermissionError:
             self.logger.warning("Permission denied accessing: %s", directory)
 
-    def _load_manifest_file(self, manifest_path: Path) -> PluginManifest | None:
+    def _load_manifest_file(self, manifest_path: Path) -> Optional[PluginManifest]:
         """Load a plugin manifest from a YAML file."""
         try:
             with open(manifest_path) as f:
@@ -151,7 +151,9 @@ class PluginCatalog:
             plugin_id = f"{manifest.type.value}:{manifest.name}"
             self.catalog[plugin_id] = manifest
 
-            self.logger.debug("Loaded plugin manifest: %s v%s", manifest.name, manifest.version)
+            self.logger.debug(
+                "Loaded plugin manifest: %s v%s", manifest.name, manifest.version
+            )
             return manifest
 
         except Exception as e:
@@ -179,10 +181,14 @@ class PluginCatalog:
             return PluginType.SERVICE.value  # Default
 
     def validate_plugin_config(
-        self, plugin_id: str, config: dict[str, Any]
-    ) -> tuple[bool, list[str]]:
+        self, plugin_id: str, config: Dict[str, Any]
+    ) -> Tuple[bool, List[str]]:
         """
         Validate plugin configuration against its schema.
+
+        # TODO: Failed validation could be explained by old cache information. Implement a
+        #       mechanism to clear cache or force re-validation. If the plugin has been
+        #       updated, the cache may contain outdated information.
 
         Args:
             plugin_id: Plugin identifier
@@ -206,7 +212,9 @@ class PluginCatalog:
                     # Simple type checking
                     value = config[key]
                     if not self._check_type(value, expected_type):
-                        errors.append(f"Invalid type for {key}: expected {expected_type}")
+                        errors.append(
+                            f"Invalid type for {key}: expected {expected_type}"
+                        )
 
         return len(errors) == 0, errors
 
@@ -225,9 +233,12 @@ class PluginCatalog:
         else:
             return True  # Unknown type, allow it
 
-    def resolve_dependencies(self, plugin_ids: list[str]) -> tuple[list[str], list[str]]:
+    def resolve_dependencies(
+        self, plugin_ids: List[str]
+    ) -> Tuple[List[str], List[str]]:
         """
         Resolve dependencies for a set of plugins.
+        # TODO: Dependencies manament is not implemented yet.
 
         Args:
             plugin_ids: List of plugin IDs to resolve
@@ -250,7 +261,7 @@ class PluginCatalog:
         except ValueError as e:
             return [], [str(e)]
 
-    def _build_dependency_graph(self, plugin_ids: list[str]) -> None:
+    def _build_dependency_graph(self, plugin_ids: List[str]) -> None:
         """Build dependency graph for given plugins."""
         self._dependency_graph.clear()
 
@@ -280,7 +291,7 @@ class PluginCatalog:
                     if dep_id not in processed:
                         to_process.add(dep_id)
 
-    def _find_dependency(self, dependency: PluginDependency) -> str | None:
+    def _find_dependency(self, dependency: PluginDependency) -> Optional[str]:
         """Find a plugin that satisfies the dependency."""
         for plugin_id, manifest in self.catalog.items():
             # Check name match
@@ -293,7 +304,7 @@ class PluginCatalog:
                     return plugin_id
         return None
 
-    def _find_missing_dependencies(self, plugin_ids: list[str]) -> list[str]:
+    def _find_missing_dependencies(self, plugin_ids: List[str]) -> List[str]:
         """Find any missing dependencies."""
         missing = []
         checked = set()
@@ -315,7 +326,7 @@ class PluginCatalog:
 
         return missing
 
-    def _topological_sort(self, plugin_ids: list[str]) -> list[str]:
+    def _topological_sort(self, plugin_ids: List[str]) -> List[str]:
         """Perform topological sort on dependency graph."""
         # Kahn's algorithm
         in_degree = defaultdict(int)
@@ -349,7 +360,7 @@ class PluginCatalog:
         # Filter to only requested plugins and their dependencies
         return [p for p in result if p in all_nodes]
 
-    def get_plugin_info(self, plugin_id: str) -> dict[str, Any] | None:
+    def get_plugin_info(self, plugin_id: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a plugin."""
         manifest = self.catalog.get(plugin_id)
         if not manifest:
@@ -397,7 +408,8 @@ class PluginCatalog:
         """Save catalog to cache file."""
         try:
             cache_data = {
-                plugin_id: manifest.to_dict() for plugin_id, manifest in self.catalog.items()
+                plugin_id: manifest.to_dict()
+                for plugin_id, manifest in self.catalog.items()
             }
 
             with open(self.CACHE_FILENAME, "w") as f:

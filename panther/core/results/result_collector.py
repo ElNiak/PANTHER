@@ -1,3 +1,5 @@
+from typing import Dict, List
+
 from panther.core.results.result_handler import ResultHandler
 
 
@@ -16,7 +18,7 @@ class ResultCollector:
     """
 
     def __init__(self) -> None:
-        self.handlers: dict[str, list[ResultHandler]] = {}
+        self.handlers: Dict[str, List[ResultHandler]] = {}
 
     def register_handler(self, result_type: str, handler: ResultHandler) -> None:
         """Registers a handler for a specific result type."""

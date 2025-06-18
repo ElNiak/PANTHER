@@ -11,33 +11,45 @@ from ...plugins.environments.environment_utils import (
     ExecutionEnvironmentMixin,
 )
 from ..command_processor.command_event_mixin import CommandEventMixin
-from ..docker_builder.docker_operations_mixin import (
-    DockerOperationsMixin,
-    ServiceManagerDockerMixin,
-)
-from ..exceptions.error_handler_mixin import ErrorHandlerMixin
+
+# Docker mixins are imported directly to avoid circular imports
+# from ..docker_builder.docker_operations_mixin import DockerOperationsMixin
+# from ..docker_builder.service_manager_docker_mixin import ServiceManagerDockerMixin
+# from ..exceptions.error_handler_mixin import ErrorHandlerMixin  # Import directly to avoid circular imports
 from ..template.template_renderer import ServiceTemplateRenderer, TemplateRenderer
+from .config_summarizer import ConfigSummarizer
+from .feature_logger_mixin import FeatureLoggerMixin, get_feature_logger
+from .feature_registry import (
+    detect_module_feature,
+    feature_logger,
+    feature_registry,
+    register_feature,
+    register_module_feature,
+)
+from .logger_factory import LoggerFactory
 from .logging_mixin import LoggerMixin
-from .subprocess_runner import SubprocessResult, SubprocessRunner
 
 # Import new utilities
 # CommandBuilder moved to avoid circular import - import directly from panther.core.command_processor.command_builder
-from .validation_utils import ValidationError, ValidationResult, ValidationUtils
 
 # Define the public API
 __all__ = [
-    "ValidationUtils",
-    "ValidationResult",
-    "ValidationError",
     "TemplateRenderer",
     "ServiceTemplateRenderer",
-    "SubprocessRunner",
-    "SubprocessResult",
     "LoggerMixin",
+    "LoggerFactory",
+    "FeatureLoggerMixin",
+    "get_feature_logger",
+    "ConfigSummarizer",
+    "feature_registry",
+    "register_feature",
+    "register_module_feature",
+    "detect_module_feature",
+    "feature_logger",
     "CommandEventMixin",
-    "ServiceManagerDockerMixin",
-    "DockerOperationsMixin",
+    # "ServiceManagerDockerMixin",  # Import directly to avoid circular imports
+    # "DockerOperationsMixin",      # Import directly to avoid circular imports
     "ExecutionEnvironmentMixin",
     "EnvironmentPluginMixin",
-    "ErrorHandlerMixin",
+    # "ErrorHandlerMixin",  # Import directly to avoid circular imports
 ]

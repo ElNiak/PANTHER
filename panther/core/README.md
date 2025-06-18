@@ -17,8 +17,13 @@ PANTHER's core is organized into focused functional groups, each with comprehens
 |------------------|---------|---------------|
 | **[Experiment Engine](panther/core/EXPERIMENT_ENGINE.md)** | Test execution orchestration and lifecycle management | Core experiment coordination |
 | **[Configuration System](panther/config/README.md)** | Schema-driven configuration loading and validation | Type-safe YAML configuration |
+| **[Event System](panther/core/events/README.md)** | Event-driven architecture with typed events | Entity-specific event management |
 | **[Observer Pattern](panther/core/observer/README.md)** | Event-driven component communication | Decoupled architecture |
-| **[CLI Interface](panther/README.md)** | Command-line operations and user interaction | Primary user interface |S
+| **[Metrics System](panther/core/metrics/README.md)** | Performance monitoring and data collection | Comprehensive experiment analysis |
+| **[Command Processor](panther/core/command_processor/README.md)** | Structured command generation and processing | Safe command execution |
+| **[Reporting System](../../EXPERIMENT_REPORTING.md)** | Automatic experiment report generation | Status summaries and failure analysis |
+| **[Configuration Validation](../config/README.md)** | Advanced configuration validation and auto-fixing | Protocol-aware port management |
+| **[CLI Interface](panther/README.md)** | Command-line operations and user interaction | Primary user interface |
 
 ---
 
@@ -33,9 +38,44 @@ PANTHER's core is organized into focused functional groups, each with comprehens
 panther/core/
 ├── experiment_manager.py      # Central experiment orchestration
 ├── experiment_strategy.py     # Test execution strategies
-├── test_cases/               # Test framework interfaces
+├── events/                   # Event-driven architecture with typed events
+│   ├── base/                 # Base event classes and emitters
+│   ├── experiment/           # Experiment lifecycle events
+│   ├── test/                 # Test execution events
+│   ├── service/              # Service management events
+│   ├── environment/          # Environment setup/teardown events
+│   ├── metrics/              # Metrics collection events
+│   ├── step/                 # Test step events
+│   ├── assertion/            # Test assertion events
+│   └── plugin/               # Plugin lifecycle events
+├── metrics/                  # Performance monitoring and data collection
+│   ├── metrics_collector.py  # Central metrics collection
+│   ├── metrics_exporter.py   # Export to various formats
+│   ├── metrics_reporter.py   # Analysis and reporting
+│   └── resource_monitor.py   # System resource monitoring
+├── command_processor/        # Structured command generation and processing
+│   ├── command.py            # Command objects and validation
+│   ├── command_builder.py    # Command construction utilities
+│   ├── command_processor.py  # Main processing engine
+│   └── command_utils.py      # Command utilities and helpers
 ├── observer/                 # Event-driven communication
+│   ├── base/                 # Observer interfaces
+│   ├── impl/                 # Observer implementations
+│   ├── factory/              # Observer factory pattern
+│   ├── management/           # Event and results management
+│   └── plugins/              # Observer plugin system
+├── docker_builder/           # Container build system (see [Docker Builder README](docker_builder/README.md))
+├── test_cases/               # Test framework interfaces
 ├── results/                  # Result collection and processing
+├── reporting/                # Experiment report generation
+│   ├── status_collector.py   # Test result aggregation
+│   ├── experiment_reporter.py # Report generation engine
+│   └── templates/            # Report templates
+├── storage/                  # Event and data storage
+├── state/                    # State management
+├── template/                 # Template rendering system
+├── workflow/                 # Workflow tracking
+├── outputs/                  # Output aggregation and collection
 ├── exceptions/               # Framework-specific errors
 └── utils/                    # Supporting utilities
 ```
@@ -63,21 +103,31 @@ The core systems work together to provide a cohesive framework:
 1. **CLI** processes user commands and loads configurations
 2. **Configuration System** validates and provides typed configuration
 3. **Experiment Engine** orchestrates test execution using configuration
-4. **Observer Pattern** coordinates component communication through events
-5. **Results System** collects and processes test outputs (event-driven)
+4. **Event System** provides typed events for all component interactions
+5. **Observer Pattern** coordinates component communication through events
+6. **Command Processor** generates and validates execution commands
+7. **Metrics System** collects performance data throughout execution
+8. **Results System** collects and processes test outputs (event-driven)
+9. **Reporting System** generates comprehensive experiment reports automatically
 
 ### Component Interaction
 
 ```text
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
 │ Experiment      │───▶│ Event        │───▶│ Observers   │
-│ Manager         │    │ Manager      │    │             │
+│ Manager         │    │ System       │    │             │
 └─────────────────┘    └──────────────┘    └─────────────┘
          │                       │                 │
          ▼                       ▼                 ▼
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
-│ Plugin          │    │ Test Cases   │    │ Results     │
-│ Manager         │    │              │    │ Manager     │
+│ Command         │    │ Test Cases   │    │ Metrics     │
+│ Processor       │    │              │    │ System      │
+└─────────────────┘    └──────────────┘    └─────────────┘
+         │                       │                 │
+         ▼                       ▼                 ▼
+┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
+│ Plugin          │    │ Docker       │    │ Results     │
+│ Manager         │    │ Builder      │    │ Manager     │
 └─────────────────┘    └──────────────┘    └─────────────┘
 ```
 

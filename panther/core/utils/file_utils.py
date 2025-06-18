@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Optional, Union
+
 """
 File Utilities
 
@@ -6,9 +8,9 @@ This module provides common file operations used throughout PANTHER.
 
 import json
 import logging
-import yaml
 from pathlib import Path
-from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ class FileUtils:
     """Utility class for common file operations."""
 
     @staticmethod
-    def read_yaml_file(file_path: str | Path) -> dict[str, Any]:
+    def read_yaml_file(file_path: Union[str, Path]) -> Dict[str, Any]:
         """
         Read and parse a YAML file safely.
 
@@ -50,10 +52,12 @@ class FileUtils:
         except yaml.YAMLError as e:
             raise FileOperationError(f"Invalid YAML in {file_path}: {e}") from e
         except Exception as e:
-            raise FileOperationError(f"Failed to read YAML file {file_path}: {e}") from e
+            raise FileOperationError(
+                f"Failed to read YAML file {file_path}: {e}"
+            ) from e
 
     @staticmethod
-    def write_yaml_file(file_path: str | Path, data: dict[str, Any]) -> None:
+    def write_yaml_file(file_path: Union[str, Path], data: Dict[str, Any]) -> None:
         """
         Write data to a YAML file safely.
 
@@ -73,10 +77,12 @@ class FileUtils:
             with open(file_path, "w", encoding="utf-8") as f:
                 yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
         except Exception as e:
-            raise FileOperationError(f"Failed to write YAML file {file_path}: {e}") from e
+            raise FileOperationError(
+                f"Failed to write YAML file {file_path}: {e}"
+            ) from e
 
     @staticmethod
-    def read_json_file(file_path: str | Path) -> dict[str, Any]:
+    def read_json_file(file_path: Union[str, Path]) -> Dict[str, Any]:
         """
         Read and parse a JSON file safely.
 
@@ -100,10 +106,14 @@ class FileUtils:
         except json.JSONDecodeError as e:
             raise FileOperationError(f"Invalid JSON in {file_path}: {e}") from e
         except Exception as e:
-            raise FileOperationError(f"Failed to read JSON file {file_path}: {e}") from e
+            raise FileOperationError(
+                f"Failed to read JSON file {file_path}: {e}"
+            ) from e
 
     @staticmethod
-    def write_json_file(file_path: str | Path, data: dict[str, Any], indent: int = 2) -> None:
+    def write_json_file(
+        file_path: Union[str, Path], data: Dict[str, Any], indent: int = 2
+    ) -> None:
         """
         Write data to a JSON file safely.
 
@@ -124,10 +134,12 @@ class FileUtils:
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=indent, ensure_ascii=False)
         except Exception as e:
-            raise FileOperationError(f"Failed to write JSON file {file_path}: {e}") from e
+            raise FileOperationError(
+                f"Failed to write JSON file {file_path}: {e}"
+            ) from e
 
     @staticmethod
-    def read_text_file(file_path: str | Path) -> str:
+    def read_text_file(file_path: Union[str, Path]) -> str:
         """
         Read a text file safely.
 
@@ -149,10 +161,12 @@ class FileUtils:
             with open(file_path, encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
-            raise FileOperationError(f"Failed to read text file {file_path}: {e}") from e
+            raise FileOperationError(
+                f"Failed to read text file {file_path}: {e}"
+            ) from e
 
     @staticmethod
-    def write_text_file(file_path: str | Path, content: str) -> None:
+    def write_text_file(file_path: Union[str, Path], content: str) -> None:
         """
         Write text to a file safely.
 
@@ -172,10 +186,12 @@ class FileUtils:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
         except Exception as e:
-            raise FileOperationError(f"Failed to write text file {file_path}: {e}") from e
+            raise FileOperationError(
+                f"Failed to write text file {file_path}: {e}"
+            ) from e
 
     @staticmethod
-    def find_files_by_pattern(directory: str | Path, pattern: str) -> list[Path]:
+    def find_files_by_pattern(directory: Union[str, Path], pattern: str) -> List[Path]:
         """
         Find files matching a pattern in a directory.
 
@@ -200,10 +216,12 @@ class FileUtils:
         try:
             return list(directory.glob(pattern))
         except Exception as e:
-            raise FileOperationError(f"Failed to search directory {directory}: {e}") from e
+            raise FileOperationError(
+                f"Failed to search directory {directory}: {e}"
+            ) from e
 
     @staticmethod
-    def ensure_directory_exists(directory: str | Path) -> Path:
+    def ensure_directory_exists(directory: Union[str, Path]) -> Path:
         """
         Ensure a directory exists, creating it if necessary.
 
@@ -222,10 +240,12 @@ class FileUtils:
             directory.mkdir(parents=True, exist_ok=True)
             return directory
         except Exception as e:
-            raise FileOperationError(f"Failed to create directory {directory}: {e}") from e
+            raise FileOperationError(
+                f"Failed to create directory {directory}: {e}"
+            ) from e
 
     @staticmethod
-    def file_exists_and_readable(file_path: str | Path) -> bool:
+    def file_exists_and_readable(file_path: Union[str, Path]) -> bool:
         """
         Check if a file exists and is readable.
 
@@ -237,7 +257,11 @@ class FileUtils:
         """
         try:
             file_path = Path(file_path)
-            return file_path.exists() and file_path.is_file() and file_path.stat().st_size >= 0
+            return (
+                file_path.exists()
+                and file_path.is_file()
+                and file_path.stat().st_size >= 0
+            )
         except Exception:
             return False
 
@@ -249,8 +273,8 @@ class ConfigurationLoader:
 
     @staticmethod
     def load_config_with_defaults(
-        config_path: str | Path, defaults: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+        config_path: Union[str, Path], defaults: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Load configuration file with default values.
 
@@ -264,7 +288,9 @@ class ConfigurationLoader:
         defaults = defaults or {}
 
         if not FileUtils.file_exists_and_readable(config_path):
-            logger.warning(f"Configuration file not found: {config_path}, using defaults")
+            logger.warning(
+                f"Configuration file not found: {config_path}, using defaults"
+            )
             return defaults.copy()
 
         try:
@@ -279,8 +305,8 @@ class ConfigurationLoader:
 
     @staticmethod
     def load_configs_from_directory(
-        directory: str | Path, pattern: str = "*.y*ml"
-    ) -> dict[str, dict[str, Any]]:
+        directory: Union[str, Path], pattern: str = "*.y*ml"
+    ) -> Dict[str, Dict[str, Any]]:
         """
         Load all configuration files from a directory.
 

@@ -6,9 +6,8 @@ for intelligent logging with color coding, filtering, and adaptive formatting.
 """
 
 import logging
-from collections.abc import Callable
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from tqdm import tqdm
@@ -56,6 +55,7 @@ EVENT_LOG_COLORS = {
 
 class LoggerObserver(ITypedObserver):
     """
+
     Enhanced logger observer with event-aware capabilities.
 
     This observer provides:
@@ -70,22 +70,23 @@ class LoggerObserver(ITypedObserver):
         self,
         log_level: str = "INFO",
         include_data: bool = True,
-        excluded_event_types: list[str] | None = None,
+        excluded_event_types: Optional[List[str]] = None,
         include_event_id: bool = True,
         include_timestamp: bool = True,
-        enable_colors: bool | None = None,
-        output_file: str | None = None,
+        enable_colors: Optional[bool] = None,
+        output_file: Optional[str] = None,
         max_data_length: int = 500,
-        event_filters: dict[str, Callable] | None = None,
+        event_filters: Optional[Dict[str, Callable]] = None,
         correlation_tracking: bool = True,
         structured_output: bool = False,
-        priority_boost: dict[str, int] | None = None,
+        priority_boost: Optional[Dict[str, int]] = None,
         global_config: Any = None,
         debug_mode: bool = False,
         track_event_history: bool = False,
         max_history_size: int = 1000,
     ):
         """Initialize the event-aware logger observer with optional debug capabilities."""
+
         super().__init__()
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
         self.include_data = include_data
@@ -115,7 +116,7 @@ class LoggerObserver(ITypedObserver):
             self.log_level = logging.DEBUG
 
         self.logger = self._setup_logging(
-            logger_name="EventLogger",
+            logger_name="DebugObserver",
             log_level=self.log_level,
             enable_colors=self.enable_colors,
             output_file=output_file,
@@ -123,12 +124,12 @@ class LoggerObserver(ITypedObserver):
         )
 
         # Event correlation tracking
-        self.event_correlations: dict[str, list[str]] = {}
-        self.event_context: dict[str, dict[str, Any]] = {}
+        self.event_correlations: Dict[str, List[str]] = {}
+        self.event_context: Dict[str, Dict[str, Any]] = {}
 
         # Statistics tracking
-        self.event_counts: dict[str, int] = {}
-        self.error_events: list[dict[str, Any]] = []
+        self.event_counts: Dict[str, int] = {}
+        self.error_events: List[Dict[str, Any]] = []
 
         # Recursion protection
         self._processing_event = False
@@ -137,7 +138,7 @@ class LoggerObserver(ITypedObserver):
 
         # Debug mode event history tracking
         if self.track_event_history:
-            self.event_history: list[dict[str, Any]] = []
+            self.event_history: List[Dict[str, Any]] = []
 
     def on_event(self, event: BaseEvent) -> bool:
         """Handle an event with enhanced logging capabilities."""
@@ -285,40 +286,77 @@ class LoggerObserver(ITypedObserver):
         )
 
     def _log_event(self, event: BaseEvent):
-        """Format and log the event with enhanced formatting."""
+        """Format and log the event with enhanced formatting using EventSummarizer."""
+        from panther.core.events.event_summarizer import (
+            EventImportance,
+            EventSummarizer,
+        )
+
         event_type = self._get_event_type_safely(event)
         event_id = str(getattr(event, "id", "")) if self.include_event_id else None
         timestamp = getattr(event, "timestamp", datetime.now()).strftime("%H:%M:%S.%f")[
             :-3
         ]
 
-        # Determine priority and log level
-        priority = self._get_event_priority(event_type, event)
-        log_level = self._get_log_level_for_event(event_type, priority)
+        # Get event data
+        event_data = getattr(event, "data", {}) if hasattr(event, "data") else {}
+
+        # Use EventSummarizer to process the event
+        event_summary = EventSummarizer.summarize_event(event_type, event_data)
+
+        # Check importance threshold (configurable)
+        importance_threshold = getattr(
+            self, "importance_threshold", EventImportance.MEDIUM
+        )
+        if not EventSummarizer.should_log_event(event_type, importance_threshold):
+            return
+
+        # Determine log level based on event importance
+        log_level = self._get_log_level_from_importance(event_summary.importance)
 
         if self.structured_output:
-            self._log_structured_event(event, event_type, priority)
+            self._log_structured_event(event, event_type, event_summary)
         else:
             # Build a clean, standardized log message
             severity = get_severity_indicator(event_type)
-            msg = f"{severity} {event_type}"
+            msg = f"{severity} [{event_type}] {event_summary.summary}"
 
             if event_id:
                 msg += f" ({event_id})"
 
-            if hasattr(event, "data") and event.data and self.include_data:
-                data_str = str(event.data)
-                if len(data_str) > self.max_data_length:
-                    data_str = f"{data_str[:self.max_data_length-3]}..."
-                msg += f" - Data: {data_str}"
+            # Add details for important events
+            if (
+                event_summary.importance.value >= EventImportance.HIGH.value
+                and event_summary.details
+            ):
+                details_str = ", ".join(
+                    f"{k}={v}"
+                    for k, v in event_summary.details.items()
+                    if v is not None
+                )
+                if details_str:
+                    msg += f" | {details_str}"
 
-            # Check if we should use tqdm.write() for Docker build events
-            if self._should_use_tqdm_write(event):
-                # Use tqdm.write() to display Docker build progress without interfering with progress bar
-                self._log_docker_build_event_with_tqdm(event, msg, log_level)
-            else:
-                # Send to logger - the ColoredFormatter will handle the colors
-                self.logger.log(log_level, msg)
+            # Log at appropriate level
+            self.logger.log(log_level, msg)
+
+            # Log full event data at TRACE level
+            if hasattr(self.logger, "trace") and self.logger.isEnabledFor(
+                5
+            ):  # TRACE = 5
+                self.logger.trace(f"Full event data for {event_type}: {event_data}")
+
+    def _get_log_level_from_importance(self, importance):
+        """Convert EventImportance to logging level."""
+        from panther.core.events.event_summarizer import EventImportance
+
+        mapping = {
+            EventImportance.LOW: logging.DEBUG,
+            EventImportance.MEDIUM: logging.INFO,
+            EventImportance.HIGH: logging.WARNING,
+            EventImportance.CRITICAL: logging.ERROR,
+        }
+        return mapping.get(importance, logging.INFO)
 
     def _get_event_priority(self, event_type: str, event: BaseEvent) -> str:
         """Determine the priority of an event."""
@@ -358,16 +396,17 @@ class LoggerObserver(ITypedObserver):
         }
         return priority_to_level.get(priority, logging.INFO)
 
-    def _log_structured_event(self, event: BaseEvent, event_type: str, priority: str):
-        """Log event in structured JSON format."""
+    def _log_structured_event(self, event: BaseEvent, event_type: str, event_summary):
+        """Log event in structured JSON format with smart summarization."""
         import json
 
         structured_data = {
             "event_type": event_type,
-            "priority": priority,
+            "importance": event_summary.importance.name,
+            "summary": event_summary.summary,
             "timestamp": getattr(event, "timestamp", datetime.now()).isoformat(),
             "event_id": str(getattr(event, "id", "")),
-            "data": getattr(event, "data", {}),
+            "details": event_summary.details,
         }
 
         self.logger.info(json.dumps(structured_data, default=str))
@@ -441,7 +480,7 @@ class LoggerObserver(ITypedObserver):
             return True
         return not self._should_exclude_event(event_type)
 
-    def get_statistics(self) -> dict[str, Any]:
+    def get_statistics(self) -> Dict[str, Any]:
         """Get logging statistics and insights."""
         return {
             "event_counts": dict(self.event_counts),
@@ -547,8 +586,8 @@ class LoggerObserver(ITypedObserver):
             self.event_history.pop(0)
 
     def get_event_history(
-        self, event_type: str | None = None, limit: int | None = None
-    ) -> list[dict]:
+        self, event_type: Optional[str] = None, limit: Optional[int] = None
+    ) -> List[dict]:
         """
         Get history of events, optionally filtered by type.
 
@@ -570,7 +609,7 @@ class LoggerObserver(ITypedObserver):
 
         return self.event_history[-limit:] if limit else self.event_history
 
-    def analyze_event_flow(self) -> list[dict]:
+    def analyze_event_flow(self) -> List[dict]:
         """
         Analyze event flow for anomalies or bottlenecks.
 

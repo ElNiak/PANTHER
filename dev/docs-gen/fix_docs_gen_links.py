@@ -1,3 +1,4 @@
+from typing import List
 #!/usr/bin/env python3
 """
 Script to fix markdown links in dev/docs-gen/ directory to be relative to project root.
@@ -14,7 +15,6 @@ import re
 import sys
 from pathlib import Path
 
-
 def is_relative_to(path: Path, parent: Path) -> bool:
     """Check if path is relative to parent (compatibility for Python < 3.9)."""
     try:
@@ -22,7 +22,6 @@ def is_relative_to(path: Path, parent: Path) -> bool:
         return True
     except ValueError:
         return False
-
 
 def get_relative_path_to_root(file_path: Path, project_root: Path) -> str:
     """Calculate the relative path from a file to the project root."""
@@ -38,7 +37,6 @@ def get_relative_path_to_root(file_path: Path, project_root: Path) -> str:
     except ValueError:
         # File is not under project root
         return ""
-
 
 def fix_markdown_link(
     link_url: str, path_to_root: str, current_file: Path, project_root: Path
@@ -135,10 +133,9 @@ def fix_markdown_link(
     # For other cases, leave as-is
     return link_url
 
-
 def process_markdown_file(
     file_path: Path, project_root: Path, dry_run: bool = True
-) -> list[tuple[str, str]]:
+) -> List[tuple[str, str]]:
     """
     Process a markdown file to fix links.
 
@@ -178,8 +175,7 @@ def process_markdown_file(
 
     return changes
 
-
-def find_markdown_files(project_root: Path) -> list[Path]:
+def find_markdown_files(project_root: Path) -> List[Path]:
     """Find all markdown files in the root and panther/ directory."""
     md_files = []
 
@@ -210,7 +206,6 @@ def find_markdown_files(project_root: Path) -> list[Path]:
                     md_files.append(Path(root) / file)
 
     return sorted(md_files)
-
 
 def main():
     # Determine project root (assumes script is in project root)
@@ -280,7 +275,6 @@ def main():
     else:
         print()
         print("✅ All links are already correct!")
-
 
 if __name__ == "__main__":
     main()

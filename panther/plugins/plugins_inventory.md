@@ -17,6 +17,7 @@
 
 | Plugin | Path | Documentation | Development Status |
 |--------|------|---------------|-------------------|
+| mixins | `environments/network_environment/mixins` | ❌ | ❓ |
 | localhost_single_container | [`environments/network_environment/localhost_single_container`](panther/plugins/environments/network_environment/localhost_single_container/README.md) | ✅ | ✅ |
 | shadow_ns | [`environments/network_environment/shadow_ns`](panther/plugins/environments/network_environment/shadow_ns/README.md) | ✅ | ✅ |
 | docker_compose | [`environments/network_environment/docker_compose`](panther/plugins/environments/network_environment/docker_compose/README.md) | ✅ | ✅ |
@@ -60,3 +61,6 @@
 |--------|------|---------------|-------------------|
 | panther_ivy | [`services/testers/panther_ivy`](panther/plugins/services/testers/panther_ivy/README.md) | ✅ | ✅ |
 
+## Plugins Missing Documentation
+
+- `environments/network_environment/mixins`

@@ -12,7 +12,10 @@ from typing import Any, Dict, List, Optional, Set
 
 
 class BaseState(Enum):
-    """Base state enumeration. Entity-specific states should inherit from this."""
+    """
+
+    from typing import Any, Dict, List, Optional, Set, SetBase state enumeration. Entity-specific states should inherit from this.
+    """
 
     def __str__(self) -> str:
         return self.value

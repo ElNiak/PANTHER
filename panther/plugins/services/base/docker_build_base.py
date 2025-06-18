@@ -2,11 +2,11 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 class BaseDockerBuilder(ABC):
-    """Base class for Docker build pattern extraction."""
+    """TODO - Base class for Docker build pattern extraction."""
 
     def __init__(
         self, implementation_name: str, base_image: str = "panther_base_service:latest"
@@ -43,8 +43,6 @@ class BaseDockerBuilder(ABC):
             "",
             "# Install jq for JSON parsing",
             "RUN apt-get install --fix-missing -y jq",
-            "",
-            "USER ${USER_N}",
             "",
         ]
 

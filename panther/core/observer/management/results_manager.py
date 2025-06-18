@@ -1,3 +1,5 @@
+from typing import Any, Callable, Dict, List, Optional, Set, TypeVar, Union
+
 """
 Results manager for handling test results in the event system.
 
@@ -13,7 +15,6 @@ import os
 import threading
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, TypeVar
 
 from panther.core.events.base.event_base import BaseEvent as Event
 from panther.core.events.test.events import EnhancedResultEvent, TestResultEvent
@@ -25,6 +26,7 @@ T = TypeVar("T")
 
 class ResultAggregator:
     """
+
     Aggregates test results from multiple test runs.
 
     This class provides functionality for collecting, tracking, and
@@ -33,18 +35,18 @@ class ResultAggregator:
 
     def __init__(self):
         """Initialize a new ResultAggregator."""
-        self.results: list[dict[str, Any]] = []
-        self.result_by_test: dict[str, list[dict[str, Any]]] = {}
-        self.result_by_category: dict[str, list[dict[str, Any]]] = {}
+        self.results: List[Dict[str, Any]] = []
+        self.result_by_test: Dict[str, List[Dict[str, Any]]] = {}
+        self.result_by_category: Dict[str, List[Dict[str, Any]]] = {}
         self.success_count = 0
         self.failure_count = 0
-        self.start_time: datetime | None = None
-        self.end_time: datetime | None = None
-        self.tags: dict[str, set[str]] = {}  # Maps test names to their tags
-        self.tag_stats: dict[
-            str, dict[str, int]
-        ] = {}  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
-        self.category_stats: dict[str, dict[str, int]] = {}  # Statistics by category
+        self.start_time: Optional[datetime] = None
+        self.end_time: Optional[datetime] = None
+        self.tags: Dict[str, Set[str]] = {}  # Maps test names to their tags
+        self.tag_stats: Dict[str, Dict[str, int]] = (
+            {}
+        )  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
+        self.category_stats: Dict[str, Dict[str, int]] = {}  # Statistics by category
         self.lock = threading.RLock()
 
     def _ensure_iso_format(self, timestamp_str: str) -> str:
@@ -77,8 +79,8 @@ class ResultAggregator:
             return datetime.now().isoformat()
 
     def _extract_result_data(
-        self, result: TestResultEvent | EnhancedResultEvent | dict[str, Any]
-    ) -> dict[str, Any]:
+        self, result: Union[TestResultEvent, EnhancedResultEvent, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
         Extract standardized result data from various result sources.
 
@@ -137,7 +139,7 @@ class ResultAggregator:
         return result_data
 
     def add_result(
-        self, result: TestResultEvent | EnhancedResultEvent | dict[str, Any]
+        self, result: Union[TestResultEvent, EnhancedResultEvent, Dict[str, Any]]
     ):
         """
         Add a test result to the aggregator.
@@ -209,7 +211,7 @@ class ResultAggregator:
                     self.start_time = now
                 self.end_time = now
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> Dict[str, Any]:
         """
         Get a summary of all test results.
 
@@ -233,7 +235,7 @@ class ResultAggregator:
             "tests": list(self.result_by_test.keys()),
         }
 
-    def get_results_by_test(self, test_name: str) -> list[dict[str, Any]]:
+    def get_results_by_test(self, test_name: str) -> List[Dict[str, Any]]:
         """
         Get all results for a specific test.
 
@@ -245,7 +247,7 @@ class ResultAggregator:
         """
         return self.result_by_test.get(test_name, [])
 
-    def get_all_results(self) -> list[dict[str, Any]]:
+    def get_all_results(self) -> List[Dict[str, Any]]:
         """
         Get all collected test results.
 
@@ -454,7 +456,7 @@ class ResultsExporter:
                 f"- End Time: {summary['end_time']}",
                 f"- Duration: {summary['duration']} seconds\n",
                 "## Test Results\n",
-                "| Test Name | Result | Timestamp |",
+                "| Union[Test Name, Result, Timestamp]|",
                 "| --------- | ------ | --------- |",
             ]
 
@@ -537,7 +539,7 @@ class ResultsManager(IObserver):
         }
 
         # Registered callbacks for result events
-        self.callbacks: dict[str, list[Callable]] = {}
+        self.callbacks: Dict[str, List[Callable]] = {}
 
     def on_event(self, event: Event):
         """
@@ -640,11 +642,7 @@ class ResultsManager(IObserver):
         """
         return 10
 
-    def register_callback(
-        self,
-        event_type: str,
-        callback: Callable[[TestResultEvent | EnhancedResultEvent], None],
-    ):
+    def register_callback(self, event_type: str, callback: Union[Callable, None]):
         """
         Register a callback for a specific result event type.
 
@@ -658,7 +656,7 @@ class ResultsManager(IObserver):
         self.callbacks[event_type].append(callback)
 
     def _trigger_callbacks(
-        self, event_type: str, event: TestResultEvent | EnhancedResultEvent
+        self, event_type: str, event: Union[TestResultEvent, EnhancedResultEvent]
     ):
         """
         Trigger registered callbacks for an event type.
@@ -702,7 +700,7 @@ class ResultsManager(IObserver):
             return output_path
         return ""
 
-    def export_all_formats(self, basename: str = None) -> dict[str, str]:
+    def export_all_formats(self, basename: str = None) -> Dict[str, str]:
         """
         Export results to all supported formats.
 
@@ -730,7 +728,7 @@ class ResultsManager(IObserver):
         """Clear all collected results."""
         self.aggregator.clear()
 
-    def get_summary(self) -> dict[str, Any]:
+    def get_summary(self) -> Dict[str, Any]:
         """
         Get a summary of all test results.
 
@@ -739,7 +737,7 @@ class ResultsManager(IObserver):
         """
         return self.aggregator.get_summary()
 
-    def get_all_results(self) -> list[dict[str, Any]]:
+    def get_all_results(self) -> List[Dict[str, Any]]:
         """
         Get all collected test results.
 
@@ -748,7 +746,7 @@ class ResultsManager(IObserver):
         """
         return self.aggregator.get_all_results()
 
-    def get_results_by_category(self, category: str) -> list[dict[str, Any]]:
+    def get_results_by_category(self, category: str) -> List[Dict[str, Any]]:
         """
         Get all results for a specific category.
 
@@ -760,7 +758,7 @@ class ResultsManager(IObserver):
         """
         return self.aggregator.result_by_category.get(category, [])
 
-    def get_results_by_tag(self, tag: str) -> list[dict[str, Any]]:
+    def get_results_by_tag(self, tag: str) -> List[Dict[str, Any]]:
         """
         Get all results that contain a specific tag.
 
@@ -776,7 +774,7 @@ class ResultsManager(IObserver):
                 results.append(test_results)
         return results
 
-    def get_category_stats(self) -> dict[str, dict[str, int]]:
+    def get_category_stats(self) -> Dict[str, Dict[str, int]]:
         """
         Get statistics by category.
 
@@ -785,7 +783,7 @@ class ResultsManager(IObserver):
         """
         return self.aggregator.category_stats
 
-    def get_tag_stats(self) -> dict[str, dict[str, int]]:
+    def get_tag_stats(self) -> Dict[str, Dict[str, int]]:
         """
         Get statistics by tag.
 

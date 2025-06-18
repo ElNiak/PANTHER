@@ -6,14 +6,13 @@ This module provides a base class for plugins that observe events in the system.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Dict, List
 
 from panther.core.events.base.event_base import BaseEvent as Event
 
 
 class EventObserverPlugin(ABC):
-    """
-    Base class for plugins that want to observe events.
+    """Base class for plugins that want to observe events.
 
     To create a plugin that observes events:
     1. Inherit from this class
@@ -38,13 +37,13 @@ class EventObserverPlugin(ABC):
 
     # List of event types this plugin is interested in
     # Override in subclasses
-    EVENT_TYPES: list[str] = []
+    EVENT_TYPES: List[str] = []
 
     def __init__(self):
         """Initialize the event observer plugin."""
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
         self.plugin_id = f"{self.__class__.__module__}.{self.__class__.__name__}"
-        self.event_history: list[Event] = []
+        self.event_history: List[Event] = []
         self.max_history = 100
 
     @abstractmethod
@@ -97,7 +96,7 @@ class EventObserverPlugin(ABC):
         handler_name = f"on_event_{event_type.replace('.', '_')}"
         return hasattr(self, handler_name)
 
-    def get_event_types(self) -> list[str]:
+    def get_event_types(self) -> List[str]:
         """
         Get the list of event types this plugin is interested in.
 
@@ -117,7 +116,7 @@ class EventObserverPlugin(ABC):
 
     def get_event_history(
         self, event_type: str = None, limit: int = None
-    ) -> list[Event]:
+    ) -> List[Event]:
         """
         Get the event history for this plugin.
 
@@ -138,7 +137,7 @@ class EventObserverPlugin(ABC):
 
         return events
 
-    def get_plugin_info(self) -> dict[str, Any]:
+    def get_plugin_info(self) -> Dict[str, Any]:
         """
         Get information about this plugin.
 

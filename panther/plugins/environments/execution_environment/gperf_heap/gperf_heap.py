@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, List, Optional
+
 """
 Memory heap profiling execution environment using Google Performance Tools (gperf) with shared utilities.
 
@@ -6,14 +8,13 @@ with gperf heap profiling tools and generating memory analysis reports.
 Uses shared command generation utilities to eliminate code duplication.
 """
 
-from typing import TYPE_CHECKING
-
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.base_execution_environment import (
     BaseExecutionEnvironment,
 )
 from panther.plugins.environments.execution_environment.command_generation_utils import (
     CommandGenerationUtilsFactory,
+    create_execution_environment_builder,
 )
 from panther.plugins.environments.execution_environment.gperf_heap.config_schema import (
     GperfHeapConfig,
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 )
 class GperfHeapEnvironment(BaseExecutionEnvironment):
     """
+
     Memory heap profiling execution environment using Google Performance Tools.
 
     This environment wraps services with gperf heap profiling to collect
@@ -57,7 +59,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         )
 
     def _setup_plugin_specific_environment(
-        self, services_managers: list[IServiceManager], timestamp: str
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
         """
         Set up gperf heap profiling for all services using shared utilities.
@@ -107,9 +109,12 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
                 additional_env_vars=heap_env_vars,
             )
 
+            # Get service name for logging
+            service_name = getattr(service, "service_name", service.__class__.__name__)
+            
             # Add post-processing command for heap analysis generation
             post_process_cmd = self._build_post_processing_command(
-                heap_profile_file, heap_analysis_file
+                heap_profile_file, heap_analysis_file, service_name
             )
 
             command_builder.add_post_processing(
@@ -162,7 +167,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         return env_vars
 
     def _build_post_processing_command(
-        self, heap_profile_file: str, heap_analysis_file: str
+        self, heap_profile_file: str, heap_analysis_file: str, service_name: str
     ) -> str:
         """
         Build the post-processing command for generating heap analysis.
@@ -170,6 +175,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         Args:
             heap_profile_file: Path to heap profile file
             heap_analysis_file: Path to heap analysis file
+            service_name: Name of the service being profiled
 
         Returns:
             str: Complete post-processing command
@@ -202,10 +208,10 @@ else
     echo "No heap profile files found" >> {heap_analysis_file}
 fi
 
-echo "Heap analysis completed for {service_name}" >> {heap_log_file}
+echo "Heap analysis completed for {service_name}" >> /app/logs/{service_name}_heap_analysis.log
 """.strip()
 
-    def to_command(self, output_file: str | None = None) -> str:
+    def to_command(self, output_file: Optional[str] = None) -> str:
         """
         Generate the gperf heap profiling command for execution.
 
@@ -222,3 +228,25 @@ echo "Heap analysis completed for {service_name}" >> {heap_log_file}
         env_string = " ".join([f"{k}={v}" for k, v in env_vars.items()])
 
         return f"env {env_string}"
+
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for gperf heap profiling execution.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        # Add any gperf heap-specific environment updates here
+        self.logger.debug("Updated environment for gperf heap profiling execution")
+        pass

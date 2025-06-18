@@ -5,6 +5,8 @@ This module provides a centralized registry for all event emitters in PANTHER,
 ensuring single instances and preventing duplication issues.
 """
 
+from typing import Dict, List, Optional
+
 from panther.core.events.assertion.emitter import AssertionEventEmitter
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.events.environment.states import EnvironmentStateManager
@@ -42,17 +44,17 @@ class EmitterRegistry:
 
         # Initialize containers for event-based state managers
         # Note: Individual state managers are created on-demand with entity IDs
-        self.experiment_state: ExperimentStateManager | None = (
+        self.experiment_state: Optional[ExperimentStateManager] = (
             None  # Created when experiment starts
         )
         self.plugin_state = PluginStateManager()  # Can be created immediately
-        self.environment_states: dict[
-            str, EnvironmentStateManager
-        ] = {}  # env_id -> state manager
-        self.service_states: dict[
-            str, ServiceStateManager
-        ] = {}  # service_id -> state manager
-        self.test_states: dict[str, TestStateManager] = {}  # test_id -> state manager
+        self.environment_states: Dict[str, EnvironmentStateManager] = (
+            {}
+        )  # env_id -> state manager
+        self.service_states: Dict[str, ServiceStateManager] = (
+            {}
+        )  # service_id -> state manager
+        self.test_states: Dict[str, TestStateManager] = {}  # test_id -> state manager
 
         # Create single instances of each emitter type
         self.experiment_emitter = ExperimentEventEmitter(event_manager, "global")
@@ -64,7 +66,7 @@ class EmitterRegistry:
         self.metrics_emitter = MetricsEventEmitter(event_manager)
 
         # Dictionary to store test-specific emitters
-        self.test_emitters: dict[str, TestEventEmitter] = {}
+        self.test_emitters: Dict[str, TestEventEmitter] = {}
 
     def get_test_emitter(self, test_name: str) -> TestEventEmitter:
         """
@@ -81,6 +83,36 @@ class EmitterRegistry:
                 self.event_manager, test_name
             )
         return self.test_emitters[test_name]
+
+    def get_emitter(self, emitter_type: str, test_name: str = "default_test"):
+        """
+        Get an emitter by type.
+
+        Args:
+            emitter_type: The type of emitter to retrieve
+            test_name: Test name for test-specific emitters
+
+        Returns:
+            The corresponding emitter instance
+        """
+        if emitter_type == "test":
+            # For test emitters, return or create a test-specific emitter
+            return self.get_test_emitter(test_name)
+        
+        emitter_map = {
+            "experiment": self.experiment_emitter,
+            "service": self.service_emitter,
+            "environment": self.environment_emitter,
+            "step": self.step_emitter,
+            "plugin": self.plugin_emitter,
+            "assertion": self.assertion_emitter,
+            "metrics": self.metrics_emitter,
+        }
+        
+        if emitter_type not in emitter_map:
+            raise ValueError(f"Unknown emitter type: {emitter_type}")
+        
+        return emitter_map[emitter_type]
 
     def get_experiment_state(self, experiment_id: str) -> ExperimentStateManager:
         """
@@ -102,7 +134,7 @@ class EmitterRegistry:
         service_name: str,
         service_type: str,
         implementation: str,
-        config: dict[str, str] | None = None,
+        config: Optional[Dict[str, str]] = None,
     ) -> bool:
         """
         Emit service created event with state validation.
@@ -145,10 +177,7 @@ class EmitterRegistry:
         return True
 
     def emit_service_preparation_started_with_validation(
-        self,
-        service_id: str,
-        service_name: str,
-        preparation_type: str = "default",
+        self, service_id: str, service_name: str, preparation_type: str = "default"
     ) -> bool:
         """Emit service preparation started event with state validation."""
         state_manager = self.get_service_state(service_id)
@@ -169,7 +198,7 @@ class EmitterRegistry:
         service_id: str,
         service_name: str,
         environment: str,
-        deployment_config: dict[str, str] | None = None,
+        deployment_config: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Emit service deployment started event with state validation."""
         state_manager = self.get_service_state(service_id)
@@ -191,7 +220,7 @@ class EmitterRegistry:
         self,
         service_id: str,
         service_name: str,
-        readiness_checks: dict[str, bool] | None = None,
+        readiness_checks: Optional[Dict[str, bool]] = None,
     ) -> bool:
         """Emit service ready event with state validation."""
         state_manager = self.get_service_state(service_id)
@@ -213,9 +242,9 @@ class EmitterRegistry:
         service_id: str,
         service_name: str,
         environment: str,
-        endpoint: str | None = None,
-        ports: list[int] | None = None,
-        deployment_details: dict[str, str] | None = None,
+        endpoint: Optional[str] = None,
+        ports: Optional[List[int]] = None,
+        deployment_details: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Emit service deployment completed event with state validation."""
         state_manager = self.get_service_state(service_id)
@@ -241,8 +270,8 @@ class EmitterRegistry:
         self,
         service_id: str,
         service_name: str,
-        pid: int | None = None,
-        start_time: str | None = None,
+        pid: Optional[int] = None,
+        start_time: Optional[str] = None,
     ) -> bool:
         """Emit service started event with state validation."""
         state_manager = self.get_service_state(service_id)
@@ -264,9 +293,9 @@ class EmitterRegistry:
         self,
         service_id: str,
         service_name: str,
-        exit_code: int | None = None,
-        reason: str | None = None,
-        uptime_seconds: float | None = None,
+        exit_code: Optional[int] = None,
+        reason: Optional[str] = None,
+        uptime_seconds: Optional[float] = None,
     ) -> bool:
         """Emit service stopped event with state validation."""
         state_manager = self.get_service_state(service_id)
@@ -290,8 +319,8 @@ class EmitterRegistry:
         service_id: str,
         service_name: str,
         error_message: str,
-        error_type: str | None = None,
-        error_details: dict[str, str] | None = None,
+        error_type: Optional[str] = None,
+        error_details: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Emit service error event with state validation."""
         state_manager = self.get_service_state(service_id)
@@ -315,8 +344,8 @@ class EmitterRegistry:
         self,
         test_id: str,
         test_name: str,
-        test_description: str | None = None,
-        expected_duration: float | None = None,
+        test_description: Optional[str] = None,
+        expected_duration: Optional[float] = None,
     ) -> bool:
         """Emit test started event with state validation."""
         state_manager = self.get_test_state(test_id)
@@ -327,8 +356,8 @@ class EmitterRegistry:
 
         state_manager.transition_to(TestState.RUNNING, trigger="test_started")
         test_emitter = self.get_test_emitter(test_name)
-        test_emitter.emit_test_started(
-            test_description=test_description or "",
+        test_emitter.emit_execution_started(
+            steps=["setup", "execution", "teardown"],
             expected_duration=expected_duration,
         )
         return True
@@ -338,8 +367,8 @@ class EmitterRegistry:
         test_id: str,
         test_name: str,
         success: bool,
-        duration: float | None = None,
-        results: dict[str, str] | None = None,
+        duration: Optional[float] = None,
+        results: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Emit test completed event with state validation."""
         state_manager = self.get_test_state(test_id)
@@ -351,10 +380,9 @@ class EmitterRegistry:
 
         state_manager.transition_to(target_state, trigger="test_completed")
         test_emitter = self.get_test_emitter(test_name)
-        test_emitter.emit_test_completed(
-            success=success,
-            duration=duration,
-            results=results,
+        test_emitter.emit_completed(
+            total_duration_seconds=duration,
+            summary=results,
         )
         return True
 
@@ -363,7 +391,7 @@ class EmitterRegistry:
         test_id: str,
         test_name: str,
         error_message: str,
-        error_details: dict[str, str] | None = None,
+        error_details: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Emit test failed event with state validation."""
         state_manager = self.get_test_state(test_id)
@@ -374,9 +402,9 @@ class EmitterRegistry:
 
         state_manager.transition_to(TestState.FAILED, trigger="test_failed")
         test_emitter = self.get_test_emitter(test_name)
-        test_emitter.emit_test_failed(
+        test_emitter.emit_failed(
             error_message=error_message,
-            error_details=error_details,
+            summary=error_details,
         )
         return True
 
@@ -385,7 +413,7 @@ class EmitterRegistry:
         self,
         env_id: str,
         environment_type: str,
-        preparation_details: dict[str, str] | None = None,
+        preparation_details: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Emit environment prepared event with state validation."""
         state_manager = self.get_environment_state(env_id)
@@ -407,7 +435,7 @@ class EmitterRegistry:
         self,
         env_id: str,
         environment_type: str,
-        deployment_details: dict[str, str] | None = None,
+        deployment_details: Optional[Dict[str, str]] = None,
     ) -> bool:
         """Emit environment deployed event with state validation."""
         state_manager = self.get_environment_state(env_id)
@@ -493,7 +521,7 @@ class EmitterRegistry:
         if env_id in self.environment_states:
             del self.environment_states[env_id]
 
-    def get_all_emitters(self) -> dict[str, object]:
+    def get_all_emitters(self) -> Dict[str, object]:
         """
         Get all emitters for debugging or inspection.
 
@@ -511,7 +539,7 @@ class EmitterRegistry:
             "test_emitters": self.test_emitters.copy(),
         }
 
-    def get_all_state_managers(self) -> dict[str, object]:
+    def get_all_state_managers(self) -> Dict[str, object]:
         """
         Get all state managers for debugging or inspection.
 

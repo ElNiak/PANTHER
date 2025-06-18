@@ -1,43 +1,44 @@
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
+
 """
 Service Event Emitter
 
 This module provides a type-safe event emitter for service-related events.
 """
 
-from typing import Any, TYPE_CHECKING
-
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.base.event_emitter_base import EventEmitterBase
 from panther.core.events.service.events import (
-    ServiceCreatedEvent,
-    ServicePreparationStartedEvent,
-    ServicePreparationCompletedEvent,
-    ServicePreparationFailedEvent,
-    ServiceDeploymentStartedEvent,
-    ServiceDeploymentCompletedEvent,
-    ServiceDeploymentFailedEvent,
-    ServiceStartedEvent,
-    ServiceReadyEvent,
-    ServiceHealthCheckPassedEvent,
-    ServiceHealthCheckFailedEvent,
-    ServiceStoppedEvent,
-    ServiceErrorEvent,
-    ServiceDestroyedEvent,
-    ServiceTestResultsEvent,
-    CommandGenerationStartedEvent,
     CommandGeneratedEvent,
-    DockerBuildStartedEvent,
+    CommandGenerationStartedEvent,
     DockerBuildCompletedEvent,
     DockerBuildFailedEvent,
-    TesterAnalysisStartedEvent,
+    DockerBuildStartedEvent,
+    ServiceCreatedEvent,
+    ServiceDeploymentCompletedEvent,
+    ServiceDeploymentFailedEvent,
+    ServiceDeploymentStartedEvent,
+    ServiceDestroyedEvent,
+    ServiceErrorEvent,
+    ServiceHealthCheckFailedEvent,
+    ServiceHealthCheckPassedEvent,
+    ServicePreparationCompletedEvent,
+    ServicePreparationFailedEvent,
+    ServicePreparationStartedEvent,
+    ServiceReadyEvent,
+    ServiceStartedEvent,
+    ServiceStoppedEvent,
+    ServiceTestResultsEvent,
     TesterAnalysisCompletedEvent,
+    TesterAnalysisStartedEvent,
 )
 
 
 class ServiceEventEmitter(EventEmitterBase):
     """
+
     Type-safe event emitter for service-related events.
 
     This class provides methods for emitting all service lifecycle events
@@ -59,7 +60,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         service_type: str,
         implementation: str,
-        config: dict[str, Any] | None = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a service created event.
@@ -84,8 +85,8 @@ class ServiceEventEmitter(EventEmitterBase):
         self,
         test_case: str,
         service_count: int,
-        service_names: list[str] | None = None,
-        service_metadata: list[dict[str, Any]] | None = None,
+        service_names: Optional[List[str]] = None,
+        service_metadata: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """
         Emit a service setup started event for a test case.
@@ -134,8 +135,8 @@ class ServiceEventEmitter(EventEmitterBase):
         self,
         test_case: str,
         error_message: str,
-        service_names: list[str] | None = None,
-        error_type: str | None = None,
+        service_names: Optional[List[str]] = None,
+        error_type: Optional[str] = None,
     ) -> None:
         """
         Emit a service setup failed event for a test case.
@@ -162,8 +163,8 @@ class ServiceEventEmitter(EventEmitterBase):
         self,
         service_id: str,
         service_name: str,
-        preparation_steps: list[str] | None = None,
-        test_case: str | None = None,
+        preparation_steps: Optional[List[str]] = None,
+        test_case: Optional[str] = None,
     ) -> None:
         """
         Emit a service preparation started event.
@@ -175,7 +176,9 @@ class ServiceEventEmitter(EventEmitterBase):
             test_case: Optional test case name for context
         """
         event = ServicePreparationStartedEvent(
-            service_id=service_id, service_name=service_name, preparation_steps=preparation_steps
+            service_id=service_id,
+            service_name=service_name,
+            preparation_steps=preparation_steps,
         )
         # Add test metadata if provided
         if test_case:
@@ -186,8 +189,8 @@ class ServiceEventEmitter(EventEmitterBase):
         self,
         service_id: str,
         service_name: str,
-        duration_seconds: float | None = None,
-        artifacts: dict[str, Any] | None = None,
+        duration_seconds: Optional[float] = None,
+        artifacts: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a service preparation completed event.
@@ -211,8 +214,8 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         error_message: str,
-        error_type: str | None = None,
-        failed_step: str | None = None,
+        error_type: Optional[str] = None,
+        failed_step: Optional[str] = None,
     ) -> None:
         """
         Emit a service preparation failed event.
@@ -238,7 +241,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         environment: str,
-        deployment_config: dict[str, Any] | None = None,
+        deployment_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a service deployment started event.
@@ -262,9 +265,9 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         environment: str,
-        endpoint: str | None = None,
-        ports: list[int] | None = None,
-        deployment_details: dict[str, Any] | None = None,
+        endpoint: Optional[str] = None,
+        ports: Optional[List[int]] = None,
+        deployment_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a service deployment completed event.
@@ -293,7 +296,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         environment: str,
         error_message: str,
-        error_type: str | None = None,
+        error_type: Optional[str] = None,
     ) -> None:
         """
         Emit a service deployment failed event.
@@ -318,8 +321,8 @@ class ServiceEventEmitter(EventEmitterBase):
         self,
         service_id: str,
         service_name: str,
-        pid: int | None = None,
-        start_time: str | None = None,
+        pid: Optional[int] = None,
+        start_time: Optional[str] = None,
     ) -> None:
         """
         Emit a service started event.
@@ -331,12 +334,18 @@ class ServiceEventEmitter(EventEmitterBase):
             start_time: Service start time
         """
         event = ServiceStartedEvent(
-            service_id=service_id, service_name=service_name, pid=pid, start_time=start_time
+            service_id=service_id,
+            service_name=service_name,
+            pid=pid,
+            start_time=start_time,
         )
         self.event_manager.notify(event)
 
     def emit_service_ready(
-        self, service_id: str, service_name: str, readiness_checks: dict[str, bool] | None = None
+        self,
+        service_id: str,
+        service_name: str,
+        readiness_checks: Optional[Dict[str, bool]] = None,
     ) -> None:
         """
         Emit a service ready event.
@@ -347,7 +356,9 @@ class ServiceEventEmitter(EventEmitterBase):
             readiness_checks: Results of readiness checks
         """
         event = ServiceReadyEvent(
-            service_id=service_id, service_name=service_name, readiness_checks=readiness_checks
+            service_id=service_id,
+            service_name=service_name,
+            readiness_checks=readiness_checks,
         )
         self.event_manager.notify(event)
 
@@ -356,8 +367,8 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         check_type: str,
-        endpoint: str | None = None,
-        response_time_ms: float | None = None,
+        endpoint: Optional[str] = None,
+        response_time_ms: Optional[float] = None,
     ) -> None:
         """
         Emit a service health check passed event.
@@ -384,8 +395,8 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         check_type: str,
         error_message: str,
-        endpoint: str | None = None,
-        status_code: int | None = None,
+        endpoint: Optional[str] = None,
+        status_code: Optional[int] = None,
     ) -> None:
         """
         Emit a service health check failed event.
@@ -412,9 +423,9 @@ class ServiceEventEmitter(EventEmitterBase):
         self,
         service_id: str,
         service_name: str,
-        exit_code: int | None = None,
-        reason: str | None = None,
-        uptime_seconds: float | None = None,
+        exit_code: Optional[int] = None,
+        reason: Optional[str] = None,
+        uptime_seconds: Optional[float] = None,
     ) -> None:
         """
         Emit a service stopped event.
@@ -440,8 +451,8 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         error_message: str,
-        error_type: str | None = None,
-        error_details: dict[str, Any] | None = None,
+        error_type: Optional[str] = None,
+        error_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a service error event.
@@ -463,7 +474,10 @@ class ServiceEventEmitter(EventEmitterBase):
         self.event_manager.notify(event)
 
     def emit_service_destroyed(
-        self, service_id: str, service_name: str, cleanup_details: dict[str, Any] | None = None
+        self,
+        service_id: str,
+        service_name: str,
+        cleanup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a service destroyed event.
@@ -474,16 +488,18 @@ class ServiceEventEmitter(EventEmitterBase):
             cleanup_details: Details about what was cleaned up
         """
         event = ServiceDestroyedEvent(
-            service_id=service_id, service_name=service_name, cleanup_details=cleanup_details
+            service_id=service_id,
+            service_name=service_name,
+            cleanup_details=cleanup_details,
         )
         self.event_manager.notify(event)
 
     def emit_service_setup_completed(
         self,
         test_case: str,
-        services: list[str],
+        services: List[str],
         success: bool = True,
-        duration_seconds: float | None = None,
+        duration_seconds: Optional[float] = None,
     ) -> None:
         """
         Emit service setup completed event for a test case.
@@ -504,7 +520,9 @@ class ServiceEventEmitter(EventEmitterBase):
                 self.emit_service_preparation_completed(
                     service_id=service_id,
                     service_name=service_name,
-                    duration_seconds=duration_seconds / len(services) if duration_seconds else None,
+                    duration_seconds=(
+                        duration_seconds / len(services) if duration_seconds else None
+                    ),
                 )
             else:
                 self.emit_service_preparation_failed(
@@ -517,8 +535,8 @@ class ServiceEventEmitter(EventEmitterBase):
     def emit_service_deployed(
         self,
         environment: str,
-        service_instances: dict[str, Any],
-        deployment_details: dict[str, Any] | None = None,
+        service_instances: Dict[str, Any],
+        deployment_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit service deployed event for multiple services.
@@ -544,9 +562,9 @@ class ServiceEventEmitter(EventEmitterBase):
         self,
         service_id: str,
         service_name: str,
-        test_results: dict[str, Any],
+        test_results: Dict[str, Any],
         overall_success: bool,
-        test_summary: dict[str, Any] | None = None,
+        test_summary: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a service test results event.
@@ -572,8 +590,8 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         test_name: str,
-        output_types: list[str] | None = None,
-        tester_config: dict[str, Any] | None = None,
+        output_types: Optional[List[str]] = None,
+        tester_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a tester analysis started event.
@@ -606,9 +624,9 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         test_name: str,
         analysis_passed: bool = True,
-        findings: dict[str, Any] | None = None,
+        findings: Optional[Dict[str, Any]] = None,
         summary: str = "",
-        duration: float | None = None,
+        duration: Optional[float] = None,
     ) -> None:
         """
         Emit a tester analysis completed event.
@@ -664,7 +682,7 @@ class ServiceEventEmitter(EventEmitterBase):
         event_type: str,
         service_id: str,
         service_name: str,
-        data: dict[str, Any] | None = None,
+        data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit a generic service event.
@@ -704,9 +722,9 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         phase: str,
-        implementation: str | None = None,
-        protocol: str | None = None,
-        config: dict[str, Any] | None = None,
+        implementation: Optional[str] = None,
+        protocol: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Emit command generation started event.
@@ -733,8 +751,8 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         phase: str,
         command: str,
-        implementation: str | None = None,
-        protocol: str | None = None,
+        implementation: Optional[str] = None,
+        protocol: Optional[str] = None,
     ) -> None:
         """
         Emit command generated event.
@@ -760,8 +778,8 @@ class ServiceEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         dockerfile_path: str,
-        implementation: str | None = None,
-        image_name: str | None = None,
+        implementation: Optional[str] = None,
+        image_name: Optional[str] = None,
     ) -> None:
         """
         Emit Docker build started event.
@@ -787,7 +805,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         image_name: str,
         success: bool,
-        build_duration: float | None = None,
+        build_duration: Optional[float] = None,
     ) -> None:
         """
         Emit Docker build completed event.
@@ -814,7 +832,7 @@ class ServiceEventEmitter(EventEmitterBase):
         service_name: str,
         error_message: str,
         dockerfile_path: str,
-        build_duration: float | None = None,
+        build_duration: Optional[float] = None,
     ) -> None:
         """
         Emit Docker build failed event.
@@ -834,3 +852,45 @@ class ServiceEventEmitter(EventEmitterBase):
             build_duration=build_duration,
         )
         self.event_manager.notify(event)
+
+    def emit_service_teardown_started(
+        self,
+        service_event,
+        **kwargs
+    ):
+        """Emit service teardown started event."""
+        # For backward compatibility, handle both old and new style calls
+        if hasattr(service_event, 'test_name'):
+            # New style with ServiceEvent object
+            self.emit_service_event("service_teardown_started", service_event.test_name, **kwargs)
+        else:
+            # Old style with direct parameters
+            self.emit_service_event("service_teardown_started", service_event, **kwargs)
+
+    def emit_service_teardown_completed(
+        self,
+        service_event,
+        **kwargs
+    ):
+        """Emit service teardown completed event."""
+        # For backward compatibility, handle both old and new style calls
+        if hasattr(service_event, 'test_name'):
+            # New style with ServiceEvent object
+            self.emit_service_event("service_teardown_completed", service_event.test_name, **kwargs)
+        else:
+            # Old style with direct parameters
+            self.emit_service_event("service_teardown_completed", service_event, **kwargs)
+
+    def emit_service_teardown_failed(
+        self,
+        service_event,
+        **kwargs
+    ):
+        """Emit service teardown failed event."""
+        # For backward compatibility, handle both old and new style calls
+        if hasattr(service_event, 'test_name'):
+            # New style with ServiceEvent object
+            self.emit_service_event("service_teardown_failed", service_event.test_name, **kwargs)
+        else:
+            # Old style with direct parameters
+            self.emit_service_event("service_teardown_failed", service_event, **kwargs)

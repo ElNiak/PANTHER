@@ -1,3 +1,4 @@
+from typing import Union
 """
 Advanced test suite for ConfigManager plugin discovery and management functionality.
 
@@ -15,7 +16,6 @@ from pathlib import Path
 from dataclasses import dataclass
 
 from panther.config.config_manager import ConfigLoader
-
 
 # Helper functions for creating mock plugins
 def _create_mock_execution_env_plugin(parent_dir, plugin_name):
@@ -36,7 +36,6 @@ class {plugin_name.title().replace('_', '')}:
     init_file = plugin_dir / "__init__.py"
     init_file.write_text("")
 
-
 def _create_mock_network_env_plugin(parent_dir, plugin_name):
     """Create a mock network environment plugin."""
     plugin_dir = parent_dir / plugin_name
@@ -54,7 +53,6 @@ class {plugin_name.title().replace('_', '')}:
     # Create __init__.py
     init_file = plugin_dir / "__init__.py"
     init_file.write_text("")
-
 
 def _create_mock_iut_plugin(parent_dir, protocol, plugin_name):
     """Create a mock IUT plugin."""
@@ -77,7 +75,6 @@ class {plugin_name.title().replace('_', '')}:
     init_file = plugin_dir / "__init__.py"
     init_file.write_text("")
 
-
 def _create_mock_tester_plugin(parent_dir, plugin_name):
     """Create a mock tester plugin."""
     plugin_dir = parent_dir / plugin_name
@@ -96,7 +93,6 @@ class {plugin_name.title().replace('_', '')}:
     init_file = plugin_dir / "__init__.py"
     init_file.write_text("")
 
-
 def _create_mock_protocol_plugin(parent_dir, plugin_name):
     """Create a mock protocol plugin."""
     plugin_dir = parent_dir / plugin_name
@@ -114,7 +110,6 @@ class {plugin_name.title().replace('_', '')}:
     # Create __init__.py
     init_file = plugin_dir / "__init__.py"
     init_file.write_text("")
-
 
 @pytest.fixture
 def config_loader_with_mock_panther_dir(tmp_path):
@@ -179,7 +174,6 @@ experiment:
     config_loader.logger = Mock()
 
     return config_loader
-
 
 class TestConfigManagerPluginDiscovery:
     """Test plugin discovery and management functionality."""
@@ -470,7 +464,6 @@ class {plugin_name.title().replace('_', '')}:
         assert len(classes) == 0
         config_loader.logger.debug.assert_called()
 
-
 class TestConfigManagerPluginParameters:
     """Test plugin parameter listing functionality."""
 
@@ -496,7 +489,7 @@ class TestConfigManagerPluginParameters:
 
             timeout: int = 30
             enabled: bool = True
-            path: str | None = None
+            path: Optional[str] = None
 
         mock_module = Mock()
         mock_module.MockEnvironmentConfig = MockEnvironmentConfig
@@ -643,7 +636,6 @@ class TestConfigManagerPluginParameters:
 
         # Should return empty dict for non-dataclass
         assert params == {}
-
 
 class TestConfigManagerErrorHandling:
     """Test error handling paths in ConfigManager."""

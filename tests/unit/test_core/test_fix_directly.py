@@ -17,7 +17,7 @@ sys.path.append(str(Path(__file__).parent.absolute()))
 
 try:
     from panther.plugins.services.testers.panther_ivy.panther_ivy import PantherIvyServiceManager
-    from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+    from panther.config.core.models import ProtocolConfig, ProtocolRole
     from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
 
     logger.info("Successfully imported all required modules")

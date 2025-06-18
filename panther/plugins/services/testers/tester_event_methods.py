@@ -1,14 +1,13 @@
 """
 Tester Plugin Event Mixin Module
-
 This module provides standardized event emission methods for tester plugins.
 """
 
-from typing import Any
+from typing import Any, Dict, Optional
 
 from panther.core.events.test.events import (
-    TestExecutionStartedEvent,
     TestCompletedEvent,
+    TestExecutionStartedEvent,
     TestFailedEvent,
 )
 
@@ -22,7 +21,7 @@ class TesterManagerEventMixin:
     """
 
     def emit_test_starting(
-        self, test_id: str, test_type: str, details: dict[str, Any] = None
+        self, test_id: str, test_type: str, details: Dict[str, Any] = None
     ) -> None:
         """
         Emit an event indicating that a test is starting.
@@ -43,9 +42,9 @@ class TesterManagerEventMixin:
         self,
         test_id: str,
         success: bool,
-        result: dict[str, Any] = None,
-        error_message: str | None = None,
-        details: dict[str, Any] = None,
+        result: Dict[str, Any] = None,
+        error_message: Optional[str] = None,
+        details: Dict[str, Any] = None,
     ) -> None:
         """
         Emit an event indicating that a test has completed.

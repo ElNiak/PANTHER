@@ -378,9 +378,7 @@ except ImportError:
             """Get available observer types."""
             return list(self.observer_registry.keys())
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.observer_system]
-
 
 class TestMetricsObserver:
     """Test MetricsObserver functionality."""
@@ -504,7 +502,6 @@ class TestMetricsObserver:
         assert summary["events_processed"] == 1
         assert summary["metrics_count"] == 1
         assert len(summary["metrics"]) == 1
-
 
 class TestStorageObserver:
     """Test StorageObserver functionality."""
@@ -651,7 +648,6 @@ class TestStorageObserver:
         assert stats["total_events"] == 3
         assert stats["storage_path"] == str(temp_storage_dir)
         assert stats["disk_files"] == 3
-
 
 class TestCommandAuditObserver:
     """Test CommandAuditObserver functionality."""
@@ -810,7 +806,6 @@ class TestCommandAuditObserver:
         assert summary["total_commands"] == 3
         assert summary["security_violations"] == 1
 
-
 class TestStateObserver:
     """Test StateObserver functionality."""
 
@@ -961,7 +956,6 @@ class TestStateObserver:
         assert len(invalid_transitions) == 1
         assert invalid_transitions[0]["violation"] == "invalid_state_transition"
 
-
 class TestResultsManager:
     """Test ResultsManager functionality."""
 
@@ -1076,7 +1070,6 @@ class TestResultsManager:
         assert summary["completed_experiments"] == 1
         assert summary["failed_experiments"] == 0
 
-
 class TestObserverFactory:
     """Test ObserverFactory functionality."""
 
@@ -1163,7 +1156,6 @@ class TestObserverFactory:
         assert "metrics" in available_types
         assert "storage" in available_types
         assert "audit" in available_types
-
 
 class TestObserverSystemIntegration:
     """Test integration between observer system components."""
@@ -1334,7 +1326,6 @@ class TestObserverSystemIntegration:
 
         assert report["summary"]["completed_experiments"] == 1
         assert metrics_summary["events_processed"] == 4
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

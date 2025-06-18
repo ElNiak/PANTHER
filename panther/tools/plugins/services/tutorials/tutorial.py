@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from typing import Any, Dict, List, Optional, Union
+
 """
 Interactive Service Plugin Tutorial
 
@@ -170,16 +172,16 @@ import subprocess
 import os
 import traceback
 from pathlib import Path
-from typing import Optional
 
 from panther.plugins.services.{self.plugin_type}.{self.plugin_name}.config_schema import {config_class}
 # PluginManager functionality now integrated into PluginManager
 from {import_path} import {base_class}
-from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
-
+from panther.config.core.models import ProtocolConfig, ProtocolRole
 
 class {class_name}({base_class}):
     """
+
+from typing import ListVersion-specific configuration for {self.plugin_name}"""
     Service manager for {self.plugin_name} {self.plugin_type}.
 
     This class handles the lifecycle of the {self.plugin_name} service including:
@@ -193,8 +195,7 @@ class {class_name}({base_class}):
         service_config_to_test: {config_class},
         service_type: str,
         protocol: ProtocolConfig,
-        implementation_name: str,
-    ):
+        implementation_name: str):
         super().__init__(
             service_config_to_test, service_type, protocol, implementation_name
         )
@@ -233,7 +234,7 @@ class {class_name}({base_class}):
         self.logger.debug("Generating run command")
 
         # Example command generation based on role
-        if self.protocol.role == RoleEnum.client:
+        if self.protocol.role == ProtocolRole.CLIENT:
             command = f"./{{self.plugin_name}}_client --server {{self.protocol.server_host}} --port {{self.protocol.port}}"
         else:
             command = f"./{{self.plugin_name}}_server --port {{self.protocol.port}}"
@@ -274,23 +275,21 @@ from dataclasses import dataclass, field
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, List
 
 from omegaconf import OmegaConf
 
 from panther.plugins.services.{self.plugin_type}.config_schema import ImplementationConfig, VersionBase
 from panther.plugins.services.{self.plugin_type}.config_schema import ImplementationType
 
-
 @dataclass
 class {version_class}(VersionBase):
-    """Version-specific configuration for {self.plugin_name}"""
+    """
+
     version: str = ""
     commit: str = ""
     dependencies: List[Dict[str, str]] = field(default_factory=list)
     client: Optional[Dict] = field(default_factory=dict)
     server: Optional[Dict] = field(default_factory=dict)
-
 
 @dataclass
 class {config_class}(ImplementationConfig):
@@ -319,8 +318,7 @@ class {config_class}(ImplementationConfig):
 
     @staticmethod
     def load_versions_from_files(
-        version_configs_dir: str = f"{{Path(os.path.dirname(__file__))}}/version_configs/",
-    ) -> {version_class}:
+        version_configs_dir: str = f"{{Path(os.path.dirname(__file__))}}/version_configs/") -> {version_class}:
         """Load version configurations dynamically from YAML files."""
         logging.debug(f"Loading {self.plugin_name} versions from {{version_configs_dir}}")
 

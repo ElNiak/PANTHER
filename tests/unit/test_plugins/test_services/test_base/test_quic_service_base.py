@@ -7,7 +7,6 @@ import pytest
 
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
 
-
 class TestQUICImplementation(BaseQUICServiceManager):
     """Test implementation of BaseQUICServiceManager."""
 
@@ -30,7 +29,6 @@ class TestQUICImplementation(BaseQUICServiceManager):
         if kwargs.get("request_size"):
             args.extend(["--size", str(kwargs["request_size"])])
         return args
-
 
 class TestBaseQUICServiceManager:
     """Test cases for BaseQUICServiceManager."""

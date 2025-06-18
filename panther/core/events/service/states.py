@@ -4,6 +4,8 @@ Service State Management
 This module defines state management for service lifecycle.
 """
 
+from typing import Dict, Set
+
 from panther.core.events.base.state_base import BaseState, StateManager
 
 
@@ -43,7 +45,7 @@ class ServiceStateManager(StateManager):
         super().__init__(service_id, ServiceState.CREATED)
         self.setup_transitions()
 
-    def _define_allowed_transitions(self) -> dict[BaseState, set[BaseState]]:
+    def _define_allowed_transitions(self) -> Dict[BaseState, Set[BaseState]]:
         """Define allowed state transitions for services."""
         return {
             ServiceState.CREATED: {
@@ -129,7 +131,12 @@ class ServiceStateManager(StateManager):
     def is_operational(self) -> bool:
         """Check if service is operational (deployed and running/ready)."""
         return self.is_in_any_state(
-            {ServiceState.DEPLOYED, ServiceState.STARTING, ServiceState.RUNNING, ServiceState.READY}
+            {
+                ServiceState.DEPLOYED,
+                ServiceState.STARTING,
+                ServiceState.RUNNING,
+                ServiceState.READY,
+            }
         )
 
     def is_stopped(self) -> bool:

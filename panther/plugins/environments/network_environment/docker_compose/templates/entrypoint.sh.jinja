@@ -370,6 +370,21 @@ report_exit() {
     log "ERROR: Command failed with exit status $exit_status"
     echo "$cmd_desc" > /app/logs/{{additional_param.service_name}}_last_failed_command.txt
     echo "Exit status: $exit_status" >> /app/logs/{{additional_param.service_name}}_last_failed_command.txt
+    
+    # FIXED: Also capture errors to stderr.log for analysis tools to detect
+    {
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] COMMAND FAILURE in $phase phase:"
+      echo "Command: $cmd_desc"
+      echo "Exit status: $exit_status"
+      
+      # If the command output file exists, include its content
+      local output_file="/app/logs/{{additional_param.service_name}}_$phase-cmd-$cmd_num-output.log"
+      if [ -f "$output_file" ]; then
+        echo "Command output:"
+        cat "$output_file"
+      fi
+      echo "----------------------------------------"
+    } >> /app/logs/stderr.log
   fi
 }
 
@@ -391,6 +406,26 @@ if [ -n "$SERVICE_IP" ]; then
   echo "$SERVICE_IP" > /app/sync_logs/${SERVICE_NAME}_ip.txt
   log "Registered service IP: $SERVICE_IP"
 fi
+
+# Ensure SSL keylog file exists for collection
+if [ -n "$SSLKEYLOGFILE" ]; then
+  touch "$SSLKEYLOGFILE"
+  log "Created SSL keylog file: $SSLKEYLOGFILE"
+fi
+
+# Ensure output files exist for collection based on service patterns
+{% if output_file_paths %}
+log "Creating service-specific output files..."
+{% for output_type, file_path in output_file_paths.items() %}
+touch "{{ file_path }}"
+log "Created {{ output_type }} file: {{ file_path }}"
+{% endfor %}
+{% else %}
+# Fallback to default stdout/stderr if no patterns defined
+touch "/app/logs/stdout.log"
+touch "/app/logs/stderr.log"
+log "Created default stdout/stderr log files"
+{% endif %}
 
 
 # Function to track command failures with details
@@ -437,17 +472,17 @@ execute_with_error_tracking() {
 
 # Execute pre-compilation setup commands
 log "Executing pre-compilation commands..."
-{{ execute_command_phase(structured_commands.get("pre_compile_cmds"), "PRE_COMPILE") }}
+{{ execute_command_phase(structured_commands.get("pre_compile_cmds") if structured_commands else [], "PRE_COMPILE") }}
 
 # Execute compilation commands with error checking
 log "Executing compilation commands..."
-{{ execute_command_phase(structured_commands.get("compile_cmds"), "COMPILE") }}
+{{ execute_command_phase(structured_commands.get("compile_cmds") if structured_commands else [], "COMPILE") }}
 
 log "Compilation completed successfully."
 
 # Execute post-compilation commands
 log "Executing post-compilation commands..."
-{{ execute_command_phase(structured_commands.get("post_compile_cmds"), "POST_COMPILE") }}
+{{ execute_command_phase(structured_commands.get("post_compile_cmds") if structured_commands else [], "POST_COMPILE") }}
 
 
 # Wait for dependencies if this is a client/IUT service
@@ -461,12 +496,12 @@ wait_for_dependency "{{ additional_param.service_targets }}" "{{ additional_para
 
 # Execute pre-run commands
 log "Executing pre-run commands..."
-{{ execute_command_phase(structured_commands.get("pre_run_cmds"), "PRE_RUN") }}
+{{ execute_command_phase(structured_commands.get("pre_run_cmds") if structured_commands else [], "PRE_RUN") }}
 
 # Execute the main command if provided
 log "Executing main command..."
 pwd > /app/logs/{{additional_param.service_name}}_current_dir_during_exec.log
-{% if structured_commands.get("run_cmd")%}
+{% if structured_commands and structured_commands.get("run_cmd")%}
 {% if structured_commands.get("run_cmd").working_dir %}
 cd "{{ structured_commands.get("run_cmd").working_dir }}" || {
   log "Failed to change to directory: {{ structured_commands.get("run_cmd").working_dir }}"
@@ -510,7 +545,7 @@ done
 
 if [ -z "$FULL_CMD" ]; then
   log "WARNING: No command to run, skipping execution"
-  RUN_STATUS=0
+  RUN_STATUS=-1
 else
   # Check if execution environment wrappers are available and wrap the command
   if [ -n "$EXEC_ENV_WRAPPERS" ]; then
@@ -522,18 +557,29 @@ else
     log "Running command: $WRAPPED_CMD"
   fi
 
+  # Use service-specific output redirections if available
+  {% if output_redirections and output_redirections.stdout and output_redirections.stderr %}
+  STDOUT_FILE="{{ output_redirections.stdout }}"
+  STDERR_FILE="{{ output_redirections.stderr }}"
+  {% else %}
+  STDOUT_FILE="/app/logs/stdout.log"
+  STDERR_FILE="/app/logs/stderr.log"
+  {% endif %}
+  
+  log "Output will be redirected to: stdout=$STDOUT_FILE, stderr=$STDERR_FILE"
+  
   {% if structured_commands.get("run_cmd").timeout %}
-  timeout {{ structured_commands.get("run_cmd").timeout }} $WRAPPED_CMD > /app/logs/{{additional_param.service_name}}_run_cmd.log 2> /app/logs/{{additional_param.service_name}}_run_cmd_error.log
+  timeout {{ structured_commands.get("run_cmd").timeout }} $WRAPPED_CMD >> "$STDOUT_FILE" 2>> "$STDERR_FILE"
   RUN_STATUS=${PIPESTATUS[0]}
   {% else %}
-  $WRAPPED_CMD > /app/logs/{{additional_param.service_name}}_run_cmd.log 2> /app/logs/{{additional_param.service_name}}_run_cmd_error.log
+  $WRAPPED_CMD >> "$STDOUT_FILE" 2>> "$STDERR_FILE"
   RUN_STATUS=${PIPESTATUS[0]}
   {% endif %}
 fi
 
 if [ $RUN_STATUS -ne 0 ]; then
   if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after {{ structured_commands.get("run_cmd").timeout }} seconds"
+    log "WARNING: Command timed out after {{ structured_commands.get("run_cmd").timeout if structured_commands and structured_commands.get("run_cmd") else "unknown" }} seconds"
   else
     log "ERROR: Command failed with exit status $RUN_STATUS"
   fi
@@ -544,7 +590,7 @@ log "No main command provided, skipping."
 
 # Execute post-run commands
 log "Executing post-run commands..."
-{{ execute_command_phase(structured_commands.get("post_run_cmds"), "POST_RUN") }}
+{{ execute_command_phase(structured_commands.get("post_run_cmds") if structured_commands else [], "POST_RUN") }}
 
 log "All commands executed successfully. Service '{{additional_param.service_name}}' entrypoint complete."
 exit $RUN_STATUS

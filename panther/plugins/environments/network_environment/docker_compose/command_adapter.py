@@ -4,15 +4,18 @@ Docker Compose specific command adapter for PANTHER framework.
 This module provides an adapter that adapts commands for Docker Compose environments.
 """
 
-from typing import Any
+from typing import Any, Dict
+
 from panther.core.command_processor.interfaces import IEnvironmentCommandAdapter
 from panther.plugins.services.services_interface import ShellCommand
 
 
 class DockerComposeCommandAdapter(IEnvironmentCommandAdapter):
-    """Docker Compose specific command adapter."""
+    """
 
-    def adapt_commands(self, commands: dict[str, Any]) -> dict[str, Any]:
+    from typing import Any, Dict, DictDocker Compose specific command adapter."""
+
+    def adapt_commands(self, commands: Dict[str, Any]) -> Dict[str, Any]:
         """
         Adapt commands for Docker Compose environment.
 
@@ -32,14 +35,18 @@ class DockerComposeCommandAdapter(IEnvironmentCommandAdapter):
         import logging
 
         logger = logging.getLogger(__name__)
-        logger.debug("DockerComposeCommandAdapter processing commands: %s", commands.keys())
+        logger.debug(
+            "DockerComposeCommandAdapter processing commands: %s", commands.keys()
+        )
         if "pre_run_cmds" in commands:
             logger.debug("pre_run_cmds content: %s", commands["pre_run_cmds"])
 
         for phase, cmd_list in commands.items():
             if isinstance(cmd_list, list):
                 # Process each command in the list
-                adapted_commands[phase] = [self._process_command(cmd) for cmd in cmd_list]
+                adapted_commands[phase] = [
+                    self._process_command(cmd) for cmd in cmd_list
+                ]
             else:
                 # Handle non-list values (e.g., single commands or other structures)
                 adapted_commands[phase] = cmd_list

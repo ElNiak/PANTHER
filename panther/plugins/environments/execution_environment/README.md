@@ -5,16 +5,102 @@
 
 Execution environments in PANTHER define **where and how** your implementations run during testing. They provide containerized environments, performance profiling, debugging tools, and systematic analysis capabilities.
 
+## Modern Architecture Integration (2024)
+
+!!! success "Command Processor & Event System Integration"
+    Execution environments now integrate seamlessly with PANTHER's modern architecture, using the Command Processor for structured command generation, event-driven monitoring, and comprehensive metrics collection through the observer pattern.
+
+### Event-Driven Profiler Integration
+
+```mermaid
+graph TB
+    subgraph "Execution Environment Events"
+        EPE[Environment Preparation Event]
+        MSE[Monitoring Start Event]
+        MPE[Metrics Collection Event]
+        ESE[Environment Stop Event]
+    end
+    
+    subgraph "Command Generation"
+        CP[Command Processor]
+        PG[Profiler Command Generation]
+        CV[Command Validation]
+    end
+    
+    subgraph "Metrics Integration"
+        MC[Metrics Collector]
+        MO[Metrics Observer]
+        RT[Real-time Monitoring]
+    end
+    
+    EPE --> CP
+    CP --> PG
+    PG --> CV
+    CV --> MSE
+    MSE --> MC
+    MC --> MPE
+    MPE --> MO
+    MO --> RT
+    RT --> ESE
+```
+
+### Modern Command Generation for Profilers
+
+Execution environments now use the Command Processor for structured profiler command generation:
+
+```python
+# Modern profiler command generation
+from panther.core.command_processor.command import ShellCommand
+from panther.core.events.environment.events import ProfilingStartEvent
+
+class ModernGperfCpuEnvironment(IExecutionEnvironment):
+    def start_monitoring(self, target_process):
+        # Emit profiling start event
+        self.emit_event(ProfilingStartEvent(
+            environment_name="gperf_cpu",
+            target_process=target_process,
+            profiling_type="cpu_profiling"
+        ))
+        
+        # Generate structured profiler commands
+        profiler_commands = [
+            ShellCommand(
+                command="env",
+                args=[
+                    f"CPUPROFILE=/tmp/cpu.prof",
+                    f"CPUPROFILE_FREQUENCY={self.config['frequency']}",
+                    target_process
+                ],
+                timeout=self.config.get('duration', 60),
+                capture_output=True
+            )
+        ]
+        
+        # Execute through command processor with validation
+        for cmd in profiler_commands:
+            result = self.command_processor.execute(cmd)
+            
+            # Emit command execution event
+            self.emit_event(CommandExecutionEvent(
+                command=cmd.to_string(),
+                exit_code=result.exit_code,
+                environment_name="gperf_cpu",
+                output_size=len(result.stdout) if result.stdout else 0
+            ))
+```
+
 ---
 
 ## Architecture Overview
 
-PANTHER's execution environments use a **plugin-based architecture** where each environment type provides:
+PANTHER's execution environments use a **modern event-driven architecture** where each environment type provides:
 
 1. **Isolated Runtime**: Containerized execution with controlled dependencies
-2. **Performance Monitoring**: CPU, memory, and system call profiling
+2. **Performance Monitoring**: CPU, memory, and system call profiling with real-time events
 3. **Debug Capabilities**: Memory leak detection, threading analysis, and tracing
-4. **Result Collection**: Automated gathering of metrics and artifacts
+4. **Result Collection**: Automated gathering of metrics through observer pattern
+5. **Command Processing**: Structured command generation and validation
+6. **Event Integration**: Real-time monitoring and status tracking
 
 ### Environment Types
 

@@ -1,3 +1,5 @@
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+
 """
 Error Handler Mixin
 
@@ -6,17 +8,41 @@ reducing duplication of error handling and logging logic.
 """
 
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
+from panther.core.exceptions.fast_fail import (
+    ErrorCategory,
+    ErrorSeverity,
+    FastFailHandler,
+    PantherException,
+)
 from panther.core.utils.logging_mixin import LoggerMixin
 
 
 class ErrorHandlerMixin(LoggerMixin):
     """
+
     Mixin that provides standardized error handling patterns.
 
     Reduces duplication of try-except blocks and error logging across the codebase.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Initialize FastFailHandler - can be overridden by subclasses
+        self._fast_fail_handler = None
+
+    @property
+    def fast_fail_handler(self) -> FastFailHandler:
+        """Get or create the fast fail handler."""
+        if self._fast_fail_handler is None:
+            # Create a default handler with fast-fail enabled
+            self._fast_fail_handler = FastFailHandler(enabled=True, logger=self.logger)
+        return self._fast_fail_handler
+
+    @fast_fail_handler.setter
+    def fast_fail_handler(self, handler: FastFailHandler) -> None:
+        """Set a custom fast fail handler."""
+        self._fast_fail_handler = handler
 
     def handle_error(
         self,
@@ -26,6 +52,8 @@ class ErrorHandlerMixin(LoggerMixin):
         emit_event: bool = True,
         log_level: str = "error",
         additional_context: Optional[Dict[str, Any]] = None,
+        severity: Optional[ErrorSeverity] = None,
+        category: Optional[ErrorCategory] = None,
     ) -> None:
         """
         Handle an error with logging and optional event emission.
@@ -37,16 +65,47 @@ class ErrorHandlerMixin(LoggerMixin):
             emit_event: Whether to emit an error event
             log_level: Logging level to use (error, warning, info)
             additional_context: Additional context for logging/events
+            severity: Override severity level for non-PantherException errors
+            category: Override category for non-PantherException errors
         """
         # Build error message
         error_msg = f"Failed to {operation}: {type(error).__name__}: {str(error)}"
 
-        # Log the error
-        logger_method = getattr(self.logger, log_level, self.logger.error)
-        if log_level == "error":
-            logger_method(error_msg, exc_info=True)
+        # Convert to PantherException if not already one
+        if not isinstance(error, PantherException):
+            # Determine severity based on log_level if not provided
+            if severity is None:
+                if log_level == "error":
+                    severity = ErrorSeverity.HIGH
+                elif log_level == "warning":
+                    severity = ErrorSeverity.MEDIUM
+                else:
+                    severity = ErrorSeverity.LOW
+
+            # Default category if not provided
+            if category is None:
+                category = ErrorCategory.COMMAND_EXECUTION
+
+            # Create PantherException
+            panther_error = PantherException(
+                message=str(error),
+                severity=severity,
+                category=category,
+                context={
+                    "operation": operation,
+                    "additional_context": additional_context or {},
+                },
+            )
         else:
-            logger_method(error_msg)
+            panther_error = error
+            # Add operation context if not already present
+            if "operation" not in panther_error.context:
+                panther_error.context["operation"] = operation
+
+        # Use FastFailHandler to determine if we should continue
+        should_continue = self.fast_fail_handler.handle_error(
+            panther_error, raise_on_critical=reraise
+        )
 
         # Emit error event if requested
         if emit_event and hasattr(self, "event_emitter") and self.event_emitter:
@@ -62,6 +121,8 @@ class ErrorHandlerMixin(LoggerMixin):
                         "operation": operation,
                         "error": str(error),
                         "additional_context": additional_context or {},
+                        "severity": panther_error.severity.name,
+                        "category": panther_error.category.value,
                     },
                 )
             elif hasattr(self.event_emitter, "emit_error"):
@@ -73,11 +134,13 @@ class ErrorHandlerMixin(LoggerMixin):
                         "operation": operation,
                         "error": str(error),
                         "additional_context": additional_context or {},
+                        "severity": panther_error.severity.name,
+                        "category": panther_error.category.value,
                     },
                 )
 
-        # Re-raise if requested
-        if reraise:
+        # Re-raise if requested and not handled by fast-fail
+        if reraise and not should_continue:
             raise error
 
     def safe_execute(
@@ -88,6 +151,8 @@ class ErrorHandlerMixin(LoggerMixin):
         error_return: Any = None,
         allowed_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
         emit_event: bool = True,
+        severity: Optional[ErrorSeverity] = None,
+        category: Optional[ErrorCategory] = None,
         **kwargs,
     ) -> Any:
         """
@@ -100,6 +165,8 @@ class ErrorHandlerMixin(LoggerMixin):
             error_return: Return value if operation fails
             allowed_exceptions: Tuple of exceptions to catch (default: Exception)
             emit_event: Whether to emit error events
+            severity: Error severity for fast-fail handling
+            category: Error category for fast-fail handling
             **kwargs: Arguments to pass to the operation
 
         Returns:
@@ -111,7 +178,14 @@ class ErrorHandlerMixin(LoggerMixin):
             result = operation(**kwargs)
             return result if result is not None else default_return
         except allowed_exceptions as e:
-            self.handle_error(e, operation_name, reraise=False, emit_event=emit_event)
+            self.handle_error(
+                e,
+                operation_name,
+                reraise=False,
+                emit_event=emit_event,
+                severity=severity,
+                category=category,
+            )
             return error_return
 
     def with_error_handling(
@@ -122,6 +196,8 @@ class ErrorHandlerMixin(LoggerMixin):
         allowed_exceptions: Optional[Tuple[Type[Exception], ...]] = None,
         error_return: Any = None,
         transform_error: Optional[Type[Exception]] = None,
+        severity: Optional[ErrorSeverity] = None,
+        category: Optional[ErrorCategory] = None,
     ):
         """
         Decorator for methods with standardized error handling.
@@ -138,6 +214,8 @@ class ErrorHandlerMixin(LoggerMixin):
             allowed_exceptions: Exceptions to catch
             error_return: Value to return on error (if not reraising)
             transform_error: Transform caught exception to this type
+            severity: Error severity for fast-fail handling
+            category: Error category for fast-fail handling
         """
         allowed_exceptions = allowed_exceptions or (Exception,)
 
@@ -149,7 +227,14 @@ class ErrorHandlerMixin(LoggerMixin):
                 try:
                     return func(*args, **kwargs)
                 except allowed_exceptions as e:
-                    self.handle_error(e, op_name, reraise=False, emit_event=emit_event)
+                    self.handle_error(
+                        e,
+                        op_name,
+                        reraise=False,
+                        emit_event=emit_event,
+                        severity=severity,
+                        category=category,
+                    )
 
                     if transform_error:
                         raise transform_error(f"Failed to {op_name}: {str(e)}") from e
@@ -190,6 +275,8 @@ class ErrorHandlerMixin(LoggerMixin):
         operations: List[Tuple[Callable, str, Dict[str, Any]]],
         continue_on_error: bool = False,
         collect_errors: bool = True,
+        severity: Optional[ErrorSeverity] = None,
+        category: Optional[ErrorCategory] = None,
     ) -> Tuple[List[Any], List[Exception]]:
         """
         Execute multiple operations with error handling.
@@ -198,6 +285,8 @@ class ErrorHandlerMixin(LoggerMixin):
             operations: List of (callable, name, kwargs) tuples
             continue_on_error: Whether to continue after an error
             collect_errors: Whether to collect all errors
+            severity: Error severity for fast-fail handling
+            category: Error category for fast-fail handling
 
         Returns:
             Tuple of (results, errors)
@@ -211,7 +300,12 @@ class ErrorHandlerMixin(LoggerMixin):
                 results.append(result)
             except Exception as e:
                 self.handle_error(
-                    e, name, reraise=not continue_on_error, emit_event=True
+                    e,
+                    name,
+                    reraise=not continue_on_error,
+                    emit_event=True,
+                    severity=severity,
+                    category=category,
                 )
 
                 if collect_errors:

@@ -4,17 +4,17 @@ Metrics Module
 This module provides metrics-related events, emitters, and states.
 """
 
+from .emitter import MetricsEventEmitter
 from .events import (
-    MetricsEventType,
-    MetricsEvent,
+    CounterMetricEvent,
     MetricCollectedEvent,
+    MetricsEvent,
+    MetricsEventType,
+    MetricsSummaryEvent,
     ResourceMetricEvent,
     TimingMetricEvent,
-    CounterMetricEvent,
-    MetricsSummaryEvent,
 )
-from .emitter import MetricsEventEmitter
-from .states import MetricsState, MetricsCollectionState
+from .states import MetricsCollectionState, MetricsState
 
 __all__ = [
     # Event types and base classes

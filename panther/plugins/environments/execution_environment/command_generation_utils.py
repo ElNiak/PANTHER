@@ -14,7 +14,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from panther.core.command_processor.command_builder import ServiceCommandBuilder
-from panther.plugins.protocols.config_schema import RoleEnum
+from panther.core.command_processor.command_summarizer import CommandSummarizer
+from panther.config.core.models import ProtocolRole
 from panther.plugins.services.services_interface import IServiceManager
 
 
@@ -301,7 +302,7 @@ class ExecutionEnvironmentCommandBuilder:
 
         # Get service info
         self.service_name = getattr(service, "service_name", service.__class__.__name__)
-        self.service_role = getattr(service, "role", RoleEnum.server)
+        self.service_role = getattr(service, "role", ProtocolRole.SERVER)
 
         # Create underlying command builder
         self.command_builder = ServiceCommandBuilder(self.service_role)
@@ -347,8 +348,10 @@ class ExecutionEnvironmentCommandBuilder:
 
         self._wrapper_commands.append(wrapper_setup)
 
+        # Use smart command summarization for logging
+        command_summary = CommandSummarizer.summarize_single_command(wrapper_setup)
         self.logger.debug(
-            "Added wrapper command for %s: %s", self.service_name, wrapper_command
+            "Added wrapper command for %s: %s", self.service_name, command_summary
         )
 
         return self
@@ -516,10 +519,15 @@ class ExecutionEnvironmentCommandBuilder:
             )
             results["wrapper_modifications"] = wrapper_result
 
+            # Use command summarization for wrapper application
+            wrapper_summary = CommandSummarizer.summarize_command_list(
+                wrapper_commands, max_commands=2
+            )
             self.logger.info(
-                "Applied %s wrapper to service %s",
+                "Applied %s wrapper to service %s: %s",
                 self.environment_name,
                 self.service_name,
+                wrapper_summary,
             )
 
         # Apply post-processing commands
@@ -531,10 +539,15 @@ class ExecutionEnvironmentCommandBuilder:
             )
             results["post_processing_modifications"] = post_result
 
+            # Use command summarization for post-processing
+            post_summary = CommandSummarizer.summarize_command_list(
+                post_run_commands, max_commands=2
+            )
             self.logger.info(
-                "Applied %s post-processing to service %s",
+                "Applied %s post-processing to service %s: %s",
                 self.environment_name,
                 self.service_name,
+                post_summary,
             )
 
         # Mark environment as enabled

@@ -1,7 +1,7 @@
 """Configuration management module for PANTHER framework.
 
-This module handles loading, validating, and managing configurations for experiments
-and plugins in the PANTHER framework.
+This module provides backward compatibility wrapper around the new unified configuration system.
+It maintains the same interface as the legacy ConfigLoader while using the new ConfigurationManager.
 """
 
 import importlib
@@ -11,40 +11,49 @@ import shutil
 from contextlib import nullcontext
 from dataclasses import asdict
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
-from importlib_resources import files
 from omegaconf import DictConfig, ListConfig, OmegaConf, ValidationError
 
-from panther.config.config_experiment_schema import (
+# Import from new unified system
+from panther.config.core.manager import ConfigurationManager
+from panther.config.core.models import (
     ExperimentConfig,
+    GlobalConfig,
     ServiceConfig,
     TestConfig,
 )
-from panther.config.config_global_schema import (
-    AdditionalPathsConfig,
+from panther.config.core.models.observer import (
+    ExperimentObserverConfig,
+    LoggerObserverConfig,
+    MetricsObserverConfig,
+    BaseObserverConfig,
+    StorageObserverConfig,
+)
+from panther.config.core.models.global_config import (
     DockerConfig,
-    FeatureConfig,
-    GlobalConfig,
+    FastFailConfig,
+    FeatureLogLevelsConfig,
     LoggingConfig,
     LoggingLevel,
     PathsConfig,
 )
-from panther.config.config_observer_schema import (
-    ExperimentObserverConfig,
-    LoggerObserverConfig,
-    MetricsObserverConfig,
-    ObserverConfig,
-    StorageObserverConfig,
-)
+
+# Keep legacy imports for compatibility
 from panther.core.exceptions.experiment_exceptions import PluginValidationError
+from panther.core.utils.config_summarizer import ConfigSummarizer
 from panther.core.utils.logging_mixin import LoggerMixin
 from panther.plugins.plugin_config_resolver import PluginConfigResolver
 from panther.plugins.plugin_loader_utils import PluginManagerUtils
 
 
 class ConfigLoader(LoggerMixin):
-    """Handles loading and validation of PANTHER configurations."""
+    """Backward compatibility wrapper around the new ConfigurationManager.
+
+    This class maintains the same interface as the legacy ConfigLoader while
+    delegating all operations to the new unified configuration system.
+    """
 
     @staticmethod
     def _get_class_name(plugin_name: str, suffix: str = "Config") -> str:
@@ -54,11 +63,11 @@ class ConfigLoader(LoggerMixin):
     def __init__(
         self,
         experiment_file: str,
-        output_dir: str | None = None,
-        exec_env_dir: str | None = "",
-        net_env_dir: str | None = "",
-        iut_dir: str | None = "",
-        testers_dir: str | None = "",
+        output_dir: Optional[str] = None,
+        exec_env_dir: Optional[str] = "",
+        net_env_dir: Optional[str] = "",
+        iut_dir: Optional[str] = "",
+        testers_dir: Optional[str] = "",
         metrics_collector=None,
         debug_override: bool = False,
     ):
@@ -77,160 +86,50 @@ class ConfigLoader(LoggerMixin):
 
         self.debug_override = debug_override
 
+        # Initialize with config_processing feature
+        self.__init_logger__("config_processing")
+
+        # Initialize new ConfigurationManager
+        self._config_manager = ConfigurationManager(
+            experiment_file,  # Use positional arg matching the ConfigurationManager signature
+            output_dir=output_dir,
+            exec_env_dir=exec_env_dir,
+            net_env_dir=net_env_dir,
+            iut_dir=iut_dir,
+            testers_dir=testers_dir,
+            metrics_collector=metrics_collector,
+            debug_override=debug_override,
+        )
+
     def construct_global_config(self, loaded_config: DictConfig) -> GlobalConfig:
-        """_summary_
+        """Delegate to new ConfigurationManager for global config construction.
 
         Args:
-            loaded_config (DictConfig): _description_
+            loaded_config (DictConfig): Loaded configuration dictionary
 
         Returns:
-            ExperimentConfig: _description_
+            GlobalConfig: Constructed global configuration
         """
-        # Construct logging configuration with defaults from dataclass
-        default_logging = LoggingConfig()  # Get dataclass defaults
-        level_str = loaded_config.get("logging", {}).get(
-            "level", default_logging.level.name
-        )
-        # Convert string to LoggingLevel enum
-        if isinstance(level_str, str):
-            try:
-                level = LoggingLevel[level_str.upper()]
-            except KeyError:
-                self.logger.warning(
-                    "Invalid logging level '%s', using DEBUG", level_str
-                )
-                level = LoggingLevel.DEBUG
-        else:
-            level = (
-                level_str
-                if isinstance(level_str, type(LoggingLevel.DEBUG))
-                else default_logging.level
-            )
+        # Add plugin directories if needed
+        if self.exec_env_dir:
+            self.add_plugin_execution_environment()
+        if self.net_env_dir:
+            self.add_plugin_network_environment()
+        if self.iut_dir:
+            self.add_plugin_iut_service()
+        if self.testers_dir:
+            self.add_plugin_tester_service()
 
-        logging_config = LoggingConfig(
-            level=level,
-            format=loaded_config.get("logging", {}).get(
-                "format", default_logging.format
-            ),
-        )
-        OmegaConf.merge(LoggingConfig, logging_config)
+        # Use ConfigurationManager to build global config
+        self.global_config = self._config_manager.get_global_config()
 
-        # Construct paths configuration with defaults from dataclass
-        default_paths = PathsConfig()  # Get dataclass defaults
-        paths_config = PathsConfig(
-            output_dir=(
-                loaded_config.get("paths", {}).get(
-                    "output_dir", default_paths.output_dir
-                )
-                if not self.output_dir
-                else self.output_dir
-            ),
-            log_dir=loaded_config.get("paths", {}).get(
-                "log_dir", default_paths.log_dir
-            ),
-            config_dir=loaded_config.get("paths", {}).get(
-                "config_dir", default_paths.config_dir
-            ),
-            plugin_dir=loaded_config.get("paths", {}).get(
-                "plugin_dir", default_paths.plugin_dir
-            ),
-            services_dir=loaded_config.get("paths", {}).get(
-                "services_dir", default_paths.services_dir
-            ),
-            iut_dir=loaded_config.get("paths", {}).get(
-                "iut_dir", default_paths.iut_dir
-            ),
-            testers_dir=loaded_config.get("paths", {}).get(
-                "testers_dir", default_paths.testers_dir
-            ),
-        )
-        OmegaConf.merge(PathsConfig, paths_config)
-
-        # Construct optional paths configuration
-        optional_paths_config = AdditionalPathsConfig(
-            exec_env_dir=self.exec_env_dir or "",
-            net_env_dir=self.net_env_dir or "",
-            iut_dir=self.iut_dir or "",
-            testers_dir=self.testers_dir or "",
-        )
-
-        self.add_plugin_execution_environment()
-
-        self.add_plugin_network_environment()
-
-        self.add_plugin_iut_service()
-
-        self.add_plugin_tester_service()
-
-        # Construct Docker configuration with defaults from dataclass
-        default_docker = DockerConfig()  # Get dataclass defaults
-        docker_config = DockerConfig(
-            build_docker_image=loaded_config.get("docker", {}).get(
-                "build_docker_image", default_docker.build_docker_image
-            ),
-            log_docker_image_build=loaded_config.get("docker", {}).get(
-                "log_docker_image_build", default_docker.log_docker_image_build
-            ),
-            remove_docker_image=loaded_config.get("docker", {}).get(
-                "remove_docker_image", default_docker.remove_docker_image
-            ),
-            remove_docker_container=loaded_config.get("docker", {}).get(
-                "remove_docker_container", default_docker.remove_docker_container
-            ),
-            remove_docker_network=loaded_config.get("docker", {}).get(
-                "remove_docker_network", default_docker.remove_docker_network
-            ),
-            remove_docker_volume=loaded_config.get("docker", {}).get(
-                "remove_docker_volume", default_docker.remove_docker_volume
-            ),
-            remove_dangling_images=loaded_config.get("docker", {}).get(
-                "remove_dangling_images", default_docker.remove_dangling_images
-            ),
-        )
-        OmegaConf.merge(DockerConfig, docker_config)
-
-        # Construct feature configuration with defaults from dataclass
-        default_features = FeatureConfig()  # Get dataclass defaults
-        if "features" not in loaded_config:
-            feature_config = default_features
-        else:
-            feature_config = FeatureConfig(
-                logger_observer=(
-                    loaded_config["features"]["logger_observer"]
-                    if "logger_observer" in loaded_config["features"]
-                    else default_features.logger_observer
-                ),
-                storage_handler=(
-                    loaded_config["features"]["storage_handler"]
-                    if "storage_handler" in loaded_config["features"]
-                    else default_features.storage_handler
-                ),
-                fast_fail=(
-                    loaded_config["features"]["fast_fail"]
-                    if "fast_fail" in loaded_config["features"]
-                    else default_features.fast_fail
-                ),
-            )
-        OmegaConf.merge(FeatureConfig, feature_config)
-
-        # Construct observer configuration with defaults
-        observer_config = self.construct_observer_config(loaded_config)
-
-        global_config = GlobalConfig(
-            logging=logging_config,
-            paths=paths_config,
-            optional_paths=optional_paths_config,
-            docker=docker_config,
-            features=feature_config,
-            observers=observer_config,
-        )
-        OmegaConf.merge(GlobalConfig, global_config)
+        # Apply debug override if set
         if self.debug_override:
-            global_config.logging.level = LoggingLevel.DEBUG
-        self.global_config = global_config
-        return global_config
+            self.global_config.logging.level = LoggingLevel.DEBUG
 
-    def add_plugin_tester_service(self):
+        return self.global_config
+
+    def add_plugin_tester_service(self) -> None:
         """
         Adds a plugin tester service by copying tester files from the specified directory.
 
@@ -452,8 +351,7 @@ class ConfigLoader(LoggerMixin):
     def validate_plugin_config(
         self, plugin_type: str, plugin_name: str, plugin_config: DictConfig
     ):
-        """
-        Validate plugin-specific configuration against its schema.
+        """Delegate to new ConfigurationManager for plugin validation.
 
         :param plugin_type: The plugin type (e.g., "network_environment").
         :param plugin_name: The plugin name (e.g., "shadow_ns").
@@ -461,162 +359,32 @@ class ConfigLoader(LoggerMixin):
         :return: Validated plugin configuration.
         :raises ValidationError: If the configuration does not conform to the schema.
         """
-        self.logger.debug(
-            "Validating plugin configuration for %s/%s with %s",
-            plugin_type,
-            plugin_name,
-            plugin_config,
+        # Convert DictConfig to dict if needed
+        config_dict = (
+            OmegaConf.to_container(plugin_config)
+            if isinstance(plugin_config, DictConfig)
+            else plugin_config
         )
-        plugin_schema_class = self.load_plugin_schema(plugin_type, plugin_name)
-        self.logger.debug("Plugin schema class: %s", plugin_schema_class)
-        structured_schema = OmegaConf.structured(plugin_schema_class)
-        self.logger.debug("Structured schema: %s", structured_schema)
 
-        # Check for unknown parameters
-        if hasattr(plugin_schema_class, "__dataclass_fields__"):
-            valid_params = set(plugin_schema_class.__dataclass_fields__.keys())
-            provided_params = (
-                set(plugin_config.keys())
-                if isinstance(plugin_config, DictConfig)
-                else set()
-            )
-
-            # Always include 'type' as a valid parameter
-            valid_params.add("type")
-
-            unknown_params = provided_params - valid_params
-            if unknown_params:
-                self.logger.warning(
-                    "Unknown parameters for %s/%s: %s. These will be ignored.",
-                    plugin_type,
-                    plugin_name,
-                    unknown_params,
-                )
-
-                # Provide helpful information about valid parameters
-                self.logger.info(
-                    "Valid parameters for %s/%s: %s",
-                    plugin_type,
-                    plugin_name,
-                    sorted(valid_params),
-                )
-                self.logger.info(
-                    "Use --list-plugin-params %s to see parameter details", plugin_name
-                )
-
-        try:
-            return OmegaConf.merge(structured_schema, plugin_config)
-        except ValidationError as e:
-            # Enhanced error message with helpful information
-            error_msg = f"Plugin configuration validation failed for {plugin_type}/{plugin_name}: {e}"
-            error_msg += f"\n\nTo see valid parameters, run: python -m panther --list-plugin-params {plugin_name}"
-            if plugin_type in ["iut", "tester"]:
-                error_msg += f" --plugin-type {plugin_type}"
-            raise ValidationError(error_msg) from e
+        # Use ConfigurationManager to validate plugin config
+        return self._config_manager.validate_plugin_config(
+            plugin_type, plugin_name, config_dict
+        )
 
     def construct_experiment_config(
         self, loaded_config: DictConfig
     ) -> ExperimentConfig:
-        """
-        Manually construct an ExperimentConfig object from a loaded configuration.
+        """Delegate to new ConfigurationManager for experiment config construction.
 
         :param loaded_config: The loaded configuration dictionary (DictConfig or dict).
         :return: An ExperimentConfig object.
         """
-        self.logger.info(
-            "Constructing experiment configuration with global configuration - %s",
-            self.global_config,
-        )
-        # Construct tests
-        tests: list[TestConfig] = []
-        for test_data in loaded_config["tests"]:
-            # Construct network environment configuration
-            network_env = test_data["network_environment"]
-            self.logger.debug("Network environment: %s", network_env)
-            validated_network_env = self.validate_plugin_config(
-                "network_environment", network_env["type"], network_env
-            )
-            self.logger.debug(
-                "Network environment after validation: %s", validated_network_env
-            )
-
-            exec_envs = test_data.get("execution_environment", [])
-            self.logger.debug("Execution environment: %s", exec_envs)
-            for exec_env in exec_envs:
-                validated_network_env = self.validate_plugin_config(
-                    "execution_environment", exec_env["type"], exec_env
-                )
-            self.logger.debug(
-                "Network environment after validation: %s", validated_network_env
-            )
-
-            # Construct services for this test
-            services: dict[str, ServiceConfig] = {}
-            for service_name, service_data in test_data["services"].items():
-                protocol = self.load_and_validate_protocol_config(
-                    service_data
-                )  # Resolve protocol subclass
-                self.logger.debug("Protocol: %s", protocol)
-                implementation = self.load_and_validate_implementation_config(
-                    service_data
-                )
-                self.logger.debug("Implementation: %s", implementation)
-                service = ServiceConfig(
-                    name=service_data["name"],
-                    timeout=service_data.get("timeout", 100),
-                    implementation=implementation,
-                    protocol=protocol,
-                    ports=service_data.get("ports", []),
-                    generate_new_certificates=service_data.get(
-                        "generate_new_certificates", False
-                    ),
-                )
-                OmegaConf.merge(ServiceConfig, service)
-                services[service_name] = service
-
-            # ##########################################################################################################
-            # Construct the test configuration:
-            # NOTE: We do not validate with merge here, as the schema is not fully compatible with OmegaConf
-            # It is because NetworkEnvironmentConfig is a dataclass, and OmegaConf does not support nested dataclasses
-            # For example, let
-            # class NetworkEnvironmentConfig:
-            #     type: str
-            # And:
-            # class DockerComposeConfig(NetworkEnvironmentConfig):
-            #     type: str    = "docker_compose"
-            #     version: str = "3.8"#omegaconf.errors.ConfigKeyError: Key 'version' not in 'NetworkEnvironmentConfig'
-            #     network_name: str = "default_network"
-            #     service_prefix: Optional[str] = None  # Optional prefix for service names
-            #     volumes: List[str] = field(default_factory=list)  # List of volume mounts
-            #     environment: Dict[str, str] = field(default_factory=dict)  # Environment variables
-            # Thus we prelinarily validate the network environment configuration,
-            # It will thus ignore non defined fields in the schema -> not ideal for validation
-            # We will need to find a way to validate nested dataclasses with OmegaConf
-            # TODO if tests name is undefined, use the service name + other parameters
-            # TODO if we use the validated version -> bugs (but it should be enough to validate format)
-            # ##########################################################################################################
-
-            test = TestConfig(
-                name=test_data["name"],
-                description=test_data["description"],
-                network_environment=network_env,
-                execution_environments=test_data.get("execution_environment", []),
-                iterations=test_data["iterations"],
-                services=services,
-                steps=test_data.get("steps"),
-                assertions=test_data.get("assertions"),
-            )
-            tests.append(test)
-
-        # Construct the ExperimentConfig
-        experiment_config = ExperimentConfig(
-            tests=tests,
-        )
-        return experiment_config
+        # Use ConfigurationManager to get experiment config
+        return self._config_manager.get_experiment_config()
 
     def validate_plugins_availability(
         self, experiment_config: ExperimentConfig
-    ) -> tuple[bool, list[str]]:
+    ) -> Tuple[bool, List[str]]:
         """
         Validate that all plugins required by the experiment configuration are available.
 
@@ -704,8 +472,7 @@ class ConfigLoader(LoggerMixin):
         return len(errors) == 0, errors
 
     def load_and_validate_experiment_config(self) -> ExperimentConfig:
-        """
-        Load and validate the entire experiment configuration, including plugin-specific validation.
+        """Delegate to new ConfigurationManager for experiment config loading.
 
         :return: A validated experiment configuration.
         """
@@ -715,70 +482,13 @@ class ConfigLoader(LoggerMixin):
             else nullcontext()
         ):
             try:
-                experiment_config_path = self.experiment_file
-                if not os.path.exists(experiment_config_path):
-                    raise FileNotFoundError(
-                        f"Experiment configuration file '{experiment_config_path}' not found."
-                    )
+                # Use ConfigurationManager to load and validate
+                experiment_config = self._config_manager.load_experiment_config(self.experiment_file)
 
-                # Load the YAML configuration
-                if self.metrics_collector:
-                    with self.metrics_collector.time_operation(
-                        "experiment_yaml_parsing"
-                    ):
-                        loaded_config = OmegaConf.load(experiment_config_path)
-                else:
-                    loaded_config = OmegaConf.load(experiment_config_path)
-
-                self.logger.debug("Loaded experiment config: %s", loaded_config)
-                self.logger.debug(
-                    OmegaConf.to_yaml(OmegaConf.structured(ExperimentConfig))
+                # Validate plugin availability using existing method
+                is_valid, plugin_errors = self.validate_plugins_availability(
+                    experiment_config
                 )
-
-                # Construct experiment config with timing
-                if self.metrics_collector:
-                    with self.metrics_collector.time_operation(
-                        "experiment_config_construction"
-                    ):
-                        experiment_config = self.construct_experiment_config(
-                            loaded_config
-                        )
-                else:
-                    experiment_config = self.construct_experiment_config(loaded_config)
-
-                self.logger.debug("Experiment config type: %s", type(experiment_config))
-
-                # Only try to serialize if we have a valid dataclass
-                if experiment_config and hasattr(
-                    experiment_config, "__dataclass_fields__"
-                ):
-                    try:
-                        self.logger.debug(
-                            "Constructed experiment config: %s",
-                            OmegaConf.to_yaml(asdict(experiment_config)),
-                        )
-                    except Exception as e:  # pylint: disable=broad-exception-caught
-                        self.logger.warning(
-                            "Could not serialize experiment config for debug: %s", e
-                        )
-                else:
-                    self.logger.warning(
-                        "Experiment config is not a valid dataclass: %s",
-                        experiment_config,
-                    )
-
-                # Validate plugin availability
-                if self.metrics_collector:
-                    with self.metrics_collector.time_operation(
-                        "plugin_availability_validation"
-                    ):
-                        is_valid, plugin_errors = self.validate_plugins_availability(
-                            experiment_config
-                        )
-                else:
-                    is_valid, plugin_errors = self.validate_plugins_availability(
-                        experiment_config
-                    )
 
                 if not is_valid:
                     error_msg = "Plugin validation failed:\n" + "\n".join(
@@ -814,45 +524,18 @@ class ConfigLoader(LoggerMixin):
 
                 return experiment_config
 
-            except ValidationError as e:
-                if self.metrics_collector:
-                    self.metrics_collector.record_error(
-                        phase="experiment_config_validation",
-                        error_type="ValidationError",
-                        error_message=str(e),
-                        component="config_manager",
-                        metadata={"config_file": str(experiment_config_path)},
-                    )
-                self.logger.error("Configuration validation failed: %s", e)
-                raise
-            except yaml.parser.ParserError as e:
-                if self.metrics_collector:
-                    self.metrics_collector.record_error(
-                        phase="experiment_config_loading",
-                        error_type="YAMLParserError",
-                        error_message=str(e),
-                        component="config_manager",
-                        metadata={"config_file": str(experiment_config_path)},
-                    )
-                self.logger.error("YAML parsing error: %s", e)
-                raise
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:
                 if self.metrics_collector:
                     self.metrics_collector.record_error(
                         phase="experiment_config_loading",
                         error_type=type(e).__name__,
                         error_message=str(e),
-                        metadata={"config_file": experiment_config_path},
+                        metadata={"config_file": self.experiment_file},
                     )
-                self.logger.error(
-                    "Unexpected error during configuration loading: %s", e
-                )
                 raise
 
     def load_and_validate_global_config(self) -> GlobalConfig:
-        """
-        Load and validate the global configuration from the experiment configuration file.
-        Note no logger is used here.
+        """Delegate to new ConfigurationManager for global config loading.
 
         :return: A validated global configuration.
         """
@@ -863,39 +546,18 @@ class ConfigLoader(LoggerMixin):
             )
 
         try:
-            # Check if experiment config file exists (contains global config)
-            experiment_config_path = self.experiment_file
-            if not os.path.exists(experiment_config_path):
-                raise FileNotFoundError(
-                    f"Global configuration file '{experiment_config_path}' not found."
-                )
+            # Use ConfigurationManager to load and get global config
+            global_config = self._config_manager.load_global_config()
+            self.global_config = global_config
 
-            # Load the YAML configuration
-            if self.metrics_collector:
-                logging.debug(
-                    "Loading global configuration with metrics from %s",
-                    experiment_config_path,
-                )
-                with self.metrics_collector.time_operation("yaml_parsing"):
-                    loaded_config = OmegaConf.load(experiment_config_path)
-            else:
-                loaded_config = OmegaConf.load(experiment_config_path)
+            # Apply debug override if set
+            if self.debug_override:
+                global_config.logging.level = LoggingLevel.DEBUG
 
-            print(f"Loaded experiment config: {loaded_config}")
-            print(OmegaConf.to_yaml(OmegaConf.structured(ExperimentConfig)))
-
-            # Construct global config with timing
-            if self.metrics_collector:
-                with self.metrics_collector.time_operation(
-                    "global_config_construction"
-                ):
-                    global_config = self.construct_global_config(loaded_config)
-            else:
-                global_config = self.construct_global_config(loaded_config)
-
-            # Convert dataclass to dict for YAML serialization
-            global_config_dict = asdict(global_config)
-            print(f"Constructed global config: {OmegaConf.to_yaml(global_config_dict)}")
+            # Display summary
+            global_config_dict = global_config.dict()
+            summary = ConfigSummarizer.summarize(global_config_dict)
+            print(f"Constructed global config: {summary}")
             print("Experiment configuration successfully validated.")
 
             if self.metrics_collector:
@@ -904,44 +566,18 @@ class ConfigLoader(LoggerMixin):
 
             return global_config
 
-        except ValidationError as e:
-            if self.metrics_collector:
-                self.metrics_collector.increment_counter("config_validation_errors")
-                self.metrics_collector.record_error(
-                    phase="config_validation",
-                    error_type="ValidationError",
-                    error_message=str(e),
-                    metadata={"config_file": experiment_config_path},
-                )
-                if "config_timer" in locals():
-                    config_timer.stop()
-            print(f"Configuration validation failed: {e}")
-            raise
-        except yaml.parser.ParserError as e:
-            if self.metrics_collector:
-                self.metrics_collector.increment_counter("config_parsing_errors")
-                self.metrics_collector.record_error(
-                    phase="config_loading",
-                    error_type="YAMLParserError",
-                    error_message=str(e),
-                    metadata={"config_file": experiment_config_path},
-                )
-                if "config_timer" in locals():
-                    config_timer.stop()
-            print(f"YAML parsing error: {e}")
-            raise
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             if self.metrics_collector:
                 self.metrics_collector.increment_counter("config_load_errors")
                 self.metrics_collector.record_error(
                     phase="config_loading",
                     error_type=type(e).__name__,
                     error_message=str(e),
-                    metadata={"config_file": experiment_config_path},
+                    metadata={"config_file": self.experiment_file},
                 )
                 if "config_timer" in locals():
                     config_timer.stop()
-            print(f"Unexpected error during configuration loading: {e}")
+            print(f"Error during configuration loading: {e}")
             raise
 
     @staticmethod
@@ -974,7 +610,7 @@ class ConfigLoader(LoggerMixin):
 
     def load_and_validate_protocol_config(
         self, implementation: ServiceConfig
-    ) -> ListConfig | DictConfig:
+    ) -> Union[ListConfig, DictConfig]:
         """
         Dynamically loads the appropriate implementation configuration class.
 
@@ -1010,7 +646,7 @@ class ConfigLoader(LoggerMixin):
 
     def load_and_validate_implementation_config(
         self, implementation: dict
-    ) -> ListConfig | DictConfig:
+    ) -> Union[ListConfig, DictConfig]:
         """
         Dynamically loads the appropriate implementation configuration class.
         """
@@ -1213,7 +849,8 @@ class ConfigLoader(LoggerMixin):
 
     def get_all_iut_classes(self):
         """
-        Get all IUT classes from the plugin directory and return a dictionary with protocols as keys and list of implementations as values.
+        Get all IUT classes from the plugin directory and return a dictionary with protocols as keys
+        and list of implementations as values.
 
         :return: A dictionary with protocols as keys and list of IUT classes as values.
         """
@@ -1288,7 +925,7 @@ class ConfigLoader(LoggerMixin):
         self.logger.debug("Total tester classes found: %s", len(tester_classes))
         return tester_classes
 
-    def load_all_plugins(self) -> dict[str, list[str]]:
+    def load_all_plugins(self) -> Dict[str, List[str]]:
         """
         Load all plugins and return them in an ordered dictionary.
         Uses plugin_loader_utils for robust plugin discovery and loading.
@@ -1438,259 +1075,130 @@ class ConfigLoader(LoggerMixin):
 
         return all_plugins
 
-    def list_plugin_parameters(
-        self, plugin_type: str, plugin_name: str, protocol: str = None
-    ):
+    def _auto_detect_plugin_type(
+        self, plugin_name: str, protocol: str = None
+    ) -> Optional[str]:
         """
-        List all configurable parameters for a specified plugin.
-        Uses plugin_loader_utils for robust plugin loading.
+        Auto-detect the plugin type by searching through the plugin directories.
+
+        :param plugin_name: The plugin name to search for
+        :param protocol: Optional protocol name for IUT/tester plugins
+        :return: The detected plugin type or None if not found
+        """
+        # Get plugin directory path, using default if global_config is not loaded
+        base_plugin_dir = (
+            "plugins"
+            if self.global_config is None
+            else self.global_config.paths.plugin_dir
+        )
+
+        plugin_types_to_check = [
+            ("network_environment", ["environments", "network_environment"]),
+            ("execution_environment", ["environments", "execution_environment"]),
+            ("iut", ["services", "iut"]),
+            ("tester", ["services", "testers"]),
+        ]
+
+        for plugin_type, path_components in plugin_types_to_check:
+            base_dir = self._panther_dir / Path(base_plugin_dir)
+            for component in path_components:
+                base_dir = base_dir / component
+
+            if plugin_type in ["iut", "tester"]:
+                # For IUT/tester plugins, search through protocol directories
+                if base_dir.exists():
+                    if protocol:
+                        # Check specific protocol directory
+                        potential_dir = base_dir / protocol / plugin_name
+                        if potential_dir.exists():
+                            return plugin_type
+
+                    # Search through all protocol directories
+                    for protocol_dir in base_dir.iterdir():
+                        if protocol_dir.is_dir() and not protocol_dir.name.startswith(
+                            "__"
+                        ):
+                            potential_dir = protocol_dir / plugin_name
+                            if potential_dir.exists():
+                                return plugin_type
+
+                    # Check direct path (for plugins not nested under protocol)
+                    potential_dir = base_dir / plugin_name
+                    if potential_dir.exists():
+                        return plugin_type
+            else:
+                # For environment plugins
+                potential_dir = base_dir / plugin_name
+                if potential_dir.exists():
+                    return plugin_type
+
+        return None
+
+    def list_plugin_parameters(
+        self, plugin_name: str, plugin_type: str = None, protocol: str = None
+    ):
+        """Delegate to new ConfigurationManager for listing plugin parameters.
 
         :param plugin_type: The plugin type (e.g., "network_environment", "execution_environment", "iut", "tester").
         :param plugin_name: The plugin name (e.g., "shadow_ns", "picoquic").
         :param protocol: Optional protocol name for IUT/tester plugins (e.g., "quic", "http").
         :return: Dictionary of parameters with their types, defaults, and descriptions.
         """
-        try:
-            # Determine plugin directory path
-            if plugin_type in ["iut", "tester"]:
-                base_dir = (
-                    self._panther_dir
-                    / Path(self.global_config.paths.plugin_dir)
-                    / "services"
-                    / plugin_type
-                )
-
-                # For IUT/tester plugins, try to find the correct path
-                plugin_dir = None
-                if protocol:
-                    # Try with specified protocol first
-                    potential_dir = base_dir / protocol / plugin_name
-                    if potential_dir.exists():
-                        plugin_dir = potential_dir
-
-                if not plugin_dir:
-                    # Search through all protocol directories
-                    if base_dir.exists():
-                        for protocol_dir in base_dir.iterdir():
-                            if (
-                                protocol_dir.is_dir()
-                                and not protocol_dir.name.startswith("__")
-                            ):
-                                potential_dir = protocol_dir / plugin_name
-                                if potential_dir.exists():
-                                    plugin_dir = potential_dir
-                                    break
-
-                    # Try direct path (for plugins not nested under protocol)
-                    if not plugin_dir:
-                        potential_dir = base_dir / plugin_name
-                        if potential_dir.exists():
-                            plugin_dir = potential_dir
-
-            else:
-                # For environment plugins
-                plugin_dir = (
-                    self._panther_dir
-                    / Path(self.global_config.paths.plugin_dir)
-                    / "environments"
-                    / plugin_type
-                    / plugin_name
-                )
-
-            if not plugin_dir or not plugin_dir.exists():
-                error_msg = f"Plugin directory not found for {plugin_name}"
-                if protocol:
-                    error_msg += f" (protocol: {protocol})"
-                raise FileNotFoundError(error_msg)
-
-            # Load the config schema module
-            schema_file = plugin_dir / "config_schema.py"
-            if not schema_file.exists():
-                raise FileNotFoundError(f"Config schema file not found: {schema_file}")
-
-            try:
-                # Use plugin_loader_utils to load the module
-                schema_module = load_module_from_file(
-                    schema_file, f"{plugin_name}_config_schema"
-                )
-
-                # Get the config class using the naming convention
-                class_name = self._get_class_name(plugin_name, "Config")
-                config_class = get_class_from_module(schema_module, class_name)
-
-                self.logger.debug("Found plugin config class: %s", class_name)
-
-            except Exception as e:
-                self.logger.error(
-                    "Failed to load plugin schema for %s: %s", plugin_name, e
-                )
-                raise
-
-            # Extract parameters using dataclasses introspection
-            parameters = {}
-
-            import dataclasses  # pylint: disable=import-outside-toplevel
-            import inspect  # pylint: disable=import-outside-toplevel
-            from typing import get_type_hints  # pylint: disable=import-outside-toplevel
-
-            if dataclasses.is_dataclass(config_class):
-                fields = dataclasses.fields(config_class)
-                type_hints = get_type_hints(config_class)
-
-                for field in fields:
-                    param_info = {
-                        "type": str(type_hints.get(field.name, "unknown")),
-                        "default": (
-                            field.default
-                            if field.default is not dataclasses.MISSING
-                            else None
-                        ),
-                        "required": field.default is dataclasses.MISSING,
-                        "description": inspect.getdoc(field)
-                        or "No description available",
-                    }
-                    parameters[field.name] = param_info
-            else:
-                self.logger.warning("Config class %s is not a dataclass", class_name)
-
-            return parameters
-
-        except (FileNotFoundError, ImportError) as e:
-            print(
-                f"Plugin schema for '{plugin_name}' not found. Check if the plugin name is correct."
-            )
-            print(f"Error details: {e}")
-
-            # Provide helpful guidance for IUT/tester plugins
-            if plugin_type in ["iut", "tester"]:
+        # Auto-detect plugin type if not provided
+        if plugin_type is None:
+            plugin_type = self._auto_detect_plugin_type(plugin_name, protocol)
+            if plugin_type is None:
                 print(
-                    "\nFor IUT/tester plugins, try specifying the protocol if applicable."
+                    f"Could not auto-detect plugin type for '{plugin_name}'. Please specify --plugin-type."
                 )
-                print("Example: quiche is under the 'quic' protocol, so use:")
-                print(
-                    f"panther --list-plugin-params {plugin_name} --plugin-type {plugin_type} --protocol quic"
-                )
+                return {}
 
-            return {}
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error(
-                "Unexpected error while listing parameters for plugin '%s': %s",
-                plugin_name,
-                e,
-            )
-            return {}
+        # Use ConfigurationManager to list plugin parameters
+        return self._config_manager.list_plugin_parameters(
+            plugin_name, plugin_type, protocol
+        )
 
-    def construct_observer_config(self, loaded_config: DictConfig) -> ObserverConfig:
-        """
-        Construct the ObserverConfig from the loaded configuration.
+    def construct_observer_config(self, loaded_config: DictConfig) -> BaseObserverConfig:  # noqa: ARG002
+        """Delegate to new ConfigurationManager for observer config construction.
 
         Args:
             loaded_config (DictConfig): The loaded configuration dictionary.
 
         Returns:
-            ObserverConfig: The constructed observer configuration.
+            BaseObserverConfig: The constructed observer configuration.
         """
-        self.logger.debug("Constructing observer configuration")
-        observer_config = ObserverConfig()
+        # The new ConfigurationManager handles observer config as part of global config
+        # This method is kept for backward compatibility but delegates to global config
+        if not self.global_config:
+            # Load global config if not already loaded
+            self.global_config = self._config_manager.get_global_config()
 
-        if "observers" in loaded_config:
-            observers_dict = loaded_config.get("observers", {})
+        return self.global_config.observers if self.global_config else BaseObserverConfig()
 
-            # Configure logger observer if present
-            if "logger" in observers_dict:
-                logger_config = LoggerObserverConfig(
-                    enabled=observers_dict["logger"].get("enabled", True),
-                    auto_register=observers_dict["logger"].get("auto_register", True),
-                    priority=observers_dict["logger"].get("priority", 0),
-                    log_level=observers_dict["logger"].get("log_level", "INFO"),
-                    include_data=observers_dict["logger"].get("include_data", True),
-                    include_event_id=observers_dict["logger"].get(
-                        "include_event_id", True
-                    ),
-                    include_timestamp=observers_dict["logger"].get(
-                        "include_timestamp", True
-                    ),
-                    enable_colors=observers_dict["logger"].get("enable_colors", True),
-                    output_file=observers_dict["logger"].get("output_file"),
-                    correlation_tracking=observers_dict["logger"].get(
-                        "correlation_tracking", True
-                    ),
-                    structured_output=observers_dict["logger"].get(
-                        "structured_output", False
-                    ),
-                    max_data_length=observers_dict["logger"].get(
-                        "max_data_length", 500
-                    ),
+    def _validate_test_fast_fail_config(self, test_config: TestConfig, test_data: dict):
+        """Validate test-level fast-fail configuration."""
+        if "fast_fail_enabled" in test_data:
+            fast_fail_value = test_data["fast_fail_enabled"]
+
+            # Validate the value is boolean
+            if not isinstance(fast_fail_value, bool):
+                raise ValueError(
+                    f"Test '{test_config.name}': fast_fail_enabled must be a boolean, "
+                    f"got {type(fast_fail_value).__name__}: {fast_fail_value}"
                 )
-                observer_config.logger = logger_config
 
-            # Configure metrics observer if present
-            if "metrics" in observers_dict:
-                metrics_config = MetricsObserverConfig(
-                    enabled=observers_dict["metrics"].get("enabled", True),
-                    auto_register=observers_dict["metrics"].get("auto_register", True),
-                    priority=observers_dict["metrics"].get("priority", 10),
-                    log_level=observers_dict["metrics"].get("log_level", "INFO"),
-                    publish_metrics=observers_dict["metrics"].get(
-                        "publish_metrics", True
-                    ),
-                    collect_system_metrics=observers_dict["metrics"].get(
-                        "collect_system_metrics", True
-                    ),
-                    publish_interval=observers_dict["metrics"].get(
-                        "publish_interval", 30
-                    ),
-                    enable_real_time_monitoring=observers_dict["metrics"].get(
-                        "enable_real_time_monitoring", False
-                    ),
-                    resource_collection_interval=observers_dict["metrics"].get(
-                        "resource_collection_interval", 10
-                    ),
-                    metric_collection_interval=observers_dict["metrics"].get(
-                        "metric_collection_interval", 10
-                    ),
-                )
-                observer_config.metrics = metrics_config
+            # Check if global config has test_level enabled
+            if hasattr(self, "global_config") and self.global_config:
+                if not self.global_config.fast_fail.test_level:
+                    self.logger.warning(
+                        "Test '%s' specifies fast_fail_enabled=%s but global "
+                        "fast_fail.test_level is disabled. Test-level setting will be ignored.",
+                        test_config.name,
+                        fast_fail_value,
+                    )
 
-            # Configure storage observer if present
-            if "storage" in observers_dict:
-                storage_config = StorageObserverConfig(
-                    enabled=observers_dict["storage"].get("enabled", True),
-                    auto_register=observers_dict["storage"].get("auto_register", True),
-                    priority=observers_dict["storage"].get("priority", 20),
-                    log_level=observers_dict["storage"].get("log_level", "INFO"),
-                    storage_path=observers_dict["storage"].get("storage_path"),
-                    enable_compression=observers_dict["storage"].get(
-                        "enable_compression", True
-                    ),
-                    max_storage_size=observers_dict["storage"].get(
-                        "max_storage_size", 0
-                    ),
-                    auto_backup=observers_dict["storage"].get("auto_backup", True),
-                    backup_interval=observers_dict["storage"].get(
-                        "backup_interval", 3600
-                    ),
-                    retention_days=observers_dict["storage"].get("retention_days", 30),
-                    batch_size=observers_dict["storage"].get("batch_size", 100),
-                    async_storage=observers_dict["storage"].get("async_storage", False),
-                )
-                observer_config.storage = storage_config
-
-            # Configure experiment observer if present
-            if "experiment" in observers_dict:
-                experiment_config = ExperimentObserverConfig(
-                    enabled=observers_dict["experiment"].get("enabled", True),
-                    auto_register=observers_dict["experiment"].get(
-                        "auto_register", True
-                    ),
-                    priority=observers_dict["experiment"].get("priority", 5),
-                    log_level=observers_dict["experiment"].get("log_level", "INFO"),
-                    output_dir=observers_dict["experiment"].get("output_dir"),
-                    test_name=observers_dict["experiment"].get("test_name"),
-                    track_timing=observers_dict["experiment"].get("track_timing", True),
-                    track_steps=observers_dict["experiment"].get("track_steps", True),
-                )
-                observer_config.experiment = experiment_config
-
-        self.logger.debug("Observer configuration constructed successfully")
-        return observer_config
+            self.logger.debug(
+                "Test '%s' fast-fail configuration validated: enabled=%s",
+                test_config.name,
+                fast_fail_value,
+            )

@@ -16,7 +16,7 @@ import pytest
 # Test imports with fallback to mocks
 try:
     from panther.core.docker_builder.docker_builder import DockerBuilder
-    from panther.core.utils.docker_operations_mixin import DockerOperationsMixin
+    from panther.core.docker_builder.docker_operations_mixin import DockerOperationsMixin
 
     REAL_DOCKER_SYSTEM_AVAILABLE = True
 except ImportError:
@@ -163,9 +163,7 @@ except ImportError:
                 "status": "running",
             }
 
-
 pytestmark = [pytest.mark.unit, pytest.mark.docker_system]
-
 
 class TestDockerBuilder:
     """Test DockerBuilder core functionality."""
@@ -467,7 +465,6 @@ CMD ["python", "-m", "panther"]
 
         assert logs == ""
 
-
 class TestDockerOperationsMixin:
     """Test DockerOperationsMixin functionality."""
 
@@ -538,13 +535,13 @@ class TestDockerOperationsMixin:
         assert operation_types.count("build") == 2
         assert operation_types.count("cleanup") == 2
 
-
 class TestDockerSystemIntegration:
     """Test integration between Docker system components."""
 
-    def test_builder_with_operations_mixin(self, temp_workspace):
+    def test_builder_with_operations_mixin(self, tmp_path):
         """Test DockerBuilder with DockerOperationsMixin integration."""
-
+        temp_workspace = tmp_path
+        
         # Create a combined class that uses both
         class DockerManagerWithOps(DockerBuilder, DockerOperationsMixin):
             def __init__(self, base_path=None):
@@ -565,8 +562,9 @@ class TestDockerSystemIntegration:
         assert ops_result is True
         assert len(manager.docker_operations) == 1
 
-    def test_multiple_docker_builders(self, temp_workspace):
+    def test_multiple_docker_builders(self, tmp_path):
         """Test multiple DockerBuilder instances."""
+        temp_workspace = tmp_path
         builder1 = DockerBuilder(base_path=temp_workspace)
         builder2 = DockerBuilder(base_path=temp_workspace)
 
@@ -609,12 +607,12 @@ class TestDockerSystemIntegration:
         assert "app2" in network_info["containers"]
         assert "database" in network_info["containers"]
 
-
 class TestDockerSystemErrorHandling:
     """Test error handling in Docker system."""
 
-    def test_build_image_invalid_dockerfile(self, temp_workspace):
+    def test_build_image_invalid_dockerfile(self, tmp_path):
         """Test building image with invalid Dockerfile path."""
+        temp_workspace = tmp_path
         builder = DockerBuilder(base_path=temp_workspace)
         invalid_path = temp_workspace / "nonexistent_dockerfile"
 
@@ -653,12 +651,12 @@ class TestDockerSystemErrorHandling:
         # Test that availability check works
         assert builder.is_docker_available() is False
 
-
 class TestDockerSystemPerformance:
     """Test performance characteristics of Docker system."""
 
-    def test_multiple_image_builds_performance(self, temp_workspace):
+    def test_multiple_image_builds_performance(self, tmp_path):
         """Test performance of multiple image builds."""
+        temp_workspace = tmp_path
         builder = DockerBuilder(base_path=temp_workspace)
         dockerfile_path = temp_workspace / "Dockerfile"
 
@@ -726,7 +724,6 @@ class TestDockerSystemPerformance:
         assert duration < 1.0  # Less than 1 second
         assert len(builder.networks) == 5
         assert len(builder.containers) == 15
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -8,6 +8,7 @@ and metrics integration features.
 import unittest
 import tempfile
 import shutil
+from pathlib import Path
 
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.observer.factory.observer_factory import ObserverFactory
@@ -50,18 +51,20 @@ class TestObserverConfig(unittest.TestCase):
         """Test creating an observer with invalid type."""
         config = {"unknown": {"enabled": True}}
 
-        observer = self.factory.create_observer(
-            "unknown_type", self.event_manager, config["unknown"]
-        )
-        self.assertIsNone(observer)
+        # Should raise ValueError for invalid observer type
+        with self.assertRaises(ValueError) as context:
+            self.factory.create_observer(
+                "unknown_type", self.event_manager, config["unknown"]
+            )
+        self.assertIn("Unknown observer type", str(context.exception))
 
 
 class MockMetricsCollector(MetricsCollector):
     """Mock metrics collector for testing."""
 
     def __init__(self):
-        super().__init__()
         self.recorded_metrics = []
+        super().__init__("test_experiment", Path("/tmp/test_metrics"))
 
     def record_metric(self, name, metric_type, value, **kwargs):
         """Record a metric."""
@@ -77,8 +80,8 @@ class TestMetricsIntegration(unittest.TestCase):
         self.event_manager = EventManager()
         self.metrics_observer = MetricsObserver(
             metrics_collector=self.metrics_collector,
-            publish_metrics_as_events=True,
-            record_events_as_metrics=True,
+            publish_metrics=True,
+            collect_system_metrics=True,
         )
         self.event_manager.register_observer(self.metrics_observer)
 
@@ -91,7 +94,7 @@ class TestMetricsIntegration(unittest.TestCase):
         resource_event = ResourceMetricEvent(
             resource_type="memory", usage_value=512.0, component="test_component"
         )
-        self.event_manager.publish(resource_event)
+        self.event_manager.notify(resource_event)
 
         # Check that the metric was recorded
         self.assertGreaterEqual(len(self.metrics_collector.recorded_metrics), 1)
@@ -114,7 +117,7 @@ class TestMetricsIntegration(unittest.TestCase):
         timing_event = TimingMetricEvent(
             operation_name="function_call", duration=1.25, component="test_module"
         )
-        self.event_manager.publish(timing_event)
+        self.event_manager.notify(timing_event)
 
         # Check that the metric was recorded
         timing_metric = None
@@ -134,7 +137,7 @@ class TestMetricsIntegration(unittest.TestCase):
         counter_event = CounterMetricEvent(
             counter_name="api_calls", value=5, increment=True, component="api_client"
         )
-        self.event_manager.publish(counter_event)
+        self.event_manager.notify(counter_event)
 
         # Since we're using a mock, we don't have the actual counter value,
         # but we can check that a metric was recorded with the right name

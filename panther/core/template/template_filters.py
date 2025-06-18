@@ -1,3 +1,5 @@
+from typing import Any, List
+
 """
 Enhanced Jinja2 filters for secure command generation.
 
@@ -5,14 +7,15 @@ This module provides robust quoting and escaping filters for Jinja2 templates
 to ensure all dynamic values are properly escaped in shell commands and YAML files.
 """
 
-import shlex
-import yaml
 import json
-from typing import Any
+import shlex
+
+import yaml
 
 
 def quote_shell(value: Any) -> str:
     """
+
     Safely quote a value for use in shell commands.
 
     Args:

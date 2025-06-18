@@ -1,3 +1,4 @@
+from typing import List
 """
 Integration script for the new event-driven plugin architecture.
 """
@@ -16,7 +17,6 @@ sys.path.append(str(parent_dir))
 
 from panther.core.debug_tools import DebugTools
 
-
 def setup_logging():
     """
     Set up basic logging.
@@ -26,7 +26,6 @@ def setup_logging():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],
     )
-
 
 class EventFlowVisualizer:
     """
@@ -180,7 +179,6 @@ class EventFlowVisualizer:
             self.logger.error(f"Failed to generate Mermaid diagram: {e}")
             return False
 
-
 def run_minimal_test(config_path: str, output_dir: str, verbose: bool = False) -> bool:
     """
     Run a minimal test using the new architecture.
@@ -236,7 +234,6 @@ def run_minimal_test(config_path: str, output_dir: str, verbose: bool = False) -
         logger.error(traceback.format_exc())
         return False
 
-
 def analyze_debug_logs(log_dir: str) -> bool:
     """
     Analyze debug logs for issues.
@@ -270,7 +267,6 @@ def analyze_debug_logs(log_dir: str) -> bool:
             logger.info(f"Generated event flow diagram at {diagram_path}")
 
     return True
-
 
 def main():
     """
@@ -310,7 +306,6 @@ def main():
     else:
         logger.error("Integration test failed!")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

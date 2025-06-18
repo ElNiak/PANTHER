@@ -5,11 +5,12 @@ This module provides utilities for processing command structures in a standardiz
 across different environments and service managers.
 """
 
-from .interfaces import ICommandProcessor, IEnvironmentCommandAdapter
-from .command_processor import CommandProcessor
-from .command_event_mixin import CommandEventMixin
 from .command_builder import CommandBuilder, ServiceCommandBuilder
-from .command_utils import CommandUtils, CommandGenerationError
+from .command_event_mixin import CommandEventMixin
+from .command_processor import CommandProcessor
+from .command_utils import CommandGenerationError, CommandUtils
+from .interfaces import ICommandProcessor, IEnvironmentCommandAdapter
+from .command import ShellCommand, CommandMetadata
 
 __all__ = [
     "ICommandProcessor",
@@ -20,4 +21,6 @@ __all__ = [
     "ServiceCommandBuilder",
     "CommandUtils",
     "CommandGenerationError",
+    "ShellCommand",
+    "CommandMetadata",
 ]

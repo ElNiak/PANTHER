@@ -3,23 +3,23 @@ Step Event Emitter
 
 This module provides a type-safe event emitter for step-related events.
 """
-
-from typing import Any, TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
+
 from panther.core.events.step.events import (
-    StepExecutionStartedEvent,
     StepExecutionCompletedEvent,
     StepExecutionFailedEvent,
+    StepExecutionStartedEvent,
     StepProgressEvent,
-    StepUnsupportedEvent,
     StepSkippedEvent,
+    StepUnsupportedEvent,
 )
 
 
 class StepEventEmitter:
     """
+
     Type-safe event emitter for step-related events.
 
     This class provides methods for emitting all step lifecycle events
@@ -39,9 +39,9 @@ class StepEventEmitter:
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
-        step_config: dict[str, Any] | None = None,
-        prerequisites: list | None = None,
+        test_case_id: Optional[str] = None,
+        step_config: Optional[Dict[str, Any]] = None,
+        prerequisites: Optional[list] = None,
     ) -> None:
         """
         Emit a step execution started event.
@@ -66,10 +66,10 @@ class StepEventEmitter:
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
-        duration: float | None = None,
-        result: dict[str, Any] | None = None,
-        output: str | None = None,
+        test_case_id: Optional[str] = None,
+        duration: Optional[float] = None,
+        result: Optional[Dict[str, Any]] = None,
+        output: Optional[str] = None,
     ) -> None:
         """
         Emit a step execution completed event.
@@ -96,10 +96,10 @@ class StepEventEmitter:
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
+        test_case_id: Optional[str] = None,
         error_message: str = "",
-        error_details: dict[str, Any] | None = None,
-        duration: float | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
+        duration: Optional[float] = None,
         retry_count: int = 0,
     ) -> None:
         """
@@ -129,10 +129,10 @@ class StepEventEmitter:
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
-        progress_percentage: float | None = None,
+        test_case_id: Optional[str] = None,
+        progress_percentage: Optional[float] = None,
         progress_message: str = "",
-        current_operation: str | None = None,
+        current_operation: Optional[str] = None,
     ) -> None:
         """
         Emit a step progress event.
@@ -159,9 +159,9 @@ class StepEventEmitter:
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
+        test_case_id: Optional[str] = None,
         reason: str = "",
-        alternative_steps: list | None = None,
+        alternative_steps: Optional[list] = None,
     ) -> None:
         """
         Emit a step unsupported event.
@@ -186,9 +186,9 @@ class StepEventEmitter:
         self,
         step_id: str,
         step_name: str,
-        test_case_id: str | None = None,
+        test_case_id: Optional[str] = None,
         skip_reason: str = "",
-        skip_condition: str | None = None,
+        skip_condition: Optional[str] = None,
     ) -> None:
         """
         Emit a step skipped event.

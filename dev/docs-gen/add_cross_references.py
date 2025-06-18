@@ -1,3 +1,4 @@
+from typing import Dict, List
 #!/usr/bin/env python3
 """
 Documentation Cross-Reference Generator
@@ -32,8 +33,7 @@ PLUGIN_TYPES = {
     "environments": "Environment Plugins",
 }
 
-
-def find_markdown_files() -> list[Path]:
+def find_markdown_files() -> List[Path]:
     """Find all Markdown files in the project."""
     # Exclude node_modules, venv, and other directories that should be ignored
     ignore_patterns = [
@@ -69,8 +69,7 @@ def find_markdown_files() -> list[Path]:
     print(f"Found {len(markdown_files)} Markdown files")
     return markdown_files
 
-
-def group_files_by_category(markdown_files: list[Path]) -> dict[str, list[Path]]:
+def group_files_by_category(markdown_files: List[Path]) -> Dict[str, List[Path]]:
     """Group Markdown files by category."""
     grouped = {
         "root": [],
@@ -97,7 +96,6 @@ def group_files_by_category(markdown_files: list[Path]) -> dict[str, list[Path]]
 
     return grouped
 
-
 def get_title_from_markdown(file_path: Path) -> str:
     """Extract title from the first heading in a Markdown file."""
     try:
@@ -114,7 +112,6 @@ def get_title_from_markdown(file_path: Path) -> str:
         # Default to filename if file can't be read
         return file_path.stem.replace("_", " ").title()
 
-
 def generate_relative_link(source: Path, target: Path) -> str:
     """Generate a relative link path from source file to target file."""
     try:
@@ -125,8 +122,7 @@ def generate_relative_link(source: Path, target: Path) -> str:
         # Fall back to absolute path if there's an issue
         return f"/{target.relative_to(REPO_ROOT)}"
 
-
-def add_see_also_section(file_path: Path, references: list[tuple[str, Path]]) -> bool:
+def add_see_also_section(file_path: Path, references: List[tuple[str, Path]]) -> bool:
     """Add or update a 'See Also' section in a Markdown file."""
     if not references:
         return False
@@ -167,9 +163,8 @@ def add_see_also_section(file_path: Path, references: list[tuple[str, Path]]) ->
         print(f"Error updating {file_path}: {e}")
         return False
 
-
 def cross_reference_root_docs(
-    markdown_files: dict[str, list[Path]], dry_run: bool = False
+    markdown_files: Dict[str, List[Path]], dry_run: bool = False
 ) -> int:
     """Add cross-references from root docs to plugin docs and vice versa."""
     count = 0
@@ -232,9 +227,8 @@ def cross_reference_root_docs(
 
     return count
 
-
 def cross_reference_plugin_docs(
-    markdown_files: dict[str, list[Path]], dry_run: bool = False
+    markdown_files: Dict[str, List[Path]], dry_run: bool = False
 ) -> int:
     """Add cross-references between plugin documentation files."""
     count = 0
@@ -292,7 +286,6 @@ def cross_reference_plugin_docs(
 
     return count
 
-
 def main():
     """Main entry point of the script."""
     parser = argparse.ArgumentParser(
@@ -324,7 +317,6 @@ def main():
         print(f"\nCross-references added to {count} files.")
 
     print("\nRun the verify_links.py script to check for any broken links.")
-
 
 if __name__ == "__main__":
     main()

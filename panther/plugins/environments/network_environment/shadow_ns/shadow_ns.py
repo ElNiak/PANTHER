@@ -4,22 +4,16 @@ This module provides a Shadow network simulator environment implementation
 that uses the base class and mixins to eliminate code duplication.
 """
 
-import os
 import subprocess
-import threading
 import time
-from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models import TestConfig, GlobalConfig
 from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.core.observer.management.event_manager import EventManager
-from panther.core.outputs.execution_environment_mixins import (
-    StandardOutputCollectorMixin,
-)
-from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.core.outputs.output_environment_mixins import StandardOutputCollectorMixin
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.plugins.environments.environment_event_methods import (
     EnvironmentPluginEventMixin,
 )
@@ -35,6 +29,10 @@ from panther.plugins.environments.network_environment.mixins import (
     StatusMonitorMixin,
     SubprocessExecutorMixin,
 )
+from panther.plugins.environments.network_environment.shadow_ns.shadow_simulation_monitor import (
+    ShadowSimulationMonitor,
+    ShadowSimulationState,
+)
 from panther.plugins.environments.network_environment.utils import (
     NetworkEnvironmentUtils,
 )
@@ -43,203 +41,6 @@ from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
-
-
-class ShadowSimulationState(Enum):
-    """State management for Shadow simulation lifecycle"""
-
-    INITIALIZING = "initializing"
-    PREPARING = "preparing"
-    STARTING = "starting"
-    RUNNING = "running"
-    MONITORING = "monitoring"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    STOPPED = "stopped"
-
-
-class ShadowSimulationMonitor:
-    """
-    Background Shadow simulation monitor for non-blocking deployments.
-
-    Monitors the Shadow simulation process and network health, triggering
-    early experiment termination when simulation fails or critical events occur.
-    """
-
-    def __init__(self, shadow_env, config):
-        self.shadow_env = shadow_env
-        self.config = config
-        self.logger = shadow_env.logger
-
-        # Simulation state tracking
-        self.simulation_state = ShadowSimulationState.INITIALIZING
-        self.failure_count = 0
-        self.simulation_start_time = None
-        self.expected_duration = shadow_env.simulation_duration
-
-        # Process monitoring
-        self.shadow_process = None
-        self.shadow_output_file = None
-
-        # Thread management
-        self.monitoring_active = False
-        self.monitor_thread = None
-        self.lock = threading.Lock()
-
-    def start_monitoring(self, shadow_process, output_file=None):
-        """Start background monitoring in a daemon thread"""
-        if self.monitoring_active:
-            return
-
-        self.shadow_process = shadow_process
-        self.shadow_output_file = output_file
-        self.simulation_start_time = time.time()
-
-        self.monitoring_active = True
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            name=f"ShadowMonitor-{self.shadow_env.env_name}",
-            daemon=True,
-        )
-        self.monitor_thread.start()
-        self.logger.info(
-            f"Started background Shadow simulation monitoring thread: {self.monitor_thread.name}"
-        )
-
-    def stop_monitoring(self):
-        """Stop background monitoring"""
-        if not self.monitoring_active:
-            return
-
-        self.monitoring_active = False
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            self.logger.info("Stopping background Shadow monitoring...")
-            self.monitor_thread.join(timeout=5)
-            if self.monitor_thread.is_alive():
-                self.logger.warning("Background monitoring thread did not stop cleanly")
-        self.monitor_thread = None
-
-    def _monitor_loop(self):
-        """Main monitoring loop running in background thread"""
-        self.logger.debug("Background Shadow monitoring loop started")
-
-        while self.monitoring_active:
-            try:
-                self._check_simulation_health()
-                time.sleep(self.config.monitoring_interval_seconds)
-            except Exception as e:
-                self.logger.error(f"Error in background monitoring: {e}")
-                time.sleep(self.config.monitoring_interval_seconds)
-
-        self.logger.debug("Background Shadow monitoring loop ended")
-
-    def _check_simulation_health(self):
-        """Check health of Shadow simulation and handle failures"""
-        with self.lock:
-            # Check if process is still running
-            if self.shadow_process and self.shadow_process.poll() is not None:
-                # Process has terminated
-                exit_code = self.shadow_process.returncode
-                self._handle_process_termination(exit_code)
-                return
-
-            # Check simulation progress from output
-            if self.shadow_output_file and os.path.exists(self.shadow_output_file):
-                self._check_simulation_progress()
-
-            # Check for timeout
-            if self.simulation_start_time:
-                elapsed = time.time() - self.simulation_start_time
-                # Parse duration (e.g., "300s" -> 300)
-                duration_seconds = self._parse_duration(self.expected_duration)
-                if elapsed > duration_seconds * 1.5:  # 50% over expected duration
-                    self.logger.warning(
-                        f"Simulation running longer than expected: {elapsed:.1f}s (expected: {duration_seconds}s)"
-                    )
-                    self.failure_count += 1
-                    if self.failure_count >= self.config.failure_threshold_count:
-                        self._trigger_early_termination("Simulation timeout exceeded")
-
-    def _check_simulation_progress(self):
-        """Check Shadow simulation progress from output logs"""
-        try:
-            # Read last few lines of output to check for errors
-            with open(self.shadow_output_file, "r") as f:
-                lines = f.readlines()
-                last_lines = lines[-50:] if len(lines) > 50 else lines
-
-                for line in last_lines:
-                    # Check for Shadow error patterns
-                    if "ERROR" in line or "CRITICAL" in line:
-                        self.logger.error(f"Shadow error detected: {line.strip()}")
-                        self.failure_count += 1
-                    elif "simulation complete" in line.lower():
-                        self.simulation_state = ShadowSimulationState.COMPLETED
-                        self.logger.info("Shadow simulation completed successfully")
-                        self.monitoring_active = False
-                        return
-
-                # Update state based on content
-                if self.simulation_state == ShadowSimulationState.STARTING:
-                    for line in last_lines:
-                        if "starting simulation" in line.lower():
-                            self.simulation_state = ShadowSimulationState.RUNNING
-                            self.logger.info("Shadow simulation is now running")
-                            break
-
-        except Exception as e:
-            self.logger.debug(f"Could not read simulation output: {e}")
-
-    def _handle_process_termination(self, exit_code):
-        """Handle Shadow process termination"""
-        if exit_code == 0:
-            self.simulation_state = ShadowSimulationState.COMPLETED
-            self.logger.info("Shadow simulation completed successfully")
-        else:
-            self.simulation_state = ShadowSimulationState.FAILED
-            self.logger.error(f"Shadow simulation failed with exit code: {exit_code}")
-            self._trigger_early_termination(
-                f"Shadow process exited with code {exit_code}"
-            )
-
-        self.monitoring_active = False
-
-    def _parse_duration(self, duration_str):
-        """Parse duration string (e.g., '300s') to seconds"""
-        if isinstance(duration_str, (int, float)):
-            return float(duration_str)
-
-        if duration_str.endswith("s"):
-            return float(duration_str[:-1])
-        elif duration_str.endswith("m"):
-            return float(duration_str[:-1]) * 60
-        elif duration_str.endswith("h"):
-            return float(duration_str[:-1]) * 3600
-        else:
-            # Assume seconds if no unit
-            return float(duration_str)
-
-    def _trigger_early_termination(self, reason):
-        """Trigger early experiment termination"""
-        details = {
-            "simulation_state": self.simulation_state.value,
-            "failure_count": self.failure_count,
-            "elapsed_time": time.time() - self.simulation_start_time
-            if self.simulation_start_time
-            else 0,
-            "monitoring_config": {
-                "failure_threshold": self.config.failure_threshold_count,
-                "monitoring_interval": self.config.monitoring_interval_seconds,
-            },
-        }
-
-        self.logger.error(f"Triggering early experiment termination: {reason}")
-
-        # Set termination flag on environment
-        self.shadow_env.request_early_termination(reason, details)
-
-        # Stop monitoring since experiment is terminating
-        self.monitoring_active = False
 
 
 @register_plugin(
@@ -275,8 +76,18 @@ class ShadowNSEnvironment(
         env_sub_type: str,
         event_manager: EventManager,
     ):
+        # First initialize all parent classes including StandardOutputCollectorMixin
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+        )
+
+        # Explicitly ensure StandardOutputCollectorMixin is initialized
+        # This ensures output_files dictionary is created
+        if not hasattr(self, "output_files"):
+            self.output_files = {}
+
+        self.logger.debug(
+            f"StandardOutputCollectorMixin initialized for shadow_ns, output_files exists: {hasattr(self, 'output_files')}"
         )
 
         # Shadow specific configuration
@@ -285,20 +96,13 @@ class ShadowNSEnvironment(
         self.docker_version = "v1"
         self.docker_name = "shadow_ns"
 
+        self.env_type = env_type
+        self.env_sub_type = env_sub_type
+
         # Shadow specific attributes
         self.shadow_config = self._get_shadow_config()
         self.simulation_duration = self.shadow_config.get("duration", "300s")
         self.network_topology = self.shadow_config.get("topology", "simple")
-
-        # Define Shadow specific paths
-        self.services_network_config_file_path = Path(
-            self._plugin_dir, env_type, env_sub_type, "shadow.generated.yml"
-        )
-        self.rendered_services_network_config_file_path = self.output_dir / "shadow.yml"
-
-        self.services_network_docker_file_path = Path(
-            self._plugin_dir, env_type, env_sub_type, "Dockerfile"
-        )
 
         # Shadow process reference
         self.shadow_process = None
@@ -314,6 +118,12 @@ class ShadowNSEnvironment(
             for dir_name in shadow_dirs:
                 dir_path = self.output_dir / dir_name
                 dir_path.mkdir(exist_ok=True)
+
+            # Mark plugin as successfully set up if preparation succeeded
+            self.plugin_setup = True
+            self.logger.debug(
+                "Shadow NS environment preparation completed successfully"
+            )
 
         return success
 
@@ -334,7 +144,7 @@ class ShadowNSEnvironment(
 
         # Generate Shadow configuration
         self.generate_from_template(
-            template_name="shadow.yml.jinja",
+            template_name="shadow-template.jinja",
             paths=paths,
             timestamp=timestamp,
             rendered_out_file=str(self.rendered_services_network_config_file_path),
@@ -347,10 +157,14 @@ class ShadowNSEnvironment(
             },
         )
 
-        # Generate host configuration files
-        self._generate_host_configs(paths, timestamp)
-
         self.logger.info("Generated Shadow NS configuration files")
+
+    def _get_shadow_user_args(self) -> List[str]:
+        """Get user arguments for Shadow container."""
+        user_config = self._get_user_mapping_config()
+        if user_config:
+            return ["--user", user_config]
+        return []
 
     def launch_environment_services(self) -> None:
         """Launch Shadow network simulator."""
@@ -360,8 +174,8 @@ class ShadowNSEnvironment(
         if self.global_config.docker.build_docker_image:
             self._build_shadow_image()
 
-        # Get Docker container name
-        self.get_docker_name()
+        # Docker container name is already set in __init__
+        # self.docker_name = "shadow_ns"
 
         # Run Shadow container
         shadow_run_cmd = [
@@ -372,18 +186,27 @@ class ShadowNSEnvironment(
             self.docker_name,
             "--privileged",  # Required for Shadow NS
             "--cap-add=SYS_PTRACE",  # Required for ptrace
-            "-v",
-            f"{self.output_dir}:/output",
-            "-v",
-            f"{self.log_dirs}:/logs",
-            "-v",
-            f"{self.output_dir}/shadow-data:/data",
-            "-v",
-            f"{self.output_dir}/shadow-results:/results",
-            self.docker_name,
-            "shadow",
-            str(self.rendered_services_network_config_file_path),
         ]
+
+        # Add user mapping if configured
+        shadow_run_cmd.extend(self._get_shadow_user_args())
+
+        # Add volume mounts
+        shadow_run_cmd.extend(
+            [
+                "-v",
+                f"{self.output_dir}:/output",
+                "-v",
+                f"{self.log_dirs}:/logs",
+                "-v",
+                f"{self.output_dir}/shadow-data:/data",
+                "-v",
+                f"{self.output_dir}/shadow-results:/results",
+                self.docker_name,
+                "shadow",
+                str(self.rendered_services_network_config_file_path),
+            ]
+        )
 
         result = self.execute_command(
             command=shadow_run_cmd,
@@ -391,7 +214,9 @@ class ShadowNSEnvironment(
             log_prefix="shadow_run",
         )
 
-        self.logger.info(f"Shadow NS container started: {self.docker_name}")
+        user_info = self._get_user_mapping_config()
+        user_desc = f" (user: {user_info})" if user_info else " (user: root)"
+        self.logger.info(f"Shadow NS container started: {self.docker_name}{user_desc}")
 
     def deploy_services(self) -> bool:
         """Deploy and monitor Shadow simulation with optional non-blocking monitoring."""
@@ -432,6 +257,17 @@ class ShadowNSEnvironment(
             self.logger.error("Shadow simulation failed")
             return False
 
+        # Register service outputs now that simulation is ready
+        if hasattr(self, "register_service_outputs"):
+            self.logger.info("Registering service outputs...")
+            self.register_service_outputs(
+                self.services_managers,
+                lambda service_name: self._get_service_log_directory(service_name),
+            )
+            self.logger.info(
+                f"Registered outputs for {len(self.services_managers)} services"
+            )
+
         self.logger.info("Shadow NS simulation deployed successfully")
         return True
 
@@ -469,12 +305,165 @@ class ShadowNSEnvironment(
 
         self.logger.info(f"Started background monitoring for Shadow simulation")
 
+        # Register service outputs (even if simulation is still running)
+        if hasattr(self, "register_service_outputs"):
+            self.logger.info("Registering service outputs...")
+            self.register_service_outputs(
+                self.services_managers,
+                lambda service_name: self._get_service_log_directory(service_name),
+            )
+            self.logger.info(
+                f"Registered outputs for {len(self.services_managers)} services"
+            )
+
         # Return True to allow experiment to proceed immediately
         return True
+
+    def _get_service_log_directory(self, service_name: str) -> Path:
+        """
+        Shadow NS uses simulation-specific output directories.
+
+        Check multiple possible locations in priority order.
+        """
+        # Priority order: service-specific > shadow-results > shared logs
+        possible_dirs = [
+            Path(self.output_dir) / "logs" / service_name,  # Service-specific
+            Path(self.output_dir) / "shadow-results",  # Shadow results
+            Path(self.output_dir) / "logs",  # Shared logs
+        ]
+
+        for log_dir in possible_dirs:
+            if log_dir.exists():
+                return log_dir
+
+        # Return service-specific even if it doesn't exist (for creation)
+        return possible_dirs[0]
+
+    def _perform_final_output_registration(self) -> None:
+        """Perform final output registration while simulation is still running."""
+        self.logger.info(
+            "Performing final output registration for Shadow NS simulation..."
+        )
+
+        # Wait for final writes to complete
+        time.sleep(2)
+
+        # Copy any additional files from running container to host
+        self._copy_container_outputs_to_host()
+
+        # Clear and re-register all service outputs
+        self.output_files.clear()
+        self.register_service_outputs(
+            self.services_managers,
+            lambda service_name: self._get_service_log_directory(service_name),
+        )
+
+        self.logger.info(
+            f"Final registration completed for {len(self.services_managers)} services"
+        )
+        self._log_actual_output_files()
+
+    def _copy_container_outputs_to_host(self) -> None:
+        """Copy any remaining outputs from Shadow container to host directories."""
+        if not hasattr(self, "services_managers"):
+            return
+
+        self.logger.debug("Copying final outputs from Shadow container to host...")
+
+        # Copy Shadow simulation results
+        shadow_copy_cmd = [
+            "docker",
+            "cp",
+            f"{self.docker_name}:/root/shadow-results/.",
+            f"{self.output_dir}/shadow-results/",
+        ]
+
+        try:
+            result = self.execute_command(
+                command=shadow_copy_cmd,
+                timeout=30,
+                log_prefix="copy_shadow_results",
+                check=False,
+            )
+
+            if result.returncode == 0:
+                self.logger.debug("Successfully copied Shadow simulation results")
+            else:
+                self.logger.debug("No additional Shadow results to copy")
+
+        except Exception as e:
+            self.logger.debug(f"Could not copy Shadow results: {e}")
+
+        # Copy service-specific outputs
+        for service_manager in self.services_managers:
+            service_name = getattr(service_manager, "service_name", "unknown")
+
+            copy_cmd = [
+                "docker",
+                "cp",
+                f"{self.docker_name}:/app/logs/.",
+                f"{self.output_dir}/logs/{service_name}/",
+            ]
+
+            try:
+                result = self.execute_command(
+                    command=copy_cmd, timeout=30, log_prefix="copy_outputs", check=False
+                )
+
+                if result.returncode == 0:
+                    self.logger.debug(f"Successfully copied outputs for {service_name}")
+                else:
+                    self.logger.debug(
+                        f"No additional outputs to copy for {service_name}"
+                    )
+
+            except Exception as e:
+                self.logger.debug(f"Could not copy outputs for {service_name}: {e}")
+
+    def _log_actual_output_files(self) -> None:
+        """Log what output files actually exist on the host."""
+        self.logger.debug("=== Actual Output Files Analysis (Shadow NS) ===")
+
+        # Check shadow-results directory
+        shadow_results_dir = Path(self.output_dir) / "shadow-results"
+        if shadow_results_dir.exists():
+            self.logger.debug("Shadow results directory:")
+            try:
+                files = list(shadow_results_dir.iterdir())
+                self.logger.debug(f"  Files: {[f.name for f in files if f.is_file()]}")
+            except Exception as e:
+                self.logger.debug(f"  Error listing Shadow results: {e}")
+        else:
+            self.logger.debug("Shadow results directory does not exist")
+
+        # Check service logs
+        logs_dir = Path(self.output_dir) / "logs"
+        if logs_dir.exists():
+            for item in logs_dir.iterdir():
+                if item.is_dir():
+                    self.logger.debug(f"Service directory: {item.name}")
+                    try:
+                        files = list(item.iterdir())
+                        self.logger.debug(
+                            f"  Files: {[f.name for f in files if f.is_file()]}"
+                        )
+                    except Exception as e:
+                        self.logger.debug(f"  Error listing files: {e}")
+                elif item.is_file():
+                    self.logger.debug(f"Root log file: {item.name}")
+        else:
+            self.logger.debug("Logs directory does not exist")
 
     def _teardown_environment(self) -> None:
         """Perform Shadow NS specific teardown with background monitor cleanup."""
         self.logger.info("Tearing down Shadow NS environment")
+
+        # Wait for simulation to fully complete if needed
+        self._wait_for_simulation_completion()
+
+        # Perform final output registration before container teardown
+        if hasattr(self, "services_managers"):
+            self._perform_final_output_registration()
 
         # Stop background monitoring if active
         if hasattr(self, "background_monitor") and self.background_monitor:
@@ -494,6 +483,28 @@ class ShadowNSEnvironment(
             remove_volumes=True,
         )
 
+    def _wait_for_simulation_completion(self) -> None:
+        """Wait for Shadow simulation to complete if still running."""
+        if not hasattr(self, "docker_name"):
+            return
+
+        try:
+            # Check if container is still running
+            check_cmd = ["docker", "ps", "-q", "-f", f"name={self.docker_name}"]
+            result = self.execute_command(check_cmd, timeout=10)
+
+            if result and result.strip():
+                self.logger.info("Waiting for Shadow simulation to complete...")
+                # Wait for container to finish
+                wait_cmd = ["docker", "wait", self.docker_name]
+                self.execute_command(wait_cmd, timeout=300)  # 5 minute max wait
+                self.logger.info("Shadow simulation completed")
+            else:
+                self.logger.debug("Shadow simulation already completed")
+
+        except Exception as e:
+            self.logger.warning(f"Could not wait for simulation completion: {e}")
+
     def _get_shadow_config(self) -> Dict[str, Any]:
         """Get Shadow-specific configuration."""
         if hasattr(self.env_config_to_test, "shadow"):
@@ -505,12 +516,31 @@ class ShadowNSEnvironment(
         shadow_services = []
 
         for service in self.services_managers:
+            # Get service-specific output file paths
+            output_file_paths = {}
+            output_redirections = {}
+            if hasattr(service, "get_output_file_paths"):
+                output_file_paths = service.get_output_file_paths(log_base_path="/logs")
+                self.logger.debug(
+                    f"Service {service.service_name} output paths: {output_file_paths}"
+                )
+
+            # Get standard redirections
+            if hasattr(service, "get_standard_redirections"):
+                output_redirections = service.get_standard_redirections()
+                self.logger.debug(
+                    f"Service {service.service_name} redirections: {output_redirections}"
+                )
+
             shadow_service = {
                 "name": service.service_name,
-                "type": service.implementation_type,
-                "protocol": service.protocol_name,
+                "type": getattr(service, "implementation_type", "unknown"),
+                "protocol": getattr(service, "protocol_name", "unknown"),
                 "role": service.role,
-                "command": service.get_run_command(),
+                "command": service.run_cmd if hasattr(service, "run_cmd") else {},
+                "service": service,  # Include the service object
+                "output_file_paths": output_file_paths,
+                "output_redirections": output_redirections,
             }
             shadow_services.append(shadow_service)
 
@@ -525,42 +555,50 @@ class ShadowNSEnvironment(
             "packet_loss": "0.1%",
         }
 
-    def _generate_host_configs(self, paths: Dict[str, str], timestamp: str) -> None:
-        """Generate individual host configuration files."""
-        for service in self.services_managers:
-            host_config_path = (
-                self.output_dir / "shadow-hosts" / f"{service.service_name}.yaml"
-            )
-
-            self.generate_from_template(
-                template_name="shadow_host.yaml.jinja",
-                paths=paths,
-                timestamp=timestamp,
-                rendered_out_file=str(host_config_path),
-                out_file=str(host_config_path),
-                additional_param={"service": service},
-            )
-
     def _build_shadow_image(self) -> None:
-        """Build Shadow Docker image."""
-        self.logger.info("Building Shadow NS Docker image")
+        """Build Shadow Docker image using the docker_builder approach."""
+        self.logger.info("Building Shadow NS Docker image using docker_builder")
 
-        build_cmd = [
-            "docker",
-            "build",
-            "-t",
-            f"{self.docker_name}:latest",
-            "-f",
-            str(self.services_network_docker_file_path),
-            str(self.services_network_docker_file_path.parent),
-        ]
+        # Import the docker builder
+        from panther.core.docker_builder.docker_builder import DockerBuilder
 
-        self.execute_with_retry(
-            command=build_cmd,
-            max_retries=2,
-            log_prefix="shadow_build",
-            timeout=600,
-        )
+        # Initialize docker builder
+        docker_builder = DockerBuilder(build_log_file=True)
+
+        # Check if image already exists
+        image_tag = f"{self.docker_name}:latest"
+        if docker_builder.image_exists(image_tag):
+            self.logger.info(
+                f"Shadow NS Docker image {image_tag} already exists, skipping build"
+            )
+            return
+
+        # Build configuration for Shadow NS environment
+        build_config = {
+            "commit": "latest",
+            "dependencies": {},
+        }
+
+        # Use docker_builder to build the image
+        try:
+            result = docker_builder.build_image(
+                impl_name=self.docker_name,
+                version="latest",
+                dockerfile_path=self.services_network_docker_file_path,
+                context_path=self.services_network_docker_file_path.parent,
+                config=build_config,
+                tag_version="latest",
+                remove_dangling=True,
+            )
+
+            if result:
+                self.logger.info(f"Successfully built Shadow NS Docker image: {result}")
+            else:
+                raise RuntimeError("Docker build returned None")
+
+        except Exception as e:
+            self.logger.error(f"Failed to build Shadow NS Docker image: {e}")
+            raise RuntimeError(f"Shadow NS Docker image build failed: {e}") from e
 
     def _monitor_simulation(self) -> bool:
         """Monitor Shadow simulation progress."""
@@ -625,6 +663,21 @@ class ShadowNSEnvironment(
 
     def initialize(self, test_config, output_dir, event_manager, global_config):
         """Initialize the Shadow NS environment."""
+        self.output_dir = Path(output_dir)
+        self.log_dirs = Path(output_dir) / "logs"
+        self.event_manager = event_manager
+        # Define Shadow specific paths
+        # Both files should be in the output directory to avoid writing to project root
+        self.services_network_config_file_path = (
+            Path(self.output_dir).absolute() / "shadow.generated.yml"
+        )
+        self.rendered_services_network_config_file_path = (
+            Path(self.output_dir).absolute() / "shadow.yml"
+        )
+
+        self.services_network_docker_file_path = Path(
+            self._plugin_dir, self.env_type, self.env_sub_type, "Dockerfile"
+        )
         if not hasattr(self, "test_config"):
             self.test_config = test_config
         if not hasattr(self, "global_config"):

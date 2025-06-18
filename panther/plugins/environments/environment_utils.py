@@ -6,7 +6,7 @@ This module provides common utilities and mixins for environment plugins.
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -32,8 +32,8 @@ class EnvironmentUtilities:
 
     @staticmethod
     def setup_output_directories(
-        output_dir: str, env_sub_type: str, test_name: str | None = None
-    ) -> dict[str, Path]:
+        output_dir: str, env_sub_type: str, test_name: Optional[str] = None
+    ) -> Dict[str, Path]:
         """
         Set up standard output directories for environment plugins.
 
@@ -98,7 +98,8 @@ class EnvironmentPluginMixin(LoggerMixin):
         """
         # Store basic attributes
         self.env_config_to_test = env_config_to_test
-        self.output_dir = output_dir
+        # Ensure output_dir is always an absolute path
+        self.output_dir = str(Path(output_dir).resolve())
         self.env_type = env_type
         self.env_sub_type = env_sub_type
         self.event_manager = event_manager
@@ -122,7 +123,7 @@ class EnvironmentPluginMixin(LoggerMixin):
         return self._environment_state
 
     @property
-    def output_directories(self) -> dict[str, Path]:
+    def output_directories(self) -> Dict[str, Path]:
         """Get the output directories."""
         return self._output_directories
 
@@ -169,7 +170,7 @@ class ExecutionEnvironmentMixin(EnvironmentPluginMixin):
 
     def setup_execution_environment(
         self,
-        services_managers: list[Any],
+        services_managers: List[Any],
         test_config: Any,
         global_config: Any,
         timestamp: str,
@@ -201,11 +202,11 @@ class ExecutionEnvironmentMixin(EnvironmentPluginMixin):
             "execution environment setup", service_count=len(services_managers)
         )
 
-    def get_service_managers(self) -> list[Any]:
+    def get_service_managers(self) -> List[Any]:
         """Get the list of service managers."""
         return self.services_managers
 
-    def get_service_manager_by_name(self, name: str) -> Any | None:
+    def get_service_manager_by_name(self, name: str) -> Optional[Any]:
         """
         Get a service manager by name.
 
@@ -239,7 +240,7 @@ class NetworkEnvironmentMixin(EnvironmentPluginMixin):
         self._network_config = {}
         self._deployment_artifacts = []
 
-    def setup_network_environment(self, network_config: dict[str, Any]) -> None:
+    def setup_network_environment(self, network_config: Dict[str, Any]) -> None:
         """
         Set up network environment with network configuration.
 
@@ -255,7 +256,7 @@ class NetworkEnvironmentMixin(EnvironmentPluginMixin):
         )
 
     @property
-    def network_config(self) -> dict[str, Any]:
+    def network_config(self) -> Dict[str, Any]:
         """Get the network configuration."""
         return self._network_config
 
@@ -277,7 +278,7 @@ class NetworkEnvironmentMixin(EnvironmentPluginMixin):
             }
         )
 
-    def get_deployment_artifacts(self) -> list[dict[str, Any]]:
+    def get_deployment_artifacts(self) -> List[Dict[str, Any]]:
         """Get the list of deployment artifacts."""
         return self._deployment_artifacts.copy()
 
@@ -318,10 +319,10 @@ class DockerEnvironmentMixin(NetworkEnvironmentMixin):
 
     def setup_docker_environment(
         self,
-        compose_file_path: str | None = None,
-        containers: list[str] | None = None,
-        volumes: list[str] | None = None,
-        networks: list[str] | None = None,
+        compose_file_path: Optional[str] = None,
+        containers: Optional[List[str]] = None,
+        volumes: Optional[List[str]] = None,
+        networks: Optional[List[str]] = None,
     ) -> None:
         """
         Set up Docker-specific environment attributes.
@@ -344,22 +345,22 @@ class DockerEnvironmentMixin(NetworkEnvironmentMixin):
         )
 
     @property
-    def docker_compose_file(self) -> str | None:
+    def docker_compose_file(self) -> Optional[str]:
         """Get the Docker Compose file path."""
         return self._docker_compose_file
 
     @property
-    def container_names(self) -> list[str]:
+    def container_names(self) -> List[str]:
         """Get the list of container names."""
         return self._container_names.copy()
 
     @property
-    def volumes(self) -> list[str]:
+    def volumes(self) -> List[str]:
         """Get the list of volume names."""
         return self._volumes.copy()
 
     @property
-    def networks(self) -> list[str]:
+    def networks(self) -> List[str]:
         """Get the list of network names."""
         return self._networks.copy()
 

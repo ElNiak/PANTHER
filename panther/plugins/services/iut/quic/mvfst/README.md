@@ -23,7 +23,70 @@ mvfst implementation features:
 - **Congestion Control Innovation**: Advanced congestion control algorithms
 - **HTTP/3 Support**: Full HTTP/3 implementation support
 
+## Inheritance Architecture
+
+!!! info "Inheritance-Based Implementation"
+    The mvfst plugin uses PANTHER's inheritance architecture, inheriting directly from `BaseQUICServiceManager`. This provides benefits through code reuse and consistent behavior across all QUIC implementations while maintaining Meta's production-optimized patterns.
+
+### Inheritance Architecture
+
+The mvfst implementation follows the template method pattern:
+
+```python
+# panther/plugins/services/iut/quic/mvfst/mvfst.py
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+
+class MvfstServiceManager(BaseQUICServiceManager):
+    """Meta's mvfst QUIC implementation with inheritance-based architecture."""
+    
+    def _get_implementation_name(self) -> str:
+        return "mvfst"
+    
+    def _get_binary_name(self) -> str:
+        return "echo"  # Meta's echo server/client
+    
+    # Customize only what's unique to mvfst
+    def _get_server_specific_args(self, **kwargs) -> List[str]:
+        port = kwargs.get("port", 6666)
+        return ["--mode=server", f"--port={port}"]
+    
+    def _get_client_specific_args(self, **kwargs) -> List[str]:
+        host = kwargs.get("host", "localhost")
+        port = kwargs.get("port", 6666)
+        return ["--mode=client", f"--host={host}", f"--port={port}"]
+    
+    # All common QUIC functionality inherited from BaseQUICServiceManager!
+```
+
+### Benefits of Inheritance Architecture
+
+- **Code Reduction**: From extensive manual implementation to focused Meta-specific patterns
+- **Consistent Behavior**: Common QUIC functionality shared with all implementations
+- **Automatic Updates**: New features in base class automatically available
+- **Event Integration**: Built-in event emission for monitoring and debugging
+- **Command Processing**: Structured command generation through Command Processor
+- **Error Handling**: Comprehensive error handling and recovery mechanisms
+
+### What's Provided by Base Class
+
+- **Common Parameter Extraction**: Port, host, certificate handling
+- **Standard Command Building**: Template method pattern for command generation
+- **Event Emission**: Service lifecycle and status events
+- **Error Handling**: Timeout management and failure recovery
+- **Docker Integration**: Standardized container build patterns
+- **Logging Integration**: Structured logging with correlation tracking
+
+### What's Customized for mvfst
+
+- **Binary Name**: Uses Meta's `echo` server/client executables
+- **Command Arguments**: mvfst-specific argument formatting (`--mode`, `--port`)
+- **Build Process**: C++ compilation with Folly and Fizz dependencies
+- **Facebook Patterns**: Production-optimized configuration for large-scale deployment
+
 ## Requirements and Dependencies
+
+!!! info "Base Class Dependencies"
+    The mvfst implementation automatically inherits all base class dependencies, including the Command Processor, Event System, and common QUIC utilities. No additional setup is required for these core features.
 
 The plugin requires:
 

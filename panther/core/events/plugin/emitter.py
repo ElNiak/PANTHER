@@ -1,31 +1,35 @@
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 """
 Plugin Event Emitter
 
 This module provides a type-safe emitter for plugin events.
 """
 
-from typing import Any, TYPE_CHECKING
-
 if TYPE_CHECKING:
     from panther.core.observer.management.event_manager import EventManager
 
 from panther.core.events.base.event_emitter_base import EventEmitterBase
+
 from .events import (
-    PluginLoadingStartedEvent,
+    PluginErrorEvent,
+    PluginInitializedEvent,
     PluginLoadingCompletedEvent,
     PluginLoadingFailedEvent,
-    PluginInitializedEvent,
-    PluginStartedEvent,
-    PluginStoppedEvent,
-    PluginErrorEvent,
+    PluginLoadingStartedEvent,
     PluginServiceCreatedEvent,
     PluginServiceStartedEvent,
     PluginServiceStoppedEvent,
+    PluginStartedEvent,
+    PluginStoppedEvent,
 )
 
 
 class PluginEventEmitter(EventEmitterBase):
-    """Event emitter for plugin-related events."""
+    """
+
+    from typing import Any, Dict, List, Optional, TYPE_CHECKING, TYPE_CHECKINGEvent emitter for plugin-related events.
+    """
 
     def __init__(self, event_manager: "EventManager"):
         super().__init__(event_manager)
@@ -35,8 +39,8 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        plugin_path: str | None = None,
-        loading_config: dict[str, Any] | None = None,
+        plugin_path: Optional[str] = None,
+        loading_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit a plugin loading started event."""
         event = PluginLoadingStartedEvent(
@@ -53,9 +57,9 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        duration: float | None = None,
-        capabilities: list[str] | None = None,
-        version: str | None = None,
+        duration: Optional[float] = None,
+        capabilities: Optional[List[str]] = None,
+        version: Optional[str] = None,
     ) -> None:
         """Emit a plugin loading completed event."""
         event = PluginLoadingCompletedEvent(
@@ -74,8 +78,8 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_name: str,
         plugin_type: str,
         error_message: str = "",
-        error_details: dict[str, Any] | None = None,
-        duration: float | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
+        duration: Optional[float] = None,
     ) -> None:
         """Emit a plugin loading failed event."""
         event = PluginLoadingFailedEvent(
@@ -93,8 +97,8 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        initialization_config: dict[str, Any] | None = None,
-        dependencies: list[str] | None = None,
+        initialization_config: Optional[Dict[str, Any]] = None,
+        dependencies: Optional[List[str]] = None,
     ) -> None:
         """Emit a plugin initialized event."""
         event = PluginInitializedEvent(
@@ -111,8 +115,8 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_id: str,
         plugin_name: str,
         plugin_type: str,
-        startup_duration: float | None = None,
-        startup_details: dict[str, Any] | None = None,
+        startup_duration: Optional[float] = None,
+        startup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit a plugin started event."""
         event = PluginStartedEvent(
@@ -130,8 +134,8 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_name: str,
         plugin_type: str,
         stop_reason: str = "normal_shutdown",
-        cleanup_duration: float | None = None,
-        cleanup_details: dict[str, Any] | None = None,
+        cleanup_duration: Optional[float] = None,
+        cleanup_details: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit a plugin stopped event."""
         event = PluginStoppedEvent(
@@ -151,7 +155,7 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_type: str,
         error_message: str = "",
         error_type: str = "unknown",
-        error_details: dict[str, Any] | None = None,
+        error_details: Optional[Dict[str, Any]] = None,
         recoverable: bool = False,
     ) -> None:
         """Emit a plugin error event."""
@@ -174,7 +178,7 @@ class PluginEventEmitter(EventEmitterBase):
         service_id: str,
         service_name: str,
         service_type: str,
-        service_config: dict[str, Any] | None = None,
+        service_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Emit a plugin service created event."""
         event = PluginServiceCreatedEvent(
@@ -195,7 +199,7 @@ class PluginEventEmitter(EventEmitterBase):
         plugin_type: str,
         service_id: str,
         service_name: str,
-        startup_duration: float | None = None,
+        startup_duration: Optional[float] = None,
     ) -> None:
         """Emit a plugin service started event."""
         event = PluginServiceStartedEvent(
