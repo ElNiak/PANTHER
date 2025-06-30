@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER QUIC protocol implementations.
 
-This package contains the panther application and its modules.
+This package contains QUIC protocol implementations that can be used as IUT.
 """

@@ -1,20 +1,24 @@
-from dataclasses import fields
-from flask import Blueprint, redirect, render_template, request, current_app
+import logging
+import typing
+from dataclasses import MISSING, fields, is_dataclass
+from enum import Enum
+
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request
 from flask_wtf import FlaskForm
+from omegaconf import OmegaConf
 from wtforms import (
+    BooleanField,
     FieldList,
     FormField,
-    StringField,
     IntegerField,
-    BooleanField,
     SelectField,
+    StringField,
     SubmitField,
 )
 from wtforms.validators import DataRequired, NumberRange, Optional
-from dataclasses import MISSING, is_dataclass
-from enum import Enum
-from panther.config.config_global_schema import GlobalConfig
-import typing
+
+from panther.config.core.models import GlobalConfig
+from panther.core.utils.jinja_manager import JinjaManager  # Import JinjaManager
 
 
 # Utility: Convert Enum to SelectField choices
@@ -80,7 +84,7 @@ def generate_form(dataclass):
             choices = []
             all_choice = current_app.config["config_loader"].load_all_plugins()
             print(f"Field {field.name} is a type field with choices: {all_choice}")
-            # plugin_loader = current_app.config["config_loader"].load_all_plugins()
+            # plugin_manager = current_app.config["config_loader"].load_all_plugins()
             setattr(
                 DynamicForm,
                 field.name,
@@ -255,15 +259,10 @@ exp_manager = Blueprint("experiment-manager", __name__)
 
 @exp_manager.route("/index", methods=["GET", "POST"])
 def create_experiment():
-    """
-    It creates a folder for the project, and then calls the upload function
-    :return: the upload function.
-    """
     form_class = generate_form(GlobalConfig)
     form = form_class()
 
-    current_app.logger.info(f"Flask app template - {current_app.template_folder}")
-    # print(current_app.config["config_loader"].load_all_plugins())
+    current_app.logger.info("Flask app template - %s", current_app.template_folder)
 
     exp_form_class = generate_form(current_app.config["experiment_config"])
     exp_form = exp_form_class()
@@ -276,3 +275,205 @@ def create_experiment():
         return redirect("/index")
 
     return render_template("index.html", form=form, exp_form=exp_form)
+
+
+# Create a blueprint
+exp_manager = Blueprint("exp_manager", __name__)
+
+
+@exp_manager.route("/index")
+def index():
+    experiment_manager = current_app.config.get("experiment_manager")
+    test_cases = experiment_manager.test_cases
+
+    jinja_manager = JinjaManager(current_app.template_folder)
+    # Add jinja globals
+    current_app.jinja_env.globals["has_attr"] = jinja_manager.has_attr
+    current_app.jinja_env.globals["safe_getattr"] = jinja_manager.safe_getattr
+    current_app.jinja_env.globals["safe_length"] = jinja_manager.safe_length
+
+    # Also add as filters
+    current_app.jinja_env.filters["has_attr"] = jinja_manager.has_attr
+    current_app.jinja_env.filters["safe_getattr"] = jinja_manager.safe_getattr
+    current_app.jinja_env.filters["safe_length"] = jinja_manager.safe_length
+
+    # Make sure length filter works too (as an alias for safe_length)
+    current_app.jinja_env.filters["length"] = jinja_manager.safe_length
+
+    # Count unique protocols and implementations
+    protocols = set()
+    implementations = set()
+    services_count = 0
+
+    for test in test_cases:
+        if hasattr(test, "services"):
+            services_count += len(test.services)
+            for service_name, service in test.services.items():
+                if hasattr(service, "protocol") and hasattr(service.protocol, "name"):
+                    protocols.add(service.protocol.name)
+                if hasattr(service, "implementation") and hasattr(
+                    service.implementation, "name"
+                ):
+                    implementations.add(service.implementation.name)
+
+    return render_template(
+        "index.html",
+        active_page="dashboard",
+        tests=test_cases,
+        protocols_count=len(protocols),
+        implementations_count=len(implementations),
+        services_count=services_count,
+    )
+
+
+@exp_manager.route("/experiments")
+def experiments():
+    experiment_manager = current_app.config.get("experiment_manager")
+    test_cases = experiment_manager.test_cases
+
+    # Convert test cases to a simpler format for the template
+    simplified_tests = []
+    for test in test_cases:
+        test_data = {
+            "name": test.test_config.name,
+            "description": test.test_config.description,
+            "network_environment": {
+                "type": (
+                    test.test_config.network_environment.type
+                    if hasattr(test.test_config.network_environment, "type")
+                    else "N/A"
+                )
+            },
+            "iterations": test.test_config.iterations,
+            "services": test.services,
+        }
+        simplified_tests.append(test_data)
+
+    return render_template(
+        "experiments.html",
+        active_page="experiments",
+        tests=experiment_manager.test_cases,
+    )
+
+
+@exp_manager.route("/plugins")
+def plugins():
+    config_loader = current_app.config.get("config_loader")
+    plugins = config_loader.load_all_plugins()
+
+    return render_template("plugins.html", active_page="plugins", plugins=plugins)
+
+
+@exp_manager.route("/configuration")
+def configuration():
+    global_config = current_app.config.get("global_config")
+    experiment_config = current_app.config.get("experiment_config")
+
+    return render_template(
+        "configuration.html",
+        active_page="configuration",
+        global_config=global_config,
+        experiment_config=experiment_config,
+    )
+
+
+@exp_manager.route("/logs")
+def logs():
+    global_config = current_app.config.get("global_config")
+    log_dir = global_config.paths.log_dir
+
+    # This is a placeholder - you would need to implement actual log fetching
+    recent_logs = []
+
+    return render_template(
+        "logs.html", active_page="logs", log_dir=log_dir, recent_logs=recent_logs
+    )
+
+
+# API Endpoints
+
+
+@exp_manager.route("/api/global-config")
+def global_config_api():
+    global_config = current_app.config.get("global_config")
+    return jsonify(OmegaConf.to_container(global_config))
+
+
+@exp_manager.route("/api/test-cases")
+def test_cases_api():
+    experiment_manager = current_app.config.get("experiment_manager")
+    test_cases = experiment_manager.test_cases
+
+    test_cases_dict = []
+    for test in test_cases:
+        # Extract test data from the test_config property
+        if hasattr(test, "test_config"):
+            test_data = {
+                "name": test.test_config.name,
+                "description": test.test_config.description,
+                "network_environment": {
+                    "type": (
+                        test.test_config.network_environment.type
+                        if hasattr(test.test_config.network_environment, "type")
+                        else "N/A"
+                    )
+                },
+                "iterations": test.test_config.iterations,
+                "services": test.services if hasattr(test, "services") else {},
+            }
+        else:
+            # Fallback for older test case format
+            test_data = {
+                "name": getattr(test, "name", "N/A"),
+                "description": getattr(test, "description", "N/A"),
+                "network_environment": {
+                    "type": (
+                        getattr(test.network_environment, "type", "N/A")
+                        if hasattr(test, "network_environment")
+                        else "N/A"
+                    )
+                },
+                "iterations": getattr(test, "iterations", 0),
+                "services": test.services if hasattr(test, "services") else {},
+            }
+        test_cases_dict.append(test_data)
+
+    return jsonify(test_cases_dict)
+
+
+@exp_manager.route("/api/test/<test_name>")
+def get_test(test_name):
+    experiment_manager = current_app.config.get("experiment_manager")
+
+    for test in experiment_manager.test_cases:
+        if test.name == test_name:
+            return jsonify(OmegaConf.to_container(test))
+
+    return jsonify({"error": "Test not found"}), 404
+
+
+@exp_manager.route("/api/run-experiment", methods=["POST"])
+def run_experiment():
+    try:
+        test_name = request.json.get("test_name")
+        experiment_manager = current_app.config.get("experiment_manager")
+
+        if test_name:
+            for test in experiment_manager.test_cases:
+                if test.name == test_name:
+                    experiment_manager.run_test(test)
+                    return jsonify(
+                        {"status": "success", "result": "Test executed successfully"}
+                    )
+
+            return jsonify(
+                {"status": "error", "message": f"Test {test_name} not found"}
+            )
+        else:
+            experiment_manager.run_tests()
+            return jsonify(
+                {"status": "success", "results": "All tests executed successfully"}
+            )
+    except Exception as e:
+        logging.error("Error running experiment: %s", e)
+        return jsonify({"status": "error", "message": str(e)})

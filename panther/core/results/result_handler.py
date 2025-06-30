@@ -1,6 +1,6 @@
-from abc import ABC
-import os
 import logging
+import os
+from abc import ABC
 
 
 class ResultHandler(ABC):
@@ -21,7 +21,7 @@ class ResultHandler(ABC):
         self.next_handler = None
         self.output_dir = os.path.join(output_dir, experiment_name)
         os.makedirs(self.output_dir, exist_ok=True)
-        logging.info(f"Results will be saved to {self.output_dir}")
+        logging.info("Results will be saved to %s", self.output_dir)
         self.log_dir = os.path.join(self.output_dir, "logs")
         os.makedirs(self.log_dir, exist_ok=True)
 

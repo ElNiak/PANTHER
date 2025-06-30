@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER Aioquic QUIC implementation.
 
-This package contains the panther application and its modules.
+This package contains the Aioquic implementation of the QUIC protocol.
 """

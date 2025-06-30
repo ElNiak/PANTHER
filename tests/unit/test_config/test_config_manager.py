@@ -2,9 +2,9 @@
 # import shutil
 # import pytest
 # from omegaconf import OmegaConf
-# from panther.config.config_experiment_schema import ExperimentConfig
+# from panther.config.core.models.experiment import ExperimentConfig
 # from panther.config.config_manager import ConfigLoader
-# from panther.config.config_global_schema import (
+# from panther.config.core.models.global_config import (
 #     GlobalConfig,
 #     LoggingConfig,
 #     PathsConfig,

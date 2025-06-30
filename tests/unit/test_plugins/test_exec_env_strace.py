@@ -1,14 +1,15 @@
 import pytest
-from panther.plugins.environments.execution_environment.strace.strace import (
-    StraceEnvironment,
-)
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+
+from panther.config.core.models.experiment import TestConfig
+from panther.config.core.models.global_config import GlobalConfig
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.strace.config_schema import (
     StraceConfig,
 )
-from panther.core.observer.event_manager import EventManager
-from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.environments.execution_environment.strace.strace import (
+    StraceEnvironment,
+)
+from panther.plugins.plugin_manager import PluginManager
 
 
 @pytest.fixture
@@ -41,15 +42,15 @@ def test_strace_environment_setup_environment(strace_environment):
     test_config = TestConfig()
     global_config = GlobalConfig()
     timestamp = "2023-10-10_10-10-10"
-    plugin_loader = PluginLoader()
+    plugin_manager = PluginManager()
 
     strace_environment.setup_environment(
-        services_managers, test_config, global_config, timestamp, plugin_loader
+        services_managers, test_config, global_config, timestamp, plugin_manager
     )
     assert strace_environment.services_managers == services_managers
     assert strace_environment.test_config == test_config
     assert strace_environment.global_config == global_config
-    assert strace_environment.plugin_loader == plugin_loader
+    assert strace_environment.plugin_manager == plugin_manager
 
 
 def test_strace_environment_repr(strace_environment):

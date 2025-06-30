@@ -1,11 +1,12 @@
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
-from panther.config.config_experiment_schema import (
-    StepConfig,
+from panther.config.core.models.experiment import (
     AssertionConfig,
     AssertionType,
-    TestConfig,
     ExperimentConfig,
+    StepConfig,
+    TestConfig,
 )
 
 

@@ -1,0 +1,235 @@
+logging:
+  level: DEBUG  # Set to DEBUG for detailed logs, or INFO for less verbosity
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+  enable_colors: true
+  debug_file_logging: true  # Set to true to enable debug file logging
+
+  # Feature-specific log levels - set all to INFO to match global level
+  feature_levels:
+    # Core Components
+    command_generation: DEBUG
+    template_rendering: DEBUG
+    docker_builder: DEBUG
+    docker_operations: DEBUG  # This was causing INFO logs to show
+    config_processing: INFO
+    event_system: ERROR
+    file_operations: ERROR
+
+    # Service Management
+    # service_managers: INFO
+    service_managers: DEBUG
+    ivy_operations: ERROR
+    quic_services: ERROR
+    plugin_loading: INFO
+    service_coordination: ERROR
+
+    # Environment Management
+    network_environments: DEBUG
+    execution_environments: DEBUG
+    docker_compose: DEBUG
+    shadow_ns: DEBUG
+    localhost_container: DEBUG
+
+    # Event System
+    event_emission: ERROR
+    event_processing: ERROR
+    state_management: ERROR
+    observer_operations: ERROR
+    event_manager: ERROR
+
+    # Protocol Operations
+    certificate_management: ERROR
+    network_setup: ERROR
+    port_management: ERROR
+    protocol_communication: ERROR
+
+    # Data and Metrics
+    metrics_collection: ERROR
+    data_storage: ERROR
+    result_processing: ERROR
+    output_aggregation: ERROR
+
+    # Development and Testing
+    test_execution: ERROR
+    experiment_workflow: ERROR
+    validation_checks: ERROR
+    error_handling: ERROR
+
+progress:
+  enable_progress_bar: true
+  show_test_status: true
+  show_docker_events: true
+  use_emojis: true
+  redirect_logging: true  # Set to false to preserve colored logging
+
+observers:
+  logger:
+    enabled: true
+    log_level: "INFO"
+    enable_colors: true
+    correlation_tracking: true
+
+  metrics:
+    enabled: true
+    collect_system_metrics: true
+    log_level: "INFO"
+    publish_interval: 30
+
+  storage:
+    enabled: true
+    storage_path: "outputs/storage"
+    enable_compression: true
+    log_level: "INFO"
+    retention_days: 30
+
+  experiment:
+    enabled: true
+    auto_register: true
+    priority: 115
+    log_level: "INFO"
+    track_timing: true
+    track_steps: true
+
+paths:
+  output_dir: "outputs"
+  log_dir: "outputs/logs"
+  config_dir: "panther/configs"
+  plugin_dir: "panther/plugins"
+
+docker:
+  force_build_docker_image: true
+  log_docker_image_build: true  # Enable Docker build log files
+
+tests:
+  - name: "QUIC Client-Server Communication Test"
+    description: "Verify that the Picoquic client can communicate with the Ivy server over docker-compose network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    services:
+      picoquic_client:
+        timeout: 200
+        name: "picoquic_client"  # Added 'name' key
+        implementation:
+          name: "picoquic"
+          type: "iut"
+          # swag: swag # Invalid key
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "ivy_server"  # Docker Compose service name
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "5001:5001"  # Client management port
+          - "8082:8082"  # Client health check port
+        generate_new_certificates: True
+
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 200
+        implementation:
+          build_mode: "rel-lto"
+          type: "testers"
+          name: "panther_ivy"
+          test: quic_client_test_max
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"  # Server QUIC port
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 200  # seconds to wait during the test
+
+  - name: "Strace QUIC Client-Server Communication Test"
+    description: "Verify that the Picoquic client can communicate with the Ivy server over docker-compose network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    execution_environment:
+      - type: "strace"
+        trace_all_syscalls: True  # Enable tracing of all syscalls
+    services:
+      picoquic_client:
+        timeout: 200
+        name: "picoquic_client"  # Added 'name' key
+        implementation:
+          name: "picoquic"
+          type: "iut"
+          # swag: swag # Invalid key
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "ivy_server"  # Docker Compose service name
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "5001:5001"  # Client management port
+          - "8082:8082"  # Client health check port
+        generate_new_certificates: True
+
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 200
+        implementation:
+          build_mode: "rel-lto"
+          type: "testers"
+          name: "panther_ivy"
+          test: quic_client_test_max
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"  # Server QUIC port
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 200  # seconds to wait during the test
+
+  - name: "GDB QUIC Server-Client Communication Test"
+    description: "Verify that the Picoquic server can communicate with the Ivy client over Shadow network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    execution_environment:
+      - type: "gdb"
+    services:
+      picoquic_server:
+        timeout: 200
+        name: "picoquic_server"  # Added 'name' key
+        implementation:
+          name: "picoquic"
+          type: "IUT"
+          # swag: swag # Invalid key
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "6443:4443"  # QUIC server port (external:internal)
+          - "6080:8080"  # Health check endpoint
+        generate_new_certificates: True
+
+      ivy_client:
+        name: "ivy_client"  # Added 'name' key
+        timeout: 200
+        implementation:
+          type: "TESTERS"
+          name: "panther_ivy"
+          test: quic_server_test_stream
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "picoquic_server"  # Docker Compose service name
+        ports:
+          - "7001:5001"  # Client management port
+          - "7080:8081"  # Client health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 200  # seconds to wait during the test

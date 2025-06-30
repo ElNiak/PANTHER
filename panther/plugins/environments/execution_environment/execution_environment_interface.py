@@ -1,16 +1,17 @@
 from abc import abstractmethod
+from typing import TYPE_CHECKING, List
 
-from panther.plugins.plugin_loader import PluginLoader
-
-from panther.config.config_global_schema import GlobalConfig
-
-from panther.config.config_experiment_schema import TestConfig
-
+from panther.config.core.models.global_config import GlobalConfig
+from panther.core.observer.management.event_manager import EventManager
+from panther.config.core.models.environment import EnvironmentConfig
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.services.services_interface import IServiceManager
 
-from panther.core.observer.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
-from panther.plugins.environments.environment_interface import IEnvironmentPlugin
+# PluginManager functionality now integrated into PluginManager
+
+if TYPE_CHECKING:
+    from panther.config.core.models.experiment import TestConfig
+    from panther.plugins.plugin_manager import PluginManager
 
 
 class IExecutionEnvironment(IEnvironmentPlugin):
@@ -28,7 +29,7 @@ class IExecutionEnvironment(IEnvironmentPlugin):
         is_network_environment():
             Returns True if the plugin is a network environment. Default implementation returns False.
 
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader):
+        setup_environment(services_managers, test_config, global_config, timestamp, plugin_manager):
             Abstract method to set up the required environment before running experiments. Must be implemented by subclasses.
 
         teardown_environment():
@@ -58,11 +59,11 @@ class IExecutionEnvironment(IEnvironmentPlugin):
     @abstractmethod
     def setup_environment(
         self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
+        services_managers: List[IServiceManager],
+        test_config: "TestConfig",
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
+        plugin_manager: "PluginManager",
     ):
         """
         Sets up the required environment before running experiments.

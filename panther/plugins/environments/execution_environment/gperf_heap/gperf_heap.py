@@ -1,45 +1,51 @@
-from abc import ABC
+from typing import TYPE_CHECKING, List, Optional
 
-from omegaconf import OmegaConf
+"""
+Memory heap profiling execution environment using Google Performance Tools (gperf) with shared utilities.
 
-from panther.core.observer.event_manager import EventManager
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+This plugin provides heap profiling capabilities for services by wrapping them
+with gperf heap profiling tools and generating memory analysis reports.
+Uses shared command generation utilities to eliminate code duplication.
+"""
+
+from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
+from panther.plugins.environments.execution_environment.base_execution_environment import (
+    BaseExecutionEnvironment,
+)
+from panther.plugins.environments.execution_environment.command_generation_utils import (
+    CommandGenerationUtilsFactory,
+    create_execution_environment_builder,
+)
 from panther.plugins.environments.execution_environment.gperf_heap.config_schema import (
     GperfHeapConfig,
 )
-from panther.plugins.environments.execution_environment.execution_environment_interface import (
-    IExecutionEnvironment,
-)
-from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
 
+if TYPE_CHECKING:
+    pass
 
-class GperfHeapEnvironment(IExecutionEnvironment, ABC):
-    """ 
-    GperfHeapEnvironment is a class that sets up and manages the execution environment for gperf heap profiling.
 
-    Attributes:
-        global_config (GlobalConfig): The global configuration for the environment.
-        env_config_to_test (GperfHeapConfig): The specific configuration for the environment to test.
-        services_managers (list[IServiceManager]): List of service managers.
-        test_config (TestConfig): The test configuration.
-        plugin_loader (PluginLoader): The plugin loader.
-        logger (Logger): Logger for debugging and information.
-
-    Methods:
-        __init__(env_config_to_test: GperfHeapConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
-            Initializes the GperfHeapEnvironment with the given configurations and event manager.
-
-        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader):
-            Sets up the environment with the provided service managers, test configuration, global configuration, timestamp, and plugin loader.
-
-        to_command(service_name: str) -> str:
-            Generates the gperf command based on the configuration.
-
-        __repr__() -> str:
-            Returns a string representation of the GperfHeapEnvironment instance.
+@register_plugin(
+    plugin_type=PluginType.EXECUTION_ENVIRONMENT,
+    name="gperf_heap",
+    version="1.0.0",
+    description="Memory heap profiling execution environment using Google Performance Tools",
+    author="PANTHER Team",
+    capabilities=["heap_profiling", "memory_analysis", "leak_detection"],
+    external_dependencies=["gperf"],
+)
+class GperfHeapEnvironment(BaseExecutionEnvironment):
     """
+
+    Memory heap profiling execution environment using Google Performance Tools.
+
+    This environment wraps services with gperf heap profiling to collect
+    memory usage data and generate heap analysis reports. Uses shared command
+    generation utilities for consistent and maintainable command building.
+    """
+
     def __init__(
         self,
         env_config_to_test: GperfHeapConfig,
@@ -48,103 +54,252 @@ class GperfHeapEnvironment(IExecutionEnvironment, ABC):
         env_sub_type: str,
         event_manager: EventManager,
     ):
+        """Initialize the gperf heap environment."""
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
-        self.global_config = None
-        self.env_config_to_test = env_config_to_test
 
-    def setup_environment(
-        self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
-        timestamp: str,
-        plugin_loader: PluginLoader,
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> GperfHeapConfig:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    GperfHeapConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                self._plugin_config = GperfHeapConfig()
+        return self._plugin_config
+
+    def _setup_plugin_specific_environment(
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
-        """ """
-        self.services_managers: list[IServiceManager] = services_managers
-        self.test_config = test_config
-        self.plugin_loader = plugin_loader
-        self.global_config = global_config
-        self.logger.debug("Setup environment with:")
-        self.logger.debug(f"Services config: {self.env_config_to_test}")
-
-        for service in self.services_managers:
-            self.logger.debug(f"Service cmds: {service.run_cmd}")
-            if service.service_config_to_test.implementation.gperf_compatible:
-                service.environments["GPERF"] = True
-                service.run_cmd["run_cmd"]["command_env"][
-                    "HEAPPROFILE"
-                ] = f"/app/logs/{service.service_name}_heap.prof"
-                # service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command(service.service_name)]
-                service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [
-                    f"pprof --pdf /app/logs/{service.service_name}_heap.prof > /app/logs/{service.service_name}_heap.pdf"
-                ]
-                self.logger.debug(f"Service cmds: {service.run_cmd}")
-            else:
-                self.logger.debug(f"Service {service} is not gperf compatible")
-
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
-
-    def to_command(self, service_name: str) -> str:
         """
-        Generate the gperf command based on the configuration.
+        Set up gperf heap profiling for all services using shared utilities.
+
+        Args:
+            services_managers: List of service managers to potentially modify
+            timestamp: Timestamp for this execution (used for file naming)
         """
-        conf = GperfHeapConfig(
-            # input_file="keywords.txt",
-            # output_file="output.c",
-            # language="C++",
-            # keyword_only=True,
-            # readonly_tables=True,
-            # includes=["my_header.h"],
-            # other_flags=["--ignore-case"]
-        )
-        command = ["gperf"]
+        for service in services_managers:
+            # Only apply to services that support gperf
+            if not getattr(
+                service.service_config_to_test.implementation, "gperf_compatible", True
+            ):
+                self.logger.debug(
+                    "Skipping gperf heap profiling for %s (not gperf compatible)",
+                    getattr(service, "service_name", service.__class__.__name__),
+                )
+                continue
 
-        # Input and output files
-        if conf.input_file:
-            command.append(f'"{conf.input_file}"')
-        if conf.output_file:
-            command.append(f'--output-file="{conf.output_file}"')
+            # Create command builder using shared utilities
+            command_builder = create_execution_environment_builder(
+                service=service,
+                environment_name="gperf_heap",
+                timestamp=timestamp,
+                register_output_callback=self.register_output_file,
+                logger=self.logger,
+            )
 
-        # Language option
-        if conf.language:
-            command.append(f"--language={conf.language}")
+            # Register output files and get their paths
+            heap_profile_file = command_builder.register_output_file(
+                file_type="heap_profile",
+                extension="prof",
+                description="Heap profile data",
+            )
 
-        # Flags
-        if conf.keyword_only:
-            command.append("--keyword-only")
-        if conf.readonly_tables:
-            command.append("--readonly-tables")
-        if conf.switch:
-            command.append("--switch")
-        if conf.compare_strncmp:
-            command.append("--compare-strncmp")
+            heap_analysis_file = command_builder.register_output_file(
+                file_type="heap_analysis",
+                extension="txt",
+                description="Heap analysis results",
+            )
+            # Build gperf heap profiling environment variables
+            heap_env_vars = self._build_heap_environment_vars(heap_profile_file)
 
-        # Custom functions
-        if conf.hash_function:
-            command.append(f'--hash-function="{conf.hash_function}"')
-        if conf.compare_function:
-            command.append(f'--compare-function="{conf.compare_function}"')
+            # Add heap profiling wrapper (just environment variables)
+            command_builder.add_wrapper_command(
+                wrapper_command="",  # No wrapper command needed, just env vars
+                additional_env_vars=heap_env_vars,
+            )
 
-        # Includes
-        for include in conf.includes:
-            command.append(f'--include="{include}"')
+            # Get service name for logging
+            service_name = getattr(service, "service_name", service.__class__.__name__)
 
-        # Other flags
-        command.extend(conf.other_flags)
+            # Add post-processing command for heap analysis generation
+            post_process_cmd = self._build_post_processing_command(
+                heap_profile_file, heap_analysis_file, service_name
+            )
 
-        # Join and return the command
-        return " ".join(command)
+            command_builder.add_post_processing(
+                command=post_process_cmd,
+                input_file=heap_profile_file,
+                processing_command=f"pprof --text {heap_profile_file}",
+            )
 
-    def __repr__(self):
-        return (
-            f"GperfEnvironment("
-            f"env_config_to_test={self.env_config_to_test}, "
-            f"output_dir={self.output_dir}, "
-            f"event_manager={self.event_manager}, "
-            f"services_managers={self.services_managers}, "
-            f"test_config={self.test_config})"
-        )
+            # Build and apply all commands
+            command_builder.build_and_apply(self)
+
+    def _build_heap_environment_vars(self, heap_profile_file: str) -> dict:
+        """
+        Build the environment variables for gperf heap profiling.
+
+        Args:
+            heap_profile_file: Path to write heap profile data
+
+        Returns:
+            dict: Environment variables for heap profiling
+        """
+        plugin_config = self._get_plugin_config()
+
+        env_vars = {
+            "HEAPPROFILE": heap_profile_file,
+            "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libtcmalloc_and_profiler.so.4:$LD_PRELOAD",
+        }
+
+        # Add sampling frequency if configured using dual approach
+        sampling_frequency = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            sampling_frequency = self.env_config_to_test.plugin_config.get(
+                "sampling_frequency"
+            )
+        if sampling_frequency is None and hasattr(plugin_config, "sampling_frequency"):
+            sampling_frequency = plugin_config.sampling_frequency
+
+        if sampling_frequency:
+            env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] = str(sampling_frequency)
+
+        # Add heap check level if configured using dual approach
+        heap_check_level = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            heap_check_level = self.env_config_to_test.plugin_config.get(
+                "heap_check_level"
+            )
+        if heap_check_level is None and hasattr(plugin_config, "heap_check_level"):
+            heap_check_level = plugin_config.heap_check_level
+
+        if heap_check_level:
+            env_vars["HEAPCHECK"] = str(heap_check_level)
+
+        # Add profile options using dual approach
+        profile_only_peak = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            profile_only_peak = self.env_config_to_test.plugin_config.get(
+                "profile_only_peak"
+            )
+        if profile_only_peak is None and hasattr(plugin_config, "profile_only_peak"):
+            profile_only_peak = plugin_config.profile_only_peak
+
+        if profile_only_peak:
+            env_vars["HEAP_PROFILE_ONLY_PEAK"] = "1"
+
+        return env_vars
+
+    def _build_post_processing_command(
+        self, heap_profile_file: str, heap_analysis_file: str, service_name: str
+    ) -> str:
+        """
+        Build the post-processing command for generating heap analysis.
+
+        Args:
+            heap_profile_file: Path to heap profile file
+            heap_analysis_file: Path to heap analysis file
+            service_name: Name of the service being profiled
+
+        Returns:
+            str: Complete post-processing command
+        """
+        # Get pprof_binary using dual approach
+        plugin_config = self._get_plugin_config()
+        pprof_binary = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            pprof_binary = self.env_config_to_test.plugin_config.get("pprof_binary")
+        if pprof_binary is None:
+            pprof_binary = (
+                plugin_config.pprof_binary
+                if hasattr(plugin_config, "pprof_binary")
+                else "pprof"
+            )
+
+        return f"""
+# Generate GPerf heap analysis
+echo "=== GPerf Heap Analysis ===" > {heap_analysis_file}
+echo "Generated at: $(date)" >> {heap_analysis_file}
+echo "" >> {heap_analysis_file}
+
+# Find the actual heap profile files (gperf creates numbered files)
+profile_files=$(find $(dirname {heap_profile_file}) -name "$(basename {heap_profile_file})*" -type f 2>/dev/null)
+
+if [ -n "$profile_files" ]; then
+    # Get the latest profile file
+    latest_profile=$(echo "$profile_files" | sort -V | tail -1)
+    echo "Analyzing profile: $latest_profile" >> {heap_analysis_file}
+    echo "" >> {heap_analysis_file}
+
+    # Generate top memory consumers
+    echo "=== Top Memory Consumers ===" >> {heap_analysis_file}
+    {pprof_binary} --text --lines $latest_profile 2>/dev/null | head -20 >> {heap_analysis_file} || echo "Failed to generate text report" >> {heap_analysis_file}
+
+    echo "" >> {heap_analysis_file}
+    echo "=== Memory Allocation Tree ===" >> {heap_analysis_file}
+    {pprof_binary} --tree --lines $latest_profile 2>/dev/null | head -30 >> {heap_analysis_file} || echo "Failed to generate tree report" >> {heap_analysis_file}
+else
+    echo "No heap profile files found" >> {heap_analysis_file}
+fi
+
+echo "Heap analysis completed for {service_name}" >> /app/logs/{service_name}_heap_analysis.log
+""".strip()
+
+    def to_command(self, output_file: Optional[str] = None) -> str:
+        """
+        Generate the gperf heap profiling command for execution.
+
+        Args:
+            output_file: Optional output file path
+
+        Returns:
+            str: Command string for heap profiling
+        """
+        if output_file is None:
+            output_file = "/tmp/heap_profile"
+
+        env_vars = self._build_heap_environment_vars(output_file)
+        env_string = " ".join([f"{k}={v}" for k, v in env_vars.items()])
+
+        return f"env {env_string}"
+
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for gperf heap profiling execution.
+
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        # Add any gperf heap-specific environment updates here
+        self.logger.debug("Updated environment for gperf heap profiling execution")
+        pass

@@ -1,47 +1,74 @@
-from dataclasses import dataclass, field
-import logging
-import os
-from pathlib import Path
+"""Aioquic plugin configuration schema."""
 
-from omegaconf import OmegaConf
+from typing import Optional
 
-from panther.plugins.services.iut.config_schema import ImplementationConfig, VersionBase
-from panther.plugins.services.iut.config_schema import ImplementationType
+from pydantic import Field
+
+from panther.config.core.models.plugin import ServicePluginConfig
 
 
-@dataclass
-class AioquicVersion(VersionBase):
-    version: str = ""
-    commit: str = ""
-    dependencies: list[dict[str, str]] = field(default_factory=list)
-    client: dict | None = field(default_factory=dict)
-    server: dict | None = field(default_factory=dict)
+class AioquicConfig(ServicePluginConfig):
+    """Configuration for aioquic service plugin.
 
+    This configuration supports the dual approach pattern where plugin-specific
+    fields can be accessed either through the typed config or the plugin_config dict.
+    """
 
-@dataclass
-class AioquicConfig(ImplementationConfig):
-    name: str = "aioquic"  # Implementation name
-    type: ImplementationType = ImplementationType.iut  # Default type for picoquic
-    # These field must not be included in the experiment configuration file
-    version: AioquicVersion = field(
-        default_factory=lambda: AioquicConfig.load_versions_from_files()
+    # Standard plugin fields (inherited from ServicePluginConfig)
+    # - enabled: bool
+    # - version: Optional[str]
+    # - priority: int
+    # - docker_image: Optional[str]
+    # - build_from_source: bool
+    # - source_repository: Optional[str]
+
+    # Aioquic-specific fields
+    name: str = Field(default="aioquic", description="Implementation name")
+
+    # Server-specific options
+    server_root: str = Field(
+        default="/var/www", description="Document root for serving files"
+    )
+    server_certificate: Optional[str] = Field(
+        default="/certs/cert.pem", description="Server certificate path"
+    )
+    server_private_key: Optional[str] = Field(
+        default="/certs/key.pem", description="Server private key path"
+    )
+    session_ticket_store: Optional[str] = Field(
+        default=None, description="Session ticket store path"
     )
 
-    @staticmethod
-    def load_versions_from_files(
-        version_configs_dir: str = f"{Path(os.path.dirname(__file__))}/version_configs/",
-    ) -> AioquicVersion:
-        """Load version configurations dynamically from YAML files."""
-        logging.debug(f"Loading Aioquic versions from {version_configs_dir}")
-        for version_file in os.listdir(version_configs_dir):
-            if version_file.endswith(".yaml"):
-                version_path = os.path.join(version_configs_dir, version_file)
-                raw_version_config = OmegaConf.load(version_path)
-                logging.debug(
-                    f"Loaded raw Aioquic version config: {raw_version_config}"
-                )
-                version_config = OmegaConf.to_object(
-                    OmegaConf.merge(AioquicVersion, raw_version_config)
-                )
-                logging.debug(f"Loaded Picoquic version {version_config}")
-                return version_config
+    # Client-specific options
+    client_output_dir: str = Field(
+        default="/app/logs/artifacts", description="Client output directory"
+    )
+    client_insecure: bool = Field(
+        default=True, description="Skip certificate verification"
+    )
+    client_legacy_http: bool = Field(
+        default=False, description="Enable legacy HTTP support"
+    )
+
+    # Common options
+    verbose: bool = Field(default=False, description="Enable verbose logging")
+    secrets_log: Optional[str] = Field(
+        default=None, description="Path to secrets log file"
+    )
+
+    # Python-specific paths
+    python_path: str = Field(
+        default="/opt/aioquic", description="Python path for aioquic"
+    )
+    examples_dir: str = Field(
+        default="/opt/aioquic/examples", description="Examples directory"
+    )
+
+    # HTTP/3 specific options
+    enable_http3: bool = Field(default=True, description="Enable HTTP/3 support")
+    enable_websockets: bool = Field(
+        default=True, description="Enable WebSocket support"
+    )
+    enable_priority: bool = Field(default=True, description="Enable stream priority")
+    enable_push: bool = Field(default=True, description="Enable server push")
+    enable_datagram: bool = Field(default=True, description="Enable datagram support")

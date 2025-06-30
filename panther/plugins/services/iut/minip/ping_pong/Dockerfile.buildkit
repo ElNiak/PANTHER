@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+ARG TARGETPLATFORM=linux/amd64
+FROM panther_base_service:latest AS base
+ARG RUNTIME_MODE=minimal
+ENV DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /opt/
+
+ARG VERSION=random
+ENV VERSION=${VERSION}
+
+# Layer 1: Copy source files (changes when source code changes)
+COPY src/${VERSION}/miniP.h /opt/ping-pong/miniP.h
+COPY src/${VERSION}/delay.h /opt/ping-pong/delay.h
+COPY src/${VERSION}/miniP_client.c /opt/ping-pong/miniP_client.c
+COPY src/${VERSION}/miniP_server.c /opt/ping-pong/miniP_server.c
+
+# Layer 2: Compile with cache mount for build artifacts
+RUN --mount=type=cache,target=/tmp/ping-pong-build \
+    cd ping-pong/ && \
+    # Restore cached builds if available \
+    if [ -d "/tmp/ping-pong-build" ]; then \
+        cp /tmp/ping-pong-build/* . 2>/dev/null || true; \
+    fi && \
+    gcc miniP_client.c -o miniP_client && \
+    gcc miniP_server.c -o miniP_server && \
+    # Cache the built binaries \
+    cp miniP_client miniP_server /tmp/ping-pong-build/ 2>/dev/null || true
+
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

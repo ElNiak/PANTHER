@@ -124,7 +124,7 @@ async fn run(options: Opt) -> Result<()> {
             .connect(&remote, &host)?
             .await
             .map_err(|e| anyhow!("failed to connect: {}", e))?;
-        
+
         let request = format!("GET {}\r\n", url.path());
         let start = Instant::now();
         let mut i = 0;
@@ -174,7 +174,7 @@ async fn run(options: Opt) -> Result<()> {
             mut crypto,
             transport,
         } = client_config.clone();
-        
+
         Arc::make_mut(&mut crypto)
             .dangerous()
             .set_certificate_verifier(Arc::new(SkipCertificationVerification));
@@ -268,21 +268,21 @@ async fn run(options: Opt) -> Result<()> {
         }
         let mut cfg = client_config.build();
         //let client_config_copy = cfg.clone();
-    
+
         // Get a mutable reference to the 'crypto' config in the 'client config'.
         let tls_cfg: &mut rustls::ClientConfig =
             std::sync::Arc::get_mut(&mut cfg.crypto).unwrap();
-    
+
         // Change the certification verifier.
         // This is only available when compiled with the 'dangerous_configuration' feature.
         tls_cfg
             .dangerous()
             .set_certificate_verifier(Arc::new(SkipCertificationVerification));
-    
+
         endpoint.default_client_config(cfg.clone());
-    
+
         let (endpoint, _) = endpoint.bind(&"[::]:0".parse().unwrap())?;
-    
+
         let request = format!("GET {}\r\n", url.path());
         let start = Instant::now();
         let rebind = options.rebind;
@@ -291,7 +291,7 @@ async fn run(options: Opt) -> Result<()> {
             .as_ref()
             .map_or_else(|| url.host_str(), |x| Some(&x))
             .ok_or_else(|| anyhow!("no hostname specified"))?;
-        
+
         let new_conn = endpoint
             .connect(&remote, &host)?
             .await
@@ -300,11 +300,11 @@ async fn run(options: Opt) -> Result<()> {
 
         eprintln!("connecting to {} at {}", host, remote);
         info!("cfg = {:?}",cfg);
-   
+
         let quinn::NewConnection {
             connection: conn, ..
         } = new_conn;
-    
+
         let mut i = 0;
         while i < 10 {
             let (mut send, recv) = conn
@@ -340,9 +340,9 @@ async fn run(options: Opt) -> Result<()> {
             i = i + 1;
         }
         conn.close(0u32.into(), b"done");
-    
+
         // Give the server a fair chance to receive the close packet
-        endpoint.wait_idle().await;    
+        endpoint.wait_idle().await;
     }
     Ok(())
 }

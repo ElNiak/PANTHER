@@ -1,0 +1,178 @@
+logging:
+  level: ERROR
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+
+paths:
+  output_dir: "outputs"
+  log_dir: "outputs/logs"
+  config_dir: "panther/configs"
+  plugin_dir: "panther/plugins"
+
+docker:
+  force_build_docker_image: True
+
+fast_fail:
+  enabled: false
+  port_conflict_failures: true
+  ivy_compilation_failures: true
+  resource_exhaustion: true
+  disk_space_threshold_gb: 2.0
+  timeout_cascade_threshold: 2
+
+progress:
+  enable_progress_bar: true
+  show_test_status: true
+  show_docker_events: true
+  use_emojis: true
+  redirect_logging: true
+
+observers:
+  logger:
+    enabled: true
+    log_level: "INFO"
+    enable_colors: true
+    correlation_tracking: true
+
+  metrics:
+    enabled: true
+    collect_system_metrics: true
+    log_level: "INFO"
+    publish_interval: 30
+
+  storage:
+    enabled: true
+    storage_path: "outputs/storage"
+    enable_compression: true
+    log_level: "INFO"
+    retention_days: 30
+
+  experiment:
+    enabled: true
+    auto_register: true
+    priority: 115
+    log_level: "DEBUG"
+    track_timing: true
+    track_steps: true
+
+tests:
+  - name: "Modern QUIC Communication Test with Plugin Config"
+    description: "QUIC test demonstrating modern plugin configuration usage."
+    network_environment:
+      type: "docker_compose"
+      plugin_config:
+        enable_background_monitoring: true
+        monitoring_interval_seconds: 10
+        failure_threshold_count: 2
+    execution_environment:
+      type: "strace"
+      plugin_config:
+        timeout: 120
+        trace_network_syscalls: true
+        timestamps: true
+        output_format: "verbose"
+        string_limit: 64
+    iterations: 1
+    services:
+      picoquic_server:
+        name: "picoquic_server"
+        timeout: 200
+        implementation:
+          name: "picoquic"
+          type: "iut"
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"
+        generate_new_certificates: False
+        plugin_config:
+          # Picoquic-specific configuration
+          alpn: "h3"
+          max_stream_data: 1048576
+          initial_rtt: 100
+          qlog_enabled: true
+          keylog_enabled: true
+
+      quinn_client:
+        name: "quinn_client"
+        timeout: 200
+        implementation:
+          name: "quinn"
+          type: "iut"
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "picoquic_server"
+        ports:
+          - "5002:5002"
+        generate_new_certificates: False
+        plugin_config:
+          # Quinn-specific configuration
+          version:
+            client:
+              connect_timeout: 30
+              idle_timeout: 60
+              max_concurrent_streams: 100
+              keylog: true
+    steps:
+      wait: 30
+
+  - name: "Advanced QUIC Test with Multiple Plugin Configs"
+    description: "Demonstrates various plugin configurations across different service types."
+    network_environment:
+      type: "docker_compose"
+    execution_environment:
+      type: "memcheck"
+      plugin_config:
+        leak_check: true
+        show_reachable: false
+        track_origins: true
+        timeout: 300
+    iterations: 1
+    services:
+      quic_go_server:
+        name: "quic_go_server"
+        timeout: 200
+        implementation:
+          name: "quic_go"
+          type: "iut"
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4444:4444"
+        plugin_config:
+          # QUIC-Go specific configuration
+          cert_file: "/app/certs/server.crt"
+          key_file: "/app/certs/server.key"
+          qlog_dir: "/app/logs/qlog"
+          enable_0rtt: true
+          max_streams: 256
+
+      ivy_client:
+        name: "ivy_client"
+        timeout: 200
+        implementation:
+          name: "panther_ivy"
+          type: "testers"
+          test: quic_server_test_stream
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "quic_go_server"
+        ports:
+          - "5001:5001"
+        generate_new_certificates: False
+        plugin_config:
+          # Panther Ivy specific configuration
+          test_iterations: 5
+          connection_timeout: 30
+          stream_count: 10
+          data_size: 4096
+          verify_data: true
+    steps:
+      wait: 45

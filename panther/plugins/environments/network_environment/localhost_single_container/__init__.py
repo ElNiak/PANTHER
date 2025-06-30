@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER environment plugins.
 
-This package contains the panther application and its modules.
+This package contains environment plugins for different testing environments.
 """

@@ -1,0 +1,152 @@
+# Experiment Report: {{ summary.experiment_id }}
+
+## Overview
+- **Experiment ID**: `{{ summary.experiment_id }}`
+- **Status**: {{ status_emoji }} {{ summary.status.value|title }}
+- **Start Time**: {{ summary.start_time.strftime('%Y-%m-%d %H:%M:%S') if summary.start_time else 'Unknown' }}
+- **End Time**: {{ summary.end_time.strftime('%Y-%m-%d %H:%M:%S') if summary.end_time else 'Unknown' }}
+- **Total Duration**: {{ duration_str }}
+- **Configuration**: {{ summary.configuration_file or 'Unknown' }}
+
+## Test Results Summary
+- **Total Tests**: {{ summary.total_tests }}
+- **Passed**: {{ summary.passed_tests }} ({{ "%.1f"|format(summary.success_rate) }}%)
+- **Failed**: {{ summary.failed_tests }}
+- **Skipped**: {{ summary.skipped_tests }}
+{%- if summary.total_tests > 0 %}
+- **Success Rate**: {{ "%.1f"|format(summary.success_rate) }}%
+{%- endif %}
+
+{% if summary.tests %}
+## Individual Test Results
+
+{%- set passed_tests = summary.tests|selectattr("status.value", "equalto", "passed")|list %}
+{%- if passed_tests %}
+### ✅ Passed Tests ({{ passed_tests|length }})
+{%- for test in passed_tests %}
+- **{{ test.name }}** - Duration: {{ "%.1f"|format(test.duration) }}s
+{%- endfor %}
+{%- endif %}
+
+{%- set failed_tests = summary.tests|rejectattr("status.value", "equalto", "passed")|list %}
+{%- if failed_tests %}
+### ❌ Failed/Problem Tests ({{ failed_tests|length }})
+{%- for test in failed_tests %}
+- **{{ test.name }}** - Status: {{ test.status.value|title }} - Duration: {{ "%.1f"|format(test.duration) }}s
+{%- if test.error_message %}
+  - Error: {{ test.error_message }}
+{%- endif %}
+{%- if test.fast_fail_triggered %}
+  - ⚡ Fast-fail triggered
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+
+## Fast-Fail Analysis
+- **Fast-Fail Enabled**: {{ '✅ Yes' if summary.fast_fail.enabled else '❌ No' }}
+{%- if summary.fast_fail.test_level %}
+- **Test-Level Control**: ✅ Enabled
+{%- endif %}
+{%- if summary.fast_fail.triggered %}
+- **⚡ Fast-Fail Triggered**: Yes
+- **Termination Reason**: {{ summary.fast_fail.reason or 'Unknown' }}
+{%- if summary.fast_fail.error_category %}
+- **Error Category**: {{ summary.fast_fail.error_category }}
+{%- endif %}
+{%- if summary.fast_fail.termination_time %}
+- **Termination Time**: {{ summary.fast_fail.termination_time.strftime('%Y-%m-%d %H:%M:%S') }}
+{%- endif %}
+{%- else %}
+- **Fast-Fail Triggered**: No
+{%- endif %}
+
+## Resource Usage
+{%- if summary.resources.peak_memory_mb %}
+- **Peak Memory**: {{ "%.1f"|format(summary.resources.peak_memory_mb) }} MB
+{%- endif %}
+{%- if summary.resources.disk_usage_mb %}
+- **Disk Usage**: {{ "%.1f"|format(summary.resources.disk_usage_mb) }} MB
+{%- endif %}
+{%- if summary.resources.docker_images_created %}
+- **Docker Images Created**: {{ summary.resources.docker_images_created }}
+{%- endif %}
+{%- if summary.resources.total_log_size_mb %}
+- **Total Log Size**: {{ "%.1f"|format(summary.resources.total_log_size_mb) }} MB
+{%- endif %}
+
+## Detailed Information
+
+### Log Files
+- **Main Experiment Log**: `./experiment.log`
+{%- if summary.tests %}
+- **Individual Test Logs**:
+{%- for test in summary.tests %}
+  - {{ test.name }}: `./{{ test.logs_path }}/test.log`
+{%- endfor %}
+{%- endif %}
+
+### Directory Structure
+```
+{{ summary.experiment_id }}/
+├── experiment.log                    # Main experiment log
+├── experiment_config.yaml            # Configuration used
+├── EXPERIMENT_REPORT.md              # This report
+├── experiment_summary.json           # Machine-readable summary
+{%- if summary.tests %}
+{%- for test in summary.tests %}
+├── {{ test.logs_path }}/              # {{ test.name }} test directory
+{%- endfor %}
+{%- endif %}
+└── [other experiment files...]
+```
+
+---
+
+{% if summary.status.value == 'failed' %}
+## 🚨 Failure Analysis
+
+This experiment failed. Key points to investigate:
+
+{%- if summary.fast_fail.triggered %}
+1. **Fast-fail was triggered**: {{ summary.fast_fail.reason }}
+{%- if summary.fast_fail.error_category %}
+   - Error category: {{ summary.fast_fail.error_category }}
+{%- endif %}
+{%- endif %}
+
+{%- set failed_tests = summary.tests|rejectattr("status.value", "equalto", "passed")|list %}
+{%- if failed_tests %}
+2. **Failed tests to investigate**:
+{%- for test in failed_tests %}
+   - {{ test.name }}: Check `./{{ test.logs_path }}/test.log`
+{%- endfor %}
+{%- endif %}
+
+3. **Next steps**:
+   - Review the main experiment log: `./experiment.log`
+   - Check individual test logs for detailed error information
+   - Verify configuration parameters in `experiment_config.yaml`
+{%- if summary.fast_fail.enabled %}
+   - Consider adjusting fast-fail settings if appropriate
+{%- endif %}
+
+{% elif summary.status.value == 'completed' %}
+## ✅ Success Summary
+
+Experiment completed successfully! All tests passed.
+
+{%- if summary.duration %}
+- **Total execution time**: {{ duration_str }}
+{%- endif %}
+{%- if summary.success_rate == 100.0 %}
+- **Perfect success rate**: 100%
+{%- endif %}
+
+{% endif %}
+
+---
+
+**Report generated**: {{ generation_time.strftime('%Y-%m-%d %H:%M:%S') }}  
+**PANTHER Version**: {{ panther_version or 'Development' }}  
+**Report Format**: Markdown v1.0

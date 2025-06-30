@@ -163,7 +163,7 @@ var cxtmenu = function cxtmenu(params) {
       var rx1 = (r + rs) / 2 * Math.cos(midtheta);
       var ry1 = (r + rs) / 2 * Math.sin(midtheta);
 
-      // Arbitrary multiplier to increase the sizing of the space 
+      // Arbitrary multiplier to increase the sizing of the space
       // available for the item.
       var width = 1 * Math.abs((r - rs) * Math.cos(midtheta));
       var height = 1 * Math.abs((r - rs) * Math.sin(midtheta));
@@ -311,7 +311,7 @@ var cxtmenu = function cxtmenu(params) {
     c2d.rotate(rot);
 
     // clear the indicator
-    // The indicator size (arrow) depends on the node size as well. If the indicator size is bigger and the rendered node size + padding, 
+    // The indicator size (arrow) depends on the node size as well. If the indicator size is bigger and the rendered node size + padding,
     // use the rendered node size + padding as the indicator size.
     var indicatorSize = options.indicatorSize > rs + options.spotlightPadding ? rs + options.spotlightPadding : options.indicatorSize;
     c2d.beginPath();
@@ -747,7 +747,7 @@ var defaults = {
   fillColor: 'rgba(0, 0, 0, 0.75)', // the background colour of the menu
   activeFillColor: 'rgba(1, 105, 217, 0.75)', // the colour used to indicate the selected command
   activePadding: 20, // additional size in pixels for the active command
-  indicatorSize: 24, // the size in pixels of the pointer to the active command, will default to the node size if the node size is smaller than the indicator size, 
+  indicatorSize: 24, // the size in pixels of the pointer to the active command, will default to the node size if the node size is smaller than the indicator size,
   separatorWidth: 3, // the empty spacing in pixels between successive commands
   spotlightPadding: 4, // extra spacing in pixels between the element and the spotlight
   adaptativeNodeSpotlightRadius: false, // specify whether the spotlight radius should adapt to the node size

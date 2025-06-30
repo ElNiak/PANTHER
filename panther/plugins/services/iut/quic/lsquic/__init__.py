@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER Lsquic QUIC implementation.
 
-This package contains the panther application and its modules.
+This package contains the Lsquic implementation of the QUIC protocol.
 """

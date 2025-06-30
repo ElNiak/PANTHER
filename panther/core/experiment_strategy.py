@@ -1,3 +1,9 @@
+"""Test execution strategies for PANTHER framework.
+
+This module defines different strategies for executing tests including
+sequential and parallel execution approaches.
+"""
+
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 

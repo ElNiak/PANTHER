@@ -90,7 +90,7 @@ func main() {
 			ConnectionIDLength: 8,
 			Versions: [] protocol.VersionNumber{0x22334455, 0xff00001d, 0x33445566},
 		}
-	} 
+	}
 
 	tlsConf :=  &tls.Config{
 		RootCAs:            pool,
@@ -107,7 +107,7 @@ func main() {
 	}
 
 	defer roundTripper.Close()
-	
+
 
 	var url = fmt.Sprintf("https://%s:%s/%s", address, port, "index.html")
 	var wg sync.WaitGroup
@@ -156,7 +156,7 @@ func main() {
 	}
 
 	wg.Wait()
-	
+
 	// wait for the session ticket to arrive
 	select {
 	case <-time.NewTimer(10 * time.Second).C:
@@ -167,7 +167,7 @@ func main() {
 
 	if *use0RTT {
 		log.Printf("0RTT Body:")
-		
+
 		if err := roundTripper.Close(); err != nil {
 			log.Fatal("Error closing connection")
 		}
@@ -192,7 +192,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				
+
 				rsp, err := roundTripper.RoundTrip(req)
 				if err != nil {
 					log.Fatal(err)

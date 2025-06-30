@@ -1,110 +1,259 @@
-from abc import ABC
+from typing import TYPE_CHECKING, List, Optional
 
-from omegaconf import OmegaConf
+"""
+Iterations execution environment for running tests multiple times.
 
-from panther.core.observer.event_manager import EventManager
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
-from panther.plugins.environments.execution_environment.strace.config_schema import (
-    StraceConfig,
+This plugin creates a wrapper script that executes the original command multiple times,
+useful for statistical analysis, stress testing, and measuring performance variance.
+"""
+
+from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
+from panther.plugins.environments.execution_environment.base_execution_environment import (
+    BaseExecutionEnvironment,
 )
-from panther.plugins.environments.execution_environment.execution_environment_interface import (
-    IExecutionEnvironment,
+from panther.plugins.environments.execution_environment.command_generation_utils import (
+    create_execution_environment_builder,
 )
-from panther.plugins.plugin_loader import PluginLoader
+from panther.plugins.environments.execution_environment.iterations.config_schema import (
+    IterationsConfig,
+)
 from panther.plugins.services.services_interface import IServiceManager
 
+if TYPE_CHECKING:
+    pass
 
-class StraceEnvironment(IExecutionEnvironment, ABC):
+
+@register_plugin(
+    plugin_type=PluginType.EXECUTION_ENVIRONMENT,
+    name="iterations",
+    version="1.0.0",
+    description="Execution environment for running multiple test iterations",
+    author="PANTHER Team",
+    capabilities=["iterative_testing", "statistical_analysis", "performance_variance"],
+    external_dependencies=[],
+)
+class IterationsEnvironment(BaseExecutionEnvironment):
     """
-    StraceEnvironment is a class that sets up and manages an execution environment using strace for system call tracing.
 
-    Attributes:
-        global_config (GlobalConfig): The global configuration for the environment.
-        env_config_to_test (StraceConfig): The specific configuration for the strace environment to test.
-        services_managers (list[IServiceManager]): List of service managers to handle services within the environment.
-        test_config (TestConfig): Configuration for the test being executed.
-        plugin_loader (PluginLoader): Loader for plugins used in the environment.
+    Iterations execution environment for running multiple test iterations.
 
-    Methods:
-        __init__(env_config_to_test: StraceConfig, output_dir: str, env_type: str, env_sub_type: str, event_manager: EventManager):
-            Initializes the StraceEnvironment with the given configuration and parameters.
-
-        setup_environment(services_managers: list[IServiceManager], test_config: TestConfig, global_config: GlobalConfig, timestamp: str, plugin_loader: PluginLoader):
-            Sets up the environment with the provided service managers, test configuration, global configuration, and plugin loader.
-
-        to_command(pid: int | None = None) -> str:
-            Generates the strace command for execution. Optionally attaches to a specific process ID.
-
-        __repr__() -> str:
-            Returns a string representation of the StraceEnvironment instance.
+    This environment creates a wrapper script that executes the original command
+    multiple times with optional delays between iterations, collecting execution
+    statistics and results.
     """
-    # TODO enforce config in environment
+
     def __init__(
         self,
-        env_config_to_test: StraceConfig,
+        env_config_to_test: IterationsConfig,
         output_dir: str,
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
     ):
+        """Initialize the iterations environment."""
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
-        self.global_config = None
-        self.env_config_to_test = env_config_to_test
 
-    def setup_environment(
-        self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
-        timestamp: str,
-        plugin_loader: PluginLoader,
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> IterationsConfig:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    IterationsConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                self._plugin_config = IterationsConfig()
+        return self._plugin_config
+
+    def _setup_plugin_specific_environment(
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
-        self.services_managers: list[IServiceManager] = services_managers
-        self.test_config = test_config
-        self.plugin_loader = plugin_loader
-        self.global_config = global_config
-        self.logger.debug("Setup environment with:")
-        self.logger.debug(f"Services config: {self.env_config_to_test}")
-        for service in self.services_managers:
-            self.logger.debug(f"Service cmds: {service.run_cmd}")
-            service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [
-                self.to_command()
-            ]
-            self.logger.debug(f"Service cmds: {service.run_cmd}")
-
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
-
-    def to_command(self, pid: int | None = None) -> str:
         """
-        Generate the strace command for execution.
-        :param pid: Optional process ID to attach to.
-        :return: Strace command as a string.
-        """
-        self.env_config_to_test = StraceConfig()
-        excluded = ",".join(
-            f"{syscall}" for syscall in self.env_config_to_test.excluded_syscalls
-        )
-        command = [
-            self.env_config_to_test.strace_binary,
-            "-k",
-        ]  # Include kernel stack if enabled
-        command.append(f'-e trace="!{excluded}"')  # Exclude specified syscalls
-        if pid:
-            command.extend(["-p", str(pid)])
-        # if self.env_config_to_test.trace_network_syscalls:
-        #     command.append("-e trace=network")  # Include network-related syscalls
-        # if self.env_config_to_test.additional_parameters:
-        #     command.extend(self.env_config_to_test.additional_parameters)
-        # command.append(f"-o {self.env_config_to_test.output_file}")
-        return " ".join(command)
+        Set up iterative testing environment using shared utilities.
 
-    def __repr__(self):
-        return (
-            f"StraceEnvironment(env_config_to_test={self.env_config_to_test}, "
-            f"output_dir={self.output_dir}, event_manager={self.event_manager}, "
-            f"services_managers={self.services_managers}, test_config={self.test_config})"
+        Args:
+            services_managers: List of service managers to run iterations on
+            timestamp: Timestamp for this execution (used for file naming)
+        """
+        plugin_config = self._get_plugin_config()
+
+        # Get iterations using dual approach
+        iterations = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            iterations = self.env_config_to_test.plugin_config.get("iterations")
+        if iterations is None:
+            iterations = (
+                plugin_config.iterations if hasattr(plugin_config, "iterations") else 1
+            )
+
+        # Get delay_between_iterations using dual approach
+        delay = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            delay = self.env_config_to_test.plugin_config.get(
+                "delay_between_iterations"
+            )
+        if delay is None:
+            delay = (
+                plugin_config.delay_between_iterations
+                if hasattr(plugin_config, "delay_between_iterations")
+                else 0
+            )
+
+        self.logger.info(
+            "Setting up iterations environment for %d iterations with %ds delay",
+            iterations,
+            delay,
         )
+
+        # Only set up iterations wrapper if we have more than 1 iteration
+        if iterations <= 1:
+            self.logger.info("Single iteration configured, no wrapper needed")
+            return
+
+        for service in services_managers:
+            service_name = getattr(service, "service_name", service.__class__.__name__)
+
+            # Create command builder using shared utilities
+            command_builder = create_execution_environment_builder(
+                service=service,
+                environment_name="iterations",
+                timestamp=timestamp,
+                register_output_callback=self.register_output_file,
+                logger=self.logger,
+            )
+
+            # Register iteration log file
+            iteration_log = command_builder.register_output_file(
+                file_type="iterations",
+                extension="log",
+                description=f"Iteration execution log for {iterations} iterations",
+            )
+
+            # Create the iterations wrapper script
+            wrapper_script_content = f"""#!/bin/bash
+iterations_log="{iteration_log}"
+iterations_count={iterations}
+delay_between={delay}
+
+echo "Starting iterations wrapper for $iterations_count iterations" >> "$iterations_log"
+
+for iteration in $(seq 1 $iterations_count); do
+    echo "Starting iteration $iteration of $iterations_count" >> "$iterations_log"
+    if [ $iteration -gt 1 ] && [ $delay_between -gt 0 ]; then
+        echo "Waiting $delay_between seconds between iterations..." >> "$iterations_log"
+        sleep $delay_between
+    fi
+
+    # Execute the wrapped command
+    echo "Executing command: $*" >> "$iterations_log"
+    start_time=$(date +%s)
+    "$@"
+    exit_code=$?
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+
+    echo "Completed iteration $iteration of $iterations_count (exit code: $exit_code, duration: ${duration}s)" >> "$iterations_log"
+
+    # If command failed, should we continue? For now, continue iterations
+    if [ $exit_code -ne 0 ]; then
+        echo "Iteration $iteration failed with exit code $exit_code, continuing..." >> "$iterations_log"
+    fi
+done
+
+echo "All iterations completed" >> "$iterations_log"
+"""
+
+            # Build wrapper setup command
+            wrapper_setup_cmd = f"""
+# Create iterations wrapper script
+cat > /tmp/iterations_wrapper_{service_name}.sh << 'ITER_EOF'
+{wrapper_script_content}
+ITER_EOF
+
+chmod +x /tmp/iterations_wrapper_{service_name}.sh
+
+if [ -z "$EXEC_ENV_WRAPPERS" ]; then
+    export EXEC_ENV_WRAPPERS="/tmp/iterations_wrapper_{service_name}.sh"
+else
+    export EXEC_ENV_WRAPPERS="/tmp/iterations_wrapper_{service_name}.sh $EXEC_ENV_WRAPPERS"
+fi
+echo "Added iterations wrapper for {iterations} iterations" >> /app/logs/{service_name}_exec_env_setup.log
+""".strip()
+
+            # Add environment variables for iteration tracking
+            env_vars = {
+                "ITERATIONS_OUTPUT_FILE": iteration_log,
+                "ITERATIONS_COUNT": str(iterations),
+                "ITERATIONS_DELAY": str(delay),
+            }
+
+            # Use shared utilities to add wrapper command
+            command_builder.add_wrapper_command(
+                wrapper_command=wrapper_setup_cmd,
+                description=f"Setup iterations wrapper for {service_name} ({iterations} iterations)",
+                additional_env_vars=env_vars,
+                is_critical=False,
+            )
+
+            # Apply the configuration
+            command_builder.build_and_apply(self.modify_service_commands)
+
+            self.logger.info(
+                "Enhanced service %s with iterations wrapper for %d iterations",
+                service_name,
+                iterations,
+            )
+
+        self.logger.info("Iterations environment setup completed")
+
+    def to_command(self, *args, **kwargs) -> str:
+        """
+        Generate the iterations wrapper script path.
+
+        Args:
+            *args: Variable arguments (for compatibility with base class)
+            **kwargs: Keyword arguments (for compatibility with base class)
+                - service_name: Name of the service for logging purposes
+                - output_file: Optional output file path for iteration logs
+
+        Returns:
+            Path to the iterations wrapper script
+        """
+        # Extract service_name from args/kwargs for compatibility
+        service_name = kwargs.get("service_name")
+        if not service_name and args:
+            service_name = args[0] if isinstance(args[0], str) else None
+
+        # Get iterations using dual approach
+        plugin_config = self._get_plugin_config()
+        iterations = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            iterations = self.env_config_to_test.plugin_config.get("iterations")
+        if iterations is None:
+            iterations = (
+                plugin_config.iterations if hasattr(plugin_config, "iterations") else 1
+            )
+
+        if iterations <= 1:
+            # No wrapper needed for single iteration
+            return ""
+
+        # Return the path to the wrapper script that will be created
+        service_part = f"_{service_name}" if service_name else ""
+        return f"/tmp/iterations_wrapper{service_part}.sh"

@@ -31,13 +31,13 @@ int main(int argc, char* argv[])
         fprintf(stderr, "1Usage: %s -i destination IP -p destination port\n", argv[0]);
         exit(EXIT_FAILURE);
     }
-    
+
     int fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (fd <= 0) {
         perror("socket: socket");
         exit(EXIT_FAILURE);
     }
-    
+
     struct sockaddr_in v_src = {};
     inet_pton(AF_INET, "127.0.0.1", &v_src.sin_addr.s_addr);
     v_src.sin_port = htons(9444);
@@ -47,11 +47,11 @@ int main(int argc, char* argv[])
     inet_pton(AF_INET, ip_dst, &v_dst.sin_addr.s_addr);
     v_dst.sin_port = htons(port_dst);
     v_dst.sin_family = AF_INET;
-    
+
     struct pollfd fds[1];
     fds[0].fd = fd;
     fds[0].events = POLLIN;
-    
+
     int ret = 0;
     struct timeval tv;
     struct msg buf;

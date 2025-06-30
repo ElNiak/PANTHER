@@ -1,43 +1,102 @@
-FROM ubuntu:20.04
+# =============================================================================
+# PANTHER Service - 3-Stage Multi-Target Dockerfile
+# BUILDER -> DEBUG -> MINIMAL runtime environments with execution tools
+# =============================================================================
 
-# TODOS - Question should we set '--not-install-recommends' -> might introduce issues 
+ARG RUNTIME_MODE=minimal
+
+# =============================================================================
+# STAGE 1: BUILDER - Build tools and dependencies
+# =============================================================================
+FROM --platform=linux/amd64 ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
-    apt-get update && \
-    apt-get install --auto-remove --show-upgraded  -y \
-    build-essential git cmake software-properties-common \
-    openssl libssl-dev pkg-config python3 net-tools tcpdump iperf traceroute \
-    wireshark tshark clang libcap2-bin iputils-ping iproute2 iperf3 netcat-openbsd curl dnsutils \
-    wget sudo radare2 strace automake autoconf libtool 
+RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
 
-# https://github.com/gperftools/gperftools
-RUN git clone https://github.com/gperftools/gperftools
-WORKDIR /gperftools
-RUN ./autogen.sh
-RUN ./configure
-RUN make
-RUN sudo make install
-RUN apt-get install -y libunwind-dev google-perftools graphviz gv
-RUN whereis libprofiler
-RUN whereis libtcmalloc
+# Essential build tools and libraries
+RUN apt-get update && \
+    apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
+    build-essential git cmake software-properties-common \
+    openssl libssl-dev pkg-config python3 \
+    clang automake autoconf libtool \
+    wget curl sudo \
+    libc6-dev libdw1 libelf1 libunwind-dev
+
+# Build gperftools from source (needed for profiling)
+RUN git clone https://github.com/gperftools/gperftools /tmp/gperftools
+WORKDIR /tmp/gperftools
+RUN ./autogen.sh && \
+    ./configure && \
+    make && \
+    make install
 
 WORKDIR /
+RUN mkdir -p /app /opt
 
-# "yes" answer by 'dpkg-reconfigure wireshark-common' so you can run tshark as normal use
-RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common
+# =============================================================================
+# STAGE 2: DEBUG - MINIMAL + debugging tools
+# =============================================================================
+FROM builder AS debug
 
-ARG USER_UID=1000
-ARG USER_GID=1000
-ARG USER_N=crochetch
+# Install debugging tools
+RUN apt-get install --no-install-recommends -y \
+    gdb valgrind strace util-linux
 
-RUN addgroup --gid ${USER_GID} ${USER_N} && \
-    adduser --disabled-password --gecos '' --uid ${USER_UID} --gid ${USER_GID} ${USER_N} && \
-    usermod -aG wireshark ${USER_N}
+# Copy built gperftools for debugging
+COPY --from=builder /usr/local/lib/libprofiler.* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libtcmalloc.* /usr/local/lib/
 
-RUN usermod -aG wireshark root
+# =============================================================================
+# STAGE 3: PROFILE - DEBUG + performance profiling tools
+# =============================================================================
+FROM debug AS profile
 
-# Give the user ownership of the /app directory (or any directories you need)
-RUN mkdir -p /app
-RUN chown -R ${USER_N}:${USER_N} /app
-RUN chown -R ${USER_N}:${USER_N} /opt
+# Install performance profiling tools
+RUN apt-get install --no-install-recommends -y \
+    linux-tools-generic linux-tools-common linux-cloud-tools-common \
+    radare2 google-perftools graphviz gv
+
+# Update library cache for gperftools
+RUN ldconfig
+
+# Verify profiling tools installation
+RUN whereis libprofiler && whereis libtcmalloc
+
+# =============================================================================
+# STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
+# =============================================================================
+FROM --platform=linux/amd64 ubuntu:20.04 AS minimal
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
+
+# Core runtime and network analysis tools (required for PANTHER protocol testing)
+RUN apt-get update && \
+    apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
+    python3 openssl \
+    net-tools tcpdump iperf iperf3 traceroute \
+    wireshark tshark libcap2-bin \
+    iputils-ping iproute2 netcat-openbsd \
+    curl dnsutils
+
+# Configure wireshark for non-root usage (PANTHER protocol testing requirement)
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
+    usermod -aG wireshark root
+
+# Create application directories
+RUN mkdir -p /app /opt
+
+# =============================================================================
+# FINAL STAGE: Runtime mode selection
+# =============================================================================
+FROM ${RUNTIME_MODE} AS final
+
+# Labels for runtime identification
+ARG RUNTIME_MODE=minimal
+LABEL runtime.mode="${RUNTIME_MODE}"
+LABEL runtime.description="PANTHER service execution environment"
+LABEL runtime.capabilities.network="wireshark,tshark,tcpdump,iperf3"
+LABEL runtime.capabilities.debug="gdb,valgrind,strace"
+LABEL runtime.capabilities.profile="perf,gperftools,radare2"
+
+WORKDIR /app

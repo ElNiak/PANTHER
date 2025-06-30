@@ -1,49 +1,49 @@
-from abc import ABC
-from omegaconf import OmegaConf
-from panther.core.observer.event_manager import EventManager
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from typing import TYPE_CHECKING, List, Optional
+
+"""
+Refactored gperf CPU execution environment using shared command generation utilities.
+
+This demonstrates how the shared utilities eliminate duplication and simplify
+plugin implementation while maintaining all functionality.
+"""
+
+from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
+from panther.plugins.environments.execution_environment.base_execution_environment import (
+    BaseExecutionEnvironment,
+)
+from panther.plugins.environments.execution_environment.command_generation_utils import (
+    create_execution_environment_builder,
+)
 from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
     GperfCpuConfig,
 )
-from panther.plugins.environments.execution_environment.execution_environment_interface import (
-    IExecutionEnvironment,
-)
-from panther.plugins.plugin_loader import PluginLoader
 from panther.plugins.services.services_interface import IServiceManager
 
+if TYPE_CHECKING:
+    pass
 
-class GperfCpuEnvironment(IExecutionEnvironment, ABC):
+
+@register_plugin(
+    plugin_type=PluginType.EXECUTION_ENVIRONMENT,
+    name="gperf_cpu",
+    version="1.0.0",
+    description="Google Performance Tools CPU profiling environment",
+    author="PANTHER Team",
+    capabilities=["cpu_profiling", "performance_analysis"],
+    external_dependencies=["libgoogle-perftools-dev", "google-perftools"],
+    runtime_mode="profile",
+)
+class GperfCpuEnvironment(BaseExecutionEnvironment):
     """
-    GperfCpuEnvironment is a class that sets up and manages the execution environment
-    for CPU profiling using gperf.
 
-    Attributes:
-        env_config_to_test (GperfCpuConfig): Configuration specific to the environment being tested.
-        output_dir (str): Directory where output files will be stored.
-        env_type (str): Type of the environment.
-        env_sub_type (str): Sub-type of the environment.
-        event_manager (EventManager): Manager for handling events.
-        global_config (GlobalConfig): Global configuration settings.
-        services_managers (list[IServiceManager]): List of service managers.
-        test_config (TestConfig): Configuration for the test.
-        plugin_loader (PluginLoader): Loader for plugins.
-        logger (Logger): Logger for logging information.
+    CPU profiling execution environment using gperftools.
 
-    Methods:
-        __init__(env_config_to_test, output_dir, env_type, env_sub_type, event_manager):
-            Initializes the GperfCpuEnvironment with the given configuration and parameters.
-
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader):
-            Sets up the environment with the provided services managers, test configuration,
-            global configuration, timestamp, and plugin loader.
-
-        to_command(service_name):
-            Generates the gperf command based on the configuration.
-
-        __repr__():
-            Returns a string representation of the GperfCpuEnvironment instance.
+    This environment uses shared command generation utilities to eliminate
+    code duplication while providing comprehensive CPU profiling capabilities.
     """
+
     def __init__(
         self,
         env_config_to_test: GperfCpuConfig,
@@ -52,104 +52,247 @@ class GperfCpuEnvironment(IExecutionEnvironment, ABC):
         env_sub_type: str,
         event_manager: EventManager,
     ):
+        """Initialize the gperf CPU environment."""
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
-        self.global_config = None
-        self.env_config_to_test = env_config_to_test
 
-    def setup_environment(
-        self,
-        services_managers: list[IServiceManager],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
-        timestamp: str,
-        plugin_loader: PluginLoader,
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> GperfCpuConfig:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    GperfCpuConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                self._plugin_config = GperfCpuConfig()
+        return self._plugin_config
+
+    def _setup_plugin_specific_environment(
+        self, services_managers: List[IServiceManager], timestamp: str
     ):
-        self.services_managers: list[IServiceManager] = services_managers
-        self.test_config = test_config
-        self.plugin_loader = plugin_loader
-        self.global_config = global_config
-        self.logger.debug("Setup environment with:")
-        self.logger.debug(f"Services config: {self.env_config_to_test}")
-        for service in self.services_managers:
-            self.logger.debug(f"Service cmds: {service.run_cmd}")
-            if service.service_config_to_test.implementation.gperf_compatible:
-                service.environments["GPERF"] = True
-                service.run_cmd["run_cmd"]["command_env"][
-                    "LD_PRELOAD"
-                ] = "/usr/local/lib/libprofiler.so"
-                service.run_cmd["run_cmd"]["command_env"][
-                    "CPUPROFILE"
-                ] = f"/app/logs/{service.service_name}_cpu.prof"
-                # service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [self.to_command(service.service_name)]
-                service.run_cmd["post_run_cmds"] = service.run_cmd["post_run_cmds"] + [
-                    f"pprof --pdf /app/logs/{service.service_name}_cpu.prof > /app/logs/{service.service_name}_cpu.pdf"
-                ]
-                self.logger.debug(f"Service cmds: {service.run_cmd}")
-            else:
-                self.logger.debug(f"Service {service} is not gperf compatible")
-
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
-
-    def to_command(self, service_name: str) -> str:
         """
-        Generate the gperf command based on the configuration.
+        Set up gperf CPU profiling for compatible services using shared utilities.
+
+        Args:
+            services_managers: List of service managers to potentially modify
+            timestamp: Timestamp for this execution (used for file naming)
         """
-        conf = GperfCpuConfig(
-            # input_file="keywords.txt",
-            # output_file="output.c",
-            # language="C++",
-            # keyword_only=True,
-            # readonly_tables=True,
-            # includes=["my_header.h"],
-            # other_flags=["--ignore-case"]
+        for service in services_managers:
+            # Only apply to services that support gperf
+            if not getattr(
+                service.service_config_to_test.implementation, "gperf_compatible", True
+            ):
+                self.logger.debug(
+                    "Skipping gperf CPU profiling for %s (not gperf compatible)",
+                    getattr(service, "service_name", service.__class__.__name__),
+                )
+                continue
+
+            # Create command builder using shared utilities
+            command_builder = create_execution_environment_builder(
+                service=service,
+                environment_name="gperf_cpu",
+                timestamp=timestamp,
+                register_output_callback=self.register_output_file,
+                logger=self.logger,
+            )
+
+            # Register output files and get their paths
+            profile_file = command_builder.register_output_file(
+                file_type="cpu_profile",
+                extension="prof",
+                description="CPU profile data",
+            )
+
+            # Build the gperf wrapper command using dual approach
+            plugin_config = self._get_plugin_config()
+
+            # First try plugin_config dict
+            profiler_lib = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                profiler_lib = self.env_config_to_test.plugin_config.get(
+                    "profiler_library"
+                )
+
+            # Second try typed config
+            if profiler_lib is None:
+                profiler_lib = plugin_config.profiler_library
+
+            profiler_lib = profiler_lib or "/usr/lib/x86_64-linux-gnu/libprofiler.so.0"
+
+            # Build environment variables for profiling
+            env_vars = {
+                "CPUPROFILE": profile_file,
+            }
+
+            # Add optional profiling parameters using dual approach
+            # Get sampling_frequency
+            sampling_frequency = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                sampling_frequency = self.env_config_to_test.plugin_config.get(
+                    "sampling_frequency"
+                )
+            if sampling_frequency is None:
+                sampling_frequency = plugin_config.sampling_frequency
+
+            if sampling_frequency:
+                env_vars["CPUPROFILE_FREQUENCY"] = str(sampling_frequency)
+
+            # Get use_realtime_signal
+            use_realtime_signal = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                use_realtime_signal = self.env_config_to_test.plugin_config.get(
+                    "use_realtime_signal"
+                )
+            if use_realtime_signal is None:
+                use_realtime_signal = plugin_config.use_realtime_signal
+
+            if use_realtime_signal:
+                env_vars["CPUPROFILE_REALTIME"] = "1"
+
+            # Create the wrapper command
+            wrapper_command = f"env LD_PRELOAD={profiler_lib}"
+            for key, value in env_vars.items():
+                wrapper_command += f" {key}={value}"
+
+            # Add wrapper with conditional check for library existence
+            command_builder.add_conditional_wrapper(
+                condition=f'[ -f "{profiler_lib}" ]',
+                wrapper_command=wrapper_command,
+                description=f"Setup gperf CPU profiling for {command_builder.service_name}",
+                fallback_message=f"gperf profiler library not found: {profiler_lib}",
+                is_critical=False,
+            )
+
+            # Add post-processing for PDF generation if enabled using dual approach
+            generate_pdf = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                generate_pdf = self.env_config_to_test.plugin_config.get("generate_pdf")
+            if generate_pdf is None:
+                generate_pdf = plugin_config.generate_pdf
+
+            if generate_pdf:
+                pdf_file = command_builder.register_output_file(
+                    file_type="cpu_profile_pdf",
+                    extension="pdf",
+                    description="CPU profile PDF visualization",
+                )
+
+                # Build pprof command with optional parameters
+                pprof_options = []
+                if self.env_config_to_test.pprof_options:
+                    pprof_options.extend(self.env_config_to_test.pprof_options)
+
+                # Add filtering options
+                if self.env_config_to_test.exclude_functions:
+                    for func in self.env_config_to_test.exclude_functions:
+                        pprof_options.extend(["--ignore", func])
+
+                if self.env_config_to_test.include_only_functions:
+                    for func in self.env_config_to_test.include_only_functions:
+                        pprof_options.extend(["--focus", func])
+
+                pprof_opts_str = " ".join(pprof_options) if pprof_options else ""
+                processing_command = (
+                    f"pprof --pdf {pprof_opts_str} {profile_file} > {pdf_file}"
+                )
+
+                command_builder.add_post_processing(
+                    input_file=profile_file,
+                    output_file=pdf_file,
+                    processing_command=processing_command,
+                    description="CPU profile PDF generation",
+                    file_type="cpu_profile_pdf",
+                    error_message="Failed to generate CPU profile PDF (pprof may not be available)",
+                )
+
+            # Build and apply all commands to the service
+            results = command_builder.build_and_apply(self.modify_service_commands)
+
+            self.logger.info(
+                "Successfully configured gperf CPU profiling for service %s",
+                command_builder.service_name,
+            )
+            self.logger.debug("Applied modifications: %s", results)
+
+    def to_command(
+        self, pid: Optional[int] = None, output_file: Optional[str] = None
+    ) -> str:
+        """
+        Generate the gperf CPU profiling command for execution.
+
+        Args:
+            pid: Optional process ID to attach to (not supported by gperf)
+            output_file: Optional output file path
+
+        Returns:
+            str: Command string for gperf CPU profiling wrapper
+        """
+        if output_file is None:
+            output_file = self.env_config_to_test.output_file or "/tmp/cpu_profile.prof"
+
+        profiler_lib = (
+            self.env_config_to_test.profiler_library
+            or "/usr/lib/x86_64-linux-gnu/libprofiler.so.0"
         )
-        command = ["gperf"]
 
-        # Input and output files
-        if conf.input_file:
-            command.append(f'"{conf.input_file}"')
-        if conf.output_file:
-            command.append(f'--output-file="{conf.output_file}"')
+        # Build environment variables
+        env_vars = [f"CPUPROFILE={output_file}"]
 
-        # Language option
-        if conf.language:
-            command.append(f"--language={conf.language}")
+        if self.env_config_to_test.sampling_frequency:
+            env_vars.append(
+                f"CPUPROFILE_FREQUENCY={self.env_config_to_test.sampling_frequency}"
+            )
 
-        # Flags
-        if conf.keyword_only:
-            command.append("--keyword-only")
-        if conf.readonly_tables:
-            command.append("--readonly-tables")
-        if conf.switch:
-            command.append("--switch")
-        if conf.compare_strncmp:
-            command.append("--compare-strncmp")
+        if self.env_config_to_test.use_realtime_signal:
+            env_vars.append("CPUPROFILE_REALTIME=1")
 
-        # Custom functions
-        if conf.hash_function:
-            command.append(f'--hash-function="{conf.hash_function}"')
-        if conf.compare_function:
-            command.append(f'--compare-function="{conf.compare_function}"')
+        # Note: pid parameter is not supported by gperf CPU profiling
+        if pid:
+            self.logger.warning(
+                "PID parameter (%d) ignored - gperf CPU profiling does not support attaching to existing processes",
+                pid,
+            )
 
-        # Includes
-        for include in conf.includes:
-            command.append(f'--include="{include}"')
+        # Build the complete command
+        env_string = " ".join(env_vars)
+        return f"env LD_PRELOAD={profiler_lib} {env_string}"
 
-        # Other flags
-        command.extend(conf.other_flags)
+    def update_environment(
+        self,
+        execution_environment,
+        global_config,
+        plugin_manager,
+        services_managers,
+        test_config,
+    ) -> None:
+        """
+        Update environment for gperf CPU profiling execution.
 
-        # Join and return the command
-        return " ".join(command)
-
-    def __repr__(self):
-        return (
-            f"GperfEnvironment("
-            f"env_config_to_test={self.env_config_to_test}, "
-            f"output_dir={self.output_dir}, "
-            f"event_manager={self.event_manager}, "
-            f"services_managers={self.services_managers}, "
-            f"test_config={self.test_config})"
-        )
+        Args:
+            execution_environment: Current execution environment
+            global_config: Global configuration
+            plugin_manager: Plugin manager instance
+            services_managers: List of service managers
+            test_config: Test configuration
+        """
+        # Add any gperf CPU-specific environment updates here
+        self.logger.debug("Updated environment for gperf CPU profiling execution")
+        pass

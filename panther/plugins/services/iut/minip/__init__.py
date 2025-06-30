@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER Mini Protocol implementations.
 
-This package contains the panther application and its modules.
+This package contains Mini Protocol implementations that can be used for testing.
 """

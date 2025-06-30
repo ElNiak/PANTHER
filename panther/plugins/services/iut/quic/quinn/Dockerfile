@@ -1,4 +1,4 @@
-FROM panther_base_service_panther:latest
+FROM --platform=linux/amd64 panther_base_service:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 # Define build arguments for version-specific configurations
@@ -10,12 +10,12 @@ ENV DEPENDENCIES=${DEPENDENCIES}
 
 
 # Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq 
+RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 
 # Function to parse and build dependencies
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.12.4/cmake-3.12.4-Linux-x86_64.sh 
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.12.4/cmake-3.12.4-Linux-x86_64.sh
 RUN chmod +x cmake-3.12.4-Linux-x86_64.sh
 RUN mkdir /opt/cmake
 RUN bash cmake-3.12.4-Linux-x86_64.sh --skip-license --prefix=/opt/cmake
@@ -49,4 +49,4 @@ RUN mkdir -p /opt/certs
 RUN mkdir -p /opt/ticket
 
 # Set entrypoint (can be overridden)
-ENTRYPOINT [ "/bin/sh", "-l", "-c" ]
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

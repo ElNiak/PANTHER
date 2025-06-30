@@ -178,7 +178,7 @@ async fn run(options: Opt) -> Result<()> {
         conn.close(0u32.into(), b"done");
 
         // Give the server a fair chance to receive the close packet
- 
+
         let ten_millis = time::Duration::from_millis(15000);
         thread::sleep(ten_millis);
 

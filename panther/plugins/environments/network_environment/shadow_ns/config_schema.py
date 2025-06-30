@@ -1,76 +1,127 @@
-from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Union
 
-from panther.config.config_experiment_schema import NetworkEnvironmentConfig
+from pydantic import BaseModel, Field, validator
 
-
-@dataclass
-class GeneralConfig:
-    stop_time: str = "300s"  # The total simulation time in seconds -> use experiment duration
-    model_unblocked_syscall_latency: bool = False  # Add latency for unblocked system calls
+from panther.config.core.models.plugin import NetworkEnvironmentPluginConfig
+from panther.config.core.validators import shadow_time_validator
 
 
-@dataclass
-class ExperimentalConfig:
-    strace_logging_mode: str = "standard"  # Options: 'none', 'standard', 'detailed'
+class GeneralConfig(BaseModel):
+    """General configuration for Shadow NS."""
+
+    stop_time: str = Field(
+        default="300s",
+        description="The total simulation time in seconds -> use experiment duration",
+    )
+
+    @validator("stop_time", pre=True)
+    def validate_stop_time(cls, v) -> str:
+        """Convert integer seconds to string format with 's' suffix."""
+        return shadow_time_validator(cls, v)
+
+    model_unblocked_syscall_latency: bool = Field(
+        default=False, description="Add latency for unblocked system calls"
+    )
 
 
-@dataclass
-class NetworkNodeConfig:
-    id: int  # ID of the network node
-    bandwidth_down: str = "100 Gbit"  # Download bandwidth
-    bandwidth_up: str = "100 Gbit"  # Upload bandwidth
+class ExperimentalConfig(BaseModel):
+    """Experimental features configuration."""
+
+    strace_logging_mode: str = Field(
+        default="standard", description="Options: 'none', 'standard', 'detailed'"
+    )
 
 
-@dataclass
-class NetworkEdgeConfig:
-    source: int  # Source node ID for the edge
-    target: int  # Target node ID for the edge
-    latency: int = 10  # Latency of the edge in milliseconds
-    jitter: int = 10  # Jitter of the edge in milliseconds
-    packet_loss: float = 0.0  # Packet loss rate
+class NetworkNodeConfig(BaseModel):
+    """Network node configuration."""
+
+    id: int = Field(..., description="ID of the network node")
+    bandwidth_down: str = Field(default="100 Gbit", description="Download bandwidth")
+    bandwidth_up: str = Field(default="100 Gbit", description="Upload bandwidth")
 
 
-@dataclass
-class NetworkGraphConfig:
-    type: str = "gml"  # Options: '1_gbit_switch', 'gml'
-    nodes: List[NetworkNodeConfig] = field(default_factory=list)
-    edges: List[NetworkEdgeConfig] = field(default_factory=list)
+class NetworkEdgeConfig(BaseModel):
+    """Network edge configuration."""
+
+    source: int = Field(..., description="Source node ID for the edge")
+    target: int = Field(..., description="Target node ID for the edge")
+    latency: int = Field(default=10, description="Latency of the edge in milliseconds")
+    jitter: int = Field(default=10, description="Jitter of the edge in milliseconds")
+    packet_loss: float = Field(default=0.0, description="Packet loss rate")
 
 
-@dataclass
-class NetworkConfig:
+class NetworkGraphConfig(BaseModel):
+    """Network graph configuration."""
+
+    type: str = Field(default="gml", description="Options: '1_gbit_switch', 'gml'")
+    nodes: List[NetworkNodeConfig] = Field(
+        default_factory=list, description="List of network nodes"
+    )
+    edges: List[NetworkEdgeConfig] = Field(
+        default_factory=list, description="List of network edges"
+    )
+
+
+class NetworkConfig(BaseModel):
+    """Network configuration."""
+
     # TODO: Add support for multiple network nodes
-    latency: int = 10  # Latency of the network in milliseconds
-    jitter: int = 10  # Jitter of the network in milliseconds
-    packet_loss: float = 0.0  # Packet loss rate
-    # graph: NetworkGraphConfig = field(default_factory=NetworkGraphConfig)
+    latency: int = Field(
+        default=10, description="Latency of the network in milliseconds"
+    )
+    jitter: int = Field(default=10, description="Jitter of the network in milliseconds")
+    packet_loss: float = Field(default=0.0, description="Packet loss rate")
+    # graph: NetworkGraphConfig = Field(default_factory=NetworkGraphConfig)
 
 
-@dataclass
-class HostOptionDefaultsConfig:
-    pcap_enabled: bool = True  # Enable PCAP capture for all hosts
+class HostOptionDefaultsConfig(BaseModel):
+    """Host option defaults configuration."""
+
+    pcap_enabled: bool = Field(
+        default=True, description="Enable PCAP capture for all hosts"
+    )
 
 
-@dataclass
-class HostConfig:
-    network_node_id: int = 0  # Network node ID
-    ip_addr: str = "11.0.0.1"  # IP address
-    start_time: str = "1s"  # Start time of the process
+class HostConfig(BaseModel):
+    """Host configuration."""
+
+    network_node_id: int = Field(default=0, description="Network node ID")
+    ip_addr: str = Field(default="11.0.0.1", description="IP address")
+    start_time: str = Field(default="1s", description="Start time of the process")
 
 
-@dataclass
-class HostsConfig:
-    server: HostConfig = field(default_factory=HostConfig)  # Server configuration
-    client: HostConfig = field(default_factory=lambda: HostConfig(ip_addr="11.0.0.2", start_time="5s"))  # Client configuration
+class HostsConfig(BaseModel):
+    """Hosts configuration."""
+
+    server: HostConfig = Field(
+        default_factory=HostConfig, description="Server configuration"
+    )
+    client: HostConfig = Field(
+        default_factory=lambda: HostConfig(ip_addr="11.0.0.2", start_time="5s"),
+        description="Client configuration",
+    )
 
 
-@dataclass
-class ShadowNsConfig(NetworkEnvironmentConfig):
-    type: str = "shadow_ns"
-    incompatibility: List[str] = field(default_factory=lambda: ["strace", "gperf"] , metadata={"omegaconf_ignore": True})  # Incompatibilities
-    general: GeneralConfig = field(default_factory=GeneralConfig)  # General configuration
-    experimental: ExperimentalConfig = field(default_factory=ExperimentalConfig)  # Experimental features
-    network: NetworkConfig = field(default_factory=NetworkConfig)  # Network configuration
-    host_option_defaults: HostOptionDefaultsConfig = field(default_factory=HostOptionDefaultsConfig)  # Default host options
-    hosts: HostsConfig = field(default_factory=HostsConfig)  # Hosts configuration
+class ShadowNSConfig(NetworkEnvironmentPluginConfig):
+    """Configuration for Shadow NS network environment."""
+
+    type: str = Field(default="shadow_ns", description="Network environment type")
+    incompatibility: List[str] = Field(
+        default_factory=lambda: ["strace", "gperf"],
+        description="Incompatibilities with execution environments",
+    )
+    general: GeneralConfig = Field(
+        default_factory=GeneralConfig, description="General configuration"
+    )
+    experimental: ExperimentalConfig = Field(
+        default_factory=ExperimentalConfig, description="Experimental features"
+    )
+    network: NetworkConfig = Field(
+        default_factory=NetworkConfig, description="Network configuration"
+    )
+    host_option_defaults: HostOptionDefaultsConfig = Field(
+        default_factory=HostOptionDefaultsConfig, description="Default host options"
+    )
+    hosts: HostsConfig = Field(
+        default_factory=HostsConfig, description="Hosts configuration"
+    )

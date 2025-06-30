@@ -1,46 +1,44 @@
-from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
-from panther.plugins.environments.execution_environment.config_schema import ExecutionEnvironmentConfig
+from pydantic import Field, validator
+
+from panther.config.core.components.universal_validators import validate_integer_field
+from panther.config.core.models.plugin import ExecutionEnvironmentPluginConfig
 
 
-@dataclass
-class StraceConfig(ExecutionEnvironmentConfig):
+class IterationsConfig(ExecutionEnvironmentPluginConfig):
     """
-    StraceConfig is a configuration class for setting up and running strace in a specific execution environment.
-
-    Attributes:
-        strace_binary (str): Path to the strace binary. Default is "/usr/bin/strace".
-        excluded_syscalls (List[str]): List of syscalls to exclude from tracing. Default includes various time-related syscalls.
-        include_kernel_stack (bool): Whether to include the kernel stack in the trace output. Default is True.
-        trace_network_syscalls (bool): Whether to focus on network-related syscalls (e.g., connect, send, recv). Default is True.
-        timeout (Optional[int]): Timeout for strace execution in seconds. Default is 60 seconds.
-        output_file (str): Path to the strace log output file. Default is "/app/logs/strace.log".
-        additional_parameters (List[str]): Additional parameters to pass to strace. Default is an empty list.
-        monitored_process (Optional[str]): Name of the process to monitor, if not using PID-based monitoring. Default is None.
-        network_focus (bool): Indicates if strace should emphasize network protocol syscalls. Default is True.
+    IterationsConfig is a configuration class for setting up and running multiple test iterations.
     """
-    strace_binary: str = "/usr/bin/strace"  # Path to the strace binary
-    excluded_syscalls: List[str] = field(
-        default_factory=lambda: [
-            "nanosleep",
-            "getitimer",
-            "alarm",
-            "setitimer",
-            "gettimeofday",
-            "times",
-            "rt_sigtimedwait",
-            "utime",
-            "adjtimex",
-            "settimeofday",
-            "time",
-        ]
-    )  # List of syscalls to exclude
-    include_kernel_stack: bool = True  # Include kernel stack in the trace output
-    trace_network_syscalls: bool = True  # Focus on network-related syscalls (connect, send, recv, etc.)
-    timeout: Optional[int] = 60  # Timeout for strace execution in seconds
-    output_file: str = "/app/logs/strace.log"  # Path to the strace log output
-    additional_parameters: List[str] = field(default_factory=list)  # Additional parameters for strace
-    monitored_process: Optional[str] = None  # Process name to monitor (if not PID-based)
-    network_focus: bool = True  # Indicate if strace should emphasize network protocol syscalls
 
+    # Plugin type
+    type: str = Field(default="iterations", description="Execution environment type")
+
+    iterations: int = Field(default=1, description="Number of times to repeat the test")
+    parallel: bool = Field(
+        default=False, description="Whether to run iterations in parallel"
+    )
+    vary_parameters: bool = Field(
+        default=False, description="Whether to vary parameters between iterations"
+    )
+    parameter_sets: List[dict] = Field(
+        default_factory=list,
+        description="Sets of parameters to use for different iterations",
+    )
+    aggregate_results: bool = Field(
+        default=True, description="Whether to aggregate results across iterations"
+    )
+    delay_between_iterations: int = Field(
+        default=0, description="Delay in seconds between iterations"
+    )
+
+    # Universal validators for flexible type conversion
+    @validator("iterations", pre=True)
+    def validate_iterations(cls, v):
+        """Convert string/float to integer for iterations."""
+        return validate_integer_field(v, "iterations")
+
+    @validator("delay_between_iterations", pre=True)
+    def validate_delay(cls, v):
+        """Convert string/float to integer for delay."""
+        return validate_integer_field(v, "delay_between_iterations")

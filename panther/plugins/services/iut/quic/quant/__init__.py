@@ -1,4 +1,4 @@
-"""panther package.
+"""PANTHER Quant QUIC implementation.
 
-This package contains the panther application and its modules.
+This package contains the Quant implementation of the QUIC protocol.
 """

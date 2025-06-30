@@ -1,0 +1,41 @@
+# FUTURE WORK: Dynamic Dockerfile for pre-compiled images
+# This template will be used to create service-specific images with pre-compilation
+# Currently not in use - for future implementation of build-time compilation
+# Dynamic Dockerfile for {{ service.service_name }}
+# Base image for {{ service.implementation_name }}
+{% if service.service_protocol.version and service.service_protocol.version != 'latest' %}
+FROM {{ service.implementation_name }}_{{ service.service_protocol.version }}:base
+{% else %}
+FROM {{ service.implementation_name }}:base
+{% endif %}
+
+# Set build-time environment variables
+ENV ROLE={{ service.role.name }}
+ENV SERVICE_NAME={{ service.service_name }}
+{% for key, value in service.environments.items() %}
+ENV {{ key }}="{{ value }}"
+{% endfor %}
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/coordination /app/sync_logs
+RUN mkdir -p /app/logs/{pre-compile,compile,post-compile,pre-run,runtime,post-run,test,artifacts}
+
+# Copy build-time entrypoint script
+COPY entrypoint_build_{{ service.service_name }}.sh /app/entrypoint_build.sh
+RUN chmod +x /app/entrypoint_build.sh
+
+# Set working directory for build
+WORKDIR {{ service.run_cmd["run_cmd"]["working_dir"] }}
+
+# Execute build-time compilation phases
+RUN /app/entrypoint_build.sh
+
+# Copy runtime entrypoint script
+COPY entrypoint_runtime_{{ service.service_name }}.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Set final working directory
+WORKDIR {{ service.run_cmd["run_cmd"]["working_dir"] }}
+
+# Default command
+ENTRYPOINT ["/app/entrypoint.sh"]

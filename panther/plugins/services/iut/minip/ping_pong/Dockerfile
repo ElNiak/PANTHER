@@ -1,4 +1,4 @@
-FROM panther_base_service_panther:latest
+FROM --platform=linux/amd64 panther_base_service:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -16,4 +16,4 @@ ADD src/${VERSION}/miniP_server.c /opt/ping-pong/miniP_server.c
 RUN cd ping-pong/; \
     gcc miniP_client.c -o miniP_client && gcc miniP_server.c -o miniP_server
 
-ENTRYPOINT [ "/bin/sh", "-l", "-c" ]
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

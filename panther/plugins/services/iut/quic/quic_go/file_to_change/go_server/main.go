@@ -43,7 +43,7 @@ func main() {
 	// a quic.Config that doesn't do a Retry
 	quicConf := &quic.Config{
 		AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
-		ConnectionIDLength: 8,    
+		ConnectionIDLength: 8,
 		//HandshakeIdleTimeout: 0,
 		MaxIdleTimeout: 0,
 		//EnableDatagrams:true,
@@ -53,12 +53,12 @@ func main() {
 	if *doRetry {
 		quicConf = &quic.Config{
 			//AcceptToken: func(_ net.Addr, _ *quic.Token) bool { return true },
-			ConnectionIDLength: 8,    
+			ConnectionIDLength: 8,
 			//HandshakeIdleTimeout: 0,
 			MaxIdleTimeout: 0,
 			//Tracer: qlog.NewTracer(getLogWriter),
 		}
-	} 
+	}
 
 	cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
 	if err != nil {

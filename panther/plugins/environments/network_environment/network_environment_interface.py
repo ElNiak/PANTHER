@@ -1,24 +1,26 @@
-import traceback
-from abc import abstractmethod
 import os
+from abc import abstractmethod
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from jinja2 import Environment, FileSystemLoader
+if TYPE_CHECKING:
+    from panther.plugins.plugin_manager import PluginManager
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from omegaconf import OmegaConf
 
-from panther.plugins.services.services_interface import IServiceManager
-
-from panther.config.config_experiment_schema import TestConfig
-
-from panther.config.config_global_schema import GlobalConfig
-
-from panther.plugins.plugin_loader import PluginLoader
-
-from panther.core.observer.event_manager import EventManager
-from panther.plugins.environments.config_schema import EnvironmentConfig
+from panther.config.core.models.environment import EnvironmentConfig
+from panther.config.core.models.experiment import TestConfig
+from panther.config.core.models.global_config import GlobalConfig
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.utils import log_omega_config_summary
+from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
 )
-from panther.plugins.environments.environment_interface import IEnvironmentPlugin
+from panther.plugins.services.services_interface import IServiceManager
+
+# PluginManager functionality now integrated into PluginManager
 
 
 class INetworkEnvironment(IEnvironmentPlugin):
@@ -43,7 +45,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
             Initializes the network environment with the given configuration.
         setup_execution_plugins(timestamp):
             Sets up execution plugins for the environment.
-        update_environment(execution_environment, global_config, plugin_loader, services_managers, test_config):
+        update_environment(execution_environment, global_config, plugin_manager, services_managers, test_config):
             Updates the environment with the given configuration and services.
         create_log_dir(service):
             Creates a log directory for the given service.
@@ -62,7 +64,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
             Abstract method to launch the services in the network environment.
         deploy_services():
             Abstract method to deploy the specified services in the network environment.
-        setup_environment(services_managers, test_config, global_config, timestamp, plugin_loader, execution_environment):
+        setup_environment(services_managers, test_config, global_config, timestamp, plugin_manager, execution_environment):
             Abstract method to set up the required environment before running experiments.
         teardown_environment():
             Abstract method to tear down the environment after experiments are completed.
@@ -80,7 +82,6 @@ class INetworkEnvironment(IEnvironmentPlugin):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
         self.docker_name = None
-        self.execution_environment = None
         self.network_name = f"{env_sub_type}_network"
         self.execution_environments = []
 
@@ -93,13 +94,23 @@ class INetworkEnvironment(IEnvironmentPlugin):
         self.services_managers = None
 
         self.logger.debug(
-            f"Environment settings: {self.env_config_to_test} in {self.templates_dir}"
+            "Environment settings: %s in %s",
+            self.env_config_to_test,
+            self.templates_dir,
         )
-        self.jinja_env = Environment(loader=FileSystemLoader(self.templates_dir))
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(self.templates_dir),
+            autoescape=select_autoescape(["html", "xml", "yml", "yaml"]),
+            enable_async=False,
+            auto_reload=False,
+            cache_size=0,  # Disable caching for security
+        )
         self.jinja_env.filters["realpath"] = lambda x: os.path.abspath(x)
         self.jinja_env.filters["is_dict"] = lambda x: isinstance(x, dict)
         self.jinja_env.trim_blocks = True
         self.jinja_env.lstrip_blocks = True
+
+        self.plugin_setup = False
 
     def setup_execution_plugins(self, timestamp):
         """
@@ -115,52 +126,58 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Raises:
             Exception: If an error occurs during the setup of any execution environment, it is caught and logged.
         """
-        for execution_env in self.execution_environment:
+        # Debug logging for execution environment setup
+        for execution_env in self.execution_environments:
             try:
-                self.logger.debug(f"Setting up execution environment: {execution_env}")
+                self.logger.debug("Setting up execution environment: %s", execution_env)
                 execution_env.setup_environment(
                     services_managers=self.services_managers,
                     test_config=self.test_config,
                     global_config=self.global_config,
                     timestamp=timestamp,
-                    plugin_loader=self.plugin_loader,
+                    plugin_manager=self.plugin_manager,
                 )
             except Exception as e:
-                self.logger.error(
-                    f"Failed to setup execution environment: {e}\n{traceback.format_exc()}"
-                )
+                self.logger.error("Failed to setup execution environment: %s", e)
 
     def update_environment(
         self,
-        execution_environment,
-        global_config,
-        plugin_loader,
-        services_managers,
-        test_config,
+        execution_environments,
+        global_config: "GlobalConfig",
+        plugin_manager: "PluginManager",
+        services_managers: List[IServiceManager],
+        test_config: "TestConfig",
     ):
         """
         Updates the network environment with the provided configuration and services.
 
         Args:
-            execution_environment (Any): The execution environment to be used.
+            execution_environments (Any): The execution environment to be used.
             global_config (OmegaConf): The global configuration settings.
-            plugin_loader (Any): The plugin loader instance.
+            plugin_manager (Any): The plugin manager instance.
             services_managers (List[IServiceManager]): A list of service manager instances.
             test_config (OmegaConf): The test configuration settings.
 
         Returns:
             None
         """
-        self.services_managers: list[IServiceManager] = services_managers
+        self.services_managers: List[IServiceManager] = services_managers
         self.test_config = test_config
-        self.execution_environment = execution_environment
-        self.plugin_loader = plugin_loader
+        self.execution_environments = execution_environments
+        self.plugin_manager = plugin_manager
         self.global_config = global_config
+
+        self.logger.debug(
+            "Output directory: %s, Log directory: %s", self.output_dir, self.log_dirs
+        )
         self.logger.debug("Setup environment with:")
         for service in self.services_managers:
-            self.logger.debug(f"Service: {service}")
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(self.test_config)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(self.global_config)}")
+            self.logger.debug("Service: %s", service)
+        # Log configuration for debugging using summarizer
+        from panther.core.utils import log_omega_config_summary
+
+        log_omega_config_summary(self.logger, "Test Config", self.test_config)
+        log_omega_config_summary(self.logger, "Global Config", self.global_config)
 
     def create_log_dir(self, service: IServiceManager):
         """
@@ -175,7 +192,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         log_dir = os.path.join(self.log_dirs, service.service_name)
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-            self.logger.info(f"Created log directory: {log_dir}")
+            self.logger.info("Created log directory: %s", log_dir)
 
     def generate_from_template(
         self,
@@ -185,6 +202,8 @@ class INetworkEnvironment(IEnvironmentPlugin):
         rendered_out_file,
         out_file,
         additional_param=None,
+        structured_commands=None,
+        **kwargs,
     ):
         """
         Generates a configuration file from a Jinja2 template.
@@ -196,92 +215,51 @@ class INetworkEnvironment(IEnvironmentPlugin):
             rendered_out_file (str): The file path where the rendered template will be saved.
             out_file (str): The file path where the final output will be saved.
             additional_param (dict, optional): Additional parameters to be passed to the template. Defaults to None.
+            structured_commands (dict, optional): Structured command arguments for enhanced command generation.
 
         Returns:
             None
+
+        Note:
+            This method handles the conversion of ShellCommand objects to strings.
+            No preprocessing of commands should be done before calling this method
+            to avoid duplicate command generation in the output files.
         """
+        # # Register shell and YAML quoting filters
+        # self.jinja_env.filters["quote_shell"] = lambda s: shlex.quote(str(s))
+        # self.jinja_env.filters["quote_yaml"] = lambda s: yaml.safe_dump(str(s)).strip()
+
         template = self.jinja_env.get_template(template_name)
-        self.logger.debug(f"Template: {template}")
-        self.logger.debug(f"Services: {self.services_managers}")
-        self.logger.debug(f"Deployment Info: {self.test_config}")
+        self.logger.debug("Template: %s", template)
+        self.logger.debug("Services: %s", self.services_managers)
+        # Use summarizer for concise config logging
+        log_omega_config_summary(self.logger, "Deployment Info", self.test_config)
+        self.logger.debug("Paths: %s", paths)
+        self.logger.debug("Timestamp: %s", timestamp)
+        self.logger.debug("Additional Param: %s", additional_param)
+        self.logger.debug("Structured Commands:")
+        if structured_commands is None:
+            self.logger.debug("  None")
+        else:
+            for cmd_phase, commands in structured_commands.items():
+                self.logger.debug("  %s: %s", cmd_phase, commands)
         rendered = template.render(
             services=self.services_managers,
             test_config=self.test_config,
             paths=paths,
             timestamp=timestamp,
             additional_param=additional_param,
+            structured_commands=structured_commands,
             log_dir=self.log_dirs,
-            experiment_name=self.output_dir.split("/")[-1],
+            output_dir=self.output_dir,
+            experiment_name=str(self.output_dir).split("/")[-1],
+            **kwargs,  # Pass any additional parameters to the template
         )
-        # Write the rendered content to shadow.generated.yml
+        # Write the rendered content to <env>.generated.yml
         with open(out_file, "w") as f:
             f.write(rendered)
         with open(rendered_out_file, "w") as f:
             f.write(rendered)
-
-    def get_docker_name(self):
-        """
-        Retrieves and sets the Docker container name by building a Docker image from a specified path.
-
-        This method uses the `plugin_loader` to build a Docker image from the provided Dockerfile path,
-        Docker name, and Docker version. It then extracts and sets the Docker container name by splitting
-        the resulting Docker image name at the colon (':') character.
-
-        Returns:
-            str: The name of the Docker container.
-        """
-        self.docker_name = self.plugin_loader.build_docker_image_from_path(
-            self.services_network_docker_file_path,
-            self.docker_name,
-            self.docker_version,
-        )
-        self.docker_name = self.docker_name.split(":")[0]
-
-    def resolve_environment_variables(self, env_vars):
-        """
-        Resolves environment variables incrementally, ensuring no duplication
-        and preserving unresolved tokens. Processes variables in dependency order.
-
-        :param env_vars: dict, environment variables with potential references.
-        :return: dict, resolved environment variables.
-        """
-        resolved_env = {}
-
-        self.logger.debug("Initial environment variables:")
-        for k, v in env_vars.items():
-            self.logger.debug(f"{k}: {v}")
-
-        for key, value in env_vars.items():
-            if isinstance(value, str):
-                resolved_value = value
-                self.logger.debug(
-                    f"Resolving variable: {key} - Original value: {value}"
-                )
-                for (
-                    var_name,
-                    var_value,
-                ) in resolved_env.items():  # Use already resolved variables
-                    if (
-                        f"${{{var_name}}}" in resolved_value
-                        or f"${var_name}" in resolved_value
-                    ):
-                        resolved_value = resolved_value.replace(
-                            f"${{{var_name}}}", var_value
-                        )
-                        resolved_value = resolved_value.replace(
-                            f"${var_name}", var_value
-                        )
-                        self.logger.debug(
-                            f"Replaced ${var_name} in {key} with {var_value}"
-                        )
-                resolved_value = resolved_value.replace("$", "$$")
-                resolved_env[key] = resolved_value
-
-        self.logger.debug("Final resolved environment variables without duplication:")
-        for k, v in resolved_env.items():
-            self.logger.debug(f"{k}: {v}")
-
-        return resolved_env
 
     def is_network_environment(self):
         """
@@ -290,45 +268,53 @@ class INetworkEnvironment(IEnvironmentPlugin):
         return True
 
     @abstractmethod
-    def generate_environment_services(self, paths: dict[str, str], timestamp: str):
+    def generate_environment_services(self, paths: Dict[str, str], timestamp: str):
         """
         Generates the services required for the network environment.
 
         :param services: A dictionary containing the services to be generated.
         :return: A list of generated services.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def prepare_environment(self):
         """
         Prepares the environment for running experiments.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def launch_environment_services(self):
         """
         Launches the services in the network environment.
         """
-        pass
+        raise NotImplementedError()
+
+    @abstractmethod
+    def run(self):
+        """
+        Runs the services in the network environment.
+        This method should be implemented to handle the execution of services.
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def deploy_services(self):
         """
         Deploys the specified services in the network environment.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def setup_environment(
         self,
-        services_managers: list[IServiceManager],
+        services_managers: List[IServiceManager],
         test_config: TestConfig,
         global_config: GlobalConfig,
         timestamp: str,
-        plugin_loader: PluginLoader,
-        execution_environment: list[IExecutionEnvironment],
+        plugin_manager: "Optional[PluginManager]",
+        execution_environments: List[IExecutionEnvironment],
     ):
         """
         Sets up the required environment before running experiments.
@@ -340,4 +326,4 @@ class INetworkEnvironment(IEnvironmentPlugin):
         """
         Tears down the environment after experiments are completed.
         """
-        pass
+        raise NotImplementedError()

@@ -1,12 +1,23 @@
 #!/bin/bash
-set -e
+set -x;
 
 # Setup logging directory
 mkdir -p /app/logs
-{% for service in services %}
+{% for service_data in services_with_outputs %}
+{% set service = service_data.service %}
 mkdir -p /app/logs/{{ service.service_name }}
+
+{% if service_data.output_file_paths %}
+# Create service-specific output files
+{% for output_type, file_path in service_data.output_file_paths.items() %}
+touch "{{ file_path }}"
+echo "Initializing {{ service.service_name }} {{ output_type }} log..." > "{{ file_path }}"
+{% endfor %}
+{% else %}
+# Fallback to default stdout/stderr
 echo "Initializing {{ service.service_name }} logs..." > /app/logs/{{ service.service_name }}/stdout.log
 echo "Initializing {{ service.service_name }} logs..." > /app/logs/{{ service.service_name }}/stderr.log
+{% endif %}
 {% endfor %}
 
 # Define helper functions
@@ -25,7 +36,8 @@ start_pcap() {
 # TODO add loop for multiple iterations
 
 set_environment() {
-  {% for service in services %}
+  {% for service_data in services_with_outputs %}
+  {% set service = service_data.service %}
   log "Setting environment for {{ service.service_name }}..."
   export ROLE="{{ service.role.name }}"
   {% for key, value in service.environments.items() %}
@@ -40,14 +52,16 @@ set_environment
 
 # Start PCAP recording for each service
 log "Starting PCAP recording..."
-{% for service in services %}
+{% for service_data in services_with_outputs %}
+{% set service = service_data.service %}
 start_pcap "lo" "/app/logs/{{ service.service_name }}/pcap_pkt.pcap" {{service.run_cmd["run_cmd"]["timeout"]}}
 {% endfor %}
 
 
 # Start all services
 log "Starting all services..."
-{% for service in services %}
+{% for service_data in services_with_outputs %}
+{% set service = service_data.service %}
 log "Starting {{ service.service_name }}..."
 (
     {% if service.role.name == "client" %}
@@ -59,7 +73,17 @@ log "Starting {{ service.service_name }}..."
     {% set replacement_path = '/opt/'%}
     {% endif %}
     cd {{ service.run_cmd["run_cmd"]["working_dir"] | replace('/opt/', replacement_path) }}
-    {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"] | replace("/app/logs/", "/app/logs/" ~ service.service_name ~ "/")}}
+    
+    # Set up output redirections
+    {% if service_data.output_redirections and service_data.output_redirections.stdout and service_data.output_redirections.stderr %}
+    STDOUT_FILE="{{ service_data.output_redirections.stdout }}"
+    STDERR_FILE="{{ service_data.output_redirections.stderr }}"
+    {% else %}
+    STDOUT_FILE="/app/logs/{{ service.service_name }}/stdout.log"
+    STDERR_FILE="/app/logs/{{ service.service_name }}/stderr.log"
+    {% endif %}
+    
+    {% for key, val in service.run_cmd["run_cmd"]["command_env"].items() %} {{key}}={{val}} {% endfor -%} timeout {{service.run_cmd["run_cmd"]["timeout"]}} {% for cmd in service.run_cmd["pre_run_cmds"] %} {{ cmd }}  {% endfor -%} {{service.run_cmd["run_cmd"]["command_binary"]}} {{service.run_cmd["run_cmd"]["command_args"] | replace("/app/logs/", "/app/logs/" ~ service.service_name ~ "/")}} >> "$STDOUT_FILE" 2>> "$STDERR_FILE"
     log "{{ service.service_name }} completed successfully."
 ) &
 {% endfor %}

@@ -1,0 +1,199 @@
+#!/bin/bash -x
+# FUTURE WORK: Build-time entrypoint for pre-compiled images
+# This script will execute compilation phases during Docker image build
+# Currently not in use - for future implementation of build-time compilation
+# Build-time entrypoint for {{ additional_param.service_name }}
+# Executes compilation phases during image build
+
+{# Jinja2 Macros for reducing code duplication #}
+{% macro handle_control_operator_command(cmd_obj, phase_name, loop_index) %}
+# Handle command with && operator
+{% set safe_cmd = cmd_obj.shell_safe_command | default(cmd_obj.command | replace('\"', '\\\\\"')) %}
+echo "[BUILD] Executing command with && operator: {{ cmd_obj.command | replace('\"', '\\\"') }}"
+
+# Execute the full command directly
+{{ safe_cmd }}
+CMD_STATUS=$?
+
+if [ "${CMD_STATUS:-1}" -ne 0 ]; then
+  echo "[BUILD ERROR] Command failed with exit status $CMD_STATUS"
+  exit $CMD_STATUS
+fi
+{% endmacro %}
+
+{% macro execute_command_phase(commands, phase_name) %}
+{% if commands %}
+# Create phase-specific output directory
+PHASE_DIR="/app/logs/{{ phase_name | lower | replace('_', '-') }}"
+mkdir -p "$PHASE_DIR"
+echo "[BUILD] Created phase directory: $PHASE_DIR"
+
+# Set up phase-specific output redirection
+PHASE_STDOUT="$PHASE_DIR/build_stdout.log"
+PHASE_STDERR="$PHASE_DIR/build_stderr.log"
+
+# Initialize phase log files with header
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] === BUILD {{ phase_name }} phase ===" > "$PHASE_STDOUT"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] === BUILD {{ phase_name }} phase ===" > "$PHASE_STDERR"
+
+{% for cmd_obj in commands %}
+echo "[BUILD] Executing {{ phase_name }} command #{{ loop.index }}"
+
+{% if cmd_obj.metadata.working_directory %}
+# Change to working directory for this command
+SAVED_PWD="$(pwd)"
+cd "{{ cmd_obj.metadata.working_directory }}" || {
+  echo "[BUILD ERROR] Failed to change to directory: {{ cmd_obj.metadata.working_directory }}"
+  exit 1
+}
+echo "[BUILD] Changed to working directory: {{ cmd_obj.metadata.working_directory }}"
+{% endif %}
+
+{% if cmd_obj.metadata.is_empty %}
+echo "[BUILD] Skipping empty {{ phase_name }} command #{{ loop.index }}"
+{% elif not cmd_obj.metadata.is_critical %}
+# Handle non-critical command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+
+echo "[BUILD] Executing non-critical {{ phase_name }} command #{{ loop.index }}"
+bash -c "$MULTILINE_CMD" >> "$PHASE_STDOUT" 2>> "$PHASE_STDERR" || {
+  echo "[BUILD WARNING] Non-critical command failed but continuing"
+}
+{% elif cmd_obj.metadata.is_function_definition %}
+# Handle function definition
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+echo "[BUILD] Executing function definition: {{ cmd_obj.metadata.description }}"
+eval "$MULTILINE_CMD"
+FUNC_NAME=$(echo "{{ cmd_obj.command }}" | grep -o '^[[:space:]]*[[:alnum:]_]*[[:space:]]*()' | sed 's/[[:space:]]*()$//' | xargs)
+if ! declare -f "$FUNC_NAME" > /dev/null; then
+  echo "[BUILD ERROR] Function $FUNC_NAME failed to define correctly"
+  exit 1
+else
+  echo "[BUILD] Function $FUNC_NAME defined successfully"
+fi
+{% elif cmd_obj.metadata.is_multiline %}
+# Handle multi-line command
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+echo "[BUILD] Executing multi-line {{ phase_name }} command #{{ loop.index }}"
+bash -c "$MULTILINE_CMD" >> "$PHASE_STDOUT" 2>> "$PHASE_STDERR" || {
+  echo "[BUILD ERROR] Multi-line command failed"
+  exit $?
+}
+
+{% elif cmd_obj.metadata.has_control_operators and '&&' in cmd_obj.metadata.control_operators %}
+{{ handle_control_operator_command(cmd_obj, phase_name, loop.index) }}
+
+{% elif cmd_obj.metadata.is_variable_assignment or cmd_obj.metadata.is_shell_builtin or cmd_obj.metadata.is_control_structure %}
+# Handle special command types
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+echo "[BUILD] Executing {{ cmd_obj.metadata.is_variable_assignment and 'variable assignment' or cmd_obj.metadata.is_shell_builtin and 'shell builtin' or 'control structure' }}: {{ cmd_obj.command | replace('\"', '\\\\\"') }}"
+eval "$MULTILINE_CMD" >> "$PHASE_STDOUT" 2>> "$PHASE_STDERR" || {
+  {% if cmd_obj.metadata.is_critical %}
+  echo "[BUILD ERROR] Critical command failed"
+  exit $?
+  {% else %}
+  echo "[BUILD WARNING] Non-critical command failed but continuing"
+  {% endif %}
+}
+
+{% elif cmd_obj.metadata.has_nested_quotes %}
+# Handle commands with nested quotes
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+echo "[BUILD] Executing command with nested quotes: {{ cmd_obj.command | replace('\"', '\\\\\"') }}"
+bash -c "$MULTILINE_CMD" >> "$PHASE_STDOUT" 2>> "$PHASE_STDERR" || {
+  {% if cmd_obj.metadata.is_critical %}
+  echo "[BUILD ERROR] Command with nested quotes failed"
+  exit $?
+  {% else %}
+  echo "[BUILD WARNING] Non-critical command failed but continuing"
+  {% endif %}
+}
+
+{% elif cmd_obj.metadata.is_function_call %}
+# Handle simple function call
+echo "[BUILD] Executing function call: {{ cmd_obj.command }}"
+FUNC_NAME="{{ cmd_obj.command.split()[0] if cmd_obj.command.split() else cmd_obj.command }}"
+if declare -f "$FUNC_NAME" > /dev/null; then
+  {{ cmd_obj.command }} >> "$PHASE_STDOUT" 2>> "$PHASE_STDERR" || {
+    {% if cmd_obj.metadata.is_critical %}
+    echo "[BUILD ERROR] Function call failed"
+    exit $?
+    {% else %}
+    echo "[BUILD WARNING] Non-critical function call failed but continuing"
+    {% endif %}
+  }
+else
+  echo "[BUILD ERROR] Function $FUNC_NAME not defined"
+  {% if cmd_obj.metadata.is_critical %}
+  exit 1
+  {% else %}
+  echo "[BUILD WARNING] Non-critical function call failed but continuing"
+  {% endif %}
+fi
+
+{% else %}
+# Handle regular command
+{% set safe_cmd = cmd_obj.shell_safe_command | default(cmd_obj.command | replace('\"', '\\\\\"')) %}
+echo "[BUILD] Executing command: {{ safe_cmd }}"
+bash -c "{{ safe_cmd }}" >> "$PHASE_STDOUT" 2>> "$PHASE_STDERR" || {
+  {% if cmd_obj.metadata.is_critical %}
+  echo "[BUILD ERROR] Command failed"
+  exit $?
+  {% else %}
+  echo "[BUILD WARNING] Non-critical command failed but continuing"
+  {% endif %}
+}
+{% endif %}
+
+{% if cmd_obj.metadata.working_directory %}
+# Restore previous working directory
+cd "$SAVED_PWD" || {
+  echo "[BUILD WARNING] Failed to restore previous directory: $SAVED_PWD"
+}
+echo "[BUILD] Restored working directory to: $SAVED_PWD"
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+echo "[BUILD] Starting build-time entrypoint for {{ additional_param.service_name }}"
+
+# Set build environment variables
+{% for key, value in additional_param.environments.items() %}
+export {{ key }}={{ value }}
+{% endfor %}
+
+# Execute pre-compilation setup commands
+echo "[BUILD] Executing pre-compilation commands..."
+{{ execute_command_phase(structured_commands.get("pre_compile_cmds") if structured_commands else [], "PRE_COMPILE") }}
+
+# Execute compilation commands with error checking
+echo "[BUILD] Executing compilation commands..."
+{{ execute_command_phase(structured_commands.get("compile_cmds") if structured_commands else [], "COMPILE") }}
+
+echo "[BUILD] Compilation completed successfully."
+
+# Execute post-compilation commands
+echo "[BUILD] Executing post-compilation commands..."
+{{ execute_command_phase(structured_commands.get("post_compile_cmds") if structured_commands else [], "POST_COMPILE") }}
+
+echo "[BUILD] Build-time entrypoint completed successfully for {{ additional_param.service_name }}"
+
+# Create a marker file to indicate build completion
+echo "build_complete_$(date +%s)" > /app/logs/build_complete.marker
+echo "[BUILD] Build completion marker created"

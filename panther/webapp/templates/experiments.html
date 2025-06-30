@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Experiments{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Experiments</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="/index">Dashboard</a></li>
+        <li class="breadcrumb-item active">Experiments</li>
+    </ol>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-table me-1"></i>
+            Available Test Cases
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Network Environment</th>
+                        <th>Iterations</th>
+                        <th>Services</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for test in tests %}
+                    <tr>
+                        <td>{{ safe_getattr(test, 'name', 'N/A') }}</td>
+                        <td>{{ safe_getattr(test, 'description', 'N/A') }}</td>
+                        <td>{{ safe_getattr(test.network_environment, 'type', 'N/A') if test.network_environment else 'N/A' }}</td>
+                        <td>{{ safe_getattr(test, 'iterations', 'N/A') }}</td>
+                        <td>{{ test.services|length if test.services else 0 }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary run-test" data-test-name="{{ safe_getattr(test, 'name', '') }}">
+                                <i class="fas fa-play me-1"></i> Run
+                            </button>
+                            <button class="btn btn-sm btn-info view-test" data-test-name="{{ safe_getattr(test, 'name', '') }}">
+                                <i class="fas fa-eye me-1"></i> View
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="testDetailsModal" tabindex="-1" aria-labelledby="testDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="testDetailsModalLabel">Test Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="testDetailsContent">
+                <!-- Test details will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up run test buttons
+        document.querySelectorAll('.run-test').forEach(button => {
+            button.addEventListener('click', function() {
+                const testName = this.getAttribute('data-test-name');
+                runExperiment(testName);
+            });
+        });
+
+        // Set up view test buttons
+        document.querySelectorAll('.view-test').forEach(button => {
+            button.addEventListener('click', function() {
+                const testName = this.getAttribute('data-test-name');
+                viewTestDetails(testName);
+            });
+        });
+    });
+
+    function runExperiment(testName) {
+        fetch('/api/run-experiment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ test_name: testName }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert('Experiment started successfully!');
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while starting the experiment.');
+        });
+    }
+
+    function viewTestDetails(testName) {
+        fetch(`/api/test/${testName}`)
+            .then(response => response.json())
+            .then(data => {
+                const modalContent = document.getElementById('testDetailsContent');
+                modalContent.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+                const modal = new bootstrap.Modal(document.getElementById('testDetailsModal'));
+                modal.show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while fetching test details.');
+            });
+    }
+</script>
+{% endblock %}

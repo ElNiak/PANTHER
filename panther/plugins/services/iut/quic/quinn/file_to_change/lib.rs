@@ -312,7 +312,7 @@ pub struct Transmit {
 
 /// The maximum number of CIDs we bother to issue per connection
 const LOC_CID_COUNT: u64 = 8;
-const RESET_TOKEN_SIZE: usize = 16; 
+const RESET_TOKEN_SIZE: usize = 16;
 const MAX_CID_SIZE: usize = 16; //CHRIS
 const MIN_INITIAL_SIZE: u16 = 1200;
 const MIN_MTU: u16 = 1232;

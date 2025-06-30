@@ -1,7 +1,7 @@
 # from pathlib import Path
 
-# from panther.config.config_experiment_schema import TestConfig
-# from panther.config.config_global_schema import GlobalConfig
+# from panther.config.core.models.experiment import TestConfig
+# from panther.config.core.models.global_config import GlobalConfig
 # from panther.plugins.plugin_manager import PluginManager
 
 # import unittest

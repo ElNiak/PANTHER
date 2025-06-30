@@ -1,4 +1,4 @@
-FROM panther_base_service_panther:latest
+FROM --platform=linux/amd64 panther_base_service:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 # Define build arguments for version-specific configurations
@@ -10,7 +10,7 @@ ENV DEPENDENCIES=${DEPENDENCIES}
 
 
 # Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq 
+RUN apt-get install --fix-missing -y jq
 
 USER ${USER_N}
 
@@ -30,4 +30,4 @@ RUN mkdir -p /opt/certs
 RUN mkdir -p /opt/ticket
 
 # Set entrypoint (can be overridden)
-ENTRYPOINT [ "/bin/sh", "-l", "-c" ]
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

@@ -1,0 +1,125 @@
+# syntax=docker/dockerfile:1
+ARG TARGETPLATFORM=linux/amd64
+ARG RUNTIME_MODE=minimal
+FROM panther_base_service:latest AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Define build arguments for version-specific configurations
+ARG VERSION=master
+ARG DEPENDENCIES="[]"  # JSON-formatted list of dependencies
+ARG USER_N=root  # Define USER_N with default value
+ENV VERSION=${VERSION}
+ENV DEPENDENCIES=${DEPENDENCIES}
+
+# Layer 1: Install CPAN first, then Perl dependencies for picotls test code (rarely changes)
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y jq libtest-tcp-perl perl git
+
+RUN --mount=type=cache,target=/root/.cpan \
+    echo "Installing Test::TCP for picotls test code..." && \
+    echo install Test::TCP | perl -MCPAN - && \
+    echo "Installing Scope::Guard for picotls test code..." && \
+    echo install Scope::Guard | perl -MCPAN -
+
+
+# Switch to non-root user for security
+USER ${USER_N}
+
+# Layer 3: Dependency building with comprehensive cache (expensive, changes occasionally)
+RUN --mount=type=cache,target=/tmp/git-cache \
+    --mount=type=cache,target=/tmp/build-cache \
+    cd /opt && \
+    echo "Starting dependency installation..." && \
+    echo $DEPENDENCIES | jq -c '.[]' | while read -r dep; do \
+        DEP_NAME=$(echo $dep | jq -r '.name'); \
+        DEP_URL=$(echo $dep | jq -r '.url'); \
+        DEP_COMMIT=$(echo $dep | jq -r '.commit'); \
+        if [ -n "$DEP_NAME" ] && [ -n "$DEP_URL" ] && [ -n "$DEP_COMMIT" ]; then \
+            echo "Processing dependency '$DEP_NAME' from '$DEP_URL' at commit '$DEP_COMMIT'"; \
+            # Use cached git repo if available \
+            if [ -d "/tmp/git-cache/$DEP_NAME" ]; then \
+                echo "Using cached repository for $DEP_NAME"; \
+                cp -r "/tmp/git-cache/$DEP_NAME" "$DEP_NAME"; \
+                cd "$DEP_NAME" && git fetch && git checkout "$DEP_COMMIT"; \
+            else \
+                echo "Cloning fresh repository for $DEP_NAME"; \
+                git clone "$DEP_URL" "$DEP_NAME"; \
+                cd "$DEP_NAME" && git checkout "$DEP_COMMIT"; \
+                # Cache the repository \
+                cp -r "/opt/$DEP_NAME" "/tmp/git-cache/$DEP_NAME"; \
+            fi; \
+            git submodule update --init --recursive; \
+            # Use build cache for compilation \
+            if [ -d "/tmp/build-cache/$DEP_NAME" ]; then \
+                echo "Restoring build cache for $DEP_NAME"; \
+                cp -r "/tmp/build-cache/$DEP_NAME"/* . 2>/dev/null || true; \
+            fi; \
+            OPENSSL_INCLUDE_DIR="/usr/include/openssl" cmake .; \
+            make; \
+            make check; \
+            # Save build artifacts to cache \
+            mkdir -p "/tmp/build-cache/$DEP_NAME"; \
+            cp -r . "/tmp/build-cache/$DEP_NAME/" 2>/dev/null || true; \
+            echo "Successfully built dependency '$DEP_NAME'"; \
+            cd /opt; \
+        else \
+            echo "Invalid dependency configuration: $dep"; \
+            exit 1; \
+        fi; \
+    done
+
+# Layer 4: Main picoquic repository (changes when VERSION changes)
+RUN --mount=type=cache,target=/tmp/git-cache/picoquic \
+    cd /opt && \
+    if [ -d "/tmp/git-cache/picoquic/.git" ]; then \
+        echo "Using cached picoquic repository"; \
+        cp -r /tmp/git-cache/picoquic picoquic; \
+        cd picoquic && git fetch && git checkout ${VERSION}; \
+    else \
+        echo "Cloning fresh picoquic repository"; \
+        git clone https://github.com/private-octopus/picoquic.git; \
+        cd picoquic && git checkout ${VERSION}; \
+        # Cache the repository \
+        cp -r /opt/picoquic /tmp/git-cache/picoquic; \
+    fi
+
+# Layer 5: Custom file modifications (changes when files change)
+COPY file_to_change/rfc9000/picoquic_internal.h /opt/picoquic/picoquic/picoquic_internal.h
+
+# Layer 6: Build picoquic with cache (expensive, changes when code/VERSION changes)
+RUN --mount=type=cache,target=/opt/picoquic/build \
+    --mount=type=cache,target=/tmp/picoquic-build \
+    cd /opt/picoquic && \
+    if [ -d "/tmp/picoquic-build/cmake_cache" ]; then \
+        echo "Restoring cmake cache"; \
+        cp -r /tmp/picoquic-build/cmake_cache/* . 2>/dev/null || true; \
+    fi && \
+    cmake . && \
+    make && \
+    ./picoquic_ct || true && \
+    # Save cmake cache \
+    mkdir -p /tmp/picoquic-build/cmake_cache && \
+    cp -r CMakeCache.txt CMakeFiles/ Makefile /tmp/picoquic-build/cmake_cache/ 2>/dev/null || true
+
+# Layer 7: Runtime configuration (rarely changes)
+EXPOSE 4443 8080
+
+RUN mkdir -p /app/logs /opt/certs /opt/ticket
+
+# =============================================================================
+# FINAL STAGE: Runtime mode selection for Picoquic
+# =============================================================================
+FROM base AS final
+
+# Labels for service identification
+ARG RUNTIME_MODE=minimal
+ARG VERSION=master
+LABEL service.name="picoquic"
+LABEL service.version="${VERSION}"
+LABEL runtime.mode="${RUNTIME_MODE}"
+LABEL runtime.description="Private Octopus Picoquic QUIC implementation"
+
+# Set entrypoint (can be overridden)
+ENTRYPOINT [ "/bin/bash", "-l", "-c" ]

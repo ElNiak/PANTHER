@@ -10,7 +10,7 @@ import (
 // A ConnectionID in QUIC
 type ConnectionID []byte
 
-const maxConnectionIDLen = 16 //TODO chris 
+const maxConnectionIDLen = 16 //TODO chris
 
 // GenerateConnectionID generates a connection ID using cryptographic random
 func GenerateConnectionID(len int) (ConnectionID, error) {

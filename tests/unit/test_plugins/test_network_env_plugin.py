@@ -4,10 +4,10 @@ from panther.plugins.environments.network_environment.network_environment_interf
     INetworkEnvironment,
 )
 from panther.plugins.environments.config_schema import EnvironmentConfig
-from panther.core.observer.event_manager import EventManager
+from panther.core.observer.management.event_manager import EventManager
 
 
-class TestNetworkEnvironment(INetworkEnvironment):
+class MockNetworkEnvironment(INetworkEnvironment):
     def generate_environment_services(self, paths, timestamp):
         pass
 
@@ -39,7 +39,7 @@ def mock_event_manager():
 
 @pytest.fixture
 def network_environment(mock_environment_config, mock_event_manager):
-    return TestNetworkEnvironment(
+    return MockNetworkEnvironment(
         env_config_to_test=mock_environment_config,
         output_dir="/tmp",
         env_type="test_env",

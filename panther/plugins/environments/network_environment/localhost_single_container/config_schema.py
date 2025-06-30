@@ -1,13 +1,26 @@
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-from panther.config.config_experiment_schema import NetworkEnvironmentConfig
+from pydantic import Field
+
+from panther.config.core.models.plugin import NetworkEnvironmentPluginConfig
 
 
-@dataclass
-class LocalhostSingleContainerConfig(NetworkEnvironmentConfig):
-    type: str    = "localhost_single_container"
-    version: str = "3.8"
-    network_name: str = "default_network"
-    service_prefix: Optional[str] = None  # Optional prefix for service names
-    environment: Dict[str, str] = field(default_factory=dict)  # Environment variables
+class LocalhostSingleContainerConfig(NetworkEnvironmentPluginConfig):
+    """Configuration for localhost single container network environment."""
+    
+    type: str = Field(
+        default="localhost_single_container",
+        description="Network environment type"
+    )
+    version: str = Field(
+        default="3.8",
+        description="Docker version compatibility"
+    )
+    service_prefix: Optional[str] = Field(
+        default=None,
+        description="Optional prefix for service names"
+    )
+    environment: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Environment variables"
+    )

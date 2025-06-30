@@ -1,154 +1,248 @@
-# PANTHER-SCP/panther/plugins/services/implementations/picoquic_rfc9000/service_manager.py
+"""Refactored Quant service manager using base classes."""
 
-import subprocess
-import os
-import traceback
-from panther.plugins.services.iut.quic.quant.config_schema import QuantConfig
-from panther.plugins.plugin_loader import PluginLoader
-from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from pathlib import Path
-from panther.plugins.protocols.config_schema import ProtocolConfig, RoleEnum
+from typing import List, Optional, Tuple
 
-class QuantServiceManager(IImplementationManager):
-    """
-    QuantServiceManager is a class responsible for managing the QUIC service implementation using the Quant library.
-    It extends the IImplementationManager and provides methods to initialize, prepare, and generate commands for running and deploying the service.
-    Attributes:
-        service_config_to_test (QuantConfig): The configuration for the Quant service to be tested.
-        service_type (str): The type of service being managed.
-        protocol (ProtocolConfig): The protocol configuration.
-        implementation_name (str): The name of the implementation.
-    Methods:
-        __init__(self, service_config_to_test: QuantConfig, service_type: str, protocol: ProtocolConfig, implementation_name: str):
-            Initializes the QuantServiceManager with the provided configuration, service type, protocol, and implementation name.
-        generate_run_command(self):
-            Generates the run command for the service.
-        generate_post_run_commands(self):
-            Generates post-run commands for the service.
-        prepare(self, plugin_loader: PluginLoader | None = None):
-            Prepares the service manager for use, including building Docker images.
-        generate_deployment_commands(self) -> str:
-        __str__(self) -> str:
-            Returns a string representation of the QuantServiceManager instance.
-        __repr__(self):
-            Returns a detailed string representation of the QuantServiceManager instance.
-    """
-    def __init__(
-        self,
-        service_config_to_test: QuantConfig,
-        service_type: str,
-        protocol: ProtocolConfig,
-        implementation_name: str,
-    ):
-        super().__init__(
-            service_config_to_test, service_type, protocol, implementation_name
-        )
-        self.logger.debug(
-            f"Initializing Quant service manager for '{implementation_name}'"
-        )
-        self.logger.debug(
-            f"Loaded Quant configuration: {self.service_config_to_test}"
-        )
-        self.initialize_commands()
+from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
+    ServiceManagerDockerMixin,
+)
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
+from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
+from panther.plugins.services.iut.iut_service_manager_mixin import (
+    IUTServiceManagerMixin,
+)
+from panther.plugins.services.iut.quic.quant.config_schema import QuantConfig
 
-    def generate_run_command(self):
-        """
-        Generates the run command.
-        """
-        cmd_args = self.generate_deployment_commands()
-        return {
-            "working_dir": self.working_dir,
-            "command_binary": (
-                self.service_config_to_test.implementation.version.server.binary.name
-                if self.role == RoleEnum.server
-                else self.service_config_to_test.implementation.version.client.binary.name
-            ),
-            "command_args": cmd_args,
-            "timeout": self.service_config_to_test.timeout,
-            "command_env": {},
-        }
 
-    def generate_post_run_commands(self):
+@register_plugin(
+    plugin_type=PluginType.IUT,
+    name="quant",
+    version="2.0.0",
+    description="Quant - Minimal QUIC implementation (Refactored)",
+    author="PANTHER Team",
+    dependencies=["docker"],
+    supported_protocols=["quic"],
+    capabilities=["rfc9000", "0rtt", "migration"],
+)
+class QuantServiceManager(
+    IUTServiceManagerMixin,
+    ServiceManagerDockerMixin,
+    IUTManagerEventMixin,
+    BaseQUICServiceManager,
+):
+    """Refactored Quant service manager with minimal code."""
+
+    def __init__(self, *args, global_config=None, **kwargs):
+        """Initialize Quant service manager with dual plugin config approach."""
+        super().__init__(*args, global_config=global_config, **kwargs)
+
+        # Cache plugin config for easy access
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> Optional[QuantConfig]:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.service_config_to_test.get_plugin_config(
+                    QuantConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                # Create default config
+                self._plugin_config = QuantConfig()
+        return self._plugin_config
+
+    def _get_implementation_name(self) -> str:
+        return "quant"
+
+    def _get_binary_name(self) -> str:
+        # Quant uses different binaries
+        return "server" if self.role == "server" else "client"
+
+    def _get_server_specific_args(self, **kwargs) -> List[str]:
+        """Quant server specific arguments with plugin config support."""
+        args = []
+
+        # Get plugin config values with fallbacks
+        plugin_config = self._get_plugin_config()
+
+        # Document root - First try kwargs, then plugin_config, then default
+        if kwargs.get("root"):
+            root = kwargs["root"]
+        elif (
+            hasattr(self.service_config_to_test, "plugin_config")
+            and self.service_config_to_test.plugin_config
+        ):
+            root = self.service_config_to_test.plugin_config.get(
+                "server_root", "/var/www"
+            )
+        elif (
+            plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "server")
+        ):
+            server_params = plugin_config.version.server
+            root = (
+                server_params.get("root", "/var/www") if server_params else "/var/www"
+            )
+        else:
+            root = "/var/www"
+        args.extend(["-d", root])
+
+        # Verbose logging - Check plugin_config dictionary first, then typed config
+        verbose = kwargs.get("verbose", False)
+        if (
+            not verbose
+            and hasattr(self.service_config_to_test, "plugin_config")
+            and self.service_config_to_test.plugin_config
+        ):
+            verbose = self.service_config_to_test.plugin_config.get("verbose", False)
+        elif (
+            not verbose
+            and plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "server")
+        ):
+            server_params = plugin_config.version.server
+            verbose = server_params.get("verbose", False) if server_params else False
+
+        if verbose:
+            args.append("-v")
+
+        return args
+
+    def _get_client_specific_args(self, **kwargs) -> List[str]:
+        """Quant client specific arguments with plugin config support."""
+        args = []
+
+        # Get plugin config values with fallbacks
+        plugin_config = self._get_plugin_config()
+
+        # Request URL path - First try kwargs, then plugin_config, then default
+        if kwargs.get("path"):
+            path = kwargs["path"]
+        elif (
+            hasattr(self.service_config_to_test, "plugin_config")
+            and self.service_config_to_test.plugin_config
+        ):
+            path = self.service_config_to_test.plugin_config.get("request_path", "/")
+        elif (
+            plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "client")
+        ):
+            client_params = plugin_config.version.client
+            path = client_params.get("path", "/") if client_params else "/"
+        else:
+            path = "/"
+        args.extend(["-u", path])
+
+        # Verbose logging - Check plugin_config dictionary first, then typed config
+        verbose = kwargs.get("verbose", False)
+        if (
+            not verbose
+            and hasattr(self.service_config_to_test, "plugin_config")
+            and self.service_config_to_test.plugin_config
+        ):
+            verbose = self.service_config_to_test.plugin_config.get("verbose", False)
+        elif (
+            not verbose
+            and plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "client")
+        ):
+            client_params = plugin_config.version.client
+            verbose = client_params.get("verbose", False) if client_params else False
+
+        if verbose:
+            args.append("-v")
+
+        # Connection count - First try kwargs, then plugin_config, then default
+        if kwargs.get("connections"):
+            connections = kwargs["connections"]
+        elif (
+            hasattr(self.service_config_to_test, "plugin_config")
+            and self.service_config_to_test.plugin_config
+        ):
+            connections = self.service_config_to_test.plugin_config.get(
+                "connections", 1
+            )
+        elif (
+            plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "client")
+        ):
+            client_params = plugin_config.version.client
+            connections = client_params.get("connections", 1) if client_params else 1
+        else:
+            connections = 1
+
+        if connections > 1:
+            args.extend(["-n", str(connections)])
+
+        return args
+
+    def get_output_patterns(self) -> List[Tuple[str, str]]:
         """
-        Generates post-run commands.
+        Get phase-based output patterns for Quant service.
+
+        Returns:
+            List of (output_type, filename_pattern) tuples organized by execution phases
         """
-        return super().generate_post_run_commands() + [
-            "cp -r /opt/quant/bin /app/logs/quant/;"
+        return [
+            # Pre-compile phase outputs
+            ("pre_compile_stdout", "pre-compile/stdout.log"),
+            ("pre_compile_stderr", "pre-compile/stderr.log"),
+            # Compile phase outputs
+            ("compile_stdout", "compile/stdout.log"),
+            ("compile_stderr", "compile/stderr.log"),
+            # Post-compile phase outputs
+            ("post_compile_stdout", "post-compile/stdout.log"),
+            ("post_compile_stderr", "post-compile/stderr.log"),
+            # Pre-run phase outputs
+            ("pre_run_stdout", "pre-run/stdout.log"),
+            ("pre_run_stderr", "pre-run/stderr.log"),
+            # Runtime phase outputs (main execution)
+            ("runtime_stdout", "runtime/stdout.log"),
+            ("runtime_stderr", "runtime/stderr.log"),
+            # Post-run phase outputs
+            ("post_run_stdout", "post-run/stdout.log"),
+            ("post_run_stderr", "post-run/stderr.log"),
+            # Test phase outputs
+            ("test_stdout", "test/stdout.log"),
+            ("test_stderr", "test/stderr.log"),
+            # Artifacts - protocol-specific files organized by type
+            ("qlog", "artifacts/*.qlog"),
+            ("sslkeylog", "artifacts/sslkeylogfile.txt"),
+            ("keys", "artifacts/*keys.log"),
+            ("pcap", "artifacts/{service_name}.pcap"),
+            ("quant_binaries", "artifacts/server"),
+            ("quant_client", "artifacts/client"),
+            ("debug_bins", "artifacts/Debug/bin/"),
+            ("analysis", "artifacts/analysis_{service_name}.json"),
         ]
 
-    def prepare(self, plugin_loader: PluginLoader | None = None):
-        """
-        Prepare the service manager for use.
-        """
-        self.logger.debug("Preparing Quant service manager...")
-        plugin_loader.build_docker_image_from_path(
-            Path(
-                os.path.join(
-                    self._plugin_dir,
-                    "Dockerfile",
-                )
-            ),
-            "panther_base",
-            "service",
-        )
-        plugin_loader.build_docker_image(
-            self.get_implementation_name(),
-            self.service_config_to_test.implementation.version,
-        )
+    def generate_post_run_commands(self) -> List[str]:
+        """Quant post-run cleanup with phase-based output organization."""
+        return [
+            # Create artifacts directory
+            "mkdir -p /app/logs/artifacts;",
+            # Copy binaries to artifacts (not root logs)
+            "cp /opt/quant/Debug/bin/* /app/logs/artifacts/ 2>/dev/null || true;",
+            # Copy any QUIC logs to artifacts
+            "find /tmp -name '*.qlog' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+        ]
 
     def generate_deployment_commands(self) -> str:
-        """
-        Generates deployment commands for the QUIC service based on the role and service configuration.
-        This method constructs the necessary deployment commands by rendering a template with the appropriate parameters.
-        It logs the process of generating these commands and handles any exceptions that may occur during the rendering.
-        Returns:
-            str: The rendered deployment command string.
-        Raises:
-            Exception: If there is an error during the rendering of the command template.
-        """
-        
-        self.logger.debug(
-            f"Generating deployment commands for service: {self.service_name} with service parameters: {self.service_config_to_test}"
-        )
-        # Create the command list
-
-        self.logger.debug(f"Role: {self.role}, Version: {self.service_version}")
-
-        # Determine if network interface parameters should be included based on environment
-        include_interface = True
-
-        # Build parameters for the command template
-        # TODO ensure that the parameters are correctly set
-        if self.role == RoleEnum.server:
-            params = self.service_config_to_test.implementation.version.server
-        # For the client, include target and message if available
-        elif self.role == RoleEnum.client:
-            params = self.service_config_to_test.implementation.version.client
-
-        params["target"] = self.service_config_to_test.protocol.target
-
-        self.logger.debug(f"Parameters for command template: {params}")
-        self.logger.debug(f"Role: {self.role}")
-        self.working_dir = params["binary"]["dir"]
-        # Conditionally include network interface parameters
-        if not include_interface:
-            params["network"].pop("interface", None)
+        """Generate deployment commands for compatibility."""
+        role = getattr(self, "role", "client")
+        if role == "server":
+            return f"{self._get_binary_name()} -p 4443 -d /var/www"
         else:
-            # TODO add that in the Dockerfile
-            subprocess.run(["bash", "generate_certificates.sh"])
+            return f"{self._get_binary_name()} -u / localhost 4443"
 
-        # Render the appropriate template
-        try:
-            template_name = f"{str(self.role.name)}_command.jinja"
-            return super().render_commands(params, template_name)
-        except Exception as e:
-            self.logger.error(
-                f"Failed to render command for service '{self.service_config_to_test.name}': {e}\n{traceback.format_exc()}"
-            )
-            raise e
-
-    def __str__(self) -> str:
-        return f"QuantServiceManager({self.__dict__})"
-
-    def __repr__(self):
-        return f"QuantServiceManager({self.__dict__})"
+    def _do_prepare(self, plugin_manager=None):
+        """Prepare the Quant service."""
+        pass
