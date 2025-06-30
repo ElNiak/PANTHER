@@ -16,9 +16,15 @@ import pytest
 # Test imports with fallback to mocks
 try:
     from panther.core.docker_builder.docker_builder import DockerBuilder
-    from panther.core.docker_builder.docker_operations_mixin import DockerOperationsMixin
+    from panther.core.docker_builder.plugin_mixin.docker_operations_mixin import (
+        DockerOperationsMixin,
+    )
 
     REAL_DOCKER_SYSTEM_AVAILABLE = True
+
+    # Ensure clean test state by resetting singleton before tests
+    DockerBuilder.reset_singleton()
+
 except ImportError:
     REAL_DOCKER_SYSTEM_AVAILABLE = False
 
@@ -163,7 +169,9 @@ except ImportError:
                 "status": "running",
             }
 
+
 pytestmark = [pytest.mark.unit, pytest.mark.docker_system]
+
 
 class TestDockerBuilder:
     """Test DockerBuilder core functionality."""
@@ -465,6 +473,7 @@ CMD ["python", "-m", "panther"]
 
         assert logs == ""
 
+
 class TestDockerOperationsMixin:
     """Test DockerOperationsMixin functionality."""
 
@@ -535,13 +544,14 @@ class TestDockerOperationsMixin:
         assert operation_types.count("build") == 2
         assert operation_types.count("cleanup") == 2
 
+
 class TestDockerSystemIntegration:
     """Test integration between Docker system components."""
 
     def test_builder_with_operations_mixin(self, tmp_path):
         """Test DockerBuilder with DockerOperationsMixin integration."""
         temp_workspace = tmp_path
-        
+
         # Create a combined class that uses both
         class DockerManagerWithOps(DockerBuilder, DockerOperationsMixin):
             def __init__(self, base_path=None):
@@ -607,6 +617,7 @@ class TestDockerSystemIntegration:
         assert "app2" in network_info["containers"]
         assert "database" in network_info["containers"]
 
+
 class TestDockerSystemErrorHandling:
     """Test error handling in Docker system."""
 
@@ -650,6 +661,201 @@ class TestDockerSystemErrorHandling:
 
         # Test that availability check works
         assert builder.is_docker_available() is False
+
+
+class TestDockerBuilderCacheIntegration:
+    """Test Docker image cache integration with DockerBuilder."""
+
+    @pytest.fixture
+    def mock_docker_builder_with_cache(self, tmp_path):
+        """Create DockerBuilder with cache for testing."""
+        if REAL_DOCKER_SYSTEM_AVAILABLE:
+            DockerBuilder.reset_singleton()
+
+            with patch(
+                "panther.core.docker_builder.docker_builder.docker.from_env"
+            ) as mock_docker:
+                mock_client = Mock()
+                mock_client.ping.return_value = True
+
+                # Configure mock images for cache testing
+                mock_image = Mock()
+                mock_image.id = "sha256:cache_test_123"
+                mock_image.tags = ["cache_test:latest"]
+                mock_image.attrs = {
+                    "Size": 50 * 1024 * 1024,
+                    "Created": "2025-06-24T10:00:00Z",
+                }
+
+                mock_client.images.list.return_value = [mock_image]
+                mock_client.images.get.return_value = mock_image
+                mock_docker.return_value = mock_client
+
+                builder = DockerBuilder.get_instance()
+                # Set custom cache file for testing
+                builder.image_cache.cache_file = tmp_path / "test_docker_cache.json"
+
+                yield builder, mock_client
+        else:
+            # Create mock builder with cache
+            mock_builder = Mock()
+            mock_builder.image_cache = Mock()
+            mock_builder.client = Mock()
+
+            yield mock_builder, mock_builder.client
+
+    def test_image_exists_uses_cache(self, mock_docker_builder_with_cache):
+        """Test that image_exists() uses cache to reduce Docker API calls."""
+        if not REAL_DOCKER_SYSTEM_AVAILABLE:
+            pytest.skip("Real Docker system not available for cache testing")
+
+        builder, mock_client = mock_docker_builder_with_cache
+
+        # First call should populate cache and call Docker API
+        result1 = builder.image_exists("cache_test:latest")
+        assert result1 is True
+        assert mock_client.images.get.call_count >= 1
+
+        # Reset mock to count subsequent calls
+        initial_call_count = mock_client.images.get.call_count
+        mock_client.images.get.reset_mock()
+
+        # Second call should use cache (no additional Docker API call for listing)
+        result2 = builder.image_exists("cache_test:latest")
+        assert result2 is True
+
+        # Should have made fewer API calls due to caching
+        assert mock_client.images.get.call_count <= initial_call_count
+
+    def test_image_exists_fallback_on_docker_failure(self, tmp_path):
+        """Test image_exists() fallback when Docker is unavailable."""
+        if not REAL_DOCKER_SYSTEM_AVAILABLE:
+            pytest.skip("Real Docker system not available for fallback testing")
+
+        # Create cache file with known data
+        cache_file = tmp_path / "fallback_test_cache.json"
+        cache_data = {
+            "images": {
+                "sha256:fallback123": {
+                    "id": "sha256:fallback123",
+                    "tags": ["fallback_test:latest"],
+                    "size": 1024 * 1024,
+                    "created": "2025-06-24T10:00:00Z",
+                    "last_seen": time.time(),
+                }
+            },
+            "last_refresh": time.time() - 100,
+            "saved_at": time.time(),
+        }
+
+        import json
+
+        with open(cache_file, "w") as f:
+            json.dump(cache_data, f)
+
+        DockerBuilder.reset_singleton()
+
+        with patch(
+            "panther.core.docker_builder.docker_builder.docker.from_env"
+        ) as mock_docker:
+            # Mock Docker client that fails
+            mock_client = Mock()
+            mock_client.ping.side_effect = DockerException("Connection refused")
+            mock_client.images.get.side_effect = DockerException("Connection refused")
+            mock_docker.return_value = mock_client
+
+            # Builder should initialize without exception (graceful degradation)
+            builder = DockerBuilder.get_instance()
+            builder.image_cache.cache_file = cache_file
+            builder.image_cache._load_cache()
+
+            # Should find image in cache even though Docker is unavailable
+            cached_result = builder.image_cache.image_exists_in_cache(
+                "fallback_test:latest"
+            )
+            assert cached_result is True
+
+    def test_cleanup_unused_images_uses_cache(self, mock_docker_builder_with_cache):
+        """Test that cleanup_unused_images() uses cache."""
+        if not REAL_DOCKER_SYSTEM_AVAILABLE:
+            pytest.skip("Real Docker system not available for cache testing")
+
+        builder, mock_client = mock_docker_builder_with_cache
+
+        # Mock images.remove for cleanup
+        mock_client.images.remove.return_value = True
+
+        # Test cleanup with keep_tags
+        builder.cleanup_unused_images(keep_tags=["keep_this:latest"])
+
+        # Should have called cache operations
+        assert hasattr(builder, "image_cache")
+        assert builder.image_cache is not None
+
+    def test_remove_dangling_images_uses_cache(self, mock_docker_builder_with_cache):
+        """Test that remove_dangling_images() uses cache."""
+        if not REAL_DOCKER_SYSTEM_AVAILABLE:
+            pytest.skip("Real Docker system not available for cache testing")
+
+        builder, mock_client = mock_docker_builder_with_cache
+
+        # Mock dangling images
+        mock_dangling = Mock()
+        mock_dangling.id = "sha256:dangling123"
+        mock_dangling.tags = []
+        mock_client.images.list.return_value = [mock_dangling]
+        mock_client.images.remove.return_value = True
+
+        # Test dangling image removal
+        result = builder.remove_dangling_images()
+
+        # Should succeed and use cache
+        assert result is True
+        assert hasattr(builder, "image_cache")
+
+    def test_docker_status_reporting(self, mock_docker_builder_with_cache):
+        """Test get_docker_status() method."""
+        if not REAL_DOCKER_SYSTEM_AVAILABLE:
+            pytest.skip("Real Docker system not available for status testing")
+
+        builder, mock_client = mock_docker_builder_with_cache
+
+        # Get Docker status
+        status = builder.get_docker_status()
+
+        assert isinstance(status, dict)
+        assert "docker_available" in status
+        assert "cache_enabled" in status
+        assert "cached_images" in status
+        assert "cache_fresh" in status
+        assert "fallback_mode" in status
+
+        # Should report cache as enabled
+        assert status["cache_enabled"] is True
+        assert isinstance(status["docker_available"], bool)
+
+    def test_builder_singleton_cache_persistence(self, tmp_path):
+        """Test that DockerBuilder singleton maintains cache across instances."""
+        if not REAL_DOCKER_SYSTEM_AVAILABLE:
+            pytest.skip("Real Docker system not available for singleton testing")
+
+        cache_file = tmp_path / "singleton_cache.json"
+
+        # Reset and create first instance
+        DockerBuilder.reset_singleton()
+
+        with patch("panther.core.docker_builder.docker_builder.docker.from_env"):
+            builder1 = DockerBuilder.get_instance()
+            builder1.image_cache.cache_file = cache_file
+
+            # Get second instance (should be same object)
+            builder2 = DockerBuilder.get_instance()
+
+            # Should be the same singleton instance
+            assert builder1 is builder2
+            assert builder1.image_cache is builder2.image_cache
+            assert builder1.image_cache.cache_file == cache_file
+
 
 class TestDockerSystemPerformance:
     """Test performance characteristics of Docker system."""
@@ -724,6 +930,7 @@ class TestDockerSystemPerformance:
         assert duration < 1.0  # Less than 1 second
         assert len(builder.networks) == 5
         assert len(builder.containers) == 15
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

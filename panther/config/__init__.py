@@ -2,26 +2,20 @@
 
 This package contains configuration management for the PANTHER framework.
 
-The package provides both legacy and new unified configuration systems:
-- Legacy: config_manager, config_*_schema modules (for backward compatibility)
-- New: core.* modules with unified ConfigurationManager and Pydantic models
+The package provides a unified configuration system based on ConfigurationManager.
 """
 
 # Define the public API - but use lazy imports to avoid circular dependencies
+# pylint: disable-next=undefined-variable  # Variables defined dynamically via __getattr__
 __all__ = [
-    # Legacy exports (for backward compatibility)
-    "config_manager",
-    "config_experiment_schema",
-    "config_global_schema",
-    "config_observer_schema",
-    "ConfigLoader",
-    # New unified configuration system exports
-    "core",
+    # Primary configuration system exports
     "ConfigurationManager",
+    "core",
+    # Configuration models
     "BaseConfig",
     "ExperimentConfig",
     "GlobalConfig",
-    "ObserverConfig",
+    "BaseObserverConfig",
     "ServiceConfig",
     "TestConfig",
 ]
@@ -29,40 +23,18 @@ __all__ = [
 
 def __getattr__(name):  # pylint: disable=invalid-name
     """Lazy import implementation to avoid circular imports."""
-    # Legacy imports
-    if name == "config_manager":
-        from . import config_manager  # pylint: disable=import-outside-toplevel
-
-        return config_manager
-    elif name == "config_experiment_schema":
-        from . import (  # pylint: disable=import-outside-toplevel
-            config_experiment_schema,
-        )
-
-        return config_experiment_schema
-    elif name == "config_global_schema":
-        from . import config_global_schema  # pylint: disable=import-outside-toplevel
-
-        return config_global_schema
-    elif name == "config_observer_schema":
-        from . import config_observer_schema  # pylint: disable=import-outside-toplevel
-
-        return config_observer_schema
-    elif name == "ConfigLoader":
-        from .config_manager import ConfigLoader  # pylint: disable=import-outside-toplevel
-
-        return ConfigLoader
-    # New unified configuration system imports
-    elif name == "core":
-        from . import core  # pylint: disable=import-outside-toplevel
-
-        return core
-    elif name == "ConfigurationManager":
+    # Primary configuration system imports
+    if name == "ConfigurationManager":
         from .core.manager import (  # pylint: disable=import-outside-toplevel
             ConfigurationManager,
         )
 
         return ConfigurationManager
+    elif name == "core":
+        from . import core  # pylint: disable=import-outside-toplevel
+
+        return core
+    # Configuration model imports
     elif name == "BaseConfig":
         from .core.base import BaseConfig  # pylint: disable=import-outside-toplevel
 
@@ -77,7 +49,7 @@ def __getattr__(name):  # pylint: disable=invalid-name
         from .core.models import GlobalConfig  # pylint: disable=import-outside-toplevel
 
         return GlobalConfig
-    elif name == "ObserverConfig":
+    elif name == "BaseObserverConfig":
         from .core.models import (  # pylint: disable=import-outside-toplevel
             BaseObserverConfig,
         )

@@ -1,16 +1,13 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
+from panther.config.core.models import ProtocolConfig
 from panther.config.core.models.service import ServiceConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.config.core.models import ProtocolConfig
 from panther.plugins.services.services_interface import IServiceManager
-from panther.plugins.services.testers.tester_event_methods import (
-    TesterManagerEventMixin,
-)
 
 
-class ITesterManager(IServiceManager, TesterManagerEventMixin):
+class ITesterManager(IServiceManager, ABC):
     """
     Interface for tester service managers.
 
@@ -40,6 +37,15 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
         self.test_results = {}
         self.collected_outputs = {}
 
+    def is_tester(self) -> bool:
+        """
+        Check if this service manager is a tester.
+
+        Returns:
+            bool: True if this is a tester service manager, False otherwise.
+        """
+        return True
+
     def run_tests(self):
         """
         Run tests with proper event notifications.
@@ -48,6 +54,11 @@ class ITesterManager(IServiceManager, TesterManagerEventMixin):
             Dict: Test results
         """
         try:
+            self.logger.info(
+                "Running tests for service: %s (%s)",
+                self.service_name,
+                self.service_type,
+            )
             # Notify test run started
             test_name = getattr(self, "test_to_compile", "unknown")
             self.notify_test_started(

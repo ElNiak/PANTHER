@@ -3,7 +3,7 @@
 Test script for the ShellCommand class with trailing control operators.
 """
 
-from panther.core.command_processor.command import ShellCommand, normalize_command_ending
+from panther.core.command_processor import ShellCommand, normalize_command_ending
 
 
 def test_normalize_command_ending():
@@ -16,7 +16,10 @@ def test_normalize_command_ending():
     assert normalize_command_ending("ls -la;") == "ls -la"
     assert normalize_command_ending("echo 'hello' &&") == "echo 'hello'"
     assert normalize_command_ending("find . -name '*.py' &") == "find . -name '*.py'"
-    assert normalize_command_ending("grep 'pattern' file.txt |") == "grep 'pattern' file.txt"
+    assert (
+        normalize_command_ending("grep 'pattern' file.txt |")
+        == "grep 'pattern' file.txt"
+    )
 
     # Test commands with trailing whitespace and operators
     assert normalize_command_ending("ls -la; ") == "ls -la"

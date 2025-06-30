@@ -4,12 +4,11 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from panther.core.events.service.emitter import ServiceEventEmitter
-from panther.core.events.service.events import ServiceEvent
-from panther.core.events.service.states import ServiceState
 from panther.config.core.models.service import ImplementationType
+from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
+    ServiceManagerDockerMixin,
+)
 from panther.plugins.services.services_interface import IServiceManager
-from panther.plugins.services.testers.tester_interface import ITesterManager
 
 
 class ServiceManagementMixin:
@@ -25,18 +24,17 @@ class ServiceManagementMixin:
             if self.emitter_registry:
                 service_emitter = self.emitter_registry.service_emitter
 
-            
             service_names = list(self.services.keys())
-            
+
             service_metadata = self.generate_service_metadata()
-            
+
             service_emitter.emit_service_setup_started(
                 test_case=self.test_name,
                 service_count=len(self.services),
                 service_names=service_names,
                 service_metadata=service_metadata,
             )
-             
+
             # Setup testers first (they act as servers)
             self.setup_testers()
 
@@ -56,7 +54,7 @@ class ServiceManagementMixin:
 
     def generate_service_metadata(self):
         service_metadata = []
-            # Build metadata from service configurations
+        # Build metadata from service configurations
         for service_name, service_config in self.services.items():
             # Handle both enum and string types for implementation.type
             service_type = "unknown"
@@ -68,11 +66,12 @@ class ServiceManagementMixin:
                 else:
                     # String type (new system)
                     service_type = str(impl_type).lower()
-            
+
             # Handle both enum and string types for protocol.role
             protocol_role = "unknown"
-            if (hasattr(service_config, "protocol") and 
-                hasattr(service_config.protocol, "role")):
+            if hasattr(service_config, "protocol") and hasattr(
+                service_config.protocol, "role"
+            ):
                 role = service_config.protocol.role
                 if hasattr(role, "value"):
                     # Enum type (old system)
@@ -80,24 +79,24 @@ class ServiceManagementMixin:
                 else:
                     # String type (new system)
                     protocol_role = str(role).lower()
-            
+
             metadata = {
-                    "service_type": service_type,
-                        "implementation": (
-                            service_config.implementation.name
-                            if hasattr(service_config.implementation, "name")
-                            else "unknown"
-                        ),
-                        "config": {
-                            "test_case": self.test_name,
-                            "protocol": (
-                                service_config.protocol.name
-                                if hasattr(service_config, "protocol")
-                                else "unknown"
-                            ),
-                            "role": protocol_role,
-                        },
-                    }
+                "service_type": service_type,
+                "implementation": (
+                    service_config.implementation.name
+                    if hasattr(service_config.implementation, "name")
+                    else "unknown"
+                ),
+                "config": {
+                    "test_case": self.test_name,
+                    "protocol": (
+                        service_config.protocol.name
+                        if hasattr(service_config, "protocol")
+                        else "unknown"
+                    ),
+                    "role": protocol_role,
+                },
+            }
             service_metadata.append(metadata)
         return service_metadata
 
@@ -109,7 +108,11 @@ class ServiceManagementMixin:
             implementation = service_details.implementation
             impl_type = implementation.type
 
-            if impl_type == ImplementationType.TESTERS or impl_type == "TESTERS" or impl_type == "testers":
+            if (
+                impl_type == ImplementationType.TESTERS
+                or impl_type == "TESTERS"
+                or impl_type == "testers"
+            ):
                 self.logger.info(f"Setting up tester: {service_name}")
 
                 try:
@@ -134,7 +137,11 @@ class ServiceManagementMixin:
             implementation = service_details.implementation
             impl_type = implementation.type
 
-            if impl_type == ImplementationType.IUT or impl_type == "IUT" or impl_type == "iut":
+            if (
+                impl_type == ImplementationType.IUT
+                or impl_type == "IUT"
+                or impl_type == "iut"
+            ):
                 self.logger.info(f"Setting up implementation: {service_name}")
 
                 try:
@@ -175,13 +182,12 @@ class ServiceManagementMixin:
 
         # Reset base image flag for this test run to ensure base image is built once per experiment
         try:
-            from panther.core.docker_builder.service_manager_docker_mixin import (
-                ServiceManagerDockerMixin,
-            )
             ServiceManagerDockerMixin.reset_base_image_flag()
             self.logger.debug("Reset base Docker image flag for new test run")
         except ImportError:
-            self.logger.debug("ServiceManagerDockerMixin not available, skipping base image reset")
+            self.logger.debug(
+                "ServiceManagerDockerMixin not available, skipping base image reset"
+            )
 
         try:
             # Get service emitter if available
@@ -207,7 +213,9 @@ class ServiceManagementMixin:
                 ):
                     try:
                         service_manager.prepare(self.plugin_manager)
-                        self.logger.debug("Successfully prepared service: %s", service_name)
+                        self.logger.debug(
+                            "Successfully prepared service: %s", service_name
+                        )
                     except Exception as e:
                         self.logger.error(
                             f"Failed to prepare service {service_name}: {e}"
@@ -218,8 +226,6 @@ class ServiceManagementMixin:
                         "Service manager %s has no prepare method, skipping",
                         service_name,
                     )
-
-            # Service preparation completed
 
         except Exception as e:
             self.logger.error(f"Service preparation failed: {e}")
@@ -282,58 +288,57 @@ class ServiceManagementMixin:
         try:
             # Get the implementation directory from plugin catalog
             # Handle both enum and string types
-            if hasattr(impl_type, 'value'):
+            if hasattr(impl_type, "value"):
                 type_str = impl_type.value
             else:
                 type_str = str(impl_type).lower()
-            
+
             # Map TESTERS to tester for plugin catalog lookup
             if type_str == "testers":
                 type_str = "tester"
             elif type_str == "iut":
                 type_str = "iut"  # Keep as is
-                
+
             plugin_id = f"{type_str}:{impl_name}"
             plugin_manifest = self.plugin_manager.plugin_catalog.catalog.get(plugin_id)
-            
+
             if not plugin_manifest:
                 self.logger.error(f"Plugin not found in catalog: {plugin_id}")
                 return None
-                
+
             implementation_dir = (
-                Path(plugin_manifest.file_path)
-                if plugin_manifest.file_path
-                else None
+                Path(plugin_manifest.file_path) if plugin_manifest.file_path else None
             )
-            
+
             if not implementation_dir:
                 self.logger.error(f"No implementation directory found for {plugin_id}")
                 return None
-            
+
             self.logger.debug(f"Plugin manifest file_path: {plugin_manifest.file_path}")
             self.logger.debug(f"Implementation dir: {implementation_dir}")
-            
-            # Use plugin manager to create service manager with correct parameters
-            service_manager = self.plugin_manager.create_service_manager(
+
+            if service_manager := self.plugin_manager.create_service_manager(
                 protocol=protocol,
                 implementation=implementation,
                 implementation_dir=implementation_dir,
                 service_config_to_test=service_details,
                 event_manager=self.event_manager,
                 emitter_registry=self.emitter_registry,
-            )
-
-            if service_manager:
+                global_config=self.global_config,
+                experiment_context=self,
+            ):
                 # Set service name and additional attributes
                 service_manager.service_name = service_name
                 service_manager.timeout = service_details.timeout
-                service_manager.ports = service_details.ports if hasattr(service_details, 'ports') else []
+                service_manager.ports = (
+                    service_details.ports if hasattr(service_details, "ports") else []
+                )
 
                 # Set protocol details
                 service_manager.protocol_name = protocol_name
                 service_manager.protocol_role = protocol.role
-                service_manager.protocol_target = getattr(protocol, 'target', None)
-                
+                service_manager.protocol_target = getattr(protocol, "target", None)
+
                 # Set test context if the service manager supports it
                 if hasattr(service_manager, "set_test_context"):
                     service_manager.set_test_context(self.test_name)

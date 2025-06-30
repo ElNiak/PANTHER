@@ -28,7 +28,7 @@ from panther.core.events.service.events import (
 )
 from panther.core.events.test.events import TestExecutionStartedEvent
 from panther.core.observer.base.typed_observer_interface import ITypedObserver
-from panther.core.workflow import WorkflowState, WorkflowStateTracker
+from panther.core.observer.workflow import WorkflowState, WorkflowStateTracker
 
 
 class StateEventObserver(ITypedObserver):
@@ -96,7 +96,9 @@ class StateEventObserver(ITypedObserver):
                 f"Workflow coordination: experiment {event.entity_id} initialized"
             )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting experiment initialized state for {event.entity_id}: {e}"
+            )
         return True
 
     def on_experiment_plugin_loading_started(
@@ -109,7 +111,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.LOADING_PLUGINS
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting plugin loading state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_command_generation_started(
@@ -122,7 +126,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.GENERATING_COMMANDS
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting command generation state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_docker_build_started(self, event: DockerBuildStartedEvent) -> bool:
@@ -133,7 +139,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.BUILDING_DOCKER
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting docker build state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_environment_setup_started(self, event: EnvironmentSetupStartedEvent) -> bool:
@@ -144,7 +152,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.DEPLOYING
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting deployment state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_test_execution_started(self, event: TestExecutionStartedEvent) -> bool:
@@ -155,7 +165,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.RUNNING
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting test execution state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_output_collection_started(self, event: OutputCollectionStartedEvent) -> bool:
@@ -166,7 +178,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.COLLECTING_OUTPUTS
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting output collection state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_output_collection_completed(
@@ -179,7 +193,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.ANALYZING_RESULTS
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting analysis state after output collection for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_tester_analysis_started(self, event: TesterAnalysisStartedEvent) -> bool:
@@ -190,7 +206,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.ANALYZING_RESULTS
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting tester analysis state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_experiment_execution_started(
@@ -203,7 +221,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, WorkflowState.RUNNING
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting execution started state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def on_experiment_completed(self, event: ExperimentCompletedEvent) -> bool:
@@ -216,7 +236,9 @@ class StateEventObserver(ITypedObserver):
                 f"Workflow coordination: experiment {event.entity_id} completed"
             )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting completed state for experiment {event.entity_id}: {e}"
+            )
         return True
 
     def on_experiment_failed(self, event: ExperimentFailedEvent) -> bool:
@@ -229,7 +251,9 @@ class StateEventObserver(ITypedObserver):
                 f"Workflow coordination: experiment {event.entity_id} failed"
             )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting failed state for experiment {event.entity_id}: {e}"
+            )
         return True
 
     def on_experiment_plugin_loading_failed(
@@ -242,7 +266,9 @@ class StateEventObserver(ITypedObserver):
                     self.current_experiment_id, "Plugin loading failed"
                 )
         except Exception as e:
-            self.logger.error(f"Error in workflow coordination: {e}")
+            self.logger.error(
+                f"Error setting plugin loading failure state for experiment {self.current_experiment_id}: {e}"
+            )
         return True
 
     def get_state_history(self, experiment_id: str = None):

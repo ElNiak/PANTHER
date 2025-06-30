@@ -203,7 +203,6 @@ class SubprocessExecutorMixin:
             CommandResult from docker command execution
         """
         command = ["docker"] + docker_args
-        self.logger.debug(f"Executing Docker command: {' '.join(command)}")
         return self.execute_command(
             command,
             timeout=timeout,
@@ -237,6 +236,14 @@ class SubprocessExecutorMixin:
         Returns:
             CommandResult from command execution
         """
+        # Debug log the file paths
+        self.logger.debug(
+            f"execute_with_logging called with stdout_file={stdout_file}, type={type(stdout_file)}"
+        )
+        self.logger.debug(
+            f"execute_with_logging called with stderr_file={stderr_file}, type={type(stderr_file)}"
+        )
+
         # Ensure log directories exist
         os.makedirs(os.path.dirname(stdout_file), exist_ok=True)
         os.makedirs(os.path.dirname(stderr_file), exist_ok=True)

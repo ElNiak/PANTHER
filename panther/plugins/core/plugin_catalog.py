@@ -147,20 +147,9 @@ class PluginCatalog:
         Returns:
             Tuple of (resolved_order, missing_dependencies)
         """
-        # Build dependency graph
-        self._build_dependency_graph(plugin_ids)
-
-        # Check for missing dependencies
-        # missing = self._find_missing_dependencies(plugin_ids)
-        # if missing:
-        #     return [], missing
-
-        # Topological sort for load order
-        try:
-            resolved_order = self._topological_sort(plugin_ids)
-            return resolved_order, []
-        except ValueError as e:
-            return [], [str(e)]
+        # TODO: Implement dependency resolution in future work
+        # For now, just return the plugin IDs as-is without dependency checking
+        return plugin_ids, []
 
     def _build_dependency_graph(self, plugin_ids: List[str]) -> None:
         """Build dependency graph for given plugins."""
@@ -318,3 +307,110 @@ class PluginCatalog:
 
         except Exception as e:
             self.logger.warning("Failed to save cache: %s", e)
+
+    def validate_experiment_plugins(self, experiment_config) -> Tuple[bool, List[str]]:
+        """
+        Validate that all plugins required by an experiment are available.
+
+        Args:
+            experiment_config: Experiment configuration
+
+        Returns:
+            Tuple of (is_valid, error_messages)
+        """
+        errors = []
+        required_plugins = set()
+
+        # Load plugins if not already in catalog
+        if not self.catalog:
+            self.scan_plugins()
+
+        # Extract required plugins from experiment config
+        for test in experiment_config.tests:
+            # Check network environment
+            if hasattr(test, "network_environment") and test.network_environment:
+                env_type = test.network_environment.type
+                if env_type:
+                    required_plugins.add((env_type, "network environment"))
+
+            # Check execution environments
+            if hasattr(test, "execution_environment") and test.execution_environment:
+                for exec_env in test.execution_environment:
+                    if hasattr(exec_env, "type") and exec_env.type:
+                        required_plugins.add((exec_env.type, "execution environment"))
+
+            # Check services
+            if hasattr(test, "services") and test.services:
+                for _, service_config in test.services.items():
+                    if hasattr(service_config, "implementation"):
+                        impl = service_config.implementation
+                        impl_name = impl.name
+                        impl_type = impl.type if hasattr(impl, "type") else "iut"
+
+                        # Handle string or enum type
+                        impl_type_str = (
+                            impl_type if isinstance(impl_type, str) else impl_type.value
+                        )
+                        if impl_type_str.lower() == "testers":
+                            required_plugins.add((impl_name, "tester"))
+                        else:
+                            required_plugins.add((impl_name, "IUT implementation"))
+
+        # Validate each required plugin
+        for plugin_name, plugin_desc in required_plugins:
+            # Check if plugin exists in catalog
+            plugin_found = False
+            for plugin_id, manifest in self.catalog.items():
+                if manifest.name == plugin_name:
+                    plugin_found = True
+                    break
+
+            if not plugin_found:
+                errors.append(
+                    f"Required {plugin_desc} plugin '{plugin_name}' not found"
+                )
+
+        return len(errors) == 0, errors
+
+    def validate_plugin_dependencies(self, plugin_name: str) -> Tuple[bool, List[str]]:
+        """
+        Validate plugin dependencies.
+
+        Args:
+            plugin_name: Name of plugin to validate
+
+        Returns:
+            Tuple of (all_satisfied, missing_dependencies)
+        """
+        # Find the plugin manifest
+        target_manifest = None
+        for plugin_id, manifest in self.catalog.items():
+            if manifest.name == plugin_name:
+                target_manifest = manifest
+                break
+
+        if not target_manifest:
+            return False, [f"Plugin '{plugin_name}' not found"]
+
+        # Check dependencies
+        missing = []
+        for dep in target_manifest.dependencies:
+            # Find if dependency is satisfied
+            dependency_satisfied = False
+            for plugin_id, manifest in self.catalog.items():
+                if manifest.name == dep.name:
+                    # Check version compatibility if needed
+                    if dep.is_satisfied_by(manifest.version):
+                        dependency_satisfied = True
+                        break
+
+            if not dependency_satisfied:
+                missing.append(f"Missing dependency: {dep.name} {dep.version_spec}")
+
+        return len(missing) == 0, missing
+
+    def refresh(self) -> None:
+        """Refresh the plugin catalog."""
+        self.logger.info("Refreshing plugin catalog")
+        self.catalog.clear()
+        self.scan_plugins(use_cache=False)

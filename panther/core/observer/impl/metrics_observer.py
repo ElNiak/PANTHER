@@ -398,6 +398,7 @@ class MetricsObserver(ITypedObserver):
         # Real-time monitoring
         self.monitoring_active = False
         self.last_publish_time = time.time()
+        self.collection_timer = None
 
         self.logger.info(
             "MetricsObserver initialized with publish_interval=%d seconds",
@@ -540,9 +541,9 @@ class MetricsObserver(ITypedObserver):
             and hasattr(event, "metric_name")
             and hasattr(event, "metric_value")
         ):
-            self.current_test_metrics.custom_metrics[event.metric_name] = (
-                event.metric_value
-            )
+            self.current_test_metrics.custom_metrics[
+                event.metric_name
+            ] = event.metric_value
             self.logger.debug(
                 "Recorded custom metric: %s = %s", event.metric_name, event.metric_value
             )
@@ -682,6 +683,11 @@ class MetricsObserver(ITypedObserver):
         self.logger.info("Stopping real-time resource monitoring")
         self.monitoring_active = False
 
+        # Cancel any active collection timer
+        if self.collection_timer and self.collection_timer.is_alive():
+            self.collection_timer.cancel()
+            self.collection_timer = None
+
         # Stop the resource monitor if it was started
         if hasattr(self, "resource_monitor") and self.resource_monitor:
             try:
@@ -740,11 +746,37 @@ class MetricsObserver(ITypedObserver):
 
         # Schedule next collection if real-time monitoring is active
         if self.monitoring_active:
-            # In a real implementation, this might use a timer or thread
-            # For demo purposes, we just log that collection would happen
-            self.logger.debug(
-                "Scheduled next metrics collection in %d seconds", self.publish_interval
-            )
+            # Cancel any existing timer
+            if (
+                hasattr(self, "collection_timer")
+                and self.collection_timer
+                and self.collection_timer.is_alive()
+            ):
+                self.collection_timer.cancel()
+
+            # Only schedule if we don't already have an active timer
+            if not (
+                hasattr(self, "collection_timer")
+                and self.collection_timer
+                and self.collection_timer.is_alive()
+            ):
+                # Schedule next collection using threading.Timer
+                import threading
+
+                def next_collection():
+                    if self.monitoring_active:
+                        self._collect_current_metrics()
+
+                self.collection_timer = threading.Timer(
+                    self.metric_collection_interval, next_collection
+                )
+                self.collection_timer.daemon = True
+                self.collection_timer.start()
+
+                self.logger.debug(
+                    "Scheduled next metrics collection in %d seconds",
+                    self.metric_collection_interval,
+                )
 
     def publish_metrics_summary(self):
         """

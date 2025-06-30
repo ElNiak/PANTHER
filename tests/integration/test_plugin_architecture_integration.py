@@ -8,20 +8,21 @@ Tests the complete plugin lifecycle including:
 - Backward compatibility with existing plugins
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 import yaml
 
-from panther.plugins.plugin_manager import PluginManager
-from panther.plugins.plugin_catalog import PluginCatalog
-from panther.plugins.plugin_manifest import PluginManifest
-from panther.core.experiment_manager import ExperimentManager
 from panther.config.config_manager import ConfigLoader
+from panther.config.core.models.experiment import ServiceConfig, TestConfig
+from panther.core.experiment_manager import ExperimentManager
 from panther.core.observer.management.event_manager import EventManager
-from panther.config.config_experiment_schema import ServiceConfig, TestConfig
+from panther.plugins.core.plugin_catalog import PluginCatalog
+from panther.plugins.core.structures.plugin_manifest import PluginManifest
+from panther.plugins.plugin_manager import PluginManager
 from panther.plugins.protocols.config_schema import ProtocolConfig
 from panther.plugins.services.iut.config_schema import ImplementationConfig
 
@@ -83,7 +84,9 @@ class TestPluginArchitectureIntegration:
         """Test loading a plugin with a manifest."""
         # Create a mock plugin module
         plugin_name = "test_service"
-        plugin_path = temp_plugin_dir / "services" / "iut" / "test_protocol" / plugin_name
+        plugin_path = (
+            temp_plugin_dir / "services" / "iut" / "test_protocol" / plugin_name
+        )
         plugin_path.mkdir(parents=True)
 
         # Create plugin manifest
@@ -126,7 +129,9 @@ class TestServiceServiceManager(ServicePluginBase):
 
         # Test loading with temporary plugin directory
         with patch("panther.plugins.plugin_manager.PluginCatalog") as mock_catalog:
-            mock_catalog.return_value.get_plugin.return_value = PluginManifest.from_dict(manifest)
+            mock_catalog.return_value.get_plugin.return_value = (
+                PluginManifest.from_dict(manifest)
+            )
 
             # Should not raise an exception
             plugin_manager.catalog = mock_catalog.return_value
@@ -156,7 +161,9 @@ class TestServiceServiceManager(ServicePluginBase):
                 "panther.plugins.plugin_manager.importlib.util.module_from_spec"
             ) as mock_module_from_spec:
                 mock_module_from_spec.return_value = mock_module
-                setattr(mock_module, "PicoquicServiceManager", mock_service_manager_class)
+                setattr(
+                    mock_module, "PicoquicServiceManager", mock_service_manager_class
+                )
 
                 # Create service manager
                 result = plugin_manager.create_service_manager(
@@ -224,7 +231,11 @@ class TestServiceServiceManager(ServicePluginBase):
                         "server": {
                             "name": "server",
                             "implementation": {"name": "picoquic", "type": "iut"},
-                            "protocol": {"name": "quic", "version": "rfc9000", "role": "server"},
+                            "protocol": {
+                                "name": "quic",
+                                "version": "rfc9000",
+                                "role": "server",
+                            },
                         }
                     },
                 }
@@ -239,7 +250,9 @@ class TestServiceServiceManager(ServicePluginBase):
         config_loader = ConfigLoader(str(config_path))
 
         # Mock plugin validation and config loading
-        with patch.object(PluginManager, "validate_experiment_plugins") as mock_validate:
+        with patch.object(
+            PluginManager, "validate_experiment_plugins"
+        ) as mock_validate:
             mock_validate.return_value = (True, [])  # No errors
 
             # Mock the problematic config loading methods
@@ -247,16 +260,22 @@ class TestServiceServiceManager(ServicePluginBase):
                 config_loader, "load_and_validate_implementation_config"
             ) as mock_impl:
                 # Return a proper ImplementationConfig instance
-                mock_impl.return_value = ImplementationConfig(name="picoquic", type="IUT")
+                mock_impl.return_value = ImplementationConfig(
+                    name="picoquic", type="IUT"
+                )
 
-                with patch.object(config_loader, "load_and_validate_protocol_config") as mock_proto:
+                with patch.object(
+                    config_loader, "load_and_validate_protocol_config"
+                ) as mock_proto:
                     # Return a proper ProtocolConfig instance
                     mock_proto.return_value = ProtocolConfig(
                         name="quic", version="rfc9000", role="server"
                     )
 
                     # Should not raise an exception
-                    experiment_config = config_loader.load_and_validate_experiment_config()
+                    experiment_config = (
+                        config_loader.load_and_validate_experiment_config()
+                    )
                     assert experiment_config is not None
 
                     # Verify we got a proper ExperimentConfig
@@ -288,7 +307,11 @@ class TestServiceServiceManager(ServicePluginBase):
                 "panther.plugins.plugin_manager.importlib.util.module_from_spec"
             ) as mock_module_from_spec:
                 mock_module_from_spec.return_value = mock_module
-                setattr(mock_module, "LegacyPluginServiceManager", mock_service_manager_class)
+                setattr(
+                    mock_module,
+                    "LegacyPluginServiceManager",
+                    mock_service_manager_class,
+                )
 
                 # Should work without a manifest
                 # Patch the catalog dictionary directly
@@ -318,7 +341,9 @@ class TestServiceServiceManager(ServicePluginBase):
         experiment_config = MagicMock()
         experiment_config.tests = [MagicMock()]
         experiment_config.tests[0].services = {
-            "test_service": MagicMock(implementation=MagicMock(name="test_plugin", type="iut"))
+            "test_service": MagicMock(
+                implementation=MagicMock(name="test_plugin", type="iut")
+            )
         }
 
         # Validation should work even with missing plugins
@@ -336,7 +361,12 @@ class TestServiceServiceManager(ServicePluginBase):
         catalog = PluginCatalog(discovery_paths=[str(temp_plugin_dir)])
 
         # Create plugins with dependencies
-        plugin_a = {"name": "plugin_a", "version": "1.0.0", "type": "service", "dependencies": []}
+        plugin_a = {
+            "name": "plugin_a",
+            "version": "1.0.0",
+            "type": "service",
+            "dependencies": [],
+        }
 
         plugin_b = {
             "name": "plugin_b",
@@ -397,7 +427,11 @@ class TestServiceServiceManager(ServicePluginBase):
                     "services": {
                         "server": {
                             "implementation": {"name": "picoquic", "type": "iut"},
-                            "protocol": {"name": "quic", "version": "rfc9000", "role": "server"},
+                            "protocol": {
+                                "name": "quic",
+                                "version": "rfc9000",
+                                "role": "server",
+                            },
                             "timeout": 30,
                             "ports": ["4443:4443"],
                         },
@@ -427,7 +461,8 @@ class TestServiceServiceManager(ServicePluginBase):
 
         # This will use the PluginManager internally
         experiment_manager = ExperimentManager(
-            experiment_config=experiment_config, global_config=config_loader.global_config
+            experiment_config=experiment_config,
+            global_config=config_loader.global_config,
         )
 
         # Mock Docker operations to avoid actual container creation
@@ -469,7 +504,8 @@ class TestPluginPerformance:
             # Add some dependencies to create a complex graph
             if i > 0:
                 manifest["dependencies"] = [
-                    {"name": f"plugin_{j}", "version": ">=1.0.0"} for j in range(max(0, i - 3), i)
+                    {"name": f"plugin_{j}", "version": ">=1.0.0"}
+                    for j in range(max(0, i - 3), i)
                 ]
 
             with open(plugin_path / "plugin.yaml", "w") as f:
@@ -512,14 +548,20 @@ class TestPluginPerformance:
         )
 
         # Mock the actual loading to isolate plugin system performance
-        with patch("panther.plugins.plugin_manager.importlib.util.spec_from_file_location"):
-            with patch("panther.plugins.plugin_manager.importlib.util.module_from_spec"):
+        with patch(
+            "panther.plugins.plugin_manager.importlib.util.spec_from_file_location"
+        ):
+            with patch(
+                "panther.plugins.plugin_manager.importlib.util.module_from_spec"
+            ):
                 mock_class = MagicMock()
                 mock_class.return_value = MagicMock()
 
                 with patch.object(plugin_manager, "_load_plugin_module") as mock_load:
                     mock_load.return_value = (MagicMock(), None)
-                    setattr(mock_load.return_value[0], "PicoquicServiceManager", mock_class)
+                    setattr(
+                        mock_load.return_value[0], "PicoquicServiceManager", mock_class
+                    )
 
                     # Benchmark service manager creation
                     result = benchmark(
@@ -559,7 +601,9 @@ class TestPluginValidation:
         experiment_config = MagicMock()
         experiment_config.tests = [MagicMock()]
         experiment_config.tests[0].services = {
-            "service1": {"implementation": {"name": "nonexistent_plugin", "type": "iut"}}
+            "service1": {
+                "implementation": {"name": "nonexistent_plugin", "type": "iut"}
+            }
         }
         # Test validation
         is_valid, errors = plugin_manager.validate_experiment_plugins(experiment_config)
@@ -591,12 +635,16 @@ class TestPluginValidation:
         # Valid configuration
         valid_config = {"required_param": "test"}
         # This should not raise an exception
-        is_valid, errors = catalog.validate_plugin_config("service:test_plugin", valid_config)
+        is_valid, errors = catalog.validate_plugin_config(
+            "service:test_plugin", valid_config
+        )
         assert is_valid
         assert len(errors) == 0
 
         # Invalid configuration (missing required parameter)
         invalid_config = {"optional_param": 100}
-        is_valid, errors = catalog.validate_plugin_config("service:test_plugin", invalid_config)
+        is_valid, errors = catalog.validate_plugin_config(
+            "service:test_plugin", invalid_config
+        )
         assert not is_valid
         assert any("Missing required" in error for error in errors)

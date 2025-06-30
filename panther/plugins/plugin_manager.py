@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union
 
 from panther.plugins.core.plugin_discovery import PluginDiscovery
+from panther.plugins.core.structures.plugin_manifest import PluginManifest
 from panther.plugins.core.structures.plugin_registration import PluginRegistration
 
 if TYPE_CHECKING:
-    from panther.config import ServiceConfig, TestConfig
+    from panther.config.core.models import ServiceConfig, TestConfig
 
 from panther.config.core.models import ProtocolConfig
 from panther.config.core.models.global_config import GlobalConfig
@@ -25,20 +26,11 @@ from panther.core.observer.impl.plugin_observer import PluginObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.utils.logging_mixin import LoggerMixin
 from panther.plugins.core.plugin_catalog import PluginCatalog
-from panther.plugins.core.plugin_decorators import (
-    get_decorated_plugins,
-    get_protocol_plugins,
-    get_version_configs,
-)
 from panther.plugins.core.plugin_factory import PluginFactory
 from panther.plugins.core.structures.plugin_manifest import PluginManifest
 
 # Import unified core components
-from panther.plugins.core.structures.plugin_metadata import (
-    PluginMetadata,
-    PluginStatus,
-    PluginType,
-)
+from panther.plugins.core.structures.plugin_metadata import PluginMetadata, PluginType
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.services.services_interface import IServiceManager
 
@@ -56,7 +48,24 @@ class PluginManager(LoggerMixin):
     - Docker integration and image building
     - Event system integration
     - Fast-fail error handling
+
+    This class implements the Singleton pattern to ensure only one instance
+    exists across the application, preventing duplicate plugin loading.
     """
+
+    _instance = None
+    _initialized = False
+
+    def __new__(cls, *args, **kwargs):
+        """
+        Create or return the singleton instance.
+
+        If an instance already exists, returns it and allows updating
+        configuration parameters if provided.
+        """
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(
         self,
@@ -65,7 +74,8 @@ class PluginManager(LoggerMixin):
         global_config: Optional[GlobalConfig] = None,
         fast_fail_handler: Optional[FastFailHandler] = None,
         enable_cache: bool = True,
-        cache_ttl: int = 3600,  # 1 hour
+        cache_ttl: int = 3600,  # 1 hour TODO add parameters
+        experiment_context=None,
     ):
         """
         Initialize the unified plugin manager.
@@ -77,19 +87,79 @@ class PluginManager(LoggerMixin):
             fast_fail_handler: Fast fail handler for critical error management
             enable_cache: Enable plugin metadata caching
             cache_ttl: Cache time-to-live in seconds
+
+        Note: Configuration parameters can be updated on subsequent calls.
         """
+        # Allow parameter updates even for existing instances
+        if getattr(self, "_initialized", False):
+            # Update parameters on existing instance
+            updated_params = []
+
+            if (
+                plugin_directories is not None
+                and getattr(self, "plugin_directories", None) != plugin_directories
+            ):
+                self.plugin_directories = plugin_directories
+                # Update plugin discovery with new directories
+                self.plugin_discovery.plugin_directories = plugin_directories
+                updated_params.append(f"plugin_directories={plugin_directories}")
+
+            if (
+                global_config is not None
+                and getattr(self, "global_config", None) != global_config
+            ):
+                self.global_config = global_config
+                updated_params.append("global_config=<updated>")
+
+            if (
+                fast_fail_handler is not None
+                and getattr(self, "fast_fail_handler", None) != fast_fail_handler
+            ):
+                self.fast_fail_handler = fast_fail_handler
+                updated_params.append("fast_fail_handler=<updated>")
+
+            if hasattr(self, "enable_cache") and self.enable_cache != enable_cache:
+                self.enable_cache = enable_cache
+                # Update plugin discovery cache setting
+                if hasattr(self, "plugin_discovery"):
+                    self.plugin_discovery.enable_cache = enable_cache
+                updated_params.append(f"enable_cache={enable_cache}")
+
+            if hasattr(self, "cache_ttl") and self.cache_ttl != cache_ttl:
+                self.cache_ttl = cache_ttl
+                # Update plugin discovery cache TTL
+                if hasattr(self, "plugin_discovery"):
+                    self.plugin_discovery.cache_ttl = cache_ttl
+                updated_params.append(f"cache_ttl={cache_ttl}")
+
+            if updated_params:
+                self.logger.debug(
+                    f"Updated PluginManager parameters: {', '.join(updated_params)}"
+                )
+            else:
+                self.logger.debug("PluginManager parameters unchanged.")
+            return
+
+        # First-time initialization
         super().__init__()
+        self.__class__._initialized = True
+        self.logger.info("Initializing PluginManager singleton instance")
 
         # Configuration
         self.plugin_directories = plugin_directories or self._get_default_directories()
-        self.event_manager = event_manager
+        # Use provided event_manager or get the singleton instance
+        self.event_manager = event_manager or EventManager.get_instance()
         self.global_config = global_config
         self.fast_fail_handler = fast_fail_handler
         self.enable_cache = enable_cache
         self.cache_ttl = cache_ttl
-
+        self.experiment_context = experiment_context
         # Core components
-        self.plugin_discovery = PluginDiscovery()  # Use PluginDiscovery for discovery
+        self.plugin_discovery = PluginDiscovery(
+            plugin_directories=self.plugin_directories,
+            enable_cache=enable_cache,
+            cache_ttl=cache_ttl,
+        )  # Use PluginDiscovery for discovery
         self.plugin_catalog = PluginCatalog(self.plugin_directories)
         self.plugin_factory = PluginFactory(
             plugin_manager=self,
@@ -118,35 +188,71 @@ class PluginManager(LoggerMixin):
         if self.event_manager:
             self._setup_event_system()
 
-        # Docker management
+        # Docker management - Initialize singleton with configuration
         try:
-            self.docker_builder = DockerBuilder(
-                build_log_file=(
-                    global_config.docker.log_docker_image_build
-                    if global_config
-                    else None
-                )
+            # PluginManager initializes DockerBuilder singleton with global config
+            build_log_file = (
+                global_config.docker.log_docker_image_build
+                if global_config and hasattr(global_config, "docker")
+                else False
+            )
+            self.docker_builder = DockerBuilder.get_instance(
+                build_log_file=build_log_file,
+                enable_cache=True,
+                global_config=self.global_config,
+                experiment_context=self.experiment_context,
             )
         except Exception as e:
             self.logger.warning("Failed to initialize DockerBuilder: %s", e)
             self.docker_builder = None
-
-        # Built images tracking
-        self.built_images = {}
+            raise RuntimeError(
+                "DockerBuilder initialization failed. "
+                "Ensure Docker is configured correctly in global config."
+            ) from e
 
         # Auto-discover on initialization
         self.logger.info("Initializing unified plugin manager")
         self.discover_plugins()
 
+        @property
+        def experiment_context_for_plugins(self):
+            """
+            Provide experiment context access for plugin instances.
+
+            This allows service managers and environments that use this
+            plugin manager to access experiment context for Docker operations.
+            """
+            return self.experiment_context
+
     def _get_default_directories(self) -> List[str]:
         """Get default plugin directories."""
         base_path = Path(__file__).parent
         return [
+            str(
+                base_path / "protocols"
+            ),  # Add protocols directory for protocol plugin discovery
             str(base_path / "services" / "iut"),
             str(base_path / "services" / "testers"),
             str(base_path / "environments" / "network_environment"),
             str(base_path / "environments" / "execution_environment"),
         ]
+
+    def set_experiment_context(self, context: Any) -> None:
+        """
+        Set the experiment context for this plugin manager.
+
+        This allows service managers and environments to access the experiment context
+        for Docker operations and other configurations.
+
+        Args:
+            context: Experiment context object
+        """
+        self.experiment_context = context
+        self.logger.debug("Experiment context set for PluginManager")
+
+        # Update DockerBuilder with new context if available
+        if self.docker_builder:
+            self.docker_builder.set_experiment_context(context)
 
     def _setup_event_system(self) -> None:
         """Set up the event system for plugin management."""
@@ -165,12 +271,107 @@ class PluginManager(LoggerMixin):
             self.logger.warning("Failed to initialize plugin event system: %s", e)
 
     def _is_cache_valid(self) -> bool:
-        """Check if cache is still valid."""
+        """Check if cache is still valid based on TTL and filesystem changes."""
         if not self.enable_cache or not self._discovery_cache:
             return False
-        return time.time() - self._cache_timestamp < self.cache_ttl
 
-    def discover_plugins(self) -> Dict[str, PluginMetadata]:
+        # Check TTL first (fastest check)
+        adaptive_ttl = self._get_adaptive_cache_ttl()
+        if time.time() - self._cache_timestamp >= adaptive_ttl:
+            self.logger.debug("Cache expired based on adaptive TTL: %ds", adaptive_ttl)
+            return False
+
+        # Check for filesystem changes (more expensive but necessary)
+        if self._check_plugin_directories_changed():
+            self.logger.info("Plugin directories modified, cache invalidated")
+            return False
+
+        return True
+
+    def _get_adaptive_cache_ttl(self) -> int:
+        """Get cache TTL based on recent filesystem activity."""
+        base_ttl = self.cache_ttl
+
+        # Check for recent changes in last hour
+        recent_changes = self._count_recent_plugin_changes(3600)  # 1 hour
+
+        if recent_changes > 5:
+            # High activity - reduce cache to 5 minutes
+            return 300
+        elif recent_changes > 0:
+            # Some activity - reduce cache to 15 minutes
+            return 900
+        else:
+            # No recent activity - use full TTL
+            return base_ttl
+
+    def _count_recent_plugin_changes(self, time_window: int) -> int:
+        """Count number of files changed in plugin directories within time window."""
+        changes = 0
+        cutoff_time = time.time() - time_window
+
+        for directory in self.plugin_directories:
+            dir_path = Path(directory)
+            if dir_path.exists():
+                try:
+                    for file_path in dir_path.rglob("*.py"):
+                        if file_path.stat().st_mtime > cutoff_time:
+                            changes += 1
+                except (OSError, PermissionError):
+                    # Skip directories we can't access
+                    continue
+
+        return changes
+
+    def _check_plugin_directories_changed(self) -> bool:
+        """Check if any plugin directories have been modified since last cache."""
+        if not hasattr(self, "_dir_mtimes"):
+            # First time - record directory modification times
+            self._dir_mtimes = {}
+            for directory in self.plugin_directories:
+                dir_path = Path(directory)
+                if dir_path.exists():
+                    try:
+                        # Get most recent modification time in directory tree
+                        newest_mtime = max(
+                            (
+                                p.stat().st_mtime
+                                for p in dir_path.rglob("*.py")
+                                if p.is_file()
+                            ),
+                            default=0,
+                        )
+                        self._dir_mtimes[directory] = newest_mtime
+                    except (OSError, PermissionError):
+                        self._dir_mtimes[directory] = 0
+            return False
+
+        # Check if any directories have newer files
+        for directory in self.plugin_directories:
+            dir_path = Path(directory)
+            if dir_path.exists():
+                try:
+                    newest_mtime = max(
+                        (
+                            p.stat().st_mtime
+                            for p in dir_path.rglob("*.py")
+                            if p.is_file()
+                        ),
+                        default=0,
+                    )
+                    if newest_mtime > self._dir_mtimes.get(directory, 0):
+                        self.logger.debug(f"Directory {directory} has newer files")
+                        # Update cache
+                        self._dir_mtimes[directory] = newest_mtime
+                        return True
+                except (OSError, PermissionError):
+                    continue
+
+        return False
+
+    def discover_plugins(
+        self, force_refresh: bool = False
+    ) -> Dict[str, PluginMetadata]:
         """
         Discover all available plugins using PluginDiscovery.
 
@@ -183,19 +384,79 @@ class PluginManager(LoggerMixin):
         start_time = time.time()
 
         # Check cache
-        if self._use_cache():
+        if self._is_cache_valid() and not force_refresh:
+            self.logger.info(
+                "Using cached plugin discovery results (cache age: %.2fs)",
+                time.time() - self._cache_timestamp,
+            )
             return self._discovery_cache.copy()
 
+        self.logger.info("Starting fresh plugin discovery")
+        self._discovery_count += 1
+        self.logger.debug(
+            "This is plugin discovery #%d for this singleton instance",
+            self._discovery_count,
+        )
+
         # Delegate discovery to PluginDiscovery (DRY principle)
-        discovered_plugins = self.plugin_discovery.discover_plugins(force_refresh=True)
+        external_paths = (
+            getattr(self.global_config, "external_plugin_paths", None)
+            if self.global_config
+            else None
+        )
+        discovered_plugins = self.plugin_discovery.discover_plugins(
+            force_refresh=force_refresh, external_plugin_paths=external_paths
+        )
 
         # Update cache
         self._discovery_cache = discovered_plugins
         self._cache_timestamp = time.time()
         self.plugins.update(discovered_plugins)
 
+        # Also update the catalog for compatibility with validation
+        for plugin_name, metadata in discovered_plugins.items():
+            # Convert string dependencies to PluginDependency objects
+            from panther.plugins.core.structures.plugin_dependency import (
+                PluginDependency,
+            )
+
+            plugin_deps = []
+            if metadata.dependencies:
+                for dep in metadata.dependencies:
+                    if isinstance(dep, str):
+                        # Simple string dependency - create basic PluginDependency
+                        plugin_deps.append(PluginDependency(name=dep, version_spec="*"))
+                    elif isinstance(dep, dict):
+                        # Dictionary with name and version_spec
+                        plugin_deps.append(
+                            PluginDependency(
+                                name=dep.get("name", dep.get("dependency", "")),
+                                version_spec=dep.get("version_spec", "*"),
+                            )
+                        )
+                    else:
+                        # Already a PluginDependency object
+                        plugin_deps.append(dep)
+
+            # Create a manifest from metadata for catalog compatibility
+            manifest = PluginManifest(
+                name=metadata.name,
+                version=metadata.version,
+                type=metadata.type,
+                supported_protocols=metadata.supported_protocols,
+                entry_point=getattr(metadata, "entry_point", ""),
+                config_schema=getattr(metadata, "config_schema", {}),
+                dependencies=plugin_deps,
+                description=metadata.description,
+                author=metadata.author,
+                capabilities=metadata.capabilities,
+                tags=getattr(metadata, "tags", []),
+                file_path=str(metadata.path) if metadata.path else None,
+            )
+            plugin_id = f"{metadata.type}:{metadata.name}"
+            self.plugin_catalog.catalog[plugin_id] = manifest
+
         # Update statistics
-        self._discovery_count += 1
         self._last_discovery_time = time.time() - start_time
 
         self.logger.info(
@@ -232,438 +493,33 @@ class PluginManager(LoggerMixin):
     ) -> Optional[PluginMetadata]:
         """Convert PluginManifest from decorator to PluginMetadata."""
         try:
+            # Convert dependencies to list of strings
+            deps = []
+            if manifest.dependencies:
+                for dep in manifest.dependencies:
+                    if hasattr(dep, "name"):
+                        deps.append(dep.name)
+                    else:
+                        deps.append(str(dep))
+
             return PluginMetadata(
                 name=manifest.name,
                 version=manifest.version,
-                plugin_type=(
+                type=(
                     manifest.type.value
                     if hasattr(manifest.type, "value")
                     else str(manifest.type)
                 ),
-                supported_protocols=manifest.supported_protocols,
-                implementation=getattr(manifest, "implementation", ""),
-                role=getattr(manifest, "role", "both"),
-                path=manifest.file_path or "",
-                entry_point=manifest.entry_point,
-                config_schema=manifest.config_schema,
-                dependencies=manifest.dependencies,
-                description=manifest.description,
-                author=manifest.author,
-                capabilities=manifest.capabilities,
-                tags=manifest.tags,
+                supported_protocols=manifest.supported_protocols or [],
+                path=Path(manifest.file_path) if manifest.file_path else None,
+                dependencies=deps,
+                description=manifest.description or "",
+                author=manifest.author or "",
+                capabilities=manifest.capabilities or [],
             )
         except Exception as e:
             self.logger.error(f"Failed to convert manifest to metadata: {e}")
             return None
-
-    def _load_from_decorator_registry(self) -> Dict[str, PluginMetadata]:
-        """
-        Load plugins from the decorator registry.
-
-        This method converts decorated plugin manifests to PluginMetadata objects.
-        As plugin.yml files are phased out, this will become the primary plugin source.
-
-        Returns:
-            Dictionary mapping plugin names to PluginMetadata objects
-        """
-        plugins = {}
-
-        # First, load protocol plugins
-        try:
-            protocol_plugins = get_protocol_plugins()
-            for protocol_id, (cls, protocol_metadata) in protocol_plugins.items():
-                self.logger.debug(
-                    f"Loaded protocol plugin: {protocol_metadata['name']} with versions: {protocol_metadata.get('versions', [])}"
-                )
-        except Exception as e:
-            self.logger.warning(f"Failed to load protocol plugins: {e}")
-
-        try:
-            decorated_plugins = get_decorated_plugins()
-
-            for plugin_id, (cls, manifest) in decorated_plugins.items():
-                try:
-                    # Convert PluginManifest to PluginMetadata
-                    metadata_data = {
-                        "name": manifest.name,
-                        "type": manifest.type.value
-                        if hasattr(manifest.type, "value")
-                        else str(manifest.type),
-                        "version": manifest.version,
-                        "description": manifest.description,
-                        "author": manifest.author,
-                        "license": getattr(manifest, "license", ""),
-                        "homepage": getattr(manifest, "homepage", ""),
-                        "path": getattr(manifest, "file_path", "")
-                        or "",  # Use file_path from decorator
-                        "entry_point": manifest.entry_point,
-                        "supported_protocols": getattr(
-                            manifest, "supported_protocols", []
-                        ),
-                        "capabilities": getattr(manifest, "capabilities", []),
-                        "dependencies": [
-                            {"name": dep.name, "version_spec": dep.version_spec or "*"}
-                            for dep in (manifest.dependencies or [])
-                        ],
-                        "config_schema": getattr(manifest, "config_schema", {}),
-                        "default_config": getattr(manifest, "default_config", {}),
-                        "tags": getattr(manifest, "tags", []),
-                        "external_dependencies": getattr(
-                            manifest, "external_dependencies", []
-                        ),
-                        "status": PluginStatus.ACTIVE,
-                        "min_panther_version": manifest.min_panther_version,
-                        "max_panther_version": getattr(
-                            manifest, "max_panther_version", None
-                        ),
-                    }
-
-                    # Try to auto-discover dockerfile_path from plugin directory
-                    # First try to get directory from file_path if available
-                    plugin_dir = None
-                    if hasattr(manifest, "file_path") and manifest.file_path:
-                        plugin_file = Path(manifest.file_path)
-                        if plugin_file.exists():
-                            plugin_dir = plugin_file.parent
-
-                    # If that doesn't work, try the _find_plugin_path method
-                    if not plugin_dir:
-                        plugin_dir = self._find_plugin_path(
-                            manifest.name, manifest.type
-                        )
-
-                    if plugin_dir and plugin_dir.exists():
-                        dockerfile_path = plugin_dir / "Dockerfile"
-                        if dockerfile_path.exists():
-                            metadata_data["dockerfile_path"] = str(dockerfile_path)
-                            self.logger.debug(
-                                f"Found Dockerfile for {manifest.name}: {dockerfile_path}"
-                            )
-                        else:
-                            self.logger.debug(
-                                f"No Dockerfile found at {dockerfile_path} for {manifest.name}"
-                            )
-                    else:
-                        self.logger.debug(
-                            f"Plugin directory not found for {manifest.name} (type: {manifest.type})"
-                        )
-
-                    metadata = PluginMetadata.from_dict(metadata_data)
-
-                    # Check for auto-discovery of versions based on protocol
-                    if (
-                        hasattr(manifest, "supported_protocols")
-                        and manifest.supported_protocols
-                    ):
-                        # Get the primary protocol (first one)
-                        primary_protocol = manifest.supported_protocols[0]
-
-                        # Try to auto-discover versions if not already loaded
-                        version_configs = get_version_configs(manifest.name)
-                        if not version_configs:
-                            # Attempt to find plugin path and load versions
-                            plugin_path = self._find_plugin_path(
-                                manifest.name, manifest.type
-                            )
-                            if plugin_path:
-                                from panther.plugins.core.version_loader import (
-                                    discover_plugin_versions,
-                                )
-
-                                discovered_versions = discover_plugin_versions(
-                                    manifest.name, plugin_path, primary_protocol
-                                )
-                                if discovered_versions:
-                                    version_configs = discovered_versions
-                                    self.logger.info(
-                                        f"Auto-discovered {len(discovered_versions)} versions for {manifest.name} "
-                                        f"based on protocol {primary_protocol}"
-                                    )
-                    else:
-                        # Use manually registered version configs
-                        version_configs = get_version_configs(manifest.name)
-
-                    if version_configs:
-                        metadata.available_versions = list(version_configs.keys())
-                        # Store version configs in metadata for later use
-                        if not hasattr(metadata, "version_configs"):
-                            metadata.version_configs = version_configs
-                        self.logger.debug(
-                            f"Loaded {len(version_configs)} version configs for {manifest.name}"
-                        )
-
-                    plugins[metadata.name] = metadata
-
-                    self.logger.debug(
-                        f"Loaded decorated plugin: {metadata.name} v{metadata.version}"
-                    )
-
-                except Exception as e:
-                    self.logger.warning(
-                        f"Failed to convert decorated plugin {plugin_id}: {e}"
-                    )
-
-        except Exception as e:
-            self.logger.error(f"Failed to load decorator registry: {e}")
-
-        return plugins
-
-    def _scan_and_import_plugin_modules(self):
-        """
-        Scan plugin directories and import Python modules to trigger decorator registration.
-
-        This method walks through the plugin directories and imports plugin Python files,
-        which causes the @register_plugin decorators to execute and register the plugins.
-        """
-        # Import key plugins early to ensure they're registered
-        self._import_core_plugins()
-
-        self.logger.debug(f"Scanning plugin directories: {self.plugin_directories}")
-        for directory in self.plugin_directories:
-            directory_path = Path(directory)
-            if not directory_path.exists():
-                self.logger.debug(f"Directory does not exist: {directory_path}")
-                continue
-            self.logger.debug(f"Scanning directory: {directory_path}")
-
-            # Check if this is already a specific plugin type directory
-            dir_name = directory_path.name
-
-            if dir_name == "protocols":
-                # This is the protocols directory itself
-                self._import_modules_in_directory(directory_path, recursive=True)
-            elif dir_name == "services":
-                # This is the services directory itself
-                self.logger.debug(f"Processing services directory: {directory_path}")
-                # Import IUT plugins
-                iut_dir = directory_path / "iut"
-                if iut_dir.exists():
-                    self.logger.debug(f"Importing IUT plugins from: {iut_dir}")
-                    self._import_modules_in_directory(iut_dir, recursive=True)
-
-                # Import tester plugins
-                testers_dir = directory_path / "testers"
-                if testers_dir.exists():
-                    self.logger.debug(f"Importing tester plugins from: {testers_dir}")
-                    self._import_modules_in_directory(testers_dir, recursive=True)
-                else:
-                    self.logger.warning(f"Testers directory not found: {testers_dir}")
-            elif dir_name == "environments":
-                # This is the environments directory itself
-                self._import_modules_in_directory(directory_path, recursive=True)
-            else:
-                # This is a base plugins directory, scan for subdirectories
-                # Import protocol plugins
-                protocols_dir = directory_path / "protocols"
-                if protocols_dir.exists():
-                    self._import_modules_in_directory(protocols_dir, recursive=True)
-
-                # Import service plugins
-                services_dir = directory_path / "services"
-                if services_dir.exists():
-                    # Import IUT plugins
-                    iut_dir = services_dir / "iut"
-                    if iut_dir.exists():
-                        self._import_modules_in_directory(iut_dir, recursive=True)
-
-                    # Import tester plugins
-                    testers_dir = services_dir / "testers"
-                    if testers_dir.exists():
-                        self._import_modules_in_directory(testers_dir, recursive=True)
-
-                # Import environment plugins
-                environments_dir = directory_path / "environments"
-                if environments_dir.exists():
-                    self._import_modules_in_directory(environments_dir, recursive=True)
-
-    def _import_modules_in_directory(self, directory: Path, recursive: bool = True):
-        """
-        Import Python modules in a directory.
-
-        Args:
-            directory: Directory to scan
-            recursive: Whether to scan subdirectories
-        """
-        self.logger.debug(
-            f"Importing modules from directory: {directory} (recursive={recursive})"
-        )
-        try:
-            if recursive:
-                # Walk through all subdirectories
-                for py_file in directory.rglob("*.py"):
-                    if py_file.name.startswith("_") or py_file.name == "setup.py":
-                        continue
-
-                    # Skip test files
-                    if "test" in py_file.parts or py_file.name.startswith("test_"):
-                        continue
-
-                    # Skip __pycache__ directories
-                    if "__pycache__" in py_file.parts:
-                        continue
-
-                    # Only import the main plugin file for each plugin
-                    # Main plugin files are typically named after their parent directory
-                    parent_name = py_file.parent.name
-                    if py_file.stem == parent_name:
-                        # This is likely a main plugin file
-                        self.logger.info(
-                            f"Found main plugin file: {py_file} (matches parent: {parent_name})"
-                        )
-                    else:
-                        # Skip non-main files unless they're special cases
-                        self.logger.debug(
-                            f"Skipping non-main file: {py_file} (parent: {parent_name})"
-                        )
-                        continue
-
-                    self._import_module_file(py_file)
-            else:
-                # Only scan immediate directory
-                for py_file in directory.glob("*.py"):
-                    if py_file.name.startswith("_") or py_file.name == "setup.py":
-                        continue
-
-                    if py_file.name.startswith("test_"):
-                        continue
-
-                    self._import_module_file(py_file)
-
-        except Exception as e:
-            self.logger.debug(f"Error scanning directory {directory}: {e}")
-
-    def _import_module_file(self, file_path: Path):
-        """
-        Import a single Python module file.
-
-        Args:
-            file_path: Path to the Python file
-        """
-        try:
-            # Generate a unique module name based on the file path
-            module_name = (
-                str(file_path).replace("/", ".").replace("\\", ".").replace(".py", "")
-            )
-
-            # Use the plugin loader utils to import the module
-            from panther.plugins.core.plugin_loader_utils import PluginManagerUtils
-
-            PluginManagerUtils.load_module_from_file(file_path, module_name)
-            self.logger.info(f"Imported plugin module: {file_path}")
-
-        except Exception as e:
-            # Don't fail on import errors - some files may not be plugins
-            self.logger.warning(f"Could not import {file_path}: {e}")
-            import traceback
-
-            self.logger.debug(f"Traceback: {traceback.format_exc()}")
-
-    def _import_core_plugins(self):
-        """Import core plugins that are commonly used."""
-        try:
-            # Import protocol plugins
-            from panther.plugins.protocols.client_server.quic.quic_protocol import (
-                QUICProtocol,
-            )
-
-            self.logger.debug("Imported QUIC protocol plugin")
-        except Exception as e:
-            self.logger.debug(f"Could not import QUIC protocol: {e}")
-
-        try:
-            # Import critical service plugins
-            from panther.plugins.services.iut.quic.picoquic.picoquic import (
-                PicoquicServiceManager,
-            )
-
-            self.logger.debug("Imported PicoQUIC plugin")
-        except Exception as e:
-            self.logger.debug(f"Could not import PicoQUIC: {e}")
-
-        try:
-            from panther.plugins.services.testers.panther_ivy.panther_ivy import (
-                PantherIvyServiceManager,
-            )
-
-            self.logger.debug("Imported panther_ivy plugin")
-        except Exception as e:
-            self.logger.debug(f"Could not import panther_ivy: {e}")
-
-        try:
-            # Import critical environment plugins
-            from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-                DockerComposeEnvironment,
-            )
-
-            self.logger.debug("Imported docker_compose plugin")
-        except Exception as e:
-            self.logger.debug(f"Could not import docker_compose: {e}")
-
-    def _find_plugin_path(self, plugin_name: str, plugin_type) -> Optional[Path]:
-        """
-        Find the directory path for a plugin.
-
-        Args:
-            plugin_name: Name of the plugin
-            plugin_type: Type of the plugin
-
-        Returns:
-            Path to plugin directory or None if not found
-        """
-        # Convert plugin type to directory structure
-        if hasattr(plugin_type, "value"):
-            type_str = plugin_type.value
-        else:
-            type_str = str(plugin_type)
-
-        # Map plugin types to directory patterns
-        type_patterns = {
-            "iut": ["services/iut/*/{plugin_name}"],
-            "tester": ["services/testers/{plugin_name}"],
-            "testers": ["services/testers/{plugin_name}"],
-            "network_environment": ["environments/network_environment/{plugin_name}"],
-            "execution_environment": [
-                "environments/execution_environment/{plugin_name}"
-            ],
-            "environment": ["environments/*/{plugin_name}"],
-        }
-
-        patterns = type_patterns.get(type_str, [])
-
-        for base_dir in self.plugin_directories:
-            base_path = Path(base_dir)
-            for pattern in patterns:
-                # Handle wildcard in pattern
-                if "*" in pattern:
-                    # Split pattern and search
-                    parts = pattern.split("*")
-                    if len(parts) == 2:
-                        prefix = parts[0]
-                        suffix = parts[1].format(plugin_name=plugin_name)
-
-                        search_dir = base_path / prefix.rstrip("/")
-                        if search_dir.exists():
-                            for subdir in search_dir.iterdir():
-                                if subdir.is_dir():
-                                    full_path = subdir / suffix.lstrip("/")
-                                    if full_path.exists():
-                                        self.logger.debug(
-                                            f"Found plugin path for {plugin_name}: {full_path}"
-                                        )
-                                        return full_path
-                else:
-                    # Direct path
-                    full_path = base_path / pattern.format(plugin_name=plugin_name)
-                    if full_path.exists():
-                        self.logger.debug(
-                            f"Found plugin path for {plugin_name}: {full_path}"
-                        )
-                        return full_path
-
-        self.logger.debug(
-            f"Could not find plugin path for {plugin_name} (type: {type_str})"
-        )
-        return None
 
     def get_plugin(self, name: str) -> Optional[PluginMetadata]:
         """
@@ -683,60 +539,15 @@ class PluginManager(LoggerMixin):
         """
         Validate that all plugins required by an experiment are available.
 
+        Delegates to PluginCatalog for actual validation implementation.
+
         Args:
             experiment_config: Experiment configuration
 
         Returns:
             Tuple of (is_valid, error_messages)
         """
-        errors = []
-        required_plugins = set()
-
-        # Ensure plugins are discovered
-        if not self.plugins:
-            self.discover_plugins()
-        else:
-            self.logger.debug("Using cached plugin discovery results")
-
-        # Extract required plugins from experiment config
-        for test in experiment_config.tests:
-            # Check network environment
-            if hasattr(test, "network_environment") and test.network_environment:
-                env_type = test.network_environment.type
-                if env_type:
-                    required_plugins.add((env_type, "network environment"))
-
-            # Check execution environments
-            if hasattr(test, "execution_environment") and test.execution_environment:
-                for exec_env in test.execution_environment:
-                    if hasattr(exec_env, "type") and exec_env.type:
-                        required_plugins.add((exec_env.type, "execution environment"))
-
-            # Check services
-            if hasattr(test, "services") and test.services:
-                for _, service_config in test.services.items():
-                    if hasattr(service_config, "implementation"):
-                        impl = service_config.implementation
-                        impl_name = impl.name
-                        impl_type = impl.type if hasattr(impl, "type") else "iut"
-
-                        # Handle string or enum type
-                        impl_type_str = (
-                            impl_type if isinstance(impl_type, str) else impl_type.value
-                        )
-                        if impl_type_str.lower() == "testers":
-                            required_plugins.add((impl_name, "tester"))
-                        else:
-                            required_plugins.add((impl_name, "IUT implementation"))
-
-        # Validate each required plugin
-        for plugin_name, plugin_desc in required_plugins:
-            if plugin_name not in self.plugins:
-                errors.append(
-                    f"Required {plugin_desc} plugin '{plugin_name}' not found"
-                )
-
-        return len(errors) == 0, errors
+        return self.plugin_catalog.validate_experiment_plugins(experiment_config)
 
     def get_plugins_by_type(
         self, plugin_type: Union[str, PluginType]
@@ -750,21 +561,22 @@ class PluginManager(LoggerMixin):
         Returns:
             List of matching plugins
         """
+        plugins = self.discover_plugins()
+
+        # Convert string to PluginType enum if needed
         if isinstance(plugin_type, str):
             try:
                 plugin_type = PluginType(plugin_type)
             except ValueError:
-                # Handle legacy type mappings
-                type_mapping = {
-                    "testers": PluginType.TESTER,
-                    "iut": PluginType.IUT,
-                    "network_environment": PluginType.NETWORK_ENVIRONMENT,
-                    "execution_environment": PluginType.EXECUTION_ENVIRONMENT,
-                }
-                plugin_type = type_mapping.get(plugin_type, PluginType.SERVICE)
+                raise ValueError(
+                    f"Invalid plugin type: '{plugin_type}'. "
+                    f"Valid types are: {', '.join(pt.value for pt in PluginType)}"
+                )
 
-        plugins = self.discover_plugins()
-        return [plugin for plugin in plugins.values() if plugin.type == plugin_type]
+        # Get the string value for comparison
+        type_str = plugin_type.value
+
+        return [plugin for plugin in plugins.values() if plugin.type == type_str]
 
     def get_plugins_by_protocol(self, protocol: str) -> List[PluginMetadata]:
         """
@@ -787,20 +599,15 @@ class PluginManager(LoggerMixin):
         """
         Validate plugin dependencies.
 
+        Delegates to PluginCatalog for actual dependency validation implementation.
+
         Args:
             plugin_name: Name of plugin to validate
 
         Returns:
             Tuple of (all_satisfied, missing_dependencies)
         """
-        plugin = self.get_plugin(plugin_name)
-        if not plugin:
-            return False, [f"Plugin '{plugin_name}' not found"]
-
-        available_plugins = self.discover_plugins()
-        missing = plugin.validate_dependencies(available_plugins)
-
-        return len(missing) == 0, missing
+        return self.plugin_catalog.validate_plugin_dependencies(plugin_name)
 
     def discover_protocol_versions(
         self, protocol: Optional[str] = None
@@ -808,165 +615,26 @@ class PluginManager(LoggerMixin):
         """
         Discover available protocol versions.
 
+        Delegates to PluginDiscovery for actual discovery implementation.
+
         Args:
             protocol: Optional protocol to filter by
 
         Returns:
             Dictionary mapping protocols to version lists
         """
-        cache_key = protocol or "all"
-
-        if cache_key in self._version_cache and self._is_cache_valid():
-            return (
-                {protocol: self._version_cache[cache_key]}
-                if protocol
-                else self._version_cache.copy()
-            )
-
-        self.logger.info(f"Discovering versions for protocol: {protocol or 'all'}")
-
-        versions = {}
-
-        # Scan protocol directories and service implementations
-        for directory in self.plugin_directories:
-            directory_path = Path(directory)
-
-            # Check protocols directory
-            protocols_dir = directory_path / "protocols"
-            if protocols_dir.exists():
-                for category in ["client_server", "peer_to_peer"]:
-                    category_dir = protocols_dir / category
-                    if category_dir.exists():
-                        for proto_dir in category_dir.iterdir():
-                            if not proto_dir.is_dir():
-                                continue
-
-                            proto_name = proto_dir.name
-                            if protocol and proto_name != protocol:
-                                continue
-
-                            proto_versions = self._discover_versions_in_directory(
-                                proto_dir
-                            )
-                            if proto_versions:
-                                versions[proto_name] = proto_versions
-
-            # Check service implementations
-            services_dir = directory_path / "services"
-            if services_dir.exists():
-                for impl_type in ["iut", "testers"]:
-                    type_dir = services_dir / impl_type
-                    if type_dir.exists():
-                        for proto_dir in type_dir.iterdir():
-                            if not proto_dir.is_dir():
-                                continue
-
-                            proto_name = proto_dir.name
-                            if protocol and proto_name != protocol:
-                                continue
-
-                            # Check each implementation
-                            for impl_dir in proto_dir.iterdir():
-                                if impl_dir.is_dir():
-                                    impl_versions = (
-                                        self._discover_versions_in_directory(impl_dir)
-                                    )
-                                    if impl_versions:
-                                        if proto_name not in versions:
-                                            versions[proto_name] = []
-                                        versions[proto_name].extend(impl_versions)
-
-        # Deduplicate and sort
-        for proto in versions:
-            versions[proto] = sorted(list(set(versions[proto])))
-            self._version_cache[proto] = versions[proto]
-
-        if not protocol:
-            self._version_cache["all"] = versions
-
-        return versions
-
-    def _discover_versions_in_directory(self, directory: Path) -> List[str]:
-        """Discover version files in a directory."""
-        versions = []
-
-        # Look for versions directory
-        versions_dir = directory / "versions"
-        if versions_dir.exists():
-            for item in versions_dir.iterdir():
-                if item.is_file() and item.suffix in [".yaml", ".yml", ".json"]:
-                    versions.append(item.stem)
-                elif item.is_dir():
-                    versions.append(item.name)
-
-        # Look for version files in config directory
-        config_dir = directory / "config"
-        if config_dir.exists():
-            for item in config_dir.glob("version_*.y*ml"):
-                version = item.stem.replace("version_", "")
-                versions.append(version)
-
-        # Check for hardcoded versions in config_schema.py
-        config_schema = directory / "config_schema.py"
-        if config_schema.exists() and "quic" in str(directory):
-            # Add common QUIC versions if not found
-            default_versions = ["rfc9000", "draft-29"]
-            for v in default_versions:
-                if v not in versions:
-                    versions.append(v)
-
-        return versions
+        return self.plugin_discovery.discover_protocol_versions(protocol)
 
     def discover_plugin_schemas(self) -> Dict[str, Dict[str, Any]]:
         """
         Discover all plugin configuration schemas.
 
+        Delegates to PluginDiscovery for actual schema discovery implementation.
+
         Returns:
             Dictionary mapping plugin names to schema information
         """
-        if self._schema_cache and self._is_cache_valid():
-            return self._schema_cache.copy()
-
-        self.logger.info("Discovering plugin schemas")
-
-        schemas = {}
-        plugins = self.discover_plugins()
-
-        for plugin_name, plugin in plugins.items():
-            if plugin.config_schema_path and plugin.config_schema_path.exists():
-                try:
-                    schema_info = self._load_schema(plugin.config_schema_path)
-                    if schema_info:
-                        schemas[plugin_name] = {
-                            "schema": schema_info,
-                            "path": str(plugin.config_schema_path),
-                            "type": plugin.type.value,
-                            "protocol": plugin.protocol,
-                        }
-                except Exception as e:
-                    self.logger.warning(f"Failed to load schema for {plugin_name}: {e}")
-
-        self._schema_cache = schemas
-        return schemas.copy()
-
-    def _load_schema(self, schema_path: Path) -> Optional[Dict[str, Any]]:
-        """Load schema from file."""
-        try:
-            with open(schema_path) as f:
-                if schema_path.suffix.lower() in [".yaml", ".yml"]:
-                    import yaml
-
-                    return yaml.safe_load(f)
-                elif schema_path.suffix.lower() == ".json":
-                    import json
-
-                    return json.load(f)
-                elif schema_path.suffix.lower() == ".py":
-                    # For Python schema files - simplified extraction
-                    return {"type": "python_schema", "path": str(schema_path)}
-        except Exception:
-            pass
-        return None
+        return self.plugin_discovery.discover_plugin_schemas()
 
     def get_plugin_schema(self, plugin_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -991,6 +659,107 @@ class PluginManager(LoggerMixin):
         self.plugin_catalog.refresh()
         self.discover_plugins(force_refresh=True)
 
+    def _validate_cached_plugin_images(
+        self,
+        plugin_metadata: PluginMetadata,
+        version: str = None,
+        build_mode: str = None,
+    ) -> bool:
+        """Validate that Docker images referenced by plugin are still available.
+
+        Args:
+            plugin_metadata: Plugin metadata containing name and other info
+            version: Optional version (e.g., 'rfc9000') to include in image name
+            build_mode: Optional build mode (e.g., 'rel-lto') to include in image name
+        """
+        if not self.docker_builder:
+            self.logger.debug("No Docker builder available, skipping image validation")
+            return True
+
+        # Build the expected image name using the same logic as ServiceManagerDockerMixin
+        plugin_name = plugin_metadata.name
+        build_mode_suffix = f"_{build_mode}" if build_mode else ""
+
+        if version:
+            expected_image = f"{plugin_name}_{version}{build_mode_suffix}:latest"
+        else:
+            expected_image = f"{plugin_name}{build_mode_suffix}:latest"
+
+        try:
+            if (
+                hasattr(self.docker_builder, "image_cache")
+                and self.docker_builder.image_cache
+            ):
+                exists = self.docker_builder.image_cache.image_exists(expected_image)
+                if not exists:
+                    self.logger.info(
+                        f"Docker image {expected_image} not found for plugin {plugin_metadata.name} - will be built when needed"
+                    )
+                    # Don't return False here - let service manager handle image building when needed
+                    return True
+            else:
+                # Fallback to direct Docker check if image cache not available
+                self.logger.debug(
+                    "No image cache available, skipping Docker image validation"
+                )
+        except Exception as e:
+            self.logger.warning(
+                f"Error checking Docker image for {plugin_metadata.name}: {e}"
+            )
+            # Don't fail validation on Docker errors - just log the issue
+            return True
+
+        return True
+
+    def _validate_plugin_metadata_consistency(
+        self, plugin_metadata: PluginMetadata
+    ) -> bool:
+        """Validate that cached plugin metadata is consistent with filesystem."""
+        if not plugin_metadata.path or not Path(plugin_metadata.path).exists():
+            self.logger.warning(f"Plugin file {plugin_metadata.path} no longer exists")
+            return False
+
+        # Check if plugin file has been modified since cache
+        try:
+            file_mtime = Path(plugin_metadata.path).stat().st_mtime
+            if file_mtime > self._cache_timestamp:
+                self.logger.debug(
+                    f"Plugin file {plugin_metadata.path} modified since cache"
+                )
+                return False
+        except (OSError, AttributeError):
+            return True  # Don't fail on filesystem errors
+
+        return True
+
+    def _invalidate_stale_cache_for_plugin(
+        self, plugin_name: str, version: str = None, build_mode: str = None
+    ) -> bool:
+        """Check and invalidate cache if plugin metadata is stale."""
+        plugin_metadata = self.plugins.get(plugin_name)
+        if not plugin_metadata:
+            return False
+
+        # Validate Docker images with version and build_mode context
+        if not self._validate_cached_plugin_images(
+            plugin_metadata, version=version, build_mode=build_mode
+        ):
+            self.logger.info(
+                f"Invalidating cache due to missing Docker image for {plugin_name}"
+            )
+            self.refresh_plugins()
+            return True
+
+        # Validate metadata consistency
+        if not self._validate_plugin_metadata_consistency(plugin_metadata):
+            self.logger.info(
+                f"Invalidating cache due to stale metadata for {plugin_name}"
+            )
+            self.refresh_plugins()
+            return True
+
+        return False
+
     # Plugin Factory Methods (Direct Integration)
     def create_service_manager(
         self,
@@ -1000,8 +769,45 @@ class PluginManager(LoggerMixin):
         service_config_to_test: "ServiceConfig",
         event_manager: Optional[EventManager] = None,
         emitter_registry=None,
+        global_config=None,
+        experiment_context=None,
     ) -> IServiceManager:
-        """Create a service manager instance."""
+        """Create a service manager instance with cache validation."""
+        # Validate cache before creating service manager
+        implementation_name = implementation.name
+
+        # Extract version and build_mode from configuration for accurate image name validation
+        version = protocol.version if protocol else None
+        build_mode = None
+
+        # Extract build_mode from service config if available (for panther_ivy)
+        if (
+            hasattr(service_config_to_test, "plugin_config")
+            and isinstance(service_config_to_test.plugin_config, dict)
+            and "build_mode" in service_config_to_test.plugin_config
+        ):
+            build_mode = service_config_to_test.plugin_config.get("build_mode")
+        elif hasattr(service_config_to_test, "implementation") and hasattr(
+            service_config_to_test.implementation, "build_mode"
+        ):
+            build_mode = getattr(
+                service_config_to_test.implementation, "build_mode", None
+            )
+
+        cache_invalidated = self._invalidate_stale_cache_for_plugin(
+            implementation_name, version=version, build_mode=build_mode
+        )
+
+        if cache_invalidated:
+            self.logger.info(
+                f"Cache was invalidated for {implementation_name}, using fresh metadata"
+            )
+
+        # Use passed global_config or fall back to self.global_config
+        config_to_use = (
+            global_config if global_config is not None else self.global_config
+        )
+
         return self.plugin_factory.create_service_manager(
             protocol=protocol,
             implementation=implementation,
@@ -1009,6 +815,8 @@ class PluginManager(LoggerMixin):
             service_config_to_test=service_config_to_test,
             event_manager=event_manager or self.event_manager,
             emitter_registry=emitter_registry,
+            global_config=config_to_use,
+            experiment_context=experiment_context,
         )
 
     def create_environment_manager(
@@ -1019,7 +827,15 @@ class PluginManager(LoggerMixin):
         output_dir: Path,
         event_manager: EventManager,
     ) -> IEnvironmentPlugin:
-        """Create an environment manager instance."""
+        """Create an environment manager instance with cache validation."""
+        # Validate cache before creating environment manager
+        cache_invalidated = self._invalidate_stale_cache_for_plugin(environment)
+
+        if cache_invalidated:
+            self.logger.info(
+                f"Cache was invalidated for environment {environment}, using fresh metadata"
+            )
+
         return self.plugin_factory.create_environment_manager(
             environment=environment,
             test_config=test_config,
@@ -1052,16 +868,33 @@ class PluginManager(LoggerMixin):
             "cache_enabled": self.enable_cache,
             "cache_valid": self._is_cache_valid(),
             "directories_scanned": len(self.plugin_directories),
-            "built_images": len(self.built_images),
             "event_system_enabled": self.plugin_event_emitter is not None,
             "docker_builder_available": self.docker_builder is not None,
         }
 
-    def get_summary(self) -> Dict[str, Any]:
+    @classmethod
+    def reset_singleton(cls):
         """
-        Get a summary of the plugin manager state.
+        Reset the singleton instance.
+
+        This method should only be used in testing scenarios where
+        a fresh instance is needed.
+        """
+        cls._instance = None
+        cls._initialized = False
+
+    @classmethod
+    def get_instance(cls, *args, **kwargs) -> "PluginManager":
+        """
+        Get the singleton instance of PluginManager.
+
+        This method returns the singleton instance and allows updating
+        configuration parameters even if the instance already exists.
+
+        Args:
+            *args, **kwargs: Parameters to pass to __init__ (for updates or first creation)
 
         Returns:
-            Dictionary containing summary information
+            The singleton PluginManager instance (with updated parameters if provided)
         """
-        return self.get_statistics()
+        return cls(*args, **kwargs)

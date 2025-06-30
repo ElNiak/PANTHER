@@ -7,9 +7,9 @@ import subprocess
 import sys
 from argparse import ArgumentParser, _SubParsersAction
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List
 
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand
 
 
 class CheckCommand(BaseCommand):
@@ -98,7 +98,9 @@ class CheckCommand(BaseCommand):
                 checks_to_run.append("test")
 
         if not checks_to_run:
-            logging.info("❌ No checks specified. Use --all or specify individual checks.")
+            logging.info(
+                "❌ No checks specified. Use --all or specify individual checks."
+            )
             logging.info(
                 "   Available checks: --format, --imports, --lint, --type, --security, --test"
             )

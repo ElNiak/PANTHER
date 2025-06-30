@@ -2,9 +2,10 @@
 Base classes for CLI subcommands.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, _SubParsersAction
-from typing import Any
+from typing import Any, Dict
 
 
 class BaseCommand(ABC):
@@ -21,3 +22,41 @@ class BaseCommand(ABC):
     def handle(cls, args: Any) -> int:
         """Handle the subcommand execution."""
         pass
+
+
+class CLIActionDispatchMixin:
+    """Mixin providing standardized action dispatch for CLI commands."""
+
+    @classmethod
+    def dispatch_action(
+        cls,
+        args: Any,
+        action_attr: str,
+        action_handlers: Dict[str, Any],
+        command_name: str,
+    ) -> int:
+        """
+        Standardized action dispatch logic.
+
+        Args:
+            args: Parsed arguments
+            action_attr: Attribute name for the action (e.g., 'plugins_action')
+            action_handlers: Dictionary mapping action names to handler methods
+            command_name: Name of the command for error messages
+
+        Returns:
+            Exit code (0 for success, 1 for error)
+        """
+        if not hasattr(args, action_attr) or getattr(args, action_attr) is None:
+            logging.info(
+                f"❌ No {command_name} action specified. Use 'panther {command_name} --help' for options."
+            )
+            return 1
+
+        action = getattr(args, action_attr)
+        handler = action_handlers.get(action)
+        if handler:
+            return handler(args)
+        else:
+            logging.info(f"❌ Unknown {command_name} action: {action}")
+            return 1

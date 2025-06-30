@@ -29,6 +29,7 @@ from panther.core.events.environment.events import (
     OutputCollectedEvent,
     OutputCollectionCompletedEvent,
     OutputCollectionStartedEvent,
+    OutputsCollectedEvent,
 )
 from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 
@@ -708,6 +709,53 @@ class EnvironmentEventEmitter:
             output_path=output_path,
             output_size=output_size,
             metadata=metadata or {},
+        )
+        self.event_manager.notify(event)
+
+    def emit_outputs_collected(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        outputs: Dict[str, str],
+        metadata: Dict[str, Dict[str, Any]],
+    ) -> None:
+        """
+        Emit batch outputs collected event for all outputs from an environment.
+
+        Args:
+            environment_id: Unique environment identifier
+            environment_name: Human-readable environment name
+            environment_type: Type of environment
+            outputs: Dictionary mapping output_type to output_path
+            metadata: Dictionary mapping output_type to metadata
+        """
+        import os
+
+        # Calculate total size and prepare output details
+        total_size = 0
+        output_details = {}
+
+        for output_type, output_path in outputs.items():
+            output_size = None
+            if os.path.exists(output_path):
+                output_size = os.path.getsize(output_path)
+                if output_size:
+                    total_size += output_size
+
+            output_details[output_type] = {
+                "output_path": output_path,
+                "output_size": output_size,
+                "metadata": metadata.get(output_type, {}),
+            }
+
+        event = OutputsCollectedEvent(
+            environment_id=environment_id,
+            environment_name=environment_name,
+            environment_type=environment_type,
+            outputs=output_details,
+            total_count=len(outputs),
+            total_size=total_size if total_size > 0 else None,
         )
         self.event_manager.notify(event)
 

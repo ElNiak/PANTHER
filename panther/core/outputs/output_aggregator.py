@@ -60,6 +60,10 @@ class OutputAggregator:
                                      }
         """
         self.logger.info("Starting output collection from execution environments")
+        self.logger.info(f"Number of environments passed: {len(environments)}")
+        self.logger.info(
+            f"Environment types: {[env.__class__.__name__ for env in environments]}"
+        )
 
         # Emit output collection started event
         self.environment_emitter.emit_output_collection_started(
@@ -75,9 +79,22 @@ class OutputAggregator:
         total_outputs = 0
 
         for env in environments:
-            if isinstance(env, IOutputCollector) and hasattr(env, "collect_outputs"):
-                env_type = env.__class__.__name__
-                self.logger.debug(f"Collecting outputs from {env_type}")
+            env_type = env.__class__.__name__
+            self.logger.info(f"Checking environment: {env_type}")
+            self.logger.info(
+                f"  - isinstance(env, IOutputCollector): {isinstance(env, IOutputCollector)}"
+            )
+            self.logger.info(
+                f"  - hasattr(env, 'collect_outputs'): {hasattr(env, 'collect_outputs')}"
+            )
+            self.logger.info(
+                f"  - env.__class__.__mro__: {[cls.__name__ for cls in env.__class__.__mro__]}"
+            )
+
+            # Check for collect_outputs method instead of interface
+            # This allows mixins that provide the method without declaring the interface
+            if hasattr(env, "collect_outputs") and hasattr(env, "get_output_metadata"):
+                self.logger.info(f"Collecting outputs from {env_type}")
 
                 try:
                     # Collect outputs from this environment
@@ -88,21 +105,14 @@ class OutputAggregator:
                         collected_outputs[env_type] = outputs
                         total_outputs += len(outputs)
 
-                        # Emit individual output collected events
-                        for output_type, output_path in outputs.items():
-                            output_size = None
-                            if os.path.exists(output_path):
-                                output_size = os.path.getsize(output_path)
-
-                            self.environment_emitter.emit_output_collected(
-                                environment_id=env_type,
-                                environment_name=env_type,
-                                environment_type="execution",
-                                output_type=output_type,
-                                output_path=output_path,
-                                output_size=output_size,
-                                metadata=metadata.get(output_type, {}),
-                            )
+                        # Emit batch outputs collected event
+                        self.environment_emitter.emit_outputs_collected(
+                            environment_id=env_type,
+                            environment_name=env_type,
+                            environment_type="execution",
+                            outputs=outputs,
+                            metadata=metadata,
+                        )
 
                         self.logger.info(
                             f"Collected {len(outputs)} outputs from {env_type}: {list(outputs.keys())}"
@@ -145,7 +155,7 @@ class OutputAggregator:
         return collected_outputs
 
     def prepare_for_testers(
-        self, collected_outputs: Optional[Dict[str, Dict[str, str]]]= None
+        self, collected_outputs: Optional[Dict[str, Dict[str, str]]] = None
     ) -> Dict[str, Dict[str, str]]:
         """
         Prepare collected outputs for tester analysis.

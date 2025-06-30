@@ -200,7 +200,9 @@ from typing import ListVersion-specific configuration for {self.plugin_name}"""
             service_config_to_test, service_type, protocol, implementation_name
         )
         self.logger.debug(f"Initializing {{self.__class__.__name__}} for '{{implementation_name}}'")
-        self.logger.debug(f"Configuration: {{self.service_config_to_test}}")
+        # Use summarizer for concise config logging
+        from panther.core.utils import log_omega_config_summary
+        log_omega_config_summary(self.logger, "Configuration", self.service_config_to_test)
         self.initialize_commands()
 
     def get_service_name(self) -> str:
@@ -338,7 +340,7 @@ class {config_class}(ImplementationConfig):
     def generate_dockerfile(self):
         return f"""# Dockerfile for {self.plugin_name} {self.plugin_type} plugin
 
-FROM panther_base_service:latest
+FROM --platform=linux/amd64 panther_base_service:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 

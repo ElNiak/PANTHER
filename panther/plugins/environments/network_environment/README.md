@@ -28,19 +28,19 @@ graph TB
         SRE[Service Ready Event]
         SFE[Service Failure Event]
     end
-    
+
     subgraph "Docker Orchestration"
         DC[Docker Compose]
         SC[Service Coordination]
         HC[Health Checks]
     end
-    
+
     subgraph "Event Monitoring"
         EM[Event Manager]
         MO[Metrics Observer]
         LO[Logger Observer]
     end
-    
+
     SDE --> DC
     DC --> SCE
     SCE --> SC
@@ -57,7 +57,7 @@ graph TB
 ```python
 # Modern network environment with event integration
 from panther.core.events.environment.events import NetworkSetupEvent, ServiceDeploymentEvent
-from panther.core.command_processor.command import ShellCommand
+from panther.core.command_processor import ShellCommand
 
 class ModernDockerComposeEnvironment(INetworkEnvironment):
     def deploy_services(self, service_configs):
@@ -67,7 +67,7 @@ class ModernDockerComposeEnvironment(INetworkEnvironment):
             network_type="container_orchestration",
             service_count=len(service_configs)
         ))
-        
+
         # Generate docker-compose commands through Command Processor
         compose_commands = [
             ShellCommand(
@@ -77,7 +77,7 @@ class ModernDockerComposeEnvironment(INetworkEnvironment):
                 timeout=600
             )
         ]
-        
+
         # Execute with validation and event emission
         for cmd in compose_commands:
             # Emit service deployment event
@@ -86,9 +86,9 @@ class ModernDockerComposeEnvironment(INetworkEnvironment):
                 deployment_type="container",
                 command=cmd.to_string()
             ))
-            
+
             result = self.command_processor.execute(cmd)
-            
+
             if result.exit_code == 0:
                 # Emit success event
                 self.emit_event(ServiceReadyEvent(
@@ -101,11 +101,11 @@ class ModernDockerComposeEnvironment(INetworkEnvironment):
                     environment_name="docker_compose",
                     error_message=result.stderr
                 ))
-    
+
     def wait_for_service_ready(self, service_name, timeout=60):
         # Monitor service readiness with events
         start_time = time.time()
-        
+
         while time.time() - start_time < timeout:
             health_cmd = ShellCommand(
                 command="docker",
@@ -114,9 +114,9 @@ class ModernDockerComposeEnvironment(INetworkEnvironment):
                 capture_output=True,
                 ignore_exit_code=True
             )
-            
+
             result = self.command_processor.execute(health_cmd)
-            
+
             if result.exit_code == 0:
                 self.emit_event(ServiceHealthCheckEvent(
                     service_name=service_name,
@@ -124,9 +124,9 @@ class ModernDockerComposeEnvironment(INetworkEnvironment):
                     environment_name="docker_compose"
                 ))
                 return True
-            
+
             time.sleep(1)
-        
+
         # Emit timeout event
         self.emit_event(ServiceHealthCheckEvent(
             service_name=service_name,
@@ -171,22 +171,22 @@ class MonitoredNetworkEnvironment(INetworkEnvironment):
     def setup_monitoring(self):
         # Start comprehensive network monitoring
         self.metrics_collector.start_collection()
-        
+
         # Monitor container health
         self.setup_container_health_monitoring()
-        
+
         # Monitor network traffic
         self.setup_network_traffic_monitoring()
-        
+
         # Emit monitoring setup event
         self.emit_event(NetworkMonitoringEvent(
             environment_name=self.get_name(),
             monitoring_types=[
-                "container_health", "network_traffic", 
+                "container_health", "network_traffic",
                 "resource_usage", "service_coordination"
             ]
         ))
-    
+
     def collect_network_metrics(self):
         # Collect comprehensive network metrics
         metrics = {
@@ -195,36 +195,36 @@ class MonitoredNetworkEnvironment(INetworkEnvironment):
             "service_health": self.get_service_health_status(),
             "resource_usage": self.get_resource_usage()
         }
-        
+
         # Emit metrics collection event
         self.emit_event(NetworkMetricsEvent(
             environment_name=self.get_name(),
             metrics_data=metrics,
             collection_timestamp=datetime.now()
         ))
-        
+
         return metrics
-    
+
     def teardown_with_monitoring(self):
         # Collect final metrics before teardown
         final_metrics = self.collect_network_metrics()
-        
+
         # Emit teardown start event
         self.emit_event(NetworkTeardownEvent(
             environment_name=self.get_name(),
             teardown_type="graceful_shutdown",
             final_metrics=final_metrics
         ))
-        
+
         # Execute teardown commands
         teardown_cmd = ShellCommand(
             command="docker-compose",
             args=["-f", self.compose_file, "down", "--volumes"],
             timeout=120
         )
-        
+
         result = self.command_processor.execute(teardown_cmd)
-        
+
         # Emit teardown complete event
         self.emit_event(NetworkTeardownCompleteEvent(
             environment_name=self.get_name(),
@@ -259,10 +259,10 @@ class NetworkEnvironment(BaseNetworkEnvironment, EnvironmentManagerDockerMixin):
     def generate_environment_services(self, paths, timestamp):
         # Build base image once per experiment
         base_image_tag = self.build_base_service_image(self.plugin_manager)
-        
+
         # Verify service images
         service_images = self.ensure_service_images_available(self.services_managers)
-        
+
         # Generate Dockerfile with proper parameters
         self.generate_from_template(
             template_name="Dockerfile.jinja",

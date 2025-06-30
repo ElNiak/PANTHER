@@ -17,7 +17,9 @@ try:
 except ImportError:
     yaml = None
 
-from panther.plugins.plugin_manifest import PluginDependency, PluginManifest, PluginType
+from panther.plugins.core.structures.plugin_dependency import PluginDependency
+from panther.plugins.core.structures.plugin_manifest import PluginManifest
+from panther.plugins.core.structures.plugin_type import PluginType
 
 # Optional imports for enhanced features
 try:
@@ -44,9 +46,13 @@ class PluginAnalyzer:
     IMPORT_TO_DEPENDENCY = {
         "panther.plugins.protocols": ("protocols", PluginType.PROTOCOL),
         "panther.plugins.services.services_interface": ("services", PluginType.SERVICE),
-        "panther.plugins.environments.environment_interface": (
+        "panther.plugins.environments.network_environment.network_environment_interface": (
             "environments",
-            PluginType.ENVIRONMENT,
+            PluginType.NETWORK_ENVIRONMENT,
+        ),
+        "panther.plugins.environments.execution_environment.execution_environment_interface": (
+            "environments",
+            PluginType.EXECUTION_ENVIRONMENT,
         ),
         "panther.plugins.services.testers.tester_interface": (
             "testers",
@@ -144,7 +150,6 @@ class PluginAnalyzer:
                             and hasattr(decorator.func, "id")
                             and decorator.func.id == "register_plugin"
                         ):
-
                             info = {"class_name": node.name}
                             for keyword in decorator.keywords:
                                 if isinstance(keyword.value, ast.Constant):
@@ -241,9 +246,9 @@ class PluginAnalyzer:
             # Implementation-specific capabilities
             impl_name = plugin_path.name.lower()
             if impl_name == "picoquic":
-                metadata["capabilities"] = ["rfc9000", "0rtt", "migration", "http3"]
+                metadata["capabilities"] = ["rfc9000", "0rtt", "migration"]
             elif impl_name == "aioquic":
-                metadata["capabilities"] = ["rfc9000", "http3", "webtransport", "async"]
+                metadata["capabilities"] = ["rfc9000", "webtransport", "async"]
 
         elif "docker" in path_str:
             metadata["capabilities"] = ["container_orchestration"]
@@ -675,7 +680,13 @@ class PluginMigrationTool:
             else:
                 return PluginType.SERVICE
         elif "environments" in path_str:
-            return PluginType.ENVIRONMENT
+            if "network_environment" in path_str:
+                return PluginType.NETWORK_ENVIRONMENT
+            elif "execution_environment" in path_str:
+                return PluginType.EXECUTION_ENVIRONMENT
+            else:
+                # Default to network environment for backward compatibility
+                return PluginType.NETWORK_ENVIRONMENT
         elif "protocols" in path_str:
             return PluginType.PROTOCOL
         elif "observers" in path_str:

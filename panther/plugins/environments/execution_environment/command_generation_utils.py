@@ -9,13 +9,14 @@ execution environment plugin command generation, including:
 - Command processing and application
 """
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from panther.core.command_processor.command_builder import ServiceCommandBuilder
-from panther.core.command_processor.command_summarizer import CommandSummarizer
 from panther.config.core.models import ProtocolRole
+from panther.core.command_processor.builders import ServiceCommandBuilder
+from panther.core.command_processor.utils.summarizer import CommandSummarizer
 from panther.plugins.services.services_interface import IServiceManager
 
 
@@ -187,12 +188,11 @@ class WrapperCommandGenerator:
 
         return f"""
 # Setup {environment_name} wrapper for {service_name}
-{env_vars_setup}if [ -z "$EXEC_ENV_WRAPPERS" ]; then
-    export EXEC_ENV_WRAPPERS="{wrapper_command}"
-else
-    export EXEC_ENV_WRAPPERS="{wrapper_command} $EXEC_ENV_WRAPPERS"
-fi
-echo "Added {environment_name} wrapper for {service_name}" >> /app/logs/{service_name}_exec_env_setup.log
+{env_vars_setup}# Execute wrapper command directly instead of writing to file
+# This prevents wrapper file content concatenation issues
+echo "Executing {environment_name} wrapper for {service_name}" >> /app/logs/{service_name}_exec_env_setup.log
+{wrapper_command}
+echo "Completed {environment_name} wrapper for {service_name}" >> /app/logs/{service_name}_exec_env_setup.log
 """.strip()
 
     def generate_conditional_wrapper(
@@ -310,6 +310,8 @@ class ExecutionEnvironmentCommandBuilder:
         # Track generated commands
         self._wrapper_commands: List[str] = []
         self._post_run_commands: List[str] = []
+        # Track applied wrappers to prevent duplicates
+        self._applied_wrappers: set = set()
 
     def add_wrapper_command(
         self,
@@ -317,44 +319,136 @@ class ExecutionEnvironmentCommandBuilder:
         description: Optional[str] = None,
         additional_env_vars: Optional[Dict[str, str]] = None,
         is_critical: bool = False,
+        setup_commands: Optional[List[str]] = None,
+        main_command_wrapper: Optional[str] = None,
     ) -> "ExecutionEnvironmentCommandBuilder":
         """
         Add a wrapper command for the execution environment.
 
         Args:
-            wrapper_command: The wrapper command to add
+            wrapper_command: The wrapper command to add (legacy - for backward compatibility)
             description: Optional description of the wrapper
             additional_env_vars: Optional additional environment variables
             is_critical: Whether this wrapper is critical for the test
+            setup_commands: Optional list of setup commands to run before main command
+            main_command_wrapper: Optional wrapper to apply to main command (e.g., "strace -o file.log")
 
         Returns:
             ExecutionEnvironmentCommandBuilder: Self for method chaining
         """
-        wrapper_setup = self.wrapper_generator.generate_environment_wrapper(
-            self.environment_name,
-            wrapper_command,
-            self.service_name,
-            additional_env_vars,
-        )
+        # Create command fingerprint for deduplication
+        command_fingerprint = hashlib.md5(
+            f"{self.environment_name}:{wrapper_command}:{str(additional_env_vars)}:{str(setup_commands)}:{main_command_wrapper}".encode()
+        ).hexdigest()
 
-        self.command_builder.add_command(
-            command=wrapper_setup,
-            description=description
-            or f"Setup {self.environment_name} wrapper for {self.service_name}",
-            is_multiline=True,
-            is_critical=is_critical,
-            environment=additional_env_vars or {},
-        )
+        # Check if this wrapper command has already been applied
+        if command_fingerprint in self._applied_wrappers:
+            self.logger.debug(
+                "Skipping duplicate wrapper command for %s: %s",
+                self.service_name,
+                (
+                    f"{wrapper_command[:50]}..."
+                    if len(wrapper_command) > 50
+                    else wrapper_command
+                ),
+            )
+            return self
 
-        self._wrapper_commands.append(wrapper_setup)
+        # Mark this wrapper as applied
+        self._applied_wrappers.add(command_fingerprint)
+
+        # Handle new architecture: setup commands + main command wrapper
+        if setup_commands or main_command_wrapper:
+            # Add setup commands to pre_run_cmds if provided
+            if setup_commands:
+                for i, setup_cmd in enumerate(setup_commands):
+                    self.command_builder.add_command(
+                        command=setup_cmd,
+                        description=f"{description or self.environment_name} setup {i+1}",
+                        is_multiline=True,
+                        is_critical=is_critical,
+                        environment=additional_env_vars or {},
+                    )
+                    self._wrapper_commands.append(setup_cmd)
+
+            # Write main command wrapper to wrapper file if provided
+            if main_command_wrapper:
+                wrapper_file_command = self._generate_wrapper_file_command(
+                    main_command_wrapper
+                )
+                self.command_builder.add_command(
+                    command=wrapper_file_command,
+                    description=f"Write {self.environment_name} wrapper to file",
+                    is_multiline=True,
+                    is_critical=is_critical,
+                    environment=additional_env_vars or {},
+                )
+                self._wrapper_commands.append(wrapper_file_command)
+
+        else:
+            # Legacy approach: treat wrapper_command as setup command
+            wrapper_setup = self.wrapper_generator.generate_environment_wrapper(
+                self.environment_name,
+                wrapper_command,
+                self.service_name,
+                additional_env_vars,
+            )
+
+            self.command_builder.add_command(
+                command=wrapper_setup,
+                description=description
+                or f"Setup {self.environment_name} wrapper for {self.service_name}",
+                is_multiline=True,
+                is_critical=is_critical,
+                environment=additional_env_vars or {},
+            )
+
+            self._wrapper_commands.append(wrapper_setup)
 
         # Use smart command summarization for logging
-        command_summary = CommandSummarizer.summarize_single_command(wrapper_setup)
-        self.logger.debug(
-            "Added wrapper command for %s: %s", self.service_name, command_summary
-        )
+        if main_command_wrapper:
+            self.logger.debug(
+                "Added wrapper for %s: setup commands + main wrapper: %s",
+                self.service_name,
+                main_command_wrapper,
+            )
+        else:
+            command_summary = CommandSummarizer.summarize_single_command(
+                wrapper_command
+            )
+            self.logger.debug(
+                "Added wrapper command for %s: %s", self.service_name, command_summary
+            )
 
         return self
+
+    def _generate_wrapper_file_command(self, main_command_wrapper: str) -> str:
+        """
+        Generate a command to write the main command wrapper to the wrapper file.
+
+        This command writes the wrapper immediately during setup phase, ensuring
+        the wrapper file exists before the entrypoint script tries to read it.
+
+        Args:
+            main_command_wrapper: The wrapper command to write to file
+
+        Returns:
+            str: Command to write wrapper to file
+        """
+        wrapper_file = f"/app/logs/{self.service_name}_exec_env_wrappers.txt"
+
+        return f"""
+# Write {self.environment_name} wrapper to wrapper file for {self.service_name}
+echo "Writing {self.environment_name} wrapper to {wrapper_file}" >> /app/logs/{self.service_name}_exec_env_setup.log
+# Use cat with EOF to properly write wrapper content with special characters
+cat > {wrapper_file} << 'EOF'
+{main_command_wrapper}
+EOF
+echo "Wrapper file content written:" >> /app/logs/{self.service_name}_exec_env_setup.log
+cat {wrapper_file} >> /app/logs/{self.service_name}_exec_env_setup.log 2>/dev/null || echo "Failed to read wrapper file" >> /app/logs/{self.service_name}_exec_env_setup.log
+# Ensure wrapper file is available for entrypoint script
+ls -la {wrapper_file} >> /app/logs/{self.service_name}_exec_env_setup.log 2>/dev/null || echo "Wrapper file not found after creation" >> /app/logs/{self.service_name}_exec_env_setup.log
+"""
 
     def add_conditional_wrapper(
         self,
@@ -487,7 +581,12 @@ class ExecutionEnvironmentCommandBuilder:
         """
         # Process all commands
         processed_commands = self.command_builder.process_commands()
-
+        self.logger.debug(
+            "Processing commands for service %s in environment %s: %s",
+            self.service_name,
+            self.environment_name,
+            processed_commands,
+        )
         if not processed_commands:
             self.logger.warning(
                 "No commands were processed for service %s", self.service_name
@@ -509,6 +608,19 @@ class ExecutionEnvironmentCommandBuilder:
                 post_run_commands.append(command_str)
 
         results = {}
+
+        self.logger.debug(
+            "Applying commands for service %s in environment %s: %s",
+            self.service_name,
+            self.environment_name,
+            processed_commands,
+        )
+
+        self.logger.debug(
+            "Wrapper commands: %s, Post-run commands: %s",
+            wrapper_commands,
+            post_run_commands,
+        )
 
         # Apply wrapper commands
         if wrapper_commands:

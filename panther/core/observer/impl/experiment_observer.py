@@ -1,4 +1,5 @@
 import logging
+import sys
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, Optional, Set
 
@@ -86,13 +87,19 @@ class ExperimentObserver(IObserver):
         # Set up logging using the interface method
         self.log_level = getattr(logging, log_level.upper(), logging.INFO)
         self.enable_colors = True
+
         self.logger = self._setup_logging(
             logger_name="ExperimentObserver",
             log_level=self.log_level,
             enable_colors=self.enable_colors,
-            output_file=output_dir + "/experiment_events.log" if output_dir else None,
+            output_file=(f"{output_dir}/experiment_events.log" if output_dir else None),
             structured_output=True,
         )
+
+        # Create or update progress bar for this step
+        if not hasattr(self, "_step_progress_bars"):
+            self._step_progress_bars = {}
+
         self.experiment_finished_early = False
         self._should_terminate_early = False
         self._termination_reason = None
@@ -158,24 +165,16 @@ class ExperimentObserver(IObserver):
         best_match = None
         best_match_cls = None
 
-        # Debug output to see registered handlers and event type
-        self.logger.debug("Event received: %s", event.__class__.__name__)
-
         # Find the most specific handler based on class hierarchy
         for event_cls, handler in self.event_handlers.items():
-            if isinstance(event, event_cls):
-                # If we don't have a match yet, or this class is more specific (subclass of our current best)
-                if best_match_cls is None or issubclass(event_cls, best_match_cls):
-                    best_match = handler
-                    best_match_cls = event_cls
+            if isinstance(event, event_cls) and (
+                best_match_cls is None or issubclass(event_cls, best_match_cls)
+            ):
+                best_match = handler
+                best_match_cls = event_cls
 
         # Call the handler if we found one
         if best_match:
-            self.logger.debug(
-                "Handling event %s with handler for %s",
-                event.__class__.__name__,
-                best_match_cls.__name__,
-            )
             return best_match(event)
 
         # Default handling for unrecognized events
@@ -211,7 +210,7 @@ class ExperimentObserver(IObserver):
         return self.experiment_finished_early
 
     def _handle_step_progress(self, event: StepProgressEvent) -> bool:
-        """Handle step progress events."""
+        """Handle step progress events with progress bar support."""
         self.current_phase = "running_steps"
         step_id = event.data.get("step_id")
         step_name = event.data.get("step_name", step_id)
@@ -232,12 +231,75 @@ class ExperimentObserver(IObserver):
                 }
             )
 
+        # Handle progress bar for waiting/long-running steps
+        if (
+            progress_percentage is not None
+            and self.global_config
+            and self.global_config.progress.enable_progress_bar
+        ):
+            try:
+                import tqdm
+
+                # Create unique key for this step
+                pbar_key = f"{test_case_id or 'unknown'}_{step_name}_{step_id}"
+
+                if pbar_key not in self._step_progress_bars:
+                    # Create new progress bar for this waiting step
+                    # Use higher position numbers for step progress bars so main test bar stays at top (position 0)
+                    position = (
+                        len(self._step_progress_bars) + 2
+                    )  # Start from position 2, leaving 0 for main test bar
+                    self._step_progress_bars[pbar_key] = tqdm.tqdm(
+                        total=100,
+                        desc=f"⏳ {step_name} ({test_case_id or 'unknown test'})",
+                        unit="%",
+                        position=3,  # Higher positions for step bars
+                        leave=False,  # Keep visible during execution, we'll manage cleanup manually
+                        bar_format="{l_bar}{bar}| {n:.1f}% [{elapsed}<{remaining}] {postfix}",
+                        file=sys.stdout,  # Use same stream as main progress bar for coordination
+                        dynamic_ncols=True,  # Adapt to terminal width
+                        miniters=1,  # Update every 1%
+                    )
+
+                    # Log initial progress bar creation using tqdm.write for coordination
+                    tqdm.tqdm.write(
+                        f"🚀 Started progress tracking for {step_name} in {test_case_id or 'unknown test'}"
+                    )
+
+                pbar = self._step_progress_bars[pbar_key]
+
+                # Update progress bar
+                current_progress = pbar.n
+                new_progress = min(int(progress_percentage), 100.0)
+                delta = new_progress - current_progress
+
+                if delta > 0:
+                    pbar.update(delta)
+
+                # Update description with current message
+                if progress_message:
+                    pbar.set_postfix_str(progress_message)
+
+                # Close progress bar when complete (only when step is truly finished)
+                if progress_percentage >= 100.0:
+                    # Use tqdm.write for coordinated completion message
+                    tqdm.tqdm.write(
+                        f"✅ {step_name} completed in {test_case_id or 'unknown test'}"
+                    )
+                    # Don't close immediately - let test completion handle cleanup
+                    # This prevents premature disappearing during step execution
+            except ImportError:
+                # Fall back to regular logging if tqdm is not available
+                pass
+            except Exception as e:
+                # If progress bar fails, continue with regular logging
+                self.logger.debug("Progress bar error: %s", e)
         # Log progress with proper formatting
-        if progress_percentage is not None:
+        elif progress_percentage is not None:
             self.logger.debug(
                 "Step progress: %s (%s) at %.1f%% - %s",
                 step_name,
-                test_case_id if test_case_id else "unknown test",
+                test_case_id or "unknown test",
                 progress_percentage,
                 progress_message,
             )
@@ -250,6 +312,53 @@ class ExperimentObserver(IObserver):
                 self.logger.debug(f"  {key}: {value}")
 
         return True
+
+    def _cleanup_step_progress_bars(self, test_name: str = None) -> None:
+        """
+        Clean up step progress bars for a specific test or all tests.
+
+        Args:
+            test_name: Optional test name to clean up bars for. If None, cleans up all bars.
+        """
+        if not hasattr(self, "_step_progress_bars"):
+            return
+
+        try:
+            import tqdm
+
+            # Get list of keys to remove (to avoid modifying dict during iteration)
+            keys_to_remove = []
+
+            for pbar_key, pbar in list(self._step_progress_bars.items()):
+                # If test_name is specified, only clean up bars for that test
+                if test_name and not pbar_key.startswith(test_name.replace(" ", "_")):
+                    continue
+
+                try:
+                    # Set progress to 100% and close the progress bar to clear it from terminal
+                    if not pbar.disable:
+                        pbar.n = 100
+                        pbar.refresh()
+                        pbar.close()
+                    keys_to_remove.append(pbar_key)
+
+                    # Use tqdm.write for coordinated cleanup message
+                    if test_name:
+                        tqdm.tqdm.write(f"🧹 Cleaned up progress bar for {test_name}")
+
+                except Exception as e:
+                    self.logger.debug(f"Error closing progress bar {pbar_key}: {e}")
+
+            # Remove closed progress bars from our tracking dict
+            for key in keys_to_remove:
+                del self._step_progress_bars[key]
+
+        except ImportError:
+            # If tqdm is not available, just clear the tracking dict
+            if hasattr(self, "_step_progress_bars"):
+                self._step_progress_bars.clear()
+        except Exception as e:
+            self.logger.debug(f"Error during progress bar cleanup: {e}")
 
     def _handle_step_completed(self, event: StepExecutionCompletedEvent) -> bool:
         """Handle step completion events."""
@@ -525,11 +634,11 @@ class ExperimentObserver(IObserver):
     ) -> bool:
         """Handle service setup started events with enhanced state tracking."""
         # Extract data from the actual event structure
-        service_name = event.data.get("service_name", "unknown_service")
+        service_name = event.data.get("service_name") or "unknown_service"
         preparation_steps = event.data.get("preparation_steps", [])
 
         # Try to get test_case from event data (added by emitter)
-        test_case = event.data.get("test_case", "unknown_test")
+        test_case = event.data.get("test_case") or "unknown_test"
 
         # Extract test case from service_id if not in data
         if test_case == "unknown_test":
@@ -559,7 +668,7 @@ class ExperimentObserver(IObserver):
     ) -> bool:
         """Handle service setup completed events with enhanced state tracking."""
         # Extract data from the actual event structure
-        service_name = event.data.get("service_name", "unknown_service")
+        service_name = event.data.get("service_name") or "unknown_service"
         duration = event.data.get("duration_seconds")
         artifacts = event.data.get("artifacts", {})
 
@@ -663,6 +772,9 @@ class ExperimentObserver(IObserver):
             "Test completed: %s - %s", test_name, "Success" if success else "Failed"
         )
 
+        # Clean up step progress bars for this test
+        self._cleanup_step_progress_bars(test_name)
+
         if self.track_timing:
             self._record_timing_info("test_completed", self.start_time)
 
@@ -698,6 +810,9 @@ class ExperimentObserver(IObserver):
             "Success" if success else "Failed",
             duration_ms if duration_ms is not None else "unknown",
         )
+
+        # Clean up step progress bars for this test
+        self._cleanup_step_progress_bars(test_name)
 
         # Log results details with consistent indentation
         if results:
@@ -905,15 +1020,14 @@ class ExperimentObserver(IObserver):
         self.logger.error("Environment error: %s (type: %s)", error_message, error_type)
 
         # Check if this is an early termination request
-        if error_type == "early_termination":
-            self._should_terminate_early = True
-            self._termination_reason = error_message
-            self.logger.warning(
-                "Environment requested early termination: %s", error_message
-            )
+        self._should_terminate_early = True
+        self._termination_reason = error_message
+        self.logger.warning(
+            "Environment requested early termination: %s", error_message
+        )
 
-            # Also mark experiment_finished_early for backward compatibility
-            self.experiment_finished_early = True
+        # Also mark experiment_finished_early for backward compatibility
+        self.experiment_finished_early = True
 
         return True
 

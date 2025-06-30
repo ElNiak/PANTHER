@@ -1,17 +1,15 @@
 """Base class for TestCase with core initialization and configuration."""
 
-from datetime import datetime, timedelta
 import logging
 import re
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List
 
 from colorlog import ColoredFormatter
-from panther.core.observer.management.event_manager import EventManager
+
 from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
-from panther.core.test_cases.test_interface_impl import ITestCase
-from panther.plugins.plugin_manager import PluginManager
 from panther.core.exceptions.fast_fail import FastFailHandler, TimeoutCascadeException
 from panther.core.observer.factory import get_observer_factory
 from panther.core.observer.factory.factory_builders import (
@@ -20,6 +18,9 @@ from panther.core.observer.factory.factory_builders import (
     create_storage,
 )
 from panther.core.observer.impl.experiment_observer import ExperimentObserver
+from panther.core.observer.management.event_manager import EventManager
+from panther.core.test_cases.test_interface_impl import ITestCase
+from panther.plugins.plugin_manager import PluginManager
 
 
 class TestCaseBase(ITestCase):
@@ -54,11 +55,11 @@ class TestCaseBase(ITestCase):
 
         # Logging configuration
         # Handle both string and enum for logging level
-        if hasattr(self.global_config.logging.level, 'name'):
+        if hasattr(self.global_config.logging.level, "name"):
             level_name = self.global_config.logging.level.name
         else:
             level_name = str(self.global_config.logging.level).upper()
-        
+
         self.log_level = getattr(logging, level_name, logging.INFO)
         self.log_format = self.global_config.logging.format
 
@@ -83,16 +84,24 @@ class TestCaseBase(ITestCase):
             or plugin_manager.event_manager is None
         ):
             self.logger.warning(
-                "No EventManager provided by plugin_manager, creating a new one. This may lead to event propagation issues."
+                "No EventManager provided by plugin_manager, using singleton instance."
             )
             self.event_manager = EventManager.get_instance()
         else:
+            # Plugin manager should now always have the singleton EventManager
             self.event_manager = plugin_manager.event_manager
-            
+
+        # Verify we have the singleton instance
+        if self.event_manager is not EventManager.get_instance():
+            self.logger.warning(
+                "EventManager instance mismatch detected. This may cause event propagation issues. "
+                "Switching to singleton instance."
+            )
+            self.event_manager = EventManager.get_instance()
+
         # Setup logging
         self._setup_logging()
-        
-        
+
         # Initialize test-level fast-fail behavior
         self._init_fast_fail_handler(test_config, global_config)
 
@@ -197,7 +206,6 @@ class TestCaseBase(ITestCase):
             fast_fail_enabled,
         )
 
-    
     def _check_timeout_cascade(self, service_name: str) -> None:
         """Check for timeout cascade and raise exception if detected."""
         now = datetime.now()
@@ -215,6 +223,3 @@ class TestCaseBase(ITestCase):
                 len(recent_timeouts),
                 services,
             )
-
-
-    

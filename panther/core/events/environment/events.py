@@ -943,6 +943,35 @@ class OutputCollectedEvent(EnvironmentEvent):
         self.metadata = metadata or {}
 
 
+class OutputsCollectedEvent(EnvironmentEvent):
+    """Event emitted when multiple outputs are collected from an execution environment."""
+
+    def __init__(
+        self,
+        environment_id: str,
+        environment_name: str,
+        environment_type: str,
+        outputs: Dict[str, Dict[str, Any]],
+        total_count: int,
+        total_size: Optional[int] = None,
+    ):
+        super().__init__(
+            "outputs_collected",
+            environment_id,
+            environment_name,
+            environment_type,
+            {
+                "outputs": outputs,
+                "total_count": total_count,
+                "total_size": total_size,
+                "action": "outputs_collected",
+            },
+        )
+        self.outputs = outputs
+        self.total_count = total_count
+        self.total_size = total_size
+
+
 class OutputCollectionCompletedEvent(EnvironmentEvent):
     """Event emitted when output collection completes from all execution environments."""
 

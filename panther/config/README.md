@@ -37,7 +37,7 @@ paths:
   plugin_dir: "panther/plugins"  # Directory containing PANTHER plugins
 
 docker:
-  build_docker_image: false      # Skip Docker image building (use existing images)
+  force_build_docker_image: false      # Skip Docker image building (use existing images)
 
 # List of tests to run - each test is a complete testing scenario
 tests:
@@ -48,7 +48,7 @@ tests:
     iterations: 1                # Run this test just once
     execution_environment: []    # No special execution environment settings
     debug_environment: [ ]       # No debugging tools to attach
-    
+
     # Define the services (containers) involved in this test
     services:
       picoquic_client:           # First service - a QUIC client
@@ -83,7 +83,7 @@ tests:
           - "4987:4987"          # Additional port mapping
           - "8080:8080"          # Health check endpoint
         generate_new_certificates: True  # Generate fresh TLS certificates
-        
+
     steps:
       wait: 100                  # Wait 100 seconds during test execution before proceeding
 ```
@@ -383,6 +383,7 @@ panther config validate --config experiment.yaml --auto-fix --output fixed_confi
 ```
 
 **Auto-fixes include:**
+
 - Adding default ports to server services
 - Resolving port conflicts with alternative ports
 - Standardizing port mapping formats
@@ -406,6 +407,7 @@ services:
 #### Port Conflict Resolution
 
 When auto-assigning ports, PANTHER:
+
 1. Checks if the default port is available on the host
 2. If unavailable, tries the next available port in range
 3. Updates the configuration with the assigned port

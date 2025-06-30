@@ -3,12 +3,14 @@ Plugins Command - Plugin discovery and management
 """
 
 import json
-from argparse import ArgumentParser, _SubParsersAction
 import logging
+from argparse import ArgumentParser, _SubParsersAction
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand
+from panther.plugins.core.structures.plugin_metadata import PluginMetadata
+from panther.plugins.core.structures.plugin_type import PluginType
 
 
 class PluginsCommand(BaseCommand):
@@ -33,15 +35,12 @@ class PluginsCommand(BaseCommand):
             help="List available plugins",
             description="List all available plugins by type",
         )
+        # Get valid plugin type choices from enum
+        plugin_type_choices = [pt.value for pt in PluginType] + ["all"]
+
         list_parser.add_argument(
             "--type",
-            choices=[
-                "iut",
-                "tester",
-                "network_environment",
-                "execution_environment",
-                "all",
-            ],
+            choices=plugin_type_choices,
             default="all",
             help="Filter plugins by type (default: all)",
         )
@@ -61,7 +60,7 @@ class PluginsCommand(BaseCommand):
         params_parser.add_argument("plugin_name", help="Name of the plugin to inspect")
         params_parser.add_argument(
             "--type",
-            choices=["iut", "tester", "network_environment", "execution_environment"],
+            choices=[pt.value for pt in PluginType],
             help="Plugin type (auto-detected if not specified)",
         )
         params_parser.add_argument(
@@ -147,65 +146,32 @@ class PluginsCommand(BaseCommand):
             # Initialize plugin discovery
             from pathlib import Path
 
-            from ...config.config_manager_enhanced import ConfigLoader
-            from ...plugins.plugin_manager import PluginManager
+            from panther.plugins.plugin_manager import PluginManager
 
             discovery = PluginManager()
+            base_plugin_dir = Path(__file__).parent.parent.parent / "plugins"
 
             logging.info(f"🔍 Scanning for plugins in: {base_plugin_dir}")
 
-            # Discover plugins
-            plugins_dict = discovery.list_available_plugins()
+            # Discover plugins first
+            discovery.discover_plugins()
 
-            # Convert to list format for easier handling
-            plugins = []
-            for plugin_type, plugin_names in plugins_dict.items():
-                for plugin_name in plugin_names:
-                    plugin_info = discovery.get_plugin_info(plugin_name)
-                    # Create a simple plugin object even if plugin_info is None
-                    plugin_obj = type(
-                        "Plugin",
-                        (),
-                        {
-                            "name": plugin_name,
-                            "type": type("PluginType", (), {"value": plugin_type})(),
-                            "version": (
-                                plugin_info.get("version", "unknown")
-                                if plugin_info
-                                else "unknown"
-                            ),
-                            "description": (
-                                plugin_info.get("description", "No description")
-                                if plugin_info
-                                else "No description"
-                            ),
-                            "path": (
-                                plugin_info.get("path", "unknown")
-                                if plugin_info
-                                else "unknown"
-                            ),
-                        },
-                    )()
-                    plugins.append(plugin_obj)
+            # Debug: print args
+            logging.debug(f"Args type: {args.type}, format: {args.format}")
+
+            # Get plugins based on filter
+            if args.type == "all":
+                plugins = []
+                for plugin_type in PluginType:
+                    plugins.extend(discovery.get_plugins_by_type(plugin_type.value))
+            else:
+                plugins = discovery.get_plugins_by_type(args.type)
 
             if not plugins:
-                logging.info("ℹ️  No plugins found")
-                return 0
-
-            # Filter by type if specified
-            if args.type != "all":
-                # Map CLI type names to discovery type names
-                type_mapping = {
-                    "iut": "iut",
-                    "tester": "tester",
-                    "network_environment": "environment",
-                    "execution_environment": "environment",
-                }
-                discovery_type = type_mapping.get(args.type, args.type)
-                plugins = [p for p in plugins if p.type.value == discovery_type]
-
-            if not plugins:
-                logging.info(f"ℹ️  No plugins found for type: {args.type}")
+                if args.type == "all":
+                    logging.info("ℹ️  No plugins found")
+                else:
+                    logging.info(f"ℹ️  No plugins found for type: {args.type}")
                 return 0
 
             # Display plugins
@@ -215,7 +181,7 @@ class PluginsCommand(BaseCommand):
                     plugin_data.append(
                         {
                             "name": plugin.name,
-                            "type": plugin.type.value,
+                            "type": plugin.type,
                             "version": plugin.version,
                             "description": plugin.description,
                             "path": str(plugin.path),
@@ -225,12 +191,14 @@ class PluginsCommand(BaseCommand):
 
             elif args.format == "simple":
                 for plugin in plugins:
-                    logging.info(f"{plugin.name} ({plugin.type.value})")
+                    logging.info(f"{plugin.name} ({plugin.type})")
 
             else:  # table format
                 logging.info(f"\n📦 Found {len(plugins)} plugin(s):")
                 logging.info("-" * 80)
-                logging.info(f"{'Name':<20} {'Type':<20} {'Version':<10} {'Description':<25}")
+                logging.info(
+                    f"{'Name':<20} {'Type':<20} {'Version':<10} {'Description':<25}"
+                )
                 logging.info("-" * 80)
 
                 for plugin in plugins:
@@ -240,7 +208,7 @@ class PluginsCommand(BaseCommand):
                         else plugin.description
                     )
                     logging.info(
-                        f"{plugin.name:<20} {plugin.type.value:<20} {plugin.version:<10} {description:<25}"
+                        f"{plugin.name:<20} {plugin.type:<20} {plugin.version:<10} {description:<25}"
                     )
 
                 logging.info("-" * 80)
@@ -259,7 +227,7 @@ class PluginsCommand(BaseCommand):
     def _handle_params(cls, args: Any) -> int:
         """Handle plugin parameter display."""
         try:
-            from ...config.config_manager_enhanced import ConfigLoader
+            from panther.config.config_manager import ConfigLoader
 
             # Initialize config loader to access plugin parameters
             config_loader = ConfigLoader(
@@ -269,7 +237,7 @@ class PluginsCommand(BaseCommand):
 
             # Set global config to avoid None errors
             if config_loader.global_config is None:
-                from ...config.core.models import GlobalConfig
+                from panther.config.core.models import GlobalConfig
 
                 config_loader.global_config = GlobalConfig()
 
@@ -281,11 +249,11 @@ class PluginsCommand(BaseCommand):
             if not plugin_type:
                 from pathlib import Path
 
-                from ...plugins.plugin_discovery import PluginDiscovery
+                from panther.plugins.core.plugin_discovery import PluginDiscovery
 
                 base_plugin_dir = Path(__file__).parent.parent.parent / "plugins"
                 discovery = PluginDiscovery([str(base_plugin_dir)])
-                plugins_dict = discovery.list_available_plugins()
+                plugins_dict = discovery.discover_plugins(force_refresh=True)
 
                 # Find plugin type by searching all plugin types
                 for p_type, plugin_names in plugins_dict.items():
@@ -293,9 +261,11 @@ class PluginsCommand(BaseCommand):
                         plugin_type = p_type
                         break
 
-                if not plugin_type:
-                    logging.info(f"❌ Plugin '{plugin_name}' not found and no type specified")
-                    return 1
+            if not plugin_type:
+                logging.error(
+                    f"❌ Plugin '{plugin_name}' not found and no type specified"
+                )
+                return 1
 
             logging.info(f"📋 Parameters for plugin: {plugin_name} ({plugin_type})")
 
@@ -316,18 +286,17 @@ class PluginsCommand(BaseCommand):
                         logging.info(f"  {param_name} ({param_type})")
                         logging.info(f"    Default: {param_default}")
                         logging.info(f"    Description: {param_desc}")
-                        logging.info()
                 else:
                     logging.info("ℹ️  No parameters found for this plugin")
 
             except Exception as e:
-                logging.info(f"❌ Error getting plugin parameters: {e}")
+                logging.error(f"❌ Error getting plugin parameters: {e}")
                 return 1
 
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error displaying plugin parameters: {e}")
+            logging.error(f"❌ Error displaying plugin parameters: {e}")
             if hasattr(args, "debug") and args.debug:
                 import traceback
 
@@ -340,7 +309,7 @@ class PluginsCommand(BaseCommand):
         try:
             from pathlib import Path
 
-            from ...plugins.plugin_discovery import PluginDiscovery
+            from panther.plugins.core.plugin_discovery import PluginDiscovery
 
             if args.directory:
                 scan_dir = args.directory
@@ -349,16 +318,18 @@ class PluginsCommand(BaseCommand):
             logging.info(f"🔍 Scanning directory: {scan_dir}")
 
             discovery = PluginDiscovery([scan_dir])
-            plugins_dict = discovery.list_available_plugins()
+            plugins_dict = discovery.discover_plugins()
 
             total_plugins = sum(len(plugins) for plugins in plugins_dict.values())
             logging.info(f"✅ Scan complete. Found {total_plugins} plugin(s):")
 
             for plugin_type, plugin_names in plugins_dict.items():
                 if plugin_names:
-                    logging.info(f"\n📦 {plugin_type.upper()} Plugins ({len(plugin_names)}):")
+                    logging.info(
+                        f"\n📦 {plugin_type.upper()} Plugins ({len(plugin_names)}):"
+                    )
                     for plugin_name in plugin_names:
-                        plugin_info = discovery.get_plugin_info(plugin_name)
+                        plugin_info: PluginMetadata = discovery.get_plugin(plugin_name)
                         version = (
                             plugin_info.get("version", "unknown")
                             if plugin_info
@@ -397,11 +368,29 @@ class PluginsCommand(BaseCommand):
                 if not config_file.exists():
                     logging.info(f"⚠️  Warning: No config schema found: {config_file}")
 
+                # Enhanced validation: syntax check
+                try:
+                    with open(plugin_file, "r") as f:
+                        import ast
+
+                        ast.parse(f.read())
+                    logging.info("✅ Plugin syntax is valid")
+                except SyntaxError as e:
+                    logging.info(f"❌ Syntax error in plugin: {e}")
+                    return 1
+
                 logging.info("✅ Plugin structure is valid")
             else:
-                logging.info("✅ Plugin file exists")
+                # For single file plugins, check syntax
+                try:
+                    with open(plugin_path, "r") as f:
+                        import ast
 
-            # TODO: Add more validation logic (syntax check, imports, etc.)
+                        ast.parse(f.read())
+                    logging.info("✅ Plugin file exists and has valid syntax")
+                except SyntaxError as e:
+                    logging.info(f"❌ Syntax error in plugin: {e}")
+                    return 1
 
             return 0
 
@@ -421,11 +410,43 @@ class PluginsCommand(BaseCommand):
 
             logging.info(f"🔍 Checking dependencies for: {plugin_path}")
 
-            # TODO: Implement dependency checking logic
-            # This would check imports, external dependencies, etc.
+            # Basic import checking
+            if plugin_path.is_file():
+                files_to_check = [plugin_path]
+            else:
+                files_to_check = list(plugin_path.glob("**/*.py"))
 
-            logging.info("✅ Dependency check not yet implemented")
-            return 0
+            missing_deps = set()
+            for py_file in files_to_check:
+                try:
+                    with open(py_file, "r") as f:
+                        import ast
+
+                        tree = ast.parse(f.read())
+
+                    for node in ast.walk(tree):
+                        if isinstance(node, ast.Import):
+                            for alias in node.names:
+                                try:
+                                    __import__(alias.name)
+                                except ImportError:
+                                    missing_deps.add(alias.name)
+                        elif isinstance(node, ast.ImportFrom) and node.module:
+                            try:
+                                __import__(node.module)
+                            except ImportError:
+                                missing_deps.add(node.module)
+                except Exception:
+                    continue
+
+            if missing_deps:
+                logging.info(
+                    f"⚠️  Missing dependencies: {', '.join(sorted(missing_deps))}"
+                )
+                return 1
+            else:
+                logging.info("✅ All dependencies are available")
+                return 0
 
         except Exception as e:
             logging.info(f"❌ Error checking dependencies: {e}")
@@ -434,25 +455,7 @@ class PluginsCommand(BaseCommand):
     @classmethod
     def _handle_migrate(cls, args: Any) -> int:
         """Handle plugin migration."""
-        try:
-            from ...tools.plugins.plugin_migration_tool import PluginMigrationTool
-
-            logging.info("🔄 Starting plugin migration...")
-
-            if args.dry_run:
-                logging.info("ℹ️  Running in dry-run mode (no changes will be made)")
-
-            # Initialize migration tool
-            migration_tool = PluginMigrationTool()
-
-            # TODO: Implement actual migration logic
-            logging.info("✅ Plugin migration not yet fully implemented")
-
-            return 0
-
-        except ImportError:
-            logging.info("❌ Plugin migration tool not available")
-            return 1
-        except Exception as e:
-            logging.info(f"❌ Error during migration: {e}")
-            return 1
+        logging.info("❌ Plugin migration feature has been removed")
+        logging.info("   This feature was incomplete and has been deprecated")
+        logging.info("   Create new plugins using 'panther create plugin' instead")
+        return 1

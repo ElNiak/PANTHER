@@ -4,15 +4,15 @@ CLI Subcommands Module
 This module contains all CLI subcommand implementations.
 """
 
-from .admin import AdminCommand
-from .check import CheckCommand
-from .config import ConfigCommand
-from .create import CreateCommand
-from .metrics import MetricsCommand
-from .plugins import PluginsCommand
-from .run import RunCommand
-from .tools import ToolsCommand
-from .tutorial import TutorialCommand
+from panther.cli.subcommands.admin import AdminCommand
+from panther.cli.subcommands.check import CheckCommand
+from panther.cli.subcommands.config import ConfigCommand
+from panther.cli.subcommands.create import CreateCommand
+from panther.cli.subcommands.metrics import MetricsCommand
+from panther.cli.subcommands.plugins import PluginsCommand
+from panther.cli.subcommands.run import RunCommand
+from panther.cli.subcommands.tools import ToolsCommand
+from panther.cli.subcommands.tutorial import TutorialCommand
 
 __all__ = [
     "RunCommand",

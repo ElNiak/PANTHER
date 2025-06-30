@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Union
-
 """
 Template Renderer Utilities
 
@@ -9,11 +7,14 @@ reducing duplication of Jinja2 template handling across service managers.
 
 import shlex
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import jinja2
 
-from panther.core.command_processor.command import ShellCommand
-from panther.core.command_processor.command_summarizer import CommandSummarizer
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from panther.core.command_processor import ShellCommand
+from panther.core.command_processor.utils.summarizer import CommandSummarizer
 from panther.core.utils.logging_mixin import LoggerMixin
 
 
@@ -166,7 +167,7 @@ class TemplateRenderer(LoggerMixin):
         params: Dict[str, Any],
         command_args: Optional[List[str]] = None,
         env_vars: Optional[Dict[str, str]] = None,
-    ) -> ShellCommand:
+    ) -> "ShellCommand":
         """
         Render a command template to a ShellCommand.
 
@@ -179,6 +180,9 @@ class TemplateRenderer(LoggerMixin):
         Returns:
             StructuredCommand object
         """
+        # Lazy import to avoid circular dependency
+        from panther.core.command_processor import ShellCommand
+
         # Build context with command args and env vars
         context = params.copy()
 
@@ -273,7 +277,6 @@ class EnvironmentTemplateRenderer(TemplateRenderer):
         self.logger.debug(
             f"Initialized EnvironmentTemplateRenderer with directory: {self.template_dir}"
         )
-        # TODO
         self.env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(self.template_dir), autoescape=True
         )
@@ -324,7 +327,7 @@ class ServiceTemplateRenderer(TemplateRenderer):
         command_args: List[str],
         env_vars: Optional[Dict[str, str]] = None,
         use_structured: bool = True,
-    ) -> ShellCommand:
+    ) -> "ShellCommand":
         """
         Render a structured command template with fallback.
 

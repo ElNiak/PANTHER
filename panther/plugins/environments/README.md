@@ -27,19 +27,19 @@ graph TB
         EE[Environment Error Event]
         ET[Environment Teardown Event]
     end
-    
+
     subgraph "Command Processing"
         CP[Command Processor]
         SC[Structured Commands]
         CV[Command Validation]
     end
-    
+
     subgraph "Monitoring Integration"
         MO[Metrics Observer]
         LO[Logger Observer]
         SO[Storage Observer]
     end
-    
+
     ES --> CP
     EC --> CP
     CP --> SC
@@ -58,7 +58,7 @@ Environment plugins now use the Command Processor for structured command generat
 
 ```python
 # Modern environment command generation
-from panther.core.command_processor.command import ShellCommand
+from panther.core.command_processor import ShellCommand
 from panther.core.events.environment.events import EnvironmentSetupEvent
 
 class ModernEnvironmentPlugin(EnvironmentInterface):
@@ -68,7 +68,7 @@ class ModernEnvironmentPlugin(EnvironmentInterface):
             environment_name=self.get_name(),
             setup_type="container_deployment"
         ))
-        
+
         # Generate structured commands through Command Processor
         setup_commands = [
             ShellCommand(
@@ -78,11 +78,11 @@ class ModernEnvironmentPlugin(EnvironmentInterface):
                 timeout=300
             )
         ]
-        
+
         # Execute through command processor with validation
         for cmd in setup_commands:
             result = self.command_processor.execute(cmd)
-            
+
             # Emit command execution event
             self.emit_event(CommandExecutionEvent(
                 command=cmd.to_string(),
@@ -265,31 +265,31 @@ class ModernEnvironmentPlugin(EnvironmentInterface):
     def start_monitoring(self, target_process):
         # Start metrics collection
         self.metrics_collector.start_collection()
-        
+
         # Emit monitoring start event
         self.emit_event(MonitoringStartEvent(
             environment_name=self.get_name(),
             target_process=target_process,
             monitoring_type="execution_profiling"
         ))
-        
+
         # Configure real-time metrics
         self.setup_real_time_metrics([
-            "cpu_usage", "memory_usage", "network_io", 
+            "cpu_usage", "memory_usage", "network_io",
             "disk_io", "process_stats"
         ])
-    
+
     def get_monitoring_data(self):
         # Collect metrics through observer pattern
         metrics_data = self.metrics_collector.collect_all()
-        
+
         # Emit metrics collection event
         self.emit_event(MetricsCollectionEvent(
             environment_name=self.get_name(),
             metrics_count=len(metrics_data),
             collection_timestamp=datetime.now()
         ))
-        
+
         return metrics_data
 ```
 
@@ -308,10 +308,10 @@ class NetworkEnvironmentPlugin(EnvironmentInterface):
                 environment_name=self.get_name(),
                 deployment_type="container"
             ))
-            
+
             # Wait for service readiness through event listening
             self.wait_for_service_ready(service_config["name"])
-            
+
             # Emit service ready confirmation
             self.emit_event(ServiceReadyEvent(
                 service_name=service_config["name"],
@@ -334,16 +334,16 @@ Network environments now use a unified Docker mixin pattern for managing Docker 
 
 ```python
 # Modern environment Docker operations
-from panther.core.docker_builder.environment_manager_docker_mixing import EnvironmentManagerDockerMixin
+from panther.core.docker_builder.plugin_mixin.environment_manager_docker_mixing import EnvironmentManagerDockerMixin
 
 class NetworkEnvironment(BaseNetworkEnvironment, EnvironmentManagerDockerMixin):
     def generate_environment_services(self, paths, timestamp):
         # Build base service image
         base_image_tag = self.build_base_service_image(self.plugin_manager)
-        
+
         # Ensure service images are available
         service_images = self.ensure_service_images_available(self.services_managers)
-        
+
         # Generate environment-specific files with proper base image
         self.generate_from_template(
             template_name="Dockerfile.jinja",
@@ -352,9 +352,9 @@ class NetworkEnvironment(BaseNetworkEnvironment, EnvironmentManagerDockerMixin):
                 "service_images": service_images,
             }
         )
-        
+
         # Build final environment image
-        if self.global_config.docker.build_docker_image:
+        if self.global_config.docker.force_build_docker_image:
             self.build_environment_image(
                 dockerfile_path=self.rendered_dockerfile_path,
                 image_name=f"{self.env_name}:latest"
@@ -369,21 +369,21 @@ sequenceDiagram
     participant ENV as Environment Plugin
     participant CP as Command Processor
     participant OBS as Observers
-    
+
     EM->>ENV: setup_environment(config)
     ENV->>OBS: EnvironmentSetupEvent
     ENV->>CP: Generate setup commands
     CP->>ENV: Validated commands
     ENV->>OBS: CommandExecutionEvent
-    
+
     EM->>ENV: start_monitoring(target)
     ENV->>OBS: MonitoringStartEvent
-    
+
     loop During Execution
         ENV->>OBS: MetricsUpdateEvent
         ENV->>OBS: ServiceStatusEvent
     end
-    
+
     EM->>ENV: teardown_environment()
     ENV->>OBS: EnvironmentTeardownEvent
     ENV->>OBS: CleanupCompleteEvent

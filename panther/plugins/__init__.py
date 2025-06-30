@@ -10,11 +10,8 @@ __all__ = [
     "plugin_loader_utils",
 ]
 
-# Import protocol plugins to ensure they're registered
-try:
-    from .protocols.client_server.quic.quic_protocol import QUICProtocol
-except ImportError:
-    pass  # Protocol plugins are optional
+# Protocol plugins are auto-discovered through the plugin system
+# No need for explicit imports here
 
 
 def __getattr__(name):  # pylint: disable=invalid-name
@@ -28,10 +25,14 @@ def __getattr__(name):  # pylint: disable=invalid-name
 
         return plugin_manager
     elif name == "plugin_creator":
-        from ..tools.plugins import (  # pylint: disable=import-outside-toplevel
-            plugin_creator,
-        )
+        try:
+            from ..tools.plugins import (  # pylint: disable=import-outside-toplevel
+                plugin_creator,
+            )
 
-        return plugin_creator
+            return plugin_creator
+        except ImportError:
+            # Fallback if tools.plugins doesn't exist or doesn't have plugin_creator
+            raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
     else:
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

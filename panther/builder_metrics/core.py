@@ -1,5 +1,7 @@
 """Core metrics collection and management."""
 
+
+import contextlib
 import hashlib
 import json
 import subprocess
@@ -74,7 +76,7 @@ class MetricsCollector:
 
             # Add extra metadata
             if extra:
-                record_data.update(extra)
+                record_data |= extra
 
             # Store the record
             self.storage.write_record(record_data)
@@ -87,7 +89,7 @@ class MetricsCollector:
 
     def _get_git_commit(self) -> Optional[str]:
         """Get the current git commit hash."""
-        try:
+        with contextlib.suppress(subprocess.TimeoutExpired, FileNotFoundError):
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
                 capture_output=True,
@@ -97,8 +99,6 @@ class MetricsCollector:
             )
             if result.returncode == 0:
                 return result.stdout.strip()
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
         return None
 
     def get_config_hash(self, config_data: Union[str, Dict[str, Any]]) -> str:

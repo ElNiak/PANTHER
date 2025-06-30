@@ -4,11 +4,11 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol
 
-from panther.core.command_processor.command_utils import CommandUtils
+from panther.core.utils.string_representation_mixin import StringRepresentationMixin
 from panther.plugins.services.services_interface import IServiceManager
 
 
-class BaseMinipServiceManager(IServiceManager, ABC):
+class BaseMinipServiceManager(IServiceManager, StringRepresentationMixin, ABC):
     """
     Base class for MINIP protocol implementations.
 
@@ -294,17 +294,3 @@ class BaseMinipServiceManager(IServiceManager, ABC):
         # Basic MINIP overhead calculation - can be overridden
         header_size = 16  # Basic header
         return header_size
-
-    def __str__(self) -> str:
-        """String representation of the service manager."""
-        return f"{self.__class__.__name__}(implementation={self._get_implementation_name()})"
-
-    def __repr__(self) -> str:
-        """Developer representation of the service manager."""
-        return (
-            f"{self.__class__.__name__}("
-            f"implementation={self._get_implementation_name()}, "
-            f"service_type={self.service_type}, "
-            f"protocol={getattr(self.protocol, 'name', 'unknown') if self.protocol else 'none'}"
-            f")"
-        )

@@ -99,7 +99,7 @@ createApp({
                         "plugin_dir": "plugins"
                     },
                     "docker": {
-                        "build_docker_image": true
+                        "force_build_docker_image": true
                     },
                     "features": {
                         "logger_observer": true,

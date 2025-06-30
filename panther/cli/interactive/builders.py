@@ -49,7 +49,9 @@ class BaseBuilder:
                     elif not required:
                         return None
                     else:
-                        logging.info("❌ This field is required. Please provide a value.")
+                        logging.info(
+                            "❌ This field is required. Please provide a value."
+                        )
                         continue
 
                 if choices:
@@ -208,7 +210,7 @@ class GlobalConfigBuilder(BaseBuilder):
         logging.info("\n🐳 Docker Configuration")
 
         docker = {
-            "build_docker_image": self.prompt_bool(
+            "force_build_docker_image": self.prompt_bool(
                 "Build Docker images? (required for first run)", True
             )
         }
@@ -225,7 +227,11 @@ class GlobalConfigBuilder(BaseBuilder):
 
 
 class TestConfigBuilder(BaseBuilder):
-    """Builds individual test configurations."""
+    """
+    Builds individual test configurations.
+    TODO: make this class not hardcoded, but rather discover available plugins dynamically.
+    This allows users to select from available plugins for network environments, execution environments, IUTs
+    """
 
     def __init__(self, test_number: int, quick_mode: bool = False):
         super().__init__(quick_mode)

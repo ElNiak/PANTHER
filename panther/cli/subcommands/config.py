@@ -2,14 +2,12 @@
 Config Command - Configuration management and validation
 """
 
-import json
 import logging
-import sys
 from argparse import ArgumentParser, _SubParsersAction
 from pathlib import Path
 from typing import Any
 
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand
 
 
 class ConfigCommand(BaseCommand):
@@ -137,8 +135,8 @@ class ConfigCommand(BaseCommand):
             import yaml
             from omegaconf import OmegaConf
 
-            from ...config.config_manager_enhanced import ConfigLoader
-            from ...core.utils.logger_factory import LoggerFactory
+            from panther.config import ConfigurationManager
+            from panther.core.utils.logger_factory import LoggerFactory
 
             config_path = Path(args.config)
             if not config_path.exists():
@@ -172,7 +170,7 @@ class ConfigCommand(BaseCommand):
 
             # Schema validation using ConfigLoader
             try:
-                config_loader = ConfigLoader(
+                config_loader = ConfigurationManager(
                     experiment_file=str(config_path),
                     debug_override=hasattr(args, "debug") and args.debug,
                 )
@@ -202,7 +200,9 @@ class ConfigCommand(BaseCommand):
 
                 # Enhanced error explanation if requested
                 if hasattr(args, "explain") and args.explain:
-                    from ...cli.interactive.validation_helper import ValidationHelper
+                    from panther.cli.interactive.validation_helper import (
+                        ValidationHelper,
+                    )
 
                     logging.info("\n" + ValidationHelper.explain_validation_error(e))
 
@@ -221,7 +221,7 @@ class ConfigCommand(BaseCommand):
 
             # Additional validation with explanation if requested
             if hasattr(args, "explain") and args.explain:
-                from ...cli.interactive.validation_helper import ValidationHelper
+                from panther.cli.interactive.validation_helper import ValidationHelper
 
                 valid, explanations = ValidationHelper.validate_with_explanation(
                     config_path
@@ -245,7 +245,7 @@ class ConfigCommand(BaseCommand):
     def _handle_schema(cls, args: Any) -> int:
         """Handle schema display."""
         try:
-            from ...config.core.models import ExperimentConfig, GlobalConfig
+            from panther.config.core.models import ExperimentConfig, GlobalConfig
 
             logging.info("📖 PANTHER Configuration Schema")
             logging.info("=" * 40)
@@ -257,7 +257,7 @@ Main Configuration Sections:
   - logging: Logging configuration (level, format, etc.)
   - observers: Observer configurations (logger, metrics, storage, etc.)
   - paths: Directory paths (output_dir, log_dir, plugin_dir)
-  - docker: Docker configuration (build_docker_image, etc.)
+  - docker: Docker configuration (force_build_docker_image, etc.)
   - tests: List of test configurations
 
 Test Configuration:
@@ -344,7 +344,7 @@ paths:
   output_dir: "outputs"
 
 docker:
-  build_docker_image: false
+  force_build_docker_image: false
 
 tests:
   - name: "Basic Test"
@@ -407,7 +407,7 @@ paths:
   plugin_dir: "panther/plugins"
 
 docker:
-  build_docker_image: false
+  force_build_docker_image: false
 
 tests:
   - name: "QUIC Basic Test"
@@ -482,7 +482,7 @@ paths:
   plugin_dir: "panther/plugins"
 
 docker:
-  build_docker_image: true
+  force_build_docker_image: true
 
 tests:
   - name: "QUIC Multi-Implementation Test"
@@ -545,7 +545,7 @@ paths:
   output_dir: "outputs"
 
 docker:
-  build_docker_image: false
+  force_build_docker_image: false
 
 tests:
   - name: "QUIC Performance Test"
@@ -605,7 +605,7 @@ paths:
   output_dir: "outputs"
 
 docker:
-  build_docker_image: true
+  force_build_docker_image: true
 
 tests:
   - name: "QUIC Security Test with Ivy"
@@ -649,7 +649,7 @@ tests:
     def _handle_design(cls, args: Any) -> int:
         """Handle interactive configuration design."""
         try:
-            from ...cli.interactive.experiment_designer import ExperimentDesigner
+            from panther.cli.interactive.experiment_designer import ExperimentDesigner
 
             designer = ExperimentDesigner(
                 output_path=args.output,

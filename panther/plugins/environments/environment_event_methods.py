@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 """
 Methods for IEnvironmentPlugin to emit standardized events.
@@ -13,7 +13,9 @@ class EnvironmentPluginEventMixin:
     This class extends IEnvironmentPlugin with helper methods to emit standard events.
     """
 
-    def notify_environment_setup_started(self, details: Dict[str, Any] = None):
+    def notify_environment_setup_started(
+        self, details: Optional[Dict[str, Any]] = None
+    ):
         """
         Notify that environment setup has started using the event emitter.
 
@@ -35,7 +37,7 @@ class EnvironmentPluginEventMixin:
                 setup_config=details,
             )
 
-    def notify_environment_initialized(self, details: Dict[str, Any] = None):
+    def notify_environment_initialized(self, details: Optional[Dict[str, Any]] = None):
         """
         Notify that environment has been initialized using the event emitter.
 
@@ -184,7 +186,9 @@ class EnvironmentPluginEventMixin:
                 error_details=details,
             )
 
-    def notify_environment_event(self, event_name: str, details: Dict[str, Any] = None):
+    def notify_environment_event(
+        self, event_name: str, details: Optional[Dict[str, Any]] = None
+    ):
         """
         Notify of a generic environment event.
 

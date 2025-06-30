@@ -1,6 +1,8 @@
 from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader
-from panther.core.command_processor.command import ShellCommand
+
+from panther.core.command_processor import ShellCommand
 
 # Load the templates
 templates_dir = Path(
@@ -18,7 +20,9 @@ commands = {
             description="Configure PS4 variable for enhanced debug output",
         ),
         ShellCommand(command="export SHELLOPTS", description="Export shell options"),
-        ShellCommand(command="export PATH=$PATH:$ADDITIONAL_PATH;", description="Set PATH"),
+        ShellCommand(
+            command="export PATH=$PATH:$ADDITIONAL_PATH;", description="Set PATH"
+        ),
         ShellCommand(
             command="export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
             description="Set PYTHONPATH",
@@ -43,7 +47,8 @@ structured_commands = {
 # Try both templates
 template = env.get_template("entrypoint.sh.jinja")
 result = template.render(
-    structured_commands=structured_commands, additional_param={"service_name": "test_service", "environments": {}}
+    structured_commands=structured_commands,
+    additional_param={"service_name": "test_service", "environments": {}},
 )
 
 with open("/tmp/test_entrypoint.sh", "w") as f:

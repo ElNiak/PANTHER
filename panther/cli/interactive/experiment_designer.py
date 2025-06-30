@@ -10,8 +10,8 @@ from typing import Optional
 
 import yaml
 
-from .builders import GlobalConfigBuilder, TestConfigBuilder
-from .validation_helper import ValidationHelper
+from panther.cli.interactive.builders import GlobalConfigBuilder, TestConfigBuilder
+from panther.cli.interactive.validation_helper import ValidationHelper
 
 
 class ExperimentDesigner:
@@ -81,7 +81,9 @@ class ExperimentDesigner:
         if self.quick_mode:
             logging.info("\n🚀 Quick Mode: Using sensible defaults where possible")
         else:
-            logging.info("\n📋 Full Mode: Complete control over all configuration options")
+            logging.info(
+                "\n📋 Full Mode: Complete control over all configuration options"
+            )
 
         logging.info("\n💡 Design Tips:")
         logging.info("  • Start simple - you can always add complexity later")
@@ -231,7 +233,9 @@ class ExperimentDesigner:
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(self.config["tests"]):
-                logging.info(f"\n✏️  Modifying test: {self.config['tests'][idx].get('name')}")
+                logging.info(
+                    f"\n✏️  Modifying test: {self.config['tests'][idx].get('name')}"
+                )
                 logging.info("(Note: This will replace the entire test configuration)")
 
                 if self._prompt_bool("Continue?", True):
@@ -280,7 +284,7 @@ class ExperimentDesigner:
             logging.info(f"Logging: {self.config['logging'].get('level', 'INFO')}")
 
         if "docker" in self.config:
-            build_images = self.config["docker"].get("build_docker_image", False)
+            build_images = self.config["docker"].get("force_build_docker_image", False)
             logging.info(f"Docker: Build images = {build_images}")
 
         # Tests
@@ -360,7 +364,9 @@ class ExperimentDesigner:
                         new_path = self.output_path.parent / f"{base}_{counter}{ext}"
                         if not new_path.exists():
                             self.output_path = new_path
-                            logging.info(f"📝 Using alternative name: {self.output_path}")
+                            logging.info(
+                                f"📝 Using alternative name: {self.output_path}"
+                            )
                             break
                         counter += 1
 

@@ -1,35 +1,41 @@
 import logging
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from omegaconf import OmegaConf
+from pydantic import Field
 
 from panther.config.core.models import (
-    ImplementationConfig,
     ImplementationType,
+    ServicePluginConfig,
     VersionBase,
 )
 
 
-@dataclass
 class PingPongVersion(VersionBase):
-    version: str = ""
-    commit: str = ""
-    dependencies: List[Dict[str, str]] = field(default_factory=list)
-    client: Optional[dict] = field(default_factory=dict)
-    server: Optional[dict] = field(default_factory=dict)
+    version: str = Field(default="")
+    commit: str = Field(default="")
+    dependencies: List[Dict[str, str]] = Field(default_factory=list)
+    client: Optional[dict] = Field(default_factory=dict)
+    server: Optional[dict] = Field(default_factory=dict)
 
 
-@dataclass
-class PingPongConfig(ImplementationConfig):
-    name: str = "ping-pong"  # Implementation name
-    type: ImplementationType = field(default_factory=lambda: ImplementationType.IUT)  # Default type for
-    shadow_compatible: bool = field(default=True)
-    # These field must not be included in the experiment configuration file
-    version: PingPongVersion = field(
-        default_factory=lambda: PingPongConfig.load_versions_from_files()
+class PingPongConfig(ServicePluginConfig):
+    """Configuration for ping-pong minimal protocol implementation."""
+
+    name: str = Field(default="ping-pong", description="Implementation name")
+    type: ImplementationType = Field(
+        default=ImplementationType.IUT, description="Implementation type"
+    )
+    shadow_compatible: bool = Field(
+        default=True, description="Whether compatible with Shadow network simulator"
+    )
+
+    # Version configuration loaded dynamically from YAML files
+    version: PingPongVersion = Field(
+        default_factory=lambda: PingPongConfig.load_versions_from_files(),
+        description="Version configuration",
     )
 
     @staticmethod
@@ -45,8 +51,17 @@ class PingPongConfig(ImplementationConfig):
                 logging.debug(
                     f"Loaded raw PingPong version config: {raw_version_config}"
                 )
-                version_config = OmegaConf.to_object(
-                    OmegaConf.merge(PingPongVersion, raw_version_config)
-                )
+                # Create default instance and merge with loaded config
+                default_version = PingPongVersion()
+                try:
+                    # Pydantic v2
+                    default_dict = default_version.model_dump()
+                except AttributeError:
+                    # Pydantic v1
+                    default_dict = default_version.dict()
+
+                merged_config = OmegaConf.merge(default_dict, raw_version_config)
+                version_dict = OmegaConf.to_container(merged_config)
+                version_config = PingPongVersion(**version_dict)
                 logging.debug(f"Loaded Picoquic version {version_config}")
                 return version_config

@@ -1,0 +1,187 @@
+logging:
+  level: DEBUG
+  format: "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+  enable_colors: true
+
+  # Feature-specific log levels - set all to DEBUG to match global level
+  feature_levels:
+    # Core Components
+    command_generation: DEBUG
+    template_rendering: DEBUG
+    docker_operations: DEBUG  # This was causing INFO logs to show
+    config_processing: DEBUG
+    event_system: DEBUG
+    file_operations: DEBUG
+
+    # Service Management
+    service_managers: DEBUG
+    ivy_operations: DEBUG
+    minip_services: DEBUG
+    plugin_loading: DEBUG
+    service_coordination: DEBUG
+
+    # Environment Management
+    network_environments: DEBUG
+    execution_environments: DEBUG
+    docker_compose: DEBUG
+    shadow_ns: DEBUG
+    localhost_container: DEBUG
+
+    # Event System
+    event_emission: DEBUG
+    event_processing: DEBUG
+    state_management: DEBUG
+    observer_operations: DEBUG
+
+    # Protocol Operations
+    certificate_management: DEBUG
+    network_setup: DEBUG
+    port_management: DEBUG
+    protocol_communication: DEBUG
+
+    # Data and Metrics
+    metrics_collection: DEBUG
+    data_storage: DEBUG
+    result_processing: DEBUG
+    output_aggregation: DEBUG
+
+    # Development and Debugging
+    test_execution: DEBUG
+    experiment_workflow: DEBUG
+    validation_checks: DEBUG
+    error_handling: DEBUG
+
+progress:
+  enable_progress_bar: true
+  show_test_status: true
+  show_docker_events: true
+  use_emojis: true
+  redirect_logging: true  # Set to false to preserve colored logging
+
+observers:
+  logger:
+    enabled: true
+    log_level: "DEBUG"
+    enable_colors: true
+    correlation_tracking: true
+
+  metrics:
+    enabled: true
+    collect_system_metrics: true
+    log_level: "DEBUG"
+    publish_interval: 30
+
+  storage:
+    enabled: true
+    storage_path: "outputs/storage"
+    enable_compression: true
+    log_level: "DEBUG"
+    retention_days: 30
+
+  experiment:
+    enabled: true
+    auto_register: true
+    priority: 115
+    log_level: "DEBUG"
+    track_timing: true
+    track_steps: true
+
+paths:
+  output_dir: "outputs"
+  log_dir: "outputs/logs"
+  config_dir: "panther/configs"
+  plugin_dir: "panther/plugins"
+
+docker:
+  force_build_docker_image: true
+
+tests:
+  - name: "minip Client-Server Communication Test"
+    description: "Verify that the ping_pong client can communicate with the Ivy server over docker-compose network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    execution_environment:
+      - type: "strace"
+    debug_environment: [ ]
+    services:
+      ping_pong_client:
+        timeout: 100
+        name: "ping_pong_client"  # Added 'name' key
+        implementation:
+          name: "ping_pong"
+          type: "IUT"
+          # swag: swag # Invalid key
+        protocol:
+          name: "minip"
+          role: "client"
+          target: "ivy_server"  # Docker Compose service name
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "5001:5000"  # Client external:internal port
+          - "8082:8081"  # Client health check port
+        generate_new_certificates: True
+
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 100
+        implementation:
+          type: "TESTERS"
+          name: "panther_ivy"
+          test: ping_pong_client_test_max
+        protocol:
+          name: "minip"
+          role: "server"
+        ports:
+          - "4443:4443"
+          - "4987:4987"  #
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 100  # seconds to wait during the test
+
+  - name: "minip Server-Client Communication Test"
+    description: "Verify that the ping_pong server can communicate with the Ivy client over Shadow network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    execution_environment: []
+    debug_environment: [ ]
+    services:
+      ping_pong_server:
+        timeout: 100
+        name: "ping_pong_server"  # Added 'name' key
+        implementation:
+          name: "ping_pong"
+          type: "IUT"
+          # swag: swag # Invalid key
+        protocol:
+          name: "minip"
+          role: "server"
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "6443:4443"  # minip server port (external:internal)
+          - "6987:4987"  # Additional minip port
+          - "6080:8080"  # Health check endpoint
+          - "6000:5000"  # Additional server port
+          - "6081:8081"  # Server management port
+        generate_new_certificates: True
+
+      ivy_client:
+        name: "ivy_client"  # Added 'name' key
+        timeout: 100
+        implementation:
+          type: "TESTERS"
+          name: "panther_ivy"
+          test: minip_client_test_max
+        protocol:
+          name: "minip"
+          role: "client"
+          target: "ping_pong_server"  # Docker Compose service name
+        ports:
+          - "7443:4443"  # Client minip port (external:internal)
+          - "7987:4987"  # Additional client port
+          - "7080:8080"  # Client health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 100  # seconds to wait during the test

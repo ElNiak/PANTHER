@@ -2,19 +2,27 @@ import inspect
 from typing import Any, Dict, Optional
 
 from panther.plugins.services.service_manager_mixin import ServiceManagerMixin
+from panther.plugins.services.testers.tester_interface import ITesterManager
 
 
-class TesterServiceManagerMixin(ServiceManagerMixin):
+class TesterServiceManagerMixin(ServiceManagerMixin, ITesterManager):
     """
     Specialized mixin for tester service managers.
     Provides tester-specific patterns and utilities.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, global_config=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self._test_parameters = {}
 
-    def setup_tester_specific_attributes(self, service_config_to_test: Any) -> None:
+        # Store global configuration
+        self.global_config = global_config
+        self._test_parameters = {}
+        self._role = None
+        self._protocol_version = None
+
+    def setup_tester_specific_attributes(
+        self, protocol: Any, service_config_to_test: Any
+    ) -> None:
         """
         Set up tester-specific attributes.
 
@@ -22,15 +30,31 @@ class TesterServiceManagerMixin(ServiceManagerMixin):
             service_config_to_test: Service configuration
         """
         # Extract test parameters if available
+        if hasattr(service_config_to_test, "protocol") and hasattr(
+            service_config_to_test.protocol, "role"
+        ):
+            self._role = service_config_to_test.protocol.role
+        elif hasattr(protocol, "role"):
+            self._role = protocol.role
+        else:
+            self._role = "client"  # Default role
+
         if hasattr(service_config_to_test, "test_parameters"):
             self._test_parameters = service_config_to_test.test_parameters
         elif hasattr(service_config_to_test, "implementation"):
             # Check if the implementation is a dict with 'test' key
-            if isinstance(service_config_to_test.implementation, dict) and "test" in service_config_to_test.implementation:
-                self._test_parameters = {"test": service_config_to_test.implementation["test"]}
+            if (
+                isinstance(service_config_to_test.implementation, dict)
+                and "test" in service_config_to_test.implementation
+            ):
+                self._test_parameters = {
+                    "test": service_config_to_test.implementation["test"]
+                }
             # Check if implementation has test attribute
             elif hasattr(service_config_to_test.implementation, "test"):
-                self._test_parameters = {"test": service_config_to_test.implementation.test}
+                self._test_parameters = {
+                    "test": service_config_to_test.implementation.test
+                }
             # Check if service_config has test attribute directly
             elif hasattr(service_config_to_test, "test"):
                 self._test_parameters = {"test": service_config_to_test.test}
@@ -83,6 +107,7 @@ class TesterServiceManagerMixin(ServiceManagerMixin):
             self, "service_config_to_test", None
         )
         service_type = service_type or getattr(self, "service_type", None)
+        # TODO check if tester
         protocol = protocol or getattr(self, "service_protocol", None)
         implementation_name = implementation_name or getattr(
             self, "implementation_name", None
@@ -102,7 +127,7 @@ class TesterServiceManagerMixin(ServiceManagerMixin):
         )
 
         # Step 2: Set up tester-specific attributes
-        self.setup_tester_specific_attributes(service_config_to_test)
+        self.setup_tester_specific_attributes(protocol, service_config_to_test)
 
         # Step 3: Initialize template renderer (hook method for customization)
         self._setup_template_renderer(include_protocol_in_template, protocol)
@@ -169,20 +194,27 @@ class TesterServiceManagerMixin(ServiceManagerMixin):
             include_protocol_in_template: Whether to include protocol in template setup
             protocol: Protocol configuration
         """
-        from panther.core.utils import ServiceTemplateRenderer
+        from panther.core.template.template_renderer import ServiceTemplateRenderer
 
         plugin_dir = self._plugin_dir or self._get_plugin_dir()
 
+        self.logger.debug(
+            "Setting up template renderer with plugin_dir: %s, include_protocol_in_template: %s, protocol: %s",
+            plugin_dir,
+            include_protocol_in_template,
+            protocol,
+        )
+
         if include_protocol_in_template and protocol:
-            protocol_name = getattr(protocol, "name", None)
+            protocol_name = protocol.name
             if protocol_name:
                 self.template_renderer = ServiceTemplateRenderer(
                     plugin_dir, protocol_name
                 )
-            else:
-                self.template_renderer = ServiceTemplateRenderer(plugin_dir)
         else:
-            self.template_renderer = ServiceTemplateRenderer(plugin_dir)
+            raise ValueError(
+                "Protocol name not found in the provided protocol configuration."
+            )
 
     def _setup_docker_attributes(self) -> None:
         """

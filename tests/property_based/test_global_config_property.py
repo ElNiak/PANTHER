@@ -1,21 +1,28 @@
-from hypothesis import given, strategies as st
-from panther.config.config_global_schema import (
-    GlobalConfig,
-    LoggingConfig,
-    PathsConfig,
+from hypothesis import given
+from hypothesis import strategies as st
+
+from panther.config.core.models.global_config import (
     AdditionalPathsConfig,
     DockerConfig,
     FeatureConfig,
+    GlobalConfig,
+    LoggingConfig,
     LoggingLevel,
+    PathsConfig,
 )
 
 
 def test_default_global_config():
     config = GlobalConfig()
     assert config.logging.level == LoggingLevel.DEBUG
-    assert config.logging.format == "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+    assert (
+        config.logging.format
+        == "%(asctime)s [%(levelname)s] - %(module)s - %(message)s"
+    )
     assert config.paths.output_dir == "panther/outputs"
-    assert config.paths.log_dir == "panther/outputs"  # Fixed: actual default is "panther/outputs"
+    assert (
+        config.paths.log_dir == "panther/outputs"
+    )  # Fixed: actual default is "panther/outputs"
     assert config.paths.config_dir == "panther/configs"
     assert config.paths.plugin_dir == "panther/plugins"
     assert config.paths.services_dir == "services"

@@ -7,37 +7,34 @@ from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
-from urllib.parse import urljoin
-
-import requests
-from colorlog import ColoredFormatter
 
 from panther.config.core.models import GlobalConfig, TestConfig
 from panther.core.events.emitter_registry import EmitterRegistry
-from panther.core.exceptions.fast_fail import FastFailHandler, TimeoutCascadeException
-from panther.core.observer.management.event_manager import EventManager
 from panther.core.results.result_collector import ResultCollector
 from panther.core.results.result_handlers.storage_handler import StorageHandler
-from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.core.test_cases.base.test_case_base import TestCaseBase
-from panther.core.test_cases.mixins.service_management import ServiceManagementMixin
-from panther.core.test_cases.mixins.environment_management import EnvironmentManagementMixin
-from panther.core.test_cases.mixins.test_execution import TestExecutionMixin
+from panther.core.test_cases.mixins.environment_management import (
+    EnvironmentManagementMixin,
+)
 from panther.core.test_cases.mixins.metrics import MetricsMixin
 from panther.core.test_cases.mixins.observer_management import ObserverManagementMixin
-from panther.plugins.environments.environment_interface import IEnvironmentPlugin
-from panther.plugins.environments.network_environment.network_environment_interface import (
-    INetworkEnvironment,
-)
+from panther.core.test_cases.mixins.service_management import ServiceManagementMixin
+from panther.core.test_cases.mixins.test_execution import TestExecutionMixin
+from panther.core.test_cases.test_interface_impl import ITestCase
 from panther.plugins.plugin_manager import PluginManager
-from panther.config.core.models.service import ImplementationType
-from panther.plugins.services.services_interface import IServiceManager
 
 
-class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin, TestExecutionMixin, MetricsMixin, ObserverManagementMixin):
+class TestCase(
+    TestCaseBase,
+    ServiceManagementMixin,
+    EnvironmentManagementMixin,
+    TestExecutionMixin,
+    MetricsMixin,
+    ObserverManagementMixin,
+):
     """
     TestCase class represents a test case that is configured and executed based on the provided configurations.
-    
+
     This class combines functionality from multiple base classes and mixins:
     - TestCaseBase: Core initialization and configuration
     - ServiceManagementMixin: Service setup, preparation, and teardown
@@ -67,17 +64,17 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
         - setup_implementations(): Sets up the implementations based on the test configuration.
         - prepare_services(): Prepares services (builds Docker images).
         - teardown_services(): Stops all services managed by the service managers.
-        
+
         From EnvironmentManagementMixin:
         - setup_environment(): Sets up the test environment using the plugin.
         - teardown_environment(): Tears down the test environment using the plugin.
         - deploy_services(): Deploys services through environment managers.
-        
+
         From TestExecutionMixin:
         - execute_steps(): Executes the defined steps of a test.
         - validate_assertions(): Validates assertions defined in the test configuration.
         - check_service_responsiveness(): Checks if a service's endpoint is responsive.
-        
+
         From TestCaseBase:
         - _setup_observers(): Registers default observers to listen to events.
         - get_experiment_observer(): Gets the experiment observer instance.
@@ -102,16 +99,16 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
         self._output_analyzer = None
         self._operation_timers = {}
         self.registered_observers = []
-        
+
         # Call parent class which handles most initialization
         super().__init__(
-            test_config, 
+            test_config,
             global_config,
             plugin_manager,
             experiment_dir,
             metrics_collector,
             emitter_registry,
-            workflow_tracker
+            workflow_tracker,
         )
 
         # Timeout cascade detection
@@ -155,9 +152,9 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
 
         self._panther_dir = Path(os.path.dirname(__file__)).parent.parent.parent
 
-        self.state: Literal["PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"] = (
-            "PENDING"
-        )
+        self.state: Literal[
+            "PENDING", "RUNNING", "COLLECTING", "DONE", "ERROR"
+        ] = "PENDING"
 
         # Initialize mixin compatibility
         self.initialize_mixin_compatibility()
@@ -187,7 +184,10 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
         """Deploy services through environment managers."""
         # This method is provided by EnvironmentManagementMixin
         # Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
-        from panther.core.test_cases.mixins.environment_management import EnvironmentManagementMixin
+        from panther.core.test_cases.mixins.environment_management import (
+            EnvironmentManagementMixin,
+        )
+
         return EnvironmentManagementMixin.deploy_services(self)
 
     def execute_steps(self):
@@ -195,6 +195,7 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
         # This method is provided by TestExecutionMixin
         # Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
         from panther.core.test_cases.mixins.test_execution import TestExecutionMixin
+
         return TestExecutionMixin.execute_steps(self)
 
     def validate_assertions(self):
@@ -202,168 +203,84 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
         # This method is provided by TestExecutionMixin
         # Call the mixin method directly instead of super() to avoid calling ITestCase's NotImplementedError
         from panther.core.test_cases.mixins.test_execution import TestExecutionMixin
+
         return TestExecutionMixin.validate_assertions(self)
 
-    def _create_service_manager(
-        self, service_name: str, service_details: Any
-    ) -> Optional[IServiceManager]:
-        """Create a service manager for the given service configuration."""
-        implementation = service_details.implementation
-        impl_name = implementation.name
-        impl_type = implementation.type
-        protocol = service_details.protocol
-        protocol_name = protocol.name
+    # def get_service_names_and_metadata(self):
+    #     """Get service names and metadata for deployment events."""
+    #     service_names = []
+    #     service_metadata = []
 
-        self.logger.debug(
-            f"Creating service manager for {service_name}: "
-            f"impl={impl_name}, type={impl_type}, protocol={protocol_name}"
-        )
+    #     for s in self.service_managers:
+    #         # Get service name
+    #         service_name = (
+    #             s.service_name
+    #             if hasattr(s, "service_name")
+    #             else s.get_implementation_name()
+    #         )
+    #         service_names.append(service_name)
 
-        try:
-            # Get the implementation directory from plugin catalog
-            # Handle both enum and string types
-            if hasattr(impl_type, 'value'):
-                type_str = impl_type.value
-            else:
-                type_str = str(impl_type).lower()
-            
-            # Map TESTERS to tester for plugin catalog lookup
-            if type_str == "testers":
-                type_str = "tester"
-            elif type_str == "iut":
-                type_str = "iut"  # Keep as is
-                
-            plugin_id = f"{type_str}:{impl_name}"
-            plugin_manifest = self.plugin_manager.plugin_catalog.catalog.get(plugin_id)
-            
-            if not plugin_manifest:
-                self.logger.error(f"Plugin not found in catalog: {plugin_id}")
-                return None
-                
-            implementation_dir = (
-                Path(plugin_manifest.file_path)
-                if plugin_manifest.file_path
-                else None
-            )
-            
-            if not implementation_dir:
-                self.logger.error(f"No implementation directory found for {plugin_id}")
-                return None
-            
-            self.logger.debug(f"Plugin manifest file_path: {plugin_manifest.file_path}")
-            self.logger.debug(f"Implementation dir: {implementation_dir}")
-            
-            # Use plugin manager to create service manager with correct parameters
-            service_manager = self.plugin_manager.create_service_manager(
-                protocol=protocol,
-                implementation=implementation,
-                implementation_dir=implementation_dir,
-                service_config_to_test=service_details,
-                event_manager=self.event_manager,
-                emitter_registry=self.emitter_registry,
-            )
+    #         # Build metadata for each service
+    #         # Handle both enum and string types for implementation.type
+    #         service_type = "unknown"
+    #         if hasattr(s.service_config_to_test.implementation, "type"):
+    #             impl_type = s.service_config_to_test.implementation.type
+    #             if hasattr(impl_type, "value"):
+    #                 # Enum type (old system)
+    #                 service_type = impl_type.value
+    #             else:
+    #                 # String type (new system)
+    #                 service_type = str(impl_type).lower()
 
-            if service_manager:
-                # Set service name and additional attributes
-                service_manager.service_name = service_name
-                service_manager.timeout = service_details.timeout
-                service_manager.ports = service_details.ports if hasattr(service_details, 'ports') else []
+    #         # Handle both enum and string types for protocol.role
+    #         protocol_role = "unknown"
+    #         if (hasattr(s.service_config_to_test, "protocol") and
+    #             hasattr(s.service_config_to_test.protocol, "role")):
+    #             role = s.service_config_to_test.protocol.role
+    #             if hasattr(role, "value"):
+    #                 # Enum type (old system)
+    #                 protocol_role = role.value
+    #             else:
+    #                 # String type (new system)
+    #                 protocol_role = str(role).lower()
 
-                # Set protocol details
-                service_manager.protocol_name = protocol_name
-                service_manager.protocol_role = protocol.role
-                service_manager.protocol_target = getattr(protocol, 'target', None)
-                
-                # Set test context if the service manager supports it
-                if hasattr(service_manager, "set_test_context"):
-                    service_manager.set_test_context(self.test_name)
+    #         metadata = {
+    #             "service_type": service_type,
+    #             "implementation": (
+    #                 s.get_implementation_name()
+    #                 if hasattr(s, "get_implementation_name")
+    #                 else s.service_config_to_test.implementation.name
+    #             ),
+    #             "config": {
+    #                 "test_case": self.test_name,
+    #                 "protocol": (
+    #                     s.service_config_to_test.protocol.name
+    #                     if hasattr(s.service_config_to_test, "protocol")
+    #                     else "unknown"
+    #                 ),
+    #                 "role": protocol_role,
+    #             },
+    #         }
+    #         service_metadata.append(metadata)
 
-                return service_manager
-            else:
-                self.logger.error(
-                    f"Failed to create service manager for {service_name}"
-                )
-                return None
+    #     # Emit service setup started event
+    #     if hasattr(self, 'service_emitter') and self.service_emitter:
+    #         self.service_emitter.emit_service_setup_started(
+    #             test_case=self.test_name,
+    #             service_count=len(self.service_managers),
+    #             service_names=service_names,
+    #             service_metadata=service_metadata,
+    #         )
 
-        except Exception as e:
-            self.logger.error(f"Error creating service manager for {service_name}: {e}")
-            raise
-
-    def get_service_names_and_metadata(self):
-        """Get service names and metadata for deployment events."""
-        service_names = []
-        service_metadata = []
-
-        for s in self.service_managers:
-            # Get service name
-            service_name = (
-                s.service_name
-                if hasattr(s, "service_name")
-                else s.get_implementation_name()
-            )
-            service_names.append(service_name)
-
-            # Build metadata for each service
-            # Handle both enum and string types for implementation.type
-            service_type = "unknown"
-            if hasattr(s.service_config_to_test.implementation, "type"):
-                impl_type = s.service_config_to_test.implementation.type
-                if hasattr(impl_type, "value"):
-                    # Enum type (old system)
-                    service_type = impl_type.value
-                else:
-                    # String type (new system)
-                    service_type = str(impl_type).lower()
-
-            # Handle both enum and string types for protocol.role
-            protocol_role = "unknown"
-            if (hasattr(s.service_config_to_test, "protocol") and 
-                hasattr(s.service_config_to_test.protocol, "role")):
-                role = s.service_config_to_test.protocol.role
-                if hasattr(role, "value"):
-                    # Enum type (old system)
-                    protocol_role = role.value
-                else:
-                    # String type (new system)
-                    protocol_role = str(role).lower()
-
-            metadata = {
-                "service_type": service_type,
-                "implementation": (
-                    s.get_implementation_name()
-                    if hasattr(s, "get_implementation_name")
-                    else s.service_config_to_test.implementation.name
-                ),
-                "config": {
-                    "test_case": self.test_name,
-                    "protocol": (
-                        s.service_config_to_test.protocol.name
-                        if hasattr(s.service_config_to_test, "protocol")
-                        else "unknown"
-                    ),
-                    "role": protocol_role,
-                },
-            }
-            service_metadata.append(metadata)
-
-        # Emit service setup started event
-        if hasattr(self, 'service_emitter') and self.service_emitter:
-            self.service_emitter.emit_service_setup_started(
-                test_case=self.test_name,
-                service_count=len(self.service_managers),
-                service_names=service_names,
-                service_metadata=service_metadata,
-            )
-        
-        return service_names
+    #     return service_names
 
     @property
     def execution_environments(self):
         """Compatibility property for execution_environments (provides backward compatibility for execution_environment)."""
         # Handle both execution_environment (singular) and execution_environments (plural)
-        if hasattr(self.test_config, 'execution_environments'):
+        if hasattr(self.test_config, "execution_environments"):
             return self.test_config.execution_environments
-        elif hasattr(self.test_config, 'execution_environment'):
+        elif hasattr(self.test_config, "execution_environment"):
             # Convert singular to list for compatibility
             env = self.test_config.execution_environment
             if env is None:
@@ -378,13 +295,8 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
     def initialize_mixin_compatibility(self):
         """Initialize compatibility for mixins."""
         # Ensure execution_environments compatibility
-        if not hasattr(self.test_config, 'execution_environments'):
+        if not hasattr(self.test_config, "execution_environments"):
             self.test_config.execution_environments = self.execution_environments
-
-
-
-
-
 
     def run(self):
         """
@@ -491,6 +403,7 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
             self.validate_assertions()
             self.stop_timer("validate_assertions")
 
+            # CRITICAL: Run tester analysis BEFORE any teardown to ensure environments are available
             tester_analysis_passed = self._run_tester_analysis()
 
             # Update test state based on tester analysis results
@@ -506,6 +419,8 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
                     error_message="Tester analysis failed",
                     summary={"analysis_results": getattr(self, "analysis_results", [])},
                 )
+                # CRITICAL: Teardown after analysis, even on failure
+                self._perform_teardown()
                 return False
 
             # Calculate total test duration
@@ -513,6 +428,9 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
 
             self.state = "DONE"
             self.logger.info("Test '%s' completed successfully.", self.test_config.name)
+
+            # CRITICAL: Teardown after successful analysis
+            self._perform_teardown()
 
             # State transitions are handled automatically by StateEventObserver
 
@@ -534,7 +452,7 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
             )
 
             # State transitions are handled automatically by StateEventObserver
-            
+
             # Return True to indicate successful test completion
             return True
 
@@ -570,15 +488,109 @@ class TestCase(TestCaseBase, ServiceManagementMixin, EnvironmentManagementMixin,
             )
 
             self.logger.error("Test '%s' failed: %s", self.test_config.name, e)
+
+            # CRITICAL: Teardown after exception to ensure cleanup
+            self._perform_teardown()
             raise
         finally:
-            self.state = "COLLECTING"
-
-            # Teardown environment with timing
-            self.start_timer("teardown_environment")
-            self.teardown_environment()
-            self.stop_timer("teardown_environment")
-            
-            # Unregister observers
+            # Only observer cleanup in finally block - environment teardown moved to _perform_teardown
             self.teardown_observers()
 
+    def _perform_teardown(self):
+        """
+        Perform environment teardown with proper timing and state management.
+
+        This method is called after tester analysis to ensure environments
+        are available for output collection before being torn down.
+        """
+        self.state = "COLLECTING"
+
+        # Teardown environment with timing
+        self.start_timer("teardown_environment")
+        self.teardown_environment()
+        self.stop_timer("teardown_environment")
+
+    def perform_dry_run(self) -> bool:
+        """
+        Performs a dry-run analysis of the test case configuration without executing commands.
+
+        This method analyzes what would be executed during a normal run without actually:
+        - Building Docker images
+        - Starting containers
+        - Running commands
+        - Deploying services
+
+        Returns:
+            bool: True if configuration is valid, False if issues detected
+        """
+        try:
+            self.logger.info("  📋 DRY-RUN: Analyzing test configuration...")
+
+            # Analyze basic test configuration
+            self._analyze_test_configuration()
+
+            # Analyze service configurations
+            config_valid = self._analyze_service_configurations()
+
+            # Analyze environment configuration
+            env_valid = self._analyze_environment_configuration()
+
+            # Analyze steps configuration
+            steps_valid = self._analyze_steps_configuration()
+
+            # Show what commands would be executed
+            self._show_dry_run_execution_plan()
+
+            overall_valid = config_valid and env_valid and steps_valid
+
+            if overall_valid:
+                self.logger.info("  ✅ DRY-RUN: All configurations valid")
+            else:
+                self.logger.info("  ❌ DRY-RUN: Configuration issues found")
+
+            return overall_valid
+
+        except Exception as e:
+            self.logger.error("  ❌ DRY-RUN: Analysis failed: %s", e)
+            return False
+
+    def _show_dry_run_execution_plan(self):
+        """Show what would be executed in a real run."""
+        self.logger.info("    🔄 DRY-RUN Execution Plan:")
+        service_count = len(getattr(self.test_config, "services", {}))
+        self.logger.info(
+            "      1. Setup services → Would configure %d services", service_count
+        )
+        self.logger.info("      2. Prepare services → Would build Docker images")
+        self.logger.info(
+            "      3. Setup environment → Would configure network/execution environment"
+        )
+        self.logger.info("      4. Deploy services → Would start containers")
+
+        # Handle steps more robustly
+        if hasattr(self.test_config, "steps") and self.test_config.steps:
+            if hasattr(self.test_config.steps, "wait"):
+                self.logger.info(
+                    "      5. Execute steps → Would wait %s seconds",
+                    self.test_config.steps.wait,
+                )
+            else:
+                try:
+                    step_count = (
+                        len(self.test_config.steps)
+                        if hasattr(self.test_config.steps, "__len__")
+                        else 1
+                    )
+                    self.logger.info(
+                        "      5. Execute %d test steps → Would run commands",
+                        step_count,
+                    )
+                except:
+                    self.logger.info(
+                        "      5. Execute steps → Would run configured steps"
+                    )
+        else:
+            self.logger.info("      5. Execute steps → No steps configured")
+
+        self.logger.info("      6. Validate assertions → Would check test results")
+        self.logger.info("      7. Teardown → Would clean up resources")

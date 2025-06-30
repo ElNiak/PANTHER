@@ -2,6 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
+from panther.config.core.models.experiment import TestConfig
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.utils.logging_mixin import LoggerMixin
 
@@ -22,7 +23,7 @@ class IPlugin(LoggerMixin, ABC):
         if hasattr(self, "_logger") and self._logger is None:
             self._logger = logging.getLogger(f"Plugin:{self.name}")
         self.event_emitter = None
-        self.config = {}
+        self.config: TestConfig = {}
         self.is_initialized = False
 
     def set_event_emitter(self, event_emitter):
@@ -72,25 +73,3 @@ class IPlugin(LoggerMixin, ABC):
         self.config = config or {}
         self.is_initialized = True
         return True
-
-    def shutdown(self) -> bool:
-        """
-        Perform cleanup operations when shutting down the plugin.
-
-        Returns:
-            bool: True if shutdown successful, False otherwise
-        """
-        self.is_initialized = False
-        return True
-
-    def emit_event(self, event: BaseEvent) -> None:
-        """
-        Emit an event using the plugin's event emitter.
-
-        Args:
-            event: The event to emit
-        """
-        if self.event_emitter:
-            self.event_emitter.emit_event(event)
-        else:
-            self.logger.warning("Attempted to emit event but no event_emitter is set")

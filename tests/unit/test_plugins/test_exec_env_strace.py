@@ -1,13 +1,14 @@
 import pytest
-from panther.plugins.environments.execution_environment.strace.strace import (
-    StraceEnvironment,
-)
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+
+from panther.config.core.models.experiment import TestConfig
+from panther.config.core.models.global_config import GlobalConfig
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.execution_environment.strace.config_schema import (
     StraceConfig,
 )
-from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.environments.execution_environment.strace.strace import (
+    StraceEnvironment,
+)
 from panther.plugins.plugin_manager import PluginManager
 
 
@@ -18,7 +19,9 @@ def strace_environment():
     env_type = "execution_environment"
     env_sub_type = "strace"
     event_manager = EventManager()
-    return StraceEnvironment(env_config_to_test, output_dir, env_type, env_sub_type, event_manager)
+    return StraceEnvironment(
+        env_config_to_test, output_dir, env_type, env_sub_type, event_manager
+    )
 
 
 def test_strace_environment_initialization(strace_environment):

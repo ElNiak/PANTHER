@@ -11,7 +11,7 @@ import pytest
 
 from panther.plugins.environments.config_schema import EnvironmentConfig
 from panther.plugins.environments.network_environment.shadow_ns.shadow_ns import (
-    ShadowNSEnvironment,
+    ShadowNsEnvironment,
     ShadowSimulationMonitor,
     ShadowSimulationState,
 )
@@ -22,8 +22,8 @@ class TestShadowSimulationMonitor:
 
     @pytest.fixture
     def mock_shadow_env(self):
-        """Create a mock ShadowNSEnvironment."""
-        env = Mock(spec=ShadowNSEnvironment)
+        """Create a mock ShadowNsEnvironment."""
+        env = Mock(spec=ShadowNsEnvironment)
         env.logger = Mock()
         env.env_name = "test_shadow_env"
         env.simulation_duration = "300s"
@@ -265,8 +265,8 @@ class TestShadowSimulationMonitor:
         monitor.lock.release()
 
 
-class TestShadowNSEnvironmentMonitoring:
-    """Test suite for ShadowNSEnvironment monitoring integration."""
+class TestShadowNsEnvironmentMonitoring:
+    """Test suite for ShadowNsEnvironment monitoring integration."""
 
     @pytest.fixture
     def mock_event_manager(self):
@@ -289,8 +289,8 @@ class TestShadowNSEnvironmentMonitoring:
 
     @pytest.fixture
     def shadow_env(self, env_config, mock_event_manager, tmp_path):
-        """Create a ShadowNSEnvironment instance."""
-        env = ShadowNSEnvironment(
+        """Create a ShadowNsEnvironment instance."""
+        env = ShadowNsEnvironment(
             env_config_to_test=env_config,
             output_dir=str(tmp_path),
             env_type="network",

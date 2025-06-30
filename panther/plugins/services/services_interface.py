@@ -8,16 +8,14 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import yaml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from panther.core.command_processor.command import ShellCommand
-from panther.core.command_processor.command_processor import CommandProcessor
+from panther.config.core.models import ProtocolConfig
+from panther.core.command_processor import ShellCommand
 from panther.core.events.service.emitter import ServiceEventEmitter
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.utils import CommandEventMixin
 
 # PluginManager functionality now integrated into PluginManager
 from panther.plugins.plugin_interface import IPlugin
-from panther.config.core.models import ProtocolConfig
-from panther.plugins.services.service_event_methods import ServiceManagerEventMixin
 
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
@@ -50,86 +48,7 @@ def quote_yaml(s: str) -> str:
     return yaml.safe_dump(str(s)).strip()
 
 
-RUN_CMD_SCHEMA = {
-    "pre_compile_cmds": list,
-    "compile_cmds": list,
-    "post_compile_cmds": list,
-    "pre_run_cmds": list,
-    "run_cmd": {
-        "working_dir": str,
-        "command_binary": str,
-        "command_args": (list, str),  # Allow both list and string
-        "timeout": (int, float),
-        "environment": dict,
-    },
-    "post_run_cmds": list,
-}
-
-
-def validate_cmd(func):
-    """
-    Decorator to validate command structure against the RUN_CMD_SCHEMA.
-
-    Args:
-        func: The function to decorate
-
-    Returns:
-        The decorated function that validates its returned command structure
-    """
-
-    def wrapper(*args, **kwargs):
-        command = func(*args, **kwargs)
-        logging.debug(
-            "Validating command structure: %s against schema: %s",
-            command,
-            RUN_CMD_SCHEMA,
-        )
-        # Validate the command structure
-        validate_structure(command, RUN_CMD_SCHEMA)
-        return command
-
-    return wrapper
-
-
-def validate_structure(data, schema, path="root"):
-    """
-    Recursively validates a dictionary or list structure against a schema.
-
-    Args:
-        data: The data to validate.
-        schema: The expected schema structure.
-        path: The current path in the nested structure (for error messages).
-
-    Raises:
-        ValueError: If the structure does not match the schema.
-        TypeError: If a value does not match the expected type.
-    """
-    if isinstance(schema, dict):
-        if not isinstance(data, dict):
-            raise TypeError(
-                f"Expected a dictionary at '{path}', got {type(data).__name__}."
-            )
-        for key, value_schema in schema.items():
-            if key not in data:
-                raise ValueError(f"Missing key '{key}' in '{path}'.")
-            validate_structure(data[key], value_schema, path=f"{path}.{key}")
-    elif isinstance(schema, list):
-        if not isinstance(data, list):
-            raise TypeError(f"Expected a list at '{path}', got {type(data).__name__}.")
-        # Optionally, add item validation here if needed
-    elif isinstance(schema, tuple):
-        if not isinstance(data, schema):
-            raise TypeError(
-                f"Expected one of {schema} at '{path}', got {type(data).__name__}."
-            )
-    else:
-        if not isinstance(data, schema):
-            raise TypeError(
-                f"Expected {schema.__name__} at '{path}', got {type(data).__name__}."
-            )
-
-
-class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
+class IServiceManager(IPlugin, CommandEventMixin):
     """
     IServiceManager is an interface for managing services within the PANTHER-SCP framework. It extends the IPlugin class and provides methods for initializing and rendering commands, as well as generating various types of commands required for service deployment and execution.
 
@@ -184,15 +103,18 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
 
         self.available_types = ["TESTERS", "IUT", "testers", "iut"]
         # Handle both string and enum types
-        if hasattr(service_type, 'name'):
+        if hasattr(service_type, "name"):
             self.service_type = str(service_type.name)
         else:
             self.service_type = str(service_type)
+
         self.service_type_normalized = self.service_type.upper()
+
         assert self.service_type_normalized in [
             "TESTERS",
             "IUT",
         ], f"Invalid service type: {self.service_type}"
+
         self._plugin_dir = Path(os.path.dirname(__file__))
 
         # Always use lowercase in paths for consistency with directory structure
@@ -203,8 +125,8 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         )
 
         if self.service_type_normalized == "TESTERS":
-            self.templates_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/templates/"
-            self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/version_configs/"
+            self.templates_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/templates/{protocol.name}/"
+            self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{implementation_name}/version_configs/{protocol.name}/"
         else:
             self.templates_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{protocol.name}/{implementation_name}/templates/"
             self.config_versions_dir = f"{os.path.dirname(__file__)}/{service_type_path}/{protocol.name}/{implementation_name}/version_configs/"
@@ -258,6 +180,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         self.role = self.service_config_to_test.protocol.role
         self.environments = {}
 
+        # Load environment variables from version_config
+        self._load_version_environment_variables()
+
         volumes = [
             "shared_logs:/app/sync_logs",
         ]
@@ -286,6 +211,30 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         self._plugin_dir = os.path.abspath(
             os.path.join(os.path.dirname(__file__), "..", "..")
         )
+
+        # Test context to track which test this service belongs to
+        self._test_context = None
+
+    def set_test_context(self, test_name: str) -> None:
+        """
+        Set the test context for this service manager.
+
+        Args:
+            test_name: Name of the test this service belongs to
+        """
+        self._test_context = test_name
+        self.logger.debug(
+            "Set test context for service %s: %s", self.service_name, test_name
+        )
+
+    def get_test_context(self) -> Optional[str]:
+        """
+        Get the test context for this service manager.
+
+        Returns:
+            The test name this service belongs to, or None if not set
+        """
+        return self._test_context
 
     def render_commands(
         self, params, template_name, command_args=None, env_vars=None, extra_fields=None
@@ -339,112 +288,214 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
     def get_service_name(self) -> str:
         return self.service_name
 
-    @validate_cmd
-    def initialize_commands(self) -> dict:
+    def _load_version_environment_variables(self):
         """
-        Initializes and generates a dictionary of commands to be executed at different stages
-        of the process (pre-compile, compile, post-compile, pre-run, run, post-run).
+        Load environment variables from version_config into self.environments.
 
-        The dictionary keys are:
-            - "pre_compile_cmds": Commands to be executed before compilation.
-            - "compile_cmds": Commands to be executed during compilation.
-            - "post_compile_cmds": Commands to be executed after compilation.
-            - "pre_run_cmds": Commands to be executed before running.
-            - "run_cmd": Command to be executed to run the main process.
-            - "post_run_cmds": Commands to be executed after running.
-
-        Returns:
-            dict: A dictionary containing the commands for each stage.
+        Extracts environment variables from the 'env' section of version_config
+        and makes them available for Docker Compose environment generation.
+        Also adds dynamic environment variables based on service role and configuration.
         """
-
-        # Use CommandProcessor for intelligent command processing
-        processor = CommandProcessor()
-
-        def process_command_list(commands):
-            """Process commands using CommandProcessor for better handling."""
-            if not commands:
-                self.logger.debug("No commands provided, returning empty list.")
-                return []
-
-            try:
-                processed = processor.process_command_list(
-                    commands, detect_properties=True
-                )
-                self.logger.debug("Processed %d commands successfully", len(processed))
-                return processed
-            except Exception as e:
-                self.logger.warning(
-                    f"Failed to process commands with CommandProcessor: {e}"
-                )
-                # Fallback to manual conversion for backward compatibility
-                result = []
-                for cmd in commands:
-                    if isinstance(cmd, ShellCommand):
-                        result.append(cmd)
-                    elif isinstance(cmd, str):
-                        result.append(ShellCommand.from_string(cmd))
-                    elif isinstance(cmd, dict) and "command" in cmd:
-                        result.append(ShellCommand.from_dict(cmd))
-                    else:
-                        try:
-                            result.append(ShellCommand.from_string(str(cmd)))
-                        except Exception as inner_e:
-                            self.logger.warning(
-                                f"Could not convert command: {cmd}, error: {inner_e}"
-                            )
-                return result
-
-        # Get commands from the respective methods and process them
-        self.logger.debug(
-            "Generating commands for service '%s' - pre-compile", self.service_name
-        )
-        pre_compile = process_command_list(self.generate_pre_compile_commands())
-        self.logger.debug(
-            "Generating commands for service '%s' - compile", self.service_name
-        )
-        compile_cmds = process_command_list(self.generate_compile_commands())
-        self.logger.debug(
-            "Generating commands for service '%s' - post-compile", self.service_name
-        )
-        post_compile = process_command_list(self.generate_post_compile_commands())
-        self.logger.debug(
-            "Generating commands for service '%s' - pre-run", self.service_name
-        )
-        pre_run = process_command_list(self.generate_pre_run_commands())
-        self.logger.debug(
-            "Generating commands for service '%s' - post-run", self.service_name
-        )
-        post_run = process_command_list(self.generate_post_run_commands())
-
-        # Special handling for run_cmd which is a dict, not a list
-        self.logger.debug("Generating run command for service '%s'", self.service_name)
-        run_cmd = self.generate_run_command()
-
-        # Build the complete command structure
-        command_structure = {
-            "pre_compile_cmds": pre_compile,
-            "compile_cmds": compile_cmds,
-            "post_compile_cmds": post_compile,
-            "pre_run_cmds": pre_run,
-            "run_cmd": run_cmd,
-            "post_run_cmds": post_run,
-        }
-
-        # Process the entire structure through CommandProcessor for consistency
         try:
-            self.run_cmd = processor.process_commands(
-                command_structure, target_format="service"
+            self.logger.debug(
+                "Loading environment variables from version_config for service %s",
+                self.service_name,
             )
+            # Check if implementation has version_config with environment variables
+            impl_config = getattr(self.service_config_to_test, "implementation", None)
+            if not impl_config:
+                self.logger.debug(
+                    f"No implementation config found for service {self.service_name}"
+                )
+                return
+
+            version_config = getattr(impl_config, "version_config", None)
+            if not version_config or not isinstance(version_config, dict):
+                self.logger.debug(
+                    f"No version_config found for service {self.service_name}"
+                )
+                return
+
+            # Extract environment variables from the 'env' section
+            env_vars = version_config.get("env", {})
+            if not env_vars:
+                self.logger.debug(
+                    f"No environment variables in version_config for service {self.service_name}"
+                )
+                # Don't return here - we still want to add dynamic variables
+
+            # Process environment variables, handling variable substitution
+            for env_name, env_value in env_vars.items():
+                if isinstance(env_value, str):
+                    # Handle $SOURCE_DIR substitution and other common patterns
+                    processed_value = env_value.replace("$SOURCE_DIR", "/opt")
+                    self.environments[env_name] = processed_value
+                    self.logger.debug(
+                        f"Set environment variable {env_name}={processed_value} for service {self.service_name}"
+                    )
+                else:
+                    # Handle non-string values by converting to string
+                    self.environments[env_name] = str(env_value)
+                    self.logger.debug(
+                        f"Set environment variable {env_name}={env_value} for service {self.service_name}"
+                    )
+
+            # Add dynamic environment variables
+            # 1. IS_CLIENT based on service role
+            if hasattr(self.service_config_to_test, "protocol") and hasattr(
+                self.service_config_to_test.protocol, "role"
+            ):
+                role = self.service_config_to_test.protocol.role
+                # Handle both enum and string values for role
+                if hasattr(role, "value"):
+                    role_str = role.value.lower()
+                else:
+                    role_str = str(role).lower()
+                # Set IS_CLIENT: "1" for client role, "0" for server role
+                is_client = "1" if role_str == "client" else "0"
+                self.environments["IS_CLIENT"] = is_client
+                self.logger.debug(
+                    f"Set IS_CLIENT={is_client} based on role '{role}' for service {self.service_name}"
+                )
+
+            # 2. PROOTPATH and ROOTPATH - these should match the processed SOURCE_DIR
+            # If SOURCE_DIR was already set from version config, use its processed value
+            # Otherwise, use the default /opt
+            source_dir = self.environments.get("SOURCE_DIR", "/opt")
+            self.environments["PROOTPATH"] = source_dir
+            self.environments["ROOTPATH"] = source_dir
+            self.logger.debug(
+                f"Set PROOTPATH={source_dir} and ROOTPATH={source_dir} for service {self.service_name}"
+            )
+
+            # 3. Handle system_model vs protocol_model differences
+            # Check if this is a system model configuration
+            use_system_models = getattr(impl_config, "use_system_models", False)
+            if use_system_models:
+                # For system models, we might need different paths
+                self.environments["MODEL_TYPE"] = "system"
+                self.logger.debug(
+                    f"Set MODEL_TYPE=system for service {self.service_name}"
+                )
+            else:
+                self.environments["MODEL_TYPE"] = "protocol"
+                self.logger.debug(
+                    f"Set MODEL_TYPE=protocol for service {self.service_name}"
+                )
+
+            self.logger.info(
+                f"Loaded {len(self.environments)} environment variables (including dynamic) for service {self.service_name}"
+            )
+
         except Exception as e:
             self.logger.warning(
-                f"Failed to process complete command structure: {e}, using fallback"
+                f"Failed to load environment variables from version_config for service {self.service_name}: {e}"
             )
-            self.run_cmd = command_structure
 
-        self.logger.debug("Run commands: %s", self.run_cmd)
-        return self.run_cmd
+    def _resolve_environment_variables(self, cmd_str: str) -> str:
+        """
+        Replace ${VAR} patterns with actual values from self.environments.
 
-    def generate_pre_compile_commands(self) -> list:
+        Args:
+            cmd_str: Command string potentially containing ${VAR} patterns
+
+        Returns:
+            Command string with variables resolved
+        """
+        if not isinstance(cmd_str, str):
+            return cmd_str
+
+        # Replace ${VAR} patterns with values from self.environments
+        import re
+
+        pattern = r"\$\{([^}]+)\}"
+
+        def replacer(match):
+            var_name = match.group(1)
+            if var_name in self.environments:
+                return self.environments[var_name]
+            # Keep original if not found
+            return match.group(0)
+
+        resolved = re.sub(pattern, replacer, cmd_str)
+
+        # Also handle $VAR patterns (without braces)
+        pattern2 = r"\$([A-Z_][A-Z0-9_]*)"
+
+        def replacer2(match):
+            var_name = match.group(1)
+            if var_name in self.environments:
+                return self.environments[var_name]
+            # Keep original if not found
+            return match.group(0)
+
+        resolved = re.sub(pattern2, replacer2, resolved)
+
+        return resolved
+
+    def _apply_network_substitutions(self, cmd_dict: Dict) -> Dict:
+        """
+        Apply environment variable substitutions to all command phases.
+
+        Args:
+            cmd_dict: Dictionary containing command phases
+
+        Returns:
+            Dictionary with substitutions applied
+        """
+        if not self.environments:
+            # No substitutions to apply
+            return cmd_dict
+
+        # Process each command phase
+        for phase in [
+            "pre_compile_cmds",
+            "compile_cmds",
+            "post_compile_cmds",
+            "pre_run_cmds",
+            "post_run_cmds",
+        ]:
+            if phase in cmd_dict and isinstance(cmd_dict[phase], list):
+                resolved_cmds = []
+                for cmd in cmd_dict[phase]:
+                    if isinstance(cmd, str):
+                        resolved_cmds.append(self._resolve_environment_variables(cmd))
+                    elif isinstance(cmd, ShellCommand):
+                        # Update the command string in ShellCommand
+                        cmd.command = self._resolve_environment_variables(cmd.command)
+                        resolved_cmds.append(cmd)
+                    else:
+                        resolved_cmds.append(cmd)
+                cmd_dict[phase] = resolved_cmds
+
+        # Process run_cmd
+        if "run_cmd" in cmd_dict and isinstance(cmd_dict["run_cmd"], dict):
+            if "command_args" in cmd_dict["run_cmd"]:
+                if isinstance(cmd_dict["run_cmd"]["command_args"], str):
+                    cmd_dict["run_cmd"][
+                        "command_args"
+                    ] = self._resolve_environment_variables(
+                        cmd_dict["run_cmd"]["command_args"]
+                    )
+                elif isinstance(cmd_dict["run_cmd"]["command_args"], list):
+                    cmd_dict["run_cmd"]["command_args"] = [
+                        self._resolve_environment_variables(arg)
+                        if isinstance(arg, str)
+                        else arg
+                        for arg in cmd_dict["run_cmd"]["command_args"]
+                    ]
+
+            # Also process environment variables in the run_cmd environment
+            if "environment" in cmd_dict["run_cmd"]:
+                for key, value in cmd_dict["run_cmd"]["environment"].items():
+                    if isinstance(value, str):
+                        cmd_dict["run_cmd"]["environment"][
+                            key
+                        ] = self._resolve_environment_variables(value)
+
+        return cmd_dict
+
+    def generate_pre_compile_commands(self) -> List[Union[str, ShellCommand]]:
         """
         Generates a list of shell commands to be executed before compilation.
 
@@ -453,42 +504,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         """
         # Emit command generation started event
         self.emit_command_generation_started("pre_compile")
+        return []
 
-        # ShellCommand is imported at the top of the file, so we use it directly
-        # for better shell command representation with metadata and proper escaping
-
-        # Using ShellCommand objects for better structure, error handling, and debugging support
-        commands = [
-            ShellCommand(
-                command="set -x;",
-                is_critical=True,
-            ),
-            ShellCommand(
-                command="export SHELLOPTS",
-                is_critical=True,
-            ),
-            ShellCommand(
-                command="export PATH=$PATH:$ADDITIONAL_PATH;",
-                is_critical=False,  # Non-critical as ADDITIONAL_PATH might be empty
-            ),
-            ShellCommand(
-                command="export PYTHONPATH=$PYTHONPATH:$ADDITIONAL_PYTHONPATH;",
-                is_critical=False,  # Non-critical as ADDITIONAL_PYTHONPATH might be empty
-            ),
-            ShellCommand(
-                command="env >> /app/logs/env.log;",
-                is_critical=False,
-            ),
-        ]
-        # Emit command generated event
-        for cmd in commands:
-            self.logger.debug("Generated pre-compile command: %s", cmd)
-        self.emit_command_generated(
-            "pre_compile", f"{len(commands)} pre-compile commands"
-        )
-        return commands
-
-    def generate_compile_commands(self) -> List[str]:
+    def generate_compile_commands(self) -> List[Union[str, ShellCommand]]:
         """
         This method generates and returns a list of compile commands.
         Generates compile commands.
@@ -504,7 +522,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             self.emit_command_generated("compile", f"{len(commands)} compile commands")
         return commands
 
-    def generate_post_compile_commands(self) -> List[str]:
+    def generate_post_compile_commands(self) -> List[Union[str, ShellCommand]]:
         """
         Generate a list of post-compile commands.
         This method returns an empty list of strings representing commands
@@ -522,7 +540,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             )
         return commands
 
-    def generate_pre_run_commands(self) -> List[str]:
+    def generate_pre_run_commands(self) -> List[Union[str, ShellCommand]]:
         """
         Generates a list of pre-run commands.
         This method returns an empty list of strings, which can be overridden by subclasses
@@ -538,7 +556,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             self.emit_command_generated("pre_run", f"{len(commands)} pre-run commands")
         return commands
 
-    def generate_run_command(self) -> dict:
+    def generate_run_command(self) -> Dict[str, Any]:
         """
         Generates a dictionary containing the run command configuration.
         Returns:
@@ -568,7 +586,7 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
 
         return run_cmd
 
-    def generate_post_run_commands(self):
+    def generate_post_run_commands(self) -> List[Union[str, ShellCommand]]:
         """
         Generates post-run commands.
         """
@@ -590,6 +608,29 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
         Returns True if the plugin is a network service.
         """
         return self.service_type_normalized == "TESTERS"
+
+    @property
+    def role(self) -> str:
+        """Get the service role (client/server)."""
+        return self._role or "client"
+
+    @role.setter
+    def role(self, value) -> None:
+        """Set the service role."""
+        self._role = value
+
+    @property
+    def protocol_version(self) -> str:
+        """Get the protocol version."""
+        return self._protocol_version or "default"
+
+    def is_client(self) -> bool:
+        """Check if this service is a client."""
+        return self.role.lower() == "client"
+
+    def is_server(self) -> bool:
+        """Check if this service is a server."""
+        return self.role.lower() == "server"
 
     @abstractmethod
     def generate_deployment_commands(self) -> str:
@@ -716,8 +757,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
                 # Notify preparation started
                 self.notify_service_event(
                     "preparation_started",
-                    {
-                        "service_name": self.service_name,
+                    service_id=self.implementation_name,
+                    service_name=self.service_name,
+                    details={
                         "service_type": self.service_type,
                         "implementation": self.implementation_name,
                         "test_case": test_case,
@@ -772,18 +814,6 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             # Re-raise the exception
             raise
 
-    @abstractmethod
-    def _do_prepare(self, plugin_manager: "Optional[PluginManager]" = None):
-        """
-        Perform the actual preparation work.
-
-        This method should be overridden by subclasses.
-
-        Args:
-            plugin_manager: Optional plugin manager to use for preparation
-        """
-        pass
-
     def stop(self):
         """
         Stop the service.
@@ -797,8 +827,9 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             # Notify stopping
             self.notify_service_event(
                 "stopping",
-                {
-                    "service_name": self.service_name,
+                service_id=self.implementation_name,
+                service_name=self.service_name,
+                details={
                     "service_type": self.service_type,
                 },
             )
@@ -841,48 +872,6 @@ class IServiceManager(IPlugin, ServiceManagerEventMixin, CommandEventMixin):
             "Default _do_stop implementation called for %s", self.service_name
         )
         return True
-
-    def notify_service_event(self, event_name: str, details: dict = None):
-        """
-        Notify of a generic service event.
-
-        Args:
-            event_name: The name of the event
-            details: Additional details about the event
-        """
-        # Use the mixin methods from ServiceManagerEventMixin instead
-        # This method can be overridden if needed, but typically the specific
-        # notify methods from ServiceManagerEventMixin should be used
-        self.logger.debug("Service event '%s' with details: %s", event_name, details)
-
-    def handle_event(self, event: "BaseEvent") -> None:
-        """
-        Default implementation of handle_event for service managers.
-
-        This provides a basic event handling mechanism that can be overridden
-        by specific service manager implementations if they need custom event handling.
-
-        Args:
-            event: The event to handle
-        """
-        event_type = type(event).__name__
-        self.logger.debug(
-            "Service %s received event: %s", self.service_name, event_type
-        )
-
-        # Basic event handling for common service events
-        # Subclasses can override this method for more specific handling
-        if event_type == "ServiceStartRequestedEvent":
-            self.logger.info("Service start requested for %s", self.service_name)
-        elif event_type == "ServiceStopRequestedEvent":
-            self.logger.info("Service stop requested for %s", self.service_name)
-        elif event_type == "TestRunRequestedEvent":
-            self.logger.info("Test run requested for %s", self.service_name)
-        else:
-            # Log unhandled events at debug level
-            self.logger.debug(
-                "Unhandled event type %s for service %s", event_type, self.service_name
-            )
 
     def _get_default_output_patterns(self) -> List[Tuple[str, str]]:
         """

@@ -16,6 +16,7 @@ from .mixins import (
     ConfigOperationsMixin,
     EnvironmentHandlingMixin,
     LoggingFeaturesMixin,
+    PluginManagementMixin,
     StateManagementMixin,
     ValidationOperationsMixin,
 )
@@ -28,8 +29,9 @@ class ConfigurationManager(
     ConfigOperationsMixin,
     CachingMixin,
     LoggingFeaturesMixin,
+    PluginManagementMixin,
     StateManagementMixin,
-    ErrorHandlerMixin
+    ErrorHandlerMixin,
 ):
     """Primary configuration manager combining all functionality via mixins.
 
@@ -50,7 +52,7 @@ class ConfigurationManager(
         debug_override: bool = False,
         panther_dir: Optional[Path] = None,
         enable_cache: bool = True,
-        auto_fix_configs: bool = True
+        auto_fix_configs: bool = True,
     ):
         """Initialize with all legacy parameters preserved.
 
@@ -87,9 +89,9 @@ class ConfigurationManager(
         self._initialize_components()
 
         # State tracking
-        self.current_experiment_config: Optional['ExperimentConfig'] = None
-        self.current_global_config: Optional['GlobalConfig'] = None
-        self.validation_results: Dict[str, 'ValidationResult'] = {}
+        self.current_experiment_config: Optional["ExperimentConfig"] = None
+        self.current_global_config: Optional["GlobalConfig"] = None
+        self.validation_results: Dict[str, "ValidationResult"] = {}
 
         # Statistics tracking
         self._total_validations = 0
@@ -101,7 +103,7 @@ class ConfigurationManager(
     def _initialize_components(self):
         """Initialize all components used by mixins."""
         # Initialize caches
-        self._loaded_experiments: Dict[str, 'ExperimentConfig'] = {}
+        self._loaded_experiments: Dict[str, "ExperimentConfig"] = {}
         self._validation_cache: Dict[str, bool] = {}
         self._plugin_cache: Optional[Dict[str, Any]] = None
         self._schema_cache: Optional[Dict[str, Any]] = None
@@ -111,13 +113,30 @@ class ConfigurationManager(
         self._timing_stats = {
             "config_loads": [],
             "validations": [],
-            "plugin_discoveries": []
+            "plugin_discoveries": [],
         }
-        
+
+        # Initialize validators
+        try:
+            from .components.validators import BusinessRulesValidator, UnifiedValidator
+
+            self.validators = [
+                BusinessRulesValidator(),
+                # Add other validators as needed
+            ]
+            self.unified_validator = UnifiedValidator()
+
+            self.logger.debug(f"Initialized {len(self.validators)} validators")
+
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize validators: {e}")
+            self.validators = []
+            self.unified_validator = None
+
         # Initialize plugin components using unified plugin manager
         try:
             from panther.plugins.plugin_manager import PluginManager
-            
+
             # Set up plugin discovery
             plugin_dirs = []
             if self.exec_env_dir:
@@ -128,16 +147,17 @@ class ConfigurationManager(
                 # Use default plugin directories
                 plugin_base = self.panther_dir / "panther" / "plugins"
                 plugin_dirs = [
+                    str(plugin_base / "protocols"),  # Add protocols directory
                     str(plugin_base / "environments"),
-                    str(plugin_base / "services")
+                    str(plugin_base / "services"),
                 ]
-            
+
             self.plugin_discovery = PluginManager(
                 plugin_directories=plugin_dirs,
                 enable_cache=self.enable_cache,
-                cache_ttl=3600
+                cache_ttl=3600,
             )
-            
+
         except Exception as e:
             self.logger.warning(f"Failed to initialize plugin components: {e}")
             # Continue without dynamic resolution - will fall back to base classes
@@ -175,7 +195,7 @@ class ConfigurationManager(
         # Log any exceptions
         if exc_type is not None:
             self.logger.error(f"Exception in context: {exc_type.__name__}: {exc_val}")
-        
+
         # Return None to propagate exceptions normally
         return None
 
@@ -189,13 +209,12 @@ class ConfigurationManager(
             f")"
         )
 
-
     # Additional utility methods
     def list_plugin_parameters(
         self,
         name: str,
         plugin_type: Optional[str] = None,
-        protocol: Optional[str] = None
+        protocol: Optional[str] = None,
     ) -> Dict[str, Any]:
         """List parameters for a plugin (ConfigLoader compatibility).
 
@@ -211,10 +230,10 @@ class ConfigurationManager(
             # Auto-detect plugin type if not provided
             if not plugin_type:
                 plugin_type = self._auto_detect_plugin_type(name, protocol)
-            
+
             if not plugin_type:
                 return {"error": f"Could not determine plugin type for '{name}'"}
-            
+
             # Get plugin metadata
             metadata = self.plugin_discovery.get_plugin(name)
             if metadata:
@@ -222,22 +241,24 @@ class ConfigurationManager(
                     "plugin": name,
                     "type": plugin_type,
                     "protocol": protocol,
-                    "parameters": [param.to_dict() for param in metadata.parameters]
+                    "parameters": [param.to_dict() for param in metadata.parameters],
                 }
-            
+
             # Try schema discovery for parameters
             schema_info = self.plugin_discovery.get_plugin_schema(name)
-            if schema_info and 'properties' in schema_info.get('schema', {}):
+            if schema_info and "properties" in schema_info.get("schema", {}):
                 return {
                     "plugin": name,
                     "type": plugin_type,
                     "protocol": protocol,
-                    "parameters": schema_info['schema']['properties']
+                    "parameters": schema_info["schema"]["properties"],
                 }
-        
+
         return {"error": f"Plugin '{name}' not found or plugin discovery not available"}
 
-    def _auto_detect_plugin_type(self, name: str, protocol: Optional[str] = None) -> Optional[str]:
+    def _auto_detect_plugin_type(
+        self, name: str, protocol: Optional[str] = None
+    ) -> Optional[str]:
         """Auto-detect plugin type (ConfigLoader compatibility).
 
         Args:
@@ -252,24 +273,24 @@ class ConfigurationManager(
             metadata = self.plugin_discovery.get_plugin(name)
             if metadata:
                 return metadata.type.value
-        
+
         # Pattern matching fallback
         if name.startswith("panther_"):
             return "testers"
-        
+
         if protocol:
             # Protocol-specific implementations are usually IUTs
             return "iut"
-        
+
         return None
 
     # Plugin Discovery Delegation Methods
     def discover_plugins(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Discover all available plugins.
-        
+
         Args:
             force_refresh: Force re-discovery even if cached
-            
+
         Returns:
             Dictionary of plugin name to metadata
         """
@@ -277,13 +298,13 @@ class ConfigurationManager(
             plugins_dict = self.plugin_discovery.discover_plugins(force_refresh)
             return {name: plugin.to_dict() for name, plugin in plugins_dict.items()}
         return {}
-    
+
     def get_plugin_metadata(self, plugin_name: str) -> Optional[Dict[str, Any]]:
         """Get metadata for a specific plugin.
-        
+
         Args:
             plugin_name: Name of the plugin
-            
+
         Returns:
             Plugin metadata or None if not found
         """
@@ -291,23 +312,25 @@ class ConfigurationManager(
             metadata = self.plugin_discovery.get_plugin(plugin_name)
             return metadata.to_dict() if metadata else None
         return None
-    
-    def discover_available_versions(self, protocol: Optional[str] = None) -> Dict[str, List[str]]:
+
+    def discover_available_versions(
+        self, protocol: Optional[str] = None
+    ) -> Dict[str, List[str]]:
         """Discover available versions for protocols.
-        
+
         Args:
             protocol: Optional protocol to filter by
-            
+
         Returns:
             Dictionary mapping protocol names to version lists
         """
         if self.plugin_discovery:
             return self.plugin_discovery.discover_protocol_versions(protocol)
         return {}
-    
+
     def get_plugin_schemas(self) -> Dict[str, Dict[str, Any]]:
         """Get all plugin schemas.
-        
+
         Returns:
             Dictionary mapping plugin names to schema info
         """
@@ -334,10 +357,8 @@ def get_config_manager() -> ConfigurationManager:
 
 # Convenience functions
 def load_experiment(
-    config_path: Union[str, Path],
-    validate: bool = True,
-    auto_fix: bool = True
-) -> 'ExperimentConfig':
+    config_path: Union[str, Path], validate: bool = True, auto_fix: bool = True
+) -> "ExperimentConfig":
     """Convenience function to load experiment configuration.
 
     Args:
@@ -349,13 +370,11 @@ def load_experiment(
         Loaded ExperimentConfig instance
     """
     return get_config_manager().load_experiment_config(
-        config_path,
-        validate=validate,
-        auto_fix=auto_fix
+        config_path, validate=validate, auto_fix=auto_fix
     )
 
 
-def validate_service(service_dict: Dict[str, Any]) -> 'ServiceConfig':
+def validate_service(service_dict: Dict[str, Any]) -> "ServiceConfig":
     """Convenience function to validate service configuration.
 
     Args:
@@ -377,4 +396,3 @@ def discover_versions(protocol: Optional[str] = None) -> Dict[str, List[str]]:
         Dictionary of protocol to version lists
     """
     return get_config_manager().discover_available_versions(protocol)
-

@@ -9,7 +9,7 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel, Field
 
-T = TypeVar('T', bound='BaseConfig')
+T = TypeVar("T", bound="BaseConfig")
 
 
 class BaseConfig(BaseModel, ABC):
@@ -23,13 +23,15 @@ class BaseConfig(BaseModel, ABC):
     """
 
     class Config:
-        extra = 'allow'  # Allow extra fields for flexibility
+        extra = "allow"  # Allow extra fields for flexibility
         validate_assignment = True
         use_enum_values = True
         arbitrary_types_allowed = True
 
     # Internal OmegaConf representation
-    omega_config: Optional[DictConfig] = Field(None, exclude=True, alias="_omega_config")
+    omega_config: Optional[DictConfig] = Field(
+        None, exclude=True, alias="_omega_config"
+    )
 
     def __init__(self, **data):
         """Initialize with support for OmegaConf interpolation."""
@@ -37,7 +39,7 @@ class BaseConfig(BaseModel, ABC):
         # Create OmegaConf representation for interpolation
         self.omega_config = OmegaConf.create(self.to_dict())
 
-    def validate_config(self) -> 'BaseConfig':
+    def validate_config(self) -> "BaseConfig":
         """Perform full validation with context.
 
         Returns:
@@ -85,7 +87,12 @@ class BaseConfig(BaseModel, ABC):
         """
         # Use model_dump instead of dict() for Pydantic v2 compatibility
         # and exclude internal fields like omega_config
-        excluded_fields = {'omega_config', 'model_fields', 'model_config', 'model_fields_set'}
+        excluded_fields = {
+            "omega_config",
+            "model_fields",
+            "model_config",
+            "model_fields_set",
+        }
         try:
             # Pydantic v2
             return self.model_dump(exclude_none=exclude_none, exclude=excluded_fields)
@@ -118,9 +125,12 @@ class BaseConfig(BaseModel, ABC):
             JSON string representation
         """
         import json
+
         return json.dumps(self.to_dict(), indent=indent)
 
-    def merge(self, other: Union['BaseConfig', Dict[str, Any], DictConfig]) -> 'BaseConfig':
+    def merge(
+        self, other: Union["BaseConfig", Dict[str, Any], DictConfig]
+    ) -> "BaseConfig":
         """Deep merge with another configuration.
 
         Args:
@@ -145,7 +155,7 @@ class BaseConfig(BaseModel, ABC):
         # Create new instance from merged config
         return self.__class__.from_omega(merged)
 
-    def interpolate(self) -> 'BaseConfig':
+    def interpolate(self) -> "BaseConfig":
         """Resolve all ${} interpolations.
 
         Returns:
@@ -163,7 +173,7 @@ class BaseConfig(BaseModel, ABC):
         """
         return self.model_json_schema()
 
-    def save(self, path: Union[str, Path], format: str = 'yaml') -> None:
+    def save(self, path: Union[str, Path], format: str = "yaml") -> None:
         """Save configuration to file.
 
         Args:
@@ -173,9 +183,9 @@ class BaseConfig(BaseModel, ABC):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        if format == 'yaml':
+        if format == "yaml":
             content = self.to_yaml()
-        elif format == 'json':
+        elif format == "json":
             content = self.to_json()
         else:
             raise ValueError(f"Unsupported format: {format}")
@@ -194,10 +204,10 @@ class BaseConfig(BaseModel, ABC):
         """
         path = Path(path)
 
-        if path.suffix in ['.yaml', '.yml']:
+        if path.suffix in {".yaml", ".yml"}:
             with open(path) as f:
                 data = yaml.safe_load(f)
-        elif path.suffix == '.json':
+        elif path.suffix == ".json":
             with open(path) as f:
                 data = json.load(f)
         else:
@@ -205,7 +215,7 @@ class BaseConfig(BaseModel, ABC):
 
         return cls(**data)
 
-    def update_field(self, field_path: str, value: Any) -> 'BaseConfig':
+    def update_field(self, field_path: str, value: Any) -> "BaseConfig":
         """Update a nested field using dot notation.
 
         Args:

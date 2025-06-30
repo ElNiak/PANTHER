@@ -3,9 +3,9 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Union
 
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.core.events.environment.emitter import EnvironmentEventEmitter
 from panther.core.observer.management.event_manager import EventManager
-from panther.config.core.models.environment import EnvironmentConfig
 from panther.plugins.environments.environment_event_methods import (
     EnvironmentPluginEventMixin,
 )
@@ -108,6 +108,11 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
         Sets up the environment with proper event notifications.
         """
         try:
+            self.logger.debug(
+                "EnvirontmentI - Setting up environment: %s (%s)",
+                self.env_type,
+                self.env_sub_type,
+            )
             # Store references for later use
             self.services_managers = services_managers
             self.test_config = test_config
@@ -123,14 +128,12 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
                 }
             )
 
-            # Perform actual setup implementation
-            self._do_setup_environment(
-                services_managers,
-                test_config,
-                global_config,
-                timestamp,
-                plugin_manager,
-                execution_environment,
+            self.update_environment(
+                execution_environment=execution_environment,
+                global_config=global_config,
+                plugin_manager=plugin_manager,
+                services_managers=services_managers,
+                test_config=test_config,
             )
 
             # Emit environment setup completed event (success)
@@ -156,21 +159,6 @@ class IEnvironmentPlugin(IPlugin, EnvironmentPluginEventMixin):
                 },
             )
             raise
-
-    @abstractmethod
-    def _do_setup_environment(
-        self,
-        services_managers: List["IServiceManager"],
-        test_config: "TestConfig",
-        global_config: "GlobalConfig",
-        timestamp: str,
-        plugin_manager: "Optional[PluginManager]",
-        execution_environment: List["IExecutionEnvironment"],
-    ) -> None:
-        """
-        Implementation of environment setup, to be overridden by subclasses.
-        """
-        pass
 
     @abstractmethod
     def _do_deploy_services(self) -> None:

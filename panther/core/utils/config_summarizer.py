@@ -21,7 +21,7 @@ class ConfigSummarizer:
         "debug": False,
         "log_level": "INFO",
         "enabled": True,
-        "build_docker_image": False,
+        "force_build_docker_image": False,
     }
 
     @classmethod
@@ -146,3 +146,63 @@ class ConfigSummarizer:
                     diff[key] = {"old": old[key], "new": new[key]}
 
         return diff
+
+
+def log_omega_config_summary(logger, config_name: str, config_data) -> None:
+    """Log OmegaConf configuration with concise summary for debug level.
+
+    This function replaces verbose patterns like:
+        logger.debug("Test Config: %s", OmegaConf.to_yaml(test_config_dict))
+
+    With concise summaries that only show non-default values.
+
+    Args:
+        logger: Logger instance
+        config_name: Name/type of config (e.g., "Test Config", "Global Config")
+        config_data: Configuration data (dict, OmegaConf, or Pydantic model)
+    """
+    try:
+        # Convert to dict if it's a Pydantic model
+        if hasattr(config_data, "dict"):
+            config_dict = config_data.dict()
+        elif hasattr(config_data, "_content"):  # OmegaConf DictConfig
+            from omegaconf import OmegaConf
+
+            config_dict = OmegaConf.to_container(config_data, resolve=True)
+        else:
+            config_dict = config_data
+
+        # Use ConfigSummarizer for concise output
+        summary = ConfigSummarizer.summarize(config_dict, max_depth=3)
+        logger.debug("%s: %s", config_name, summary)
+
+    except Exception as e:
+        # Fallback to basic logging if summarization fails
+        logger.debug("%s: <summarization failed: %s>", config_name, str(e))
+
+
+def log_omega_config_full(logger, config_name: str, config_data) -> None:
+    """Log full OmegaConf configuration (use sparingly, for TRACE level).
+
+    Args:
+        logger: Logger instance
+        config_name: Name/type of config
+        config_data: Configuration data (dict, OmegaConf, or Pydantic model)
+    """
+    try:
+        # Convert to dict if it's a Pydantic model
+        if hasattr(config_data, "dict"):
+            config_dict = config_data.dict()
+        elif hasattr(config_data, "_content"):  # OmegaConf DictConfig
+            from omegaconf import OmegaConf
+
+            config_dict = OmegaConf.to_container(config_data, resolve=True)
+        else:
+            config_dict = config_data
+
+        # Use ConfigSummarizer for full sanitized output
+        full_config = ConfigSummarizer.get_full_config(config_dict)
+        logger.debug("%s (full):\n%s", config_name, full_config)
+
+    except Exception as e:
+        logger.debug("%s (full): <serialization failed: %s>", config_name, str(e))

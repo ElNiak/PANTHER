@@ -1540,7 +1540,7 @@ experiment:
 
 # Python integration code
 from panther.core.experiment_manager import ExperimentManager
-from panther.config.config_manager_enhanced import ConfigLoader
+from panther.config.config_manager import ConfigLoader
 
 def run_multi_environment_test():
     """Run a test with multiple environments."""
@@ -1599,7 +1599,7 @@ from typing import AnyExample environment plugin that communicates with other pl
 
     def __init__(self, config, output_dir, event_manager: EventManager = None):
         super().__init__(config, output_dir)
-        self.event_manager = event_manager or EventManager()
+        self.event_manager = event_manager or EventManager.get_instance()
         self.shared_data = {}
 
         # Subscribe to events from other plugins
@@ -1673,7 +1673,7 @@ from typing import AnyExample environment plugin that communicates with other pl
 def demonstrate_plugin_communication():
     """Demonstrate inter-plugin communication."""
 
-    event_manager = EventManager()
+    event_manager = EventManager.get_instance()
 
     # Create multiple environments with shared event manager
     network_env = CommunicatingEnvironment(network_config, output_dir, event_manager)

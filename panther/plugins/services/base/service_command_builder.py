@@ -1,5 +1,3 @@
-from typing import Any, Dict, List, Optional, Union
-
 """Service-specific command building utilities."""
 
 import logging
@@ -10,12 +8,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from panther.core.command_processor.command import ShellCommand
-from panther.core.command_processor.command_utils import CommandUtils
-from panther.core.exceptions.fast_fail import CertificateException
+from panther.core.command_processor import ShellCommand
+from panther.core.command_processor.utils import CommandUtils
+from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
+from panther.core.exceptions.fast_fail import (
+    CertificateException,
+    ErrorCategory,
+    ErrorSeverity,
+    PantherException,
+)
 
 
-class ServiceCommandBuilder:
+class ServiceCommandBuilder(ErrorHandlerMixin):
     """This class provides high-level methods specifically for building service.
     commands, reducing duplication across service implementations.
     """
@@ -26,6 +30,7 @@ class ServiceCommandBuilder:
         Args:
             logger: Optional logger instance
         """
+        super().__init__()
         self.logger = logger or logging.getLogger(__name__)
 
     @staticmethod
@@ -153,17 +158,17 @@ class ServiceCommandBuilder:
 
         # Add compilation commands
         if pre_compile_cmds:
-            command_dict["pre_compile_cmds"] = (
-                CommandUtils.create_shell_commands_from_list(pre_compile_cmds)
-            )
+            command_dict[
+                "pre_compile_cmds"
+            ] = CommandUtils.create_shell_commands_from_list(pre_compile_cmds)
 
         if compile_cmd:
             command_dict["compile_cmds"] = [ShellCommand.from_string(compile_cmd)]
 
         if post_compile_cmds:
-            command_dict["post_compile_cmds"] = (
-                CommandUtils.create_shell_commands_from_list(post_compile_cmds)
-            )
+            command_dict[
+                "post_compile_cmds"
+            ] = CommandUtils.create_shell_commands_from_list(post_compile_cmds)
 
         # Add pre-run commands
         if pre_run_cmds:
@@ -182,9 +187,9 @@ class ServiceCommandBuilder:
 
         # Add post-run commands
         if post_run_cmds:
-            command_dict["post_run_cmds"] = (
-                CommandUtils.create_shell_commands_from_list(post_run_cmds)
-            )
+            command_dict[
+                "post_run_cmds"
+            ] = CommandUtils.create_shell_commands_from_list(post_run_cmds)
 
         # Validate the structure
         CommandUtils.validate_command_structure(command_dict)
@@ -482,7 +487,13 @@ class ServiceCommandBuilder:
 
         Raises:
             CertificateException: If certificate validation fails
+            PantherException: If input validation fails
         """
+        # Fast-fail validation: Check inputs before processing
+        ServiceCommandBuilder._validate_quic_command_inputs(
+            binary, role, host, port, certs, validate_certs
+        )
+
         # Validate certificates if enabled and role is server
         if validate_certs and role == "server" and certs:
             cert_file = certs.get("cert_file")
@@ -551,3 +562,86 @@ class ServiceCommandBuilder:
             common_name=common_name,
             days=days,
         )
+
+    @staticmethod
+    def _validate_quic_command_inputs(
+        binary: str,
+        role: str,
+        host: Optional[str],
+        port: Optional[int],
+        certs: Optional[Dict[str, str]],
+        validate_certs: bool,
+    ) -> None:
+        """
+        Validate QUIC command inputs before processing.
+
+        Args:
+            binary: Binary name/path
+            role: 'client' or 'server'
+            host: Target host (for client)
+            port: Port number
+            certs: Certificate paths dict
+            validate_certs: Whether to validate certificates
+
+        Raises:
+            PantherException: If any validation fails
+        """
+        # Validate binary
+        if not binary or not isinstance(binary, str):
+            raise PantherException(
+                message=f"Binary must be a non-empty string, got: {binary}",
+                severity=ErrorSeverity.CRITICAL,
+                category=ErrorCategory.COMMAND_EXECUTION,
+                context={"binary": binary},
+            )
+
+        # Validate role
+        valid_roles = {"client", "server"}
+        if role not in valid_roles:
+            raise PantherException(
+                message=f"Role must be one of {valid_roles}, got: {role}",
+                severity=ErrorSeverity.CRITICAL,
+                category=ErrorCategory.COMMAND_EXECUTION,
+                context={"role": role, "valid_roles": list(valid_roles)},
+            )
+
+        # Validate port if provided
+        if port is not None:
+            if not isinstance(port, int) or port <= 0 or port > 65535:
+                raise PantherException(
+                    message=f"Port must be a valid integer between 1-65535, got: {port}",
+                    severity=ErrorSeverity.HIGH,
+                    category=ErrorCategory.COMMAND_EXECUTION,
+                    context={"port": port},
+                )
+
+        # Validate host for client role
+        if role == "client":
+            if not host or not isinstance(host, str):
+                raise PantherException(
+                    message=f"Host is required for client role, got: {host}",
+                    severity=ErrorSeverity.HIGH,
+                    category=ErrorCategory.COMMAND_EXECUTION,
+                    context={"role": role, "host": host},
+                )
+
+        # Validate certificates structure if provided
+        if certs is not None:
+            if not isinstance(certs, dict):
+                raise PantherException(
+                    message=f"Certificates must be a dictionary, got: {type(certs).__name__}",
+                    severity=ErrorSeverity.HIGH,
+                    category=ErrorCategory.CONFIGURATION,
+                    context={"certs_type": type(certs).__name__},
+                )
+
+            # Check for required certificate files if validation is enabled
+            if validate_certs and role == "server":
+                cert_file = certs.get("cert_file")
+                if cert_file and not os.path.exists(cert_file):
+                    raise PantherException(
+                        message=f"Certificate file not found: {cert_file}",
+                        severity=ErrorSeverity.CRITICAL,
+                        category=ErrorCategory.CONFIGURATION,
+                        context={"cert_file": cert_file},
+                    )

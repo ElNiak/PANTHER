@@ -89,11 +89,50 @@ class IObserver(ABC):
         if log_level != logger.level:
             logger.setLevel(log_level)
 
-        # LoggerFactory already handles handlers and formatting, so we don't need to add more
-        # If output_file is specified, add a file handler
+        # Store output file path for lazy file handler creation
+        # Only create the file when there's actual content to write
         if output_file:
-            from pathlib import Path
-
-            LoggerFactory.add_file_handler(Path(output_file), level=None)
+            self._pending_log_file = output_file
+            # Add a custom handler that creates file only when needed
+            self._add_lazy_file_handler(logger, output_file)
 
         return logger
+
+    def _add_lazy_file_handler(self, logger, output_file):
+        """Add a lazy file handler that only creates files when content is written."""
+        import logging
+        from pathlib import Path
+
+        class LazyFileHandler(logging.Handler):
+            """File handler that only creates the file when first log is written."""
+
+            def __init__(self, filepath, mode="a"):
+                super().__init__()
+                self.filepath = Path(filepath)
+                self.mode = mode
+                self._file_handler = None
+
+            def emit(self, record):
+                # Create the actual file handler only when first log is emitted
+                if self._file_handler is None:
+                    # Ensure directory exists
+                    self.filepath.parent.mkdir(parents=True, exist_ok=True)
+                    self._file_handler = logging.FileHandler(
+                        self.filepath, mode=self.mode
+                    )
+                    # Use LoggerFactory formatter for consistency
+                    from panther.core.utils.logger_factory import LoggerFactory
+
+                    self._file_handler.setFormatter(LoggerFactory._create_formatter())
+
+                # Delegate to the actual file handler
+                self._file_handler.emit(record)
+
+            def close(self):
+                if self._file_handler:
+                    self._file_handler.close()
+                super().close()
+
+        # Add the lazy handler to the logger
+        lazy_handler = LazyFileHandler(output_file)
+        logger.addHandler(lazy_handler)

@@ -43,9 +43,9 @@ class ResultAggregator:
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
         self.tags: Dict[str, Set[str]] = {}  # Maps test names to their tags
-        self.tag_stats: Dict[str, Dict[str, int]] = (
-            {}
-        )  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
+        self.tag_stats: Dict[
+            str, Dict[str, int]
+        ] = {}  # Statistics by tag: {tag: {"success": 0, "failure": 0}}
         self.category_stats: Dict[str, Dict[str, int]] = {}  # Statistics by category
         self.lock = threading.RLock()
 
@@ -551,7 +551,6 @@ class ResultsManager(IObserver):
         Args:
             event: The event to handle
         """
-        # super().processed_events_uuids.append(str(event.id))
         event_type = event.get_type()
 
         # Check if this is a result event

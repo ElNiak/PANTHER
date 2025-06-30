@@ -9,6 +9,8 @@ Uses shared command generation utilities to eliminate code duplication.
 """
 
 from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.environments.execution_environment.base_execution_environment import (
     BaseExecutionEnvironment,
 )
@@ -19,7 +21,6 @@ from panther.plugins.environments.execution_environment.command_generation_utils
 from panther.plugins.environments.execution_environment.gperf_heap.config_schema import (
     GperfHeapConfig,
 )
-from panther.plugins.plugin_decorators import register_plugin
 from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
 
 
 @register_plugin(
-    plugin_type="environment",
+    plugin_type=PluginType.EXECUTION_ENVIRONMENT,
     name="gperf_heap",
     version="1.0.0",
     description="Memory heap profiling execution environment using Google Performance Tools",
@@ -57,6 +58,21 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
+
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> GperfHeapConfig:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    GperfHeapConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                self._plugin_config = GperfHeapConfig()
+        return self._plugin_config
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
@@ -111,7 +127,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
 
             # Get service name for logging
             service_name = getattr(service, "service_name", service.__class__.__name__)
-            
+
             # Add post-processing command for heap analysis generation
             post_process_cmd = self._build_post_processing_command(
                 heap_profile_file, heap_analysis_file, service_name
@@ -136,32 +152,56 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         Returns:
             dict: Environment variables for heap profiling
         """
+        plugin_config = self._get_plugin_config()
+
         env_vars = {
             "HEAPPROFILE": heap_profile_file,
             "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/libtcmalloc_and_profiler.so.4:$LD_PRELOAD",
         }
 
-        # Add sampling frequency if configured
+        # Add sampling frequency if configured using dual approach
+        sampling_frequency = None
         if (
-            hasattr(self.env_config_to_test, "sampling_frequency")
-            and self.env_config_to_test.sampling_frequency
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
         ):
-            env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] = str(
-                self.env_config_to_test.sampling_frequency
+            sampling_frequency = self.env_config_to_test.plugin_config.get(
+                "sampling_frequency"
             )
+        if sampling_frequency is None and hasattr(plugin_config, "sampling_frequency"):
+            sampling_frequency = plugin_config.sampling_frequency
 
-        # Add heap check level if configured
-        if (
-            hasattr(self.env_config_to_test, "heap_check_level")
-            and self.env_config_to_test.heap_check_level
-        ):
-            env_vars["HEAPCHECK"] = str(self.env_config_to_test.heap_check_level)
+        if sampling_frequency:
+            env_vars["HEAP_PROFILE_ALLOCATION_INTERVAL"] = str(sampling_frequency)
 
-        # Add profile options
+        # Add heap check level if configured using dual approach
+        heap_check_level = None
         if (
-            hasattr(self.env_config_to_test, "profile_only_peak")
-            and self.env_config_to_test.profile_only_peak
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
         ):
+            heap_check_level = self.env_config_to_test.plugin_config.get(
+                "heap_check_level"
+            )
+        if heap_check_level is None and hasattr(plugin_config, "heap_check_level"):
+            heap_check_level = plugin_config.heap_check_level
+
+        if heap_check_level:
+            env_vars["HEAPCHECK"] = str(heap_check_level)
+
+        # Add profile options using dual approach
+        profile_only_peak = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            profile_only_peak = self.env_config_to_test.plugin_config.get(
+                "profile_only_peak"
+            )
+        if profile_only_peak is None and hasattr(plugin_config, "profile_only_peak"):
+            profile_only_peak = plugin_config.profile_only_peak
+
+        if profile_only_peak:
             env_vars["HEAP_PROFILE_ONLY_PEAK"] = "1"
 
         return env_vars
@@ -180,7 +220,20 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         Returns:
             str: Complete post-processing command
         """
-        pprof_binary = getattr(self.env_config_to_test, "pprof_binary", "pprof")
+        # Get pprof_binary using dual approach
+        plugin_config = self._get_plugin_config()
+        pprof_binary = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            pprof_binary = self.env_config_to_test.plugin_config.get("pprof_binary")
+        if pprof_binary is None:
+            pprof_binary = (
+                plugin_config.pprof_binary
+                if hasattr(plugin_config, "pprof_binary")
+                else "pprof"
+            )
 
         return f"""
 # Generate GPerf heap analysis

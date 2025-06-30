@@ -45,7 +45,7 @@ def panther_implementation_names(draw):
 @st.composite
 def panther_protocol_names(draw):
     """Generate valid protocol names."""
-    known_protocols = ["quic", "tcp", "udp", "http3"]
+    known_protocols = ["quic", "tcp", "udp"]
     return draw(st.sampled_from(known_protocols))
 
 

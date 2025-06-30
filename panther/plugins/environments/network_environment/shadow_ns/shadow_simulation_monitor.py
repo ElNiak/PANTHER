@@ -1,23 +1,23 @@
 import os
-import threading
 import time
 from enum import Enum
+from typing import Any, Dict
+
+from ..base_environment_monitor import BaseEnvironmentMonitor, ServiceHealthState
 
 
 class ShadowSimulationState(Enum):
-    """State management for Shadow simulation lifecycle"""
+    """State management for Shadow NS simulation phases"""
 
     INITIALIZING = "initializing"
-    PREPARING = "preparing"
-    STARTING = "starting"
-    RUNNING = "running"
-    MONITORING = "monitoring"
-    COMPLETED = "completed"
+    STARTING_SIMULATION = "starting_simulation"
+    SIMULATION_RUNNING = "simulation_running"
+    MONITORING_HOSTS = "monitoring_hosts"
+    HOSTS_READY = "hosts_ready"
     FAILED = "failed"
-    STOPPED = "stopped"
 
 
-class ShadowSimulationMonitor:
+class ShadowSimulationMonitor(BaseEnvironmentMonitor):
     """
     Background Shadow simulation monitor for non-blocking deployments.
 
@@ -26,74 +26,33 @@ class ShadowSimulationMonitor:
     """
 
     def __init__(self, shadow_env, config):
-        self.shadow_env = shadow_env
-        self.config = config
-        self.logger = shadow_env.logger
+        # Initialize base monitor
+        super().__init__(shadow_env, config, shadow_env.logger)
 
-        # Simulation state tracking
-        self.simulation_state = ShadowSimulationState.INITIALIZING
-        self.failure_count = 0
-        self.simulation_start_time = None
+        # Shadow NS specific attributes
+        self.shadow_env = shadow_env
         self.expected_duration = shadow_env.simulation_duration
 
-        # Process monitoring
+        # Simulation state tracking (specific to Shadow simulation monitoring)
+        self.simulation_state = ServiceHealthState.STARTING
+        self.simulation_start_time = None
+
+        # Process monitoring (Shadow specific)
         self.shadow_process = None
         self.shadow_output_file = None
 
-        # Thread management
-        self.monitoring_active = False
-        self.monitor_thread = None
-        self.lock = threading.Lock()
-
     def start_monitoring(self, shadow_process, output_file=None):
-        """Start background monitoring in a daemon thread"""
-        if self.monitoring_active:
-            return
-
+        """Start Shadow simulation monitoring with process and output file."""
+        # Store Shadow-specific monitoring parameters
         self.shadow_process = shadow_process
         self.shadow_output_file = output_file
         self.simulation_start_time = time.time()
 
-        self.monitoring_active = True
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            name=f"ShadowMonitor-{self.shadow_env.env_name}",
-            daemon=True,
-        )
-        self.monitor_thread.start()
-        self.logger.info(
-            f"Started background Shadow simulation monitoring thread: {self.monitor_thread.name}"
-        )
+        # Use base class start_monitoring (no args needed)
+        super().start_monitoring()
 
-    def stop_monitoring(self):
-        """Stop background monitoring"""
-        if not self.monitoring_active:
-            return
-
-        self.monitoring_active = False
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            self.logger.info("Stopping background Shadow monitoring...")
-            self.monitor_thread.join(timeout=5)
-            if self.monitor_thread.is_alive():
-                self.logger.warning("Background monitoring thread did not stop cleanly")
-        self.monitor_thread = None
-
-    def _monitor_loop(self):
-        """Main monitoring loop running in background thread"""
-        self.logger.debug("Background Shadow monitoring loop started")
-
-        while self.monitoring_active:
-            try:
-                self._check_simulation_health()
-                time.sleep(self.config.monitoring_interval_seconds)
-            except Exception as e:
-                self.logger.error(f"Error in background monitoring: {e}")
-                time.sleep(self.config.monitoring_interval_seconds)
-
-        self.logger.debug("Background Shadow monitoring loop ended")
-
-    def _check_simulation_health(self):
-        """Check health of Shadow simulation and handle failures"""
+    def _check_health(self):
+        """Check health of Shadow simulation and handle failures (Shadow NS specific)."""
         with self.lock:
             # Check if process is still running
             if self.shadow_process and self.shadow_process.poll() is not None:
@@ -117,7 +76,7 @@ class ShadowSimulationMonitor:
                     )
                     self.failure_count += 1
                     if self.failure_count >= self.config.failure_threshold_count:
-                        self._trigger_early_termination("Simulation timeout exceeded")
+                        self._handle_failure("Simulation timeout exceeded")
 
     def _check_simulation_progress(self):
         """Check Shadow simulation progress from output logs"""
@@ -133,16 +92,16 @@ class ShadowSimulationMonitor:
                         self.logger.error(f"Shadow error detected: {line.strip()}")
                         self.failure_count += 1
                     elif "simulation complete" in line.lower():
-                        self.simulation_state = ShadowSimulationState.COMPLETED
+                        self.simulation_state = ServiceHealthState.COMPLETED
                         self.logger.info("Shadow simulation completed successfully")
                         self.monitoring_active = False
                         return
 
                 # Update state based on content
-                if self.simulation_state == ShadowSimulationState.STARTING:
+                if self.simulation_state == ServiceHealthState.STARTING:
                     for line in last_lines:
                         if "starting simulation" in line.lower():
-                            self.simulation_state = ShadowSimulationState.RUNNING
+                            self.simulation_state = ServiceHealthState.RUNNING
                             self.logger.info("Shadow simulation is now running")
                             break
 
@@ -150,18 +109,16 @@ class ShadowSimulationMonitor:
             self.logger.debug(f"Could not read simulation output: {e}")
 
     def _handle_process_termination(self, exit_code):
-        """Handle Shadow process termination"""
+        """Handle Shadow process termination using base class logic."""
         if exit_code == 0:
-            self.simulation_state = ShadowSimulationState.COMPLETED
+            self.simulation_state = ServiceHealthState.COMPLETED
             self.logger.info("Shadow simulation completed successfully")
+            self.monitoring_active = False
         else:
-            self.simulation_state = ShadowSimulationState.FAILED
+            self.simulation_state = ServiceHealthState.FAILED
             self.logger.error(f"Shadow simulation failed with exit code: {exit_code}")
-            self._trigger_early_termination(
-                f"Shadow process exited with code {exit_code}"
-            )
-
-        self.monitoring_active = False
+            # Use base class failure handling
+            self._handle_failure(f"Shadow process exited with code {exit_code}")
 
     def _parse_duration(self, duration_str):
         """Parse duration string (e.g., '300s') to seconds"""
@@ -178,26 +135,24 @@ class ShadowSimulationMonitor:
             # Assume seconds if no unit
             return float(duration_str)
 
-    def _trigger_early_termination(self, reason):
-        """Trigger early experiment termination"""
-        details = {
+    def _get_monitor_name(self) -> str:
+        """Get unique monitor name for Shadow simulation."""
+        return f"ShadowSim-{self.shadow_env.env_name}"
+
+    def _should_terminate(self) -> bool:
+        """Shadow simulations should terminate on critical failures."""
+        return True  # Simulation failures should always terminate
+
+    def _get_termination_details(self) -> Dict[str, Any]:
+        """Get Shadow simulation specific termination details."""
+        return {
+            "monitor_type": "shadow_simulation",
             "simulation_state": self.simulation_state.value,
-            "failure_count": self.failure_count,
-            "elapsed_time": (
-                time.time() - self.simulation_start_time
-                if self.simulation_start_time
-                else 0
-            ),
-            "monitoring_config": {
-                "failure_threshold": self.config.failure_threshold_count,
-                "monitoring_interval": self.config.monitoring_interval_seconds,
-            },
+            "expected_duration": self.expected_duration,
+            "simulation_start_time": self.simulation_start_time,
+            "shadow_process_id": self.shadow_process.pid
+            if self.shadow_process
+            else None,
+            "shadow_output_file": self.shadow_output_file,
+            "duration_seconds": self._parse_duration(self.expected_duration),
         }
-
-        self.logger.error(f"Triggering early experiment termination: {reason}")
-
-        # Set termination flag on environment
-        self.shadow_env.request_early_termination(reason, details)
-
-        # Stop monitoring since experiment is terminating
-        self.monitoring_active = False

@@ -38,6 +38,11 @@ class EventSummarizer:
         "test.completed": EventImportance.HIGH,
         "test.failed": EventImportance.CRITICAL,
         "test.skipped": EventImportance.MEDIUM,
+        # Step events - set to LOW importance so they're logged at DEBUG level
+        "step.progress": EventImportance.LOW,
+        "step.execution_started": EventImportance.LOW,
+        "step.execution_completed": EventImportance.MEDIUM,
+        "step.execution_failed": EventImportance.HIGH,
         # Service events
         "service.started": EventImportance.MEDIUM,
         "service.stopped": EventImportance.MEDIUM,
@@ -71,6 +76,7 @@ class EventSummarizer:
         "state.transitioning",
         "metrics.collected",
         "plugin.loaded",
+        "step.progress",  # Add step progress to batchable events to reduce noise
     }
 
     @classmethod
@@ -88,234 +94,243 @@ class EventSummarizer:
             summary, details = cls._summarize_test_event(event_type, event_data)
         elif "service" in event_type:
             summary, details = cls._summarize_service_event(event_type, event_data)
+        elif "step" in event_type:
+            summary, details = cls._summarize_step_event(event_type, event_data)
         elif "command" in event_type:
             summary, details = cls._summarize_command_event(event_type, event_data)
-        elif "environment" in event_type:
-            summary, details = cls._summarize_environment_event(event_type, event_data)
         elif "state" in event_type:
             summary, details = cls._summarize_state_event(event_type, event_data)
+        elif "environment" in event_type:
+            summary, details = cls._summarize_environment_event(event_type, event_data)
+        elif "metrics" in event_type:
+            summary, details = cls._summarize_metrics_event(event_type, event_data)
+        elif "plugin" in event_type:
+            summary, details = cls._summarize_plugin_event(event_type, event_data)
         else:
-            # Generic summary for unknown event types
-            summary = cls._create_generic_summary(event_data)
-            details = cls._extract_key_details(event_data)
+            summary, details = cls._summarize_generic_event(event_type, event_data)
 
-        return EventSummary(importance, summary, details, should_batch)
+        return EventSummary(
+            importance=importance,
+            summary=summary,
+            details=details,
+            should_batch=should_batch,
+        )
+
+    @classmethod
+    def should_log_event(cls, event_type: str, threshold: EventImportance) -> bool:
+        """Check if an event should be logged based on importance threshold."""
+        importance = cls.IMPORTANT_EVENT_TYPES.get(event_type, EventImportance.MEDIUM)
+        return importance.value >= threshold.value
+
+    @classmethod
+    def _summarize_step_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize step events."""
+        step_name = event_data.get("step_name", "unknown")
+
+        if event_type == "step.progress":
+            progress = event_data.get("progress_percentage", 0)
+            message = event_data.get("progress_message", "")
+            summary = f"{step_name} progress: {progress:.1f}%"
+            if message:
+                summary += f" - {message}"
+
+            details = {
+                "step_name": step_name,
+                "progress": f"{progress:.1f}%",
+                "test_case": event_data.get("test_case_id"),
+            }
+        elif event_type == "step.execution_started":
+            summary = f"Started step: {step_name}"
+            details = {"step_name": step_name}
+        elif event_type == "step.execution_completed":
+            duration = event_data.get("duration")
+            summary = f"Completed step: {step_name}"
+            if duration:
+                summary += f" in {duration:.2f}s"
+            details = {"step_name": step_name, "duration": duration}
+        elif event_type == "step.execution_failed":
+            error = event_data.get("error_message", "Unknown error")
+            summary = f"Step failed: {step_name} - {error}"
+            details = {"step_name": step_name, "error": error}
+        else:
+            summary = f"Step {event_type}: {step_name}"
+            details = {"step_name": step_name}
+
+        return summary, details
 
     @classmethod
     def _summarize_experiment_event(
-        cls, event_type: str, data: Dict[str, Any]
+        cls, event_type: str, event_data: Dict[str, Any]
     ) -> tuple:
-        """Summarize experiment-related events."""
-        name = data.get("name", "Unknown")
-        phase = data.get("phase", "Unknown")
+        """Summarize experiment events."""
+        experiment_id = event_data.get("experiment_id", "unknown")
 
         if event_type == "experiment.started":
-            summary = f"Experiment '{name}' started"
-            details = {
-                "test_count": data.get("test_count", 0),
-                "output_dir": data.get("output_dir", "N/A"),
-            }
+            summary = f"Experiment started: {experiment_id}"
+            details = {"experiment_id": experiment_id}
+        elif event_type == "experiment.completed":
+            duration = event_data.get("duration")
+            summary = f"Experiment completed: {experiment_id}"
+            if duration:
+                summary += f" in {duration:.2f}s"
+            details = {"experiment_id": experiment_id, "duration": duration}
         elif event_type == "experiment.failed":
-            summary = (
-                f"Experiment '{name}' failed: {data.get('error', 'Unknown error')}"
-            )
-            details = {
-                "phase": phase,
-                "duration": data.get("duration", "N/A"),
-                "error_type": data.get("error_type", "Unknown"),
-            }
+            reason = event_data.get("failure_reason", "Unknown")
+            summary = f"Experiment failed: {experiment_id} - {reason}"
+            details = {"experiment_id": experiment_id, "failure_reason": reason}
         else:
-            summary = f"Experiment '{name}' - {phase}"
-            details = {
-                "test_count": data.get("test_count", 0),
-                "duration": data.get("duration", "N/A"),
-            }
+            summary = f"Experiment {event_type}: {experiment_id}"
+            details = {"experiment_id": experiment_id}
 
         return summary, details
 
     @classmethod
-    def _summarize_test_event(cls, event_type: str, data: Dict[str, Any]) -> tuple:
-        """Summarize test-related events."""
-        test_name = data.get("test_name", "Unknown")
+    def _summarize_test_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize test events."""
+        test_name = event_data.get("test_name", event_data.get("test_id", "unknown"))
 
-        if event_type == "test.failed":
-            summary = f"Test '{test_name}' failed: {data.get('reason', 'Unknown')}"
-            details = {
-                "duration": data.get("duration", "N/A"),
-                "error": data.get("error", None),
-                "assertion": data.get("assertion", None),
-            }
+        if event_type == "test.started":
+            summary = f"Test started: {test_name}"
+            details = {"test_name": test_name}
+        elif event_type == "test.completed":
+            passed = event_data.get("passed", False)
+            summary = f"Test {'passed' if passed else 'failed'}: {test_name}"
+            details = {"test_name": test_name, "passed": passed}
+        elif event_type == "test.failed":
+            reason = event_data.get("failure_reason", "Unknown")
+            summary = f"Test failed: {test_name} - {reason}"
+            details = {"test_name": test_name, "failure_reason": reason}
         else:
-            summary = f"Test '{test_name}' {event_type.split('.')[-1]}"
-            details = {
-                "duration": data.get("duration", "N/A"),
-                "services": data.get("services", []),
-            }
+            summary = f"Test {event_type}: {test_name}"
+            details = {"test_name": test_name}
 
         return summary, details
 
     @classmethod
-    def _summarize_service_event(cls, event_type: str, data: Dict[str, Any]) -> tuple:
-        """Summarize service-related events."""
-        service_name = data.get("service_name", "Unknown")
-        implementation = data.get("implementation", "N/A")
+    def _summarize_service_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize service events."""
+        service_name = event_data.get(
+            "service_name", event_data.get("service_id", "unknown")
+        )
 
-        if event_type == "service.crashed":
-            summary = f"Service '{service_name}' crashed"
-            details = {
-                "implementation": implementation,
-                "exit_code": data.get("exit_code", "N/A"),
-                "error": data.get("error", None),
-            }
+        if event_type == "service.started":
+            summary = f"Service started: {service_name}"
+            details = {"service_name": service_name}
+        elif event_type == "service.stopped":
+            summary = f"Service stopped: {service_name}"
+            details = {"service_name": service_name}
         elif event_type == "service.error":
-            summary = (
-                f"Service '{service_name}' error: {data.get('error_type', 'Unknown')}"
-            )
-            details = {
-                "implementation": implementation,
-                "error_message": data.get("error_message", "N/A"),
-            }
+            error = event_data.get("error_message", "Unknown error")
+            summary = f"Service error: {service_name} - {error}"
+            details = {"service_name": service_name, "error": error}
         else:
-            status = event_type.split(".")[-1]
-            summary = f"Service '{service_name}' {status}"
-            details = {
-                "implementation": implementation,
-            }
+            summary = f"Service {event_type}: {service_name}"
+            details = {"service_name": service_name}
 
         return summary, details
 
     @classmethod
-    def _summarize_command_event(cls, event_type: str, data: Dict[str, Any]) -> tuple:
-        """Summarize command-related events."""
-        phase = data.get("phase", "unknown")
-        command = data.get("command", "")
-
-        # Skip empty or no-op commands
-        if not command or command in [
-            "No commands",
-            "No pre-run commands",
-            "No post-run commands",
-            "No compile commands",
-            "No post-compile commands",
-        ]:
-            return None, None
-
+    def _summarize_command_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize command events."""
+        command = event_data.get("command", "unknown")
         # Truncate long commands
-        if len(command) > 80:
-            command_summary = command[:77] + "..."
-        else:
-            command_summary = command
+        if len(command) > 50:
+            command = command[:47] + "..."
 
-        summary = f"{phase.replace('_', ' ').title()}: {command_summary}"
-        details = {
-            "phase": phase,
-            "length": len(command),
-        }
+        if event_type == "command.executed":
+            return_code = event_data.get("return_code")
+            summary = f"Command executed: {command}"
+            if return_code is not None:
+                summary += f" (exit {return_code})"
+            details = {"command": command, "return_code": return_code}
+        else:
+            summary = f"Command {event_type}: {command}"
+            details = {"command": command}
+
+        return summary, details
+
+    @classmethod
+    def _summarize_state_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize state events."""
+        from_state = event_data.get("from_state", "unknown")
+        to_state = event_data.get("to_state", "unknown")
+
+        if event_type == "state.changed":
+            summary = f"State: {from_state} → {to_state}"
+            details = {"from_state": from_state, "to_state": to_state}
+        else:
+            summary = f"State {event_type}: {from_state}"
+            details = {"from_state": from_state}
 
         return summary, details
 
     @classmethod
     def _summarize_environment_event(
-        cls, event_type: str, data: Dict[str, Any]
+        cls, event_type: str, event_data: Dict[str, Any]
     ) -> tuple:
-        """Summarize environment-related events."""
-        env_type = data.get("environment_type", "Unknown")
-        name = data.get("name", env_type)
+        """Summarize environment events."""
+        env_name = event_data.get("environment_name", "unknown")
 
-        status = event_type.split(".")[-1].replace("_", " ")
-        summary = f"Environment '{name}' {status}"
-
-        details = {
-            "type": env_type,
-        }
-
-        if "error" in data:
-            details["error"] = data["error"]
+        if event_type == "environment.setup_started":
+            summary = f"Environment setup: {env_name}"
+            details = {"environment_name": env_name}
+        elif event_type == "environment.ready":
+            summary = f"Environment ready: {env_name}"
+            details = {"environment_name": env_name}
+        else:
+            summary = f"Environment {event_type}: {env_name}"
+            details = {"environment_name": env_name}
 
         return summary, details
 
     @classmethod
-    def _summarize_state_event(cls, event_type: str, data: Dict[str, Any]) -> tuple:
-        """Summarize state-related events."""
-        entity = data.get("entity", "Unknown")
-        from_state = data.get("from_state", "Unknown")
-        to_state = data.get("to_state", "Unknown")
-
-        summary = f"{entity}: {from_state} → {to_state}"
-        details = {}
-
+    def _summarize_metrics_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize metrics events."""
+        metric_count = len(event_data.get("metrics", {}))
+        summary = f"Metrics {event_type}: {metric_count} metrics"
+        details = {"count": metric_count}
         return summary, details
 
     @classmethod
-    def _create_generic_summary(cls, data: Dict[str, Any]) -> str:
-        """Create a generic summary for unknown event types."""
-        if "message" in data:
-            return str(data["message"])[:100]
-        elif "name" in data:
-            return f"{data['name']}"
+    def _summarize_plugin_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize plugin events."""
+        plugin_name = event_data.get("plugin_name", "unknown")
+        summary = f"Plugin {event_type}: {plugin_name}"
+        details = {"plugin_name": plugin_name}
+        return summary, details
+
+    @classmethod
+    def _summarize_generic_event(
+        cls, event_type: str, event_data: Dict[str, Any]
+    ) -> tuple:
+        """Summarize generic events."""
+        # Extract any name-like field for context
+        name_fields = ["name", "id", "entity_id", "entity_name"]
+        entity_name = None
+        for field in name_fields:
+            if field in event_data:
+                entity_name = event_data[field]
+                break
+
+        if entity_name:
+            summary = f"{event_type}: {entity_name}"
+            details = {"entity": entity_name}
         else:
-            # Try to find the most relevant field
-            for key in ["description", "summary", "title", "action"]:
-                if key in data:
-                    return str(data[key])[:100]
+            summary = event_type
+            details = {}
 
-        # Fallback to string representation
-        return str(data)[:100] + "..." if len(str(data)) > 100 else str(data)
-
-    @classmethod
-    def _extract_key_details(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract key details from event data."""
-        # Common important fields
-        important_fields = {
-            "duration",
-            "error",
-            "error_type",
-            "error_message",
-            "exit_code",
-            "reason",
-            "count",
-            "size",
-            "status",
-        }
-
-        details = {}
-        for field in important_fields:
-            if field in data:
-                details[field] = data[field]
-
-        return details
-
-    @classmethod
-    def should_log_event(
-        cls, event_type: str, importance_threshold: EventImportance
-    ) -> bool:
-        """Determine if an event should be logged based on importance."""
-        event_importance = cls.IMPORTANT_EVENT_TYPES.get(
-            event_type, EventImportance.MEDIUM
-        )
-        return event_importance.value >= importance_threshold.value
-
-    @classmethod
-    def format_event_batch(cls, events: List[Dict[str, Any]], event_type: str) -> str:
-        """Format a batch of similar events into a single log entry."""
-        if not events:
-            return ""
-
-        count = len(events)
-        if event_type == "command.generated":
-            phases = [e.get("phase", "unknown") for e in events]
-            phase_counts = {}
-            for phase in phases:
-                phase_counts[phase] = phase_counts.get(phase, 0) + 1
-            summary = f"Generated {count} commands: " + ", ".join(
-                f"{cnt} {phase}" for phase, cnt in phase_counts.items()
-            )
-        elif event_type == "plugin.loaded":
-            plugin_names = [e.get("plugin_name", "unknown") for e in events]
-            summary = f"Loaded {count} plugins: {', '.join(plugin_names[:5])}"
-            if count > 5:
-                summary += f" and {count - 5} more"
-        else:
-            summary = f"Batched {count} {event_type} events"
-
-        return summary
+        return summary, details

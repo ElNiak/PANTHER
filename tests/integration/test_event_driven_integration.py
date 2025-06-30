@@ -5,30 +5,37 @@ This test verifies that the event-driven architecture integration is working
 correctly with proper event emission and handling across service managers.
 """
 
-import pytest
 from unittest.mock import Mock
 
-from panther.core.observer.management.event_manager import EventManager
+import pytest
+
 from panther.core.events.service.emitter import ServiceEventEmitter
 from panther.core.events.service.events import (
-    ServiceStartedEvent,
-    ServiceStoppedEvent,
     ServiceErrorEvent,
     ServiceEvent,
+    ServiceStartedEvent,
+    ServiceStoppedEvent,
 )
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.plugin_manager import PluginManager
-from panther.plugins.services.service_base import ServiceBase
-from panther.plugins.services.config_schema import ServiceConfig
 from panther.plugins.protocols.config_schema import ProtocolConfig
+from panther.plugins.services.config_schema import ServiceConfig
+from panther.plugins.services.service_base import ServiceBase
 
 
 class MockServiceManager(ServiceBase):
     """Mock service manager for testing event-driven integration."""
 
     def __init__(
-        self, service_config_to_test, service_type: str, protocol, implementation_name: str
+        self,
+        service_config_to_test,
+        service_type: str,
+        protocol,
+        implementation_name: str,
     ):
-        super().__init__(service_config_to_test, service_type, protocol, implementation_name)
+        super().__init__(
+            service_config_to_test, service_type, protocol, implementation_name
+        )
         self.prepare_called = False
         self.prepare_success = True
 
@@ -157,7 +164,9 @@ class TestEventDrivenIntegration:
         mock_service_manager.prepare()
 
         # Verify events were emitted
-        assert mock_observer.notify.call_count >= 2  # At least preparation_started and error event
+        assert (
+            mock_observer.notify.call_count >= 2
+        )  # At least preparation_started and error event
 
         # Check for error event
         emitted_events = [call[0][0] for call in mock_observer.notify.call_args_list]
@@ -170,14 +179,20 @@ class TestEventDrivenIntegration:
         event_emitter.event_manager.register_observer(mock_observer)
 
         # Test service started event
-        event_emitter.emit_service_started("test_service", {"detail": "test"})
+        event_emitter.emit_service_started("test_service", "Test Service")
 
         # Test service stopped event
-        event_emitter.emit_service_stopped("test_service", True, {"detail": "stopped"})
+        event_emitter.emit_service_stopped(
+            "test_service", "Test Service", exit_code=0, reason="test completed"
+        )
 
         # Test service error event
         event_emitter.emit_service_error(
-            "test_service", "test_error", "Test error message", {"detail": "error"}
+            "test_service",
+            "Test Service",
+            "Test error message",
+            error_type="test_error",
+            error_details={"detail": "error"},
         )
 
         # Verify events were emitted
@@ -226,7 +241,12 @@ class TestEventDrivenIntegration:
         event_manager.register_observer(mock_observer)
 
         # Test service event notification
-        service_manager.notify_service_event("test_event", {"key": "value"})
+        service_manager.notify_service_event(
+            "test_event",
+            service_id="test_service",
+            service_name="Test Service",
+            details={"key": "value"},
+        )
 
         # Verify event was emitted
         assert mock_observer.notify.call_count == 1
@@ -272,7 +292,9 @@ class TestEventDrivenIntegration:
         assert any("started" in name for name in event_names)
         assert any("stopped" in name for name in event_names)
 
-    def test_event_timing_and_metadata(self, event_manager, mock_service_manager, mock_observer):
+    def test_event_timing_and_metadata(
+        self, event_manager, mock_service_manager, mock_observer
+    ):
         """Test that events contain proper timing and metadata."""
         # Register observer
         event_manager.register_observer(mock_observer)
@@ -302,4 +324,6 @@ class TestEventDrivenIntegration:
             mock_service_manager.prepare()
             # Should complete without exception
         except AttributeError:
-            pytest.fail("Service manager should handle missing event emitter gracefully")
+            pytest.fail(
+                "Service manager should handle missing event emitter gracefully"
+            )

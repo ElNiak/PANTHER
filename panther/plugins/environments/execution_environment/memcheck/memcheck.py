@@ -8,6 +8,8 @@ memory leak detection, invalid memory access detection, and uninitialized value 
 """
 
 from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.environments.execution_environment.base_execution_environment import (
     BaseExecutionEnvironment,
 )
@@ -17,7 +19,6 @@ from panther.plugins.environments.execution_environment.command_generation_utils
 from panther.plugins.environments.execution_environment.memcheck.config_schema import (
     MemcheckConfig,
 )
-from panther.plugins.plugin_decorators import register_plugin
 from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 
 
 @register_plugin(
-    plugin_type="environment",
+    plugin_type=PluginType.EXECUTION_ENVIRONMENT,
     name="memcheck",
     version="1.0.0",
     description="Valgrind Memcheck memory error detection environment",
@@ -58,6 +59,40 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
+
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> MemcheckConfig:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    MemcheckConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                self._plugin_config = MemcheckConfig()
+        return self._plugin_config
+
+    def _get_config_value(self, field_name: str, default=None):
+        """Helper method to get config value using dual approach."""
+        # First try plugin_config dict
+        value = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            value = self.env_config_to_test.plugin_config.get(field_name)
+
+        # Second try typed config
+        if value is None:
+            plugin_config = self._get_plugin_config()
+            if hasattr(plugin_config, field_name):
+                value = getattr(plugin_config, field_name)
+
+        # Return value or default
+        return value if value is not None else default
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
@@ -128,115 +163,142 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
         Returns:
             str: Complete Memcheck command
         """
+        plugin_config = self._get_plugin_config()
         command_parts = ["valgrind", "--tool=memcheck"]
 
         # Add output file
         command_parts.extend([f"--log-file={output_file}"])
 
-        # Set output format
-        if self.env_config_to_test.output_format == "xml":
-            command_parts.append("--xml=yes")
-            command_parts.append(f"--xml-file={output_file}.xml")
-            if self.env_config_to_test.xml_user_comment:
-                command_parts.append(
-                    f"--xml-user-comment={self.env_config_to_test.xml_user_comment}"
+        # Set output format using dual approach
+        output_format = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            output_format = self.env_config_to_test.plugin_config.get("output_format")
+        if output_format is None and hasattr(plugin_config, "output_format"):
+            output_format = plugin_config.output_format
+
+        if output_format == "xml":
+            command_parts.extend(("--xml=yes", f"--xml-file={output_file}.xml"))
+            # Get xml_user_comment using dual approach
+            xml_user_comment = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                xml_user_comment = self.env_config_to_test.plugin_config.get(
+                    "xml_user_comment"
                 )
+            if xml_user_comment is None and hasattr(plugin_config, "xml_user_comment"):
+                xml_user_comment = plugin_config.xml_user_comment
 
-        # Leak checking options
-        command_parts.append(f"--leak-check={self.env_config_to_test.leak_check}")
-        command_parts.append(
-            f"--leak-resolution={self.env_config_to_test.leak_resolution}"
-        )
-        command_parts.append(
-            f"--show-leak-kinds={self.env_config_to_test.show_leak_kinds}"
-        )
-        command_parts.append(
-            f"--errors-for-leak-kinds={self.env_config_to_test.errors_for_leak_kinds}"
-        )
-        command_parts.append(
-            f"--leak-check-heuristics={self.env_config_to_test.leak_check_heuristics}"
-        )
+            if xml_user_comment:
+                command_parts.append(f"--xml-user-comment={xml_user_comment}")
 
-        # Optional leak checking flags
-        if self.env_config_to_test.show_reachable:
-            command_parts.append(
-                f"--show-reachable={self.env_config_to_test.show_reachable}"
-            )
-        if self.env_config_to_test.show_possibly_lost:
-            command_parts.append(
-                f"--show-possibly-lost={self.env_config_to_test.show_possibly_lost}"
-            )
+        # Leak checking options using helper
+        leak_check = self._get_config_value("leak_check", "full")
+        command_parts.append(f"--leak-check={leak_check}")
 
-        # XTree leak output
-        if self.env_config_to_test.xtree_leak:
+        leak_resolution = self._get_config_value("leak_resolution", "high")
+        command_parts.append(f"--leak-resolution={leak_resolution}")
+
+        show_leak_kinds = self._get_config_value("show_leak_kinds", "all")
+        command_parts.append(f"--show-leak-kinds={show_leak_kinds}")
+
+        errors_for_leak_kinds = self._get_config_value("errors_for_leak_kinds", "all")
+        command_parts.append(f"--errors-for-leak-kinds={errors_for_leak_kinds}")
+
+        leak_check_heuristics = self._get_config_value("leak_check_heuristics", "all")
+        command_parts.append(f"--leak-check-heuristics={leak_check_heuristics}")
+
+        if show_reachable := self._get_config_value("show_reachable"):
+            command_parts.append(f"--show-reachable={show_reachable}")
+
+        if show_possibly_lost := self._get_config_value("show_possibly_lost"):
+            command_parts.append(f"--show-possibly-lost={show_possibly_lost}")
+
+        if xtree_leak := self._get_config_value("xtree_leak"):
             command_parts.append("--xtree-leak=yes")
-            command_parts.append(
-                f"--xtree-leak-file={self.env_config_to_test.xtree_leak_file}"
+            xtree_leak_file = self._get_config_value(
+                "xtree_leak_file", "xtree_leak.kcg"
             )
+            command_parts.append(f"--xtree-leak-file={xtree_leak_file}")
 
         # Error detection options
-        if not self.env_config_to_test.undef_value_errors:
+        undef_value_errors = self._get_config_value("undef_value_errors", True)
+        if not undef_value_errors:
             command_parts.append("--undef-value-errors=no")
 
-        if self.env_config_to_test.track_origins:
+        track_origins = self._get_config_value("track_origins")
+        if track_origins:
             command_parts.append("--track-origins=yes")
 
-        if not self.env_config_to_test.partial_loads_ok:
+        partial_loads_ok = self._get_config_value("partial_loads_ok", True)
+        if not partial_loads_ok:
             command_parts.append("--partial-loads-ok=no")
 
-        command_parts.append(
-            f"--expensive-definedness-checks={self.env_config_to_test.expensive_definedness_checks}"
+        expensive_definedness_checks = self._get_config_value(
+            "expensive_definedness_checks", "auto"
         )
         command_parts.append(
-            f"--keep-stacktraces={self.env_config_to_test.keep_stacktraces}"
+            f"--expensive-definedness-checks={expensive_definedness_checks}"
         )
+
+        keep_stacktraces = self._get_config_value("keep_stacktraces", "alloc-and-free")
+        command_parts.append(f"--keep-stacktraces={keep_stacktraces}")
 
         # Memory management options
-        command_parts.append(f"--freelist-vol={self.env_config_to_test.freelist_vol}")
-        command_parts.append(
-            f"--freelist-big-blocks={self.env_config_to_test.freelist_big_blocks}"
-        )
+        freelist_vol = self._get_config_value("freelist_vol", 20000000)
+        command_parts.append(f"--freelist-vol={freelist_vol}")
+
+        freelist_big_blocks = self._get_config_value("freelist_big_blocks", 1000000)
+        command_parts.append(f"--freelist-big-blocks={freelist_big_blocks}")
 
         # Special handling options
-        if self.env_config_to_test.workaround_gcc296_bugs:
+        workaround_gcc296_bugs = self._get_config_value("workaround_gcc296_bugs")
+        if workaround_gcc296_bugs:
             command_parts.append("--workaround-gcc296-bugs=yes")
 
-        if self.env_config_to_test.ignore_range_below_sp:
-            command_parts.append(
-                f"--ignore-range-below-sp={self.env_config_to_test.ignore_range_below_sp}"
-            )
+        ignore_range_below_sp = self._get_config_value("ignore_range_below_sp")
+        if ignore_range_below_sp:
+            command_parts.append(f"--ignore-range-below-sp={ignore_range_below_sp}")
 
-        if not self.env_config_to_test.show_mismatched_frees:
+        show_mismatched_frees = self._get_config_value("show_mismatched_frees", True)
+        if not show_mismatched_frees:
             command_parts.append("--show-mismatched-frees=no")
 
-        if not self.env_config_to_test.show_realloc_size_zero:
+        show_realloc_size_zero = self._get_config_value("show_realloc_size_zero", True)
+        if not show_realloc_size_zero:
             command_parts.append("--show-realloc-size-zero=no")
 
-        if self.env_config_to_test.ignore_ranges:
-            command_parts.append(
-                f"--ignore-ranges={self.env_config_to_test.ignore_ranges}"
-            )
+        ignore_ranges = self._get_config_value("ignore_ranges")
+        if ignore_ranges:
+            command_parts.append(f"--ignore-ranges={ignore_ranges}")
 
         # Fill options
-        if self.env_config_to_test.malloc_fill:
-            command_parts.append(f"--malloc-fill={self.env_config_to_test.malloc_fill}")
+        malloc_fill = self._get_config_value("malloc_fill")
+        if malloc_fill:
+            command_parts.append(f"--malloc-fill={malloc_fill}")
 
-        if self.env_config_to_test.free_fill:
-            command_parts.append(f"--free-fill={self.env_config_to_test.free_fill}")
+        free_fill = self._get_config_value("free_fill")
+        if free_fill:
+            command_parts.append(f"--free-fill={free_fill}")
 
         # Suppression file
-        if self.env_config_to_test.suppression_file:
-            command_parts.append(
-                f"--suppressions={self.env_config_to_test.suppression_file}"
-            )
+        suppression_file = self._get_config_value("suppression_file")
+        if suppression_file:
+            command_parts.append(f"--suppressions={suppression_file}")
 
         # Generate suppressions
-        if self.env_config_to_test.generate_suppressions:
+        generate_suppressions = self._get_config_value("generate_suppressions")
+        if generate_suppressions:
             command_parts.append("--gen-suppressions=all")
 
         # Additional parameters
-        if self.env_config_to_test.additional_parameters:
-            command_parts.extend(self.env_config_to_test.additional_parameters)
+        additional_parameters = self._get_config_value("additional_parameters")
+        if additional_parameters:
+            command_parts.extend(additional_parameters)
 
         return " ".join(command_parts)
 
@@ -361,7 +423,8 @@ echo "Analysis complete. For detailed information, examine the full Memcheck log
         )
 
         # Add detailed leak analysis if configured for full leak checking
-        if self.env_config_to_test.leak_check in ["yes", "full"]:
+        leak_check = self._get_config_value("leak_check", "full")
+        if leak_check in ["yes", "full"]:
             leak_detail_file = command_builder.register_output_file(
                 file_type="memcheck_leaks",
                 extension="detailed.txt",
@@ -406,7 +469,9 @@ fi
             str: Command string for Memcheck wrapper
         """
         if output_file is None:
-            output_file = self.env_config_to_test.output_file or "/tmp/memcheck.log"
+            # Get output_file using dual approach
+            output_file_value = self._get_config_value("output_file")
+            output_file = output_file_value or "/tmp/memcheck.log"
 
         # Note: pid parameter is not directly supported by Memcheck (runs from start)
         if pid:

@@ -9,10 +9,11 @@ if TYPE_CHECKING:
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from omegaconf import OmegaConf
 
+from panther.config.core.models.environment import EnvironmentConfig
 from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.management.event_manager import EventManager
-from panther.config.core.models.environment import EnvironmentConfig
+from panther.core.utils import log_omega_config_summary
 from panther.plugins.environments.environment_interface import IEnvironmentPlugin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
@@ -81,7 +82,6 @@ class INetworkEnvironment(IEnvironmentPlugin):
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
         self.docker_name = None
-        self.execution_environment = None
         self.network_name = f"{env_sub_type}_network"
         self.execution_environments = []
 
@@ -126,7 +126,8 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Raises:
             Exception: If an error occurs during the setup of any execution environment, it is caught and logged.
         """
-        for execution_env in self.execution_environment:
+        # Debug logging for execution environment setup
+        for execution_env in self.execution_environments:
             try:
                 self.logger.debug("Setting up execution environment: %s", execution_env)
                 execution_env.setup_environment(
@@ -141,7 +142,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     def update_environment(
         self,
-        execution_environment,
+        execution_environments,
         global_config: "GlobalConfig",
         plugin_manager: "PluginManager",
         services_managers: List[IServiceManager],
@@ -151,7 +152,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Updates the network environment with the provided configuration and services.
 
         Args:
-            execution_environment (Any): The execution environment to be used.
+            execution_environments (Any): The execution environment to be used.
             global_config (OmegaConf): The global configuration settings.
             plugin_manager (Any): The plugin manager instance.
             services_managers (List[IServiceManager]): A list of service manager instances.
@@ -162,20 +163,21 @@ class INetworkEnvironment(IEnvironmentPlugin):
         """
         self.services_managers: List[IServiceManager] = services_managers
         self.test_config = test_config
-        self.execution_environment = execution_environment
+        self.execution_environments = execution_environments
         self.plugin_manager = plugin_manager
         self.global_config = global_config
+
         self.logger.debug(
             "Output directory: %s, Log directory: %s", self.output_dir, self.log_dirs
         )
         self.logger.debug("Setup environment with:")
         for service in self.services_managers:
             self.logger.debug("Service: %s", service)
-        # Convert Pydantic models to dict before using OmegaConf.to_yaml
-        test_config_dict = self.test_config.dict() if hasattr(self.test_config, 'dict') else self.test_config
-        global_config_dict = self.global_config.dict() if hasattr(self.global_config, 'dict') else self.global_config
-        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(test_config_dict))
-        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(global_config_dict))
+        # Log configuration for debugging using summarizer
+        from panther.core.utils import log_omega_config_summary
+
+        log_omega_config_summary(self.logger, "Test Config", self.test_config)
+        log_omega_config_summary(self.logger, "Global Config", self.global_config)
 
     def create_log_dir(self, service: IServiceManager):
         """
@@ -230,11 +232,17 @@ class INetworkEnvironment(IEnvironmentPlugin):
         template = self.jinja_env.get_template(template_name)
         self.logger.debug("Template: %s", template)
         self.logger.debug("Services: %s", self.services_managers)
-        self.logger.debug("Deployment Info: %s", self.test_config)
+        # Use summarizer for concise config logging
+        log_omega_config_summary(self.logger, "Deployment Info", self.test_config)
         self.logger.debug("Paths: %s", paths)
         self.logger.debug("Timestamp: %s", timestamp)
         self.logger.debug("Additional Param: %s", additional_param)
-        self.logger.debug("Structured Commands: %s", structured_commands)
+        self.logger.debug("Structured Commands:")
+        if structured_commands is None:
+            self.logger.debug("  None")
+        else:
+            for cmd_phase, commands in structured_commands.items():
+                self.logger.debug("  %s: %s", cmd_phase, commands)
         rendered = template.render(
             services=self.services_managers,
             test_config=self.test_config,
@@ -306,7 +314,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         global_config: GlobalConfig,
         timestamp: str,
         plugin_manager: "Optional[PluginManager]",
-        execution_environment: List[IExecutionEnvironment],
+        execution_environments: List[IExecutionEnvironment],
     ):
         """
         Sets up the required environment before running experiments.

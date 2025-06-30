@@ -3,6 +3,7 @@
 This package contains the Docker Compose network environment plugin.
 """
 
-from .docker_compose import DockerComposeEnvironment
+# NOTE: Imports removed to avoid circular import during plugin discovery
+# The plugin is loaded dynamically via @register_plugin decorator
 
 __all__ = ["DockerComposeEnvironment"]

@@ -1,0 +1,120 @@
+# syntax=docker/dockerfile:1
+
+# =============================================================================
+# PANTHER Service - 3-Stage Multi-Target BuildKit Dockerfile
+# BUILDER -> DEBUG -> PROFILE runtime environments with execution tools
+# =============================================================================
+
+ARG TARGETPLATFORM=linux/amd64
+ARG RUNTIME_MODE=minimal
+
+# =============================================================================
+# STAGE 1: BUILDER - Build tools and dependencies
+# =============================================================================
+FROM ubuntu:20.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# APT package cache optimization with BuildKit cache mounts
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
+    apt-get update && \
+    apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
+    build-essential git cmake software-properties-common \
+    openssl libssl-dev pkg-config python3 \
+    clang automake autoconf libtool \
+    wget curl sudo \
+    libc6-dev libdw1 libelf1 libunwind-dev
+
+# Git clone with cache mount for build artifacts
+RUN --mount=type=cache,target=/tmp/build-cache \
+    git clone https://github.com/gperftools/gperftools /tmp/build-cache/gperftools || \
+    (cd /tmp/build-cache/gperftools && git pull) && \
+    cp -r /tmp/build-cache/gperftools /gperftools
+
+WORKDIR /gperftools
+
+# Build with cache for compiled objects
+RUN --mount=type=cache,target=/gperftools/.libs \
+    --mount=type=cache,target=/gperftools/src/.libs \
+    ./autogen.sh && \
+    ./configure && \
+    make && \
+    make install
+
+RUN whereis libprofiler && whereis libtcmalloc
+
+WORKDIR /
+RUN mkdir -p /app /opt
+
+# =============================================================================
+# STAGE 2: DEBUG - MINIMAL + debugging tools
+# =============================================================================
+FROM builder AS debug
+
+# Install debugging tools with cache
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get install --no-install-recommends -y \
+    gdb valgrind strace util-linux
+
+# Copy built gperftools for debugging
+COPY --from=builder /usr/local/lib/libprofiler.* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libtcmalloc.* /usr/local/lib/
+
+# =============================================================================
+# STAGE 3: PROFILE - DEBUG + performance profiling tools
+# =============================================================================
+FROM debug AS profile
+
+# Install performance profiling tools with cache
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get install --no-install-recommends -y \
+    linux-tools-generic linux-tools-common linux-cloud-tools-common \
+    radare2 google-perftools graphviz gv
+
+# Update library cache for gperftools
+RUN ldconfig
+
+# =============================================================================
+# STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
+# =============================================================================
+FROM ubuntu:20.04 AS minimal
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Core runtime and network analysis tools with cache
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
+    apt-get update && \
+    apt-get install --fix-missing --auto-remove --show-upgraded --no-install-recommends -y \
+    python3 openssl \
+    net-tools tcpdump iperf iperf3 traceroute \
+    wireshark tshark libcap2-bin \
+    iputils-ping iproute2 netcat-openbsd \
+    curl dnsutils
+
+# Configure wireshark for non-root usage (PANTHER protocol testing requirement)
+RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \
+    usermod -aG wireshark root
+
+# Create application directories
+RUN mkdir -p /app /opt
+
+# =============================================================================
+# FINAL STAGE: Runtime mode selection
+# =============================================================================
+FROM ${RUNTIME_MODE} AS final
+
+# Labels for runtime identification
+ARG RUNTIME_MODE=minimal
+LABEL runtime.mode="${RUNTIME_MODE}"
+LABEL runtime.description="PANTHER base service execution environment"
+LABEL runtime.capabilities.network="wireshark,tshark,tcpdump,iperf3"
+LABEL runtime.capabilities.debug="gdb,valgrind,strace"
+LABEL runtime.capabilities.profile="perf,gperftools,radare2"
+
+WORKDIR /app

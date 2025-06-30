@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from panther.config.config_experiment_schema import TestConfig
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models.experiment import TestConfig
+from panther.config.core.models.global_config import GlobalConfig
 from panther.core.observer.impl.experiment_observer import ExperimentObserver
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.test_cases.test_case_impl import TestCase

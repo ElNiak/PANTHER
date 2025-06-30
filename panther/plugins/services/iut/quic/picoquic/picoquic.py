@@ -1,14 +1,21 @@
 """Refactored PicoQUIC service manager using base classes."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Tuple
 
-from panther.core.docker_builder.service_manager_docker_mixin import (
+from panther.config.core.models import ProtocolConfig, ProtocolRole
+from panther.config.core.models.service import ServiceConfig
+from panther.core.docker_builder.plugin_mixin.service_manager_docker_mixin import (
     ServiceManagerDockerMixin,
 )
-from panther.plugins.plugin_decorators import register_plugin
-from panther.config.core.models import ProtocolConfig, ProtocolRole
+from panther.core.exceptions.error_handler_mixin import ErrorHandlerMixin
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.services.base.quic_service_base import BaseQUICServiceManager
+from panther.plugins.services.iut.iut_event_mixin import IUTManagerEventMixin
+from panther.plugins.services.iut.iut_service_manager_mixin import (
+    IUTServiceManagerMixin,
+)
 from panther.plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
 
 if TYPE_CHECKING:
@@ -16,7 +23,7 @@ if TYPE_CHECKING:
 
 
 @register_plugin(
-    plugin_type="iut",
+    plugin_type=PluginType.IUT,
     name="picoquic",
     version="1.0.0",  # Plugin version, not protocol version
     author="PANTHER Team",
@@ -27,74 +34,31 @@ if TYPE_CHECKING:
     dependencies=[
         {"name": "quic_protocol", "version_spec": ">=1.0.0", "plugin_type": "protocol"}
     ],
-    config_schema={
-        "timeout": {
-            "type": "number",
-            "default": 60,
-            "description": "Service execution timeout in seconds"
-        },
-        "certificates": {
-            "type": "object",
-            "properties": {
-                "cert_file": {
-                    "type": "string",
-                    "description": "Path to certificate file"
-                },
-                "key_file": {
-                    "type": "string", 
-                    "description": "Path to private key file"
-                }
-            }
-        },
-        "server": {
-            "type": "object",
-            "properties": {
-                "port": {"type": "number", "default": 4443},
-                "binary": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "default": "picoquicdemo"},
-                        "dir": {"type": "string", "default": "/opt/picoquic"}
-                    }
-                }
-            }
-        },
-        "client": {
-            "type": "object",
-            "properties": {
-                "binary": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string", "default": "picoquicdemo"},
-                        "dir": {"type": "string", "default": "/opt/picoquic"}
-                    }
-                }
-            }
-        }
-    },
-    default_config={
-        "timeout": 60,
-        "generate_new_certificates": True,
-        "server": {
-            "port": 4443,
-            "binary": {"name": "picoquicdemo", "dir": "/opt/picoquic"}
-        },
-        "client": {
-            "binary": {"name": "picoquicdemo", "dir": "/opt/picoquic"}
-        }
-    },
-    supported_protocols=["quic", "http3"],
-    capabilities=["tls13", "0rtt", "connection_migration", "multipath", "datagram", "version_negotiation"],
+    supported_protocols=["quic"],
+    capabilities=[
+        "tls13",
+        "0rtt",
+        "connection_migration",
+        "multipath",
+        "datagram",
+        "version_negotiation",
+    ],
     tags=["quic", "implementation", "c", "minimalist", "research"],
     external_dependencies=["docker"],
 )
-class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
+class PicoquicServiceManager(
+    IUTServiceManagerMixin,
+    ServiceManagerDockerMixin,
+    IUTManagerEventMixin,
+    BaseQUICServiceManager,
+    ErrorHandlerMixin,
+):
     """
     PicoQUIC service manager with auto-discovered version configurations.
-    
+
     Version configurations are automatically loaded from the version_configs/
     directory based on the QUIC protocol plugin's defined versions.
-    
+
     This implementation reduces code duplication by:
     - Inheriting common QUIC functionality from BaseQUICServiceManager
     - Auto-discovering version configurations from YAML files
@@ -103,11 +67,12 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
 
     def __init__(
         self,
-        service_config_to_test,  # Accept both ServiceConfig and PicoquicConfig
+        service_config_to_test: ServiceConfig,  # Accept both ServiceConfig and PicoquicConfig
         service_type: Any,  # Can be string or ImplementationType enum
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager=None,
+        global_config=None,
         **kwargs,
     ):
         """Initialize the PicoQUIC service manager.
@@ -119,66 +84,12 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
             implementation_name: Implementation name (picoquic)
             event_manager: Event manager for monitoring
         """
-        # Handle both ServiceConfig and PicoquicConfig types
-        if hasattr(service_config_to_test, 'implementation'):
-            # This is a ServiceConfig, we need to create a mock object
-            # that has both PicoquicConfig properties and ProtocolConfig
-            from panther.plugins.services.iut.quic.picoquic.config_schema import PicoquicConfig
-            
-            # Get the implementation config
-            impl_config = service_config_to_test.implementation
-            
-            # Create a PicoquicConfig with default version loading
-            picoquic_config_data = {
-                'name': impl_config.name,
-                'type': impl_config.type,
-            }
-            
-            # Only add version if it's not None
-            version_value = getattr(impl_config, 'version', None)
-            if version_value is not None:
-                picoquic_config_data['version'] = version_value
-            
-            # Add any other extra attributes from implementation
-            excluded_fields = {'version'}  # Skip version as we handle it separately
-            for attr_name in dir(impl_config):
-                if (not attr_name.startswith('_') and 
-                    attr_name not in picoquic_config_data and 
-                    attr_name not in excluded_fields):
-                    try:
-                        value = getattr(impl_config, attr_name)
-                        if not callable(value) and value is not None:
-                            picoquic_config_data[attr_name] = value
-                    except:
-                        pass
-            
-            picoquic_config = PicoquicConfig(**picoquic_config_data)
-            
-            # Create a mock object that combines PicoquicConfig with the original ServiceConfig
-            class MockServiceConfig:
-                def __init__(self, picoquic_config, protocol_config, original_service_config):
-                    # Copy all attributes from PicoquicConfig
-                    for attr in dir(picoquic_config):
-                        if not attr.startswith('_'):
-                            try:
-                                setattr(self, attr, getattr(picoquic_config, attr))
-                            except:
-                                pass
-                    # Override protocol with the ProtocolConfig object (for services_interface compatibility)
-                    self.protocol = protocol_config
-                    # Add the implementation attribute (as PicoquicConfig)
-                    self.implementation = picoquic_config
-                    # Add other necessary attributes from original service config
-                    for attr in ['name', 'timeout', 'ports', 'volumes', 'generate_new_certificates',
-                                'command_override', 'working_directory', 'depends_on', 'restart_policy',
-                                'network', 'environment']:
-                        if hasattr(original_service_config, attr):
-                            setattr(self, attr, getattr(original_service_config, attr))
-            
-            service_config_to_test = MockServiceConfig(picoquic_config, protocol, service_config_to_test)
-        
+
         # Extract emitter_registry from kwargs if present
         emitter_registry = kwargs.pop("emitter_registry", None)
+
+        # Store original service config for compatibility
+        self._original_service_config = service_config_to_test
 
         # Initialize base class with proper parameters
         super().__init__(
@@ -188,6 +99,7 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
             implementation_name=implementation_name,
             event_manager=event_manager,
             emitter_registry=emitter_registry,
+            global_config=global_config,
             **kwargs,
         )
 
@@ -196,6 +108,22 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
 
         # Initialize working directory
         self.working_dir = "/opt/picoquic"
+
+        # Cache plugin config for easy access
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> Optional[PicoquicConfig]:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.service_config_to_test.get_plugin_config(
+                    PicoquicConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                # Create default config
+                self._plugin_config = PicoquicConfig()
+        return self._plugin_config
 
     def _get_implementation_name(self) -> str:
         """Return the implementation name."""
@@ -216,23 +144,31 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
         """
         args = []
 
-        # Get server parameters from config
-        if hasattr(self.service_config_to_test, "implementation"):
-            server_params = self.service_config_to_test.implementation.version.server
+        # Get server parameters from plugin config
+        plugin_config = self._get_plugin_config()
+        if (
+            plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "server")
+        ):
+            server_params = plugin_config.version.server
 
             # Add protocol-specific parameters
-            if hasattr(server_params, "protocol") and hasattr(
-                server_params.protocol, "additional_parameters"
-            ):
-                # Split additional parameters if they're a single string with spaces
-                additional_params = server_params.protocol.additional_parameters
-                if isinstance(additional_params, str):
-                    # Use shlex.split to properly handle quoted arguments
-                    import shlex
+            if isinstance(server_params, dict) and "protocol" in server_params:
+                protocol_params = server_params["protocol"]
+                if (
+                    isinstance(protocol_params, dict)
+                    and "additional_parameters" in protocol_params
+                ):
+                    # Split additional parameters if they're a single string with spaces
+                    additional_params = protocol_params["additional_parameters"]
+                    if isinstance(additional_params, str):
+                        # Use shlex.split to properly handle quoted arguments
+                        import shlex
 
-                    args.extend(shlex.split(additional_params))
-                else:
-                    args.append(additional_params)
+                        args.extend(shlex.split(additional_params))
+                    else:
+                        args.append(additional_params)
 
         return args
 
@@ -247,34 +183,48 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
         """
         args = []
 
-        # Get client parameters from config
-        if hasattr(self.service_config_to_test, "implementation"):
-            client_params = self.service_config_to_test.implementation.version.client
+        # Get client parameters from plugin config
+        plugin_config = self._get_plugin_config()
+        if (
+            plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "client")
+        ):
+            client_params = plugin_config.version.client
 
             # Add ticket file for 0-RTT
-            if hasattr(client_params, "ticket_file"):
-                args.extend(
-                    [client_params.ticket_file.param, client_params.ticket_file.file]
-                )
+            if isinstance(client_params, dict) and "ticket_file" in client_params:
+                ticket_file_params = client_params["ticket_file"]
+                if (
+                    isinstance(ticket_file_params, dict)
+                    and "param" in ticket_file_params
+                    and "file" in ticket_file_params
+                ):
+                    args.extend(
+                        [ticket_file_params["param"], ticket_file_params["file"]]
+                    )
 
             # Add protocol-specific parameters
-            if hasattr(client_params, "protocol") and hasattr(
-                client_params.protocol, "additional_parameters"
-            ):
-                # Split additional parameters if they're a single string with spaces
-                additional_params = client_params.protocol.additional_parameters
-                if isinstance(additional_params, str):
-                    # Use shlex.split to properly handle quoted arguments
-                    import shlex
+            if isinstance(client_params, dict) and "protocol" in client_params:
+                protocol_params = client_params["protocol"]
+                if (
+                    isinstance(protocol_params, dict)
+                    and "additional_parameters" in protocol_params
+                ):
+                    # Split additional parameters if they're a single string with spaces
+                    additional_params = protocol_params["additional_parameters"]
+                    if isinstance(additional_params, str):
+                        # Use shlex.split to properly handle quoted arguments
+                        import shlex
 
-                    args.extend(shlex.split(additional_params))
-                else:
-                    args.append(additional_params)
+                        args.extend(shlex.split(additional_params))
+                    else:
+                        args.append(additional_params)
 
             # Add initial version
             # Note: We add the version here instead of in base class to avoid duplication
-            if hasattr(client_params, "initial_version"):
-                args.extend(["-v", client_params.initial_version])
+            if isinstance(client_params, dict) and "initial_version" in client_params:
+                args.extend(["-v", client_params["initial_version"]])
 
         return args
 
@@ -310,17 +260,19 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
             # Update network parameters
             if "network" in role_params:
                 params["port"] = role_params["network"].get("port", params["port"])
+                # Always pass network configuration to template (including interface if present)
+                params["network"] = role_params["network"]
 
             # Update certificate parameters
             if "certificate" in role_params:
                 cert = role_params["certificate"]
                 params["cert_dir"] = cert.get("dir", params["cert_dir"])
-                params["cert_file"] = (
-                    f"{params['cert_dir']}/{cert.get('cert', 'cert.pem')}"
-                )
-                params["key_file"] = (
-                    f"{params['cert_dir']}/{cert.get('key', 'key.pem')}"
-                )
+                params[
+                    "cert_file"
+                ] = f"{params['cert_dir']}/{cert.get('cert', 'cert.pem')}"
+                params[
+                    "key_file"
+                ] = f"{params['cert_dir']}/{cert.get('key', 'key.pem')}"
 
         return params
 
@@ -330,20 +282,16 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
         Returns:
             Role parameters or None
         """
-        if not hasattr(self.service_config_to_test, "implementation"):
-            return None
+        # Try to get from plugin config first
+        plugin_config = self._get_plugin_config()
+        if plugin_config and hasattr(plugin_config, "version"):
+            version = plugin_config.version
+            role = self.service_config_to_test.protocol.role
 
-        impl = self.service_config_to_test.implementation
-        if not hasattr(impl, "version"):
-            return None
-
-        version = impl.version
-        role = self.service_config_to_test.protocol.role
-
-        if role == ProtocolRole.SERVER and hasattr(version, "server"):
-            return version.server
-        elif role == ProtocolRole.CLIENT and hasattr(version, "client"):
-            return version.client
+            if role == ProtocolRole.SERVER and hasattr(version, "server"):
+                return version.server
+            elif role == ProtocolRole.CLIENT and hasattr(version, "client"):
+                return version.client
 
         return None
 
@@ -362,11 +310,18 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
         """
         version_str = "latest"
 
-        if hasattr(self.service_config_to_test.implementation, "version"):
+        # First try to get version from plugin config
+        plugin_config = self._get_plugin_config()
+        if (
+            plugin_config
+            and hasattr(plugin_config, "version")
+            and hasattr(plugin_config.version, "version")
+        ):
+            version_str = plugin_config.version.version
+        # Fallback to implementation version if available
+        elif hasattr(self.service_config_to_test.implementation, "version"):
             version_obj = self.service_config_to_test.implementation.version
-            if hasattr(version_obj, "version"):
-                version_str = version_obj.version
-            elif isinstance(version_obj, str):
+            if isinstance(version_obj, str):
                 version_str = version_obj
 
         return f"picoquic:{version_str}"
@@ -426,7 +381,9 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
             },
             "network": {
                 "port": params.get("port", 4443),
-                "interface": None,  # Optional interface binding
+                "interface": params.get("network", {}).get("interface")
+                if params.get("network")
+                else None,
             },
             "protocol": {
                 "alpn": {"param": "-a", "value": "hq-interop"},  # Default ALPN for QUIC
@@ -440,32 +397,52 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
             template_params["target"] = params.get("host", "localhost")
 
             # Add ticket file for 0-RTT if available
-            if hasattr(self.service_config_to_test, "implementation"):
-                client_params = (
-                    self.service_config_to_test.implementation.version.client
-                )
-                if hasattr(client_params, "ticket_file"):
-                    template_params["ticket_file"] = {
-                        "param": client_params.ticket_file.param,
-                        "file": client_params.ticket_file.file,
-                    }
-                else:
-                    template_params["ticket_file"] = {
-                        "param": "-T",
-                        "file": "/opt/ticket/ticket.key",
-                    }
+            plugin_config = self._get_plugin_config()
+            if (
+                plugin_config
+                and hasattr(plugin_config, "version")
+                and hasattr(plugin_config.version, "client")
+            ):
+                client_params = plugin_config.version.client
 
-                # Add initial version if specified
-                if hasattr(client_params, "initial_version"):
-                    template_params["initial_version"] = client_params.initial_version
+                if isinstance(client_params, dict):
+                    # Handle ticket file
+                    if "ticket_file" in client_params and isinstance(
+                        client_params["ticket_file"], dict
+                    ):
+                        template_params["ticket_file"] = {
+                            "param": client_params["ticket_file"].get("param", "-T"),
+                            "file": client_params["ticket_file"].get(
+                                "file", "/opt/ticket/ticket.key"
+                            ),
+                        }
+                    else:
+                        template_params["ticket_file"] = {
+                            "param": "-T",
+                            "file": "/opt/ticket/ticket.key",
+                        }
 
-                # Add additional protocol parameters
-                if hasattr(client_params, "protocol") and hasattr(
-                    client_params.protocol, "additional_parameters"
-                ):
-                    template_params["protocol"][
-                        "additional_parameters"
-                    ] = client_params.protocol.additional_parameters
+                    # Add initial version if specified
+                    if "initial_version" in client_params:
+                        template_params["initial_version"] = client_params[
+                            "initial_version"
+                        ]
+
+                    # Add additional protocol parameters
+                    if "protocol" in client_params and isinstance(
+                        client_params["protocol"], dict
+                    ):
+                        protocol_params = client_params["protocol"]
+                        if "additional_parameters" in protocol_params:
+                            template_params["protocol"][
+                                "additional_parameters"
+                            ] = protocol_params["additional_parameters"]
+            else:
+                # Default ticket file
+                template_params["ticket_file"] = {
+                    "param": "-T",
+                    "file": "/opt/ticket/ticket.key",
+                }
 
             # Render using client template - this ensures correct argument order
             command_str = self.render_commands(
@@ -473,16 +450,23 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
             )
         else:
             # Server-specific template parameters
-            if hasattr(self.service_config_to_test, "implementation"):
-                server_params = (
-                    self.service_config_to_test.implementation.version.server
-                )
-                if hasattr(server_params, "protocol") and hasattr(
-                    server_params.protocol, "additional_parameters"
-                ):
-                    template_params["protocol"][
-                        "additional_parameters"
-                    ] = server_params.protocol.additional_parameters
+            plugin_config = self._get_plugin_config()
+            if (
+                plugin_config
+                and hasattr(plugin_config, "version")
+                and hasattr(plugin_config.version, "server")
+            ):
+                server_params = plugin_config.version.server
+
+                if isinstance(server_params, dict) and "protocol" in server_params:
+                    protocol_params = server_params["protocol"]
+                    if (
+                        isinstance(protocol_params, dict)
+                        and "additional_parameters" in protocol_params
+                    ):
+                        template_params["protocol"][
+                            "additional_parameters"
+                        ] = protocol_params["additional_parameters"]
 
             # Render using server template
             command_str = self.render_commands(
@@ -513,9 +497,57 @@ class PicoquicServiceManager(BaseQUICServiceManager, ServiceManagerDockerMixin):
             "environment": {},
         }
 
+    def get_output_patterns(self) -> List[Tuple[str, str]]:
+        """
+        Get phase-based output patterns for PicoQUIC service.
+
+        Returns:
+            List of (output_type, filename_pattern) tuples organized by execution phases
+        """
+        return [
+            # Pre-compile phase outputs
+            ("pre_compile_stdout", "pre-compile/stdout.log"),
+            ("pre_compile_stderr", "pre-compile/stderr.log"),
+            # Compile phase outputs
+            ("compile_stdout", "compile/stdout.log"),
+            ("compile_stderr", "compile/stderr.log"),
+            # Post-compile phase outputs
+            ("post_compile_stdout", "post-compile/stdout.log"),
+            ("post_compile_stderr", "post-compile/stderr.log"),
+            # Pre-run phase outputs
+            ("pre_run_stdout", "pre-run/stdout.log"),
+            ("pre_run_stderr", "pre-run/stderr.log"),
+            # Runtime phase outputs (main execution)
+            ("runtime_stdout", "runtime/stdout.log"),
+            ("runtime_stderr", "runtime/stderr.log"),
+            # Post-run phase outputs
+            ("post_run_stdout", "post-run/stdout.log"),
+            ("post_run_stderr", "post-run/stderr.log"),
+            # Test phase outputs
+            ("test_stdout", "test/stdout.log"),
+            ("test_stderr", "test/stderr.log"),
+            # Artifacts - protocol-specific files organized by type
+            ("qlog", "artifacts/*.qlog"),
+            ("sslkeylog", "artifacts/sslkeylogfile.txt"),
+            ("keys", "artifacts/*keys.log"),
+            ("pcap", "artifacts/{service_name}.pcap"),
+            ("congestion", "artifacts/*congestion*.log"),
+            ("binary", "artifacts/picoquicdemo"),
+            ("analysis", "artifacts/analysis_{service_name}.json"),
+        ]
+
     def generate_post_run_commands(self) -> List[str]:
-        """Generate post-run commands."""
-        return ["cp /opt/picoquic/picoquicdemo /app/logs/picoquicdemo;"]
+        """Generate post-run commands with phase-based output organization."""
+        return [
+            # Create artifacts directory
+            "mkdir -p /app/logs/artifacts;",
+            # Copy binary to artifacts (not root logs)
+            "cp /opt/picoquic/picoquicdemo /app/logs/artifacts/picoquicdemo 2>/dev/null || true;",
+            # Copy any QUIC logs to artifacts
+            "find /tmp -name '*.qlog' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+            # Copy SSL key logs to artifacts
+            "find /tmp -name '*keys.log' -exec cp {} /app/logs/artifacts/ \\; 2>/dev/null || true;",
+        ]
 
     def _do_prepare(self, plugin_manager: Optional["PluginManager"] = None):
         """Prepare the service manager.

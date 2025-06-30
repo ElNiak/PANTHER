@@ -11,12 +11,12 @@ from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
 from omegaconf import OmegaConf
 
+from panther.config import ConfigurationManager
 from panther.config.core.models import GlobalConfig
-from panther.config.config_manager_enhanced import ConfigLoader
 from panther.core.experiment_manager import ExperimentManager
 
 
-def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
+def create_app(config_loader: ConfigurationManager, global_config: GlobalConfig, args):
     app = Flask(
         "panther_webapp",
         static_folder="panther/webapp/static/",
@@ -41,8 +41,18 @@ def create_app(config_loader: ConfigLoader, global_config: GlobalConfig, args):
 
     experiment_config = config_loader.load_and_validate_experiment_config()
     # Convert Pydantic model to dict before using OmegaConf.to_yaml
-    experiment_config_dict = experiment_config.dict() if hasattr(experiment_config, 'dict') else experiment_config
-    print(f"Experiment Config: {OmegaConf.to_yaml(experiment_config_dict)}")
+    experiment_config_dict = (
+        experiment_config.dict()
+        if hasattr(experiment_config, "dict")
+        else experiment_config
+    )
+    # Use summarizer for concise config output
+    import logging
+
+    from panther.core.utils import log_omega_config_summary
+
+    logger = logging.getLogger(__name__)
+    log_omega_config_summary(logger, "Experiment Config", experiment_config)
     app.config["experiment_config"] = experiment_config
     # Once we have the experiments configurations, we can initialize the experiment
     experiment_manager.initialize_experiments(experiment_config)

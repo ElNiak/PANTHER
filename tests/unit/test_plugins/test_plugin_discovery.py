@@ -17,10 +17,10 @@ import yaml
 
 # Test imports with fallback to mocks
 try:
-    from panther.plugins.plugin_catalog import PluginCatalog
-    from panther.plugins.plugin_discovery import PluginDiscovery
-    from panther.plugins.plugin_loader_utils import PluginManagerUtils
-    from panther.plugins.plugin_manifest import PluginManifest
+    from panther.plugins.core.plugin_catalog import PluginCatalog
+    from panther.plugins.core.plugin_discovery import PluginDiscovery
+    from panther.plugins.core.plugin_loader_utils import PluginManagerUtils
+    from panther.plugins.core.structures.plugin_manifest import PluginManifest
 
     REAL_PLUGIN_SYSTEM_AVAILABLE = True
 except ImportError:
@@ -458,7 +458,9 @@ except ImportError:
 
             return {}
 
+
 pytestmark = [pytest.mark.unit, pytest.mark.plugin_system]
+
 
 class TestPluginDiscovery:
     """Test PluginDiscovery functionality."""
@@ -495,7 +497,7 @@ class TestPluginDiscovery:
             "version": "0.9.0",
             "type": "iut",
             "description": "AioQUIC Python QUIC implementation",
-            "supported_protocols": ["quic", "http3"],
+            "supported_protocols": ["quic"],
             "dependencies": ["python", "asyncio"],
             "entry_point": "aioquic.py",
         }
@@ -742,6 +744,7 @@ class TestPluginDiscovery:
 
         assert plugins == {}
 
+
 class TestPluginManifest:
     """Test PluginManifest functionality."""
 
@@ -753,7 +756,7 @@ class TestPluginManifest:
             "version": "1.2.3",
             "type": "iut",
             "description": "Test plugin for unit testing",
-            "supported_protocols": ["quic", "http3"],
+            "supported_protocols": ["quic"],
             "dependencies": ["docker", "python"],
             "entry_point": "test_plugin.py",
             "author": "Test Author",
@@ -823,7 +826,7 @@ class TestPluginManifest:
         assert manifest.get_type() == "iut"
         assert manifest.get_description() == "Test plugin for unit testing"
         assert manifest.get_dependencies() == ["docker", "python"]
-        assert manifest.get_supported_protocols() == ["quic", "http3"]
+        assert manifest.get_supported_protocols() == ["quic"]
         assert manifest.get_entry_point() == "test_plugin.py"
 
     def test_get_manifest_fields_defaults(self):
@@ -874,6 +877,7 @@ class TestPluginManifest:
         dict_result["test"] = "value"
         assert "test" not in manifest.manifest_data
 
+
 class TestPluginCatalog:
     """Test PluginCatalog functionality."""
 
@@ -902,7 +906,7 @@ class TestPluginCatalog:
                     "version": "2.0.0",
                     "type": "iut",
                     "description": "Second test plugin",
-                    "supported_protocols": ["quic", "http3"],
+                    "supported_protocols": ["quic"],
                 },
             ),
             (
@@ -1100,6 +1104,7 @@ class TestPluginCatalog:
         results = catalog.search_plugins("nonexistent_query")
         assert results == {}
 
+
 class TestServiceFactory:
     """Test ServiceFactory functionality."""
 
@@ -1129,7 +1134,7 @@ class TestServiceFactory:
                             "name": "aioquic",
                             "version": "0.9.0",
                             "type": "iut",
-                            "supported_protocols": ["quic", "http3"],
+                            "supported_protocols": ["quic"],
                         }
                     ),
                     "path": Path("/mock/path/aioquic"),
@@ -1233,6 +1238,7 @@ class TestServiceFactory:
         is_valid, message = factory.validate_service_dependencies("nonexistent")
         assert is_valid is False
         assert "Implementation not found" in message
+
 
 class TestEnvironmentFactory:
     """Test EnvironmentFactory functionality."""
@@ -1339,6 +1345,7 @@ class TestEnvironmentFactory:
         assert len(exec_envs) == 1
         assert "strace" in exec_envs
 
+
 class TestPluginManagerUtils:
     """Test PluginManagerUtils functionality."""
 
@@ -1427,6 +1434,7 @@ class TestPluginManagerUtils:
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+
 class TestPluginSystemIntegration:
     """Test integration between plugin system components."""
 
@@ -1457,7 +1465,7 @@ class TestPluginSystemIntegration:
                     "version": "0.9.0",
                     "type": "iut",
                     "description": "Python AioQUIC implementation",
-                    "supported_protocols": ["quic", "http3"],
+                    "supported_protocols": ["quic"],
                     "dependencies": ["python", "asyncio"],
                 },
             ),
@@ -1649,6 +1657,7 @@ class TestPluginSystemIntegration:
         assert network_env.setup_environment() is True
         assert tracer.setup_environment() is True
         assert profiler.setup_environment() is True
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

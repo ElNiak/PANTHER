@@ -13,17 +13,13 @@ import pytest
 
 # Use the actual PANTHER modules if available, otherwise mock them
 try:
-    from panther.core.command_processor.command import (
+    from panther.core.command_processor import (
+        CommandBuilder,
+        CommandProcessor,
+        ICommandProcessor,
         ShellCommand,
         combine_shell_constructs,
     )
-    from panther.core.command_processor.command_builder import CommandBuilder
-    from panther.core.command_processor.command_processor import CommandProcessor
-    from panther.core.command_processor.command_utils import (
-        sanitize_command_args,
-        validate_command_structure,
-    )
-    from panther.core.command_processor.interfaces import ICommandProcessor
 except ImportError:
     # Create mock classes for testing if imports fail
     class CommandProcessor:
@@ -47,7 +43,7 @@ except ImportError:
                 run_cmd = {}
             elif not isinstance(run_cmd, dict):
                 run_cmd = {}
-            
+
             return {
                 "command": run_cmd.get("command", ""),
                 "working_dir": run_cmd.get("working_dir", "."),
@@ -138,7 +134,7 @@ except ImportError:
             return commands[0]
 
         combined_cmd = f" {connector} ".join(cmd.command for cmd in commands)
-        
+
         # Extract working directory from cd commands
         working_dir = "."
         for cmd in commands:
@@ -148,7 +144,7 @@ except ImportError:
                 if len(cd_parts) > 1:
                     working_dir = cd_parts[1].strip().strip('"').strip("'")
                 break
-        
+
         return ShellCommand(
             command=combined_cmd,
             working_dir=working_dir,
@@ -183,7 +179,9 @@ except ImportError:
     class ICommandProcessor:
         pass
 
+
 pytestmark = [pytest.mark.unit, pytest.mark.command_generation]
+
 
 class TestCommandProcessorInitialization:
     """Test CommandProcessor initialization and basic setup."""
@@ -203,6 +201,7 @@ class TestCommandProcessorInitialization:
         # Verify it has required methods
         assert hasattr(processor, "process_commands")
         assert callable(processor.process_commands)
+
 
 class TestCommandProcessing:
     """Test command processing functionality."""
@@ -288,6 +287,7 @@ class TestCommandProcessing:
         # Verify environment variables are preserved
         assert result["run_cmd"]["environment"]["DEBUG"] == "1"
 
+
 class TestShellCommand:
     """Test ShellCommand functionality."""
 
@@ -366,6 +366,7 @@ class TestShellCommand:
         assert "ShellCommand" in str_repr
         assert "ShellCommand" in repr_repr
 
+
 class TestCombineShellConstructs:
     """Test shell command combination functionality."""
 
@@ -420,6 +421,7 @@ class TestCombineShellConstructs:
         result = combine_shell_constructs(commands)
 
         assert result.timeout == 120  # Should use maximum timeout
+
 
 class TestCommandBuilder:
     """Test CommandBuilder functionality."""
@@ -488,6 +490,7 @@ class TestCommandBuilder:
         assert len(commands) == 3
         assert all(isinstance(cmd, ShellCommand) for cmd in commands)
 
+
 class TestCommandValidation:
     """Test command validation utilities."""
 
@@ -534,6 +537,7 @@ class TestCommandValidation:
 
         # Test with all invalid args
         assert sanitize_command_args(["", "  ", None]) == []
+
 
 class TestCommandProcessorIntegration:
     """Test integrated command processor workflows."""
@@ -613,6 +617,7 @@ class TestCommandProcessorIntegration:
         # Should still return a dictionary
         assert isinstance(result, dict)
 
+
 class TestCommandProcessorPerformance:
     """Test command processor performance characteristics."""
 
@@ -650,6 +655,7 @@ class TestCommandProcessorPerformance:
             # Verify processing works for each iteration
             assert result["run_cmd"]["command"] == f"test_command_{i}"
             assert len(result["pre_run_cmds"]) == 20
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

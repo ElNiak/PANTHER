@@ -22,9 +22,11 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 # Conditionally enable the metrics plugin (skip if running with -p no:panther_metrics)
 import sys
+
 if not any("no:panther_metrics" in arg for arg in sys.argv):
     try:
         import panther.metrics.pytest_plugin
+
         pytest_plugins = ["panther.metrics.pytest_plugin"]
     except ImportError:
         # Plugin not available, skip loading
@@ -945,7 +947,7 @@ def mock_command_processor():
     """Mock command processor for testing command generation."""
     from unittest.mock import Mock
 
-    from panther.core.command_processor.command_processor import CommandProcessor
+    from panther.core.command_processor import CommandProcessor
 
     return Mock(spec=CommandProcessor)
 
@@ -964,7 +966,7 @@ def sample_service_config():
 @pytest.fixture
 def sample_test_config():
     """Sample test configuration for testing."""
-    from panther.config.config_experiment_schema import TestConfig
+    from panther.config.core.models.experiment import TestConfig
 
     return TestConfig(
         name="test_case",
@@ -977,7 +979,7 @@ def sample_test_config():
 @pytest.fixture
 def sample_global_config():
     """Sample global configuration for testing."""
-    from panther.config.config_global_schema import GlobalConfig
+    from panther.config.core.models.global_config import GlobalConfig
 
     return GlobalConfig(
         logging={"level": "INFO", "format": "%(levelname)s - %(message)s"},

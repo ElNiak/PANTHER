@@ -3,8 +3,13 @@
 This package is part of the PANTHER framework.
 """
 
+
+import contextlib
+
 # Import the QUIC protocol plugin to ensure it's registered
-try:
-    from .quic_protocol import QUICProtocol
-except ImportError:
-    pass  # Protocol plugin may not be needed in all contexts
+with contextlib.suppress(ImportError):
+    from .quic import QUICProtocol
+
+__all__ = [
+    "QUICProtocol",
+]

@@ -3,6 +3,9 @@
 import time
 from typing import Any, Dict, List, Optional
 
+from panther.plugins.environments.execution_environment.execution_environment_interface import (
+    IExecutionEnvironment,
+)
 from panther.plugins.environments.network_environment.network_environment_interface import (
     INetworkEnvironment,
 )
@@ -13,6 +16,14 @@ class EnvironmentManagementMixin:
 
     def setup_environment(self) -> None:
         """Set up test environment using configured plugins."""
+        # Prevent duplicate setup calls
+        if (
+            hasattr(self, "_environment_setup_complete")
+            and self._environment_setup_complete
+        ):
+            self.logger.debug("Environment setup already completed, skipping")
+            return
+
         self.logger.info("Setting up test environment")
 
         try:
@@ -41,15 +52,18 @@ class EnvironmentManagementMixin:
                 raise ValueError(
                     f"Network environment plugin not found for type: {self.test_config.network_environment.type}"
                 )
-            
+
             # Setup execution environments
             exec_env_configs = self.test_config.execution_environments or []
             for exec_env_config in exec_env_configs:
                 self._setup_execution_environment(exec_env_config)
 
-            
             if isinstance(network_plugin, INetworkEnvironment):
                 # Initialize network environment
+                self.logger.info(
+                    f"Initializing network environment: {network_plugin.name}"
+                )
+
                 network_plugin.setup_environment(
                     services_managers=self.service_managers,
                     test_config=self.test_config,
@@ -60,11 +74,11 @@ class EnvironmentManagementMixin:
                 )
 
                 # Add to environment managers
+                self.environment_plugin_manager.append(network_plugin)
             else:
                 raise RuntimeError(
                     f"Network environment plugin is not of type INetworkEnvironment: {network_plugin}"
                 )
-                
 
             # Emit environment setup completed event
             if env_emitter:
@@ -80,6 +94,9 @@ class EnvironmentManagementMixin:
                 )
 
             self.logger.info("Environment setup completed")
+
+            # Mark setup as complete to prevent duplicate calls
+            self._environment_setup_complete = True
 
         except Exception as e:
             self.logger.error(f"Failed to setup environment: {e}")
@@ -100,34 +117,18 @@ class EnvironmentManagementMixin:
         self.logger.info(f"Setting up network environment: {env_type}")
 
         try:
-            # Get network environment plugin class
-            network_plugin_class = (
-                self.plugin_manager.get_network_environment_plugin(
-                    self.test_config.network_environment.type
-                )
-            )
-
-            if not network_plugin_class:
-                raise ValueError(
-                    f"Network environment plugin not found for type: {self.test_config.network_environment.type}"
-                )
-
-            # Create environment config from test config
-            from panther.config.core.models.environment import EnvironmentConfig
-            env_config = EnvironmentConfig(
-                type=self.test_config.network_environment.type,
-                config=self.test_config.network_environment.dict() if hasattr(self.test_config.network_environment, 'dict') else {}
-            )
-            
-            # Create instance of the plugin with required arguments
-            network_plugin = network_plugin_class(
-                env_config_to_test=env_config,
-                output_dir=str(self.test_experiment_dir),
-                env_type="network_environment",
-                env_sub_type=self.test_config.network_environment.type,
+            # Create network environment instance directly
+            network_plugin_class = self.plugin_manager.create_environment_manager(
+                environment=self.test_config.network_environment.type,
+                test_config=self.test_config,
+                environment_dir=self.test_experiment_dir,
+                output_dir=self.test_experiment_dir,
                 event_manager=self.event_manager,
             )
-            
+
+            # network_plugin_class is already the instance from create_environment_manager
+            network_plugin = network_plugin_class
+
             # Configure the plugin
             network_plugin.service_managers = self.service_managers
             network_plugin.config = self.test_config
@@ -142,6 +143,9 @@ class EnvironmentManagementMixin:
 
             # Add to environment managers
             self.environment_plugin_manager.append(network_plugin)
+            self.logger.info(
+                f"Added network plugin to environment_plugin_manager. Current count: {len(self.environment_plugin_manager)}"
+            )
 
             self.logger.info(f"Network environment {env_type} set up successfully")
             return network_plugin
@@ -157,25 +161,24 @@ class EnvironmentManagementMixin:
 
         try:
             # Get execution environment plugin class
-            exec_plugin_class = (
-                self.plugin_manager.get_execution_environment_plugin(
-                    env_type,
-                    output_dir=str(self.test_experiment_dir),
-                    event_manager=self.event_manager,
-                    global_config=self.global_config,
-                    config=config,
-                )
+            exec_plugin_class = self.plugin_manager.create_environment_manager(
+                environment=config.type,
+                test_config=self.test_config,
+                environment_dir=self.test_experiment_dir,
+                output_dir=self.test_experiment_dir,
+                event_manager=self.event_manager,
             )
 
-            if exec_plugin_class:
-                # Create instance of the plugin
-                exec_plugin = exec_plugin_class(
-                    output_dir=str(self.test_experiment_dir),
-                    event_manager=self.event_manager,
-                    global_config=self.global_config,
-                    config=config,
-                )
-                
+            if exec_plugin_class and isinstance(
+                exec_plugin_class, IExecutionEnvironment
+            ):
+                # exec_plugin_class is already the instance from create_environment_manager
+                exec_plugin = exec_plugin_class
+
+                # Configure the plugin
+                exec_plugin.service_managers = self.service_managers
+                exec_plugin.config = self.test_config
+
                 # Add to execution environments
                 self.environment_plugin_manager.append(exec_plugin)
                 self.execution_environment.append(exec_plugin)
@@ -194,11 +197,30 @@ class EnvironmentManagementMixin:
 
     def teardown_environment(self) -> None:
         """Tear down test environment using configured plugins."""
+        # Prevent duplicate teardown calls
+        if (
+            hasattr(self, "_environment_teardown_complete")
+            and self._environment_teardown_complete
+        ):
+            self.logger.debug("Environment teardown already completed, skipping")
+            return
+
         self.logger.info("Tearing down test environment")
 
         try:
             for env_manager in self.environment_plugin_manager:
                 try:
+                    # Check if this specific environment manager is already torn down
+                    if (
+                        hasattr(env_manager, "teardown_complete")
+                        and env_manager.teardown_complete
+                    ):
+                        self.logger.debug(
+                            "Environment '%s' already torn down, skipping",
+                            env_manager.__class__.__name__,
+                        )
+                        continue
+
                     env_manager.teardown_environment()
                     self.logger.info(
                         "Test environment torn down via '%s'",
@@ -216,12 +238,16 @@ class EnvironmentManagementMixin:
             env_type = "unknown"
             if self.environment_plugin_manager:
                 # Get the last environment manager's type
-                env_type = self.environment_plugin_manager[-1].__class__.__name__ if self.environment_plugin_manager else "unknown"
-            
+                env_type = (
+                    self.environment_plugin_manager[-1].__class__.__name__
+                    if self.environment_plugin_manager
+                    else "unknown"
+                )
+
             # Clear environment managers
             self.environment_plugin_manager.clear()
             self.execution_environment.clear()
-            
+
             env_emitter = None
             if self.emitter_registry:
                 env_emitter = self.emitter_registry.environment_emitter
@@ -236,6 +262,9 @@ class EnvironmentManagementMixin:
 
             self.logger.info("Environment teardown completed")
 
+            # Mark teardown as complete to prevent duplicate calls
+            self._environment_teardown_complete = True
+
         except Exception as e:
             self.logger.error(f"Environment teardown failed: {e}")
 
@@ -243,19 +272,34 @@ class EnvironmentManagementMixin:
         """Deploy services through environment managers."""
         self.logger.info("Deploying services")
 
+        # Initialize variables outside try block to ensure they're always available
+        service_names = {}
+        env_emitter = None
+        env_plugin = None
+
         try:
             # Get environment emitter if available
-            env_emitter = None
             if self.emitter_registry:
                 env_emitter = self.emitter_registry.environment_emitter
-                
-                
+
             service_names = self.get_service_names_and_metadata()
             self.logger.debug("Emitted service_setup_started event")
 
             successful_deployment = False
             # Deploy through each environment plugin
             for env_plugin in self.environment_plugin_manager:
+                self.logger.debug(
+                    f"Processing environment plugin: {type(env_plugin)} - {env_plugin.__class__.__name__}"
+                )
+                self.logger.debug(
+                    f"Plugin MRO: {[cls.__name__ for cls in env_plugin.__class__.__mro__]}"
+                )
+                self.logger.debug(
+                    f"is_network_environment(): {env_plugin.is_network_environment() if hasattr(env_plugin, 'is_network_environment') else 'method not found'}"
+                )
+                self.logger.debug(
+                    f"isinstance(env_plugin, INetworkEnvironment): {isinstance(env_plugin, INetworkEnvironment)}"
+                )
                 if isinstance(env_plugin, INetworkEnvironment):
                     # Emit deployment started event
                     if env_emitter:
@@ -272,40 +316,50 @@ class EnvironmentManagementMixin:
 
                     try:
                         deployment_start_time = time.time()
-                        successful_deployment = True
 
                         # Run the services
                         env_plugin.run()
-                        
+
                         deployment_duration = time.time() - deployment_start_time
-                        
+
                         deployed_services_dict = {
                             name: "deployed" for name in service_names
                         }
                         self.logger.info("Services deployed successfully")
+
+                        # Emit deployment completed event immediately after successful deployment
+                        if env_emitter:
+                            self.logger.debug(
+                                f"Emitting deployment_completed event for {env_plugin.__class__.__name__}"
+                            )
+                            env_emitter.emit_environment_deployment_completed(
+                                environment_id=env_plugin.name,
+                                environment_name=self.test_name,
+                                environment_type=env_plugin.__class__.__name__,
+                                success=True,
+                                deployed_services=deployed_services_dict,
+                                duration=deployment_duration,
+                                deployment_details={
+                                    "service_count": len(self.service_managers)
+                                },
+                            )
+                            self.logger.debug(
+                                f"deployment_completed event emitted successfully"
+                            )
+                        else:
+                            self.logger.warning(
+                                "No environment emitter available to emit deployment_completed event"
+                            )
+
                     except Exception as e:
                         self.logger.error(f"Failed to deploy services: {e}")
                         raise
 
-            # Emit deployment completed event
-            if env_emitter:
-                env_emitter.emit_environment_deployment_completed(
-                    environment_id=env_plugin.name,
-                    environment_name=self.test_name,
-                    environment_type=env_plugin.__class__.__name__,
-                    success=True,
-                    deployed_services=deployed_services_dict,
-                    duration=deployment_duration,
-                    deployment_details={
-                        "service_count": len(self.service_managers)
-                    },
-                )
-
         except Exception as e:
             self.logger.error(f"Service deployment failed: {e}")
             # Emit deployment failed event
-            if env_emitter:
-                failed_services = [name for name in service_names]
+            if env_emitter and env_plugin:
+                failed_services = list(service_names.keys()) if service_names else []
                 env_emitter.emit_environment_deployment_failed(
                     environment_id=env_plugin.name,
                     environment_name=self.test_name,
@@ -317,53 +371,56 @@ class EnvironmentManagementMixin:
                 )
             raise
 
-    def get_service_names_and_metadata(self):
-        service_names = []
-        service_metadata = []
+    def get_service_names_and_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get service names and metadata for deployment.
+
+        Returns:
+            Dict mapping service names to metadata
+        """
+        service_metadata = {}
 
         for s in self.service_managers:
-                # Get service name
-            service_name = (
-                    s.service_name
-                    if hasattr(s, "service_name")
-                    else s.get_implementation_name()
-                )
-            service_names.append(service_name)
+            service_name = s.service_name
 
-                # Build metadata for each service
-            metadata = {
-                    "service_type": (
-                        s.get_service_type()
-                        if hasattr(s, "get_service_type")
-                        else s.service_config_to_test.implementation.type.value
-                    ),
-                    "implementation": (
-                        s.get_implementation_name()
-                        if hasattr(s, "get_implementation_name")
-                        else s.service_config_to_test.implementation.name
-                    ),
-                    "config": {
-                        "test_case": self.test_name,
-                        "protocol": (
-                            s.service_config_to_test.protocol.name
-                            if hasattr(s.service_config_to_test, "protocol")
-                            else "unknown"
-                        ),
-                        "role": (
-                            s.service_config_to_test.protocol.role
-                            if hasattr(s.service_config_to_test, "protocol")
-                            and hasattr(s.service_config_to_test.protocol, "role")
-                            else "unknown"
-                        ),
-                    },
-                }
-            service_metadata.append(metadata)
+            # Safely get service type - handle both enum and string cases
+            service_type = None
+            if hasattr(s, "get_service_type"):
+                service_type = s.get_service_type()
+            elif hasattr(s, "service_config_to_test") and hasattr(
+                s.service_config_to_test, "implementation"
+            ):
+                impl_type = s.service_config_to_test.implementation.type
+                # Handle both enum (with .value) and string cases
+                if hasattr(impl_type, "value"):
+                    service_type = impl_type.value
+                else:
+                    service_type = str(impl_type)
+            else:
+                service_type = "unknown"
 
-        self.service_emitter.emit_service_setup_started(
-                test_case=self.test_name,
-                service_count=len(self.service_managers),
-                service_names=service_names,
-                service_metadata=service_metadata,
-            )
-        
-        return service_names
+            # Safely get implementation name
+            implementation = None
+            if hasattr(s, "get_implementation_name"):
+                implementation = s.get_implementation_name()
+            elif hasattr(s, "service_config_to_test") and hasattr(
+                s.service_config_to_test, "implementation"
+            ):
+                implementation = s.service_config_to_test.implementation.name
+            else:
+                implementation = "unknown"
+
+            service_metadata[service_name] = {
+                "service_type": service_type,
+                "implementation": implementation,
+                "config": {
+                    "test_case": self.test_name,
+                    "protocol": (
+                        s.service_config_to_test.protocol.name
+                        if hasattr(s.service_config_to_test, "protocol")
+                        else "unknown"
+                    ),
+                },
+            }
+
+        return service_metadata

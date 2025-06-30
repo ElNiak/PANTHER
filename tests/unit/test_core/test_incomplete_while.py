@@ -3,7 +3,7 @@
 Test script to verify the fix for the incomplete while loop issue.
 """
 
-from panther.core.command_processor.command import ShellCommand
+from panther.core.command_processor import ShellCommand
 
 # The incomplete while loop from the error
 incomplete_while = "while [ ! -f /app/sync_logs/ivy_ready.log ]; do"

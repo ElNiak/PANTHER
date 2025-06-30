@@ -6,9 +6,10 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from panther.core.events.base.event_base import BaseEvent
 from panther.core.observer.base.observer_interface import IObserver
+from panther.core.utils.logging_mixin import LoggerMixin
 
 
-class EventManager:
+class EventManager(LoggerMixin):
     """
     Enhanced event manager with support for event filtering, prioritization,
     and improved monitoring capabilities.
@@ -36,7 +37,6 @@ class EventManager:
         if EventManager._instance._initialized:
             return
         # Prevent re-initialization of the singleton
-        self.logger = logging.getLogger("EventManager")
         # Map of event types to prioritized observers
         self.observers: Dict[str, List[Tuple[int, IObserver]]] = defaultdict(list)
         # Global observers receive all events
@@ -46,6 +46,10 @@ class EventManager:
         self.max_history_size = 1000
         # Performance metrics
         self.metrics = {"processed": 0, "errors": 0, "by_type": {}}
+        # Duplicate event detection
+        self.seen_event_signatures: Set[str] = set()
+        self.duplicate_detection_enabled = True
+        self.max_signature_cache_size = 10000
         # Thread safety
         self._lock = threading.RLock()
 
@@ -57,15 +61,28 @@ class EventManager:
         self._active_contexts: Dict[str, Dict[str, Any]] = {}
 
         # Observer scope and duplicate tracking
-        self._observer_registry: Dict[str, Tuple[IObserver, str]] = (
-            {}
-        )  # observer_id -> (observer, scope)
+        self._observer_registry: Dict[
+            str, Tuple[IObserver, str]
+        ] = {}  # observer_id -> (observer, scope)
         self._scoped_observers: Dict[str, Set[str]] = defaultdict(
             set
         )  # scope -> set of observer_ids
 
         self._initialized = True
         self.logger.info("EventManager singleton initialized")
+
+    @classmethod
+    def ensure_instance(cls):
+        """
+        Ensure EventManager singleton exists and return it.
+
+        This is a convenience method that guarantees an EventManager instance
+        exists and returns it. Equivalent to get_instance() but with a clearer name.
+
+        Returns:
+            EventManager: The singleton instance
+        """
+        return cls.get_instance()
 
     @classmethod
     def get_instance(cls):
@@ -92,15 +109,11 @@ class EventManager:
         Returns:
             str: The event type
         """
-        # Standardize on BaseEvent.get_type() method
         if hasattr(event, "get_type") and callable(getattr(event, "get_type")):
             return event.get_type()
-        else:
-            # This should not happen with properly constructed BaseEvent instances
-            self.logger.error(
-                f"Event {event.__class__.__name__} missing get_type() method"
-            )
-            return f"{event.__class__.__name__}.unknown"
+        # This should not happen with properly constructed BaseEvent instances
+        self.logger.error(f"Event {event.__class__.__name__} missing get_type() method")
+        return f"{event.__class__.__name__}.unknown"
 
     def register_observer(
         self, observer: IObserver, event_types: List[str] = None, priority: int = 0
@@ -264,7 +277,16 @@ class EventManager:
         """Generate a signature for event deduplication."""
         event_type = self._get_event_type_safely(event)
         entity_id = getattr(event, "entity_id", "")
-        # Include key data fields in signature
+
+        # For step progress events, include progress_percentage in signature to avoid
+        # incorrectly deduplicating legitimate progress updates
+        if event_type == "step.progress":
+            data = getattr(event, "data", {})
+            progress_pct = data.get("progress_percentage", "unknown")
+            step_id = data.get("step_id", "")
+            return f"{event_type}:{entity_id}:{step_id}:{progress_pct}"
+
+        # Include key data fields in signature for other events
         data_keys = sorted(getattr(event, "data", {}).keys())
         return f"{event_type}:{entity_id}:{','.join(data_keys)}"
 
@@ -290,6 +312,60 @@ class EventManager:
             }
 
         return False
+
+    def _is_content_duplicate(self, event: BaseEvent) -> bool:
+        """
+        Check if this event is a content-based duplicate using UUID signatures.
+
+        Args:
+            event: Event to check for duplication
+
+        Returns:
+            bool: True if event content signature was already seen
+        """
+        # Check if event has content signature for duplicate detection
+        content_signature = getattr(event, "content_signature", None)
+        if not content_signature:
+            # No content signature available, can't do content-based detection
+            return False
+
+        with self._lock:
+            # Check if we've seen this content signature before
+            if content_signature in self.seen_event_signatures:
+                self.logger.debug(
+                    f"Content duplicate detected for signature: {content_signature}"
+                )
+                return True
+
+            # Add to seen signatures
+            self.seen_event_signatures.add(content_signature)
+
+            # Prevent unbounded growth of signature cache
+            if len(self.seen_event_signatures) > self.max_signature_cache_size:
+                # Remove oldest 20% of signatures (simple FIFO approximation)
+                signatures_to_remove = list(self.seen_event_signatures)[
+                    : int(self.max_signature_cache_size * 0.2)
+                ]
+                for sig in signatures_to_remove:
+                    self.seen_event_signatures.discard(sig)
+                self.logger.debug(
+                    f"Cleaned up {len(signatures_to_remove)} old event signatures"
+                )
+
+            return False
+
+    def enable_duplicate_detection(self, enabled: bool = True):
+        """Enable or disable content-based duplicate detection."""
+        self.duplicate_detection_enabled = enabled
+        self.logger.info(
+            f"Content-based duplicate detection {'enabled' if enabled else 'disabled'}"
+        )
+
+    def clear_signature_cache(self):
+        """Clear the content signature cache."""
+        with self._lock:
+            self.seen_event_signatures.clear()
+            self.logger.info("Cleared event signature cache for duplicate detection")
 
     def set_event_context(self, context_id: str, context_data: Dict[str, Any]):
         """Set context data for event correlation."""
@@ -339,7 +415,7 @@ class EventManager:
             if global_removed > 0:
                 cleaned_count += global_removed
                 self.logger.info(
-                    "Removed %d None observers from global observers", global_removed
+                    "Removed %d observers from global observers", global_removed
                 )
 
             if cleaned_count > 0:
@@ -357,9 +433,18 @@ class EventManager:
         Returns:
             bool: True if the event was successfully published
         """
-        # Check for duplicate events
+        # Check for duplicate events using content-based UUID if available
+        if self.duplicate_detection_enabled and self._is_content_duplicate(event):
+            self.logger.debug(
+                "Content-based duplicate event detected, skipping: %s", event
+            )
+            return True
+
+        # Fallback to time-based duplicate detection
         if self._is_duplicate_event(event):
-            self.logger.debug("Duplicate event detected, skipping: %s", event)
+            self.logger.debug(
+                "Time-based duplicate event detected, skipping: %s", event
+            )
             return True
 
         # Validate event
@@ -378,14 +463,15 @@ class EventManager:
 
     def _validate_event(self, event: BaseEvent) -> bool:
         """Validate the event if it has a validate method."""
-        if hasattr(event, "validate") and callable(getattr(event, "validate")):
-            if not event.validate():
-                event_type = self._get_event_type_safely(event)
-                event_data = getattr(event, "data", {})
-                self.logger.error(
-                    "Invalid event data for %s: %s", event_type, event_data
-                )
-                return False
+        if (
+            hasattr(event, "validate")
+            and callable(getattr(event, "validate"))
+            and not event.validate()
+        ):
+            event_type = self._get_event_type_safely(event)
+            event_data = getattr(event, "data", {})
+            self.logger.error("Invalid event data for %s: %s", event_type, event_data)
+            return False
         return True
 
     def _record_event(self, event: BaseEvent):
@@ -632,3 +718,21 @@ class EventManager:
                         return observer
 
         return None
+
+
+# Convenience function for easy importing
+def get_event_manager() -> EventManager:
+    """
+    Get the EventManager singleton instance.
+
+    This is a module-level convenience function that provides easy access
+    to the EventManager singleton without needing to import the class.
+
+    Returns:
+        EventManager: The singleton instance
+
+    Example:
+        from panther.core.observer.management.event_manager import get_event_manager
+        event_manager = get_event_manager()
+    """
+    return EventManager.get_instance()

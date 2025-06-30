@@ -23,6 +23,10 @@ class OutputAnalyzer:
         try:
             start_time = time.time()
 
+            # CRITICAL FIX: Register outputs before collection
+            # This ensures outputs are available for analysis
+            self._register_outputs_before_collection()
+
             # Get environment emitter if available
             env_emitter = None
             if self.test_case.emitter_registry:
@@ -34,7 +38,10 @@ class OutputAnalyzer:
                     environment_id=f"output_collection_{self.test_case.test_name}",
                     environment_name=self.test_case.test_name,
                     environment_type="output_collection",
-                    collection_targets=[env.__class__.__name__ for env in self.test_case.environment_plugin_manager],
+                    collection_targets=[
+                        env.__class__.__name__
+                        for env in self.test_case.environment_plugin_manager
+                    ],
                 )
 
             # Create output aggregator
@@ -44,9 +51,15 @@ class OutputAnalyzer:
             )
 
             # Collect outputs from execution environments (both network and execution environments)
+            self.logger.info(
+                f"Getting environments from test_case.environment_plugin_manager: {len(self.test_case.environment_plugin_manager)} environments"
+            )
             all_environments = self.test_case.environment_plugin_manager.copy()
+            self.logger.info(
+                f"Passing {len(all_environments)} environments to aggregator"
+            )
             collected_outputs = aggregator.collect_from_environments(all_environments)
-            
+
             # Prepare outputs for testers
             organized_outputs = aggregator.prepare_for_testers(collected_outputs)
 
@@ -75,7 +88,7 @@ class OutputAnalyzer:
                     environment_name=self.test_case.test_name,
                     environment_type="output_collection",
                     error_message=str(e),
-                    error_type=type(e).__name__
+                    error_type=type(e).__name__,
                 )
             # Return empty dict to allow test to continue
             return {}
@@ -122,9 +135,12 @@ class OutputAnalyzer:
                     # Prepare tester inputs
                     tester_inputs = self._prepare_tester_inputs(tester, outputs)
 
+                    # Set collected outputs on the tester
+                    tester.set_collected_outputs(outputs)
+
                     # Run tester analysis
                     start_time = time.time()
-                    results = tester.analyze(tester_inputs)
+                    results = tester.analyze_outputs()
                     duration = time.time() - start_time
 
                     if results:
@@ -157,7 +173,13 @@ class OutputAnalyzer:
 
             # Emit analysis completed
             if service_emitter:
-                passed_count = len([r for r in analysis_results.values() if r.get("status") == "completed"])
+                passed_count = len(
+                    [
+                        r
+                        for r in analysis_results.values()
+                        if r.get("status") == "completed"
+                    ]
+                )
                 service_emitter.emit_tester_analysis_completed(
                     service_id="tester_analysis",
                     service_name="Output Analysis",
@@ -222,6 +244,38 @@ class OutputAnalyzer:
 
         return tester_inputs
 
+    def _register_outputs_before_collection(self):
+        """
+        Register outputs from all environments before collection starts.
+
+        This is a critical fix for the timing issue where outputs were only
+        registered during teardown, which happened AFTER tester analysis.
+        Now we ensure outputs are registered and available for collection.
+        """
+        self.logger.debug("Pre-registering outputs before collection")
+
+        # Get all environments that need output registration
+        # Use the actual environment plugin manager that contains all environment instances
+        all_environments = self.test_case.environment_plugin_manager.copy()
+
+        # Register outputs for each environment
+        for env in all_environments:
+            if hasattr(env, "output_manager") and hasattr(env, "services_managers"):
+                try:
+                    self.logger.debug(
+                        f"Pre-registering outputs for {env.__class__.__name__}"
+                    )
+                    env.output_manager.perform_final_output_registration(
+                        env.services_managers
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to pre-register outputs for {env.__class__.__name__}: {e}"
+                    )
+                    # Continue with other environments
+
+        self.logger.debug("Pre-registration complete")
+
     def _save_analysis_results(self, results: Dict[str, Any]) -> None:
         """Save analysis results to disk."""
         try:
@@ -247,3 +301,135 @@ class OutputAnalyzer:
         except Exception as e:
             self.logger.error(f"Failed to save analysis results: {e}")
             # Continue execution even if save fails
+
+    def _analyze_test_configuration(self):
+        """Analyze basic test configuration."""
+        self.logger.info("    📝 Test Name: %s", self.test_config.name)
+        self.logger.info("    📄 Description: %s", self.test_config.description)
+
+        if hasattr(self.test_config, "timeout") and self.test_config.timeout:
+            self.logger.info("    ⏱️  Timeout: %s", self.test_config.timeout)
+
+    def _analyze_service_configurations(self) -> bool:
+        """Analyze service configurations for dry-run."""
+        try:
+            if hasattr(self.test_config, "iut") and self.test_config.iut:
+                self.logger.info("    🎯 IUT: %s", self.test_config.iut.name)
+
+            if hasattr(self.test_config, "tester") and self.test_config.tester:
+                self.logger.info("    🧪 Tester: %s", self.test_config.tester.name)
+
+            if hasattr(self.test_config, "services") and self.test_config.services:
+                self.logger.info(
+                    "    ⚙️  Services: %d configured", len(self.test_config.services)
+                )
+                for service_name, service_config in self.test_config.services.items():
+                    self.logger.info(
+                        "      - %s: %s",
+                        service_name,
+                        getattr(service_config, "name", "unnamed"),
+                    )
+
+            return True
+        except Exception as e:
+            self.logger.error("    ❌ Service configuration analysis failed: %s", e)
+            return False
+
+    def _analyze_environment_configuration(self) -> bool:
+        """Analyze environment configurations for dry-run."""
+        try:
+            if (
+                hasattr(self.test_config, "network_environment")
+                and self.test_config.network_environment
+            ):
+                env_type = getattr(
+                    self.test_config.network_environment, "type", "unknown"
+                )
+                self.logger.info("    🌐 Network Environment: %s", env_type)
+
+            if (
+                hasattr(self.test_config, "execution_environment")
+                and self.test_config.execution_environment
+            ):
+                if isinstance(self.test_config.execution_environment, list):
+                    self.logger.info(
+                        "    ⚙️  Execution Environments: %d configured",
+                        len(self.test_config.execution_environment),
+                    )
+                    for env in self.test_config.execution_environment:
+                        env_name = getattr(env, "name", getattr(env, "type", "unnamed"))
+                        self.logger.info("      - %s", env_name)
+                else:
+                    env_name = getattr(
+                        self.test_config.execution_environment,
+                        "name",
+                        getattr(
+                            self.test_config.execution_environment, "type", "unnamed"
+                        ),
+                    )
+                    self.logger.info("    ⚙️  Execution Environment: %s", env_name)
+            else:
+                self.logger.info("    ⚙️  Execution Environment: None configured")
+
+            return True
+        except Exception as e:
+            self.logger.error("    ❌ Environment configuration analysis failed: %s", e)
+            return False
+
+    def _analyze_steps_configuration(self) -> bool:
+        """Analyze test steps configuration for dry-run."""
+        try:
+            if hasattr(self.test_config, "steps") and self.test_config.steps:
+                # Handle StepsConfig object structure
+                if hasattr(self.test_config.steps, "wait"):
+                    self.logger.info("    📋 Steps: Wait step configured")
+                    self.logger.info(
+                        "      - Wait: %s seconds", self.test_config.steps.wait
+                    )
+                elif hasattr(self.test_config.steps, "__len__"):
+                    # If it's a list-like object
+                    try:
+                        step_count = len(self.test_config.steps)
+                        self.logger.info("    📋 Steps: %d configured", step_count)
+                        for i, step in enumerate(self.test_config.steps, 1):
+                            step_type = getattr(step, "type", "unknown")
+                            self.logger.info("      %d. %s step", i, step_type)
+
+                            # Show command that would be executed without running it
+                            if hasattr(step, "command") and step.command:
+                                self.logger.info("         Command: %s", step.command)
+                            elif hasattr(step, "wait") and step.wait:
+                                self.logger.info("         Wait: %s seconds", step.wait)
+                    except:
+                        # Fallback for complex step objects
+                        self.logger.info("    📋 Steps: Custom steps configured")
+                        step_attrs = [
+                            attr
+                            for attr in dir(self.test_config.steps)
+                            if not attr.startswith("_")
+                        ]
+                        if step_attrs:
+                            self.logger.info(
+                                "      - Step attributes: %s", ", ".join(step_attrs[:3])
+                            )
+                else:
+                    # Handle single step object
+                    self.logger.info("    📋 Steps: Single step configured")
+                    step_attrs = [
+                        attr
+                        for attr in dir(self.test_config.steps)
+                        if not attr.startswith("_")
+                        and hasattr(self.test_config.steps, attr)
+                    ]
+                    if step_attrs:
+                        self.logger.info(
+                            "      - Step type: %s",
+                            step_attrs[0] if step_attrs else "unknown",
+                        )
+            else:
+                self.logger.info("    📋 Steps: None configured")
+
+            return True
+        except Exception as e:
+            self.logger.error("    ❌ Steps configuration analysis failed: %s", e)
+            return False

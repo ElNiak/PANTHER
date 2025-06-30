@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from panther.core.command_processor.command import ShellCommand
+from panther.core.command_processor import ShellCommand
 from panther.plugins.services.base.service_command_builder import ServiceCommandBuilder
 
 

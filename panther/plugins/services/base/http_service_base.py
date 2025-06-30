@@ -4,11 +4,12 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol
 
-from panther.core.command_processor.command_utils import CommandUtils
+from panther.core.command_processor.utils import CommandUtils
+from panther.core.utils.string_representation_mixin import StringRepresentationMixin
 from panther.plugins.services.services_interface import IServiceManager
 
 
-class BaseHTTPServiceManager(IServiceManager, ABC):
+class BaseHTTPServiceManager(IServiceManager, StringRepresentationMixin, ABC):
     """
     Base class for HTTP protocol implementations.
 
@@ -254,17 +255,3 @@ class BaseHTTPServiceManager(IServiceManager, ABC):
         """Emit an event through the event manager."""
         if hasattr(self, "event_manager") and self.event_manager:
             self.event_manager.emit_event(event)
-
-    def __str__(self) -> str:
-        """String representation of the service manager."""
-        return f"{self.__class__.__name__}(implementation={self._get_implementation_name()})"
-
-    def __repr__(self) -> str:
-        """Developer representation of the service manager."""
-        return (
-            f"{self.__class__.__name__}("
-            f"implementation={self._get_implementation_name()}, "
-            f"service_type={self.service_type}, "
-            f"protocol={getattr(self.protocol, 'name', 'unknown') if self.protocol else 'none'}"
-            f")"
-        )

@@ -211,23 +211,23 @@ graph TB
         SM[Service Manager]
         BQ[Base QUIC Manager]
     end
-    
+
     subgraph "Command Generation"
         TM[Template Rendering]
         CB[Command Builder]
     end
-    
+
     subgraph "Command Processor"
         CP[Command Processor]
         SC[Shell Command Objects]
         CV[Command Validation]
     end
-    
+
     subgraph "Event System"
         EE[Event Emitter]
         CE[Command Events]
     end
-    
+
     SM --> BQ
     BQ --> TM
     TM --> CB
@@ -244,7 +244,7 @@ Each service manager generates multiple command types through the Command Proces
 
 ```python
 # Generated via Command Processor with structured validation
-from panther.core.command_processor.command import ShellCommand
+from panther.core.command_processor import ShellCommand
 
 pre_compile_cmds = [
     ShellCommand(
@@ -291,10 +291,10 @@ compile_cmds = self._build_compile_commands(
 def generate_run_command(self, **kwargs) -> dict:
     # Extract common parameters via base class
     params = self._extract_common_params(**kwargs)
-    
+
     # Build command using template method pattern
     command_args = self._build_server_args(params) if params.get('role') == 'server' else self._build_client_args(params)
-    
+
     # Process through Command Processor
     run_cmd = {
         "command_binary": self._get_binary_name(),
@@ -303,14 +303,14 @@ def generate_run_command(self, **kwargs) -> dict:
         "environment": params.get('environment', {}),
         "timeout": params.get('timeout', 60)
     }
-    
+
     # Emit command generation event
     self.emit_event(CommandGenerationEvent(
         service_name=self.service_name,
         command_type="run",
         command_data=run_cmd
     ))
-    
+
     return run_cmd
 ```
 
@@ -361,10 +361,10 @@ from panther.plugins.services.base.rust_quic_base import RustQUICServiceManager
 class PicoquicServiceManager(BaseQUICServiceManager):
     def _get_implementation_name(self) -> str:
         return "picoquic"
-    
+
     def _get_binary_name(self) -> str:
         return "picoquicdemo"
-    
+
     # Only implement what's unique - base class handles common logic
     def _get_server_specific_args(self, **kwargs) -> List[str]:
         return ["-p", str(kwargs.get("port", 4443))]
@@ -552,7 +552,7 @@ The reporting system activates during experiment cleanup and generates:
 class ExperimentReporter:
     def generate_reports(self) -> Dict[str, bool]
     def generate_quick_summary(self) -> str
-    
+
 class StatusCollector:
     def collect_experiment_summary(self) -> ExperimentSummary
     def _collect_test_results(self) -> List[TestResult]
@@ -580,12 +580,12 @@ graph TB
         ASS[Assertion Events]
         PLG[Plugin Events]
     end
-    
+
     subgraph "Event Processing"
         EM[Event Manager]
         EE[Event Emitters]
     end
-    
+
     subgraph "Observers"
         LO[Logger Observer]
         EO[Experiment Observer]
@@ -593,7 +593,7 @@ graph TB
         SO[Storage Observer]
         GO[GUI Observer]
     end
-    
+
     EXP --> EM
     TEST --> EM
     SRV --> EM
@@ -602,7 +602,7 @@ graph TB
     STEP --> EM
     ASS --> EM
     PLG --> EM
-    
+
     EM --> EE
     EE --> LO
     EE --> EO
@@ -643,23 +643,23 @@ sequenceDiagram
     participant SM as Service Manager
     participant ENV as Environment
     participant OBS as Observers
-    
+
     EM->>OBS: ExperimentStartEvent
     EM->>SM: Initialize Services
     SM->>OBS: ServiceInitializationEvent
     EM->>ENV: Setup Environment
     ENV->>OBS: EnvironmentSetupEvent
-    
+
     SM->>OBS: CommandGenerationEvent
     ENV->>OBS: ContainerBuildEvent
     SM->>OBS: ServiceStartEvent
-    
+
     loop Test Execution
         SM->>OBS: ServiceStatusChangeEvent
         ENV->>OBS: MetricsUpdateEvent
         SM->>OBS: StepCompletionEvent
     end
-    
+
     SM->>OBS: ServiceStopEvent
     ENV->>OBS: EnvironmentTeardownEvent
     EM->>OBS: ExperimentCompleteEvent
@@ -695,12 +695,14 @@ sequenceDiagram
 ### Comprehensive Event Types
 
 #### Experiment Events (`panther/core/events/experiment/`)
+
 - **ExperimentStartEvent**: Experiment initialization
 - **ExperimentCompleteEvent**: Successful completion
 - **ExperimentErrorEvent**: Error conditions and recovery
 - **ExperimentStateChangeEvent**: State transitions
 
 #### Service Events (`panther/core/events/service/`)
+
 - **ServiceInitializationEvent**: Service setup
 - **ServiceStartEvent**: Service activation
 - **ServiceStatusChangeEvent**: Runtime status updates
@@ -708,23 +710,27 @@ sequenceDiagram
 - **ServiceStopEvent**: Service termination
 
 #### Environment Events (`panther/core/events/environment/`)
+
 - **EnvironmentSetupEvent**: Environment preparation
 - **ContainerBuildEvent**: Docker image building
 - **NetworkConfigurationEvent**: Network setup
 - **EnvironmentTeardownEvent**: Cleanup operations
 
 #### Test Events (`panther/core/events/test/`)
+
 - **TestStartEvent**: Individual test initiation
 - **TestStepEvent**: Test step execution
 - **TestCompleteEvent**: Test completion
 - **TestFailureEvent**: Test failures and diagnostics
 
 #### Plugin Events (`panther/core/events/plugin/`)
+
 - **PluginLoadEvent**: Plugin loading and validation
 - **PluginInitializationEvent**: Plugin setup
 - **PluginErrorEvent**: Plugin failures
 
 #### Command Events
+
 - **CommandGenerationEvent**: Command creation
 - **CommandExecutionEvent**: Command execution tracking
 - **CommandCompletionEvent**: Execution results

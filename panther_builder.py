@@ -38,10 +38,10 @@ try:
     from panther.core.metrics.metrics_collector import MetricsCollector
     from panther.core.metrics.metrics_exporter import MetricsExporter
     from panther.core.metrics.resource_monitor import ResourceMonitor
-    
+
     # Legacy compatibility for existing build system
     _build_collector = None
-    
+
     def record(name, value, tags=None):
         global _build_collector
         if _build_collector is None:
@@ -49,37 +49,37 @@ try:
             import tempfile
             output_dir = Path(tempfile.mkdtemp())
             _build_collector = MetricsCollector("build_system", output_dir)
-        
+
         from panther.core.metrics.enums import MetricType
         _build_collector.record_metric(name, MetricType.PERFORMANCE, value, tags or {})
-    
+
     def flush(kind, extra=None):
         global _build_collector
         if _build_collector is None:
             return "no-metrics"
-        
+
         # Simple export for build system
         return f"build-{int(time.time())}"
-    
+
     class ResourceSampler:
         def __init__(self):
             from panther.core.metrics.metrics_collector import MetricsCollector
             from pathlib import Path
             import tempfile
-            
+
             # Create temporary metrics collection for build system
             output_dir = Path(tempfile.mkdtemp())
             self.collector = MetricsCollector("build_system", output_dir)
             self.monitor = ResourceMonitor(self.collector)
-        
+
         def start(self):
             self.monitor.start()
-        
+
         def stop(self):
             self.monitor.stop()
             # Return a simple dict for compatibility
             return {"status": "completed"}
-    
+
     # Utility functions for build system
     def get_directory_size_mb(path):
         import os
@@ -90,16 +90,39 @@ try:
                 if os.path.exists(filepath):
                     total_size += os.path.getsize(filepath)
         return total_size / (1024 * 1024)  # Convert to MB
-    
+
     def get_docker_image_size_mb(name):
         try:
-            import docker
-            client = docker.from_env()
-            image = client.images.get(name)
-            return image.attrs['Size'] / (1024 * 1024)  # Convert to MB
-        except Exception:
+            # Use the singleton DockerBuilder for cached operations
+            from panther.core.docker_builder.docker_builder import DockerBuilder
+
+            builder = DockerBuilder.get_instance()
+
+            # First check if image exists using cache
+            if not builder.image_exists(name):
+                return None
+
+            # Get size from cache if available
+            cached_image = builder.image_cache.get_image_by_tag(name)
+            if cached_image and cached_image.size > 0:
+                return cached_image.size / (1024 * 1024)  # Convert to MB
+
+            # Fallback to direct API call if cache doesn't have size
+            if builder.client:
+                image = builder.client.images.get(name)
+                return image.attrs['Size'] / (1024 * 1024)  # Convert to MB
+
             return None
-    
+        except Exception as e:
+            # Log the error for debugging but don't fail the build
+            try:
+                from panther.core.docker_builder.docker_builder import DockerBuilder
+                builder = DockerBuilder.get_instance()
+                builder.logger.warning(f"Failed to get Docker image size for '{name}': {e}")
+            except:
+                pass  # Avoid nested errors
+            return None
+
     def find_latest_wheel(dist_dir, package_name):
         from pathlib import Path
         dist_path = Path(dist_dir)
@@ -109,7 +132,7 @@ try:
         latest = max(wheels, key=lambda p: p.stat().st_mtime)
         size_mb = latest.stat().st_size / (1024 * 1024)
         return latest, size_mb
-    
+
     def cleanup_build_artifacts(path):
         return {"cleaned": True}
 
@@ -1142,14 +1165,14 @@ Note: The following commands have been moved to the CLI:
         "remove-system-services": "panther admin docker --system-services",
         "remove-volume": "panther admin docker --volumes",
     }
-    
+
     if args.command in moved_commands:
         print(f"ℹ️  The '{args.command}' command has been moved to the PANTHER CLI.")
         print(f"   Please use: {moved_commands[args.command]}")
         print("\nMake sure PANTHER is installed in development mode:")
         print("   python panther_builder.py package-dev")
         return 0
-    
+
     if args.command not in command_map:
         print(f"Error: Unknown command '{args.command}'")
         parser.print_help()

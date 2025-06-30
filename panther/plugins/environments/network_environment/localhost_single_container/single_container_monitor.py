@@ -1,21 +1,11 @@
-import threading
-import time
-from enum import Enum
+from typing import Any, Dict
+
+from ..base_environment_monitor import BaseEnvironmentMonitor, ServiceHealthState
+
+# Use ServiceHealthState directly, no need for separate enum
 
 
-class ContainerState(Enum):
-    """State management for single container lifecycle"""
-
-    INITIALIZING = "initializing"
-    BUILDING = "building"
-    STARTING = "starting"
-    RUNNING = "running"
-    MONITORING = "monitoring"
-    FAILED = "failed"
-    STOPPED = "stopped"
-
-
-class SingleContainerMonitor:
+class SingleContainerMonitor(BaseEnvironmentMonitor):
     """
     Background container health monitor for non-blocking localhost deployments.
 
@@ -24,74 +14,25 @@ class SingleContainerMonitor:
     """
 
     def __init__(self, localhost_env, container_name, config):
+        # Initialize base monitor
+        super().__init__(localhost_env, config, localhost_env.logger)
+
+        # Localhost specific attributes
         self.localhost_env = localhost_env
         self.container_name = container_name
-        self.config = config
-        self.logger = localhost_env.logger
 
-        # Container state tracking
-        self.container_state = ContainerState.INITIALIZING
-        self.failure_count = 0
+        # Container state tracking (specific to single container monitoring)
+        self.container_state = ServiceHealthState.STARTING
         self.last_check_time = None
 
-        # Thread management
-        self.monitoring_active = False
-        self.monitor_thread = None
-        self.lock = threading.Lock()
-
-    def start_monitoring(self):
-        """Start background monitoring in a daemon thread"""
-        if self.monitoring_active:
-            return
-
-        self.monitoring_active = True
-        self.monitor_thread = threading.Thread(
-            target=self._monitor_loop,
-            name=f"ContainerMonitor-{self.container_name}",
-            daemon=True,
-        )
-        self.monitor_thread.start()
-        self.logger.info(
-            f"Started background container monitoring thread: {self.monitor_thread.name}"
-        )
-
-    def stop_monitoring(self):
-        """Stop background monitoring"""
-        if not self.monitoring_active:
-            return
-
-        self.monitoring_active = False
-        if self.monitor_thread and self.monitor_thread.is_alive():
-            self.logger.info("Stopping background container monitoring...")
-            self.monitor_thread.join(timeout=5)
-            if self.monitor_thread.is_alive():
-                self.logger.warning("Background monitoring thread did not stop cleanly")
-        self.monitor_thread = None
-
-    def _monitor_loop(self):
-        """Main monitoring loop running in background thread"""
-        self.logger.debug(
-            f"Background monitoring loop started for container: {self.container_name}"
-        )
-
-        while self.monitoring_active:
-            try:
-                self._check_container_health()
-                time.sleep(self.config.monitoring_interval_seconds)
-            except Exception as e:
-                self.logger.error(f"Error in background monitoring: {e}")
-                time.sleep(self.config.monitoring_interval_seconds)
-
-        self.logger.debug("Background monitoring loop ended")
-
-    def _check_container_health(self):
-        """Check health of the container and handle failures"""
+    def _check_health(self):
+        """Check health of the container and handle failures (Localhost specific)."""
         with self.lock:
             is_healthy = self._is_container_healthy()
 
             if is_healthy:
-                if self.container_state != ContainerState.RUNNING:
-                    self.container_state = ContainerState.RUNNING
+                if self.container_state != ServiceHealthState.READY:
+                    self.container_state = ServiceHealthState.READY
                     self.failure_count = 0
                     self.logger.info(f"✓ Container {self.container_name} is healthy")
             else:
@@ -152,53 +93,55 @@ class SingleContainerMonitor:
         return True
 
     def _handle_container_failure(self):
-        """Handle container failure and potentially trigger early termination"""
+        """Handle container failure using base class logic."""
         self.failure_count += 1
 
         if self.failure_count >= self.config.failure_threshold_count:
             # Container has failed beyond threshold
-            self.container_state = ContainerState.FAILED
-            self.logger.error(
-                f"✗ Container {self.container_name} failed (failures: {self.failure_count})"
+            self.container_state = ServiceHealthState.FAILED
+
+            # Get container logs for debugging before handling failure
+            self._log_container_debug_info()
+
+            # Use base class failure handling
+            self._handle_failure(
+                f"Container '{self.container_name}' failed {self.failure_count} times"
             )
-
-            # Get container logs for debugging
-            logs_result = self.localhost_env.execute_docker_command(
-                docker_args=["logs", "--tail", "50", self.container_name],
-                check=False,
-            )
-
-            if logs_result.stdout:
-                self.logger.error("Container logs (last 50 lines):")
-                for line in logs_result.stdout.strip().split("\n"):
-                    self.logger.error(f"  {line}")
-
-            # Trigger early termination
-            self._trigger_early_termination(self.failure_count)
         else:
             # Container is failing but hasn't exceeded threshold yet
             self.logger.warning(
                 f"⚠ Container {self.container_name} unhealthy (failures: {self.failure_count}/{self.config.failure_threshold_count})"
             )
 
-    def _trigger_early_termination(self, failure_count):
-        """Trigger early experiment termination"""
-        reason = f"Container '{self.container_name}' failed {failure_count} times (threshold: {self.config.failure_threshold_count})"
+    def _log_container_debug_info(self):
+        """Log container debug information for troubleshooting."""
+        logs_result = self.localhost_env.execute_docker_command(
+            docker_args=["logs", "--tail", "50", self.container_name],
+            check=False,
+        )
 
-        details = {
+        if logs_result.stdout:
+            self.logger.error("Container logs (last 50 lines):")
+            for line in logs_result.stdout.strip().split("\n"):
+                self.logger.error(f"  {line}")
+
+    def _get_monitor_name(self) -> str:
+        """Get unique monitor name for localhost container."""
+        return f"Container-{self.container_name}"
+
+    def _should_terminate(self) -> bool:
+        """Localhost containers always terminate on failure."""
+        return True  # Single container failure should always terminate
+
+    def _get_termination_details(self) -> Dict[str, Any]:
+        """Get localhost container specific termination details."""
+        return {
+            "monitor_type": "localhost_container",
             "container_name": self.container_name,
-            "failure_count": failure_count,
             "container_state": self.container_state.value,
-            "monitoring_config": {
-                "failure_threshold": self.config.failure_threshold_count,
-                "monitoring_interval": self.config.monitoring_interval_seconds,
-            },
+            "last_check_time": self.last_check_time,
         }
 
-        self.logger.error(f"Triggering early experiment termination: {reason}")
-
-        # Set termination flag on environment
-        self.localhost_env.request_early_termination(reason, details)
-
-        # Stop monitoring since experiment is terminating
-        self.monitoring_active = False
+    def _get_stop_timeout(self) -> float:
+        """Localhost monitoring uses shorter timeout."""
+        return 5.0  # 5 seconds for container monitoring

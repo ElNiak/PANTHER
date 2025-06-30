@@ -5,15 +5,16 @@ Tests focus on white-box testing with extensive mocking to ensure
 no side effects and deterministic behavior.
 """
 
-import pytest
 import os
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
-from omegaconf import OmegaConf
+from unittest.mock import Mock, mock_open, patch
+
+import pytest
 import yaml
+from omegaconf import OmegaConf
 
 from panther.config.config_manager import ConfigLoader
-from panther.config.config_global_schema import GlobalConfig, LoggingLevel
+from panther.config.core.models.global_config import GlobalConfig, LoggingLevel
 
 
 class TestConfigLoader:
@@ -53,7 +54,10 @@ class TestConfigLoader:
         assert loader.iut_dir == "iut"
         assert loader.testers_dir == "testers"
         assert loader.global_config is None
-        assert loader._panther_dir == Path(os.path.dirname(__file__)).parent.parent / "panther"
+        assert (
+            loader._panther_dir
+            == Path(os.path.dirname(__file__)).parent.parent / "panther"
+        )
 
     def test_construct_global_config_complete(self, config_loader, valid_cfg_dict):
         """Test construct_global_config with complete configuration."""
@@ -65,9 +69,12 @@ class TestConfigLoader:
             assert isinstance(result, GlobalConfig)
             assert result.logging.level == LoggingLevel.DEBUG
             assert result.logging.format == valid_cfg_dict["logging"]["format"]
-            assert result.paths.output_dir == config_loader.output_dir  # Should use override
             assert (
-                result.docker.build_docker_image == valid_cfg_dict["docker"]["build_docker_image"]
+                result.paths.output_dir == config_loader.output_dir
+            )  # Should use override
+            assert (
+                result.docker.build_docker_image
+                == valid_cfg_dict["docker"]["build_docker_image"]
             )
             assert result.features.fast_fail == valid_cfg_dict["features"]["fast_fail"]
 
@@ -116,7 +123,9 @@ class TestConfigLoader:
             assert result.features.fast_fail is True
 
     @patch("panther.config.config_manager.ConfigLoader.copy_plugin_files")
-    def test_add_plugin_tester_service_with_directory(self, mock_copy, config_loader, tmp_path):
+    def test_add_plugin_tester_service_with_directory(
+        self, mock_copy, config_loader, tmp_path
+    ):
         """Test add_plugin_tester_service when testers_dir is set."""
         testers_dir = tmp_path / "custom_testers"
         testers_dir.mkdir()
@@ -141,7 +150,9 @@ class TestConfigLoader:
         """Test add_plugin_tester_service when testers_dir is not set."""
         config_loader.testers_dir = ""
 
-        with patch("panther.config.config_manager.ConfigLoader.copy_plugin_files") as mock_copy:
+        with patch(
+            "panther.config.config_manager.ConfigLoader.copy_plugin_files"
+        ) as mock_copy:
             config_loader.add_plugin_tester_service()
 
             mock_copy.assert_not_called()
@@ -170,7 +181,9 @@ class TestConfigLoader:
         config_loader.testers_dir = source_dir
 
         # Mock file system structure
-        mock_exists.side_effect = lambda path: path != target_dir  # Target doesn't exist initially
+        mock_exists.side_effect = (
+            lambda path: path != target_dir
+        )  # Target doesn't exist initially
         mock_listdir.return_value = ["subdir", "file.py", "config.yaml"]
 
         def isdir_side_effect(path):
@@ -240,7 +253,9 @@ class TestConfigLoader:
         """Test add_plugin_iut_service when iut_dir is not set."""
         config_loader.iut_dir = ""
 
-        with patch("panther.config.config_manager.ConfigLoader.copy_plugin_files") as mock_copy:
+        with patch(
+            "panther.config.config_manager.ConfigLoader.copy_plugin_files"
+        ) as mock_copy:
             config_loader.add_plugin_iut_service()
 
             mock_copy.assert_not_called()
@@ -384,7 +399,9 @@ class TestConfigLoader:
         mock_omega_load.assert_called_once_with(config_loader.experiment_file)
         mock_construct.assert_called_once_with(mock_omega_config)
 
-    def test_construct_experiment_config_basic(self, config_loader, valid_experiment_cfg_dict):
+    def test_construct_experiment_config_basic(
+        self, config_loader, valid_experiment_cfg_dict
+    ):
         """Test construct_experiment_config with valid configuration."""
         loaded_config = OmegaConf.create(valid_experiment_cfg_dict)
 
@@ -396,7 +413,9 @@ class TestConfigLoader:
             assert result is not None
             mock_merge.assert_called()
 
-    def test_config_loader_sets_global_config_attribute(self, config_loader, valid_cfg_dict):
+    def test_config_loader_sets_global_config_attribute(
+        self, config_loader, valid_cfg_dict
+    ):
         """Test that construct_global_config sets the global_config attribute."""
         loaded_config = OmegaConf.create(valid_cfg_dict)
 

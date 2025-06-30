@@ -7,6 +7,7 @@ This module provides a mixin for standardized error handling patterns,
 reducing duplication of error handling and logging logic.
 """
 
+import logging
 from functools import wraps
 
 from panther.core.exceptions.fast_fail import (
@@ -15,10 +16,9 @@ from panther.core.exceptions.fast_fail import (
     FastFailHandler,
     PantherException,
 )
-from panther.core.utils.logging_mixin import LoggerMixin
 
 
-class ErrorHandlerMixin(LoggerMixin):
+class ErrorHandlerMixin:
     """
 
     Mixin that provides standardized error handling patterns.
@@ -30,6 +30,9 @@ class ErrorHandlerMixin(LoggerMixin):
         super().__init__(*args, **kwargs)
         # Initialize FastFailHandler - can be overridden by subclasses
         self._fast_fail_handler = None
+        # Initialize logger if not already present
+        if not hasattr(self, "logger"):
+            self.logger = logging.getLogger(self.__class__.__name__)
 
     @property
     def fast_fail_handler(self) -> FastFailHandler:

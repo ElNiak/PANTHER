@@ -16,11 +16,11 @@ import os
 import tempfile
 from pathlib import Path
 
-from panther.core.command_processor.command import ShellCommand
+from panther.core.command_processor import ShellCommand
+from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
     DockerComposeEnvironment,
 )
-from panther.core.observer.management.event_manager import EventManager
 
 
 class MockService:
@@ -32,7 +32,8 @@ class MockService:
             "pre_compile_cmds": [
                 ShellCommand("echo 'Pre-compile command'", is_critical=True),
                 ShellCommand(
-                    "function my_func() { echo 'Test function'; }", is_function_definition=True
+                    "function my_func() { echo 'Test function'; }",
+                    is_function_definition=True,
                 ),
             ],
             "compile_cmds": [
@@ -134,7 +135,9 @@ def test_command_duplication():
             main_cmd_count = content.count("/usr/bin/panther --flag1 --flag2")
 
             print(f"Main command count: {main_cmd_count}")
-            assert main_cmd_count <= 1, f"Command appears {main_cmd_count} times (should be 1)"
+            assert (
+                main_cmd_count <= 1
+            ), f"Command appears {main_cmd_count} times (should be 1)"
 
             # Check other commands too
             pre_compile_count = content.count("Pre-compile command")

@@ -7,9 +7,9 @@ from argparse import ArgumentParser, _SubParsersAction
 from pathlib import Path
 from typing import Any
 
-from ...config import ConfigLoader
-from ...core.experiment_manager import ExperimentManager
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand
+from panther.config import ConfigurationManager
+from panther.core.experiment_manager import ExperimentManager
 
 
 class RunCommand(BaseCommand):
@@ -40,6 +40,12 @@ class RunCommand(BaseCommand):
 
         parser.add_argument(
             "--experiment-name", type=str, help="Override experiment name"
+        )
+
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what commands would be executed without running them",
         )
 
         # Plugin directories
@@ -137,13 +143,13 @@ class RunCommand(BaseCommand):
         """Handle the run command execution."""
         try:
             # Import metrics components
-            from ...core.metrics import (
+            from panther.core.metrics import (
                 MetricsCollector,
                 MetricsExporter,
                 MetricsReporter,
                 ResourceMonitor,
             )
-            from ...core.utils.logger_factory import LoggerFactory
+            from panther.core.utils.logger_factory import LoggerFactory
 
             # Validate config file exists
             config_path = Path(args.config)
@@ -153,12 +159,19 @@ class RunCommand(BaseCommand):
 
             logging.info(f"🚀 Starting PANTHER experiment with config: {config_path}")
 
+            # Check for dry-run mode
+            if args.dry_run:
+                logging.info(
+                    "🔍 DRY-RUN MODE: Analyzing experiment configuration without execution"
+                )
+
             # Load configuration to get logging settings
-            config_loader = ConfigLoader(
+            config_loader = ConfigurationManager(
                 experiment_file=str(config_path),
                 debug_override=args.debug if hasattr(args, "debug") else False,
             )
 
+            logging.info("📂 Loading global configuration...")
             # Load global config for logging settings
             global_config = config_loader.load_and_validate_global_config()
 
@@ -188,11 +201,13 @@ class RunCommand(BaseCommand):
                         global_config.logging, "enable_colors", True
                     ),
                 }
-                
+
                 # Include feature_levels if available
                 if hasattr(global_config.logging, "feature_levels"):
-                    logging_config["feature_levels"] = global_config.logging.feature_levels
-                
+                    logging_config[
+                        "feature_levels"
+                    ] = global_config.logging.feature_levels
+
                 LoggerFactory.initialize(logging_config)
 
             # Initialize metrics if enabled
@@ -227,7 +242,9 @@ class RunCommand(BaseCommand):
                     )
 
                     if not args.metrics_quiet:
-                        logging.info(f"📊 Metrics collection enabled for: {experiment_name}")
+                        logging.info(
+                            f"📊 Metrics collection enabled for: {experiment_name}"
+                        )
 
                 except Exception as e:
                     logging.info(f"⚠️  Warning: Failed to initialize metrics: {e}")
@@ -249,6 +266,7 @@ class RunCommand(BaseCommand):
                 global_config=global_config,
                 experiment_name=args.experiment_name,
                 metrics_collector=metrics_collector,
+                dry_run=args.dry_run,
             )
 
             # Initialize experiments with experiment config
@@ -260,7 +278,9 @@ class RunCommand(BaseCommand):
                 try:
                     resource_monitor.start()
                 except Exception as e:
-                    logging.info(f"⚠️  Warning: Failed to start resource monitoring: {e}")
+                    logging.info(
+                        f"⚠️  Warning: Failed to start resource monitoring: {e}"
+                    )
 
             # Run the tests
             logging.info("🚀 Running tests...")
@@ -271,7 +291,9 @@ class RunCommand(BaseCommand):
                 try:
                     resource_monitor.stop()
                 except Exception as e:
-                    logging.info(f"⚠️  Warning: Failed to stop resource monitoring: {e}")
+                    logging.info(
+                        f"⚠️  Warning: Failed to stop resource monitoring: {e}"
+                    )
 
             # Generate metrics report
             if metrics_reporter and args.metrics_generate_report:
@@ -300,7 +322,9 @@ class RunCommand(BaseCommand):
                         success = metrics_exporter.export_to_json(output_path)
 
                     if success and not args.metrics_quiet:
-                        logging.info(f"💾 Metrics exported to {args.metrics_format} format")
+                        logging.info(
+                            f"💾 Metrics exported to {args.metrics_format} format"
+                        )
                     elif not success:
                         logging.info(
                             f"⚠️  Warning: Failed to export metrics to {args.metrics_format} format"

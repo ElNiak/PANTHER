@@ -21,10 +21,10 @@ import yaml
 
 # Use actual PANTHER modules if available, otherwise create comprehensive mocks
 try:
-    from panther.config.config_experiment_schema import ServiceConfig, TestConfig
-    from panther.config.config_global_schema import GlobalConfig
+    from panther.config.core.models.experiment import ServiceConfig, TestConfig
+    from panther.config.core.models.global_config import GlobalConfig
     from panther.core.observer.management.event_manager import EventManager
-    from panther.plugins.plugin_discovery import PluginDiscovery
+    from panther.plugins.core.plugin_discovery import PluginDiscovery
     from panther.plugins.plugin_manager import PluginManager
     from panther.plugins.protocols.config_schema import ProtocolConfig
     from panther.plugins.services.iut.config_schema import ImplementationConfig
@@ -192,7 +192,9 @@ except ImportError:
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
+
 pytestmark = [pytest.mark.integration, pytest.mark.plugin_test]
+
 
 class TestPluginSystemBasicIntegration:
     """Test basic integration between plugin system components."""
@@ -311,6 +313,7 @@ class TestPluginSystemBasicIntegration:
             # Test that the system handles missing environments gracefully
             assert True
 
+
 class TestPluginLifecycleIntegration:
     """Test complete plugin lifecycle integration."""
 
@@ -417,6 +420,7 @@ class TestPluginLifecycleIntegration:
                 assert service_manager.initialized
                 assert env_manager.initialized
 
+
 class TestEventSystemIntegration:
     """Test event system integration across plugins."""
 
@@ -484,6 +488,7 @@ class TestEventSystemIntegration:
             # Both operations should succeed
             assert commands is not None
 
+
 class TestCommandGenerationIntegration:
     """Test command generation pipeline integration."""
 
@@ -544,6 +549,7 @@ class TestCommandGenerationIntegration:
             if hasattr(service, "generate_commands"):
                 commands = service.generate_commands()
                 assert isinstance(commands, dict)
+
 
 class TestPluginConfigurationIntegration:
     """Test plugin configuration integration."""
@@ -619,6 +625,7 @@ class TestPluginConfigurationIntegration:
             assert isinstance(is_valid, bool)
             assert isinstance(missing, list)
 
+
 class TestPluginSystemPerformance:
     """Test plugin system performance characteristics."""
 
@@ -693,6 +700,7 @@ class TestPluginSystemPerformance:
 
         # Test should complete without issues
         assert True
+
 
 class TestPluginSystemErrorHandling:
     """Test error handling across plugin system integration."""
@@ -778,6 +786,7 @@ class TestPluginSystemErrorHandling:
 
         # System should remain stable regardless of failures
         assert manager is not None
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -1,19 +1,20 @@
 """Test execution logic for test cases."""
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from panther.core.test_cases.test_case_impl import TestCase
+
+from panther.core.events.assertion.emitter import AssertionEventEmitter
 from panther.core.events.step.emitter import StepEventEmitter
-from panther.core.events.step.events import StepEvent
-from panther.core.events.test.emitter import TestEventEmitter
-from panther.core.events.test.events import TestEvent
-from panther.core.events.test.states import TestState
 
 
 class TestExecutor:
     """Handles test execution including steps and assertions."""
 
-    def __init__(self, test_case):
+    def __init__(self, test_case: "TestCase") -> None:
         """Initialize test executor with reference to parent test case."""
         self.test_case = test_case
         self.logger = test_case.logger
@@ -46,21 +47,21 @@ class TestExecutor:
                     step_config=step_config,
                 )
             steps_time = time.time()
-            
+
             # Execute wait step
             if steps.wait > 0:
                 self._execute_single_step("wait", steps.wait, step_emitter)
-            
+
             # Execute record_pcap step if enabled (only if attribute exists)
             if hasattr(steps, "record_pcap") and steps.record_pcap:
-                self._execute_single_step("record_pcap", {"enabled": True}, step_emitter)
+                self._execute_single_step(
+                    "record_pcap", {"enabled": True}, step_emitter
+                )
 
             # Emit steps execution completed
             result = {
                 "completed": True,
-                "duration_s": (
-                    time.time() - steps_time
-                ),
+                "duration_s": (time.time() - steps_time),
             }
             if step_emitter:
                 step_emitter.emit_step_execution_completed(
@@ -85,54 +86,36 @@ class TestExecutor:
             raise
 
     def _execute_single_step(
-        self, step_name: str, step_details: Dict[str, Any], step_emitter: Optional[StepEventEmitter]
+        self,
+        step_name: str,
+        step_details: Dict[str, Any],
+        step_emitter: Optional[StepEventEmitter],
     ) -> None:
         """Execute a single test step."""
         self.logger.info(f"Executing step: {step_name}")
 
         try:
             # Emit step started event
-            if step_emitter:
-                step_emitter.emit_step_execution_started(
-                    step_id="execute_steps",
-                    step_name="Execute test steps",
-                    test_case_id=self.test_case.test_name,
-                    step_config=step_details,
-                )
+            self.emit_start_step(step_details, step_emitter)
             start_time = time.time()
 
             # Handle different step types
             if isinstance(step_details, (int, float)):
                 # Wait step
-                wait_time = step_details            
-                self.logger.info(f"Waiting for {wait_time} seconds")
-                # Convert to dict format for _check_early_exit
+                wait_time = step_details
+                self.logger.debug(f"Waiting for {wait_time} seconds")
                 step_config = {"type": "wait", "duration": wait_time}
                 self._check_early_exit(step_config, step_emitter)
             elif isinstance(step_details, dict):
                 # Complex step configuration
-                step_type = step_details.get("type", "unknown")
-
-                if step_type == "wait":
-                    wait_time = step_details.get("duration", 0)
-                    self.logger.info(f"Waiting for {wait_time} seconds")
-                    self._check_early_exit(step_details, step_emitter)
-                elif step_type == "http_request":
-                    self._execute_http_request_step(step_details)
-
-                elif step_type == "assertion":
-                    self._execute_assertion_step(step_details)
-
-                else:
-                    self.logger.warning(f"Unknown step type: {step_type}")
-
+                self.handle_step_execution(step_details, step_emitter)
             else:
                 self.logger.warning(
                     f"Unsupported step configuration type: {type(step)}"
                 )
                 if step_emitter:
                     step_emitter.emit_step_unsupported(
-                        step_id=step_name,
+                        step_id="unsupported_step",
                         step_name=step_name,
                         test_case_id=self.test_case.test_name,
                         reason=f"Unsupported step type: {step_name}",
@@ -163,7 +146,31 @@ class TestExecutor:
                     result={"completed_steps": ["wait", "record_pcap"]},
                 )
             raise
-    
+
+    def handle_step_execution(self, step_details, step_emitter):
+        step_type = step_details.get("type", "unknown")
+        if step_type == "wait":
+            wait_time = step_details.get("duration", 0)
+            self.logger.info(f"Waiting for {wait_time} seconds")
+            wait_step_config = {"type": "wait", "duration": wait_time}
+            self._check_early_exit(wait_step_config, step_emitter)
+        elif step_type == "http_request":
+            self._execute_http_request_step(step_details)
+        elif step_type == "assertion":
+            self._execute_assertion_step(step_details)
+
+        else:
+            self.logger.warning(f"Unknown step type: {step_type}")
+
+    def emit_start_step(self, step_details, step_emitter):
+        if step_emitter:
+            step_emitter.emit_step_execution_started(
+                step_id="execute_steps",
+                step_name="Execute test steps",
+                test_case_id=self.test_case.test_name,
+                step_config=step_details,
+            )
+
     def _check_early_exit(self, step_config, step_emitter) -> None:
         """Check if an early exit condition is met."""
         step_name = step_config.get("type", "unknown")
@@ -179,15 +186,11 @@ class TestExecutor:
         )
 
         # Split the wait into smaller intervals to allow checking for early termination
-        interval = min(
-            1.0, step_details / 10.0
-        )  # Check at least 10 times during wait
+        interval = min(1.0, step_details / 10.0)
         wait_time_remaining = step_details
         while wait_time_remaining > 0:
             # Calculate wait time for this iteration
             iteration_wait = min(interval, wait_time_remaining)
-
-            # Sleep for the calculated interval
             time.sleep(iteration_wait)
             wait_time_remaining -= iteration_wait
 
@@ -206,16 +209,15 @@ class TestExecutor:
             )
 
             # Check for early termination
-            should_terminate = False
             for env_manager in self.test_case.environment_plugin_manager:
-                if hasattr(
-                    env_manager, "should_terminate_early"
-                ) and callable(env_manager.should_terminate_early):
-                    should_terminate = env_manager.should_terminate_early()
-                    if should_terminate:
-                        self.test_case.teardown_environment()
-                        return
-        
+                if (
+                    hasattr(env_manager, "should_terminate_early")
+                    and callable(env_manager.should_terminate_early)
+                    and env_manager.should_terminate_early()
+                ):
+                    self.test_case.teardown_environment()
+                    return
+
     def _execute_http_request_step(self, config: Dict[str, Any]) -> None:
         """Execute an HTTP request step."""
         import requests
@@ -270,7 +272,7 @@ class TestExecutor:
     def validate_assertions(self) -> None:
         """Validate assertions defined in test configuration."""
         # Check if assertions exist in test config
-        assertions = getattr(self.test_case.test_config, 'assertions', None)
+        assertions = getattr(self.test_case.test_config, "assertions", None)
         if not assertions:
             self.logger.info("No assertions defined for test")
             return
@@ -279,7 +281,7 @@ class TestExecutor:
 
         try:
             # Get assertion emitter if available
-            assertion_emitter = None
+            assertion_emitter: AssertionEventEmitter = None
             if self.test_case.emitter_registry:
                 assertion_emitter = self.test_case.emitter_registry.get_emitter(
                     "assertion"
@@ -337,11 +339,13 @@ class TestExecutor:
             # Check if service is running
             service_name = assertion.get("service")
             # Would check actual service state
-            pass
+            raise NotImplementedError(
+                "Service running assertion validation not implemented"
+            )
         elif assertion_type == "output_contains":
             # Check if output contains expected string
             output_key = assertion.get("output")
             # Would check collected outputs
-            pass
+            raise NotImplementedError("Output assertion validation not implemented")
         else:
             self.logger.warning(f"Unknown assertion type: {assertion_type}")

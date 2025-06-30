@@ -1,96 +1,53 @@
 #!/bin/bash -x
 # -x: trace every command (with expansions)
-
 {# Jinja2 Macros for reducing code duplication #}
-{% macro handle_control_operator_command(cmd_obj, cmd_type, loop_index) %}
+{% macro handle_control_operator_command(cmd_obj, phase_name, loop_index) %}
 # Handle command with && operator
-log "Command contains && operator: {{ cmd_obj.command | replace('"', '\\"') }}"
+{% set safe_cmd = cmd_obj.shell_safe_command | default(cmd_obj.command | replace('"', '\\"')) %}
+log "Executing command with && operator: {{ cmd_obj.command | replace('"', '\"') }}"
 
-# Extract parts of the command before and after &&
-FIRST_PART="{{ cmd_obj.command.split('&&')[0] }}"
-REST_OF_CMD="{{ '&&'.join(cmd_obj.command.split('&&')[1:]) }}"
+# Since working directory is now handled via metadata, execute the full command directly
+execute_with_error_tracking "{{ phase_name }}" "{{ safe_cmd }}" "{{ loop_index }}" "false" "true"
+CMD_STATUS=$?
 
-# Create output files for this command
-FIRST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop_index }}_first_part.log"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop_index }} first part" > "$FIRST_OUTPUT"
-echo "Command: ${FIRST_PART}" >> "$FIRST_OUTPUT"
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-
-# First execute the part before && and capture output
-log "Executing first part: ${FIRST_PART}"
-# Check if this is a function call - needs special handling
-if type "$(echo "${FIRST_PART}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-  # Part is a function call, use eval to execute in current shell context
-  FUNCTION_NAME=$(echo "${FIRST_PART}" | awk '{print $1}')
-  FUNCTION_ARGS=$(echo "${FIRST_PART}" | awk '{$1=""; print $0}')
-  log "Detected function call to: ${FUNCTION_NAME}"
-  # Use log_function helper for tracking
-  log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-else
-  # Not a function call, use bash -c as before
-  bash -c "${FIRST_PART}" >> "$FIRST_OUTPUT" 2>&1
-  FIRST_STATUS=$?
-fi
-
-# Record completion time for first part
-echo "----------------------------------------" >> "$FIRST_OUTPUT"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] First part completed with exit code: $FIRST_STATUS" >> "$FIRST_OUTPUT"
-
-# Log the captured output
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop_index }} first part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-cat "$FIRST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-if [ $FIRST_STATUS -eq 0 ]; then
-  # If first part succeeded, execute rest of command
-  log "First part succeeded. Executing rest: ${REST_OF_CMD}"
-  REST_OUTPUT="/app/logs/{{additional_param.service_name}}_$cmd_type-cmd{{ loop_index }}_rest.log"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $cmd_type command #{{ loop_index }} rest part" > "$REST_OUTPUT"
-  echo "Command: ${REST_OF_CMD}" >> "$REST_OUTPUT"
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-
-  # Execute rest of command - check if it's a function call
-  if [ -n "${REST_OF_CMD}" ] && type "$(echo "${REST_OF_CMD}" | awk '{print $1}')" 2>/dev/null | grep -q 'function'; then
-    # Part is a function call, use eval to execute in current shell context
-    FUNCTION_NAME=$(echo "${REST_OF_CMD}" | awk '{print $1}')
-    FUNCTION_ARGS=$(echo "${REST_OF_CMD}" | awk '{$1=""; print $0}')
-    log "Detected function call to: ${FUNCTION_NAME}"
-    # Use log_function helper for tracking
-    log_function ${FUNCTION_NAME} ${FUNCTION_ARGS} >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  else
-    # Not a function call, use bash -c as before
-    bash -c "${REST_OF_CMD}" >> "$REST_OUTPUT" 2>&1
-    REST_STATUS=$?
-  fi
-
-  # Record completion time for rest part
-  echo "----------------------------------------" >> "$REST_OUTPUT"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Rest part completed with exit code: $REST_STATUS" >> "$REST_OUTPUT"
-
-  # Log the captured output
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $cmd_type command #{{ loop_index }} rest part:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$REST_OUTPUT" >> /app/logs/{{additional_param.service_name}}_commands.log
-
-  # Exit with status from rest part
-  if [ $REST_STATUS -ne 0 ]; then
-    exit $REST_STATUS
-  fi
-else
-  exit $FIRST_STATUS
+if [ "${CMD_STATUS:-1}" -ne 0 ]; then
+  exit $CMD_STATUS
 fi
 {% endmacro %}
 
 {% macro execute_command_phase(commands, phase_name) %}
 {% if commands %}
+# Create phase-specific output directory
+PHASE_DIR="/app/logs/{{ phase_name | lower | replace('_', '-') }}"
+mkdir -p "$PHASE_DIR"
+log "Created phase directory: $PHASE_DIR"
+
+# Set up phase-specific output redirection
+PHASE_STDOUT="$PHASE_DIR/stdout.log"
+PHASE_STDERR="$PHASE_DIR/stderr.log"
+
+
+# Initialize phase log files with header
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting {{ phase_name }} phase ===" > "$PHASE_STDOUT"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting {{ phase_name }} phase ===" > "$PHASE_STDERR"
+
 {% for cmd_obj in commands %}
 # Set command type for this context
 cmd_type="{{ phase_name }}"
 
-{% if cmd_obj.is_empty %}
-log "Skipping empty $cmd_type command #{{ loop.index }}"
+{% if cmd_obj.metadata.working_directory %}
+# Change to working directory for this command
+SAVED_PWD="$(pwd)"
+cd "{{ cmd_obj.metadata.working_directory }}" || {
+  log "Failed to change to directory: {{ cmd_obj.metadata.working_directory }}"
+  exit 1
+}
+log "Changed to working directory: {{ cmd_obj.metadata.working_directory }}"
+{% endif %}
 
-{% elif not cmd_obj.is_critical %}
+{% if cmd_obj.metadata.is_empty %}
+log "Skipping empty $cmd_type command #{{ loop.index }}"
+{% elif not cmd_obj.metadata.is_critical %}
 # Handle non-critical command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
 {{ cmd_obj.command }}
@@ -99,18 +56,17 @@ ENDOFCOMMAND
 
 # This command is marked as non-critical, execute it but don't fail if it returns error
 log "Executing non-critical $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "{% if cmd_obj.is_multiline %}true{% else %}false{% endif %}" "false" || {
+execute_with_error_tracking "{{ phase_name }}" "$MULTILINE_CMD" "{{ loop.index }}" "{% if cmd_obj.metadata.is_multiline %}true{% else %}false{% endif %}" "false" || {
   log "WARNING: Non-critical command failed but continuing execution"
 }
-
-{% elif cmd_obj.is_function_definition %}
+{% elif cmd_obj.metadata.is_function_definition %}
 # Handle function definition
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
 {{ cmd_obj.command }}
 ENDOFCOMMAND
 )
 # This is a function definition, needs to be defined in the global scope
-log "Executing function definition: {{ cmd_obj.description }}"
+log "Executing function definition: {{ cmd_obj.metadata.description }}"
 # Export the function to ensure it's available to all subprocesses
 eval "$MULTILINE_CMD"
 # Verify the function was properly defined
@@ -122,8 +78,7 @@ if ! declare -f "$FUNC_NAME" > /dev/null; then
 else
   log "Function $FUNC_NAME defined successfully"
 fi
-
-{% elif cmd_obj.is_multiline %}
+{% elif cmd_obj.metadata.is_multiline %}
 # Handle multi-line command
 MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
 {{ cmd_obj.command }}
@@ -131,40 +86,86 @@ ENDOFCOMMAND
 )
 # Execute multi-line command with error tracking
 log "Executing multi-line $cmd_type command #{{ loop.index }}"
-execute_with_error_tracking "$cmd_type" "$MULTILINE_CMD" "{{ loop.index }}" "{{ cmd_obj.command | replace('"', '\\"') }}" "true" "true" || {
+execute_with_error_tracking "{{ phase_name }}" "$MULTILINE_CMD" "{{ loop.index }}" "true" "true" || {
   exit $?
 }
 
-{% elif cmd_obj.has_control_operators and '&&' in cmd_obj.control_operators %}
-{{ handle_control_operator_command(cmd_obj, '$cmd_type', loop.index) }}
+{% elif cmd_obj.metadata.has_control_operators and '&&' in cmd_obj.metadata.control_operators %}
+{{ handle_control_operator_command(cmd_obj, phase_name, loop.index) }}
 
-{% elif cmd_obj.is_function_call %}
-# Handle simple function call
+{% elif cmd_obj.metadata.is_variable_assignment or cmd_obj.metadata.is_shell_builtin or cmd_obj.metadata.is_control_structure %}
+# Handle special command types that need eval: variable assignment, shell builtin, control structure
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+log "Executing {{ cmd_obj.metadata.is_variable_assignment and 'variable assignment' or cmd_obj.metadata.is_shell_builtin and 'shell builtin' or 'control structure' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use execute_with_error_tracking but with eval mode for proper syntax handling
+execute_with_error_tracking "{{ phase_name }}" "eval \"$MULTILINE_CMD\"" "{{ loop.index }}" "{% if cmd_obj.metadata.is_multiline %}true{% else %}false{% endif %}" "{% if cmd_obj.metadata.is_critical %}true{% else %}false{% endif %}" || {
+  {% if cmd_obj.metadata.is_critical %}
+  exit $?
+  {% else %}
+  log "WARNING: Non-critical command failed but continuing execution"
+  {% endif %}
+}
+
+{% elif cmd_obj.metadata.has_nested_quotes %}
+# Handle commands with nested quotes through proper logging infrastructure
+MULTILINE_CMD=$(cat <<'ENDOFCOMMAND'
+{{ cmd_obj.command }}
+ENDOFCOMMAND
+)
+log "Executing command with nested quotes: {{ cmd_obj.command | replace('"', '\\"') }}"
+# Use execute_with_error_tracking for proper output capture and logging
+execute_with_error_tracking "{{ phase_name }}" "$MULTILINE_CMD" "{{ loop.index }}" "{% if cmd_obj.metadata.is_multiline %}true{% else %}false{% endif %}" "{% if cmd_obj.metadata.is_critical %}true{% else %}false{% endif %}" || {
+  {% if cmd_obj.metadata.is_critical %}
+  exit $?
+  {% else %}
+  log "WARNING: Non-critical command failed but continuing execution"
+  {% endif %}
+}
+
+{% elif cmd_obj.metadata.is_function_call %}
+# Handle simple function call (only pure function calls, not assignments)
 log "Executing function call: {{ cmd_obj.command }}"
+# Extract function name from command for validation
+FUNC_NAME="{{ cmd_obj.command.split()[0] if cmd_obj.command.split() else cmd_obj.command }}"
 # Check if function exists first to avoid errors
-if declare -f {{ cmd_obj.command }} > /dev/null; then
+if declare -f "$FUNC_NAME" > /dev/null; then
   {{ cmd_obj.command }} || {
+    {% if cmd_obj.metadata.is_critical %}
     exit $?
+    {% else %}
+    log "WARNING: Non-critical function call failed but continuing execution"
+    {% endif %}
   }
 else
-  log "ERROR: Function {{ cmd_obj.command }} not defined"
+  log "ERROR: Function $FUNC_NAME not defined"
+  {% if cmd_obj.metadata.is_critical %}
   exit 1
+  {% else %}
+  log "WARNING: Non-critical function call failed but continuing execution"
+  {% endif %}
 fi
-
-{% elif cmd_obj.is_variable_assignment or cmd_obj.is_shell_builtin or cmd_obj.is_control_structure or cmd_obj.has_nested_quotes %}
-# Handle special command types: variable assignment, shell builtin, control structure, or nested quotes
-log "Executing {{ cmd_obj.is_variable_assignment and 'variable assignment' or cmd_obj.is_shell_builtin and 'shell builtin' or cmd_obj.is_control_structure and 'control structure' or 'command with nested quotes' }}: {{ cmd_obj.command | replace('"', '\\"') }}"
-# Use eval to properly execute these special command types while preserving their syntax
-eval "{{ cmd_obj.command }}" || {
-  exit $?
-}
 
 {% else %}
 # Handle regular command
 {% set safe_cmd = cmd_obj.shell_safe_command | default(cmd_obj.command | replace('"', '\\"')) %}
-execute_with_error_tracking "$cmd_type" "{{ safe_cmd }}" "{{ loop.index }}" "{{ safe_cmd }}" "false" "true" || {
+execute_with_error_tracking "{{ phase_name }}" "{{ safe_cmd }}" "{{ loop.index }}" "false" "{% if cmd_obj.metadata.is_critical %}true{% else %}false{% endif %}" || {
+  {% if cmd_obj.metadata.is_critical %}
   exit $?
+  {% else %}
+  log "WARNING: Non-critical command failed but continuing execution"
+  {% endif %}
 }
+{% endif %}
+
+{% if cmd_obj.metadata.working_directory %}
+# Restore previous working directory
+cd "$SAVED_PWD" || {
+  log "WARNING: Failed to restore previous directory: $SAVED_PWD"
+}
+log "Restored working directory to: $SAVED_PWD"
 {% endif %}
 {% endfor %}
 {% endif %}
@@ -237,8 +238,8 @@ resolve_hostname() {
   local ip=""
 
   # Try service discovery file first (most reliable for our services)
-  if [ -f "/app/sync_logs/${hostname}_ip.txt" ]; then
-    ip=$(cat "/app/sync_logs/${hostname}_ip.txt" 2>/dev/null | head -n1)
+  if [ -f "/app/coordination/${hostname}_ip.txt" ]; then
+    ip=$(cat "/app/coordination/${hostname}_ip.txt" 2>/dev/null | head -n1)
     log "Found IP from service discovery: $ip" >&2
   fi
 
@@ -258,13 +259,40 @@ resolve_hostname() {
   fi
 
   if [ -n "$ip" ]; then
+    # Validate IP address format to prevent malformed conversions
+    if ! echo "$ip" | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' >/dev/null; then
+      log "ERROR: Invalid IP address format: '$ip' for hostname '$hostname'" >&2
+      echo "$hostname"  # Return hostname if IP is malformed
+      return 1
+    fi
+
+    # Validate IP address ranges (0-255 for each octet)
+    if ! echo "$ip" | awk -F. '{ exit ($1<=255 && $2<=255 && $3<=255 && $4<=255 && $1>=0 && $2>=0 && $3>=0 && $4>=0) ? 0 : 1 }'; then
+      log "ERROR: IP address out of range: '$ip' for hostname '$hostname'" >&2
+      echo "$hostname"  # Return hostname if IP is out of range
+      return 1
+    fi
+
     log "Resolved hostname '$hostname' to IP '$ip'" >&2
 
     # Convert based on requested format
     case "$format" in
       decimal)
-        # Convert IP to decimal (for panther_ivy)
+        # Service-aware IP to decimal conversion
+        # FIXED: Use proper endianness based on service type
+        # Ivy services expect big-endian format (bytes reversed)
+        # Non-Ivy services use standard network byte order
+
+        # Check if this is an Ivy service by looking at environment or service name patterns
+        # if [ "${ROLE:-}" = "SERVER" ] && [[ "${hostname}" =~ ivy.*server ]] || [[ "$0" =~ ivy.*entrypoint ]] || [ -n "${IVY_INCLUDE_PATH:-}" ]; then
+          # BIG-ENDIAN conversion for Ivy services (bytes: d.c.b.a)
+        #   log "Using big-endian decimal conversion for Ivy service: $hostname -> $ip" >&2
+        #   echo "$ip" | awk -F. '{printf("%.0f", ($4 * 256 * 256 * 256) + ($3 * 256 * 256) + ($2 * 256) + $1)}'
+        # else
+          # STANDARD network byte order for non-Ivy services (bytes: a.b.c.d)
+        log "Using standard decimal conversion for service: $hostname -> $ip" >&2
         echo "$ip" | awk -F. '{printf("%.0f", ($1 * 256 * 256 * 256) + ($2 * 256 * 256) + ($3 * 256) + $4)}'
+        # fi
         ;;
       hex)
         # Convert IP to hex
@@ -284,6 +312,9 @@ resolve_hostname() {
 # Export the function so it's available in subshells
 export -f resolve_hostname
 
+# Check current working directory
+log "Current working directory: $(pwd)"
+
 wait_for_dependency() {
   local target="$1"
   local port="${2:-4443}"
@@ -294,29 +325,32 @@ wait_for_dependency() {
   log "Waiting for dependency $target:$port to become ready (timeout: ${timeout}s)..."
 
   # First wait for basic connectivity
-  while true; do
-    current_time=$(date +%s)
-    elapsed=$((current_time - start_time))
 
-    if [ $elapsed -gt $timeout ]; then
-      log "ERROR: Timeout waiting for $target after ${timeout} seconds"
-      return 1
-    fi
+  if ! [[ "$target" == "tester" || "$target" == *"ivy"* ]]; then
+    while true; do
+      current_time=$(date +%s)
+      elapsed=$((current_time - start_time))
 
-    # Check if host is reachable
-    if ping -c 1 -W 2 "$target" >/dev/null 2>&1; then
-      log "Host $target is reachable, checking service port..."
-      break
-    fi
+      if [ $elapsed -gt $timeout ]; then
+        log "ERROR: Timeout waiting for $target after ${timeout} seconds"
+        return 1
+      fi
 
-    log "Waiting for $target to become reachable... (${elapsed}s elapsed)"
-    sleep $interval
-  done
+      # Check if host is reachable
+      if ping -c 1 -W 2 "$target" >/dev/null 2>&1; then
+        log "Host $target is reachable, checking service port..."
+        break
+      fi
+
+      log "Waiting for $target to become reachable... (${elapsed}s elapsed)"
+      sleep $interval
+    done
+  fi
 
   # For tester services, check for ready marker files
   if [[ "$target" == *"ivy"* ]] || [[ "$target" == *"tester"* ]]; then
     log "Detected tester service, checking for ready marker..."
-    local ready_marker="/app/sync_logs/ivy_ready.log"
+    local ready_marker="/app/coordination/*ivy*_ready"
 
     while true; do
       current_time=$(date +%s)
@@ -328,7 +362,7 @@ wait_for_dependency() {
       fi
 
       # Check if the ready marker exists
-      if [ -f "$ready_marker" ]; then
+      if ls $ready_marker 1>/dev/null 2>&1; then
         log "Tester service $target is ready (found ready marker)"
         return 0
       fi
@@ -370,28 +404,25 @@ report_exit() {
     log "ERROR: Command failed with exit status $exit_status"
     echo "$cmd_desc" > /app/logs/{{additional_param.service_name}}_last_failed_command.txt
     echo "Exit status: $exit_status" >> /app/logs/{{additional_param.service_name}}_last_failed_command.txt
-    
-    # FIXED: Also capture errors to stderr.log for analysis tools to detect
+
+    # Write to phase-specific stderr for better organization
+    local phase_dir="/app/logs/$(echo "$phase" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+    local phase_stderr="$phase_dir/stderr.log"
+
     {
+      echo ""
       echo "[$(date '+%Y-%m-%d %H:%M:%S')] COMMAND FAILURE in $phase phase:"
       echo "Command: $cmd_desc"
       echo "Exit status: $exit_status"
-      
-      # If the command output file exists, include its content
-      local output_file="/app/logs/{{additional_param.service_name}}_$phase-cmd-$cmd_num-output.log"
-      if [ -f "$output_file" ]; then
-        echo "Command output:"
-        cat "$output_file"
-      fi
       echo "----------------------------------------"
-    } >> /app/logs/stderr.log
+    } >> "$phase_stderr"
   fi
 }
 
 set_environment() {
   # Set environment variables for the service
   {% for key, value in additional_param.environments.items() %}
-  export {{ key }}="{{ value }}"
+  export {{ key }}={{ value }}
   {% endfor %}
   : # No-op command to prevent empty function syntax error
 }
@@ -399,16 +430,26 @@ set_environment() {
 log "Setting up environment variables..."
 set_environment
 
+# Create all phase directories upfront
+log "Creating phase directories..."
+mkdir -p /app/logs/{pre-compile,compile,post-compile,pre-run,runtime,post-run,test,artifacts}
+log "Phase directories created"
+
 # Service discovery: Write our IP to a shared file
 SERVICE_NAME="{{additional_param.service_name}}"
 SERVICE_IP=$(hostname -i | grep -v '^127' | head -n 1)
 if [ -n "$SERVICE_IP" ]; then
-  echo "$SERVICE_IP" > /app/sync_logs/${SERVICE_NAME}_ip.txt
+  echo "$SERVICE_IP" > /app/coordination/${SERVICE_NAME}_ip.txt
   log "Registered service IP: $SERVICE_IP"
 fi
 
-# Ensure SSL keylog file exists for collection
+# Ensure SSL keylog file exists for collection in artifacts directory
 if [ -n "$SSLKEYLOGFILE" ]; then
+  # Ensure SSLKEYLOGFILE is in artifacts directory
+  if [[ "$SSLKEYLOGFILE" != */artifacts/* ]]; then
+    SSLKEYLOGFILE="/app/logs/artifacts/sslkeylogfile.txt"
+    export SSLKEYLOGFILE
+  fi
   touch "$SSLKEYLOGFILE"
   log "Created SSL keylog file: $SSLKEYLOGFILE"
 fi
@@ -433,38 +474,49 @@ execute_with_error_tracking() {
   local phase="$1"
   local cmd="$2"
   local cmd_num="$3"
-  local cmd_desc="$4"
-  local is_multiline="$5"
-  local is_critical="$6"
-  local status_file="/app/logs/{{additional_param.service_name}}_$phase-cmd-$cmd_num-status.txt"
-  local output_file="/app/logs/{{additional_param.service_name}}_$phase-cmd-$cmd_num-output.log"
+  local is_multiline="$4"
+  local is_critical="$5"
 
-  # Create header for the output file
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution of $phase command #$cmd_num" > "$output_file"
-  echo "Command: $cmd_desc" >> "$output_file"
-  echo "----------------------------------------" >> "$output_file"
+  # Use phase-specific directory for output files
+  local phase_dir="/app/logs/$(echo "$phase" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+  local phase_stdout="$phase_dir/stdout.log"
+  local phase_stderr="$phase_dir/stderr.log"
 
-  # Execute the command and capture output and status
+  # Keep individual command files in phase directory if needed for debugging
+  local status_file="$phase_dir/cmd-$cmd_num-status.txt"
+  local output_file="$phase_dir/cmd-$cmd_num-output.log"
+
+  # Append command header to phase stdout
+  echo "" >> "$phase_stdout"
+  echo "=== Command $cmd_num ===" >> "$phase_stdout"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting execution" >> "$phase_stdout"
+  echo "----------------------------------------" >> "$phase_stdout"
+
+  # Execute the command and capture output to phase files
   if [ "$is_multiline" = "true" ]; then
     # For multiline commands, use eval
-    eval "$cmd" >> "$output_file" 2>&1
+    eval "$cmd" >> "$phase_stdout" 2>> "$phase_stderr"
   else
     # For single line commands, use bash -c
-    bash -c "$cmd" >> "$output_file" 2>&1
+    bash -c "$cmd" >> "$phase_stdout" 2>> "$phase_stderr"
   fi
   local status=$?
 
-  # Record completion time and status
-  echo "----------------------------------------" >> "$output_file"
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Command completed with exit code: $status" >> "$output_file"
+  # Record completion in phase stdout
+  echo "----------------------------------------" >> "$phase_stdout"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Command $cmd_num completed with exit code: $status" >> "$phase_stdout"
   echo "$status" > "$status_file"
 
-  # Log the output to main log file
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Output from $phase command #$cmd_num:" >> /app/logs/{{additional_param.service_name}}_commands.log
-  cat "$output_file" >> /app/logs/{{additional_param.service_name}}_commands.log
+  # If there was an error, also log to stderr
+  if [ $status -ne 0 ]; then
+    echo "" >> "$phase_stderr"
+    echo "=== ERROR in Command $cmd_num ===" >> "$phase_stderr"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed with exit code: $status" >> "$phase_stderr"
+    echo "----------------------------------------" >> "$phase_stderr"
+  fi
 
   # Report exit status
-  report_exit "$status" "$phase" "$cmd_num" "$cmd_desc"
+  report_exit "$status" "$phase" "$cmd_num" "Command $cmd_num"
 
   # Return the command's exit status
   return $status
@@ -484,23 +536,61 @@ log "Compilation completed successfully."
 log "Executing post-compilation commands..."
 {{ execute_command_phase(structured_commands.get("post_compile_cmds") if structured_commands else [], "POST_COMPILE") }}
 
+# Signal service readiness for coordination
+mkdir -p /app/coordination
+SERVICE_NAME="{{ additional_param.service_name }}"
 
-# Wait for dependencies if this is a client/IUT service
-{% if additional_param.service_targets %}
-log "This service depends on: {{ additional_param.service_targets }}"
-wait_for_dependency "{{ additional_param.service_targets }}" "{{ additional_param.service_port | default(4443) }}" || {
-  log "ERROR: Failed to connect to dependency {{ additional_param.service_targets }}"
-  exit 1
-}
-{% endif %}
+# All services signal readiness after their setup phase
+echo "ready_$(date +%s)" > "/app/coordination/${SERVICE_NAME}_ready"
+log "Service $SERVICE_NAME ready - signaled to coordination volume"
+
+# Service coordination is now handled by service manager injection
+# (see __add_wait_for_testers method in base_network_environment.py)
+log "Service coordination handled by service manager - proceeding to pre-run commands"
+
+# Old dependency waiting logic - commented out in favor of coordination system
+# {% if additional_param.service_targets %}
+# log "This service depends on: {{ additional_param.service_targets }}"
+# wait_for_dependency "{{ additional_param.service_targets }}" "{{ additional_param.service_port | default(4443) }}" || {
+#   log "ERROR: Failed to connect to dependency {{ additional_param.service_targets }}"
+#   exit 1
+# }
+# {% endif %}
 
 # Execute pre-run commands
 log "Executing pre-run commands..."
 {{ execute_command_phase(structured_commands.get("pre_run_cmds") if structured_commands else [], "PRE_RUN") }}
 
+# Execution environment wrapper file (created by execution environments if needed)
+WRAPPER_FILE="/app/logs/{{additional_param.service_name}}_exec_env_wrappers.txt"
+cat "$WRAPPER_FILE" 2>/dev/null || echo "" > "$WRAPPER_FILE"
+# Ensure wrapper file exists (execution environments may have created it with actual commands)
+if [[ ! -f "$WRAPPER_FILE" ]]; then
+    # Create empty wrapper file if execution environments didn't create one
+    touch "$WRAPPER_FILE"
+    log "Created empty execution wrapper file: $WRAPPER_FILE"
+else
+    log "Execution wrapper file exists: $WRAPPER_FILE"
+fi
+
+
+apt-get remove -y libunwind8 || true
+apt-get install -y libunwind-dev strace linux-tools-generic gdb >> /app/logs/install.log 2>&1 || {
+  log "ERROR: Failed to install required packages"
+  exit 1
+}
+
+# Ensure libdw1 and libelf1 are installed for debugging tools
+
 # Execute the main command if provided
 log "Executing main command..."
-pwd > /app/logs/{{additional_param.service_name}}_current_dir_during_exec.log
+
+# Create runtime phase directory
+RUNTIME_DIR="/app/logs/runtime"
+mkdir -p "$RUNTIME_DIR"
+log "Created runtime phase directory: $RUNTIME_DIR"
+
+pwd > "$RUNTIME_DIR/current_dir_during_exec.log"
 {% if structured_commands and structured_commands.get("run_cmd")%}
 {% if structured_commands.get("run_cmd").working_dir %}
 cd "{{ structured_commands.get("run_cmd").working_dir }}" || {
@@ -512,9 +602,22 @@ cd "{{ structured_commands.get("run_cmd").working_dir }}" || {
 {% if structured_commands.get("run_cmd").environment %}
 # Set environment variables for the run command
 {% for key, value in structured_commands.get("run_cmd").environment.items() %}
-export {{ key }}="{{ value }}"
+export {{ key }}={{ value }}
 {% endfor %}
 {% endif %}
+
+# Check dynamic linker and runtime availability
+ldd {{ structured_commands.get("run_cmd").command_binary }} >> "$RUNTIME_DIR/ldd_output.log" 2>> "$RUNTIME_DIR/ldd_error.log"
+execute_with_error_tracking "PRE_RUN" "ldd {{ structured_commands.get("run_cmd").command_binary }}" "1" "false" "true" || {
+  log "ERROR: ldd command failed, exiting"
+  exit 1
+}
+# Check uname for architecture compatibility
+uname -m >> "$RUNTIME_DIR/uname_output.log" 2>> "$RUNTIME_DIR/uname_error.log"
+execute_with_error_tracking "PRE_RUN" "uname -m" "2" "false" "true" || {
+  log "ERROR: uname command failed, exiting"
+  exit 1
+}
 
 # Prepare command and execute it
 # Handle both string and list command_args
@@ -539,54 +642,115 @@ while [[ "$FULL_CMD" =~ ([a-zA-Z][a-zA-Z0-9_-]*_(server|client|tester|iut)) ]]; 
     log "Replaced hostname '$SERVICE_HOSTNAME' with IP '$SERVICE_IP' in command"
   else
     # If we can't resolve, break to avoid infinite loop
+    log "WARNING: Could not resolve hostname '$SERVICE_HOSTNAME', keeping it in command"
     break
   fi
 done
 
-if [ -z "$FULL_CMD" ]; then
+# Execute the command if available
+if [[ -z "$FULL_CMD" ]]; then
   log "WARNING: No command to run, skipping execution"
-  RUN_STATUS=-1
+  RUN_STATUS=-666
 else
-  # Check if execution environment wrappers are available and wrap the command
-  if [ -n "$EXEC_ENV_WRAPPERS" ]; then
-    WRAPPED_CMD="$EXEC_ENV_WRAPPERS $FULL_CMD"
-    log "Running command with execution environment wrappers: $WRAPPED_CMD"
+  # Check if execution environment wrappers are available from persistent file or environment
+  WRAPPER_FILE="/app/logs/{{additional_param.service_name}}_exec_env_wrappers.txt"
+  if [[ -f "$WRAPPER_FILE" ]]; then
+    EXEC_ENV_WRAPPERS=$(cat "$WRAPPER_FILE" 2>/dev/null || echo "")
+  fi
+
+  {% if structured_commands.get("run_cmd").timeout %}
+  log "Setting timeout for main command: {{ structured_commands.get("run_cmd").timeout }} seconds"
+  FULL_CMD="timeout {{ structured_commands.get("run_cmd").timeout }} $FULL_CMD"
+  {% endif %}
+
+  if [[ -n "$EXEC_ENV_WRAPPERS" ]]; then
+    # Execute the strace setup first, then the wrapped command
+    # Split the wrapper into setup and trace parts
+    log "Running command with execution environment wrappers"
+    log "Wrapper: $EXEC_ENV_WRAPPERS"
+    log "Main command: $FULL_CMD"
     echo "Execution environment wrappers applied: $EXEC_ENV_WRAPPERS" >> /app/logs/{{additional_param.service_name}}_exec_env_wrapping.log
+    echo "Main command: $FULL_CMD" >> /app/logs/{{additional_param.service_name}}_exec_env_wrapping.log
+
+    # Properly substitute "$@" in wrapper with the actual command
+    # Use simple bash string replacement to avoid sed escaping issues
+    WRAPPED_CMD="${EXEC_ENV_WRAPPERS}"
+    WRAPPED_CMD="${WRAPPED_CMD//\"\$@\"/$FULL_CMD}"
+
+    # Debug: log the substitution result
+    log "Before substitution: $EXEC_ENV_WRAPPERS"
+    log "After substitution: $WRAPPED_CMD"
+    echo "Wrapped command after substitution: $WRAPPED_CMD" >> /app/logs/{{additional_param.service_name}}_exec_env_wrapping.log
   else
     WRAPPED_CMD="$FULL_CMD"
     log "Running command: $WRAPPED_CMD"
   fi
 
+  # Use runtime phase directory for main command output
   # Use service-specific output redirections if available
   {% if output_redirections and output_redirections.stdout and output_redirections.stderr %}
   STDOUT_FILE="{{ output_redirections.stdout }}"
   STDERR_FILE="{{ output_redirections.stderr }}"
   {% else %}
-  STDOUT_FILE="/app/logs/stdout.log"
-  STDERR_FILE="/app/logs/stderr.log"
+  STDOUT_FILE="$RUNTIME_DIR/stdout.log"
+  STDERR_FILE="$RUNTIME_DIR/stderr.log"
   {% endif %}
-  
-  log "Output will be redirected to: stdout=$STDOUT_FILE, stderr=$STDERR_FILE"
-  
-  {% if structured_commands.get("run_cmd").timeout %}
-  timeout {{ structured_commands.get("run_cmd").timeout }} $WRAPPED_CMD >> "$STDOUT_FILE" 2>> "$STDERR_FILE"
-  RUN_STATUS=${PIPESTATUS[0]}
-  {% else %}
-  $WRAPPED_CMD >> "$STDOUT_FILE" 2>> "$STDERR_FILE"
-  RUN_STATUS=${PIPESTATUS[0]}
-  {% endif %}
-fi
 
-if [ $RUN_STATUS -ne 0 ]; then
-  if [ $RUN_STATUS -eq 124 ] || [ $RUN_STATUS -eq 137 ]; then
-    log "WARNING: Command timed out after {{ structured_commands.get("run_cmd").timeout if structured_commands and structured_commands.get("run_cmd") else "unknown" }} seconds"
-  else
-    log "ERROR: Command failed with exit status $RUN_STATUS"
+  # Initialize runtime log files
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting RUNTIME phase ===" > "$STDOUT_FILE"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting RUNTIME phase ===" > "$STDERR_FILE"
+  echo "Command: $WRAPPED_CMD" >> "$STDOUT_FILE"
+  echo "----------------------------------------" >> "$STDOUT_FILE"
+
+  log "Output will be redirected to: stdout=$STDOUT_FILE, stderr=$STDERR_FILE"
+
+  if [[ "${ROLE:-}" == "server" ]]; then
+    # Wait until wrapped command's port is open instead of touching file immediately
+    READY_FILE="/app/coordination/server_ready_{{additional_param.service_name}}"
   fi
+
+  # Replace shell with target to get correct PID & signal handling
+  setsid bash -c "$WRAPPED_CMD" >> "$STDOUT_FILE" 2>> "$STDERR_FILE" &
+  CMD_PID=$!
+
+  if [[ "${ROLE:-}" == "server" ]]; then
+    # optional smarter readiness check; fallback to simple sleep
+    # until nc -z localhost $PORT; do sleep 0.2; done
+    printf 'server_ready' >"$READY_FILE"
+    log "Server ready signal written to $READY_FILE"
+  fi
+  wait "$CMD_PID"
+  RUN_STATUS=$?
 fi
 {% else %}
-log "No main command provided, skipping."
+# If no run command is defined, set RUN_STATUS to -666
+RUN_STATUS=-666
+log "No run command defined, skipping execution"
 {% endif %}
+# Check command exit status
+if [[ $RUN_STATUS -ne 0 ]]; then
+  if [[ $RUN_STATUS -eq 124 || $RUN_STATUS -eq 137 ]]; then
+    log "WARNING: Command timed out after {{ structured_commands.get("run_cmd").timeout if structured_commands and structured_commands.get("run_cmd") else "unknown" }} seconds"
+  elif [[ $RUN_STATUS -eq 139 ]]; then
+    log "ERROR: Command terminated by signal (segmentation fault)"
+  elif [[ $RUN_STATUS -eq 1 ]]; then
+    log "ERROR: Command failed with exit status 1"
+  elif [[ $RUN_STATUS -eq 126 ]]; then
+    log "ERROR: Command invoked cannot execute"
+  elif [[ $RUN_STATUS -eq 127 ]]; then
+    log "ERROR: Command not found"
+  elif [[ $RUN_STATUS -eq 130 ]]; then
+    log "ERROR: Command terminated by Ctrl+C (SIGINT)"
+  elif [[ $RUN_STATUS -eq 255 ]]; then
+    log "ERROR: Command failed with exit status 255 (general error)"
+  elif [[ $RUN_STATUS -eq 666 ]]; then
+    log "ERROR: Command failed with exit status 666 (no \"run_cmd\" command defined)"
+  elif [[ $RUN_STATUS -eq 143 ]]; then
+    log "ERROR: Command terminated by SIGTERM"
+  else
+    log "ERROR: Command failed with unknown exit status $RUN_STATUS"
+  fi
+fi
 
 # Execute post-run commands
 log "Executing post-run commands..."

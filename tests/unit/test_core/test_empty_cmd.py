@@ -2,16 +2,17 @@
 """
 Test script to see how empty commands are handled in the _combine_shell_constructs method.
 """
-import os
 import logging
-from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
-    DockerComposeEnvironment,
-)
+import os
+
+from panther.core.command_processor import ShellCommand
 from panther.core.observer.management.event_manager import EventManager
 from panther.plugins.environments.network_environment.docker_compose.config_schema import (
     DockerComposeConfig,
 )
-from panther.core.command_processor.command import ShellCommand
+from panther.plugins.environments.network_environment.docker_compose.docker_compose import (
+    DockerComposeEnvironment,
+)
 
 # Configure logging
 logging.basicConfig(

@@ -149,7 +149,7 @@ class LoggerObserver(ITypedObserver):
 
         self._recursion_depth += 1
         try:
-            return True
+            return self._process_event(event)
         finally:
             self._recursion_depth -= 1
 
@@ -275,15 +275,9 @@ class LoggerObserver(ITypedObserver):
         if not self._is_tqdm_active():
             return False
 
-        # Use tqdm.write for Docker build events to avoid interfering with progress bar
-        return isinstance(
-            event,
-            (
-                DockerBuildStartedEvent,
-                DockerBuildCompletedEvent,
-                DockerBuildFailedEvent,
-            ),
-        )
+        # Use tqdm.write for all events when progress bars are active to prevent interleaving
+        # This ensures coordinated output between progress bars and log messages
+        return True
 
     def _log_event(self, event: BaseEvent):
         """Format and log the event with enhanced formatting using EventSummarizer."""

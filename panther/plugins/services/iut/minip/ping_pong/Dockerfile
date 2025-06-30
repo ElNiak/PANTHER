@@ -1,4 +1,4 @@
-FROM panther_base_service:latest
+FROM --platform=linux/amd64 panther_base_service:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 

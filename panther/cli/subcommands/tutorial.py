@@ -2,13 +2,14 @@
 Tutorial Command - Interactive tutorials and learning
 """
 
+import logging
 from argparse import ArgumentParser, _SubParsersAction
 from typing import Any
 
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand, CLIActionDispatchMixin
 
 
-class TutorialCommand(BaseCommand):
+class TutorialCommand(BaseCommand, CLIActionDispatchMixin):
     """Handle tutorial and learning commands."""
 
     @classmethod
@@ -37,14 +38,14 @@ class TutorialCommand(BaseCommand):
         )
 
         # Interactive subcommand
-        interactive_parser = subcommands.add_parser(
+        subcommands.add_parser(
             "interactive",
             help="Start interactive tutorial mode",
             description="Start interactive tutorial selection and guidance",
         )
 
         # List subcommand
-        list_parser = subcommands.add_parser(
+        subcommands.add_parser(
             "list",
             help="List available tutorials",
             description="List all available tutorials",
@@ -55,27 +56,19 @@ class TutorialCommand(BaseCommand):
     @classmethod
     def handle(cls, args: Any) -> int:
         """Handle the tutorial command execution."""
-        if not hasattr(args, "tutorial_action") or args.tutorial_action is None:
-            logging.info(
-                "❌ No tutorial action specified. Use 'panther tutorial --help' for options."
-            )
-            return 1
+        action_handlers = {
+            "run": cls._handle_run_tutorial,
+            "interactive": cls._handle_interactive_tutorial,
+            "list": cls._handle_list_tutorials,
+        }
 
-        if args.tutorial_action == "run":
-            return cls._handle_run_tutorial(args)
-        elif args.tutorial_action == "interactive":
-            return cls._handle_interactive_tutorial(args)
-        elif args.tutorial_action == "list":
-            return cls._handle_list_tutorials(args)
-        else:
-            logging.info(f"❌ Unknown tutorial action: {args.tutorial_action}")
-            return 1
+        return cls.dispatch_action(args, "tutorial_action", action_handlers, "tutorial")
 
     @classmethod
     def _handle_run_tutorial(cls, args: Any) -> int:
         """Handle running specific tutorial."""
         try:
-            from ...tools.plugins.plugin_creator import run_tutorial
+            from panther.tools.plugins.plugin_creator import run_tutorial
 
             tutorial_type = args.tutorial_type
             logging.info(f"📚 Starting {tutorial_type} tutorial...")
@@ -209,5 +202,5 @@ class TutorialCommand(BaseCommand):
             return 0
 
         except Exception as e:
-            logging.info(f"❌ Error listing tutorials: {e}")
+            logging.error(f"❌ Error listing tutorials: {e}")
             return 1

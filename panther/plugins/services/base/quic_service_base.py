@@ -4,11 +4,13 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol
 
-from panther.core.command_processor.command_utils import CommandUtils
+from panther.core.command_processor.utils import CommandUtils
+from panther.core.utils.string_representation_mixin import StringRepresentationMixin
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
 from panther.plugins.services.services_interface import IServiceManager
 
 
-class BaseQUICServiceManager(IServiceManager, ABC):
+class BaseQUICServiceManager(IImplementationManager, StringRepresentationMixin, ABC):
     """
     This class provides common functionality for QUIC protocol implementations,
     reducing code duplication across different service managers.
@@ -22,6 +24,7 @@ class BaseQUICServiceManager(IServiceManager, ABC):
         implementation_name: str,
         event_manager: Any = None,
         emitter_registry: Any = None,
+        global_config=None,
         **kwargs,
     ):
         """Initialize the base QUIC service manager.
@@ -60,6 +63,9 @@ class BaseQUICServiceManager(IServiceManager, ABC):
             implementation_name,
             event_manager,
         )
+
+        # Store global configuration
+        self.global_config = global_config
         self.protocol_name = "quic"
         self.implementation_name = self._get_implementation_name()
 

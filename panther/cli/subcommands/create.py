@@ -2,11 +2,11 @@
 Create Command - Plugin and component creation
 """
 
-from argparse import ArgumentParser, _SubParsersAction
 import logging
+from argparse import ArgumentParser, _SubParsersAction
 from typing import Any
 
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand
 
 
 class CreateCommand(BaseCommand):
@@ -115,7 +115,7 @@ class CreateCommand(BaseCommand):
     def _handle_create_plugin(cls, args: Any) -> int:
         """Handle plugin creation."""
         try:
-            from ...tools.plugins.plugin_creator import create_plugin
+            from panther.tools.plugins.plugin_creator import create_plugin
 
             plugin_type = args.plugin_type
             plugin_name = args.plugin_name
@@ -155,7 +155,7 @@ class CreateCommand(BaseCommand):
     def _handle_create_subplugin(cls, args: Any) -> int:
         """Handle subplugin creation."""
         try:
-            from ...tools.plugins.plugin_creator import create_subplugin
+            from panther.tools.plugins.plugin_creator import create_subplugin
 
             plugin_type = args.plugin_type
             plugin_name = args.plugin_name
@@ -257,7 +257,7 @@ paths:
   plugin_dir: "panther/plugins"
 
 docker:
-  build_docker_image: false
+  force_build_docker_image: false
 
 tests:
   - name: "Your Test Name"

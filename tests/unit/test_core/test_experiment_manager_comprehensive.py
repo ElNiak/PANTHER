@@ -5,12 +5,13 @@ This module provides extensive test coverage for experiment lifecycle management
 including experiment creation, execution, monitoring, and result handling.
 """
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
+from panther.config.core.models.experiment import ExperimentConfig
+from panther.config.core.models.global_config import GlobalConfig
 from panther.core.experiment_manager import ExperimentManager
-from panther.config.config_experiment_schema import ExperimentConfig
-from panther.config.config_global_schema import GlobalConfig
 
 
 class TestExperimentManagerBasic:
@@ -135,7 +136,9 @@ class TestEnvironmentSetup:
 
     @patch("panther.core.experiment_manager.ConfigManager")
     @patch("panther.core.experiment_manager.PluginLoader")
-    def test_setup_execution_environments(self, mock_plugin_loader, mock_config_manager):
+    def test_setup_execution_environments(
+        self, mock_plugin_loader, mock_config_manager
+    ):
         """Test execution environment setup."""
         mock_config_instance = Mock()
         mock_config_manager.return_value = mock_config_instance
@@ -146,7 +149,9 @@ class TestEnvironmentSetup:
         # Mock execution environment plugins
         mock_exec_env = Mock()
         mock_exec_env.setup_environment.return_value = {"env_var": "value"}
-        mock_loader_instance.get_execution_environment_plugin.return_value = mock_exec_env
+        mock_loader_instance.get_execution_environment_plugin.return_value = (
+            mock_exec_env
+        )
 
         manager = ExperimentManager()
 
@@ -266,7 +271,9 @@ class TestResultHandling:
 
     @patch("panther.core.experiment_manager.ConfigManager")
     @patch("panther.core.experiment_manager.ResultCollector")
-    def test_collect_experiment_results(self, mock_result_collector, mock_config_manager):
+    def test_collect_experiment_results(
+        self, mock_result_collector, mock_config_manager
+    ):
         """Test experiment result collection."""
         mock_config_instance = Mock()
         mock_config_manager.return_value = mock_config_instance
@@ -340,7 +347,9 @@ class TestEventObservation:
 
                 # Simulate experiment start event
                 mock_publish("experiment_started", {"name": "test_experiment"})
-                mock_publish.assert_called_with("experiment_started", {"name": "test_experiment"})
+                mock_publish.assert_called_with(
+                    "experiment_started", {"name": "test_experiment"}
+                )
         except AttributeError:
             # Method might not be implemented yet
             pass
@@ -503,7 +512,9 @@ class TestExperimentLifecycle:
 
     @patch("panther.core.experiment_manager.ConfigManager")
     @patch("panther.core.experiment_manager.EventManager")
-    def test_complete_experiment_lifecycle(self, mock_event_manager, mock_config_manager):
+    def test_complete_experiment_lifecycle(
+        self, mock_event_manager, mock_config_manager
+    ):
         """Test complete experiment from start to finish."""
         mock_config_instance = Mock()
         mock_config_manager.return_value = mock_config_instance
@@ -516,7 +527,9 @@ class TestExperimentLifecycle:
         experiment_config = Mock(spec=ExperimentConfig)
         experiment_config.name = "lifecycle_test"
         experiment_config.iterations = 1
-        experiment_config.services = {"test_service": {"implementation": {"name": "test"}}}
+        experiment_config.services = {
+            "test_service": {"implementation": {"name": "test"}}
+        }
 
         # Mock all lifecycle methods
         lifecycle_methods = [
@@ -590,7 +603,9 @@ class TestExperimentManagerPerformance:
         experiment_config.iterations = 1
 
         # Mock quick execution
-        with patch.object(manager, "run_experiment", return_value={"status": "success"}):
+        with patch.object(
+            manager, "run_experiment", return_value={"status": "success"}
+        ):
             start_time = time.time()
 
             try:
@@ -603,7 +618,9 @@ class TestExperimentManagerPerformance:
             end_time = time.time()
 
             # Should complete reasonably quickly
-            assert (end_time - start_time) < 10.0  # Less than 10 seconds for 5 experiments
+            assert (
+                end_time - start_time
+            ) < 10.0  # Less than 10 seconds for 5 experiments
 
 
 class TestExperimentManagerIntegration:
@@ -642,7 +659,9 @@ class TestExperimentManagerIntegration:
 
     @patch("panther.core.experiment_manager.ConfigManager")
     @patch("panther.core.experiment_manager.ResultCollector")
-    def test_integration_with_result_system(self, mock_result_collector, mock_config_manager):
+    def test_integration_with_result_system(
+        self, mock_result_collector, mock_config_manager
+    ):
         """Test ExperimentManager integration with result collection system."""
         mock_config_instance = Mock()
         mock_config_manager.return_value = mock_config_instance

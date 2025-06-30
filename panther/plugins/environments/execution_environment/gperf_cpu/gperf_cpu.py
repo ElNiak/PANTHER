@@ -8,6 +8,8 @@ plugin implementation while maintaining all functionality.
 """
 
 from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.environments.execution_environment.base_execution_environment import (
     BaseExecutionEnvironment,
 )
@@ -17,7 +19,6 @@ from panther.plugins.environments.execution_environment.command_generation_utils
 from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
     GperfCpuConfig,
 )
-from panther.plugins.plugin_decorators import register_plugin
 from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
@@ -25,13 +26,14 @@ if TYPE_CHECKING:
 
 
 @register_plugin(
-    plugin_type="environment",
+    plugin_type=PluginType.EXECUTION_ENVIRONMENT,
     name="gperf_cpu",
     version="1.0.0",
     description="Google Performance Tools CPU profiling environment",
     author="PANTHER Team",
     capabilities=["cpu_profiling", "performance_analysis"],
     external_dependencies=["libgoogle-perftools-dev", "google-perftools"],
+    runtime_mode="profile",
 )
 class GperfCpuEnvironment(BaseExecutionEnvironment):
     """
@@ -54,6 +56,21 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
+
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> GperfCpuConfig:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    GperfCpuConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                self._plugin_config = GperfCpuConfig()
+        return self._plugin_config
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
@@ -92,24 +109,59 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
                 description="CPU profile data",
             )
 
-            # Build the gperf wrapper command
-            profiler_lib = (
-                self.env_config_to_test.profiler_library
-                or "/usr/lib/x86_64-linux-gnu/libprofiler.so.0"
-            )
+            # Build the gperf wrapper command using dual approach
+            plugin_config = self._get_plugin_config()
+
+            # First try plugin_config dict
+            profiler_lib = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                profiler_lib = self.env_config_to_test.plugin_config.get(
+                    "profiler_library"
+                )
+
+            # Second try typed config
+            if profiler_lib is None:
+                profiler_lib = plugin_config.profiler_library
+
+            profiler_lib = profiler_lib or "/usr/lib/x86_64-linux-gnu/libprofiler.so.0"
 
             # Build environment variables for profiling
             env_vars = {
                 "CPUPROFILE": profile_file,
             }
 
-            # Add optional profiling parameters
-            if self.env_config_to_test.sampling_frequency:
-                env_vars["CPUPROFILE_FREQUENCY"] = str(
-                    self.env_config_to_test.sampling_frequency
+            # Add optional profiling parameters using dual approach
+            # Get sampling_frequency
+            sampling_frequency = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                sampling_frequency = self.env_config_to_test.plugin_config.get(
+                    "sampling_frequency"
                 )
+            if sampling_frequency is None:
+                sampling_frequency = plugin_config.sampling_frequency
 
-            if self.env_config_to_test.use_realtime_signal:
+            if sampling_frequency:
+                env_vars["CPUPROFILE_FREQUENCY"] = str(sampling_frequency)
+
+            # Get use_realtime_signal
+            use_realtime_signal = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                use_realtime_signal = self.env_config_to_test.plugin_config.get(
+                    "use_realtime_signal"
+                )
+            if use_realtime_signal is None:
+                use_realtime_signal = plugin_config.use_realtime_signal
+
+            if use_realtime_signal:
                 env_vars["CPUPROFILE_REALTIME"] = "1"
 
             # Create the wrapper command
@@ -126,8 +178,17 @@ class GperfCpuEnvironment(BaseExecutionEnvironment):
                 is_critical=False,
             )
 
-            # Add post-processing for PDF generation if enabled
-            if self.env_config_to_test.generate_pdf:
+            # Add post-processing for PDF generation if enabled using dual approach
+            generate_pdf = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                generate_pdf = self.env_config_to_test.plugin_config.get("generate_pdf")
+            if generate_pdf is None:
+                generate_pdf = plugin_config.generate_pdf
+
+            if generate_pdf:
                 pdf_file = command_builder.register_output_file(
                     file_type="cpu_profile_pdf",
                     extension="pdf",

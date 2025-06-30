@@ -1,17 +1,21 @@
 import inspect
 from typing import Any, Optional
 
-from panther.plugins.services.service_manager_utils import ServiceManagerMixin
+from panther.plugins.services.iut.implementation_interface import IImplementationManager
+from panther.plugins.services.service_manager_mixin import ServiceManagerMixin
 
 
-class IUTServiceManagerMixin(ServiceManagerMixin):
+class IUTServiceManagerMixin(ServiceManagerMixin, IImplementationManager):
     """
     Specialized mixin for IUT (Implementation Under Test) service managers.
     Provides IUT-specific patterns and utilities.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, global_config=None, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Store global configuration
+        self.global_config = global_config
         self._role = None
         self._protocol_version = None
 
@@ -185,7 +189,7 @@ class IUTServiceManagerMixin(ServiceManagerMixin):
         Override this method to customize template renderer setup.
         Default implementation creates a ServiceTemplateRenderer with plugin directory.
         """
-        from panther.core.utils import ServiceTemplateRenderer
+        from panther.core.template.template_renderer import ServiceTemplateRenderer
 
         plugin_dir = self._plugin_dir or self._get_plugin_dir()
         self.template_renderer = ServiceTemplateRenderer(plugin_dir)

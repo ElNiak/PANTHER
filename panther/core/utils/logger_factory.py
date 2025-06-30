@@ -5,6 +5,8 @@ This module provides a centralized way to create and configure loggers
 ensuring consistent formatting across the entire application.
 """
 
+
+import contextlib
 import logging
 import sys
 from enum import Enum
@@ -137,11 +139,13 @@ class LoggerFactory:
             return {}
 
         feature_levels = {}
-        
+
         # Debug logging to track feature levels extraction
         logging.debug(f"_extract_feature_levels called with: {type(feature_config)}")
-        if hasattr(feature_config, '__dict__'):
-            logging.debug(f"feature_config attributes: {list(feature_config.__dict__.keys())[:5]}...")
+        if hasattr(feature_config, "__dict__"):
+            logging.debug(
+                f"feature_config attributes: {list(feature_config.__dict__.keys())[:5]}..."
+            )
         elif isinstance(feature_config, dict):
             logging.debug(f"feature_config keys: {list(feature_config.keys())[:5]}...")
 
@@ -176,27 +180,31 @@ class LoggerFactory:
         # Clear any existing handlers
         root_logger.handlers.clear()
 
-        # Set level
-        level = getattr(logging, cls._config.get("level", "INFO").upper())
-        root_logger.setLevel(level)
+        # Set root logger to DEBUG level to capture all messages
+        # Individual handlers will filter based on their own levels
+        root_logger.setLevel(logging.DEBUG)
 
         # Create formatter
         formatter = cls._create_formatter()
 
-        # Add console handler - use regular StreamHandler like original code
+        # Console handler: use configured level
+        console_level = getattr(logging, cls._config.get("level", "INFO").upper())
         console_handler = cls._get_or_create_handler(
             "console", logging.StreamHandler(sys.stdout)
         )
-
+        console_handler.setLevel(console_level)
         console_handler.setFormatter(formatter)
         root_logger.addHandler(console_handler)
 
-        # Add file handler if specified
-        output_file = cls._config.get("output_file")
-        if output_file:
+        # File handler: always DEBUG level if debug_file_logging is enabled
+        if output_file := cls._config.get("output_file"):
+            debug_file_logging = cls._config.get("debug_file_logging", True)
+            file_level = logging.DEBUG if debug_file_logging else console_level
+
             file_handler = cls._get_or_create_handler(
                 "file", logging.FileHandler(output_file, mode="a")
             )
+            file_handler.setLevel(file_level)
             file_handler.setFormatter(formatter)
             root_logger.addHandler(file_handler)
 
@@ -210,7 +218,7 @@ class LoggerFactory:
         )
 
         if cls._config.get("enable_colors", False):
-            try:
+            with contextlib.suppress(ImportError):
                 import colorlog
 
                 # Use colorlog exactly like the original ExperimentManager did
@@ -231,9 +239,6 @@ class LoggerFactory:
                     reset=True,
                     # style='%'
                 )
-            except ImportError:
-                pass
-
         return logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
 
     @classmethod
@@ -287,17 +292,22 @@ class LoggerFactory:
 
         # If this logger already has handlers configured by us, return it
         if hasattr(logger, "_panther_configured"):
-            # Update level if feature-specific level is available
+            # Update console handler level if feature-specific level is available
             if feature and feature in cls._feature_levels:
                 feature_level = getattr(logging, cls._feature_levels[feature].upper())
-                logger.setLevel(feature_level)
+                # Update only console handlers, keep file handlers at DEBUG
                 for handler in logger.handlers:
-                    handler.setLevel(feature_level)
+                    if isinstance(handler, logging.StreamHandler) and not isinstance(
+                        handler, logging.FileHandler
+                    ):
+                        handler.setLevel(feature_level)
             return logger
 
-        # Determine logging level (feature-specific or default)
-        level = cls._get_effective_level(name, feature)
-        logger.setLevel(level)
+        # Determine console logging level (feature-specific or default)
+        console_level = cls._get_effective_level(name, feature)
+
+        # Set logger to DEBUG to capture all messages for file handler
+        logger.setLevel(logging.DEBUG)
 
         # Clear existing handlers to avoid duplicates and set propagate to False
         logger.handlers.clear()
@@ -306,11 +316,21 @@ class LoggerFactory:
         # Create formatter like original code
         formatter = cls._create_formatter()
 
-        # Add console handler directly to this logger (like original code)
+        # Add console handler with configured level
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(level)
+        console_handler.setLevel(console_level)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+
+        # Add file handler if output_file is configured
+        if output_file := cls._config.get("output_file"):
+            debug_file_logging = cls._config.get("debug_file_logging", True)
+            file_level = logging.DEBUG if debug_file_logging else console_level
+
+            file_handler = logging.FileHandler(output_file, mode="a")
+            file_handler.setLevel(file_level)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
 
         # Mark this logger as configured by us
         logger._panther_configured = True
@@ -322,50 +342,55 @@ class LoggerFactory:
         cls, logger_name: str, feature: Optional[str] = None
     ) -> int:
         """Get the effective logging level for a logger, considering feature mappings."""
-        
+
         # Debug for problematic loggers (use actual logger names from log output)
-        problematic_loggers = ['event_manager', 'plugin_catalog', 'plugin_discovery', 'docker_cache_mixin', 'docker_builder', 'docker_registry', 'EventManager']
+        problematic_loggers = [
+            "event_manager",
+            "plugin_catalog",
+            "plugin_discovery",
+            "docker_cache_mixin",
+            "docker_builder",
+            "docker_registry",
+            "EventManager",
+        ]
         if logger_name in problematic_loggers:
             logging.debug(f"_get_effective_level for {logger_name}, feature={feature}")
-            logging.debug(f"Available feature_levels: {len(cls._feature_levels)} features")
+            logging.debug(
+                f"Available feature_levels: {len(cls._feature_levels)} features"
+            )
 
         # If explicit feature is provided and configured, use it
         if feature and feature in cls._feature_levels:
             level_name = cls._feature_levels[feature].upper()
             # Handle TRACE level specially
-            if level_name == "TRACE":
-                return TRACE
-            return getattr(logging, level_name)
-
+            return TRACE if level_name == "TRACE" else getattr(logging, level_name)
         # Try to auto-detect feature from logger name
         detected_feature = cls._detect_feature_from_name(logger_name)
         if detected_feature and detected_feature in cls._feature_levels:
             level_name = cls._feature_levels[detected_feature].upper()
-            
+
             if logger_name in problematic_loggers:
                 logging.debug(f"{logger_name} -> {detected_feature} -> {level_name}")
 
             # Handle TRACE level specially
-            if level_name == "TRACE":
-                return TRACE
-            return getattr(logging, level_name)
+            return TRACE if level_name == "TRACE" else getattr(logging, level_name)
         else:
             if logger_name in problematic_loggers:
-                logging.debug(f"{logger_name} -> {detected_feature} (not in feature_levels)")
-                logging.debug(f"Available features: {list(cls._feature_levels.keys())[:5]}...")
+                logging.debug(
+                    f"{logger_name} -> {detected_feature} (not in feature_levels)"
+                )
+                logging.debug(
+                    f"Available features: {list(cls._feature_levels.keys())[:5]}..."
+                )
 
         # Fall back to default level
         level_name = cls._config.get("level", "INFO").upper()
-        if level_name == "TRACE":
-            return TRACE
-        return getattr(logging, level_name)
+        return TRACE if level_name == "TRACE" else getattr(logging, level_name)
 
     @classmethod
     def _detect_feature_from_name(cls, logger_name: str) -> Optional[str]:
         """Auto-detect feature from logger name using dynamic feature registry."""
-        # First try the dynamic registry
-        detected = feature_registry.detect_feature(logger_name)
-        if detected:
+        if detected := feature_registry.detect_feature(logger_name):
             return detected
 
         # Fallback to static mappings for backward compatibility
@@ -440,28 +465,46 @@ class LoggerFactory:
     def update_all_feature_levels(cls, feature_levels_dict: Dict[str, str]) -> None:
         """
         Update all feature levels at once and apply to existing loggers.
-        
+
         This is useful when feature levels are loaded after some loggers have already been created.
-        
+
         Args:
             feature_levels_dict: Dictionary mapping feature names to logging levels
         """
         if not cls._initialized:
             return
 
-        logging.debug(f"update_all_feature_levels called with {len(feature_levels_dict)} features")
-        logging.debug(f"Existing loggers count: {len(logging.Logger.manager.loggerDict)}")
-        logging.debug(f"Sample features being set: {[(k, v) for k, v in list(feature_levels_dict.items())[:3]]}")
-        logging.debug(f"Current feature_levels before update: {[(k, v) for k, v in list(cls._feature_levels.items())[:3]] if cls._feature_levels else 'empty'}")
+        logging.debug(
+            f"update_all_feature_levels called with {len(feature_levels_dict)} features"
+        )
+        logging.debug(
+            f"Existing loggers count: {len(logging.Logger.manager.loggerDict)}"
+        )
+        logging.debug(
+            f"Sample features being set: {list(list(feature_levels_dict.items())[:3])}"
+        )
+        logging.debug(
+            f"Current feature_levels before update: {list(list(cls._feature_levels.items())[:3]) if cls._feature_levels else 'empty'}"
+        )
 
         # Update the internal feature levels dictionary
-        cls._feature_levels.update({k: v.upper() for k, v in feature_levels_dict.items()})
-        
+        cls._feature_levels.update(
+            {k: v.upper() for k, v in feature_levels_dict.items()}
+        )
+
         # Update all existing loggers that have been configured by us
         updated_count = 0
         skipped_count = 0
-        problematic_loggers = ['event_manager', 'plugin_catalog', 'plugin_discovery', 'docker_cache_mixin', 'docker_builder', 'docker_registry', 'EventManager']
-        
+        problematic_loggers = [
+            "event_manager",
+            "plugin_catalog",
+            "plugin_discovery",
+            "docker_cache_mixin",
+            "docker_builder",
+            "docker_registry",
+            "EventManager",
+        ]
+
         for logger_name in logging.Logger.manager.loggerDict:
             logger = logging.getLogger(logger_name)
             if hasattr(logger, "_panther_configured"):
@@ -469,21 +512,32 @@ class LoggerFactory:
                 detected_feature = cls._detect_feature_from_name(logger_name)
                 if detected_feature and detected_feature in cls._feature_levels:
                     level_name = cls._feature_levels[detected_feature]
-                    
+
                     # Handle TRACE level specially
                     if level_name == "TRACE":
                         new_level = TRACE
                     else:
                         new_level = getattr(logging, level_name, logging.INFO)
-                    
-                    # Update logger and all its handlers
-                    logger.setLevel(new_level)
+
+                    # Update only console handlers, keep file handlers at DEBUG
                     for handler in logger.handlers:
-                        handler.setLevel(new_level)
+                        if isinstance(
+                            handler, logging.StreamHandler
+                        ) and not isinstance(handler, logging.FileHandler):
+                            handler.setLevel(new_level)
+                        # File handlers keep their debug level if debug_file_logging is enabled
+                        elif isinstance(handler, logging.FileHandler):
+                            debug_file_logging = cls._config.get(
+                                "debug_file_logging", True
+                            )
+                            if not debug_file_logging:
+                                handler.setLevel(new_level)
                     updated_count += 1
-                    
+
                     if logger_name in problematic_loggers:
-                        logging.debug(f"Updated {logger_name} -> {detected_feature} -> {level_name}")
+                        logging.debug(
+                            f"Updated {logger_name} -> {detected_feature} -> {level_name}"
+                        )
                 else:
                     skipped_count += 1
             else:

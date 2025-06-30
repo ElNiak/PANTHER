@@ -12,7 +12,7 @@ from pathlib import Path
 
 import argcomplete
 
-from .subcommands import (
+from panther.cli.subcommands import (
     AdminCommand,
     CheckCommand,
     ConfigCommand,
@@ -124,14 +124,12 @@ def main():
             return 130
         except Exception as e:
             if hasattr(args, "debug") and args.debug:
-                import traceback
-
-                traceback.print_exc()
+                logging.error(f"❌ Error: {e}", exc_info=True)
             else:
-                logging.info(f"❌ Error: {e}")
+                logging.error(f"❌ Error: {e}")
             return 1
     else:
-        logging.info(f"❌ Unknown command: {args.command}")
+        logging.error(f"❌ Unknown command: {args.command}")
         parser.print_help()
         return 1
 

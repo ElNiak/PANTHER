@@ -7,10 +7,10 @@ import sys
 
 # Add the PANTHER directory to the path so we can import from it
 sys.path.append("/Users/elniak/Documents/Project/PANTHER")
-from panther.core.command_processor.command import (
-    ShellCommand,
+from panther.core.command_processor import (
     SHELL_BUILTINS,
     SHELL_CONTROL_STRUCTURES,
+    ShellCommand,
 )
 
 # Test cases

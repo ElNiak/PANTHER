@@ -36,8 +36,9 @@ from panther.core.observer.management.results_manager import ResultsManager
 
 class StorageObserver(ITypedObserver):
     """
-
     Storage observer that provides comprehensive data persistence using ResultsManager.
+
+    Implements singleton pattern per storage path to prevent duplicate event logging.
 
     This observer handles:
     - Event storage and retrieval
@@ -46,6 +47,46 @@ class StorageObserver(ITypedObserver):
     - Data export and import
     - Historical data management
     """
+
+    # Class-level registry to maintain one instance per storage path
+    _instances = {}
+    _instance_lock = None
+
+    def __new__(cls, storage_path: Optional[str] = None, **kwargs):
+        """
+        Implement singleton pattern per storage path.
+
+        Returns existing instance if one exists for the same storage path,
+        otherwise creates new instance.
+        """
+        # Initialize lock if not exists
+        if cls._instance_lock is None:
+            import threading
+
+            cls._instance_lock = threading.Lock()
+
+        # Normalize storage path for consistent keys
+        if storage_path is None:
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            storage_path = f"outputs/{timestamp}/storage"
+
+        storage_key = str(Path(storage_path).resolve())
+
+        with cls._instance_lock:
+            # Return existing instance if it exists
+            if storage_key in cls._instances:
+                existing_instance = cls._instances[storage_key]
+                # Update logger info to show reuse
+                if hasattr(existing_instance, "logger"):
+                    existing_instance.logger.debug(
+                        f"Reusing existing StorageObserver instance for path: {storage_path}"
+                    )
+                return existing_instance
+
+            # Create new instance
+            instance = super().__new__(cls)
+            cls._instances[storage_key] = instance
+            return instance
 
     def __init__(
         self,
@@ -72,6 +113,10 @@ class StorageObserver(ITypedObserver):
             event_type_filters: List of event types to store (None for all)
             batch_size: Number of events to batch before writing
         """
+        # Skip initialization if this instance is already initialized
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+
         # Initialize storage path
         if storage_path is None:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -83,8 +128,13 @@ class StorageObserver(ITypedObserver):
         self.log_level = log_level
 
         super().__init__()
+
+        # Create unique logger name based on storage path to prevent cross-contamination
+        storage_key = str(self.storage_path.resolve())
+        unique_logger_name = f"StorageObserver_{hash(storage_key) & 0x7FFFFFFF}"
+
         self.logger = self._setup_logging(
-            logger_name="StorageObserver",
+            logger_name=unique_logger_name,
             log_level=self.log_level,
             enable_colors=True,
             output_file=self.storage_path / "storage_observer.log",
@@ -129,6 +179,9 @@ class StorageObserver(ITypedObserver):
         self.logger.info(
             f"StorageObserver initialized with storage path: {self.storage_path}"
         )
+
+        # Mark instance as initialized to prevent re-initialization
+        self._initialized = True
 
     def on_event(self, event: BaseEvent) -> bool:
         """
@@ -348,12 +401,19 @@ class StorageObserver(ITypedObserver):
 
     def _store_error_event(self, event: BaseEvent, event_type: str):
         """Store error-related event."""
+        # Extract error message from event data or direct attribute
+        error_message = ""
+        if hasattr(event, "data") and isinstance(event.data, dict):
+            error_message = event.data.get("error_message", "")
+        if not error_message:
+            error_message = getattr(event, "error_message", "")
+
         event_data = {
             "event_id": str(getattr(event, "event_id", event.id)),
             "event_type": event_type,
             "timestamp": event.timestamp.isoformat(),
             "severity": self._determine_error_severity(event_type, {}),
-            "error_message": getattr(event, "error_message", ""),
+            "error_message": error_message,
             "data": getattr(event, "entity_metadata", {}),
         }
 
@@ -740,9 +800,9 @@ class StorageObserver(ITypedObserver):
 
             # Add metadata
             metadata = ET.SubElement(root, "metadata")
-            ET.SubElement(metadata, "export_timestamp").text = (
-                datetime.now().isoformat()
-            )
+            ET.SubElement(
+                metadata, "export_timestamp"
+            ).text = datetime.now().isoformat()
             ET.SubElement(metadata, "storage_path").text = str(self.storage_path)
 
             # Add events
@@ -808,3 +868,17 @@ class StorageObserver(ITypedObserver):
             )
 
         self.last_disk_check = current_time
+
+    @classmethod
+    def clear_instances(cls):
+        """Clear all singleton instances. Useful for testing and cleanup."""
+        if cls._instance_lock:
+            with cls._instance_lock:
+                cls._instances.clear()
+        else:
+            cls._instances.clear()
+
+    @classmethod
+    def get_instance_count(cls):
+        """Get the number of active instances. Useful for monitoring."""
+        return len(cls._instances)

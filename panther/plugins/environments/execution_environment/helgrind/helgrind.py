@@ -8,6 +8,8 @@ data race detection, lock order validation, and POSIX threads API misuse detecti
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from panther.core.observer.management.event_manager import EventManager
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.environments.execution_environment.base_execution_environment import (
     BaseExecutionEnvironment,
 )
@@ -17,7 +19,6 @@ from panther.plugins.environments.execution_environment.command_generation_utils
 from panther.plugins.environments.execution_environment.helgrind.config_schema import (
     HelgrindConfig,
 )
-from panther.plugins.plugin_decorators import register_plugin
 from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 
 
 @register_plugin(
-    plugin_type="environment",
+    plugin_type=PluginType.EXECUTION_ENVIRONMENT,
     name="helgrind",
     version="1.0.0",
     description="Valgrind Helgrind thread error detection environment",
@@ -58,6 +59,21 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
         super().__init__(
             env_config_to_test, output_dir, env_type, env_sub_type, event_manager
         )
+
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self) -> HelgrindConfig:
+        """Get plugin config with caching and fallback."""
+        if self._plugin_config is None:
+            try:
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    HelgrindConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                self._plugin_config = HelgrindConfig()
+        return self._plugin_config
 
     def _setup_plugin_specific_environment(
         self, services_managers: List[IServiceManager], timestamp: str
@@ -128,7 +144,26 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
         Returns:
             str: Complete Helgrind command
         """
-        command_parts = [self.env_config_to_test.valgrind_binary]
+        plugin_config = self._get_plugin_config()
+
+        # Get valgrind_binary using dual approach
+        valgrind_binary = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            valgrind_binary = self.env_config_to_test.plugin_config.get(
+                "valgrind_binary"
+            )
+        if valgrind_binary is None:
+            valgrind_binary = (
+                plugin_config.valgrind_binary
+                if hasattr(plugin_config, "valgrind_binary")
+                else "valgrind"
+            )
+
+        self.valgrind_binary = valgrind_binary
+        command_parts = [self.valgrind_binary]
 
         # Specify Helgrind tool
         command_parts.extend(["--tool=helgrind"])
@@ -136,60 +171,213 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
         # Add output file
         command_parts.extend([f"--log-file={output_file}"])
 
-        # Set output format
-        if self.env_config_to_test.output_format == "xml":
+        # Set output format using dual approach
+        output_format = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            output_format = self.env_config_to_test.plugin_config.get("output_format")
+        if output_format is None and hasattr(plugin_config, "output_format"):
+            output_format = plugin_config.output_format
+
+        if output_format == "xml":
             command_parts.append("--xml=yes")
             command_parts.append(f"--xml-file={output_file}.xml")
 
-        # History level for race detection
-        command_parts.append(f"--history-level={self.env_config_to_test.history_level}")
-
-        # Conflict cache size
-        command_parts.append(
-            f"--conflict-cache-size={self.env_config_to_test.conflict_cache_size}"
-        )
-
-        # Lock order tracking
-        if not self.env_config_to_test.track_lockorders:
-            command_parts.append("--track-lockorders=no")
-
-        # Stack reference checking
-        if not self.env_config_to_test.check_stack_refs:
-            command_parts.append("--check-stack-refs=no")
-
-        # Thread creation race handling
-        if self.env_config_to_test.ignore_thread_creation:
-            command_parts.append("--ignore-thread-creation=yes")
-
-        # Free-as-write option
-        if self.env_config_to_test.free_is_write:
-            command_parts.append("--free-is-write=yes")
-
-        # Cache size
-        command_parts.append(f"--cache-size={self.env_config_to_test.cache_size}M")
-
-        # Suppression file
-        if self.env_config_to_test.suppression_file:
-            command_parts.append(
-                f"--suppressions={self.env_config_to_test.suppression_file}"
+        # History level for race detection using dual approach
+        history_level = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            history_level = self.env_config_to_test.plugin_config.get("history_level")
+        if history_level is None:
+            history_level = (
+                plugin_config.history_level
+                if hasattr(plugin_config, "history_level")
+                else "full"
             )
 
-        # Additional general Valgrind options
-        if self.env_config_to_test.show_below_main:
+        command_parts.append(f"--history-level={history_level}")
+
+        # Conflict cache size using dual approach
+        conflict_cache_size = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            conflict_cache_size = self.env_config_to_test.plugin_config.get(
+                "conflict_cache_size"
+            )
+        if conflict_cache_size is None:
+            conflict_cache_size = (
+                plugin_config.conflict_cache_size
+                if hasattr(plugin_config, "conflict_cache_size")
+                else 2000000
+            )
+
+        command_parts.append(f"--conflict-cache-size={conflict_cache_size}")
+
+        # Lock order tracking using dual approach
+        track_lockorders = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            track_lockorders = self.env_config_to_test.plugin_config.get(
+                "track_lockorders"
+            )
+        if track_lockorders is None and hasattr(plugin_config, "track_lockorders"):
+            track_lockorders = plugin_config.track_lockorders
+
+        if track_lockorders is False:
+            command_parts.append("--track-lockorders=no")
+
+        # Stack reference checking using dual approach
+        check_stack_refs = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            check_stack_refs = self.env_config_to_test.plugin_config.get(
+                "check_stack_refs"
+            )
+        if check_stack_refs is None and hasattr(plugin_config, "check_stack_refs"):
+            check_stack_refs = plugin_config.check_stack_refs
+
+        if check_stack_refs is False:
+            command_parts.append("--check-stack-refs=no")
+
+        # Thread creation race handling using dual approach
+        ignore_thread_creation = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            ignore_thread_creation = self.env_config_to_test.plugin_config.get(
+                "ignore_thread_creation"
+            )
+        if ignore_thread_creation is None and hasattr(
+            plugin_config, "ignore_thread_creation"
+        ):
+            ignore_thread_creation = plugin_config.ignore_thread_creation
+
+        if ignore_thread_creation:
+            command_parts.append("--ignore-thread-creation=yes")
+
+        # Free-as-write option using dual approach
+        free_is_write = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            free_is_write = self.env_config_to_test.plugin_config.get("free_is_write")
+        if free_is_write is None and hasattr(plugin_config, "free_is_write"):
+            free_is_write = plugin_config.free_is_write
+
+        if free_is_write:
+            command_parts.append("--free-is-write=yes")
+
+        # Cache size using dual approach
+        cache_size = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            cache_size = self.env_config_to_test.plugin_config.get("cache_size")
+        if cache_size is None:
+            cache_size = (
+                plugin_config.cache_size if hasattr(plugin_config, "cache_size") else 32
+            )
+
+        command_parts.append(f"--cache-size={cache_size}M")
+
+        # Suppression file using dual approach
+        suppression_file = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            suppression_file = self.env_config_to_test.plugin_config.get(
+                "suppression_file"
+            )
+        if suppression_file is None and hasattr(plugin_config, "suppression_file"):
+            suppression_file = plugin_config.suppression_file
+
+        if suppression_file:
+            command_parts.append(f"--suppressions={suppression_file}")
+
+        # Additional general Valgrind options using dual approach
+        show_below_main = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            show_below_main = self.env_config_to_test.plugin_config.get(
+                "show_below_main"
+            )
+        if show_below_main is None and hasattr(plugin_config, "show_below_main"):
+            show_below_main = plugin_config.show_below_main
+
+        if show_below_main:
             command_parts.append("--show-below-main=yes")
 
-        if self.env_config_to_test.track_fds:
+        track_fds = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            track_fds = self.env_config_to_test.plugin_config.get("track_fds")
+        if track_fds is None and hasattr(plugin_config, "track_fds"):
+            track_fds = plugin_config.track_fds
+
+        if track_fds:
             command_parts.append("--track-fds=yes")
 
-        if self.env_config_to_test.time_stamp:
+        time_stamp = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            time_stamp = self.env_config_to_test.plugin_config.get("time_stamp")
+        if time_stamp is None and hasattr(plugin_config, "time_stamp"):
+            time_stamp = plugin_config.time_stamp
+
+        if time_stamp:
             command_parts.append("--time-stamp=yes")
 
-        # Verbosity
-        command_parts.append(f"--verbose" * self.env_config_to_test.verbosity)
+        # Verbosity using dual approach
+        verbosity = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            verbosity = self.env_config_to_test.plugin_config.get("verbosity")
+        if verbosity is None:
+            verbosity = (
+                plugin_config.verbosity if hasattr(plugin_config, "verbosity") else 0
+            )
 
-        # Additional parameters
-        if self.env_config_to_test.additional_parameters:
-            command_parts.extend(self.env_config_to_test.additional_parameters)
+        if verbosity > 0:
+            command_parts.append("--verbose" * verbosity)
+
+        # Additional parameters using dual approach
+        additional_parameters = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            additional_parameters = self.env_config_to_test.plugin_config.get(
+                "additional_parameters"
+            )
+        if additional_parameters is None and hasattr(
+            plugin_config, "additional_parameters"
+        ):
+            additional_parameters = plugin_config.additional_parameters
+
+        if additional_parameters:
+            command_parts.extend(additional_parameters)
 
         return " ".join(command_parts)
 
@@ -295,10 +483,22 @@ echo "Analysis complete. For detailed information, examine the full Helgrind log
             file_type="helgrind_summary",
         )
 
-        # Add detailed race condition analysis if configured
-        if hasattr(self.env_config_to_test, "generate_detailed_analysis") and getattr(
-            self.env_config_to_test, "generate_detailed_analysis", False
+        # Add detailed race condition analysis if configured using dual approach
+        plugin_config = self._get_plugin_config()
+        generate_detailed_analysis = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
         ):
+            generate_detailed_analysis = self.env_config_to_test.plugin_config.get(
+                "generate_detailed_analysis"
+            )
+        if generate_detailed_analysis is None and hasattr(
+            plugin_config, "generate_detailed_analysis"
+        ):
+            generate_detailed_analysis = plugin_config.generate_detailed_analysis
+
+        if generate_detailed_analysis:
             detailed_file = command_builder.register_output_file(
                 file_type="helgrind_detailed",
                 extension="detailed.txt",
@@ -347,7 +547,19 @@ fi
             str: Command string for Helgrind wrapper
         """
         if output_file is None:
-            output_file = self.env_config_to_test.output_file or "/tmp/helgrind.log"
+            # Get output_file using dual approach
+            plugin_config = self._get_plugin_config()
+            output_file_value = None
+            if (
+                hasattr(self.env_config_to_test, "plugin_config")
+                and self.env_config_to_test.plugin_config
+            ):
+                output_file_value = self.env_config_to_test.plugin_config.get(
+                    "output_file"
+                )
+            if output_file_value is None and hasattr(plugin_config, "output_file"):
+                output_file_value = plugin_config.output_file
+            output_file = output_file_value or "/tmp/helgrind.log"
 
         # Note: pid parameter is not directly supported by Helgrind (runs from start)
         if pid:

@@ -20,19 +20,19 @@ graph TB
         MPE[Metrics Collection Event]
         ESE[Environment Stop Event]
     end
-    
+
     subgraph "Command Generation"
         CP[Command Processor]
         PG[Profiler Command Generation]
         CV[Command Validation]
     end
-    
+
     subgraph "Metrics Integration"
         MC[Metrics Collector]
         MO[Metrics Observer]
         RT[Real-time Monitoring]
     end
-    
+
     EPE --> CP
     CP --> PG
     PG --> CV
@@ -50,7 +50,7 @@ Execution environments now use the Command Processor for structured profiler com
 
 ```python
 # Modern profiler command generation
-from panther.core.command_processor.command import ShellCommand
+from panther.core.command_processor import ShellCommand
 from panther.core.events.environment.events import ProfilingStartEvent
 
 class ModernGperfCpuEnvironment(IExecutionEnvironment):
@@ -61,7 +61,7 @@ class ModernGperfCpuEnvironment(IExecutionEnvironment):
             target_process=target_process,
             profiling_type="cpu_profiling"
         ))
-        
+
         # Generate structured profiler commands
         profiler_commands = [
             ShellCommand(
@@ -75,11 +75,11 @@ class ModernGperfCpuEnvironment(IExecutionEnvironment):
                 capture_output=True
             )
         ]
-        
+
         # Execute through command processor with validation
         for cmd in profiler_commands:
             result = self.command_processor.execute(cmd)
-            
+
             # Emit command execution event
             self.emit_event(CommandExecutionEvent(
                 command=cmd.to_string(),

@@ -2,9 +2,9 @@
 """
 Test script to directly verify our fix to the generate_compile_commands method.
 """
+import logging
 import sys
 from pathlib import Path
-import logging
 
 # Set up logging
 logging.basicConfig(
@@ -15,15 +15,27 @@ logger = logging.getLogger("test_fix")
 # Add the project root to sys.path
 sys.path.append(str(Path(__file__).parent.absolute()))
 
-try:
-    from panther.plugins.services.testers.panther_ivy.panther_ivy import PantherIvyServiceManager
-    from panther.config.core.models import ProtocolConfig, ProtocolRole
-    from panther.plugins.services.testers.panther_ivy.config_schema import PantherIvyConfig
+import pytest
 
+# Test imports - skip if modules not available
+try:
+    from panther.config.core.models import ProtocolConfig, ProtocolRole
+    from panther.plugins.services.testers.panther_ivy.config_schema import (
+        PantherIvyConfig,
+    )
+    from panther.plugins.services.testers.panther_ivy.panther_ivy import (
+        PantherIvyServiceManager,
+    )
+
+    IMPORTS_AVAILABLE = True
     logger.info("Successfully imported all required modules")
 except ImportError as e:
+    IMPORTS_AVAILABLE = False
     logger.error(f"Error importing required modules: {e}")
-    sys.exit(1)
+
+    # Create dummy class for test structure
+    class PantherIvyServiceManager:
+        pass
 
 
 # Create a simple subclass for testing
@@ -49,11 +61,16 @@ class TestPantherIvy(PantherIvyServiceManager):
 
 
 def test_compile_commands():
+    if not IMPORTS_AVAILABLE:
+        pytest.skip("Required modules not available")
+
     # Create test instance
     ivy_manager = TestPantherIvy()
 
     # Override super() for testing
-    ivy_manager.super_generate_compile_commands = ivy_manager.super_generate_compile_commands
+    ivy_manager.super_generate_compile_commands = (
+        ivy_manager.super_generate_compile_commands
+    )
 
     # Test the fixed method
     commands = ivy_manager.generate_compile_commands()

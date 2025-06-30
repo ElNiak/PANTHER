@@ -11,7 +11,9 @@ from omegaconf import OmegaConf
 
 from panther.config.core.models.experiment import TestConfig
 from panther.config.core.models.global_config import GlobalConfig
+from panther.config.core.models.service import ProtocolRole
 from panther.core.outputs.output_collector import IOutputCollector
+from panther.core.utils.string_representation_mixin import StringRepresentationMixin
 
 # EnvironmentPluginEventMixin is already inherited through INetworkEnvironment
 from panther.plugins.environments.network_environment.network_environment_interface import (
@@ -26,7 +28,7 @@ if TYPE_CHECKING:
     from panther.plugins.plugin_manager import PluginManager
 
 
-class BaseNetworkEnvironment(INetworkEnvironment):
+class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
     """
     Base implementation of INetworkEnvironment with common functionality.
 
@@ -154,6 +156,14 @@ class BaseNetworkEnvironment(INetworkEnvironment):
                 "timestamp": timestamp,
             }
         )
+
+        self.logger.debug(
+            f"Initializing {self.env_sub_type} environment with output directory: {self.output_dir}"
+            f" and log directories: {self.log_dirs}"
+            f" and template directory: {self.templates_dir}"
+            f" and timestamp: {timestamp}"
+            f" and execution environment: {execution_environment}"
+        )
         self.setup_start_time = time.time()
         self.logger.info(f"Setting up {self.env_sub_type} environment")
         self.update_environment(
@@ -174,7 +184,7 @@ class BaseNetworkEnvironment(INetworkEnvironment):
             # Prepare environment
             self.prepare_environment()
 
-            # Generate services
+            # Generate services (with execution environment modifications applied)
             self.generate_environment_services(
                 paths={
                     "output_dir": str(self.output_dir),
@@ -183,13 +193,6 @@ class BaseNetworkEnvironment(INetworkEnvironment):
                 },
                 timestamp=timestamp,
             )
-
-            # Verify generated files (From Implementation)
-            self._verify_generated_files()
-
-            # Setup execution plugins if needed
-            if self.execution_environment:
-                self.setup_execution_plugins(timestamp)
 
             self.setup_end_time = time.time()
             # Notify success
@@ -212,14 +215,6 @@ class BaseNetworkEnvironment(INetworkEnvironment):
             self._safe_cleanup()
 
             raise
-
-    def _verify_generated_files(self) -> None:
-        """
-        Verify that required files were generated.
-
-        Override this method in subclasses to check specific files.
-        """
-        pass
 
     def teardown_environment(self) -> None:
         """
@@ -246,8 +241,7 @@ class BaseNetworkEnvironment(INetworkEnvironment):
                 self.logger.info("Collecting outputs from all services")
                 # Collect outputs using the mixin if available
                 if hasattr(self, "collect_outputs"):
-                    final_outputs = self.collect_outputs()
-                    if final_outputs:
+                    if final_outputs := self.collect_outputs():
                         self.logger.info(
                             f"Successfully collected {len(final_outputs)} output files"
                         )
@@ -334,6 +328,10 @@ class BaseNetworkEnvironment(INetworkEnvironment):
         Most network environments have similar run logic.
         """
         try:
+            if self.deployed:
+                self.logger.debug(f"{self.env_sub_type} environment already deployed")
+                return True
+
             self.logger.info(f"Running {self.env_sub_type} environment")
 
             # Record deployment start time
@@ -342,11 +340,9 @@ class BaseNetworkEnvironment(INetworkEnvironment):
             # Launch services
             self.launch_environment_services()
 
-            # Deploy services
-            self.deploy_services()
-
             # Mark as deployed
             self.deployed = True
+
             self.deployment_end_time = time.time()
 
             self.logger.info(
@@ -378,7 +374,7 @@ class BaseNetworkEnvironment(INetworkEnvironment):
 
             # Add packet capture commands to services
             self._add_packet_capture_commands()
-            self.__add_wait_for_services()
+            self.__add_wait_for_testers()
             self.__add_volumes_to_services()
             self.logger.info("Environment prepared successfully")
 
@@ -400,16 +396,17 @@ class BaseNetworkEnvironment(INetworkEnvironment):
             return
         self.logger.info("Adding shared volumes to services")
         for service in self.services_managers:
-            if not service.is_tester:
-                # Add shared volumes for logs and other resources
-                # # TODO
-                self.logger.debug(f"Added shared volumes to {service.service_name}")
-            else:
-                self.logger.debug(
-                    f"Skipping volume injection for tester service: {service.service_name}"
-                )
+            # Ensure volumes list exists
+            if not hasattr(service, "volumes"):
+                service.volumes = []
 
-    def __add_wait_for_services(self) -> None:
+            self.logger.debug(f"Added shared volumes to {service.service_name}")
+        else:
+            self.logger.debug(
+                f"Skipping volume injection for tester service: {service.service_name}"
+            )
+
+    def __add_wait_for_testers(self) -> None:
         """
         Add wait commands for all services to ensure they are ready before running tests.
 
@@ -423,19 +420,85 @@ class BaseNetworkEnvironment(INetworkEnvironment):
             return
         self.logger.info("Adding wait commands to services")
         for service in self.services_managers:
-            if not service.is_tester:
-                service.volumes.append("shared_logs:/app/sync_logs")
-                service.run_cmd["post_compile_cmds"] = service.run_cmd[
-                    "post_compile_cmds"
-                ] + [
-                    "while [ ! -f /app/sync_logs/ivy_ready.log ]; do",
-                    '\techo "Waiting for Ivy testers to be ready..." >> /app/logs/tester_ready.log;',
-                    "\tsleep 2;",
-                    "done;",
-                    'echo "Testers is ready, starting '
+            # Ensure coordination volume
+            if "coordination:/app/coordination" not in service.volumes:
+                service.volumes.append("coordination:/app/coordination")
+
+            # Determine service characteristics
+            wait_commands = []
+
+            # All non-tester services wait for ivy compilation first
+            if not service.is_tester():
+                wait_script = (
+                    'echo "Non-tester service '
                     + service.service_name
-                    + '..." >> /app/logs/tester_ready.log;',
-                ]
+                    + ' waiting for ivy compilation..." >> /app/logs/coordination.log\n'
+                    "WAIT_COUNT=0\n"
+                    "while [ $WAIT_COUNT -lt 300 ]; do\n"
+                    "\tif ls /app/coordination/*ivy*_ready 1>/dev/null 2>&1; then\n"
+                    '\t\techo "Ivy compilation complete for '
+                    + service.service_name
+                    + '" >> /app/logs/coordination.log\n'
+                    "\t\tbreak\n"
+                    "\tfi\n"
+                    "\tsleep 1\n"
+                    "\tWAIT_COUNT=$((WAIT_COUNT + 1))\n"
+                    "done\n"
+                    "if [ $WAIT_COUNT -ge 300 ]; then\n"
+                    '\techo "ERROR: Timeout waiting for ivy compilation for '
+                    + service.service_name
+                    + '" >> /app/logs/coordination.log\n'
+                    "\texit 1\n"
+                    "fi"
+                )
+                wait_commands.append(wait_script)
+
+                # After ivy compilation, different services have different additional waits
+                if service.is_client():
+                    # Client services also wait for server readiness
+                    wait_script = (
+                        '\necho "Client '
+                        + service.service_name
+                        + ' now waiting for server services..." >> /app/logs/coordination.log\n'
+                        "WAIT_COUNT=0\n"
+                        "while [ $WAIT_COUNT -lt 300 ]; do\n"
+                        "\tif ls /app/coordination/*server*_ready 1>/dev/null 2>&1; then\n"
+                        '\t\techo "Server services ready - client '
+                        + service.service_name
+                        + ' can proceed" >> /app/logs/coordination.log\n'
+                        "\t\tbreak\n"
+                        "\tfi\n"
+                        "\tsleep 1\n"
+                        "\tWAIT_COUNT=$((WAIT_COUNT + 1))\n"
+                        "done\n"
+                        "if [ $WAIT_COUNT -ge 300 ]; then\n"
+                        '\techo "ERROR: Timeout waiting for server services for client '
+                        + service.service_name
+                        + '" >> /app/logs/coordination.log\n'
+                        "\texit 1\n"
+                        "fi"
+                    )
+                    wait_commands.append(wait_script)
+                else:
+                    # Other non-tester services just wait for ivy
+                    wait_commands.append(
+                        'echo "Ivy compilation complete - '
+                        + service.service_name
+                        + ' ready to proceed" >> /app/logs/coordination.log'
+                    )
+
+            # Add wait commands to post_compile_cmds if any were defined
+            if wait_commands:
+                service.run_cmd["post_compile_cmds"] = (
+                    service.run_cmd["post_compile_cmds"] + wait_commands
+                )
+                self.logger.debug(
+                    f"Added coordination wait commands to {service.service_name} (client={service.is_client()}, server={service.is_server()}, tester={service.is_tester()})"
+                )
+            else:
+                self.logger.debug(
+                    f"No coordination wait needed for {service.service_name}"
+                )
 
     def _add_packet_capture_commands(self) -> None:
         """
@@ -469,37 +532,92 @@ class BaseNetworkEnvironment(INetworkEnvironment):
 
                 # Create packet capture command
                 pcap_file = f"/app/logs/{service_name}.pcap"
-                tshark_cmd = f"(touch {pcap_file}; tshark -a duration:{timeout} -i any -w {pcap_file};) &"
-
+                tshark_cmd = f"((touch {pcap_file}; tshark -a duration:{timeout} -i any -w {pcap_file};) &);"
                 # Add to pre_run_cmds using the mixin method if available
-                if hasattr(self, "modify_service_commands"):
-                    self.modify_service_commands(
-                        service, "packet_capture", {"pre_run_cmds": [tshark_cmd]}
-                    )
-                    self.logger.debug(
-                        f"Added packet capture via mixin for {service_name}"
-                    )
-                else:
-                    # Fallback: directly modify service commands
-                    if hasattr(service, "run_cmd") and isinstance(
-                        service.run_cmd, dict
-                    ):
-                        if "pre_run_cmds" not in service.run_cmd:
-                            service.run_cmd["pre_run_cmds"] = []
-                        service.run_cmd["pre_run_cmds"].append(tshark_cmd)
-                        self.logger.debug(
-                            f"Added packet capture directly for {service_name}"
-                        )
-                    else:
-                        self.logger.warning(
-                            f"Cannot add packet capture for {service_name}: no run_cmd structure"
-                        )
+                service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [
+                    f"echo 'Starting packet capture for {service_name}...' >> /app/logs/packet_capture.log;",
+                    tshark_cmd,
+                    f"echo 'Packet capture command added for {service_name}' >> /app/logs/packet_capture.log;",
+                ]
 
             except Exception as e:
                 service_name = getattr(service, "service_name", "unknown")
                 self.logger.error(
                     f"Failed to add packet capture for service {service_name}: {e}"
                 )
+
+    def _ip_to_decimal(self, ip: str) -> str:
+        """
+        Convert IP address to decimal format.
+
+        Args:
+            ip: IP address in dotted notation (e.g., "192.168.1.1")
+
+        Returns:
+            IP address as decimal string
+        """
+        try:
+            parts = ip.split(".")
+            if len(parts) != 4:
+                raise ValueError(f"Invalid IP format: {ip}")
+            decimal = 0
+            for i, part in enumerate(parts):
+                decimal += int(part) << (24 - (i * 8))
+            return str(decimal)
+        except Exception as e:
+            self.logger.error(f"Failed to convert IP to decimal: {ip} - {e}")
+            return "0"
+
+    def _get_service_port(self, service: IServiceManager) -> int:
+        """
+        Extract port from service configuration.
+
+        Args:
+            service: Service manager instance
+
+        Returns:
+            Port number
+        """
+        try:
+            # Try to get port from service config
+            if hasattr(service, "service_config_to_test"):
+                config = service.service_config_to_test
+                if hasattr(config, "network") and hasattr(config.network, "port"):
+                    return config.network.port
+                if hasattr(config, "port"):
+                    return config.port
+
+            # Default port based on protocol
+            if hasattr(service, "service_protocol"):
+                protocol_name = service.service_protocol.name.lower()
+                if "quic" in protocol_name:
+                    return 4443
+                elif "http" in protocol_name:
+                    return 80
+
+            # Fallback
+            return 4443
+        except Exception as e:
+            self.logger.error(
+                f"Failed to get port for service {service.service_name}: {e}"
+            )
+            return 4443
+
+    @abstractmethod
+    def _get_service_ip(self, service_name: str) -> str:
+        """
+        Get IP address for a service.
+
+        This method must be implemented by each network environment to provide
+        the appropriate IP resolution mechanism.
+
+        Args:
+            service_name: Name of the service
+
+        Returns:
+            IP address as string
+        """
+        raise NotImplementedError("Subclasses must implement IP resolution")
 
     def should_terminate_early(self) -> bool:
         """Check if experiment should terminate early due to environment issues."""
@@ -533,86 +651,6 @@ class BaseNetworkEnvironment(INetworkEnvironment):
         raise NotImplementedError(
             "Subclasses must implement service log directory resolution"
         )
-
-    def register_all_service_outputs(self):
-        """Register outputs from all services with flexible patterns."""
-        if not hasattr(self, "register_service_outputs"):
-            self.logger.warning("Output collector mixin not available")
-            return
-
-        # Use the mixin's flexible registration
-        self.register_service_outputs(
-            self.services_managers,
-            lambda service_name: self._get_service_log_directory(service_name),
-        )
-        """
-        Discover additional output files using pattern matching.
-        
-        Args:
-            log_dir: Directory to search for additional outputs
-            service_name: Name of the service for registration
-            
-        Returns:
-            Dictionary of discovered outputs
-        """
-        discovered = {}
-
-        if not log_dir.exists():
-            return discovered
-
-        try:
-            # SSL keylog patterns (enhanced from docker_compose)
-            ssl_patterns = [
-                "*ssl*key*",
-                "*keylog*",
-                "*tls*key*",
-                "*key*log*",
-                "*.keys",
-                "*sslkey*",
-            ]
-            for pattern in ssl_patterns:
-                for ssl_file in log_dir.glob(pattern):
-                    if ssl_file.is_file() and ssl_file.name != "sslkeylogfile.txt":
-                        if hasattr(self, "register_output_file"):
-                            output_key = f"{ssl_file.stem}_sslkey"
-                            self.register_output_file(
-                                output_key, str(ssl_file), service_name
-                            )
-                            discovered[output_key] = str(ssl_file)
-                            self.logger.debug(f"🔍 Discovered SSL keylog: {ssl_file}")
-
-            # Packet capture patterns (enhanced from docker_compose)
-            pcap_patterns = ["*.pcap", "*.pcapng", "*capture*", "*.cap", "*packet*"]
-            for pattern in pcap_patterns:
-                for pcap_file in log_dir.glob(pattern):
-                    if pcap_file.is_file() and pcap_file.name != f"{service_name}.pcap":
-                        if hasattr(self, "register_output_file"):
-                            output_key = f"{pcap_file.stem}_pcap"
-                            self.register_output_file(
-                                output_key, str(pcap_file), service_name
-                            )
-                            discovered[output_key] = str(pcap_file)
-                            self.logger.debug(
-                                f"🔍 Discovered packet capture: {pcap_file}"
-                            )
-
-        except Exception as e:
-            self.logger.error(
-                f"Error during additional output discovery for {service_name}: {e}"
-            )
-
-        return discovered
-
-    def _do_setup_environment(
-        self,
-        services_managers,
-        test_config,
-        global_config,
-        timestamp,
-        plugin_manager,
-        execution_environment,
-    ):
-        raise NotImplementedError
 
     def _do_deploy_services(self):
         raise NotImplementedError

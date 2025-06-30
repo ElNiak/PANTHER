@@ -9,11 +9,14 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from panther.config.core.models import TestConfig, GlobalConfig
+from panther.config.core.models import GlobalConfig, TestConfig
+from panther.config.core.models.environment import EnvironmentConfig
+from panther.config.core.models.network_resolution import NetworkResolutionContext
 from panther.core.events.experiment.events import ExperimentFinishedEarlyEvent
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.outputs.output_environment_mixins import StandardOutputCollectorMixin
-from panther.config.core.models.environment import EnvironmentConfig
+from panther.plugins.core.plugin_decorators import register_plugin
+from panther.plugins.core.structures.plugin_type import PluginType
 from panther.plugins.environments.environment_event_methods import (
     EnvironmentPluginEventMixin,
 )
@@ -29,6 +32,9 @@ from panther.plugins.environments.network_environment.mixins import (
     StatusMonitorMixin,
     SubprocessExecutorMixin,
 )
+from panther.plugins.environments.network_environment.shadow_ns.shadow_network_resolver import (
+    ShadowNetworkResolver,
+)
 from panther.plugins.environments.network_environment.shadow_ns.shadow_simulation_monitor import (
     ShadowSimulationMonitor,
     ShadowSimulationState,
@@ -36,7 +42,6 @@ from panther.plugins.environments.network_environment.shadow_ns.shadow_simulatio
 from panther.plugins.environments.network_environment.utils import (
     NetworkEnvironmentUtils,
 )
-from panther.plugins.plugin_decorators import register_plugin
 from panther.plugins.services.services_interface import IServiceManager
 
 if TYPE_CHECKING:
@@ -44,7 +49,7 @@ if TYPE_CHECKING:
 
 
 @register_plugin(
-    plugin_type="environment",
+    plugin_type=PluginType.NETWORK_ENVIRONMENT,
     name="shadow_ns",
     version="2.0.0",
     description="Shadow network simulator environment with reduced duplication",
@@ -52,7 +57,7 @@ if TYPE_CHECKING:
     capabilities=["network_simulation", "deterministic_testing", "scalability_testing"],
     external_dependencies=["docker", "shadow>=2.0"],
 )
-class ShadowNSEnvironment(
+class ShadowNsEnvironment(
     BaseNetworkEnvironment,
     SubprocessExecutorMixin,
     ErrorHandlerMixin,
@@ -107,6 +112,37 @@ class ShadowNSEnvironment(
         # Shadow process reference
         self.shadow_process = None
 
+        # Initialize network resolver for placeholder resolution
+        self.network_resolver = ShadowNetworkResolver()
+
+        # Initialize plugin config cache
+        self._plugin_config = None
+
+    def _get_plugin_config(self):
+        """Get plugin config with caching and fallback."""
+        # Ensure _plugin_config attribute exists (defensive initialization)
+        if not hasattr(self, "_plugin_config"):
+            self._plugin_config = None
+
+        if self._plugin_config is None:
+            try:
+                # Import here to avoid circular imports
+                from panther.plugins.environments.network_environment.shadow_ns.config_schema import (
+                    ShadowNSConfig,
+                )
+
+                self._plugin_config = self.env_config_to_test.get_plugin_config(
+                    ShadowNSConfig
+                )
+            except Exception as e:
+                self.logger.debug(f"Could not get plugin config, using defaults: {e}")
+                from panther.plugins.environments.network_environment.shadow_ns.config_schema import (
+                    ShadowNSConfig,
+                )
+
+                self._plugin_config = ShadowNSConfig()
+        return self._plugin_config
+
     def prepare_environment(self) -> bool:
         """Prepare Shadow NS environment."""
         # Use base implementation
@@ -142,6 +178,80 @@ class ShadowNSEnvironment(
             }
         )
 
+        # Apply environment path adaptation and network resolution to all services before template generation
+        services_with_resolved_commands = []
+        for service in self.services_managers:
+            # CRITICAL: Call adapt_environment_paths before network resolution
+            # This ensures template variables like IS_APT_PATH are properly set
+            if hasattr(service, "adapt_environment_paths"):
+                # Determine architecture mode from service configuration
+                use_system_models = self._determine_architecture_mode(service)
+                self.logger.debug(
+                    f"Calling adapt_environment_paths for {service.service_name} with use_system_models={use_system_models}"
+                )
+
+                # Get current environment variables to pass to adaptation
+                service_env_vars = {}
+                if hasattr(service, "environments") and service.environments:
+                    service_env_vars.update(service.environments)
+                elif (
+                    hasattr(service, "environment_variables")
+                    and service.environment_variables
+                ):
+                    service_env_vars.update(service.environment_variables)
+
+                # Call the service's path adaptation method
+                try:
+                    service.adapt_environment_paths(service_env_vars, use_system_models)
+                    self.logger.debug(
+                        f"Successfully adapted environment paths for {service.service_name}"
+                    )
+
+                    # Update the service's environment variables with adapted values
+                    if hasattr(service, "environments"):
+                        service.environments.update(service_env_vars)
+                    elif hasattr(service, "environment_variables"):
+                        service.environment_variables.update(service_env_vars)
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to adapt environment paths for {service.service_name}: {e}"
+                    )
+            # Finalize commands to ensure latest implementation is used
+            finalized_commands = (
+                service.finalize_commands()
+                if hasattr(service, "finalize_commands")
+                else service.run_cmd
+            )
+            self.logger.debug(
+                f"Service {service.service_name} commands before network resolution: {finalized_commands}"
+            )
+
+            # Apply network resolution to commands
+            if isinstance(finalized_commands, dict):
+                resolved_commands = self._resolve_network_placeholders_in_commands(
+                    finalized_commands, service
+                )
+                # Update service with resolved commands
+                service.run_cmd = resolved_commands
+            elif isinstance(finalized_commands, (list, str)):
+                # Handle simple command formats by wrapping in dict
+                wrapped_commands = {
+                    "main": finalized_commands
+                    if isinstance(finalized_commands, list)
+                    else [finalized_commands]
+                }
+                resolved_commands = self._resolve_network_placeholders_in_commands(
+                    wrapped_commands, service
+                )
+                # Extract resolved commands back
+                service.run_cmd = resolved_commands.get("main", finalized_commands)
+
+            services_with_resolved_commands.append(service)
+            self.logger.debug(
+                f"Service {service.service_name} commands after network resolution: {service.run_cmd}"
+            )
+
         # Generate Shadow configuration
         self.generate_from_template(
             template_name="shadow-template.jinja",
@@ -171,7 +281,7 @@ class ShadowNSEnvironment(
         self.logger.info("Launching Shadow NS environment")
 
         # Build Docker image if needed
-        if self.global_config.docker.build_docker_image:
+        if self.global_config.docker.force_build_docker_image:
             self._build_shadow_image()
 
         # Docker container name is already set in __init__
@@ -479,8 +589,9 @@ class ShadowNSEnvironment(
 
         # Clean up Shadow resources
         NetworkEnvironmentUtils.cleanup_docker_resources(
-            prefix="shadow_ns",
+            prefix=self.network_name,
             remove_volumes=True,
+            remove_networks=True,
         )
 
     def _wait_for_simulation_completion(self) -> None:
@@ -506,10 +617,39 @@ class ShadowNSEnvironment(
             self.logger.warning(f"Could not wait for simulation completion: {e}")
 
     def _get_shadow_config(self) -> Dict[str, Any]:
-        """Get Shadow-specific configuration."""
-        if hasattr(self.env_config_to_test, "shadow"):
-            return self.env_config_to_test.shadow
-        return {}
+        """Get Shadow-specific configuration using dual approach."""
+        # Get plugin config
+        plugin_config = self._get_plugin_config()
+
+        # First try plugin_config dict for shadow sub-config
+        shadow_config = None
+        if (
+            hasattr(self.env_config_to_test, "plugin_config")
+            and self.env_config_to_test.plugin_config
+        ):
+            shadow_config = self.env_config_to_test.plugin_config.get("shadow")
+
+        # Second try typed config (ShadowNSConfig doesn't have a separate shadow field, return all relevant fields)
+        if shadow_config is None:
+            # Extract relevant shadow configuration from typed config
+            shadow_config = {
+                "duration": plugin_config.general.stop_time,
+                "topology": "simple",  # Default value since not in config
+                "general": plugin_config.general.model_dump()
+                if hasattr(plugin_config.general, "model_dump")
+                else plugin_config.general.dict(),
+                "experimental": plugin_config.experimental.model_dump()
+                if hasattr(plugin_config.experimental, "model_dump")
+                else plugin_config.experimental.dict(),
+                "network": plugin_config.network.model_dump()
+                if hasattr(plugin_config.network, "model_dump")
+                else plugin_config.network.dict(),
+                "hosts": plugin_config.hosts.model_dump()
+                if hasattr(plugin_config.hosts, "model_dump")
+                else plugin_config.hosts.dict(),
+            }
+
+        return shadow_config if shadow_config else {}
 
     def _prepare_shadow_services(self) -> List[Dict[str, Any]]:
         """Prepare service configurations for Shadow."""
@@ -562,8 +702,19 @@ class ShadowNSEnvironment(
         # Import the docker builder
         from panther.core.docker_builder.docker_builder import DockerBuilder
 
-        # Initialize docker builder
-        docker_builder = DockerBuilder(build_log_file=True)
+        # Get the singleton docker builder instance
+        # Respect global config for build_log_file setting
+        build_log_file = (
+            self.global_config.docker.log_docker_image_build
+            if self.global_config and hasattr(self.global_config, "docker")
+            else True  # fallback default
+        )
+        docker_builder = DockerBuilder.get_instance(
+            build_log_file=build_log_file,
+            enable_cache=True,
+            global_config=self.global_config,
+            experiment_context=getattr(self, "experiment_context", None),
+        )
 
         # Check if image already exists
         image_tag = f"{self.docker_name}:latest"
@@ -633,25 +784,6 @@ class ShadowNSEnvironment(
 
     # Required abstract method implementations from IEnvironmentPlugin
 
-    def _do_setup_environment(
-        self,
-        services_managers: List["IServiceManager"],
-        test_config: TestConfig,
-        global_config: GlobalConfig,
-        timestamp: str,
-        plugin_manager: Optional["PluginManager"],
-        execution_environment: List["IExecutionEnvironment"],
-    ) -> bool:
-        """Implementation of setup environment for Shadow NS."""
-        return self.setup_environment(
-            services_managers,
-            test_config,
-            global_config,
-            timestamp,
-            plugin_manager,
-            execution_environment,
-        )
-
     def _do_deploy_services(self) -> None:
         """Implementation of service deployment for Shadow NS."""
         if not self.deploy_services():
@@ -691,3 +823,167 @@ class ShadowNSEnvironment(
     def is_network_environment(self):
         """Returns True since this is a network environment plugin."""
         return True
+
+    def _get_service_ip(self, service_name: str) -> str:
+        """
+        Get IP address for a service in Shadow NS environment.
+
+        Args:
+            service_name: Name of the service
+
+        Returns:
+            IP address based on service role (11.0.0.1 for servers, 11.0.0.2 for clients)
+        """
+        return self.network_resolver.get_service_ip(
+            service_name,
+            self.network_resolver.create_resolution_context("shadow_ns", {}),
+        )
+
+    def _resolve_network_placeholders_in_commands(
+        self, commands: Dict[str, List[str]], service: IServiceManager
+    ) -> Dict[str, List[str]]:
+        """
+        Resolve network placeholders in service commands for Shadow NS environment.
+
+        Args:
+            commands: Dictionary of command lists by phase
+            service: Service manager instance
+
+        Returns:
+            Commands with network placeholders resolved
+        """
+        try:
+            # Register service roles with the network resolver for IP assignment
+            service_roles = {}
+            for s in self.services_managers:
+                # Try to determine role from service manager
+                role = "server"  # Default
+                if hasattr(s, "role") and s.role:
+                    role_name = getattr(s.role, "name", str(s.role)).lower()
+                    role = "client" if "client" in role_name else "server"
+                service_roles[s.service_name] = role
+
+            self.network_resolver.register_service_roles(service_roles)
+
+            # Create resolution context
+            service_managers = {s.service_name: s for s in self.services_managers}
+            context = self.network_resolver.create_resolution_context(
+                "shadow_ns", service_managers
+            )
+
+            # Populate service network information
+            self.network_resolver.populate_service_network_info(context)
+
+            # Resolve placeholders in each command phase
+            resolved_commands = {}
+            for phase, command_list in commands.items():
+                resolved_commands[phase] = []
+
+                for command in command_list:
+                    if isinstance(command, str):
+                        resolved_command = self._resolve_placeholders_in_command(
+                            command, context
+                        )
+                        resolved_commands[phase].append(resolved_command)
+                    else:
+                        # Non-string commands pass through unchanged
+                        resolved_commands[phase].append(command)
+
+            self.logger.debug(
+                f"Resolved network placeholders for Shadow NS service {service.service_name}"
+            )
+
+            return resolved_commands
+
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to resolve network placeholders for {service.service_name}: {e}"
+            )
+            # Return original commands if resolution fails
+            return commands
+
+    def _resolve_placeholders_in_command(
+        self, command: str, context: NetworkResolutionContext
+    ) -> str:
+        """
+        Resolve network placeholders in a single command string.
+
+        Args:
+            command: Command string with potential placeholders
+            context: Network resolution context
+
+        Returns:
+            Command string with placeholders resolved
+        """
+        if not self.network_resolver.parser.has_placeholders(command):
+            return command
+
+        try:
+            # Get resolution results
+            results = self.network_resolver.resolve_network_placeholders(
+                command, context
+            )
+
+            # Apply substitutions
+            resolved_command = command
+            for result in results:
+                placeholder, value = result.to_substitution_pair()
+                resolved_command = resolved_command.replace(placeholder, value)
+
+            self.logger.debug(
+                f"Resolved Shadow NS command: {command} -> {resolved_command}"
+            )
+            return resolved_command
+
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to resolve placeholders in command '{command}': {e}"
+            )
+            return command
+
+    def _determine_architecture_mode(self, service) -> bool:
+        """
+        Determine whether to use system models (APT architecture) based on service configuration.
+
+        Args:
+            service: Service manager instance
+
+        Returns:
+            bool: True for APT architecture, False for individual protocol architecture
+        """
+        # Check if service has explicit configuration for architecture mode
+        if hasattr(service, "use_system_models"):
+            return service.use_system_models
+
+        # Check service configuration for APT indicators
+        if hasattr(service, "service_config_to_test"):
+            config = service.service_config_to_test
+
+            # Look for APT-related configuration keys
+            if hasattr(config, "use_apt_protocols") and config.use_apt_protocols:
+                return True
+            if hasattr(config, "protocol_path") and "apt/apt_protocols" in str(
+                config.protocol_path
+            ):
+                return True
+
+        # Check environment variables for APT indicators
+        env_vars = {}
+        if hasattr(service, "environments") and service.environments:
+            env_vars = service.environments
+        elif (
+            hasattr(service, "environment_variables") and service.environment_variables
+        ):
+            env_vars = service.environment_variables
+
+        # Look for APT path indicators in environment
+        for key, value in env_vars.items():
+            if isinstance(value, str):
+                if "apt/apt_protocols" in value or "apt_protocols" in value:
+                    return True
+
+        # Default to individual protocol architecture (non-APT)
+        self.logger.debug(
+            f"No APT indicators found for {service.service_name}, using individual protocol architecture"
+        )
+        return False

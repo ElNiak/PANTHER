@@ -2,11 +2,11 @@
 Admin Command - Administrative and system management
 """
 
-from argparse import ArgumentParser, _SubParsersAction
 import logging
+from argparse import ArgumentParser, _SubParsersAction
 from typing import Any
 
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand
 
 
 class AdminCommand(BaseCommand):
@@ -214,7 +214,9 @@ class AdminCommand(BaseCommand):
                         check=False,
                         capture_output=True,
                     )
-                    logging.info(f"🗑️  Removed {len(container_ids)} PANTHER container(s)")
+                    logging.info(
+                        f"🗑️  Removed {len(container_ids)} PANTHER container(s)"
+                    )
 
             except Exception as e:
                 logging.info(f"⚠️  Warning: Docker cleanup failed: {e}")
@@ -256,24 +258,10 @@ class AdminCommand(BaseCommand):
     @classmethod
     def _handle_webapp(cls, args: Any) -> int:
         """Handle web application startup."""
-        try:
-            host = args.host
-            port = args.port
-
-            logging.info(f"🌐 Starting PANTHER web application...")
-            logging.info(f"   Host: {host}")
-            logging.info(f"   Port: {port}")
-            logging.info(f"   URL: http://{host}:{port}")
-
-            # TODO: Implement actual web application startup
-            logging.info("❌ Web application not yet implemented")
-            logging.info("   This feature will be available in a future release")
-
-            return 1
-
-        except Exception as e:
-            logging.info(f"❌ Error starting web application: {e}")
-            return 1
+        logging.info("❌ Web application feature has been removed")
+        logging.info("   This feature was incomplete and has been deprecated")
+        logging.info("   Use 'panther admin status' for system monitoring instead")
+        return 1
 
     @classmethod
     def _handle_status(cls, args: Any) -> int:
@@ -471,7 +459,9 @@ class AdminCommand(BaseCommand):
 
             # Remove all PANTHER images
             if "images_all" in operations:
-                logging.info("\n🗑️  Removing Docker images with 'panther' in the name...")
+                logging.info(
+                    "\n🗑️  Removing Docker images with 'panther' in the name..."
+                )
                 result = subprocess.run(
                     [
                         "bash",
@@ -484,12 +474,16 @@ class AdminCommand(BaseCommand):
                 if result.returncode == 0:
                     logging.info("   ✅ Images removed successfully")
                 else:
-                    logging.info("   ⚠️  Some images could not be removed (may be in use)")
+                    logging.info(
+                        "   ⚠️  Some images could not be removed (may be in use)"
+                    )
                     total_errors += 1
 
             # Remove service images
             if "images_services" in operations:
-                logging.info("\n🗑️  Removing Docker images with '_panther' in the name...")
+                logging.info(
+                    "\n🗑️  Removing Docker images with '_panther' in the name..."
+                )
                 result = subprocess.run(
                     [
                         "bash",
@@ -502,7 +496,9 @@ class AdminCommand(BaseCommand):
                 if result.returncode == 0:
                     logging.info("   ✅ Service images removed successfully")
                 else:
-                    logging.info("   ⚠️  Some images could not be removed (may be in use)")
+                    logging.info(
+                        "   ⚠️  Some images could not be removed (may be in use)"
+                    )
                     total_errors += 1
 
             # System prune with panther label
@@ -555,7 +551,9 @@ class AdminCommand(BaseCommand):
 
             # Remove volumes
             if "volumes" in operations:
-                logging.info("\n🗑️  Removing Docker volumes with 'panther' in the name...")
+                logging.info(
+                    "\n🗑️  Removing Docker volumes with 'panther' in the name..."
+                )
                 result = subprocess.run(
                     [
                         "bash",
@@ -568,12 +566,16 @@ class AdminCommand(BaseCommand):
                 if result.returncode == 0:
                     logging.info("   ✅ Volumes removed successfully")
                 else:
-                    logging.info("   ⚠️  Some volumes could not be removed (may be in use)")
+                    logging.info(
+                        "   ⚠️  Some volumes could not be removed (may be in use)"
+                    )
                     total_errors += 1
 
             # Remove containers
             if "containers" in operations:
-                logging.info("\n🗑️  Removing stopped containers with 'panther' label...")
+                logging.info(
+                    "\n🗑️  Removing stopped containers with 'panther' label..."
+                )
                 # First stop running containers
                 subprocess.run(
                     [
@@ -626,7 +628,9 @@ class AdminCommand(BaseCommand):
                 logging.info("\n✅ Docker cleanup completed successfully")
                 return 0
             else:
-                logging.info(f"\n⚠️  Docker cleanup completed with {total_errors} warning(s)")
+                logging.info(
+                    f"\n⚠️  Docker cleanup completed with {total_errors} warning(s)"
+                )
                 return 0  # Don't fail on warnings
 
         except Exception as e:

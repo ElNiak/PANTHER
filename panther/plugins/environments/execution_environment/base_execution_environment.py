@@ -1,10 +1,3 @@
-from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Tuple
-
-from panther.core.command_processor.command_modification_mixin import (
-    CommandModificationMixin,
-)
-
 """
 Base execution environment class that eliminates code duplication across execution environment plugins.
 
@@ -13,15 +6,20 @@ implements boilerplate methods, and defines the template for execution environme
 """
 
 from abc import ABC, abstractmethod
-
-from omegaconf import OmegaConf
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from panther.config.core.models.global_config import GlobalConfig
+from panther.core.command_processor.mixins import CommandModificationMixin
 from panther.core.observer.management.event_manager import EventManager
 from panther.core.outputs.output_environment_mixins import StandardOutputCollectorMixin
-from panther.plugins.environments.environment_utils import ExecutionEnvironmentMixin
+from panther.core.utils import log_omega_config_summary
+from panther.core.utils.string_representation_mixin import StringRepresentationMixin
 from panther.plugins.environments.execution_environment.execution_environment_interface import (
     IExecutionEnvironment,
+)
+from panther.plugins.environments.execution_environment_mixin import (
+    ExecutionEnvironmentMixin,
 )
 from panther.plugins.services.services_interface import IServiceManager
 
@@ -35,6 +33,7 @@ class BaseExecutionEnvironment(
     StandardOutputCollectorMixin,
     CommandModificationMixin,
     IExecutionEnvironment,
+    StringRepresentationMixin,
     ABC,
 ):
     """
@@ -106,33 +105,6 @@ class BaseExecutionEnvironment(
             "Each plugin must implement its own initialization logic"
         )
 
-    def _do_setup_environment(
-        self,
-        services_managers: List[IServiceManager],
-        test_config: "TestConfig",
-        global_config: GlobalConfig,
-        timestamp: str,
-        plugin_manager: "PluginManager",
-        execution_environment=None,
-    ):
-        """
-        Implementation of environment setup (from parent interface).
-
-        Args:
-            services_managers: List of service managers
-            test_config: Test configuration
-            global_config: Global configuration
-            timestamp: Timestamp for this execution
-            plugin_manager: Plugin manager instance
-            execution_environment: List of execution environments (unused for most environments)
-        """
-        # execution_environment is not needed for most execution environments but required by interface
-        _ = execution_environment
-        # Delegate to the concrete implementation
-        self.setup_environment(
-            services_managers, test_config, global_config, timestamp, plugin_manager
-        )
-
     def _do_deploy_services(self):
         """
         Implementation of service deployment.
@@ -191,19 +163,30 @@ class BaseExecutionEnvironment(
             plugin_manager: Plugin manager instance
         """
         # Use standardized setup from mixin
+        self.logger.debug(
+            f"BaseExecutionEnvironment.setup_environment called for {self.__class__.__name__}"
+        )
+        self.logger.debug(f"Services managers count: {len(services_managers)}")
+        self.logger.debug(
+            f"Service names: {[getattr(s, 'service_name', s.__class__.__name__) for s in services_managers]}"
+        )
+
         self.setup_execution_environment(
             services_managers, test_config, global_config, timestamp, plugin_manager
         )
 
-        # Log configuration for debugging
-        # Convert Pydantic models to dict before using OmegaConf.to_yaml
-        test_config_dict = self.test_config.dict() if hasattr(self.test_config, 'dict') else self.test_config
-        global_config_dict = self.global_config.dict() if hasattr(self.global_config, 'dict') else self.global_config
-        self.logger.debug("Test Config: %s", OmegaConf.to_yaml(test_config_dict))
-        self.logger.debug("Global Config: %s", OmegaConf.to_yaml(global_config_dict))
+        # Log configuration for debugging using summarizer
+        log_omega_config_summary(self.logger, "Test Config", self.test_config)
+        log_omega_config_summary(self.logger, "Global Config", self.global_config)
 
         # Call plugin-specific setup
+        self.logger.debug(
+            f"About to call _setup_plugin_specific_environment for {self.__class__.__name__}"
+        )
         self._setup_plugin_specific_environment(services_managers, timestamp)
+        self.logger.debug(
+            f"Completed _setup_plugin_specific_environment for {self.__class__.__name__}"
+        )
 
     def get_output_patterns(self) -> List[Tuple[str, str]]:
         """
@@ -265,15 +248,12 @@ class BaseExecutionEnvironment(
             "Each plugin must implement its command generation logic"
         )
 
-    def __repr__(self):
-        """
-        String representation of the execution environment instance.
-        """
-        return (
-            f"{self.__class__.__name__}("
-            f"env_config_to_test={self.env_config_to_test}, "
-            f"output_dir={self.output_dir}, "
-            f"event_manager={self.event_manager}, "
-            f"services_managers={self.services_managers}, "
-            f"test_config={self.test_config})"
-        )
+    def _get_key_attributes(self) -> Dict[str, Any]:
+        """Get key attributes for string representation."""
+        attrs = super()._get_key_attributes()
+
+        # Show service count instead of full list
+        if hasattr(self, "services_managers") and self.services_managers:
+            attrs["services"] = len(self.services_managers)
+
+        return attrs

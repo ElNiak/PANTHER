@@ -270,42 +270,39 @@ class ITypedObserver(IObserver):
         event_type = type(event)
         handler = self._event_handlers.get(event_type)
 
-        if handler:
-            try:
-                return handler(event)
-            except RecursionError:
-                # Special handling for recursion errors - just log to stderr
+        if not handler:
+            # Fall back to generic handler for unknown event types
+            return self.on_unknown_event(event)
+        try:
+            return handler(event)
+        except RecursionError:
+            # Special handling for recursion errors - just log to stderr
+            import sys
+
+            print(f"RecursionError in {event_type.__name__} handler", file=sys.stderr)
+            return False
+        except Exception as e:
+            # Avoid logging errors that might trigger more events
+            if event_type.__name__ in [
+                "TestFailedEvent",
+                "ServiceErrorEvent",
+                "ExperimentFailedEvent",
+            ]:
+                # For error events, just print to stderr to avoid cascading
                 import sys
 
                 print(
-                    f"RecursionError in {event_type.__name__} handler", file=sys.stderr
+                    f"Error handling {event_type.__name__}: {str(e)}",
+                    file=sys.stderr,
                 )
-                return False
-            except Exception as e:
-                # Avoid logging errors that might trigger more events
-                if event_type.__name__ in [
-                    "TestFailedEvent",
-                    "ServiceErrorEvent",
-                    "ExperimentFailedEvent",
-                ]:
-                    # For error events, just print to stderr to avoid cascading
-                    import sys
-
-                    print(
-                        f"Error handling {event_type.__name__}: {str(e)}",
-                        file=sys.stderr,
-                    )
-                else:
-                    self.logger.error(
-                        "Error handling %s event: %s",
-                        event_type.__name__,
-                        str(e),
-                        exc_info=True,
-                    )
-                return False
-        else:
-            # Fall back to generic handler for unknown event types
-            return self.on_unknown_event(event)
+            else:
+                self.logger.error(
+                    "Error handling %s event: %s",
+                    event_type.__name__,
+                    str(e),
+                    exc_info=True,
+                )
+            return False
 
     def on_unknown_event(self, event: BaseEvent) -> bool:
         """
@@ -314,7 +311,7 @@ class ITypedObserver(IObserver):
         Default implementation logs a warning and returns True.
         Override this method to handle custom event types.
         """
-        self.logger.warning(
+        self.logger.debug(
             "Received unknown event type: %s in observer: %s",
             type(event).__name__,
             self.__class__.__name__,

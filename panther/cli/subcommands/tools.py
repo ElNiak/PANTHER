@@ -2,16 +2,17 @@
 Tools Command - Install and manage development/runtime tools
 """
 
+import logging
 import subprocess
 import sys
 from argparse import ArgumentParser, _SubParsersAction
 from pathlib import Path
 from typing import Any
 
-from ..base import BaseCommand
+from panther.cli.base import BaseCommand, CLIActionDispatchMixin
 
 
-class ToolsCommand(BaseCommand):
+class ToolsCommand(BaseCommand, CLIActionDispatchMixin):
     """Handle tools installation and management."""
 
     @classmethod
@@ -61,21 +62,13 @@ class ToolsCommand(BaseCommand):
     @classmethod
     def handle(cls, args: Any) -> int:
         """Handle the tools command execution."""
-        if not hasattr(args, "tools_action") or args.tools_action is None:
-            logging.info(
-                "❌ No tools action specified. Use 'panther tools --help' for options."
-            )
-            return 1
+        action_handlers = {
+            "install-slim": cls._install_slim,
+            "install-precommit": cls._install_precommit,
+            "list": cls._list_tools,
+        }
 
-        if args.tools_action == "install-slim":
-            return cls._install_slim(args)
-        elif args.tools_action == "install-precommit":
-            return cls._install_precommit(args)
-        elif args.tools_action == "list":
-            return cls._list_tools(args)
-        else:
-            logging.info(f"❌ Unknown tools action: {args.tools_action}")
-            return 1
+        return cls.dispatch_action(args, "tools_action", action_handlers, "tools")
 
     @classmethod
     def _install_slim(cls, args: Any) -> int:
@@ -288,7 +281,7 @@ repos:
                         ver_match = re.search(r"(\d+\.\d+\.\d+)", version_output)
                         if ver_match:
                             version = ver_match.group(1)
-                except:
+                except Exception:
                     pass
 
                 logging.info(f"✅ {tool_name:<12} {version:<10} - {description}")

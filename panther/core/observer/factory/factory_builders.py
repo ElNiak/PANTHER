@@ -73,7 +73,7 @@ def create_logger(
     }
 
     # Override with any provided kwargs
-    config.update(kwargs)
+    config |= kwargs
 
     # Use configured priority if not explicitly provided
     if priority == 0 and hasattr(logger_config, "priority"):
@@ -141,7 +141,7 @@ def create_metrics(
     }
 
     # Override with any provided kwargs
-    config.update(kwargs)
+    config |= kwargs
 
     # Use configured priority if not explicitly provided
     if priority == 0 and hasattr(metrics_config, "priority"):
@@ -272,7 +272,7 @@ def create_experiment_observer(
     }
 
     # Override with any provided kwargs
-    config.update(kwargs)
+    config |= kwargs
 
     # Use configured priority if not explicitly provided
     if priority == 0 and hasattr(exp_config, "priority"):
@@ -306,9 +306,9 @@ def create_default_observer_set(config: Dict[str, Any]) -> List[IObserver]:
     observers = []
 
     # Get global configuration if available
-    global_config = config.get("global_config", None)
+    global_config = config.get("global_config")
     output_dir = config.get("paths", {}).get("output_dir", "outputs")
-    test_name = config.get("test_name", None)
+    test_name = config.get("test_name")
 
     # Always create enhanced logger
     logger_config = config.get("observer", {}).get("logger", {})

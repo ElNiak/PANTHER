@@ -1,10 +1,10 @@
 from omegaconf import OmegaConf
 
 from panther.core.observer.management.event_manager import EventManager
-from panther.config.config_experiment_schema import TestConfig
+from panther.config.core.models.experiment import TestConfig
 from typing import List
 
-from panther.config.config_global_schema import GlobalConfig
+from panther.config.core.models.global_config import GlobalConfig
 from panther.plugins.environments.execution_environment.gperf_cpu.config_schema import (
     GperfCpuConfig,
 )
@@ -108,11 +108,10 @@ class GperfCpuEnvironment(IExecutionEnvironment):
             else:
                 self.logger.debug(f"Service {service} is not gperf compatible")
 
-        # Convert Pydantic models to dict before using OmegaConf.to_yaml
-        test_config_dict = self.test_config.dict() if hasattr(self.test_config, 'dict') else self.test_config
-        global_config_dict = self.global_config.dict() if hasattr(self.global_config, 'dict') else self.global_config
-        self.logger.debug(f"Test Config: {OmegaConf.to_yaml(test_config_dict)}")
-        self.logger.debug(f"Global Config: {OmegaConf.to_yaml(global_config_dict)}")
+        # Log configuration for debugging using summarizer
+        from panther.core.utils import log_omega_config_summary
+        log_omega_config_summary(self.logger, "Test Config", self.test_config)
+        log_omega_config_summary(self.logger, "Global Config", self.global_config)
 
     def to_command(self, service_name: str) -> str:
         """Generate the gperf command based on the configuration."""

@@ -86,7 +86,4 @@ def is_terminal_capable() -> bool:
 
     # Check TERM environment variable
     term = os.environ.get("TERM", "")
-    if term in ["dumb", "unknown"]:
-        return False
-
-    return True
+    return term not in ["dumb", "unknown"]
