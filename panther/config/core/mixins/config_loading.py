@@ -73,11 +73,32 @@ class ConfigLoadingMixin(LoggerMixin):
         if not input_path.exists():
             raise FileNotFoundError(f"Input configuration file not found: {input_path}")
 
+        if not input_path.is_file():
+            error_msg = (
+                f"Path exists but is not a file: {input_path}\n"
+                f"Please specify a valid experiment configuration file, not a directory."
+            )
+            raise FileNotFoundError(error_msg)
+
         self.logger.info(f"Loading global configuration from {input_path}")
 
         # Load input configuration file
-        with open(input_path, "r") as f:
-            mixed_config = yaml.safe_load(f) or {}
+        try:
+            with open(input_path, "r") as f:
+                mixed_config = yaml.safe_load(f) or {}
+        except yaml.YAMLError as e:
+            error_msg = (
+                f"Invalid YAML syntax in configuration file: {input_path}\n"
+                f"YAML error: {e}\n"
+                f"Please check the file syntax and format."
+            )
+            raise ValueError(error_msg) from e
+        except Exception as e:
+            error_msg = (
+                f"Unexpected error reading configuration file: {input_path}\n"
+                f"Error: {e}"
+            )
+            raise RuntimeError(error_msg) from e
 
         # Extract global configuration sections from mixed file using model field names
         from ..models.global_config import GlobalConfig
@@ -174,8 +195,52 @@ class ConfigLoadingMixin(LoggerMixin):
 
         # Load raw configuration
         if isinstance(source, (str, Path)):
-            with open(Path(source), "r") as f:
-                config_dict = yaml.safe_load(f)
+            source_path = Path(source)
+            try:
+                if not source_path.exists():
+                    error_msg = (
+                        f"Experiment configuration file not found: {source_path}\n"
+                        f"Current working directory: {Path.cwd()}\n"
+                        f"Resolved path: {source_path.resolve()}"
+                    )
+                    raise FileNotFoundError(error_msg)
+
+                if not source_path.is_file():
+                    error_msg = (
+                        f"Path exists but is not a file: {source_path}\n"
+                        f"Please specify a valid experiment configuration file."
+                    )
+                    raise FileNotFoundError(error_msg)
+
+                with open(source_path, "r") as f:
+                    config_dict = yaml.safe_load(f)
+
+                if config_dict is None:
+                    error_msg = (
+                        f"Configuration file is empty or contains only comments: {source_path}\n"
+                        f"Please ensure the file contains valid YAML configuration."
+                    )
+                    raise ValueError(error_msg)
+
+            except PermissionError as e:
+                error_msg = (
+                    f"Permission denied accessing configuration file: {source_path}\n"
+                    f"Please check file permissions."
+                )
+                raise PermissionError(error_msg) from e
+            except yaml.YAMLError as e:
+                error_msg = (
+                    f"Invalid YAML syntax in configuration file: {source_path}\n"
+                    f"YAML error: {e}\n"
+                    f"Please check the file syntax and format."
+                )
+                raise ValueError(error_msg) from e
+            except Exception as e:
+                error_msg = (
+                    f"Unexpected error reading configuration file: {source_path}\n"
+                    f"Error: {e}"
+                )
+                raise RuntimeError(error_msg) from e
         else:
             config_dict = source
 
