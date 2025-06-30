@@ -51,7 +51,7 @@ python -m venv .venv && source .venv/bin/activate;
 For development work, we **highly recommend** using the included Python builder script instead of the traditional Makefile:
 
 ```bash
-git clone https://github.com/ElNiak/PANTHER.git
+git clone --recurse-submodules https://github.com/ElNiak/PANTHER.git
 cd PANTHER
 python -m venv .venv && source .venv/bin/activate
 # After cloning and setting up your environment:

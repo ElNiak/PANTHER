@@ -13,7 +13,7 @@ import shlex
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from panther.core.command_processor.core.validator import CommandValidator
+# Lazy import to avoid circular dependency - moved inside function
 from panther.core.command_processor.models.constants import (
     SHELL_BUILTINS,
     SHELL_CONTROL_OPERATORS,
@@ -273,6 +273,9 @@ class ShellCommand(LoggerMixin):
 
     def _validate(self) -> None:
         """Validate the command for security and correctness."""
+        # Lazy import to avoid circular dependency
+        from panther.core.command_processor.core.validator import CommandValidator
+
         validator = CommandValidator()
         result = validator.validate_command(self.command)
 
