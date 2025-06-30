@@ -154,7 +154,17 @@ class RunCommand(BaseCommand):
             # Validate config file exists
             config_path = Path(args.config)
             if not config_path.exists():
-                logging.info(f"❌ Configuration file not found: {config_path}")
+                logging.error(f"❌ Configuration file not found: {config_path}")
+                logging.error(
+                    f"   Please ensure the experiment config file exists at the specified path."
+                )
+                logging.error(f"   Current working directory: {Path.cwd()}")
+                if config_path.is_absolute():
+                    logging.error(f"   Absolute path provided: {config_path}")
+                else:
+                    logging.error(
+                        f"   Relative path resolved to: {config_path.resolve()}"
+                    )
                 return 1
 
             logging.info(f"🚀 Starting PANTHER experiment with config: {config_path}")
@@ -259,7 +269,24 @@ class RunCommand(BaseCommand):
 
             # Load experiment configuration
             logging.info("📋 Loading experiment configuration...")
-            experiment_config = config_loader.load_and_validate_experiment_config()
+            try:
+                experiment_config = config_loader.load_and_validate_experiment_config()
+            except FileNotFoundError as e:
+                logging.error(f"❌ Configuration file error: {e}")
+                return 1
+            except ValueError as e:
+                logging.error(f"❌ Configuration validation error: {e}")
+                return 1
+            except PermissionError as e:
+                logging.error(f"❌ Configuration file access error: {e}")
+                return 1
+            except Exception as e:
+                logging.error(f"❌ Unexpected configuration error: {e}")
+                if hasattr(args, "debug") and args.debug:
+                    import traceback
+
+                    traceback.print_exc()
+                return 1
 
             # Create experiment manager with global config
             experiment_manager = ExperimentManager(
