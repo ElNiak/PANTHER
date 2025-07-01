@@ -1018,11 +1018,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         )
 
         # Construct base name with version
-        if version:
-            base_name = f"{impl_name}_{version}"
-        else:
-            base_name = impl_name
-
+        base_name = f"{impl_name}_{version}" if version else impl_name
         # Combine all parts
         full_tag = f"{base_name}{build_suffix}{runtime_suffix}:{tag_version}"
 
