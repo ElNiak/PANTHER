@@ -256,7 +256,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 )
                 runtime_mode = override_mode
 
-        # Use clean version without build_mode suffix - docker_builder will handle tag generation
+        # Use clean version (without build_mode suffix) - Docker builder will handle mode differentiation
         base_version = protocol_version or "latest"
 
         self.logger.debug(
@@ -269,7 +269,8 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             experiment_context=getattr(plugin_manager, "experiment_context", None),
         )
 
-        # Generate the expected image tag that would be created
+        # Generate expected image tag for checking if image exists
+        # (Note: Docker builder will generate the actual tag during build)
         expected_image_tag = docker_builder.generate_image_tag(
             impl_name=self.implementation_name,
             version=base_version,
@@ -319,7 +320,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                     f"Building service image {self.implementation_name} with version: {base_version} and build_mode: '{build_mode}'"
                 )
                 version_dict = {
-                    "version": base_version,  # Use clean version without build_mode suffix
+                    "version": base_version,
                     "build_mode": build_mode,
                     "runtime_mode": runtime_mode,
                 }
@@ -346,18 +347,21 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             )
             dockerfile_path = plugin_dir / "Dockerfile"
 
-            # Build image using clean version - docker_builder will generate proper tag with modes
-            image_tag = docker_builder.build_image(
+            actual_image_tag = docker_builder.build_image(
                 impl_name=self.implementation_name,
-                version=base_version,  # Clean version without build_mode suffix
+                version=base_version,
                 dockerfile_path=dockerfile_path,
                 context_path=plugin_dir,
                 config=version_dict,
                 tag_version="latest",
             )
 
-            self.emit_docker_build_completed(image_tag, True)
-            self.logger.info(f"Service Docker image {image_tag} built successfully")
+            # Use the actual image tag returned by docker_builder (which includes modes)
+            final_image_tag = actual_image_tag or expected_image_tag
+            self.emit_docker_build_completed(final_image_tag, True)
+            self.logger.info(
+                f"Service Docker image {final_image_tag} built successfully"
+            )
         except Exception as e:
             self.emit_docker_build_completed(expected_image_tag, False)
             self.logger.error(f"Failed to build service image: {str(e)}")

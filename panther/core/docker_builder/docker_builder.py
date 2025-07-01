@@ -59,6 +59,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
     _instance = None
     _initialized = False
+    MAX_TAG_LENGTH = 100  # Maximum Docker tag length (leave room for registry prefix)
 
     def __new__(cls, *args, **kwargs):
         """
@@ -1004,9 +1005,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             str: Complete image tag
 
         Examples:
-            - picoquic_v1.0_debug-asan_debug:latest
-            - picoquic_v1.0__minimal:latest (empty build_mode)
-            - picoquic_v1.0_rel-lto_profile:latest
+            - picoquic_v1.0_debug-asan_debug:latest (build_mode + runtime_mode)
+            - picoquic_v1.0__minimal:latest (empty build_mode, minimal runtime)
+            - picoquic_v1.0_rel-lto_profile:latest (both modes specified)
             - picoquic:latest (no version, minimal runtime)
         """
         # Build mode suffix (empty string results in no suffix)
@@ -1018,11 +1019,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         )
 
         # Construct base name with version
-        if version:
-            base_name = f"{impl_name}_{version}"
-        else:
-            base_name = impl_name
-
+        base_name = f"{impl_name}_{version}" if version else impl_name
         # Combine all parts
         full_tag = f"{base_name}{build_suffix}{runtime_suffix}:{tag_version}"
 
@@ -1047,17 +1044,17 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         sanitized = re.sub(r"^[.-]+", "", sanitized)
 
         # Truncate if too long (leave room for registry prefix)
-        if len(sanitized) > 100:
+        if len(sanitized) > self.MAX_TAG_LENGTH:
             # Keep the tag version part intact
             parts = sanitized.split(":")
             if len(parts) == 2:
                 name_part, tag_part = parts
-                max_name_length = 100 - len(tag_part) - 1  # -1 for ':'
+                max_name_length = self.MAX_TAG_LENGTH - len(tag_part) - 1  # -1 for ':'
                 if len(name_part) > max_name_length:
                     name_part = name_part[:max_name_length]
                 sanitized = f"{name_part}:{tag_part}"
             else:
-                sanitized = sanitized[:100]
+                sanitized = sanitized[: self.MAX_TAG_LENGTH]
 
         return sanitized
 
