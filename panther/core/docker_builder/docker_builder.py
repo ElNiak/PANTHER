@@ -571,8 +571,18 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                         build_error="Buildx builder setup failed",
                     )
 
-            # Construct image tag
-            image_tag = self.generate_image_tag(impl_name, version, tag_version)
+            # Extract build and runtime modes from config
+            build_mode = config.get("build_mode", "")
+            runtime_mode = config.get("runtime_mode", "minimal")
+
+            # Construct image tag with mode information
+            image_tag = self.generate_image_tag(
+                impl_name=impl_name,
+                version=version,
+                tag_version=tag_version,
+                build_mode=build_mode,
+                runtime_mode=runtime_mode,
+            )
 
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
@@ -795,8 +805,22 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     build_error="Docker client not initialized",
                 )
 
-            # Construct image tag, handling empty version
-            image_tag = self.generate_image_tag(impl_name, version, tag_version)
+            # Extract build and runtime modes from config
+            build_mode = config.get("build_mode", "")
+            runtime_mode = config.get("runtime_mode", "minimal")
+
+            # Construct image tag with mode information
+            image_tag = self.generate_image_tag(
+                impl_name=impl_name,
+                version=version,
+                tag_version=tag_version,
+                build_mode=build_mode,
+                runtime_mode=runtime_mode,
+            )
+
+            self.logger.debug(
+                f"Generated image tag: {image_tag} (build_mode='{build_mode}', runtime_mode='{runtime_mode}')"
+            )
 
             self.logger.debug(
                 "Building Docker image '%s' with version '%s' from Dockerfile '%s' in context '%s' with config: %s on architecture '%s'",
@@ -963,12 +987,75 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 impl_name, dockerfile_path, tag_for_error, e, log_file
             )
 
-    def generate_image_tag(self, impl_name, version, tag_version):
-        return (
-            f"{impl_name}_{version}:{tag_version}"
-            if version
-            else f"{impl_name}:{tag_version}"
+    def generate_image_tag(
+        self, impl_name, version, tag_version, build_mode="", runtime_mode="minimal"
+    ):
+        """
+        Generate Docker image tag with build and runtime mode differentiation.
+
+        Args:
+            impl_name: Implementation name (e.g., 'picoquic')
+            version: Version string (e.g., 'v1.0' or 'latest')
+            tag_version: Tag version (e.g., 'latest', 'stable')
+            build_mode: Build mode ('', 'debug-asan', 'rel-lto', 'release-static-pgo')
+            runtime_mode: Runtime mode ('minimal', 'debug', 'profile')
+
+        Returns:
+            str: Complete image tag
+
+        Examples:
+            - picoquic_v1.0_debug-asan_debug:latest (build_mode + runtime_mode)
+            - picoquic_v1.0__minimal:latest (empty build_mode, minimal runtime)
+            - picoquic_v1.0_rel-lto_profile:latest (both modes specified)
+            - picoquic:latest (no version, minimal runtime)
+        """
+        # Build mode suffix (empty string results in no suffix)
+        build_suffix = f"_{build_mode}" if build_mode else ""
+
+        # Runtime mode suffix (minimal is default, so no suffix needed)
+        runtime_suffix = (
+            f"_{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
         )
+
+        # Construct base name with version
+        base_name = f"{impl_name}_{version}" if version else impl_name
+        # Combine all parts
+        full_tag = f"{base_name}{build_suffix}{runtime_suffix}:{tag_version}"
+
+        # Sanitize tag (Docker tags have character restrictions)
+        return self._sanitize_docker_tag(full_tag)
+
+    def _sanitize_docker_tag(self, tag: str) -> str:
+        """
+        Sanitize Docker tag to meet Docker naming requirements.
+
+        Docker tag rules:
+        - Lowercase letters, digits, underscores, periods, dashes
+        - Cannot start with period or dash
+        - Max 128 characters
+        """
+        import re
+
+        # Convert to lowercase and replace invalid characters (allow colon for tag separator)
+        sanitized = re.sub(r"[^a-z0-9._:-]", "_", tag.lower())
+
+        # Ensure doesn't start with period or dash
+        sanitized = re.sub(r"^[.-]+", "", sanitized)
+
+        # Truncate if too long (leave room for registry prefix)
+        if len(sanitized) > self.MAX_TAG_LENGTH:
+            # Keep the tag version part intact
+            parts = sanitized.split(":")
+            if len(parts) == 2:
+                name_part, tag_part = parts
+                max_name_length = self.MAX_TAG_LENGTH - len(tag_part) - 1  # -1 for ':'
+                if len(name_part) > max_name_length:
+                    name_part = name_part[:max_name_length]
+                sanitized = f"{name_part}:{tag_part}"
+            else:
+                sanitized = sanitized[:self.MAX_TAG_LENGTH]
+
+        return sanitized
 
     def _validate_build_prerequisites(
         self,

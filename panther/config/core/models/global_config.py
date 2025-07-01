@@ -127,9 +127,9 @@ class DockerConfig(BaseUnifiedModel):
     use_buildx: bool = Field(
         True, description="Enable Docker Buildx for cross-platform builds"
     )
-    target_platform: str = Field(
-        "linux/amd64",
-        description="Override target platform (e.g., linux/amd64, linux/arm64)",
+    target_platform: Optional[str] = Field(
+        None,
+        description="Override target platform (e.g., linux/amd64, linux/arm64). If None, auto-detects based on host architecture",
     )
     buildx_builder: str = Field("default", description="Buildx builder instance name")
     multi_platform: bool = Field(

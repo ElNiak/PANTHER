@@ -8,7 +8,7 @@ ARG RUNTIME_MODE=minimal
 # =============================================================================
 # STAGE 1: BUILDER - Build tools and dependencies
 # =============================================================================
-FROM --platform=linux/amd64 ubuntu:20.04 AS builder
+FROM ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
@@ -65,7 +65,7 @@ RUN whereis libprofiler && whereis libtcmalloc
 # =============================================================================
 # STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
 # =============================================================================
-FROM --platform=linux/amd64 ubuntu:20.04 AS minimal
+FROM ubuntu:20.04 AS minimal
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
