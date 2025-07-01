@@ -1047,17 +1047,17 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         sanitized = re.sub(r"^[.-]+", "", sanitized)
 
         # Truncate if too long (leave room for registry prefix)
-        if len(sanitized) > 100:
+        if len(sanitized) > self.MAX_TAG_LENGTH:
             # Keep the tag version part intact
             parts = sanitized.split(":")
             if len(parts) == 2:
                 name_part, tag_part = parts
-                max_name_length = 100 - len(tag_part) - 1  # -1 for ':'
+                max_name_length = self.MAX_TAG_LENGTH - len(tag_part) - 1  # -1 for ':'
                 if len(name_part) > max_name_length:
                     name_part = name_part[:max_name_length]
                 sanitized = f"{name_part}:{tag_part}"
             else:
-                sanitized = sanitized[:100]
+                sanitized = sanitized[:self.MAX_TAG_LENGTH]
 
         return sanitized
 
