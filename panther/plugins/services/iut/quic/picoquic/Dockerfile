@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 panther_base_service:latest
+FROM panther_base_service:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 # Define build arguments for version-specific configurations
@@ -12,8 +12,8 @@ RUN echo install Test::TCP | perl -MCPAN -
 RUN echo install Scope::Guard | perl -MCPAN -
 
 
-# Install jq for JSON parsing
-RUN apt-get install --fix-missing -y jq libtest-tcp-perl
+# Install additional dependencies for picoquic testing
+RUN apt-get install --fix-missing -y libtest-tcp-perl
 
 USER ${USER_N}
 

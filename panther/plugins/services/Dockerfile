@@ -8,7 +8,7 @@ ARG RUNTIME_MODE=minimal
 # =============================================================================
 # STAGE 1: BUILDER - Build tools and dependencies
 # =============================================================================
-FROM --platform=linux/amd64 ubuntu:20.04 AS builder
+FROM ubuntu:20.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
@@ -65,7 +65,7 @@ RUN whereis libprofiler && whereis libtcmalloc
 # =============================================================================
 # STAGE 4: MINIMAL - Core runtime + network analysis (PANTHER requirement)
 # =============================================================================
-FROM --platform=linux/amd64 ubuntu:20.04 AS minimal
+FROM ubuntu:20.04 AS minimal
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -fs /usr/share/zoneinfo/UTC /etc/localtime
@@ -77,7 +77,9 @@ RUN apt-get update && \
     net-tools tcpdump iperf iperf3 traceroute \
     wireshark tshark libcap2-bin \
     iputils-ping iproute2 netcat-openbsd \
-    curl dnsutils
+    curl dnsutils software-properties-common git sudo \
+    jq automake autoconf libtool pkg-config libssl-dev \
+    cmake build-essential
 
 # Configure wireshark for non-root usage (PANTHER protocol testing requirement)
 RUN yes yes | DEBIAN_FRONTEND=teletype dpkg-reconfigure wireshark-common && \

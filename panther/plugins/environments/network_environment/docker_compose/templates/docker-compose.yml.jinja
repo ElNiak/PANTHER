@@ -3,11 +3,31 @@ name: {{ experiment_name | lower }}
 services:
 {% for service in services %}
   {{ service.service_name  }}:
-{% if service.service_protocol.version and service.service_protocol.version != 'latest' %}    image: {{ service.implementation_name }}_{{ service.service_protocol.version }}:latest
-{% else %}    image: {{ service.implementation_name }}:latest
+{# Follow same logic as service_manager_docker_mixin.py #}
+{% set base_version = service.service_protocol.version or 'latest' %}
+{% set build_mode_suffix = ('_' + service.build_mode) if service.build_mode else '' %}
+{% set version = base_version + build_mode_suffix %}
+{% if version %}
+  {% set image_name = service.implementation_name + '_' + version %}
+{% else %}
+  {% set image_name = service.implementation_name %}
+{% endif %}
+{% if additional_param.docker_config and additional_param.docker_config.pull_policy in ['never', 'build'] %}
+    build:
+      context: {{ paths.plugin_dir }}/services/iut/{{ service.service_protocol.name }}/{{ service.implementation_name }}
+      dockerfile: Dockerfile
+      args:
+        VERSION: {{ version }}
+        BUILD_MODE: {{ service.build_mode or '' }}
+    image: {{ image_name }}:latest
+{% else %}
+    image: {{ image_name }}:latest
+{% endif %}
+{% if additional_param.docker_config and additional_param.docker_config.pull_policy and additional_param.docker_config.pull_policy != 'never' %}
+    pull_policy: {{ additional_param.docker_config.pull_policy }}
 {% endif %}
     container_name: {{ service.service_name  }}
-    platform: linux/amd64
+    platform: {{ additional_param.computed_target_platform or 'linux/amd64' }}
     stop_grace_period: 15s
     {% if docker_user_mapping %}
     user: "{{ docker_user_mapping }}"

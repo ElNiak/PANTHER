@@ -256,30 +256,26 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 )
                 runtime_mode = override_mode
 
-        # Include build_mode in version string so DockerBuilder generates correct tag
+        # Use clean version without build_mode suffix - docker_builder will handle tag generation
         base_version = protocol_version or "latest"
-        build_mode_suffix = f"_{build_mode}" if build_mode else ""
-        version = f"{base_version}{build_mode_suffix}"
 
         self.logger.debug(
-            f"Preparing service {self.implementation_name} with version {version} (base: {base_version}, build_mode: '{build_mode}', runtime_mode: '{runtime_mode}')"
-        )
-
-        # Generate image name for logging and validation
-        if version:
-            image_name = f"{self.implementation_name}_{version}:latest"
-        else:
-            image_name = f"{self.implementation_name}:latest"
-
-        # Debug logging to track build_mode and runtime_mode integration
-        self.logger.debug(
-            f"🔍 3-STAGE DEBUG: service={self.implementation_name}, build_mode='{build_mode}', runtime_mode='{runtime_mode}', version='{version}', final_image_name='{image_name}'"
+            f"Preparing service {self.implementation_name} with version {base_version} (build_mode: '{build_mode}', runtime_mode: '{runtime_mode}')"
         )
 
         dockerfile_path = getattr(self, "docker_file_path", "Unknown")
         docker_builder = DockerBuilder.get_instance(
             global_config=getattr(self, "global_config", None),
             experiment_context=getattr(plugin_manager, "experiment_context", None),
+        )
+
+        # Generate the expected image tag that would be created
+        expected_image_tag = docker_builder.generate_image_tag(
+            impl_name=self.implementation_name,
+            version=base_version,
+            tag_version="latest",
+            build_mode=build_mode,
+            runtime_mode=runtime_mode,
         )
 
         # Check if we should force build
@@ -295,16 +291,16 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         self.logger.debug(
             f"Force build flag is set to {force_build} for service {self.implementation_name}"
         )
-        if docker_builder.image_exists(image_name) and not force_build:
+        if docker_builder.image_exists(expected_image_tag) and not force_build:
             self.logger.info(
-                f"Service Docker image already exists, skipping build: {image_name}"
+                f"Service Docker image already exists, skipping build: {expected_image_tag}"
             )
-            self.emit_docker_build_completed(image_name, True)
+            self.emit_docker_build_completed(expected_image_tag, True)
             return
 
-        self.logger.info(f"Building service Docker image: {image_name}")
+        self.logger.info(f"Building service Docker image: {expected_image_tag}")
 
-        self.emit_docker_build_started(str(dockerfile_path), image_name)
+        self.emit_docker_build_started(str(dockerfile_path), expected_image_tag)
 
         try:
             if dependencies is not None:
@@ -313,17 +309,17 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 )
                 version_dict = {
                     "dependencies": dependencies,
-                    "version": version,
+                    "version": base_version,
                     "commit": commit,
                     "build_mode": build_mode,
                     "runtime_mode": runtime_mode,
                 }
             else:
                 self.logger.debug(
-                    f"Building service image {self.implementation_name} with version: {version} and build_mode: '{build_mode}'"
+                    f"Building service image {self.implementation_name} with version: {base_version} and build_mode: '{build_mode}'"
                 )
                 version_dict = {
-                    "version": version,
+                    "version": base_version,  # Use clean version without build_mode suffix
                     "build_mode": build_mode,
                     "runtime_mode": runtime_mode,
                 }
@@ -350,19 +346,20 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             )
             dockerfile_path = plugin_dir / "Dockerfile"
 
-            docker_builder.build_image(
+            # Build image using clean version - docker_builder will generate proper tag with modes
+            image_tag = docker_builder.build_image(
                 impl_name=self.implementation_name,
-                version=version,
+                version=base_version,  # Clean version without build_mode suffix
                 dockerfile_path=dockerfile_path,
                 context_path=plugin_dir,
                 config=version_dict,
                 tag_version="latest",
             )
 
-            self.emit_docker_build_completed(image_name, True)
-            self.logger.info(f"Service Docker image {image_name} built successfully")
+            self.emit_docker_build_completed(image_tag, True)
+            self.logger.info(f"Service Docker image {image_tag} built successfully")
         except Exception as e:
-            self.emit_docker_build_completed(image_name, False)
+            self.emit_docker_build_completed(expected_image_tag, False)
             self.logger.error(f"Failed to build service image: {str(e)}")
             raise
 

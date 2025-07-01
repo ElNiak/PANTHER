@@ -1252,6 +1252,42 @@ rules:
             - pattern-inside: |
                 public $T $M(...,string $ARG,...){...}
       severity: WARNING
+    - id: csharp.lang.security.xxe.xmlreadersettings-unsafe-parser-override.xmlreadersettings-unsafe-parser-override
+      languages:
+        - csharp
+      message: XmlReaderSettings found with DtdProcessing.Parse on an XmlReader handling a string argument from a public method. Enabling Document Type Definition (DTD) parsing may cause XML External Entity (XXE) injection if supplied with user-controllable data.
+      metadata:
+        category: security
+        confidence: MEDIUM
+        cwe:
+            - 'CWE-611: Improper Restriction of XML External Entity Reference'
+        cwe2021-top25: true
+        cwe2022-top25: true
+        impact: MEDIUM
+        likelihood: LOW
+        owasp:
+            - A04:2017 - XML External Entities (XXE)
+            - A05:2021 - Security Misconfiguration
+        references:
+            - https://www.jardinesoftware.net/2016/05/26/xxe-and-net/
+            - https://docs.microsoft.com/en-us/dotnet/api/system.xml.xmldocument.xmlresolver?view=net-6.0#remarks
+        subcategory:
+            - vuln
+        technology:
+            - .net
+            - xml
+      mode: taint
+      pattern-sinks:
+        - patterns:
+            - pattern: |
+                XmlReader $READER = XmlReader.Create(...,$RS,...);
+            - pattern-inside: "XmlReaderSettings $RS = new XmlReaderSettings();\n...\n$RS.DtdProcessing = DtdProcessing.Parse;\n...        \n"
+      pattern-sources:
+        - patterns:
+            - focus-metavariable: $ARG
+            - pattern-inside: |
+                public $T $M(...,string $ARG,...){...}
+      severity: WARNING
     - id: csharp.lang.security.xxe.xmltextreader-unsafe-defaults.xmltextreader-unsafe-defaults
       languages:
         - csharp
@@ -2848,6 +2884,29 @@ rules:
                 - metavariable-regex:
                     metavariable: $FN
                     regex: (ListenAndServe|ListenAndServeTLS|Handle|HandleFunc)
+      severity: WARNING
+    - fix: http.ListenAndServeTLS($ADDR, certFile, keyFile, $HANDLER)
+      id: go.lang.security.audit.net.use-tls.use-tls
+      languages:
+        - go
+      message: Found an HTTP server without TLS. Use 'http.ListenAndServeTLS' instead. See https://golang.org/pkg/net/http/#ListenAndServeTLS for more information.
+      metadata:
+        category: security
+        confidence: MEDIUM
+        cwe:
+            - 'CWE-319: Cleartext Transmission of Sensitive Information'
+        impact: MEDIUM
+        likelihood: LOW
+        owasp:
+            - A03:2017 - Sensitive Data Exposure
+            - A02:2021 - Cryptographic Failures
+        references:
+            - https://golang.org/pkg/net/http/#ListenAndServeTLS
+        subcategory:
+            - audit
+        technology:
+            - go
+      pattern: http.ListenAndServe($ADDR, $HANDLER)
       severity: WARNING
     - id: go.lang.security.audit.net.wip-xss-using-responsewriter-and-printf.wip-xss-using-responsewriter-and-printf
       languages:
@@ -5820,6 +5879,39 @@ rules:
                 - pattern-inside: "$METHODTYPE $METHOD(...) {\n  ...  \n}\n"
                 - pattern: $OM.readValue($JSON, ...);
       severity: WARNING
+    - id: java.lang.security.servletresponse-writer-xss.servletresponse-writer-xss
+      languages:
+        - java
+      message: 'Cross-site scripting detected in HttpServletResponse writer with variable ''$VAR''. User input was detected going directly from the HttpServletRequest into output. Ensure your data is properly encoded using org.owasp.encoder.Encode.forHtml: ''Encode.forHtml($VAR)''.'
+      metadata:
+        category: security
+        confidence: MEDIUM
+        cwe:
+            - 'CWE-79: Improper Neutralization of Input During Web Page Generation (''Cross-site Scripting'')'
+        cwe2021-top25: true
+        cwe2022-top25: true
+        impact: MEDIUM
+        likelihood: MEDIUM
+        owasp:
+            - A07:2017 - Cross-Site Scripting (XSS)
+            - A03:2021 - Injection
+        references:
+            - https://owasp.org/Top10/A03_2021-Injection
+        source-rule-url: https://find-sec-bugs.github.io/bugs.htm#XSS_SERVLET
+        subcategory:
+            - vuln
+        technology:
+            - java
+      patterns:
+        - pattern-inside: $TYPE $FUNC(..., HttpServletResponse $RESP, ...) { ... }
+        - pattern-inside: $VAR = $REQ.getParameter(...); ...
+        - pattern-either:
+            - pattern: $RESP.getWriter(...).write(..., $VAR, ...);
+            - pattern: |
+                $WRITER = $RESP.getWriter(...);
+                ...
+                $WRITER.write(..., $VAR, ...);
+      severity: ERROR
     - id: java.lang.security.xmlinputfactory-possible-xxe.xmlinputfactory-possible-xxe
       languages:
         - java
@@ -33515,6 +33607,28 @@ rules:
                   ...
                 }
       severity: WARNING
+    - id: properties_spring_rule-SpringActuatorFullyEnabled
+      languages:
+        - generic
+      message: "Spring Boot Actuator is fully enabled. This exposes sensitive endpoints\nsuch as /actuator/env, /actuator/logfile, /actuator/heapdump and others.\nIf the application lacks proper security measures (e.g., authentication and \nauthorization), sensitive data could be accessed, compromising the application and \nits infrastructure. This configuration poses a serious risk in production \nenvironments or public-facing deployments.\n\nTo mitigate the risks, take the following measures:\n  - Expose only the Actuator endpoints required for your use case\n  - For production environments, restrict exposure to non-sensitive endpoints \n  like `health` or `info`\n  - Ensure Actuator endpoints are protected with authentication and authorization \n  (e.g., via Spring Security)\n  - Use environment-specific configurations to limit exposure in production\n\nSecure Code Example:\nInstead of include: \"*\", list only the endpoints you need to expose:\n```\nmanagement.endpoints.web.exposure.include=\"health,info,metrics\"\n```\n\nReferences:\n- https://docs.spring.io/spring-boot/reference/actuator/endpoints.html#actuator.endpoints.exposing\n- https://medium.com/walmartglobaltech/perils-of-spring-boot-actuators-misconfiguration-185c43a0f785\n- https://blog.maass.xyz/spring-actuator-security-part-1-stealing-secrets-using-spring-actuators\n"
+      metadata:
+        category: security
+        confidence: MEDIUM
+        cwe: CWE-497
+        impact: HIGH
+        likelihood: MEDIUM
+        owasp:
+            - A01:2021-Broken Access Control
+            - A3:2017-Sensitive Data Exposure
+        security-severity: Medium
+        shortDescription: Exposure of sensitive system information to an unauthorized control sphere
+        technology:
+            - java
+      paths:
+        include:
+            - '*properties'
+      pattern: management.endpoints.web.exposure.include=*
+      severity: WARNING
     - id: python_crypto_rule-HTTPConnectionPool
       languages:
         - python
@@ -33704,6 +33818,36 @@ rules:
         - metavariable-comparison:
             comparison: $CHECK_ORIGIN == False
             metavariable: $CHECK_ORIGIN
+      severity: WARNING
+    - id: yaml_spring_rule-SpringActuatorFullyEnabled
+      languages:
+        - yaml
+      message: "Spring Boot Actuator is fully enabled. This exposes sensitive endpoints\nsuch as /actuator/env, /actuator/logfile, /actuator/heapdump and others.\nIf the application lacks proper security measures (e.g., authentication and \nauthorization), sensitive data could be accessed, compromising the application and \nits infrastructure. This configuration poses a serious risk in production \nenvironments or public-facing deployments.\n\nTo mitigate the risks, take the following measures:\n  - Expose only the Actuator endpoints required for your use case\n  - For production environments, restrict exposure to non-sensitive endpoints \n  like `health` or `info`\n  - Ensure Actuator endpoints are protected with authentication and authorization \n  (e.g., via Spring Security)\n  - Use environment-specific configurations to limit exposure in production\n\nSecure Code Example:\nInstead of include: \"*\", list only the endpoints you need to expose:\n```\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: \"health,info,metrics\"\n```\n\nReferences:\n- https://docs.spring.io/spring-boot/reference/actuator/endpoints.html#actuator.endpoints.exposing\n- https://medium.com/walmartglobaltech/perils-of-spring-boot-actuators-misconfiguration-185c43a0f785\n- https://blog.maass.xyz/spring-actuator-security-part-1-stealing-secrets-using-spring-actuators\n"
+      metadata:
+        category: security
+        confidence: MEDIUM
+        cwe: CWE-497
+        impact: HIGH
+        likelihood: MEDIUM
+        owasp:
+            - A01:2021-Broken Access Control
+            - A3:2017-Sensitive Data Exposure
+        security-severity: Medium
+        shortDescription: Exposure of sensitive system information to an unauthorized control sphere
+        technology:
+            - java
+      patterns:
+        - pattern: |
+            management:
+              ...
+              endpoints:
+                ...
+                web:
+                  ...
+                  exposure:
+                    ...
+                    include: "*"
+                    ...
       severity: WARNING
     - id: kotlin_perm_rule-DangerousPermissions
       languages:
@@ -34176,6 +34320,35 @@ rules:
             metavariable: $PASSWORD
             regex: (?i).*(password|motdepasse|heslo|adgangskode|wachtwoord|salasana|passwort|passord|senha|geslo|clave|losenord|clave|parola|secret|pwd).*
       severity: ERROR
+    - id: codacy.javascript.security.hard-coded-password
+      languages:
+        - javascript
+        - typescript
+      message: Hardcoded passwords are a security risk. They can be easily found by attackers and used to gain unauthorized access to the system.
+      metadata:
+        category: security
+        confidence: MEDIUM
+        description: Hardcoded passwords are a security risk.
+        impact: HIGH
+        owasp:
+            - A3:2017 Sensitive Data Exposure
+        technology:
+            - javascript
+      patterns:
+        - pattern-either:
+            - pattern: let $PASSWORD = "$VALUE"
+            - pattern: const $PASSWORD = "$VALUE"
+            - pattern: var $PASSWORD = "$VALUE"
+            - pattern: let $PASSWORD = '$VALUE'
+            - pattern: const $PASSWORD = '$VALUE'
+            - pattern: var $PASSWORD = '$VALUE'
+            - pattern: let $PASSWORD = `$VALUE`
+            - pattern: const $PASSWORD = `$VALUE`
+            - pattern: var $PASSWORD = `$VALUE`
+        - metavariable-regex:
+            metavariable: $PASSWORD
+            regex: (?i).*(password|motdepasse|heslo|adgangskode|wachtwoord|salasana|passwort|passord|senha|geslo|clave|losenord|clave|parola|secret|pwd).*
+      severity: ERROR
     - id: codacy.generic.plsql.empty-strings
       languages:
         - generic
@@ -34242,3 +34415,23 @@ rules:
             - pattern: |
                 $RESOURCE := WPG_DOCLOAD.DOWNLOAD_FILE($...ARGS);
       severity: ERROR
+    - id: codacy.generic.security.detect-invisible-unicode
+      languages:
+        - yaml
+        - json
+      message: It's possible to embed malicious secret instructions to AI rules files using unicode characters that are invisible to human reviewers.This can lead to future AI-generated code that has security vulnerabilities or other weaknesses baked in which may not be noticed.
+      metadata:
+        category: security
+        confidence: MEDIUM
+        description: Detects the invisible unicode characters
+        technology:
+            - AI
+            - Copilot
+            - Cursor
+      paths:
+        include:
+            - '*.json'
+            - '*.yaml'
+            - '*.yml'
+      pattern-regex: "[​‌‍⁠\uFEFF]"
+      severity: WARNING

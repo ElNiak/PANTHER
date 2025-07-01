@@ -361,7 +361,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
             # 2. PROOTPATH and ROOTPATH - these should match the processed SOURCE_DIR
             # If SOURCE_DIR was already set from version config, use its processed value
             # Otherwise, use the default /opt
-            source_dir = self.environments.get("SOURCE_DIR", "/opt")
+            source_dir = self.environments.get(
+                "SOURCE_DIR", "/opt"
+            )  # TODO false -> set by enviornment plugin
             self.environments["PROOTPATH"] = source_dir
             self.environments["ROOTPATH"] = source_dir
             self.logger.debug(

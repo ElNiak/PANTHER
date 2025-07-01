@@ -290,6 +290,13 @@ class DockerComposeEnvironment(
 
         # Generate docker-compose.yml from template
         user_mapping = self._get_user_mapping_config()
+
+        # Get computed target platform from DockerBuilder
+        from panther.core.docker_builder import DockerBuilder
+
+        docker_builder = DockerBuilder.get_instance(global_config=self.global_config)
+        computed_target_platform = docker_builder._get_target_platform()
+
         self.generate_from_template(
             template_name="docker-compose.yml.jinja",
             paths=paths,
@@ -306,6 +313,7 @@ class DockerComposeEnvironment(
                     if hasattr(self, "global_config") and self.global_config
                     else None
                 ),
+                "computed_target_platform": computed_target_platform,
             },
         )
 
