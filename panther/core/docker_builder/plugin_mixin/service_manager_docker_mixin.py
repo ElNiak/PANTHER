@@ -440,10 +440,15 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             str: Runtime mode (minimal, debug, profile) based on execution environment
         """
         try:
-            # Get execution environment from test config
             execution_env_name = None
+
+            # Pattern 2: service_config_to_test.test_config.execution_environment (legacy)
+            self.logger.debug(
+                "Attempting to determine runtime_mode from execution environment"
+            )
             if (
-                hasattr(self, "service_config_to_test")
+                not execution_env_name
+                and hasattr(self, "service_config_to_test")
                 and self.service_config_to_test
                 and hasattr(self.service_config_to_test, "test_config")
             ):
@@ -452,44 +457,120 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                     hasattr(test_config, "execution_environment")
                     and test_config.execution_environment
                 ):
-                    execution_env_name = getattr(
-                        test_config.execution_environment, "env_sub_type", None
+                    execution_env_name = self._extract_env_name_from_config(
+                        test_config.execution_environment
+                    )
+                    self.logger.debug(
+                        f"Found execution_env_name from service_config_to_test: {execution_env_name}"
                     )
 
-            if not execution_env_name:
-                self.logger.debug(
-                    "No execution environment found, using minimal runtime mode"
-                )
-                return "minimal"
-
-            # Map execution environments to runtime modes based on their plugin declarations
-            debug_environments = {"gdb", "helgrind", "memcheck"}
-            profile_environments = {"gperf_cpu", "gperf_heap"}
-
-            if execution_env_name in debug_environments:
-                detected_mode = "debug"
-                self.logger.debug(
-                    f"Auto-detected runtime_mode '{detected_mode}' for debug environment: {execution_env_name}"
-                )
-                return detected_mode
-            elif execution_env_name in profile_environments:
-                detected_mode = "profile"
-                self.logger.debug(
-                    f"Auto-detected runtime_mode '{detected_mode}' for profiling environment: {execution_env_name}"
-                )
-                return detected_mode
-            else:
-                detected_mode = "minimal"
-                self.logger.debug(
-                    f"Auto-detected runtime_mode '{detected_mode}' for environment: {execution_env_name}"
-                )
-                return detected_mode
-
-        except Exception as e:
+            # Pattern 3: test_config_to_test.execution_environment
             self.logger.debug(
-                f"Error determining runtime mode from execution environment: {e}"
+                "Attempting to determine runtime_mode from test_config_to_test execution environment"
+            )
+            if (
+                not execution_env_name
+                and hasattr(self, "test_config_to_test")
+                and self.test_config_to_test
+                and (
+                    hasattr(self.test_config_to_test, "execution_environment")
+                    and self.test_config_to_test.execution_environment
+                )
+            ):
+                execution_env_name = self._extract_env_name_from_config(
+                    self.test_config_to_test.execution_environment
+                )
+                self.logger.debug(
+                    f"Found execution_env_name from test_config_to_test: {execution_env_name}"
+                )
+
+            self.logger.debug(
+                f"Final execution_env_name detected: {execution_env_name}"
+            )
+
+            # Auto-discover runtime mode from execution environment type
+            # Check plugin metadata to determine if it's debug, profile, or minimal
+            if hasattr(self, "plugin_manager") and self.plugin_manager:
+                try:
+                    self.logger.debug(
+                        f"Auto-discovering runtime_mode for {execution_env_name} using plugin_manager"
+                    )
+                    plugin_info = self.plugin_manager.get_plugin(execution_env_name)
+                    self.logger.debug(f"Plugin info retrieved: {plugin_info}")
+                    if plugin_info and hasattr(plugin_info, "runtime_mode"):
+                        runtime_mode = plugin_info.runtime_mode
+                        self.logger.debug(
+                            f"Plugin {execution_env_name} has runtime_mode attribute: {runtime_mode}"
+                        )
+                        if runtime_mode:
+                            self.logger.debug(
+                                f"Auto-discovered runtime_mode '{runtime_mode}' from plugin metadata for {execution_env_name}"
+                            )
+                            return runtime_mode
+                        else:
+                            self.logger.debug(
+                                f"runtime_mode is None/empty for {execution_env_name}"
+                            )
+                    else:
+                        self.logger.debug(
+                            f"No runtime_mode attribute found in plugin metadata for {execution_env_name}"
+                        )
+                        if plugin_info:
+                            self.logger.debug(
+                                f"Available plugin_info attributes: {dir(plugin_info)}"
+                            )
+                except Exception as e:
+                    self.logger.debug(
+                        f"Exception during plugin metadata lookup for {execution_env_name}: {e}"
+                    )
+            else:
+                self.logger.debug(
+                    "No plugin_manager available for runtime_mode detection"
+                )
+
+            # Default fallback when plugin metadata unavailable
+            self.logger.debug(
+                f"No runtime_mode detected for {execution_env_name}, defaulting to minimal"
             )
             return "minimal"
+
+        except Exception as e:
+            self.logger.debug(f"Error determining runtime mode: {e}")
+            return "minimal"
+
+    def _extract_env_name_from_config(self, exec_env) -> Optional[str]:
+        """
+        Extract environment name from execution environment config.
+
+        Handles both list and single object formats with multiple field names.
+
+        Args:
+            exec_env: Execution environment configuration (list or object)
+
+        Returns:
+            Optional[str]: Environment name if found, None otherwise
+        """
+        if isinstance(exec_env, list) and len(exec_env) > 0:
+            # Current format: execution_environment is a list
+            first_env = exec_env[0]
+            if hasattr(first_env, "get"):
+                # Dict-like object
+                return first_env.get("type", None)
+            else:
+                # Object with attributes - try multiple possible field names
+                for field_name in ["type", "env_type", "env_sub_type", "name"]:
+                    if hasattr(first_env, field_name):
+                        env_name = getattr(first_env, field_name)
+                        if env_name:
+                            return env_name
+        elif hasattr(exec_env, "get"):
+            # Single dict-like object
+            return exec_env.get("type", None)
+        elif hasattr(exec_env, "type"):
+            # Single object with type attribute
+            return getattr(exec_env, "type", None)
+
+        return None
 
     def get_docker_run_command(
         self,

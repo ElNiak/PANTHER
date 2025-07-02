@@ -244,6 +244,13 @@ class PluginStructureConverter:
                 data.pop("file_path", None)
                 self.logger.debug("Converted file_path to path for metadata")
 
+        # Ensure runtime_mode is preserved from manifest to metadata
+        if hasattr(manifest, "runtime_mode") and manifest.runtime_mode:
+            data["runtime_mode"] = manifest.runtime_mode
+            self.logger.debug(
+                f"Preserved runtime_mode '{manifest.runtime_mode}' in metadata conversion"
+            )
+
     def _apply_special_mappings_to_manifest(
         self, metadata: PluginMetadata, data: Dict[str, Any]
     ):
@@ -273,6 +280,13 @@ class PluginStructureConverter:
             if "path" in data and "file_path" in self.manifest_fields:
                 data.pop("path", None)
                 self.logger.debug("Converted path to file_path for manifest")
+
+        # Ensure runtime_mode is preserved from metadata to manifest
+        if hasattr(metadata, "runtime_mode") and metadata.runtime_mode:
+            data["runtime_mode"] = metadata.runtime_mode
+            self.logger.debug(
+                f"Preserved runtime_mode '{metadata.runtime_mode}' in manifest conversion"
+            )
 
         # Ensure required fields have defaults
         data.setdefault("config_schema", {})

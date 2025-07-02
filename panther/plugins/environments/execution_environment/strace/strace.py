@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     author="PANTHER Team",
     capabilities=["syscall_tracing", "performance_analysis", "debugging"],
     external_dependencies=["strace>=4.0"],
-    runtime_mode="minimal",
+    runtime_mode="debug",
 )
 class StraceEnvironment(BaseExecutionEnvironment):
     """

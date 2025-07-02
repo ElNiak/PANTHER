@@ -43,6 +43,7 @@ class PluginMetadata:
     capabilities: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     status: PluginStatus = PluginStatus.DISCOVERED
+    runtime_mode: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PluginMetadata":
@@ -63,6 +64,7 @@ class PluginMetadata:
             capabilities=data.get("capabilities", []),
             tags=data.get("tags", []),
             status=PluginStatus(data.get("status", "discovered")),
+            runtime_mode=data.get("runtime_mode"),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -79,6 +81,7 @@ class PluginMetadata:
             "capabilities": self.capabilities,
             "tags": self.tags,
             "status": self.status.value,
+            "runtime_mode": self.runtime_mode,
         }
 
     def has_capability(self, capability: str) -> bool:
