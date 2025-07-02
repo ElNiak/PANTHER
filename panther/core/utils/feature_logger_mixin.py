@@ -86,7 +86,7 @@ class FeatureLoggerMixin:
             ],
             "plugin_loading": ["plugin", "loader"],
             "network_environments": ["network", "environment"],
-            "execution_environments": [
+            "execution_environment": [
                 "execution",
                 "strace",
                 "gperf",
@@ -240,7 +240,7 @@ def auto_detect_feature_from_name(name: str) -> Optional[str]:
         ],
         "plugin_loading": ["plugin", "loader"],
         "network_environments": ["network", "environment"],
-        "execution_environments": [
+        "execution_environment": [
             "execution",
             "strace",
             "gperf",

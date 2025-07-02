@@ -231,6 +231,7 @@ class PluginFactory(LoggerMixin):
         emitter_registry=None,
         global_config=None,
         experiment_context=None,
+        test_case=None,  # Reference to parent test case for execution environment access
     ):
         """
         Create a service manager instance using the exact interface from ServiceFactory.
@@ -353,6 +354,7 @@ class PluginFactory(LoggerMixin):
                     event_manager=event_manager or self.event_manager,
                     emitter_registry=emitter_registry,
                     global_config=global_config,
+                    test_case=test_case,  # Pass test case reference for execution environment access
                 )
             except TypeError as e:
                 if "global_config" in str(e):
@@ -369,6 +371,7 @@ class PluginFactory(LoggerMixin):
                             implementation_name=implementation_name,
                             event_manager=event_manager or self.event_manager,
                             emitter_registry=emitter_registry,
+                            test_case=test_case,  # Pass test case reference for execution environment access
                         )
                     except TypeError as e2:
                         if "emitter_registry" in str(e2):
@@ -383,6 +386,7 @@ class PluginFactory(LoggerMixin):
                                 protocol=protocol,
                                 implementation_name=implementation_name,
                                 event_manager=event_manager or self.event_manager,
+                                test_case=test_case,  # Pass test case reference for execution environment access
                             )
                         else:
                             self.logger.error(f"Error creating service manager: {e2}")
@@ -401,6 +405,7 @@ class PluginFactory(LoggerMixin):
                             implementation_name=implementation_name,
                             event_manager=event_manager or self.event_manager,
                             global_config=global_config,
+                            test_case=test_case,  # Pass test case reference for execution environment access
                         )
                     except TypeError as e2:
                         if "global_config" in str(e2):
@@ -415,6 +420,7 @@ class PluginFactory(LoggerMixin):
                                 protocol=protocol,
                                 implementation_name=implementation_name,
                                 event_manager=event_manager or self.event_manager,
+                                test_case=test_case,  # Pass test case reference for execution environment access
                             )
                         else:
                             self.logger.error(f"Error creating service manager: {e2}")
@@ -518,17 +524,17 @@ class PluginFactory(LoggerMixin):
             # Handle execution environments (which are stored as a list)
             if env_type == "execution_environment":
                 # Find the specific execution environment config that matches this environment
-                execution_environments = getattr(
-                    test_config, "execution_environments", []
+                execution_environment = getattr(
+                    test_config, "execution_environment", []
                 )
                 self.logger.debug(
                     "Found %d execution environment configs",
-                    len(execution_environments),
+                    len(execution_environment),
                 )
 
                 env_config_data = None
 
-                for index, exec_config in enumerate(execution_environments):
+                for index, exec_config in enumerate(execution_environment):
                     self.logger.debug(
                         "Checking execution environment config %d: %s",
                         index,

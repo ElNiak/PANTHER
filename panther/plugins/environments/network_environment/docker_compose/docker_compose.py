@@ -259,7 +259,7 @@ class DockerComposeEnvironment(
 
             # Set up execution environment plugins BEFORE entrypoint generation
             # This ensures wrapper files are created before entrypoint script tries to read them
-            if self.execution_environments:
+            if self.execution_environment:
                 self.logger.debug(
                     f"Setting up execution environments for service {service.service_name} before entrypoint generation"
                 )
@@ -334,7 +334,7 @@ class DockerComposeEnvironment(
             service: The service manager to configure with execution environments
             timestamp: Timestamp for this execution (used for file naming)
         """
-        if not self.execution_environments:
+        if not self.execution_environment:
             self.logger.debug(
                 f"No execution environments configured for service {service.service_name}"
             )
@@ -344,7 +344,7 @@ class DockerComposeEnvironment(
             f"Setting up execution environment plugins for service {service.service_name}"
         )
 
-        for execution_env in self.execution_environments:
+        for execution_env in self.execution_environment:
             try:
                 self.logger.debug(
                     f"Setting up execution environment {execution_env} for service {service.service_name}"

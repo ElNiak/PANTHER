@@ -66,7 +66,7 @@ class TestDockerComposeEnvironment:
                 "environment": {"TEST_VAR": "test_value"},
             }
         }
-        config.execution_environments = [{"type": "localhost", "timeout": 300}]
+        config.execution_environment = [{"type": "localhost", "timeout": 300}]
         config.iterations = 1
         return config
 

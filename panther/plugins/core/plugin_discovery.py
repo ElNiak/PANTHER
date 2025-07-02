@@ -142,6 +142,8 @@ class PluginDiscovery(LoggerMixin):
                 author=manifest.author or "",
                 capabilities=manifest.capabilities or [],
                 runtime_mode=getattr(manifest, "runtime_mode", None),
+                external_dependencies=manifest.external_dependencies or [],
+                tags=manifest.tags or [],
             )
         except Exception as e:
             self.logger.error(f"Failed to convert manifest to metadata: {e}")

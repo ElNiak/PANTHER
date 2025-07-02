@@ -1,4 +1,5 @@
-FROM panther_base_service:latest
+ARG BASE_IMAGE=panther_base_service:latest
+FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 

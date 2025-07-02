@@ -55,7 +55,7 @@ class LoggerFactory:
         "service_coordination": ["service_factory", "service_command_builder"],
         # Environment Management
         "network_environments": ["network_environment", "base_network_environment"],
-        "execution_environments": [
+        "execution_environment": [
             "execution_environment",
             "base_execution_environment",
         ],

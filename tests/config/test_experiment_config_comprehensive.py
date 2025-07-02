@@ -386,7 +386,7 @@ class TestTestConfig:
             name="Complete QUIC Test",
             description="Full featured QUIC test configuration",
             network_environment=network_env,
-            execution_environments=execution_envs,
+            execution_environment=execution_envs,
             services=services,
             iterations=5,
             parallel_execution=True,
@@ -405,9 +405,9 @@ class TestTestConfig:
         assert isinstance(config.network_environment, DockerComposeNetworkConfig)
         assert config.network_environment.version == "3.9"
 
-        assert len(config.execution_environments) == 2
-        assert isinstance(config.execution_environments[0], LocalExecutionConfig)
-        assert isinstance(config.execution_environments[1], DockerExecutionConfig)
+        assert len(config.execution_environment) == 2
+        assert isinstance(config.execution_environment[0], LocalExecutionConfig)
+        assert isinstance(config.execution_environment[1], DockerExecutionConfig)
 
         assert len(config.services) == 2
         assert config.services["client"].protocol.role == "client"

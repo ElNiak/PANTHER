@@ -136,9 +136,7 @@ class TestEnvironmentSetup:
 
     @patch("panther.core.experiment_manager.ConfigManager")
     @patch("panther.core.experiment_manager.PluginLoader")
-    def test_setup_execution_environments(
-        self, mock_plugin_loader, mock_config_manager
-    ):
+    def test_setup_execution_environment(self, mock_plugin_loader, mock_config_manager):
         """Test execution environment setup."""
         mock_config_instance = Mock()
         mock_config_manager.return_value = mock_config_instance
@@ -156,14 +154,14 @@ class TestEnvironmentSetup:
         manager = ExperimentManager()
 
         experiment_config = Mock(spec=ExperimentConfig)
-        experiment_config.execution_environments = [
+        experiment_config.execution_environment = [
             {"type": "basic"},
             {"type": "strace"},
         ]
 
         # Test setup
         try:
-            with patch.object(manager, "_setup_execution_environments") as mock_setup:
+            with patch.object(manager, "_setup_execution_environment") as mock_setup:
                 mock_setup.return_value = [{"env_var": "value"}, {"env_var": "value"}]
                 result = mock_setup(experiment_config)
                 assert len(result) == 2

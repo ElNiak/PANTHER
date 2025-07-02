@@ -290,7 +290,7 @@ class TestConfigBuilder(BaseBuilder):
         test["network_environment"] = self._build_network_environment()
 
         # Execution environments
-        test["execution_environment"] = self._build_execution_environments()
+        test["execution_environment"] = self._build_execution_environment()
 
         # Services
         test["services"] = self._build_services()
@@ -319,7 +319,7 @@ class TestConfigBuilder(BaseBuilder):
 
         return {"type": env_type}
 
-    def _build_execution_environments(self) -> List[Dict[str, Any]]:
+    def _build_execution_environment(self) -> List[Dict[str, Any]]:
         """Build execution environment configurations."""
         environments = []
 

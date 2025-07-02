@@ -97,6 +97,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
         protocol: ProtocolConfig,
         implementation_name: str,
         event_manager: Optional[EventManager] = None,
+        test_case: Optional[
+            Any
+        ] = None,  # Reference to parent test case for execution environment access
     ):
         super().__init__()
         CommandEventMixin.__init__(self)  # Initialize the CommandEventMixin
@@ -176,6 +179,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
         self.working_dir = None
         self.process = None
         self.available_roles = []
+
+        # Store reference to parent test case for execution environment access
+        self.test_case = test_case
         self.volumes = []
         self.role = self.service_config_to_test.protocol.role
         self.environments = {}
@@ -370,10 +376,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
                 f"Set PROOTPATH={source_dir} and ROOTPATH={source_dir} for service {self.service_name}"
             )
 
-            # 3. Handle system_model vs protocol_model differences
-            # Check if this is a system model configuration
-            use_system_models = getattr(impl_config, "use_system_models", False)
-            if use_system_models:
+            if use_system_models := getattr(impl_config, "use_system_models", False):
                 # For system models, we might need different paths
                 self.environments["MODEL_TYPE"] = "system"
                 self.logger.debug(
