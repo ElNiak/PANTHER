@@ -509,6 +509,39 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             # Default to amd64 for unknown architectures
             return "linux/amd64"
 
+    def _validate_build_mode_for_architecture(self, build_mode: str) -> str:
+        """
+        Validate BUILD_MODE compatibility with host architecture.
+
+        Advanced build modes (rel-lto, debug-asan, release-static-pgo) require x86 architecture.
+        Non-x86 architectures fall back to empty BUILD_MODE for compatibility.
+
+        Args:
+            build_mode: The requested build mode
+
+        Returns:
+            str: Validated build mode (empty string if incompatible with architecture)
+        """
+        if not build_mode:
+            return build_mode
+
+        # Check if we're on x86 architecture
+        machine = platform.machine().lower()
+        is_x86 = machine in ["x86_64", "amd64", "x86", "i386", "i686"]
+
+        advanced_modes = ["rel-lto", "debug-asan", "release-static-pgo"]
+
+        if build_mode in advanced_modes and not is_x86:
+            self.logger.warning(
+                "BUILD_MODE='%s' requires x86 architecture but detected '%s'. "
+                "Falling back to default build mode for compatibility.",
+                build_mode,
+                machine,
+            )
+            return ""  # Fall back to default/legacy build
+
+        return build_mode
+
     def _build_with_buildx(
         self,
         impl_name: str,
@@ -598,8 +631,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             build_args = {
                 "VERSION": config.get("commit", "master"),
                 "DEPENDENCIES": dependencies_json,
-                "BUILD_MODE": config.get("build_mode", ""),
+                "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
             }
 
             # Calculate relative path from context to dockerfile
@@ -807,7 +841,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 )
 
             # Extract build and runtime modes from config
-            build_mode = config.get("build_mode", "")
+            build_mode = self._validate_build_mode_for_architecture(
+                config.get("build_mode", "")
+            )
             runtime_mode = config.get("runtime_mode", "minimal")
 
             # Construct image tag with mode information
@@ -837,8 +873,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             build_args_for_cache = {
                 "VERSION": config.get("commit", "production"),
                 "DEPENDENCIES": json.dumps(config.get("dependencies", {})),
-                "BUILD_MODE": config.get("build_mode", ""),
+                "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
             }
 
             # Check cache and handle cache logic
@@ -873,8 +910,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             build_args = {
                 "VERSION": config.get("commit", "master"),
                 "DEPENDENCIES": dependencies_json,
-                "BUILD_MODE": config.get("build_mode", ""),
+                "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
             }
             # Open the build log file if specified
             if self.build_log_file:
@@ -899,14 +937,6 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     tag_version=tag_version,
                     experiment_id=experiment_id,
                 )
-
-            self.logger.debug(
-                "Building Docker image '%s' with Dockerfile '%s' in context '%s' with args: %s",
-                image_tag,
-                relative_dockerfile_path,
-                context_path,
-                build_args,
-            )
 
             # Use regular Docker build for same-platform builds
             image, build_logs = self.client.images.build(

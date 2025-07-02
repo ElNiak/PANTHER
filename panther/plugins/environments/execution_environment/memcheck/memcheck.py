@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         "invalid_access_detection",
     ],
     external_dependencies=["valgrind>=3.15"],
+    runtime_mode="debug",  # Set to debug mode for comprehensive error detection
 )
 class MemcheckEnvironment(BaseExecutionEnvironment):
     """

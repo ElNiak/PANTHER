@@ -214,15 +214,15 @@ class PluginManager(LoggerMixin):
         self.logger.info("Initializing unified plugin manager")
         self.discover_plugins()
 
-        @property
-        def experiment_context_for_plugins(self):
-            """
-            Provide experiment context access for plugin instances.
+    @property
+    def experiment_context_for_plugins(self):
+        """
+        Provide experiment context access for plugin instances.
 
-            This allows service managers and environments that use this
-            plugin manager to access experiment context for Docker operations.
-            """
-            return self.experiment_context
+        This allows service managers and environments that use this
+        plugin manager to access experiment context for Docker operations.
+        """
+        return self.experiment_context
 
     def _get_default_directories(self) -> List[str]:
         """Get default plugin directories."""
@@ -452,6 +452,7 @@ class PluginManager(LoggerMixin):
                 capabilities=metadata.capabilities,
                 tags=getattr(metadata, "tags", []),
                 file_path=str(metadata.path) if metadata.path else None,
+                runtime_mode=metadata.runtime_mode,  # Fix: Include runtime_mode from metadata
             )
             plugin_id = f"{metadata.type}:{metadata.name}"
             self.plugin_catalog.catalog[plugin_id] = manifest
@@ -771,6 +772,7 @@ class PluginManager(LoggerMixin):
         emitter_registry=None,
         global_config=None,
         experiment_context=None,
+        test_case=None,  # Reference to parent test case for execution environment access
     ) -> IServiceManager:
         """Create a service manager instance with cache validation."""
         # Validate cache before creating service manager
@@ -817,6 +819,7 @@ class PluginManager(LoggerMixin):
             emitter_registry=emitter_registry,
             global_config=config_to_use,
             experiment_context=experiment_context,
+            test_case=test_case,  # Pass test case reference through to factory
         )
 
     def create_environment_manager(

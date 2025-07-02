@@ -281,7 +281,7 @@ def _initialize_core_patterns():
     # Environment Management
     register_feature("network_environments", ["network_environment", "net_env"])
     register_feature(
-        "execution_environments",
+        "execution_environment",
         [
             "execution_environment",
             "exec_env",

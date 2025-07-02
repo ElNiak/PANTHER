@@ -125,7 +125,7 @@ def create_app(config_loader: ConfigurationManager, global_config: GlobalConfig,
         net_envs = config_loader.get_all_net_env_classes()
         exec_envs = config_loader.get_all_exec_env_classes()
         return jsonify(
-            {"network_environments": net_envs, "execution_environments": exec_envs}
+            {"network_environments": net_envs, "execution_environment": exec_envs}
         )
 
     @app.route("/api/implementations", methods=["GET"])

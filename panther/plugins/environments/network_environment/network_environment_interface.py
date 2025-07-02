@@ -31,7 +31,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         docker_name (str): Name of the Docker container.
         execution_environment (list): List of execution environments.
         network_name (str): Name of the network.
-        execution_environments (list): List of execution environments.
+        execution_environment (list): List of execution environments.
         services (dict): Dictionary of services.
         deployment_commands (dict): Dictionary of deployment commands.
         timeout (int): Timeout value.
@@ -83,7 +83,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         )
         self.docker_name = None
         self.network_name = f"{env_sub_type}_network"
-        self.execution_environments = []
+        self.execution_environment = []
 
         self.services = {}
         self.deployment_commands = {}
@@ -127,7 +127,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
             Exception: If an error occurs during the setup of any execution environment, it is caught and logged.
         """
         # Debug logging for execution environment setup
-        for execution_env in self.execution_environments:
+        for execution_env in self.execution_environment:
             try:
                 self.logger.debug("Setting up execution environment: %s", execution_env)
                 execution_env.setup_environment(
@@ -142,7 +142,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
 
     def update_environment(
         self,
-        execution_environments,
+        execution_environment,
         global_config: "GlobalConfig",
         plugin_manager: "PluginManager",
         services_managers: List[IServiceManager],
@@ -152,7 +152,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         Updates the network environment with the provided configuration and services.
 
         Args:
-            execution_environments (Any): The execution environment to be used.
+            execution_environment (Any): The execution environment to be used.
             global_config (OmegaConf): The global configuration settings.
             plugin_manager (Any): The plugin manager instance.
             services_managers (List[IServiceManager]): A list of service manager instances.
@@ -163,7 +163,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         """
         self.services_managers: List[IServiceManager] = services_managers
         self.test_config = test_config
-        self.execution_environments = execution_environments
+        self.execution_environment = execution_environment
         self.plugin_manager = plugin_manager
         self.global_config = global_config
 
@@ -314,7 +314,7 @@ class INetworkEnvironment(IEnvironmentPlugin):
         global_config: GlobalConfig,
         timestamp: str,
         plugin_manager: "Optional[PluginManager]",
-        execution_environments: List[IExecutionEnvironment],
+        execution_environment: List[IExecutionEnvironment],
     ):
         """
         Sets up the required environment before running experiments.

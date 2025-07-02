@@ -6,14 +6,14 @@ and environment overrides with comprehensive mocking to ensure deterministic,
 side-effect-free tests.
 """
 
-import pytest
-import os
-import yaml
 import json
-from unittest.mock import Mock, patch
+import os
 from contextlib import contextmanager
+from unittest.mock import Mock, patch
 
-from hypothesis import settings, HealthCheck
+import pytest
+import yaml
+from hypothesis import HealthCheck, settings
 
 # Configure Hypothesis for CI-friendly testing
 settings.register_profile(
@@ -63,7 +63,7 @@ def valid_experiment_cfg_dict():
                 "name": "test_basic",
                 "description": "Basic test case",
                 "network_environment": {"type": "docker_compose"},
-                "execution_environments": [{"type": "localhost"}],
+                "execution_environment": [{"type": "localhost"}],
                 "iterations": 1,
                 "services": {
                     "test_service": {
@@ -282,7 +282,9 @@ valid_paths = st.text(
     ),
     min_size=1,
     max_size=100,
-).filter(lambda x: all(c not in x for c in ["/", "\\", ":", "*", "?", '"', "<", ">", "|"]))
+).filter(
+    lambda x: all(c not in x for c in ["/", "\\", ":", "*", "?", '"', "<", ">", "|"])
+)
 
 # Plugin name strategies
 plugin_names = st.text(

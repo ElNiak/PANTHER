@@ -304,7 +304,7 @@ def network_environments(draw):
 
 
 @st.composite
-def execution_environments(draw):
+def execution_environment(draw):
     """Generate valid execution environment configurations."""
     env_types = ["strace", "gperf_cpu", "gperf_heap", "memcheck", "helgrind"]
     num_envs = draw(st.integers(min_value=0, max_value=3))
@@ -334,7 +334,7 @@ class TestExperimentConfigurationValidation:
     @given(
         name=experiment_names(),
         network_env=network_environments(),
-        exec_envs=execution_environments(),
+        exec_envs=execution_environment(),
         services=st.dictionaries(
             panther_service_names(), panther_service_configs(), min_size=1, max_size=5
         ),

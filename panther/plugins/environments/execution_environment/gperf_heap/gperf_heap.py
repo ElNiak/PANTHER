@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     author="PANTHER Team",
     capabilities=["heap_profiling", "memory_analysis", "leak_detection"],
     external_dependencies=["gperf"],
+    runtime_mode="profile",  # Set to debug mode for comprehensive analysis
 )
 class GperfHeapEnvironment(BaseExecutionEnvironment):
     """

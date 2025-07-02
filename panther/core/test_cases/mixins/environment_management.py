@@ -54,7 +54,7 @@ class EnvironmentManagementMixin:
                 )
 
             # Setup execution environments
-            exec_env_configs = self.test_config.execution_environments or []
+            exec_env_configs = self.test_config.execution_environment or []
             for exec_env_config in exec_env_configs:
                 self._setup_execution_environment(exec_env_config)
 
@@ -88,7 +88,7 @@ class EnvironmentManagementMixin:
                     environment_type=self.test_config.network_environment.type,
                     setup_details={
                         "network_environment": network_env_config,
-                        "execution_environments": exec_env_configs,
+                        "execution_environment": exec_env_configs,
                         "test_case": self.test_name,  # Add test case name to setup details
                     },
                 )

@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     author="PANTHER Team",
     capabilities=["iterative_testing", "statistical_analysis", "performance_variance"],
     external_dependencies=[],
+    runtime_mode="minimal",  # Set to minimal mode for reduced resource usage
 )
 class IterationsEnvironment(BaseExecutionEnvironment):
     """

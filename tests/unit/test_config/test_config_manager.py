@@ -196,9 +196,9 @@
 #     assert test_config.description == "Test description"
 #     assert test_config.network_environment.type == "valid_plugin"
 #     assert test_config.network_environment.config_param == "value"
-#     assert len(test_config.execution_environments) == 1
-#     assert test_config.execution_environments[0].type == "valid_plugin"
-#     assert test_config.execution_environments[0].config_param == "value"
+#     assert len(test_config.execution_environment) == 1
+#     assert test_config.execution_environment[0].type == "valid_plugin"
+#     assert test_config.execution_environment[0].config_param == "value"
 #     assert test_config.iterations == 10
 #     assert "service1" in test_config.services
 #     service_config = test_config.services["service1"]

@@ -93,6 +93,7 @@ RUN mkdir -p /app /opt
 # =============================================================================
 FROM ${RUNTIME_MODE} AS final
 
+
 # Labels for runtime identification
 ARG RUNTIME_MODE=minimal
 LABEL runtime.mode="${RUNTIME_MODE}"

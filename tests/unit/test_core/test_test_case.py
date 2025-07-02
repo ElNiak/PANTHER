@@ -16,7 +16,7 @@
 #         self.test_config.name = "Test Case"
 #         self.test_config.description = "A test case description"
 #         self.test_config.network_environment = MagicMock()
-#         self.test_config.execution_environments = []
+#         self.test_config.execution_environment = []
 #         self.test_config.services = {}
 #         self.test_config.steps = {}
 #         self.test_config.assertions = []
@@ -48,7 +48,7 @@
 #             "description=A test case description, "
 #             "services={}, "
 #             "network_environments=<MagicMock name='mock.network_environment' id='...'>, "
-#             "execution_environments=[], "
+#             "execution_environment=[], "
 #             "test_experiment_dir=/tmp/experiment/Test_Case)"
 #         )
 #         self.assertEqual(str(self.test_case), expected_str)
@@ -59,7 +59,7 @@
 #             "description=A test case description, "
 #             "services={}, "
 #             "network_environments=<MagicMock name='mock.network_environment' id='...'>, "
-#             "execution_environments=[], "
+#             "execution_environment=[], "
 #             "test_experiment_dir=/tmp/experiment/Test_Case)"
 #         )
 #         self.assertEqual(repr(self.test_case), expected_repr)

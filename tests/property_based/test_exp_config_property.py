@@ -36,8 +36,8 @@ def test_test_config(test_config):
     assert isinstance(test_config.name, str)
     assert isinstance(test_config.description, str)
     assert isinstance(test_config.network_environment, object)
-    assert isinstance(test_config.execution_environments, list)
-    assert all(isinstance(env, object) for env in test_config.execution_environments)
+    assert isinstance(test_config.execution_environment, list)
+    assert all(isinstance(env, object) for env in test_config.execution_environment)
     assert 1 <= test_config.iterations <= 1000
     assert isinstance(test_config.services, dict)
     assert all(isinstance(service, object) for service in test_config.services.values())

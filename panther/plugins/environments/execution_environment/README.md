@@ -394,7 +394,7 @@ Combine multiple environments for comprehensive analysis:
 ```yaml
 tests:
   - name: "comprehensive_analysis"
-    execution_environments:
+    execution_environment:
       - type: "gperf_cpu"
         config:
           duration: 30

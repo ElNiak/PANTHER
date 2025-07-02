@@ -86,13 +86,54 @@ class GdbEnvironment(BaseExecutionEnvironment):
             timestamp: Timestamp for this execution (used for file naming)
         """
         for service in services_managers:
-            # Only apply to services that support debugging
-            if not getattr(
-                service.service_config_to_test.implementation, "debug_compatible", True
+            service_name = getattr(service, "service_name", service.__class__.__name__)
+
+            # Check if service supports debugging - be more robust in the check
+            debug_compatible = True
+            debug_check_reason = "default True"
+
+            # Check multiple possible locations for debug_compatible flag
+            if hasattr(service.service_config_to_test, "implementation"):
+                impl_debug_compat = getattr(
+                    service.service_config_to_test.implementation,
+                    "debug_compatible",
+                    None,
+                )
+                if impl_debug_compat is not None:
+                    debug_compatible = impl_debug_compat
+                    debug_check_reason = (
+                        f"implementation.debug_compatible={impl_debug_compat}"
+                    )
+
+            # Also check the service manager itself for debug_compatible
+            if hasattr(service, "debug_compatible"):
+                service_debug_compat = getattr(service, "debug_compatible", None)
+                if service_debug_compat is not None:
+                    debug_compatible = service_debug_compat
+                    debug_check_reason = (
+                        f"service.debug_compatible={service_debug_compat}"
+                    )
+
+            # Check if implementation config has debug_compatible explicitly set to False
+            if hasattr(service.service_config_to_test, "implementation") and hasattr(
+                service.service_config_to_test.implementation, "__dict__"
             ):
+                impl_dict = service.service_config_to_test.implementation.__dict__
+                if "debug_compatible" in impl_dict:
+                    debug_compatible = impl_dict["debug_compatible"]
+                    debug_check_reason = f"implementation.__dict__['debug_compatible']={debug_compatible}"
+
+            self.logger.debug(
+                "GDB debug compatibility check for %s: %s (%s)",
+                service_name,
+                debug_compatible,
+                debug_check_reason,
+            )
+
+            if not debug_compatible:
                 self.logger.debug(
                     "Skipping GDB debugging for %s (not debug compatible)",
-                    getattr(service, "service_name", service.__class__.__name__),
+                    service_name,
                 )
                 continue
 
@@ -275,66 +316,67 @@ class GdbEnvironment(BaseExecutionEnvironment):
         setup_commands = []
 
         # Create GDB script file using HERE document approach (safer than f-strings)
+        # Split into separate lines to ensure proper EOF termination
         script_creation_cmd = (
-            "cat > " + gdb_script_file + " << 'EOF'\\n" + gdb_script + "\\nEOF"
+            "cat > " + gdb_script_file + " << 'EOF'\n" + gdb_script + "\nEOF"
         )
         setup_commands.append(script_creation_cmd)
 
         # Add GDB availability check without f-strings
         log_file = "/app/logs/" + service_name + "_gdb_exec_env_setup.log"
         availability_check = (
-            "# Check GDB availability and setup\\n"
+            "# Check GDB availability and setup\n"
             + "touch "
             + log_file
-            + "\\n"
+            + "\n"
             + "touch "
             + log_file
-            + ".err\\n"
+            + ".err\n"
             + "if ! command -v "
             + gdb_binary
-            + " >/dev/null 2>&1; then\\n"
+            + " >/dev/null 2>&1; then\n"
             + "    echo 'ERROR: GDB not found at "
             + gdb_binary
             + "' >> "
             + log_file
-            + "\\n"
+            + "\n"
             + "    echo 'Available debugging tools:' >> "
             + log_file
-            + "\\n"
+            + "\n"
             + "    ls -la /usr/bin/gdb* 2>/dev/null >> "
             + log_file
             + " || echo 'No GDB found in /usr/bin/' >> "
             + log_file
-            + "\\n"
+            + "\n"
             + "    which gdb >> "
             + log_file
             + " 2>&1 || echo 'gdb not in PATH' >> "
             + log_file
-            + "\\n"
+            + "\n"
             + "    dpkg -l | grep gdb >> "
             + log_file
             + " 2>&1 || echo 'gdb package not installed' >> "
             + log_file
-            + "\\n"
-            + "else\\n"
+            + "\n"
+            + "else\n"
             + "    echo 'GDB found at: "
             + gdb_binary
             + "' >> "
             + log_file
-            + "\\n"
+            + "\n"
             + "    "
             + gdb_binary
             + " --version >> "
             + log_file
             + " 2>&1 || echo 'GDB version check failed' >> "
             + log_file
-            + "\\n"
-            + "fi\\n"
-            + "\\n"
-            + "# Setup core dump handling\\n"
+            + "\n"
+            + "fi\n"
+            + "\n"
+            + "# Setup core dump handling\n"
             + "ulimit -c unlimited 2>/dev/null || echo 'Could not set unlimited core dumps' >> "
             + log_file
-            + "\\n"
+            + "\n"
             + "echo '/tmp/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern 2>/dev/null || echo 'Could not set core pattern' >> "
             + log_file
         )
@@ -409,12 +451,10 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 "# Catch all syscalls for comprehensive monitoring",
                 "catch syscall",
                 "",
-                "# Enhanced error detection - catch common error conditions",
-                "catch syscall open openat creat",
-                "catch syscall read write pread pwrite",
-                "catch syscall socket connect bind listen accept",
-                "catch syscall mmap munmap mprotect",
-                "catch syscall fork vfork clone execve",
+                "# Enhanced error detection - general syscall monitoring",
+                "# Note: Using general syscall catching to avoid compatibility issues",
+                "# The 'catch syscall' above already catches all syscalls including:",
+                "# openat, creat, read, write, socket, connect, bind, listen, accept, mmap, etc.",
             ]
         )
 
@@ -512,16 +552,16 @@ class GdbEnvironment(BaseExecutionEnvironment):
                     "define analyze_error",
                     "  set logging file " + trace_file,
                     "  set logging redirect on",
-                    "  echo \\n=== ERROR DETECTED ===\\n",
+                    "  echo '\\n=== ERROR DETECTED ===\\n'",
                     '  printf "Timestamp: %s\\n", (char*)ctime((time_t*)&$pc)',
-                    "  echo \\n--- Process State ---\\n",
+                    "  echo '\\n--- Process State ---\\n'",
                     "  info program",
                     "  info proc",
-                    "  echo \\n--- Registers ---\\n",
+                    "  echo '\\n--- Registers ---\\n'",
                     "  info registers",
-                    "  echo \\n--- Memory Layout ---\\n",
+                    "  echo '\\n--- Memory Layout ---\\n'",
                     "  info proc mappings",
-                    "  echo \\n--- Current Instruction ---\\n",
+                    "  echo '\\n--- Current Instruction ---\\n'",
                     "  x/5i $pc",
                 ]
             )
@@ -529,9 +569,9 @@ class GdbEnvironment(BaseExecutionEnvironment):
             if backtrace_full:
                 script_lines.extend(
                     [
-                        "  echo \\n--- Full Stack Trace ---\\n",
+                        "  echo '\\n--- Full Stack Trace ---\\n'",
                         "  bt full " + str(max_depth),
-                        "  echo \\n--- Thread Information ---\\n",
+                        "  echo '\\n--- Thread Information ---\\n'",
                         "  info threads",
                         "  thread apply all bt 10",
                     ]
@@ -539,7 +579,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
             else:
                 script_lines.extend(
                     [
-                        "  echo \\n--- Stack Trace ---\\n",
+                        "  echo '\\n--- Stack Trace ---\\n'",
                         "  bt " + str(max_depth),
                     ]
                 )
@@ -562,7 +602,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
 
             script_lines.extend(
                 [
-                    "  echo \\n--- Syscall Context ---\\n",
+                    "  echo '\\n--- Syscall Context ---\\n'",
                     "  # Try to show syscall information if available",
                     "  if ($_siginfo)",
                     '    printf "Signal info: si_signo=%d, si_code=%d, si_addr=%p\\n", $_siginfo.si_signo, $_siginfo.si_code, $_siginfo.si_addr',
@@ -629,7 +669,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 run_command,
                 "",
                 "# If program exits normally, show summary",
-                "echo \\n=== EXECUTION COMPLETED ===\\n",
+                "echo '\\n=== EXECUTION COMPLETED ===\\n'",
                 "info program",
                 "quit",
             ]

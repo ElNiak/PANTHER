@@ -73,6 +73,7 @@ class PicoquicServiceManager(
         implementation_name: str,
         event_manager=None,
         global_config=None,
+        test_case=None,  # Reference to parent test case for execution environment access
         **kwargs,
     ):
         """Initialize the PicoQUIC service manager.
@@ -100,6 +101,7 @@ class PicoquicServiceManager(
             event_manager=event_manager,
             emitter_registry=emitter_registry,
             global_config=global_config,
+            test_case=test_case,  # Pass test case reference for execution environment access
             **kwargs,
         )
 

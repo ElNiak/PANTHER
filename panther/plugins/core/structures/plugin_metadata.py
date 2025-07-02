@@ -30,6 +30,7 @@ class PluginMetadata:
     Lightweight metadata structure for plugin discovery and cataloging.
 
     This is a simplified version of PluginManifest used during the discovery phase.
+    Now supports dynamic fields from decorator registration.
     """
 
     name: str
@@ -44,12 +45,42 @@ class PluginMetadata:
     tags: List[str] = field(default_factory=list)
     status: PluginStatus = PluginStatus.DISCOVERED
 
+    # Dynamic fields from decorator registration
+    runtime_mode: Optional[str] = None
+    external_dependencies: List[str] = field(default_factory=list)
+    extra_fields: Dict[str, Any] = field(default_factory=dict)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PluginMetadata":
         """Create PluginMetadata from dictionary."""
         path = data.get("path")
         if path and not isinstance(path, Path):
             path = Path(path)
+
+        # Extract known fields
+        known_fields = {
+            "name",
+            "type",
+            "path",
+            "version",
+            "description",
+            "author",
+            "supported_protocols",
+            "dependencies",
+            "capabilities",
+            "tags",
+            "status",
+            "runtime_mode",
+            "external_dependencies",
+            "extra_fields",
+        }
+
+        # Collect any extra fields not in the known set
+        extra_fields = {k: v for k, v in data.items() if k not in known_fields}
+
+        # Merge with any extra_fields already in data
+        if "extra_fields" in data and isinstance(data["extra_fields"], dict):
+            extra_fields.update(data["extra_fields"])
 
         return cls(
             name=data.get("name", ""),
@@ -63,11 +94,14 @@ class PluginMetadata:
             capabilities=data.get("capabilities", []),
             tags=data.get("tags", []),
             status=PluginStatus(data.get("status", "discovered")),
+            runtime_mode=data.get("runtime_mode"),
+            external_dependencies=data.get("external_dependencies", []),
+            extra_fields=extra_fields,
         )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
-        return {
+        result = {
             "name": self.name,
             "type": self.type,
             "path": str(self.path) if self.path else None,
@@ -80,6 +114,17 @@ class PluginMetadata:
             "tags": self.tags,
             "status": self.status.value,
         }
+
+        # Add dynamic fields if they have values
+        if self.runtime_mode:
+            result["runtime_mode"] = self.runtime_mode
+        if self.external_dependencies:
+            result["external_dependencies"] = self.external_dependencies
+
+        # Add any extra fields
+        result.update(self.extra_fields)
+
+        return result
 
     def has_capability(self, capability: str) -> bool:
         """Check if plugin has a specific capability."""
@@ -126,16 +171,38 @@ class PluginMetadataLoader:
     def from_decorator_metadata(metadata: dict) -> Optional[PluginMetadata]:
         """Create PluginMetadata from decorator registration data."""
         try:
-            return PluginMetadata(
-                name=metadata.get("name", ""),
-                type=metadata.get("plugin_type", "service"),
-                version=metadata.get("version", "1.0.0"),
-                description=metadata.get("description", ""),
-                author=metadata.get("author", ""),
-                supported_protocols=metadata.get("supported_protocols", []),
-                dependencies=metadata.get("dependencies", []),
-                capabilities=metadata.get("capabilities", []),
-            )
+            # Known core fields that map directly
+            core_mapping = {
+                "plugin_type": "type",
+                "external_dependencies": "external_dependencies",
+            }
+
+            # Build data dict for from_dict method
+            data = {}
+
+            # Map known fields
+            for meta_key, meta_value in metadata.items():
+                if meta_key in core_mapping:
+                    data[core_mapping[meta_key]] = meta_value
+                elif meta_key in {
+                    "name",
+                    "version",
+                    "description",
+                    "author",
+                    "supported_protocols",
+                    "dependencies",
+                    "capabilities",
+                    "runtime_mode",
+                }:
+                    data[meta_key] = meta_value
+                else:
+                    # Unknown fields go to extra_fields
+                    if "extra_fields" not in data:
+                        data["extra_fields"] = {}
+                    data["extra_fields"][meta_key] = meta_value
+
+            # Use from_dict to handle all the dynamic field logic
+            return PluginMetadata.from_dict(data)
         except Exception:
             return None
 

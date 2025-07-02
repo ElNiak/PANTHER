@@ -125,7 +125,7 @@ def sample_experiment_config():
         "name": "test_experiment",
         "description": "Test experiment description",
         "network_environment": {"type": "localhost_container"},
-        "execution_environments": [{"type": "basic"}],
+        "execution_environment": [{"type": "basic"}],
         "iterations": 1,
         "services": {
             "test_service": {
@@ -193,7 +193,7 @@ def valid_experiment_cfg_dict():
                 "name": "test_basic_functionality",
                 "description": "Basic functionality test",
                 "network_environment": {"type": "docker_compose", "version": "3.8"},
-                "execution_environments": [{"type": "localhost", "timeout": 300}],
+                "execution_environment": [{"type": "localhost", "timeout": 300}],
                 "iterations": 5,
                 "services": {
                     "test_service": {
@@ -533,7 +533,7 @@ def sample_experiment_config_data():
                     "version": "3.8",
                     "network_name": "test_network",
                 },
-                "execution_environments": [
+                "execution_environment": [
                     {"type": "localhost", "timeout": 300, "cpu_cores": 2}
                 ],
                 "iterations": 3,
@@ -577,7 +577,7 @@ def sample_experiment_config_data():
                 "name": "test_load_balancing",
                 "description": "Test load balancing functionality",
                 "network_environment": {"type": "docker_compose", "version": "3.8"},
-                "execution_environments": [{"type": "localhost", "timeout": 180}],
+                "execution_environment": [{"type": "localhost", "timeout": 180}],
                 "iterations": 1,
                 "services": {
                     "load_balancer": {

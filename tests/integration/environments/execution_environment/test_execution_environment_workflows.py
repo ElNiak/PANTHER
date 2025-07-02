@@ -483,7 +483,7 @@ class TestMultipleExecutionEnvironmentIntegration(TestExecutionEnvironmentWorkfl
                 )
 
     @pytest.mark.integration
-    def test_all_execution_environments_combined(
+    def test_all_execution_environment_combined(
         self,
         temp_output_dir,
         event_manager,
