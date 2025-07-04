@@ -188,7 +188,7 @@ class TestPluginStructureConverter:
                 )
                 assert (
                     original_names == reconstructed_names
-                ), f"Dependencies field mismatch"
+                ), "Dependencies field mismatch"
             else:
                 assert (
                     original_value == reconstructed_value
