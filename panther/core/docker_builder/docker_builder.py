@@ -384,6 +384,227 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 current_impl,
             )
 
+    def _construct_buildx_command(
+        self,
+        builder_name: str,
+        dockerfile_path: Path,
+        context_path: Path,
+        image_tag: str,
+        build_args: Dict[str, str],
+        target_platform: str,
+    ) -> List[str]:
+        """
+        Construct optimized buildx command with modern BuildKit features.
+
+        Args:
+            builder_name: Name of the buildx builder instance
+            dockerfile_path: Path to the Dockerfile
+            context_path: Build context path
+            image_tag: Target image tag
+            build_args: Build arguments dictionary
+            target_platform: Target platform string
+
+        Returns:
+            List[str]: Complete buildx command ready for execution
+        """
+        relative_dockerfile_path = dockerfile_path.relative_to(context_path)
+        host_platform = self._get_host_platform()
+
+        # Base buildx command with modern options
+        buildx_cmd = [
+            "docker",
+            "buildx",
+            "build",
+            "--builder",
+            builder_name,
+            "--platform",
+            target_platform,
+            "--file",
+            str(relative_dockerfile_path),
+            "--tag",
+            image_tag,
+            "--progress",
+            "plain",  # Better progress reporting than --debug
+            "--load",  # Load the image into local Docker daemon
+        ]
+
+        # Add BuildKit automatic platform arguments
+        automatic_args = self._get_buildkit_automatic_args(
+            host_platform, target_platform
+        )
+        for key, value in automatic_args.items():
+            buildx_cmd.extend(["--build-arg", f"{key}={value}"])
+
+        # Add user-provided build arguments
+        for key, value in build_args.items():
+            buildx_cmd.extend(["--build-arg", f"{key}={value}"])
+
+        # Add network mode for dependency resolution
+        buildx_cmd.extend(["--network", "host"])
+
+        # Add cache configuration if caching is enabled
+        if hasattr(self, "_cache_enabled") and self._cache_enabled:
+            cache_args = self._get_buildx_cache_args(target_platform)
+            buildx_cmd.extend(cache_args)
+
+        # Add context path
+        buildx_cmd.append(str(context_path))
+
+        self.logger.debug("Constructed buildx command: %s", " ".join(buildx_cmd))
+        return buildx_cmd
+
+    def _get_buildkit_automatic_args(
+        self, host_platform: str, target_platform: str
+    ) -> Dict[str, str]:
+        """
+        Generate BuildKit automatic platform arguments.
+
+        These arguments are automatically available in modern Dockerfiles but
+        need to be explicitly passed when using buildx programmatically.
+
+        Args:
+            host_platform: Platform where build is executed
+            target_platform: Platform where image will run
+
+        Returns:
+            Dict[str, str]: BuildKit automatic arguments
+        """
+        # Extract OS and architecture from platform strings
+        target_os, target_arch = self._parse_platform(target_platform)
+        build_os, build_arch = self._parse_platform(host_platform)
+
+        automatic_args = {
+            "BUILDPLATFORM": host_platform,
+            "TARGETPLATFORM": target_platform,
+            "TARGETOS": target_os,
+            "TARGETARCH": target_arch,
+            "BUILDOS": build_os,
+            "BUILDARCH": build_arch,
+        }
+
+        self.logger.debug("BuildKit automatic arguments: %s", automatic_args)
+        return automatic_args
+
+    def _parse_platform(self, platform: str) -> tuple[str, str]:
+        """
+        Parse platform string into OS and architecture components.
+
+        Args:
+            platform: Platform string (e.g., 'linux/amd64', 'linux/arm64')
+
+        Returns:
+            tuple[str, str]: (os, architecture)
+        """
+        parts = platform.split("/")
+        if len(parts) >= 2:
+            return parts[0], parts[1]
+        else:
+            # Default to linux if OS not specified
+            return "linux", parts[0] if parts else "amd64"
+
+    def _get_buildx_cache_args(self, target_platform: str) -> List[str]:
+        """
+        Get cache arguments for BuildX command.
+
+        Args:
+            target_platform: Target platform for cache isolation
+
+        Returns:
+            List[str]: Cache arguments for buildx
+        """
+        if not hasattr(self, "get_cache_mount_args"):
+            return []
+
+        try:
+            # Use existing cache mixin if available
+            cache_strategy = getattr(self, "_cache_mount_strategy", "conservative")
+            runtime_mode = "minimal"  # Default, could be made configurable
+
+            # Get cache arguments from mixin
+            cache_args = []
+            if hasattr(self, "_get_cache_mount_args"):
+                mount_args = self._get_cache_mount_args(
+                    cache_strategy, runtime_mode, target_platform
+                )
+                # Convert mount args to buildx cache args
+                platform_safe = target_platform.replace("/", "-")
+                cache_args.extend(
+                    [
+                        "--cache-from",
+                        f"type=local,src=/tmp/buildx-cache-{platform_safe}",
+                        "--cache-to",
+                        f"type=local,dest=/tmp/buildx-cache-{platform_safe},mode=max",
+                    ]
+                )
+
+            return cache_args
+
+        except Exception as e:
+            self.logger.warning("Failed to get cache arguments: %s", e)
+            return []
+
+    def _validate_buildx_command(self, buildx_cmd: List[str]) -> bool:
+        """
+        Validate BuildX command structure before execution.
+
+        Args:
+            buildx_cmd: BuildX command list
+
+        Returns:
+            bool: True if command is valid, False otherwise
+        """
+        required_args = ["--platform", "--file", "--tag"]
+
+        # Check for required arguments
+        for required_arg in required_args:
+            if required_arg not in buildx_cmd:
+                self.logger.error("Missing required BuildX argument: %s", required_arg)
+                return False
+
+        # Validate platform format
+        try:
+            platform_index = buildx_cmd.index("--platform") + 1
+            platform_value = buildx_cmd[platform_index]
+            if not self._is_valid_platform(platform_value):
+                self.logger.error("Invalid platform format: %s", platform_value)
+                return False
+        except (IndexError, ValueError):
+            self.logger.error("Invalid --platform argument structure")
+            return False
+
+        # Validate file exists
+        try:
+            file_index = buildx_cmd.index("--file") + 1
+            dockerfile_path = buildx_cmd[file_index]
+            if not Path(dockerfile_path).exists():
+                self.logger.error("Dockerfile not found: %s", dockerfile_path)
+                return False
+        except (IndexError, ValueError):
+            self.logger.error("Invalid --file argument structure")
+            return False
+
+        return True
+
+    def _is_valid_platform(self, platform: str) -> bool:
+        """
+        Validate platform string format.
+
+        Args:
+            platform: Platform string to validate
+
+        Returns:
+            bool: True if platform format is valid
+        """
+        # Valid platform format: os/arch[/variant]
+        parts = platform.split("/")
+        if len(parts) < 2:
+            return False
+
+        valid_os = ["linux", "windows", "darwin"]
+        valid_arch = ["amd64", "arm64", "arm", "ppc64le", "s390x", "386"]
+
+        return parts[0] in valid_os and parts[1] in valid_arch
+
     def _check_buildx_available(self) -> bool:
         """
         Check if Docker Buildx is available on the system.
@@ -694,36 +915,29 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
             relative_dockerfile_path = selected_dockerfile.relative_to(context_path)
 
-            # Construct buildx command
-            buildx_cmd = [
-                "docker",
-                "buildx",
-                "build",
-                "--builder",
-                builder_name,
-                "--platform",
-                self._get_target_platform(),
-                "--file",
-                str(relative_dockerfile_path),
-                "--tag",
-                image_tag,
-                "--debug",
-                "--load",  # Load the image into local Docker daemon
-                str(context_path),
-            ]
-
-            # Add build arguments with proper shell escaping for JSON values
-            for key, value in build_args.items():
-                # For complex values like JSON, pass them as separate arguments to avoid shell parsing issues
-                buildx_cmd.extend(["--build-arg", f"{key}={value}"])
-
-            # Add network mode
-            buildx_cmd.extend(["--network", "host"])
+            # Construct buildx command with modern BuildKit features
+            buildx_cmd = self._construct_buildx_command(
+                builder_name=builder_name,
+                dockerfile_path=selected_dockerfile,
+                context_path=context_path,
+                image_tag=image_tag,
+                build_args=build_args,
+                target_platform=self._get_target_platform(),
+            )
 
             # Force rebuild if configured
             # force_build = getattr(self.global_config.docker, 'force_build_docker_image', True) if hasattr(self, 'global_config') and self.global_config and hasattr(self.global_config, 'docker') else True
             # if force_build:
             #     buildx_cmd.append("--no-cache")
+
+            # Validate command before execution
+            if not self._validate_buildx_command(buildx_cmd):
+                raise DockerBuildException(
+                    message="Invalid BuildX command structure",
+                    image_name=impl_name,
+                    dockerfile=str(dockerfile_path),
+                    build_error="Command validation failed",
+                )
 
             self.logger.debug("Executing buildx command: %s", " ".join(buildx_cmd))
 
