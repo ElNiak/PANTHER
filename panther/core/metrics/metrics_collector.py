@@ -1,19 +1,79 @@
-from typing import Any, Dict, List, Optional
+"""Comprehensive metrics collection system for PANTHER experiments.
+
+This module implements a sophisticated metrics collection and monitoring system
+that provides comprehensive visibility into experiment performance, resource utilization,
+and operational health across the entire PANTHER testing lifecycle.
+
+**Architecture Overview**:
+- **Thread-Safe Collection**: Concurrent metrics recording with separate locks for metrics and timers
+- **Multi-Metric Support**: Counters, gauges, timings, histograms, errors, and custom metrics
+- **Context Management**: Automatic timing with context managers and declarative timer lifecycle
+- **Background Monitoring**: Optional continuous system resource monitoring thread
+- **Statistical Analysis**: Real-time metric aggregation and summary statistics
+
+**Key Design Patterns**:
+- **Observer Pattern**: Background collection thread observes system state
+- **Context Manager Pattern**: Automatic timing lifecycle with exception handling
+- **Thread Safety**: Granular locking strategy minimizes contention between metric types
+- **Graceful Degradation**: Robust error handling prevents metrics failures from affecting experiments
+
+**Metric Types Supported**:
+- **TIMING**: Operation durations with sub-millisecond precision
+- **COUNTER**: Cumulative event counts (test failures, retries, etc.)
+- **GAUGE**: Point-in-time values (CPU usage, memory, connection counts)
+- **HISTOGRAM**: Value distributions for percentile analysis
+- **ERROR**: Structured error tracking with metadata and context
+- **ARTIFACT**: File generation tracking with size and metadata
+- **RESOURCE**: System resource usage snapshots
+- **STATUS**: Experiment phase transitions and state changes
+
+**Performance Characteristics**:
+- **Metric Recording**: <1ms overhead per metric with threading locks
+- **Background Collection**: Configurable interval (default 5s) with adaptive CPU usage
+- **Memory Efficiency**: Bounded metric storage with configurable retention
+- **Statistical Queries**: O(n) filtering with lock-free reading after copy
+
+**Thread Safety Implementation**:
+```
+MetricsCollector
+├── metrics_lock (RLock)     # Protects metrics list
+├── timers_lock (RLock)      # Protects active timers dict
+└── collection_thread        # Optional background monitoring
+```
+
+**Integration Points**:
+- **ExperimentManager**: Lifecycle timing and error tracking
+- **TestCaseManager**: Individual test performance monitoring
+- **ResourceMonitor**: System resource usage collection
+- **PluginManager**: Plugin operation timing and error rates
+- **DockerBuilder**: Container build performance and caching metrics
+
+**Usage Patterns**:
+```python
+# Basic metrics
+collector.record_metric("test_count", MetricType.COUNTER, 1)
+collector.record_gauge("cpu_usage", 45.2)
+
+# Timing operations
+with collector.timing_context("test_execution"):
+    run_test()
+
+# Error tracking
+collector.record_error("connection_failed", "Timeout after 30s",
+                      test_case="quic_basic", component="client")
+
+# Resource monitoring
+collector.start_collection_thread(interval=1.0)
+```
 
 """
-Metrics Collector Module
-
-This module provides the core MetricsCollector class that gathers timing,
-performance, resource usage, and success/failure metrics throughout the
-PANTHER experiment workflow.
-"""
-
 import logging
 import os
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from panther.core.metrics.enums import MetricType, Phase
 from panther.core.utils.logging_mixin import LoggerMixin

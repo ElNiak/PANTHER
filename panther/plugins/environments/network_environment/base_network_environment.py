@@ -532,10 +532,14 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
 
                 # Create packet capture command
                 pcap_file = f"/app/logs/{service_name}.pcap"
-                tshark_cmd = f"((touch {pcap_file}; tshark -a duration:{timeout} -i any -w {pcap_file};) &);"
+                # Create the pcap file first
+                touch_cmd = f"touch {pcap_file};"
+                # Run tshark in background for packet capture
+                tshark_cmd = f"(tshark -a duration:{timeout} -i any -w {pcap_file} &);"
                 # Add to pre_run_cmds using the mixin method if available
                 service.run_cmd["pre_run_cmds"] = service.run_cmd["pre_run_cmds"] + [
                     f"echo 'Starting packet capture for {service_name}...' >> /app/logs/packet_capture.log;",
+                    touch_cmd,
                     tshark_cmd,
                     f"echo 'Packet capture command added for {service_name}' >> /app/logs/packet_capture.log;",
                 ]

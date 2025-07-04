@@ -259,7 +259,9 @@ class PluginFactory(LoggerMixin):
 
         if experiment_context:  # If experiment context is provided, use it for logging
             self.logger.debug("Experiment context: %s", experiment_context)
-            self.plugin_manager.set_experiment_context(experiment_context)
+            self.plugin_manager.docker_builder.set_experiment_context(
+                experiment_context
+            )
 
         # Get plugin metadata
         plugin_metadata = self.plugin_manager.get_plugin(implementation_name)

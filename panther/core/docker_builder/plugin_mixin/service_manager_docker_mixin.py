@@ -291,6 +291,7 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             tag_version="latest",
             build_mode=build_mode,
             runtime_mode=runtime_mode,
+            target_platform=docker_builder._get_target_platform(),
         )
 
         # Check if we should force build

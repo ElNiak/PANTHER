@@ -58,9 +58,30 @@ from panther.plugins.plugin_manager import PluginManager
 class ExperimentManager(
     ErrorHandlerMixin, ExperimentObserverMixin, ExperimentAnalysisMixin
 ):
-    """
-    Manages the lifecycle of an experiment, including initialization, configuration,
-    and execution of test cases.
+    """Central orchestrator for PANTHER experiment lifecycle management.
+
+    ExperimentManager implements the Facade pattern, coordinating multiple subsystems:
+
+    **Architecture Overview**:
+    - **Event-Driven Design**: Uses EventManager + EmitterRegistry for loose coupling
+    - **Observer Pattern**: Pluggable observers for logging, metrics, and analysis
+    - **Strategy Pattern**: Delegates to PluginManager for extensible test execution
+    - **Mixin Composition**: Combines error handling, observation, and analysis capabilities
+
+    **Lifecycle Management**:
+    1. **Initialization**: Plugin validation, configuration persistence, observer setup
+    2. **Test Preparation**: Test case creation with shared workflow tracking
+    3. **Execution**: Progress-tracked test running with error recovery
+    4. **Cleanup**: Resource cleanup and final reporting
+
+    **Error Handling Strategy**:
+    - **Fast-fail**: Critical infrastructure errors terminate experiment
+    - **Resilient**: Individual test failures don't stop experiment
+    - **Observable**: All errors emit events for analysis and metrics
+
+    **Thread Safety**: Not thread-safe - designed for single-threaded experiment execution
+
+    **Resource Management**: Implements context manager pattern for automatic cleanup
 
     Attributes:
         global_config (GlobalConfig): The global configuration for the experiment.
@@ -72,6 +93,10 @@ class ExperimentManager(
         logs_dir (Path): Directory where logs are stored.
         plugin_manager (PluginManager): Manager for experiment plugins.
         test_cases (List[ITestCase]): List of test cases to be executed.
+        event_manager (EventManager): Central event coordination system
+        emitter_registry (EmitterRegistry): Centralized emitter management
+        workflow_tracker (WorkflowStateTracker): Experiment state coordination
+        fast_fail_handler (FastFailHandler): Critical error management
 
     Methods:
         initialize_experiments(experiment_config: ExperimentConfig):
@@ -87,6 +112,10 @@ class ExperimentManager(
             Runs the tests defined in the experiment configuration.
 
         _load_logging():
+            Configures logging for the experiment manager.
+
+        cleanup():
+            Clean up resources including observers and event handlers.
     """
 
     def __init__(
@@ -231,7 +260,39 @@ class ExperimentManager(
             LoggerFactory.update_all_feature_levels(feature_levels_dict)
 
     def initialize_experiments(self, experiment_config: ExperimentConfig) -> None:
-        """Initializes plugins, environment, and validates configuration."""
+        """Initialize experiment with plugins, environment validation, and test case setup.
+
+        This method orchestrates the complete experiment initialization lifecycle:
+        1. Configuration validation and persistence
+        2. Plugin loading and validation using PluginManager
+        3. Test case initialization with shared emitter registry
+        4. Event emission for state tracking through observers
+
+        The method implements comprehensive error handling for different failure modes:
+        - PluginValidationError: Missing or incompatible plugins
+        - ImportError/ModuleNotFoundError: Missing dependencies
+        - TestCaseInitializationError: Test configuration issues
+
+        **Architecture Integration**:
+        - Uses EventManager + EmitterRegistry for loose coupling
+        - StateEventObserver automatically handles workflow state transitions
+        - Plugin validation prevents runtime failures during test execution
+
+        Args:
+            experiment_config: Complete experiment configuration including tests,
+                              plugins, and execution parameters
+
+        Raises:
+            ExperimentInitializationError: When initialization fails at any stage
+            PluginValidationError: When required plugins are missing or incompatible
+            TestCaseInitializationError: When test cases cannot be initialized
+
+        Events Emitted:
+            - experiment.initialized: When basic setup completes
+            - experiment.plugin_loading_started/completed: During plugin phase
+            - experiment.test_cases_initialized: When all tests are ready
+            - experiment.finished_early: On any initialization failure
+        """
         try:
             # State tracking now happens automatically through events
 
@@ -483,7 +544,46 @@ class ExperimentManager(
             ) from e
 
     def run_tests(self) -> bool:
-        """Runs the tests defined in the experiment configuration."""
+        """Execute all test cases with comprehensive progress tracking and error handling.
+
+        Implements the core test execution loop with:
+        - Progress bar integration (tqdm) with configurable logging redirection
+        - Per-test error handling with fast-fail capability for critical errors
+        - Event emission for detailed test lifecycle tracking
+        - Cleanup of test-scoped observers between test executions
+
+        **Fast-fail behavior** triggers on critical errors:
+        - DockerComposeException: Container orchestration failures
+        - PortConflictException: Network resource conflicts
+        - ResourceExhaustionException: System resource limits
+        - IvyCompilationException: Protocol compilation failures
+
+        **Error Handling Strategy**:
+        - Individual test failures don't stop experiment execution
+        - Critical infrastructure errors terminate entire experiment
+        - All errors are tracked through event emission for analysis
+        - Test-scoped observers are cleaned up after each test
+
+        **Progress Tracking**:
+        - Configurable tqdm progress bar with status updates
+        - Optional emoji support for visual feedback
+        - Logging redirection through tqdm to prevent progress corruption
+        - Real-time status updates for test start/completion/failure
+
+        Returns:
+            bool: True if any tests succeeded, False if all failed
+
+        Raises:
+            TestExecutionError: When execution infrastructure fails
+            KeyboardInterrupt: On user interruption (propagated)
+            Critical exceptions: On fast-fail conditions (DockerComposeException, etc.)
+
+        Events Emitted:
+            - experiment.execution_started: Before test loop begins
+            - test.execution_started: For each individual test
+            - test.completed/failed: Based on test outcomes
+            - experiment.finished_early: On critical failures
+        """
         try:
             # State transitions are handled automatically by StateEventObserver
 

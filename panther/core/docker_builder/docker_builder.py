@@ -509,7 +509,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             # Default to amd64 for unknown architectures
             return "linux/amd64"
 
-    def _validate_build_mode_for_architecture(self, build_mode: str) -> str:
+    def validate_build_mode_for_architecture(self, build_mode: str) -> str:
         """
         Validate BUILD_MODE compatibility with host architecture.
 
@@ -616,6 +616,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
+                target_platform=self._get_target_platform(),
             )
 
             self.logger.info(
@@ -841,7 +842,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 )
 
             # Extract build and runtime modes from config
-            build_mode = self._validate_build_mode_for_architecture(
+            build_mode = self.validate_build_mode_for_architecture(
                 config.get("build_mode", "")
             )
             runtime_mode = config.get("runtime_mode", "minimal")
@@ -853,6 +854,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 tag_version=tag_version,
                 build_mode=build_mode,
                 runtime_mode=runtime_mode,
+                target_platform=self._get_target_platform(),
             )
 
             self.logger.debug(
@@ -1019,7 +1021,13 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             )
 
     def generate_image_tag(
-        self, impl_name, version, tag_version, build_mode="", runtime_mode="minimal"
+        self,
+        impl_name,
+        version,
+        tag_version,
+        build_mode="",
+        runtime_mode="minimal",
+        target_platform="",
     ):
         """
         Generate Docker image tag with build and runtime mode differentiation.
@@ -1030,28 +1038,34 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             tag_version: Tag version (e.g., 'latest', 'stable')
             build_mode: Build mode ('', 'debug-asan', 'rel-lto', 'release-static-pgo')
             runtime_mode: Runtime mode ('minimal', 'debug', 'profile')
+            target_platform: Target platform (e.g., 'linux/amd64', 'linux/arm64')
 
         Returns:
             str: Complete image tag
 
         Examples:
-            - picoquic_v1.0_debug-asan_debug:latest (build_mode + runtime_mode)
-            - picoquic_v1.0__minimal:latest (empty build_mode, minimal runtime)
-            - picoquic_v1.0_rel-lto_profile:latest (both modes specified)
-            - picoquic:latest (no version, minimal runtime)
+            - picoquic-v1.0:latest-debug-asan-debug-linux/amd64 (build_mode + runtime_mode + platform)
+            - picoquic-v1.0:latest-linux/amd64 (empty build_mode, minimal runtime + platform)
+            - picoquic-v1.0:latest-rel-lto-profile-linux/amd64 (both modes specified + platform)
+            - picoquic:latest (no version, minimal runtime, no platform)
         """
+
         # Build mode suffix (empty string results in no suffix)
-        build_suffix = f"_{build_mode}" if build_mode else ""
+        build_suffix = f"-{build_mode}" if build_mode else ""
 
         # Runtime mode suffix (minimal is default, so no suffix needed)
         runtime_suffix = (
-            f"_{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
+            f"-{runtime_mode}" if runtime_mode and runtime_mode != "minimal" else ""
         )
 
+        platform_suffix = f"-{target_platform}" if target_platform else ""
+
         # Construct base name with version
-        base_name = f"{impl_name}_{version}" if version else impl_name
+        base_name = f"{impl_name}-{version}" if version else impl_name
         # Combine all parts
-        full_tag = f"{base_name}{build_suffix}{runtime_suffix}:{tag_version}"
+        full_tag = (
+            f"{base_name}:{tag_version}{build_suffix}{runtime_suffix}{platform_suffix}"
+        )
 
         # Sanitize tag (Docker tags have character restrictions)
         return self._sanitize_docker_tag(full_tag)
@@ -1068,7 +1082,7 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         import re
 
         # Convert to lowercase and replace invalid characters (allow colon for tag separator)
-        sanitized = re.sub(r"[^a-z0-9._:-]", "_", tag.lower())
+        sanitized = re.sub(r"[^a-z0-9._:-]", "-", tag.lower())
 
         # Ensure doesn't start with period or dash
         sanitized = re.sub(r"^[.-]+", "", sanitized)
