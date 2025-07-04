@@ -2,7 +2,33 @@
 """
 PANTHER CLI - Main entry point
 
-This module provides the main command-line interface parser and dispatcher.
+This module provides the main command-line interface parser and dispatcher for
+the PANTHER framework, implementing a modular command architecture with consistent
+error handling and user experience patterns.
+
+**Command Architecture**:
+- **BaseCommand Pattern**: All commands inherit from BaseCommand with consistent
+  register_parser() and handle() interface
+- **Subparser Registration**: Commands register themselves via static methods
+- **Command Discovery**: Dynamic command mapping with error handling
+- **Global Options**: Consistent debug and version handling across all commands
+
+**CLI Design Patterns**:
+- **Argument Parser Hierarchy**: Global options inherited by all subcommands
+- **Bash Completion**: argcomplete integration for tab completion
+- **Debug Mode**: Conditional detailed logging and error reporting
+- **Graceful Cancellation**: Keyboard interrupt handling with proper exit codes
+
+**User Experience Features**:
+- Rich help text with practical examples
+- Emoji indicators for visual feedback (when appropriate)
+- Consistent error message formatting
+- Progressive disclosure (basic help → detailed command help)
+
+**Integration Points**:
+- LoggerFactory for consistent logging across framework
+- Configuration system integration through command handlers
+- Plugin system integration for extensible functionality
 """
 
 import argparse
@@ -26,7 +52,29 @@ from panther.cli.subcommands import (
 
 
 def create_parser():
-    """Create and configure the main argument parser."""
+    """Create and configure the main argument parser.
+
+    Builds the hierarchical argument parser structure with global options
+    and subcommand registration. Uses argparse subparsers for modular
+    command organization and consistent help text formatting.
+
+    **Parser Architecture**:
+    - Global options (--debug, --version) available to all commands
+    - Subparser registration for modular command system
+    - Rich help text with practical examples
+    - Raw description formatter for preserved formatting
+
+    **Command Registration**:
+    Each command class registers itself via CommandClass.register_parser(subparsers),
+    following the Command pattern for consistent interface and error handling.
+
+    Returns:
+        argparse.ArgumentParser: Configured main parser with all subcommands registered
+
+    Note:
+        argcomplete.autocomplete() must be called on the returned parser
+        to enable bash completion support.
+    """
     parser = argparse.ArgumentParser(
         prog="panther",
         description="PANTHER - Protocol Analysis and Testing for Heterogeneous Execution and Research",
@@ -77,7 +125,43 @@ For more information on each command, use:
 
 
 def main():
-    """Main CLI entry point."""
+    """Main CLI entry point and command dispatcher.
+
+    Orchestrates the complete CLI experience including:
+    - Global argument parsing and validation
+    - Debug logging initialization with LoggerFactory integration
+    - Command discovery and dispatch through command_map
+    - Consistent error handling and user feedback
+    - Bash completion support via argcomplete
+
+    **Command Dispatch Architecture**:
+    Uses a command_map dictionary to dispatch to appropriate command handlers,
+    following the Command pattern for consistent interface and error handling.
+    Each command implements:
+    - register_parser(subparsers): Define CLI arguments and subcommands
+    - handle(args): Execute command logic with structured error handling
+
+    **Error Handling Strategy**:
+    - KeyboardInterrupt: Graceful cancellation with user message (exit 130)
+    - General exceptions: User-friendly error messages in normal mode
+    - Debug mode: Full stacktraces for development and troubleshooting
+    - Unknown commands: Help text display with error indication
+
+    **Debug Mode Integration**:
+    When --debug is specified, initializes LoggerFactory with:
+    - DEBUG level logging across all components
+    - Colored output for better development experience
+    - Detailed exception information via exc_info=True
+
+    Returns:
+        int: Exit code following Unix conventions:
+             0 = success
+             1 = general error
+             130 = terminated by Control-C
+
+    Example:
+        >>> sys.exit(main() or 0)  # Ensures 0 exit code for None return
+    """
     parser = create_parser()
 
     # Enable bash completion

@@ -559,6 +559,19 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
         return build_mode
 
+    def _get_cache_key_suffix(self) -> str:
+        """
+        Generate cache key suffix based on target platform for cache isolation.
+
+        This ensures that builds for different platforms (e.g., linux/amd64, linux/arm64)
+        use separate cache directories, preventing architecture conflicts.
+
+        Returns:
+            str: Cache key suffix (e.g., '-linux-amd64', '-linux-arm64')
+        """
+        platform = self._get_target_platform().replace("/", "-")
+        return f"-{platform}"
+
     def _build_with_buildx(
         self,
         impl_name: str,
@@ -647,12 +660,37 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                     dockerfile=str(dockerfile_path),
                     build_error="Buildx builder setup failed",
                 )
+            # Extract build and runtime modes from config
+            build_mode = config.get("build_mode", "")
+            runtime_mode = config.get("runtime_mode", "minimal")
 
+            # Construct image tag with mode information
+            image_tag = self.generate_image_tag(
+                impl_name=impl_name,
+                version=version,
+                tag_version=tag_version,
+                build_mode=build_mode,
+                runtime_mode=runtime_mode,
+                target_platform=self._get_target_platform(),
+            )
             self.logger.info(
                 "Building Docker image '%s' with buildx for platform '%s'",
                 image_tag,
                 self.get_target_platform(),
             )
+             # Prepare build arguments
+            dependencies = config.get("dependencies", {})
+            dependencies_json = json.dumps(dependencies) if dependencies else "[]"
+
+            build_args = {
+                "VERSION": config.get("commit", "master"),
+                "DEPENDENCIES": dependencies_json,
+                "BUILD_MODE": build_mode,
+                "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
+                "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
+                "TARGETPLATFORM": self._get_target_platform(),
+                "BUILDPLATFORM": self._get_host_platform(),
+            }
 
             # Calculate relative path from context to dockerfile
             # For buildx, prefer Dockerfile.buildkit or multistage variants if they exist
@@ -1064,15 +1102,16 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             tag_version: Tag version (e.g., 'latest', 'stable')
             build_mode: Build mode ('', 'debug-asan', 'rel-lto', 'release-static-pgo')
             runtime_mode: Runtime mode ('minimal', 'debug', 'profile')
+            target_platform: Target platform (e.g., 'linux/amd64', 'linux/arm64')
 
         Returns:
             str: Complete image tag
 
         Examples:
-            - picoquic_v1.0_debug-asan_debug:latest (build_mode + runtime_mode)
-            - picoquic_v1.0__minimal:latest (empty build_mode, minimal runtime)
-            - picoquic_v1.0_rel-lto_profile:latest (both modes specified)
-            - picoquic:latest (no version, minimal runtime)
+            - picoquic-v1.0:latest-debug-asan-debug-linux/amd64 (build_mode + runtime_mode + platform)
+            - picoquic-v1.0:latest-linux/amd64 (empty build_mode, minimal runtime + platform)
+            - picoquic-v1.0:latest-rel-lto-profile-linux/amd64 (both modes specified + platform)
+            - picoquic:latest (no version, minimal runtime, no platform)
         """
 
         # Build mode suffix (empty string results in no suffix)
