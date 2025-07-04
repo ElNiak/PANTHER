@@ -312,14 +312,17 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
     def _get_target_platform(self) -> str:
         """
-        Detect the appropriate Docker platform based on the current architecture.
+        Detect the appropriate Docker platform using BuildKit-aware logic.
 
-        Respects the target_platform configuration override if specified.
+        Priority order:
+        1. Configuration override (global_config.docker.target_platform)
+        2. BuildKit environment variable (TARGETPLATFORM)
+        3. Host architecture detection (fallback)
 
         Returns:
             str: Docker platform string (e.g., 'linux/amd64', 'linux/arm64')
         """
-        # Check for configuration override first
+        # Check for configuration override first (highest priority)
         if (
             hasattr(self, "global_config")
             and self.global_config
@@ -332,10 +335,19 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             )
             return target_platform
 
-        # Detect host architecture and map to appropriate Docker platform
+        # Use BuildKit automatic platform detection when available
+        buildkit_platform = os.environ.get("TARGETPLATFORM")
+        if buildkit_platform:
+            self.logger.debug("Using BuildKit TARGETPLATFORM: %s", buildkit_platform)
+            return buildkit_platform
+
+        # Fallback to host detection with improved ARM64 support
         machine = platform.machine().lower()
         if machine in ["arm64", "aarch64"]:
-            docker_platform = "linux/arm64"  # TODO: Change to arm64 when we have arm64 images for ivy and shadow
+            docker_platform = "linux/arm64"
+            # Validate ARM64 support for current context
+            if hasattr(self, "_validate_arm64_support"):
+                self._validate_arm64_support()
         elif machine in ["x86_64", "amd64"]:
             docker_platform = "linux/amd64"
         else:
@@ -352,6 +364,25 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
         )
 
         return docker_platform
+
+    def _validate_arm64_support(self) -> None:
+        """
+        Validate ARM64 support for current implementation context.
+
+        Some implementations (ivy, shadow) have limited ARM64 support.
+        Log warnings for unsupported combinations.
+        """
+        # Implementation-specific ARM64 support matrix
+        arm64_unsupported = ["ivy", "shadow"]
+
+        # Try to determine current implementation from context
+        current_impl = getattr(self, "_current_implementation", None)
+        if current_impl and current_impl in arm64_unsupported:
+            self.logger.warning(
+                "ARM64 support for '%s' is experimental. "
+                "Consider using linux/amd64 for production builds.",
+                current_impl,
+            )
 
     def _check_buildx_available(self) -> bool:
         """
@@ -825,6 +856,9 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
             Optional[str]: The tag of the built Docker image, or None if the build was skipped.
         """
         try:
+            # Track current implementation for platform validation
+            self._current_implementation = impl_name
+
             # Fast-fail validation before expensive build operation
             self._validate_build_prerequisites(
                 impl_name, dockerfile_path, context_path, config
