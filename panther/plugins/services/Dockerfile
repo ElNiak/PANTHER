@@ -4,6 +4,7 @@
 # =============================================================================
 
 ARG RUNTIME_MODE=minimal
+ARG TARGETPLATFORM=linux/amd64
 
 # =============================================================================
 # STAGE 1: BUILDER - Build tools and dependencies
@@ -20,7 +21,13 @@ RUN apt-get update && \
     openssl libssl-dev pkg-config python3 \
     clang automake autoconf libtool \
     wget curl sudo \
-    libc6-dev libdw1 libelf1 libunwind-dev
+    libc6-dev libdw1 libelf1 libunwind-dev \
+    net-tools tcpdump iperf iperf3 traceroute \
+    wireshark tshark libcap2-bin \
+    iputils-ping iproute2 netcat-openbsd \
+    curl dnsutils automake autoconf libtool pkg-config libssl-dev \
+    cmake build-essential
+
 
 # Build gperftools from source (needed for profiling)
 RUN git clone https://github.com/gperftools/gperftools /tmp/gperftools

@@ -55,6 +55,7 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """Initialize the Memcheck environment."""
         super().__init__(
@@ -63,6 +64,7 @@ class MemcheckEnvironment(BaseExecutionEnvironment):
 
         # Initialize plugin config cache
         self._plugin_config = None
+        self.target_platform = target_platform
 
     def _get_plugin_config(self) -> MemcheckConfig:
         """Get plugin config with caching and fallback."""

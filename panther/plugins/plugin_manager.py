@@ -665,6 +665,7 @@ class PluginManager(LoggerMixin):
         plugin_metadata: PluginMetadata,
         version: str = None,
         build_mode: str = None,
+        runtime_mode: str = "minimal",
     ) -> bool:
         """Validate that Docker images referenced by plugin are still available.
 
@@ -672,19 +673,29 @@ class PluginManager(LoggerMixin):
             plugin_metadata: Plugin metadata containing name and other info
             version: Optional version (e.g., 'rfc9000') to include in image name
             build_mode: Optional build mode (e.g., 'rel-lto') to include in image name
+            runtime_mode: Optional runtime mode (e.g., 'debug', 'profile') to include in image name
         """
         if not self.docker_builder:
             self.logger.debug("No Docker builder available, skipping image validation")
             return True
 
-        # Build the expected image name using the same logic as ServiceManagerDockerMixin
+        # Use DockerBuilder's generate_image_tag method for consistent tag generation
         plugin_name = plugin_metadata.name
-        build_mode_suffix = f"_{build_mode}" if build_mode else ""
 
-        if version:
-            expected_image = f"{plugin_name}_{version}{build_mode_suffix}:latest"
-        else:
-            expected_image = f"{plugin_name}{build_mode_suffix}:latest"
+        # Get target platform from docker builder to match build-time tag generation
+        target_platform = ""
+        if hasattr(self.docker_builder, "get_target_platform"):
+            target_platform = self.docker_builder.get_target_platform()
+
+        # Generate expected image tag using the same logic as docker builds
+        expected_image = self.docker_builder.generate_image_tag(
+            impl_name=plugin_name,
+            version=version or "",
+            tag_version="latest",
+            build_mode=build_mode or "",
+            runtime_mode=runtime_mode,
+            target_platform=target_platform,
+        )
 
         try:
             if (
@@ -734,16 +745,23 @@ class PluginManager(LoggerMixin):
         return True
 
     def _invalidate_stale_cache_for_plugin(
-        self, plugin_name: str, version: str = None, build_mode: str = None
+        self,
+        plugin_name: str,
+        version: str = None,
+        build_mode: str = None,
+        runtime_mode: str = "minimal",
     ) -> bool:
         """Check and invalidate cache if plugin metadata is stale."""
         plugin_metadata = self.plugins.get(plugin_name)
         if not plugin_metadata:
             return False
 
-        # Validate Docker images with version and build_mode context
+        # Validate Docker images with version, build_mode, and runtime_mode context
         if not self._validate_cached_plugin_images(
-            plugin_metadata, version=version, build_mode=build_mode
+            plugin_metadata,
+            version=version,
+            build_mode=build_mode,
+            runtime_mode=runtime_mode,
         ):
             self.logger.info(
                 f"Invalidating cache due to missing Docker image for {plugin_name}"
@@ -772,15 +790,15 @@ class PluginManager(LoggerMixin):
         emitter_registry=None,
         global_config=None,
         experiment_context=None,
-        test_case=None,  # Reference to parent test case for execution environment access
     ) -> IServiceManager:
         """Create a service manager instance with cache validation."""
         # Validate cache before creating service manager
         implementation_name = implementation.name
 
-        # Extract version and build_mode from configuration for accurate image name validation
+        # Extract version, build_mode, and runtime_mode from configuration for accurate image name validation
         version = protocol.version if protocol else None
         build_mode = None
+        runtime_mode = "minimal"  # Default runtime mode
 
         # Extract build_mode from service config if available (for panther_ivy)
         if (
@@ -796,8 +814,27 @@ class PluginManager(LoggerMixin):
                 service_config_to_test.implementation, "build_mode", None
             )
 
+        # Extract runtime_mode from service config if available
+        if (
+            hasattr(service_config_to_test, "plugin_config")
+            and isinstance(service_config_to_test.plugin_config, dict)
+            and "runtime_mode" in service_config_to_test.plugin_config
+        ):
+            runtime_mode = service_config_to_test.plugin_config.get(
+                "runtime_mode", "minimal"
+            )
+        elif hasattr(service_config_to_test, "implementation") and hasattr(
+            service_config_to_test.implementation, "runtime_mode"
+        ):
+            runtime_mode = getattr(
+                service_config_to_test.implementation, "runtime_mode", "minimal"
+            )
+
         cache_invalidated = self._invalidate_stale_cache_for_plugin(
-            implementation_name, version=version, build_mode=build_mode
+            implementation_name,
+            version=version,
+            build_mode=build_mode,
+            runtime_mode=runtime_mode,
         )
 
         if cache_invalidated:
@@ -819,7 +856,6 @@ class PluginManager(LoggerMixin):
             emitter_registry=emitter_registry,
             global_config=config_to_use,
             experiment_context=experiment_context,
-            test_case=test_case,  # Pass test case reference through to factory
         )
 
     def create_environment_manager(
@@ -831,20 +867,13 @@ class PluginManager(LoggerMixin):
         event_manager: EventManager,
     ) -> IEnvironmentPlugin:
         """Create an environment manager instance with cache validation."""
-        # Validate cache before creating environment manager
-        cache_invalidated = self._invalidate_stale_cache_for_plugin(environment)
-
-        if cache_invalidated:
-            self.logger.info(
-                f"Cache was invalidated for environment {environment}, using fresh metadata"
-            )
-
         return self.plugin_factory.create_environment_manager(
             environment=environment,
             test_config=test_config,
             environment_dir=environment_dir,
             output_dir=output_dir,
             event_manager=event_manager,
+            target_platform=self.docker_builder.get_target_platform(),
         )
 
     def create_observer_plugin(self, plugin_name: str, *args, **kwargs):

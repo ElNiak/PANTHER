@@ -51,6 +51,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """Initialize the strace environment."""
         super().__init__(
@@ -59,6 +60,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
 
         # Initialize plugin config cache
         self._plugin_config = None
+        self.target_platform = target_platform
 
     def _get_plugin_config(self) -> StraceConfig:
         """Get plugin config with caching and fallback."""
@@ -356,11 +358,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
         # Add strace availability check
         plugin_config = self._get_plugin_config()
         strace_binary = plugin_config.strace_binary
-        availability_check = f"""# Confirm dynamic linker and runtime availability
-ls -l /lib64/ld-linux-x86-64.so.2 || echo 'Dynamic linker not found' >> /app/logs/{service_name}_strace_exec_env_setup.log
-ls -l /lib64/libc.so.6 || echo 'C library not found' >> /app/logs/{service_name}_strace_exec_env_setup.log
-file $(which strace) || echo 'strace binary not found' >> /app/logs/{service_name}_strace_exec_env_setup.log
-# inside the container or host
+        availability_check = f"""
 ulimit -c unlimited;                 # allow core files
 echo '/tmp/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern;
 # Check if strace is available
@@ -409,7 +407,7 @@ echo "" >> {summary_file}
 # System call counts
 echo "=== Top 20 System Calls ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
-    grep -oE '^[a-zA-Z_]+\\(' {strace_output_file} | sed 's/($//' | Union[sort, uniq]-c | sort -nr | head -20 >> {summary_file} 2>/dev/null || echo "No system calls found" >> {summary_file}
+    grep -oE '^[a-zA-Z_]+\\(' {strace_output_file} | sed 's/($//' | sort | uniq -c | sort -nr | head -20 >> {summary_file} 2>/dev/null || echo "No system calls found" >> {summary_file}
 else
     echo "Strace output file not found" >> {summary_file}
 fi
@@ -420,7 +418,7 @@ echo "" >> {summary_file}
 echo "=== Network Activity Summary ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
     echo "Network system calls:" >> {summary_file}
-    grep -E '(Union[socket, connect, bind, listen, accept, send, recv])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
+    grep -E '((socket|connect|bind|listen|accept|send|recv))\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
 
     echo "File I/O operations:" >> {summary_file}
     grep -E '(Union[read, write, open, close])\\(' {strace_output_file} | wc -l >> {summary_file} 2>/dev/null || echo "0" >> {summary_file}
@@ -434,7 +432,7 @@ echo "" >> {summary_file}
 echo "=== Error Analysis ===" >> {summary_file}
 if [ -f "{strace_output_file}" ]; then
     echo "Common errors found:" >> {summary_file}
-    grep -E 'EACCES|ENOENT|EPERM|ECONNREFUSED|ETIMEDOUT|EADDRINUSE' {strace_output_file} | cut -d' ' -f1 | Union[sort, uniq]-c | sort -nr >> {summary_file} 2>/dev/null || echo "No errors found" >> {summary_file}
+    grep -E 'EACCES|ENOENT|EPERM|ECONNREFUSED|ETIMEDOUT|EADDRINUSE' {strace_output_file} | cut -d' ' -f1 | sort | uniq -c | sort -nr >> {summary_file} 2>/dev/null || echo "No errors found" >> {summary_file}
 else
     echo "No error data available" >> {summary_file}
 fi

@@ -54,6 +54,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """Initialize the GDB debugging environment."""
         super().__init__(
@@ -62,6 +63,7 @@ class GdbEnvironment(BaseExecutionEnvironment):
 
         # Initialize plugin config cache
         self._plugin_config = None
+        self.target_platform = target_platform
 
     def _get_plugin_config(self) -> GdbConfig:
         """Get plugin config with caching and fallback."""
@@ -326,6 +328,8 @@ class GdbEnvironment(BaseExecutionEnvironment):
         log_file = "/app/logs/" + service_name + "_gdb_exec_env_setup.log"
         availability_check = (
             "# Check GDB availability and setup\n"
+            + "ulimit -c unlimited;                 # allow core files\n"
+            + "echo '/tmp/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern;\n"
             + "touch "
             + log_file
             + "\n"
@@ -391,9 +395,9 @@ class GdbEnvironment(BaseExecutionEnvironment):
         else:
             gdb_base_cmd = full_gdb_cmd
 
-        # CRITICAL FIX: Use the same exact technique as strace
-        # This is the key difference - strace uses proper quotes while GDB had escaped quotes
-        gdb_wrapper = f'{gdb_base_cmd} -- "$@"'
+        # CRITICAL FIX: GDB --args expects executable immediately, no -- separator needed
+        # Unlike strace, GDB's --args flag requires direct executable specification
+        gdb_wrapper = f'{gdb_base_cmd} "$@"'
 
         return setup_commands, gdb_wrapper
 
@@ -422,6 +426,72 @@ class GdbEnvironment(BaseExecutionEnvironment):
         env_vars.update({k: str(v) for k, v in debug_env_vars.items()})
 
         return env_vars
+
+    def _get_architecture_info(self) -> tuple[str, dict]:
+        """Parse target platform and return appropriate register mappings."""
+        # Use target_platform if available, otherwise detect from Docker target
+        target_platform = self.target_platform
+
+        if not target_platform:
+            # Fallback to x86_64 if no target platform specified
+            self.logger.debug("No target platform specified, defaulting to x86_64")
+            target_platform = "linux/amd64"
+
+        self.logger.debug(f"Using target platform: {target_platform}")
+
+        # Parse architecture from target platform string
+        # Common formats: linux/amd64, linux/arm64, linux/arm/v7, etc.
+        arch_info = {
+            "detected_arch": "x86_64",
+            "syscall_reg": "$rdi",
+            "arg_regs": ["$rdi", "$rsi", "$rdx", "$rcx"],
+            "return_reg": "$rax",
+            "arch_name": "x86_64",
+        }
+
+        try:
+            platform_lower = target_platform.lower()
+
+            if "amd64" in platform_lower or "x86_64" in platform_lower:
+                arch_info.update(
+                    {
+                        "detected_arch": "x86_64",
+                        "syscall_reg": "$rdi",
+                        "arg_regs": ["$rdi", "$rsi", "$rdx", "$rcx"],
+                        "return_reg": "$rax",
+                        "arch_name": "x86_64",
+                    }
+                )
+            elif "arm64" in platform_lower or "aarch64" in platform_lower:
+                arch_info.update(
+                    {
+                        "detected_arch": "arm64",
+                        "syscall_reg": "$x8",
+                        "arg_regs": ["$x0", "$x1", "$x2", "$x3"],
+                        "return_reg": "$x0",
+                        "arch_name": "arm64",
+                    }
+                )
+            elif "arm" in platform_lower:
+                # ARM32 (includes arm/v7, arm/v6, etc.)
+                arch_info.update(
+                    {
+                        "detected_arch": "arm32",
+                        "syscall_reg": "$r7",
+                        "arg_regs": ["$r0", "$r1", "$r2", "$r3"],
+                        "return_reg": "$r0",
+                        "arch_name": "arm32",
+                    }
+                )
+
+            self.logger.debug(
+                f"Parsed architecture: {arch_info['detected_arch']} from platform: {target_platform}"
+            )
+
+        except Exception as e:
+            self.logger.debug(f"Architecture parsing failed: {e}, using default x86_64")
+
+        return arch_info["detected_arch"], arch_info
 
     def _create_gdb_script(
         self, config: GdbConfig, log_file: str, trace_file: str, auto_backtrace: bool
@@ -496,12 +566,15 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 ]
             )
 
-        # Add memory error detection (superior to strace)
+        # Add memory error detection with deferred breakpoints (will be set when symbols load)
         script_lines.extend(
             [
                 "",
                 "# === MEMORY ERROR DETECTION ===",
-                "# Break on common memory errors",
+                "# Set deferred breakpoints - these will be applied when symbols become available",
+                "set breakpoint pending on",
+                "",
+                "# Break on common memory errors - will activate when symbols load",
                 "break __stack_chk_fail",  # Stack overflow detection
                 "break abort",  # Abort calls
                 "break _exit",  # Exit calls
@@ -511,15 +584,15 @@ class GdbEnvironment(BaseExecutionEnvironment):
             ]
         )
 
-        # Add network error monitoring (strace-like but with breakpoints)
+        # Add network error monitoring with deferred breakpoints
         script_lines.extend(
             [
                 "",
                 "# === NETWORK ERROR MONITORING ===",
-                "# Monitor network operations with error detection",
-                "break -qualified connect if $rdi == -1",  # Failed connections
-                "break -qualified bind if $rdi == -1",  # Failed binds
-                "break -qualified listen if $rdi == -1",  # Failed listens
+                "# Monitor network operations - deferred until symbols load",
+                "break connect",  # Connection attempts
+                "break bind",  # Bind attempts
+                "break listen",  # Listen attempts
             ]
         )
 
@@ -614,19 +687,32 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 ]
             )
 
-            # Define syscall monitoring function (strace-like but with variables)
+            # Get architecture-specific register info
+            arch_name, arch_info = self._get_architecture_info()
+
+            # Define architecture-aware syscall monitoring function
             script_lines.extend(
                 [
-                    "# === SYSCALL MONITORING FUNCTION ===",
+                    "# === ARCHITECTURE-AWARE SYSCALL MONITORING FUNCTION ===",
+                    f"# Target architecture: {arch_name}",
                     "define monitor_syscall",
                     "  set logging redirect on",
-                    '  printf "SYSCALL: %s\\n", (char*)$rdi',  # Simplified syscall name detection
-                    '  printf "Args: rdi=%p, rsi=%p, rdx=%p, rcx=%p\\n", $rdi, $rsi, $rdx, $rcx',
-                    '  printf "Return: %p\\n", $rax',
-                    "  if ($rax < 0)",
-                    '    printf "ERROR: syscall failed with return value %ld\\n", $rax',
-                    "    analyze_error",
-                    "  end",
+                    "  # Architecture-specific register handling",
+                    f"  printf \"SYSCALL [{arch_name}]: %ld\\n\", (long){arch_info['syscall_reg']}",
+                    f'  printf "Args [{arch_name}]: "',
+                ]
+            )
+
+            # Add argument register printing
+            for i, reg in enumerate(arch_info["arg_regs"][:4]):
+                if i > 0:
+                    script_lines.append('  printf ", "')
+                script_lines.append(f'  printf "arg{i}=%ld", (long){reg}')
+
+            script_lines.extend(
+                [
+                    '  printf "\\n"',
+                    f"  printf \"Return [{arch_name}]: %ld\\n\", (long){arch_info['return_reg']}",
                     "  set logging redirect off",
                     "end",
                     "",
@@ -639,9 +725,19 @@ class GdbEnvironment(BaseExecutionEnvironment):
                 "# === MONITORING COMMANDS ===",
                 "commands",
                 "  # Auto-run error analysis on any breakpoint hit",
-                "  if auto_backtrace",
-                "    analyze_error",
-                "  end",
+            ]
+        )
+
+        # Evaluate auto_backtrace at script generation time, not runtime
+        if auto_backtrace:
+            script_lines.extend(
+                [
+                    "  analyze_error",
+                ]
+            )
+
+        script_lines.extend(
+            [
                 "  # Continue execution to monitor more events",
                 "  continue",
                 "end",

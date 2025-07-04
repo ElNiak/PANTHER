@@ -55,6 +55,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """Initialize the Helgrind environment."""
         super().__init__(
@@ -63,6 +64,7 @@ class HelgrindEnvironment(BaseExecutionEnvironment):
 
         # Initialize plugin config cache
         self._plugin_config = None
+        self.target_platform = target_platform
 
     def _get_plugin_config(self) -> HelgrindConfig:
         """Get plugin config with caching and fallback."""
@@ -447,7 +449,7 @@ if [ -f "{helgrind_output_file}" ]; then
         grep -o "Thread #[0-9]*:" {helgrind_output_file} | sort -u | wc -l >> {summary_file} 2>/dev/null
 
         echo "Synchronization primitives used:" >> {summary_file}
-        grep -o "pthread_[a-z_]*" {helgrind_output_file} | Union[sort, uniq]-c | head -10 >> {summary_file} 2>/dev/null || echo "None detected" >> {summary_file}
+        grep -o "pthread_[a-z_]*" {helgrind_output_file} | sort | uniq -c | head -10 >> {summary_file} 2>/dev/null || echo "None detected" >> {summary_file}
     else
         echo "No detailed thread information available" >> {summary_file}
     fi

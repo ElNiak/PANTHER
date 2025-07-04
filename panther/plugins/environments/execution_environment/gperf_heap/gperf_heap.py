@@ -54,6 +54,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """Initialize the gperf heap environment."""
         super().__init__(
@@ -62,6 +63,7 @@ class GperfHeapEnvironment(BaseExecutionEnvironment):
 
         # Initialize plugin config cache
         self._plugin_config = None
+        self.target_platform = target_platform
 
     def _get_plugin_config(self) -> GperfHeapConfig:
         """Get plugin config with caching and fallback."""

@@ -326,7 +326,6 @@ class ServiceManagementMixin:
                 emitter_registry=self.emitter_registry,
                 global_config=self.global_config,
                 experiment_context=self,
-                test_case=self,  # Pass test case reference for execution environment access
             ):
                 # Set service name and additional attributes
                 service_manager.service_name = service_name
