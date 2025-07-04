@@ -80,6 +80,7 @@ class ShadowNsEnvironment(
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         # First initialize all parent classes including StandardOutputCollectorMixin
         super().__init__(

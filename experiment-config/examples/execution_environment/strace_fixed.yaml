@@ -1,0 +1,79 @@
+name: Strace Test - IvyServer Client Communication (Fixed)
+test_suite:
+  tests:
+    - name: Strace Execution Environment Test
+      type: QUIC_Server_Client_Communication_Test
+      testname: test_stream
+      description: Test strace execution environment wrapping with proper configuration
+      network_environment:
+        type: docker_compose
+        enable_background_monitoring: true
+        monitoring_interval_seconds: 5
+        failure_threshold_count: 1
+      execution_environment:
+        - type: strace
+          enabled: true
+          plugin_config:
+            strace_binary: /usr/bin/strace
+            trace_network_syscalls: true
+            trace_all_syscalls: false
+            include_kernel_stack: false
+            excluded_syscalls: ["clock_gettime", "gettimeofday"]
+            timeout: null
+            generate_detailed_analysis: true
+            additional_parameters: []
+      services:
+        ivy_server:
+          implementation:
+            name: panther_ivy
+            type: testers
+            version: null
+          protocol:
+            name: quic
+            version: rfc9000
+            role: server
+          timeout: 60
+          plugin_config:
+            name: panther_ivy
+            test: quic_client_test_max
+            type: TESTERS
+            # Removed build_mode to avoid ARM64 conflicts
+        picoquic_client:
+          implementation:
+            name: picoquic
+            type: iut
+            version: null
+          protocol:
+            name: quic
+            version: rfc9000
+            role: client
+            target: ivy_server
+          timeout: 50
+          plugin_config:
+            name: picoquic
+            type: IUT
+global:
+  coordination:
+    port_manager:
+      start_port: 5000
+      end_port: 9999
+      reserved_ports: []
+  runtime:
+    default_timeout: 120
+    cleanup_policy: keep_on_failure
+    log_level: DEBUG
+    parallel_execution: false
+  plugins:
+    lazy_loading: true
+    cache_discovery: true
+    auto_reload: false
+  output:
+    capture_stdout: true
+    capture_stderr: true
+    buffer_size: 1048576
+    save_artifacts: true
+  docker:
+    # Remove force_build_docker_image to use existing images when possible
+    force_build_docker_image: false
+    log_docker_image_build: true
+    use_buildx: false

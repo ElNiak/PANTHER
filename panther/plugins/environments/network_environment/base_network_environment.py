@@ -420,6 +420,9 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
             return
         self.logger.info("Adding wait commands to services")
         for service in self.services_managers:
+            self.logger.debug(
+                f"Processing service: {service.service_name} (client={service.is_client()}, server={service.is_server()}, tester={service.is_tester()})"
+            )
             # Ensure coordination volume
             if "coordination:/app/coordination" not in service.volumes:
                 service.volumes.append("coordination:/app/coordination")
@@ -453,39 +456,39 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
                 )
                 wait_commands.append(wait_script)
 
-                # After ivy compilation, different services have different additional waits
-                if service.is_client():
-                    # Client services also wait for server readiness
-                    wait_script = (
-                        '\necho "Client '
-                        + service.service_name
-                        + ' now waiting for server services..." >> /app/logs/coordination.log\n'
-                        "WAIT_COUNT=0\n"
-                        "while [ $WAIT_COUNT -lt 300 ]; do\n"
-                        "\tif ls /app/coordination/*server*_ready 1>/dev/null 2>&1; then\n"
-                        '\t\techo "Server services ready - client '
-                        + service.service_name
-                        + ' can proceed" >> /app/logs/coordination.log\n'
-                        "\t\tbreak\n"
-                        "\tfi\n"
-                        "\tsleep 1\n"
-                        "\tWAIT_COUNT=$((WAIT_COUNT + 1))\n"
-                        "done\n"
-                        "if [ $WAIT_COUNT -ge 300 ]; then\n"
-                        '\techo "ERROR: Timeout waiting for server services for client '
-                        + service.service_name
-                        + '" >> /app/logs/coordination.log\n'
-                        "\texit 1\n"
-                        "fi"
-                    )
-                    wait_commands.append(wait_script)
-                else:
-                    # Other non-tester services just wait for ivy
-                    wait_commands.append(
-                        'echo "Ivy compilation complete - '
-                        + service.service_name
-                        + ' ready to proceed" >> /app/logs/coordination.log'
-                    )
+            # After ivy compilation, different services have different additional waits
+            if service.is_client():
+                # Client services also wait for server readiness
+                wait_script = (
+                    '\necho "Client '
+                    + service.service_name
+                    + ' now waiting for server services..." >> /app/logs/coordination.log\n'
+                    "WAIT_COUNT=0\n"
+                    "while [ $WAIT_COUNT -lt 300 ]; do\n"
+                    "\tif ls /app/coordination/*server*_ready 1>/dev/null 2>&1; then\n"
+                    '\t\techo "Server services ready - client '
+                    + service.service_name
+                    + ' can proceed" >> /app/logs/coordination.log\n'
+                    "\t\tbreak\n"
+                    "\tfi\n"
+                    "\tsleep 1\n"
+                    "\tWAIT_COUNT=$((WAIT_COUNT + 1))\n"
+                    "done\n"
+                    "if [ $WAIT_COUNT -ge 300 ]; then\n"
+                    '\techo "ERROR: Timeout waiting for server services for client '
+                    + service.service_name
+                    + '" >> /app/logs/coordination.log\n'
+                    "\texit 1\n"
+                    "fi"
+                )
+                wait_commands.append(wait_script)
+            else:
+                # Other non-tester services just wait for ivy
+                wait_commands.append(
+                    'echo "Ivy compilation complete - '
+                    + service.service_name
+                    + ' ready to proceed" >> /app/logs/coordination.log'
+                )
 
             # Add wait commands to post_compile_cmds if any were defined
             if wait_commands:
@@ -530,7 +533,6 @@ class BaseNetworkEnvironment(INetworkEnvironment, StringRepresentationMixin):
                 ):
                     timeout = service.service_config_to_test.timeout
 
-                # Create packet capture command
                 pcap_file = f"/app/logs/{service_name}.pcap"
                 # Create the pcap file first
                 touch_cmd = f"touch {pcap_file};"

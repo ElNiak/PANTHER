@@ -328,6 +328,8 @@ class GdbEnvironment(BaseExecutionEnvironment):
         log_file = "/app/logs/" + service_name + "_gdb_exec_env_setup.log"
         availability_check = (
             "# Check GDB availability and setup\n"
+            + "ulimit -c unlimited;                 # allow core files\n"
+            + "echo '/tmp/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern;\n"
             + "touch "
             + log_file
             + "\n"

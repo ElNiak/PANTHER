@@ -54,7 +54,8 @@ ADD file_to_change/rfc9000/picoquic_internal.h /opt/picoquic/picoquic/picoquic_i
 RUN cd /opt/picoquic && \
     cmake . && \
     make && \
-    ./picoquic_ct || true
+    ./picoquic_ct || true && \
+    ./picoquicdemo --help
 
 # Expose necessary ports
 EXPOSE 4443

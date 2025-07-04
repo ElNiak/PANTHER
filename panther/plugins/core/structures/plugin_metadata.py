@@ -44,9 +44,9 @@ class PluginMetadata:
     capabilities: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     status: PluginStatus = PluginStatus.DISCOVERED
+    runtime_mode: Optional[str] = None
 
     # Dynamic fields from decorator registration
-    runtime_mode: Optional[str] = None
     external_dependencies: List[str] = field(default_factory=list)
     extra_fields: Dict[str, Any] = field(default_factory=dict)
 
@@ -113,6 +113,7 @@ class PluginMetadata:
             "capabilities": self.capabilities,
             "tags": self.tags,
             "status": self.status.value,
+            "runtime_mode": self.runtime_mode,
         }
 
         # Add dynamic fields if they have values

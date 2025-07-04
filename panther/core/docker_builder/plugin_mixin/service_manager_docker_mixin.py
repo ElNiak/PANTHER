@@ -37,8 +37,6 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
 
         # Initialize lock if not done yet
         if ServiceManagerDockerMixin._base_image_lock is None:
-            import threading
-
             ServiceManagerDockerMixin._base_image_lock = threading.Lock()
 
     def prepare(self, plugin_manager: Optional["PluginManager"] = None) -> None:
@@ -128,18 +126,24 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         #     if not self._base_image_built:
 
         # Determine runtime mode for base image
-        runtime_mode = self._determine_runtime_mode_from_execution_environment()
+        runtime_mode = self._determine_runtime_mode_from_execution_environment(
+            plugin_manager
+        )
 
-        # Build runtime-specific base image tag
-        if runtime_mode == "minimal":
-            base_image_tag = "panther_base_service:latest"
-        else:
-            base_image_tag = f"panther_base_service_{runtime_mode}:latest"
-
-        # Check if image exists using docker_builder
+        # Build base image tag using docker_builder's tag generation logic
         docker_builder = DockerBuilder.get_instance(
             global_config=getattr(self, "global_config", None),
             experiment_context=getattr(plugin_manager, "experiment_context", None),
+        )
+
+        # Use docker_builder's tag generation for consistency
+        base_image_tag = docker_builder.generate_image_tag(
+            impl_name="panther_base_service",
+            version="",
+            tag_version="latest",
+            build_mode="",  # Base image uses default build mode
+            runtime_mode=runtime_mode,
+            target_platform=docker_builder.get_target_platform(),
         )
 
         if (
@@ -179,8 +183,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                 dockerfile_path=base_dockerfile,
                 context_path=base_dockerfile.parent,
                 config={
-                    "RUNTIME_MODE": runtime_mode
-                },  # Pass runtime mode to base image
+                    "build_mode": "",  # Base image uses default build mode
+                    "runtime_mode": runtime_mode,
+                },  # Pass both modes to ensure consistent tag generation
                 tag_version="latest",
             )
             self._base_image_built = True
@@ -227,12 +232,14 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             # Service do not implement get_build_mode, use default
             build_mode = ""
             self.logger.debug(
-                f"No get_build_mode method found, using default build_mode: 'default'"
+                "No get_build_mode method found, using default build_mode: 'default'"
             )
 
         # Extract runtime_mode for 3-stage architecture support
         # First try to get from execution environment plugin
-        runtime_mode = self._determine_runtime_mode_from_execution_environment()
+        runtime_mode = self._determine_runtime_mode_from_execution_environment(
+            plugin_manager
+        )
         self.logger.debug(
             f"Auto-detected runtime_mode from execution environment: '{runtime_mode}'"
         )
@@ -263,8 +270,9 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         elif hasattr(self, "service_config_to_test") and hasattr(
             self.service_config_to_test, "runtime_mode"
         ):
-            override_mode = getattr(self.service_config_to_test, "runtime_mode", None)
-            if override_mode:
+            if override_mode := getattr(
+                self.service_config_to_test, "runtime_mode", None
+            ):
                 self.logger.debug(
                     f"Overriding auto-detected runtime_mode '{runtime_mode}' with service config: '{override_mode}'"
                 )
@@ -291,10 +299,11 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
             tag_version="latest",
             build_mode=build_mode,
             runtime_mode=runtime_mode,
-            target_platform=docker_builder._get_target_platform(),
+            target_platform=docker_builder.get_target_platform(),
         )
 
         # Check if we should force build
+        # TODO: We should consider moving this logic to DockerBuilder
         force_build = False
         if (
             hasattr(self, "global_config")
@@ -319,35 +328,25 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         self.emit_docker_build_started(str(dockerfile_path), expected_image_tag)
 
         try:
-            # Determine the correct base image based on runtime mode
-            if runtime_mode == "minimal":
-                base_image = "panther_base_service:latest"
-            else:
-                base_image = f"panther_base_service_{runtime_mode}:latest"
-
+            # Determine the correct base image using consistent tag generation
             if dependencies is not None:
-                self.logger.debug(
-                    f"Building service image {self.implementation_name} with dependencies: {dependencies}, commit: {commit}, build_mode: '{build_mode}', and base_image: '{base_image}'"
-                )
                 version_dict = {
                     "dependencies": dependencies,
                     "version": base_version,
                     "commit": commit,
                     "build_mode": build_mode,
-                    "RUNTIME_MODE": runtime_mode,
-                    "BASE_IMAGE": base_image,  # Pass base image as build arg
+                    "runtime_mode": runtime_mode,
                 }
             else:
-                self.logger.debug(
-                    f"Building service image {self.implementation_name} with version: {base_version}, build_mode: '{build_mode}', and base_image: '{base_image}'"
-                )
                 version_dict = {
                     "version": base_version,
                     "build_mode": build_mode,
-                    "RUNTIME_MODE": runtime_mode,
-                    "BASE_IMAGE": base_image,  # Pass base image as build arg
+                    "runtime_mode": runtime_mode,
                 }
-
+            self.runtime_mode = runtime_mode
+            self.build_mode = self.docker_builder.validate_build_mode_for_architecture(
+                build_mode
+            )
             self.logger.debug(
                 f"Using version configuration for Docker build: {version_dict}"
             )
@@ -455,15 +454,25 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         """
         self._docker_prepared = False
 
-    def _determine_runtime_mode_from_execution_environment(self) -> str:
+    def _determine_runtime_mode_from_execution_environment(
+        self, plugin_manager: Optional["PluginManager"] = None
+    ) -> str:
         """
         Automatically determine runtime_mode based on execution environment plugin.
+
+        Args:
+            plugin_manager: Plugin manager for accessing plugin metadata
 
         Returns:
             str: Runtime mode (minimal, debug, profile) based on execution environment
         """
         try:
             execution_env_name = None
+
+            # Debug: List all available attributes
+            self.logger.debug(
+                f"Available attributes: {[attr for attr in dir(self) if not attr.startswith('_')]}"
+            )
 
             # Pattern 2: service_config_to_test.test_config.execution_environment (legacy)
             self.logger.debug(
@@ -483,50 +492,175 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
                     execution_env_name = self._extract_env_name_from_config(
                         test_config.execution_environment
                     )
+                    self.logger.debug(
+                        f"Found execution_env_name from service_config_to_test: {execution_env_name}"
+                    )
 
-            # Pattern 3: test_config_to_test.execution_environment
+            # Pattern 3: test_case.execution_environment
             self.logger.debug(
-                "Attempting to determine runtime_mode from test_config_to_test execution environment"
+                "Attempting to determine runtime_mode from test_case execution environment"
             )
-            if (
-                not execution_env_name
-                and hasattr(self, "test_config_to_test")
-                and self.test_config_to_test
-                and (
-                    hasattr(self.test_config_to_test, "execution_environment")
-                    and self.test_config_to_test.execution_environment
+            self.logger.debug(f"test_case available: {hasattr(self, 'test_case')}")
+            if hasattr(self, "test_case") and self.test_case:
+                self.logger.debug(
+                    f"test_case.execution_environment: {getattr(self.test_case, 'execution_environment', 'MISSING')}"
                 )
-            ):
-                execution_env_name = self._extract_env_name_from_config(
-                    self.test_config_to_test.execution_environment
-                )
+                if (
+                    hasattr(self.test_case, "execution_environment")
+                    and self.test_case.execution_environment
+                ):
+                    execution_env_name = self._extract_env_name_from_config(
+                        self.test_case.execution_environment
+                    )
+                    self.logger.debug(
+                        f"Found execution_env_name from test_case: {execution_env_name}"
+                    )
+
+            self.logger.debug(
+                f"Final execution_env_name detected: {execution_env_name}"
+            )
+
+            # Pattern 4: Check plugin_manager for execution environment context
+            if not execution_env_name and plugin_manager:
+                try:
+                    # Check if plugin_manager has experiment_context with execution environment
+                    if hasattr(plugin_manager, "experiment_context"):
+                        experiment_context = plugin_manager.experiment_context
+                        self.logger.debug(
+                            f"Plugin manager experiment_context: {experiment_context}"
+                        )
+                        if experiment_context and hasattr(
+                            experiment_context, "execution_environment"
+                        ):
+                            exec_env_from_context = (
+                                experiment_context.execution_environment
+                            )
+                            self.logger.debug(
+                                f"Execution environment from context: {exec_env_from_context}"
+                            )
+                            self.logger.debug(
+                                f"Type: {type(exec_env_from_context)}, Length: {len(exec_env_from_context) if hasattr(exec_env_from_context, '__len__') else 'N/A'}"
+                            )
+
+                            # Workaround: If experiment_context.execution_environment is empty but we can see it in the string representation,
+                            # try multiple paths to access the execution environment
+                            if not exec_env_from_context and (
+                                hasattr(experiment_context, "omega_config")
+                                and experiment_context.omega_config
+                            ):
+                                omega_config = experiment_context.omega_config
+                                if "execution_environment" in omega_config:
+                                    exec_env_from_context = omega_config[
+                                        "execution_environment"
+                                    ]
+                                    self.logger.debug(
+                                        f"Retrieved from omega_config: {exec_env_from_context}"
+                                    )
+
+                            # Try accessing execution_environment directly from the service's test configuration
+                            if not exec_env_from_context and hasattr(
+                                self, "service_config_to_test"
+                            ):
+                                service_config = self.service_config_to_test
+                                if (
+                                    hasattr(service_config, "test_config")
+                                    and service_config.test_config
+                                ):
+                                    test_config = service_config.test_config
+                                    if hasattr(test_config, "execution_environment"):
+                                        exec_env_from_context = (
+                                            test_config.execution_environment
+                                        )
+                                        self.logger.debug(
+                                            f"Retrieved from service_config test_config: {exec_env_from_context}"
+                                        )
+
+                            # Debug: Show all available attributes on experiment_context
+                            if not exec_env_from_context:
+                                available_attrs = [
+                                    attr
+                                    for attr in dir(experiment_context)
+                                    if not attr.startswith("_")
+                                ]
+                                self.logger.debug(
+                                    f"Available experiment_context attributes: {available_attrs}"
+                                )
+
+                                # Try to understand the actual structure
+                                for attr in [
+                                    "test_config",
+                                    "config",
+                                    "test_case",
+                                    "original_config",
+                                ]:
+                                    if hasattr(experiment_context, attr):
+                                        attr_value = getattr(experiment_context, attr)
+                                        self.logger.debug(
+                                            f"experiment_context.{attr}: {type(attr_value)} = {attr_value}"
+                                        )
+                                        if hasattr(attr_value, "execution_environment"):
+                                            exec_env_candidate = getattr(
+                                                attr_value, "execution_environment"
+                                            )
+                                            self.logger.debug(
+                                                f"Found execution_environment in {attr}: {exec_env_candidate}"
+                                            )
+                                            if exec_env_candidate:
+                                                exec_env_from_context = (
+                                                    exec_env_candidate
+                                                )
+                                                break
+
+                            execution_env_name = self._extract_env_name_from_config(
+                                exec_env_from_context
+                            )
+                            self.logger.debug(
+                                f"Found execution_env_name from plugin_manager: {execution_env_name}"
+                            )
+                except Exception as e:
+                    self.logger.debug(
+                        f"Error accessing plugin_manager experiment_context: {e}"
+                    )
 
             # Auto-discover runtime mode from execution environment type
             # Check plugin metadata to determine if it's debug, profile, or minimal
-            if hasattr(self, "plugin_manager") and self.plugin_manager:
+            if plugin_manager:
                 try:
                     self.logger.debug(
-                        f"Auto-discovering runtime_mode for {execution_env_name}"
+                        f"Auto-discovering runtime_mode for {execution_env_name} using plugin_manager"
                     )
-                    plugin_info = self.plugin_manager.get_plugin(execution_env_name)
-                    if (
-                        plugin_info
-                        and hasattr(plugin_info, "runtime_mode")
-                        and plugin_info.runtime_mode
-                    ):
+                    plugin_info = plugin_manager.get_plugin(execution_env_name)
+                    self.logger.debug(f"Plugin info retrieved: {plugin_info}")
+                    if plugin_info and hasattr(plugin_info, "runtime_mode"):
                         runtime_mode = plugin_info.runtime_mode
                         self.logger.debug(
-                            f"Auto-discovered runtime_mode '{runtime_mode}' from plugin metadata for {execution_env_name}"
+                            f"Plugin {execution_env_name} has runtime_mode attribute: {runtime_mode}"
                         )
-                        return runtime_mode
+                        if runtime_mode:
+                            self.logger.debug(
+                                f"Auto-discovered runtime_mode '{runtime_mode}' from plugin metadata for {execution_env_name}"
+                            )
+                            return runtime_mode
+                        else:
+                            self.logger.debug(
+                                f"runtime_mode is None/empty for {execution_env_name}"
+                            )
                     else:
                         self.logger.debug(
-                            f"No runtime_mode found in plugin metadata for {execution_env_name}"
+                            f"No runtime_mode attribute found in plugin metadata for {execution_env_name}"
                         )
+                        if plugin_info:
+                            self.logger.debug(
+                                f"Available plugin_info attributes: {dir(plugin_info)}"
+                            )
                 except Exception as e:
                     self.logger.debug(
                         f"Exception during plugin metadata lookup for {execution_env_name}: {e}"
                     )
+            else:
+                self.logger.debug(
+                    "No plugin_manager available for runtime_mode detection"
+                )
 
             # Default fallback when plugin metadata unavailable
             self.logger.debug(
@@ -550,22 +684,44 @@ class ServiceManagerDockerMixin(DockerOperationsMixin, CommandEventMixin):
         Returns:
             Optional[str]: Environment name if found, None otherwise
         """
+        self.logger.debug(
+            f"Extracting env name from config: {exec_env} (type: {type(exec_env)})"
+        )
+
         if isinstance(exec_env, list) and len(exec_env) > 0:
             # Current format: execution_environment is a list
             first_env = exec_env[0]
+            self.logger.debug(
+                f"First env in list: {first_env} (type: {type(first_env)})"
+            )
             if hasattr(first_env, "get"):
                 # Dict-like object
-                return first_env.get("type", None)
+                env_name = first_env.get("type", None)
+                self.logger.debug(f"Dict-like extraction result: {env_name}")
+                return env_name
             else:
-                # Object with attributes
-                return getattr(first_env, "type", None)
-        else:
-            # Legacy format: execution_environment is a single object
-            # Try env_sub_type first, then type
-            env_name = getattr(exec_env, "env_sub_type", None)
-            if not env_name and hasattr(exec_env, "type"):
-                env_name = getattr(exec_env, "type", None)
+                # Object with attributes - try multiple possible field names
+                for field_name in ["type", "env_type", "env_sub_type", "name"]:
+                    if hasattr(first_env, field_name):
+                        env_name = getattr(first_env, field_name)
+                        self.logger.debug(
+                            f"Attribute extraction ({field_name}): {env_name}"
+                        )
+                        if env_name:
+                            return env_name
+        elif hasattr(exec_env, "get"):
+            # Single dict-like object
+            env_name = exec_env.get("type", None)
+            self.logger.debug(f"Single dict extraction: {env_name}")
             return env_name
+        elif hasattr(exec_env, "type"):
+            # Single object with type attribute
+            env_name = getattr(exec_env, "type", None)
+            self.logger.debug(f"Single object extraction: {env_name}")
+            return env_name
+
+        self.logger.debug("No env name found, returning None")
+        return None
 
     def get_docker_run_command(
         self,

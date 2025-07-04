@@ -452,6 +452,7 @@ class PluginFactory(LoggerMixin):
         environment_dir: Path,
         output_dir: Path,
         event_manager: EventManager,
+        target_platform: Optional[str] = None,
     ):
         """
         Create an environment manager instance using the exact interface from EnvironmentFactory.
@@ -469,6 +470,7 @@ class PluginFactory(LoggerMixin):
         self.logger.debug("Creating environment manager for %s", environment)
         self.logger.debug("Environment directory: %s", environment_dir)
         self.logger.debug("Output directory: %s", output_dir)
+        self.logger.debug("Target platform: %s", target_platform)
 
         # Get plugin metadata
         plugin_metadata = self.plugin_manager.get_plugin(environment)
@@ -552,10 +554,6 @@ class PluginFactory(LoggerMixin):
                 )
 
                 if config_class and env_config_data:
-                    self.logger.debug(
-                        "Creating %s config instance from resolved class",
-                        config_class.__name__,
-                    )
                     # Convert config data to dict if it's a Pydantic model
                     if hasattr(env_config_data, "dict"):
                         config_dict = env_config_data.dict()
@@ -564,6 +562,10 @@ class PluginFactory(LoggerMixin):
                     else:
                         config_dict = env_config_data
 
+                    self.logger.debug(
+                        "Creating execution environment config from dict with keys: %s",
+                        list(config_dict.keys()) if config_dict else "empty",
+                    )
                     # Create properly typed config instance
                     env_config_to_test = config_class(**config_dict)
                 elif env_config_data:
@@ -605,7 +607,6 @@ class PluginFactory(LoggerMixin):
                         config_dict = env_config_data
                     else:
                         config_dict = {}
-
                     self.logger.debug(
                         "Creating network config from dict with keys: %s",
                         list(config_dict.keys()) if config_dict else "empty",
@@ -628,8 +629,10 @@ class PluginFactory(LoggerMixin):
 
             # Create instance (matching EnvironmentFactory arguments)
             self.logger.debug(
-                "Creating environment manager instance with config: %s",
+                "Creating environment %s instance with config: %s for %s",
+                env_manager_class.__name__,
                 env_config_to_test,
+                target_platform,
             )
 
             env_manager = env_manager_class(
@@ -638,6 +641,7 @@ class PluginFactory(LoggerMixin):
                 env_type=env_type,
                 env_sub_type=env_sub_type,
                 event_manager=event_manager,
+                target_platform=target_platform,
             )
 
             self.logger.info(
