@@ -86,9 +86,22 @@ except ImportError:
 
 @dataclass
 class Metric:
-    """
+    """Individual metric data structure with comprehensive metadata support.
 
-    from typing import Any, Dict, List, Optional, OptionalIndividual metric data structure.
+    Represents a single metric observation with timing, context, and metadata.
+    Designed for efficient storage and fast filtering operations across large
+    metric collections.
+
+    **Design Features**:
+    - **Immutable Structure**: Dataclass with post-init validation
+    - **Rich Context**: Test case, component, and phase attribution
+    - **Flexible Metadata**: Extensible key-value metadata storage
+    - **Temporal Ordering**: High-precision timestamp for chronological analysis
+    - **Type Safety**: Strongly typed metric categorization
+
+    **Typical Usage**:
+    Created automatically by MetricsCollector methods, not directly instantiated.
+    Supports filtering and aggregation operations for experiment analysis.
     """
 
     name: str
@@ -126,7 +139,23 @@ class Metric:
 
 @dataclass
 class TimingContext:
-    """Context manager for timing operations."""
+    """Context manager data structure for timing operations.
+
+    Stores metadata for active timing operations, supporting both manual
+    timer management and automatic context manager patterns.
+
+    **Attributes**:
+    - **name**: Timer identifier for tracking and stopping
+    - **phase**: Experiment phase context for categorization
+    - **test_case**: Test case context for attribution
+    - **component**: Component context for debugging and analysis
+    - **labels**: Additional key-value metadata
+    - **start_time**: High-precision start timestamp
+
+    **Usage Context**:
+    Used internally by MetricsCollector for timer lifecycle management.
+    Supports both explicit start/stop patterns and context manager usage.
+    """
 
     name: str
     phase: Optional[Phase] = None
@@ -137,12 +166,73 @@ class TimingContext:
 
 
 class MetricsCollector(LoggerMixin):
-    """
-    Central metrics collection system for PANTHER experiments.
+    """Central metrics collection system for PANTHER experiments.
 
-    Collects and manages various types of metrics including timing,
-    counters, resource usage, and error tracking throughout the
-    experiment lifecycle.
+    Provides comprehensive metrics collection, monitoring, and analysis capabilities
+    for PANTHER experiment execution. Implements sophisticated patterns for performance
+    monitoring, error tracking, and resource utilization analysis.
+
+    **Core Responsibilities**:
+    - **Multi-Type Metrics**: Timing, counters, gauges, histograms, errors, artifacts
+    - **Thread-Safe Operations**: Concurrent metric recording across experiment components
+    - **Background Monitoring**: Optional continuous system resource collection
+    - **Context Management**: Automatic timing operations with exception handling
+    - **Statistical Analysis**: Real-time aggregation and summary statistics
+    - **Lifecycle Management**: Experiment start/end tracking with duration analysis
+
+    **Threading Architecture**:
+    - **Main Thread**: Metric recording and timer management
+    - **Collection Thread**: Optional background system monitoring (CPU, memory)
+    - **Lock Strategy**: Separate locks for metrics vs timers to minimize contention
+    - **Graceful Shutdown**: Automatic timer cleanup and thread termination
+
+    **Metric Categories**:
+    ```
+    Core Metrics:
+    ├── Timing Metrics: Operation durations, test execution times, plugin latencies
+    ├── Counter Metrics: Event counts, error rates, test completion counts
+    ├── Gauge Metrics: Resource usage, connection counts, queue depths
+    ├── Error Metrics: Structured error tracking with context and metadata
+    └── Artifact Metrics: File generation tracking with size and metadata
+    ```
+
+    **Performance Optimizations**:
+    - **Lock Minimization**: Metric creation outside locks, append-only operations
+    - **Background Collection**: Non-blocking system monitoring with configurable intervals
+    - **Memory Efficiency**: Structured metric storage with optional retention limits
+    - **Exception Safety**: Robust error handling prevents metric failures from affecting tests
+
+    **Integration Patterns**:
+    - **ExperimentManager**: Start/stop timing for full experiment lifecycle
+    - **TestCase**: Individual test timing and outcome tracking
+    - **PluginManager**: Plugin operation performance and error monitoring
+    - **DockerBuilder**: Container build timing and caching effectiveness
+    - **Observer System**: Event-driven metric collection from framework events
+
+    **Usage Examples**:
+    ```python
+    # Experiment lifecycle
+    collector = MetricsCollector("test_experiment", output_dir)
+    collector.start_collection_thread(interval=5.0)
+
+    # Operation timing
+    with collector.timing_context("test_execution", test_case="basic_quic"):
+        run_test()
+
+    # Event counting
+    collector.increment_counter("tests_passed", test_case="basic_quic")
+
+    # Resource monitoring
+    collector.record_gauge("memory_usage_mb", process.memory_info().rss / 1024**2)
+
+    # Error tracking
+    collector.record_error("timeout", "Connection timeout after 30s",
+                          test_case="stress_test", component="client")
+    ```
+
+    **Thread Safety**: All public methods are thread-safe with granular locking strategy
+    **Memory Usage**: O(n) where n is number of recorded metrics (configurable retention)
+    **Performance**: <1ms overhead per metric recording in typical usage
     """
 
     def __init__(

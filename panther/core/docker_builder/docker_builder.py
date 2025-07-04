@@ -542,6 +542,19 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
 
         return build_mode
 
+    def _get_cache_key_suffix(self) -> str:
+        """
+        Generate cache key suffix based on target platform for cache isolation.
+
+        This ensures that builds for different platforms (e.g., linux/amd64, linux/arm64)
+        use separate cache directories, preventing architecture conflicts.
+
+        Returns:
+            str: Cache key suffix (e.g., '-linux-amd64', '-linux-arm64')
+        """
+        platform = self._get_target_platform().replace("/", "-")
+        return f"-{platform}"
+
     def _build_with_buildx(
         self,
         impl_name: str,
@@ -635,6 +648,8 @@ class DockerBuilder(DockerBuildCacheMixin, LoggerMixin, ErrorHandlerMixin):
                 "BUILD_MODE": build_mode,
                 "RUNTIME_MODE": config.get("runtime_mode", "minimal"),
                 "BASE_IMAGE": config.get("BASE_IMAGE", "panther_base_service:latest"),
+                "TARGETPLATFORM": self._get_target_platform(),
+                "BUILDPLATFORM": self._get_host_platform(),
             }
 
             # Calculate relative path from context to dockerfile
