@@ -1,0 +1,71 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: atlas-redis-integrated
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  atlas-commands:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: atlas-commands-mcp:latest
+    container_name: atlas-commands-mcp-v2
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+      # Pass project name from host
+      - PROJECT_NAME=${PROJECT_NAME:-Software-Engineer-AI-Agent-Atlas}
+      # Atlas home configuration (centralized output directory)
+      - ATLAS_HOME=/app/.atlas
+      # Fast startup configuration
+      - ATLAS_STARTUP_MODE=fast
+      - ATLAS_LAZY_LOADING=true
+      # Cache configuration (configurable cache parameters)
+      - ATLAS_L1_CACHE_SIZE=${ATLAS_L1_CACHE_SIZE:-128}
+      - ATLAS_L2_TTL=${ATLAS_L2_TTL:-3600}
+      - ATLAS_L3_TTL=${ATLAS_L3_TTL:-86400}
+      # Performance configuration
+      - ATLAS_MAX_CONCURRENT_TOOLS=${ATLAS_MAX_CONCURRENT_TOOLS:-10}
+      - ATLAS_TOOL_TIMEOUT=${ATLAS_TOOL_TIMEOUT:-60.0}
+      # Token optimization configuration (auto mode for intelligent optimization)
+      - ATLAS_TOKEN_MODE=auto
+      - ATLAS_COMPRESSION_STRATEGY=adaptive
+      - ATLAS_COMPRESSION_MIN_SIZE=500
+      - ATLAS_COMPRESSION_ENABLE_LEARNING=true
+      - ATLAS_COMPRESSION_DEFAULT_QUALITY=0.85
+      # Hierarchical cache configuration
+      - ATLAS_PROJECT_ID=${PROJECT_NAME:-Software-Engineer-AI-Agent-Atlas}
+      - ATLAS_CACHE_MODE=hierarchical
+      - ATLAS_WORKSPACE_ISOLATION=${ATLAS_WORKSPACE_ISOLATION:-false}
+      # Coordination system configuration
+      - ATLAS_COORDINATION_MODE=enabled
+      - ATLAS_MEMORY_ISOLATION=strict
+      - ATLAS_CROSS_PROJECT_SHARING=high_entropy_only
+      # Redis configuration
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      # Mount host Atlas home directory to container (centralized output)
+      - ${ATLAS_HOME:-~/.atlas}:/app/.atlas:rw
+      # Mount for configuration
+      - ./config:/app/config:ro
+      # HuggingFace cache sharing (under Atlas home)
+      - ${ATLAS_HOME:-~/.atlas}/models:/root/.cache/huggingface:rw
+    stdin_open: true
+    tty: true
+    # For MCP stdio communication
+    command: python -m atlas_commands.server
+    # Security: Run as same UID as host user to avoid permission issues
+    user: "${UID:-1000}:${GID:-1000}"
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
