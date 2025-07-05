@@ -857,7 +857,6 @@ class PluginManager(LoggerMixin):
         emitter_registry=None,
         global_config=None,
         experiment_context=None,
-        test_case=None,  # Reference to parent test case for execution environment access
     ) -> IServiceManager:
         """Create a service manager instance with cache validation."""
         # Validate cache before creating service manager
@@ -924,7 +923,6 @@ class PluginManager(LoggerMixin):
             emitter_registry=emitter_registry,
             global_config=config_to_use,
             experiment_context=experiment_context,
-            test_case=test_case,  # Pass test case reference through to factory
         )
 
     def create_environment_manager(
@@ -953,6 +951,7 @@ class PluginManager(LoggerMixin):
             environment_dir=environment_dir,
             output_dir=output_dir,
             event_manager=event_manager,
+            target_platform=self.docker_builder.get_target_platform(),
         )
 
     def create_observer_plugin(self, plugin_name: str, *args, **kwargs):

@@ -90,6 +90,33 @@ observers:
     track_timing: true
     track_steps: true
 
+# Fast-Fail Configuration: Selective Error Type Configuration
+fast_fail:
+  enabled: true                      # Global fast-fail enabled
+  test_level: false                   # Enable per-test control
+
+  # Critical infrastructure errors - always fail fast
+  docker_build_failures: true       # Critical - container build issues
+  docker_runtime_failures: true     # Critical - container runtime issues
+  resource_exhaustion: true         # Critical - system resource issues
+  network_setup_failures: true      # Critical - network infrastructure
+  configuration_failures: true      # Critical - invalid configurations
+
+  # Service-level errors - configurable
+  service_start_failures: true      # High priority - service startup
+  port_conflict_failures: true      # High priority - network conflicts
+  certificate_failures: true        # High priority - TLS/security issues
+
+  # Test-specific errors - more permissive
+  ivy_compilation_failures: false   # Allow Ivy compilation to continue
+  timeout_cascades: true           # Still detect cascades
+
+  # Advanced settings
+  critical_only: false              # Don't limit to critical only
+  max_errors_before_fail: 15        # Higher tolerance for testing
+  timeout_cascade_threshold: 4      # More permissive cascade detection
+  disk_space_threshold_gb: 0.5      # Lower disk space threshold
+
 paths:
   output_dir: "outputs"
   log_dir: "outputs/logs"
@@ -99,7 +126,7 @@ paths:
 docker:
   force_build_docker_image: true
   log_docker_image_build: true  # Enable Docker build log files
-  use_buildx: false
+  use_buildx: true
 
 tests:
   - name: "QUIC Client-Server Communication Test"
@@ -155,6 +182,96 @@ tests:
     iterations: 1
     execution_environment:
       - type: "gdb"
+    services:
+      picoquic_server:
+        timeout: 200
+        name: "picoquic_server"  # Added 'name' key
+        implementation:
+          name: "picoquic"
+          type: "IUT"
+          # swag: swag # Invalid key
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "6443:4443"  # QUIC server port (external:internal)
+          - "6080:8080"  # Health check endpoint
+        generate_new_certificates: True
+
+      ivy_client:
+        name: "ivy_client"  # Added 'name' key
+        timeout: 200
+        implementation:
+          type: "TESTERS"
+          name: "panther_ivy"
+          test: quic_server_test_stream
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "picoquic_server"  # Docker Compose service name
+        ports:
+          - "7001:5001"  # Client management port
+          - "7080:8081"  # Client health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 200  # seconds to wait during the test
+
+  - name: "QUIC Client-Server Communication Test MemCheck"
+    description: "Verify that the Picoquic client can communicate with the Ivy server over docker-compose network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    execution_environment:
+      - type: "memcheck"
+        trace_all_syscalls: True  # Ena le tracing of all syscalls
+    services:
+      picoquic_client:
+        timeout: 200
+        name: "picoquic_client"  # Added 'name' key
+        implementation:
+          name: "picoquic"
+          type: "iut"
+          # swag: swag # Invalid key
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "client"
+          target: "ivy_server"  # Docker Compose service name
+          # target: "ivy_server"  # Duplicate key
+        ports:
+          - "5001:5001"  # Client management port
+          - "8082:8082"  # Client health check port
+        generate_new_certificates: True
+
+      ivy_server:
+        name: "ivy_server"  # Added 'name' key
+        timeout: 200
+        implementation:
+          build_mode: "rel-lto"
+          type: "testers"
+          name: "panther_ivy"
+          test: quic_client_test_max
+        protocol:
+          name: "quic"
+          version: "rfc9000"
+          role: "server"
+        ports:
+          - "4443:4443"  # Server QUIC port
+          - "8080:8080"  # Health check endpoint
+        generate_new_certificates: True
+    steps:
+      wait: 200  # seconds to wait during the test
+
+  - name: "QUIC Server-Client Communication Test Gprf CPU"
+    description: "Verify that the Picoquic server can communicate with the Ivy client over Shadow network."
+    network_environment:
+      type: "docker_compose"  # Environment plugin name
+    iterations: 1
+    execution_environment:
+      - type: "gperf_cpu"
     services:
       picoquic_server:
         timeout: 200

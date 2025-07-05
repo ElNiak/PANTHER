@@ -262,6 +262,7 @@ class DockerComposeEnvironment(
         env_type: str,
         env_sub_type: str,
         event_manager: EventManager,
+        target_platform: str = None,
     ):
         # First initialize all parent classes including StandardOutputCollectorMixin and IObserver
         super().__init__(
@@ -458,7 +459,7 @@ class DockerComposeEnvironment(
         from panther.core.docker_builder import DockerBuilder
 
         docker_builder = DockerBuilder.get_instance(global_config=self.global_config)
-        computed_target_platform = docker_builder._get_target_platform()
+        computed_target_platform = docker_builder.get_target_platform()
 
         self.generate_from_template(
             template_name="docker-compose.yml.jinja",

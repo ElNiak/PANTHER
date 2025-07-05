@@ -176,6 +176,13 @@ class INetworkEnvironment(IEnvironmentPlugin):
         )
         self.jinja_env.filters["realpath"] = lambda x: os.path.abspath(x)
         self.jinja_env.filters["is_dict"] = lambda x: isinstance(x, dict)
+
+        # Add regex_replace filter for Docker image name sanitization
+        import re
+
+        self.jinja_env.filters[
+            "regex_replace"
+        ] = lambda value, pattern, replacement: re.sub(pattern, replacement, str(value))
         self.jinja_env.trim_blocks = True
         self.jinja_env.lstrip_blocks = True
 

@@ -6,6 +6,7 @@
 ARG TARGETPLATFORM=linux/amd64
 ARG BUILDPLATFORM=linux/amd64
 ARG RUNTIME_MODE=minimal
+ARG TARGETPLATFORM=linux/amd64
 
 # =============================================================================
 # STAGE 1: BUILDER - Build tools and dependencies
@@ -24,7 +25,13 @@ RUN --mount=type=cache,target=/var/cache/apt-${TARGETPLATFORM//\//-},sharing=loc
     openssl libssl-dev pkg-config python3 \
     clang automake autoconf libtool \
     wget curl sudo \
-    libc6-dev libdw1 libelf1 libunwind-dev
+    libc6-dev libdw1 libelf1 libunwind-dev \
+    net-tools tcpdump iperf iperf3 traceroute \
+    wireshark tshark libcap2-bin \
+    iputils-ping iproute2 netcat-openbsd \
+    curl dnsutils automake autoconf libtool pkg-config libssl-dev \
+    cmake build-essential
+
 
 # Build gperftools from source with platform-specific cache (needed for profiling)
 RUN --mount=type=cache,target=/tmp/git-cache-${TARGETPLATFORM//\//-},sharing=locked \

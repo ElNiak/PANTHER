@@ -102,14 +102,11 @@ class ObserverManagementMixin:
         try:
             metrics_id = f"test_metrics_{self.test_name}"
 
-            # Check if any metrics observer already exists (experiment-level or test-specific)
-            existing_metrics_observers = [
+            if existing_metrics_observers := [
                 obs_id
                 for obs_id in ["experiment_metrics", metrics_id]
                 if self.event_manager.has_observer(obs_id)
-            ]
-
-            if existing_metrics_observers:
+            ]:
                 self.logger.debug(
                     f"Metrics observer already exists: {existing_metrics_observers[0]}. Skipping test-specific metrics observer to avoid duplicates."
                 )
@@ -118,7 +115,6 @@ class ObserverManagementMixin:
             # Check if test-specific observer already exists
             if not self.event_manager.has_observer(metrics_id):
                 self.logger.info("Creating enhanced metrics observer")
-
                 # Get metrics observer log level
                 metrics_log_level = (
                     self.global_config.observers.metrics.log_level

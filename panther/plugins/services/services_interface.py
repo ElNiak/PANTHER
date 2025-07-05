@@ -240,6 +240,9 @@ class IServiceManager(IPlugin, CommandEventMixin):
         # Test context to track which test this service belongs to
         self._test_context = None
 
+        self.build_mode = ""
+        self.runtime_mode = "minimal"
+
     def set_test_context(self, test_name: str) -> None:
         """
         Set the test context for this service manager.
@@ -379,6 +382,7 @@ class IServiceManager(IPlugin, CommandEventMixin):
                 # Set IS_CLIENT: "1" for client role, "0" for server role
                 is_client = "1" if role_str == "client" else "0"
                 self.environments["IS_CLIENT"] = is_client
+                self.role = role_str  # Set the role attribute
                 self.logger.debug(
                     f"Set IS_CLIENT={is_client} based on role '{role}' for service {self.service_name}"
                 )

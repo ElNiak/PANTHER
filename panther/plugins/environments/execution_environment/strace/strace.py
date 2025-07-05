@@ -519,11 +519,7 @@ class StraceEnvironment(BaseExecutionEnvironment):
         # Add strace availability check
         plugin_config = self._get_plugin_config()
         strace_binary = plugin_config.strace_binary
-        availability_check = f"""# Confirm dynamic linker and runtime availability
-ls -l /lib64/ld-linux-x86-64.so.2 || echo 'Dynamic linker not found' >> /app/logs/{service_name}_strace_exec_env_setup.log
-ls -l /lib64/libc.so.6 || echo 'C library not found' >> /app/logs/{service_name}_strace_exec_env_setup.log
-file $(which strace) || echo 'strace binary not found' >> /app/logs/{service_name}_strace_exec_env_setup.log
-# inside the container or host
+        availability_check = f"""
 ulimit -c unlimited;                 # allow core files
 echo '/tmp/core.%e.%p' | sudo tee /proc/sys/kernel/core_pattern;
 # Check if strace is available

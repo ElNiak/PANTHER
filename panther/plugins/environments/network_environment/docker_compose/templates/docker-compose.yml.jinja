@@ -5,12 +5,29 @@ services:
   {{ service.service_name  }}:
 {# Follow same logic as service_manager_docker_mixin.py #}
 {% set base_version = service.service_protocol.version or 'latest' %}
-{% set build_mode_suffix = ('_' + service.build_mode) if service.build_mode else '' %}
-{% set version = base_version + build_mode_suffix %}
-{% if version %}
-  {% set image_name = service.implementation_name + '_' + version %}
-{% else %}
-  {% set image_name = service.implementation_name %}
+{% set build_suffix = ('-' + service.build_mode) if service.build_mode else '' %}
+{% set runtime_suffix = ('-' + service.runtime_mode) if service.runtime_mode and service.runtime_mode != 'minimal' else '' %}
+{% set platform_suffix = ('-' + additional_param.computed_target_platform) if additional_param.computed_target_platform else '' %}
+{% set base_name = (service.implementation_name + '-' + base_version) if base_version else service.implementation_name %}
+{% set tag_version = 'latest' %}
+{% set image_name = base_name + ':' + tag_version + build_suffix + runtime_suffix + platform_suffix %}
+{# Sanitize the image name to meet Docker naming requirements #}
+{% set image_name = image_name.lower() %}
+{% set image_name = image_name | regex_replace('[^a-z0-9._:-]', '-') %}
+{% set image_name = image_name | regex_replace('^[.-]+', '') %}
+{% if image_name | length > 128 %}
+  {% set parts = image_name.split(':') %}
+  {% if parts | length == 2 %}
+    {% set name_part = parts[0] %}
+    {% set tag_part = parts[1] %}
+    {% set max_name_length = 128 - tag_part | length - 1 %}
+    {% if name_part | length > max_name_length %}
+      {% set name_part = name_part[:max_name_length] %}
+    {% endif %}
+    {% set image_name = name_part + ':' + tag_part %}
+  {% else %}
+    {% set image_name = image_name[:128] %}
+  {% endif %}
 {% endif %}
 {% if additional_param.docker_config and additional_param.docker_config.pull_policy in ['never', 'build'] %}
     build:
